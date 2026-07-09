@@ -74,13 +74,23 @@ export type Filter =
       [field: string]: FieldFilter | undefined;
     };
 
-/** Модификаторы выборки цепочки: .limit() / .offset() / .sort(). */
+/** Курсор keyset-пагинации: значение поля сортировки + id последней строки страницы. */
+export interface Cursor {
+  v: string | number;
+  id: string;
+}
+
+/** Модификаторы выборки цепочки: .limit() / .offset() / .sort() / .asOf() / .after(). */
 export interface ChainMods {
   limit?: number;
   offset?: number;
   /** 'updated' | 'data.<поле>' (каст по типу поля последнего шага). */
   order?: string;
   desc?: boolean;
+  /** Чтение «как было на момент T»: ISO-строка или Date. */
+  asOf?: string;
+  /** Keyset-пагинация от курсора (требует sort). */
+  after?: Cursor;
 }
 
 // --- служебные таблицы (auth/ACL) --------------------------------------------
@@ -137,4 +147,6 @@ export interface ConnectOpts {
   owner?: string;
   /** Размер пула соединений. Default 10. */
   max?: number;
+  /** Жёсткая изоляция арендатора: чтения фильтруются по account, записи пришпилены к нему. */
+  enforceAccount?: boolean;
 }

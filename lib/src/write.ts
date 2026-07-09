@@ -140,6 +140,9 @@ const noFilter = (f?: Filter): boolean => f === undefined;
 
 /** Entity.account NOT NULL: модификатор → connect() → System-аккаунт; иначе ошибка. */
 function resolveAccount(ctx: Ctx, step: Step): string {
+  if (ctx.enforceAccount && ctx.account && step.accountFilter && step.accountFilter !== ctx.account) {
+    throw new Error(`entity-chain: enforceAccount is on — writes are pinned to account ${ctx.account}`);
+  }
   const acc = step.accountFilter ?? ctx.account ?? ctx.systemAccount;
   if (!acc) {
     throw new Error(
@@ -252,6 +255,36 @@ export async function setOp(
       tags: tagsValue(target) ?? [], account, owner, prevUpdated: null, deleted: null,
     }),
   ];
+}
+
+/**
+ * .anonymize(fields): GDPR-затирание — новая версия с '[erased]' в указанных string-полях
+ * + тег 'anonymized'. Только string-поля (по Schema); история сохраняется (см. README).
+ */
+export async function anonymizeOp(ctx: Ctx, steps: Step[], mods: ChainMods, fields: string[]): Promise<Row[]> {
+  const target = steps[steps.length - 1];
+  const cls = target.cls;
+  for (const f of fields) {
+    if (cls.fieldTypes.get(f)?.kind !== 'string') {
+      throw new Error(`entity-chain: anonymize() erases string fields only; "${f}" is ${cls.fieldTypes.get(f)?.kind ?? 'unknown'}`);
+    }
+  }
+  const contextLinks = await resolveContext(ctx, steps.slice(0, -1));
+  const found = await readRows(ctx, [targetStep(target, contextLinks)], mods);
+  const out: Row[] = [];
+  for (const row of found) {
+    const patch = Object.fromEntries(fields.filter((f) => f in row.data).map((f) => [f, '[erased]']));
+    const mergedData = deepMerge(row.data, patch);
+    const full = validate(cls, row.id, mergedData, row.links);
+    out.push(
+      await insertOne(ctx, {
+        id: row.id, cls, data: full, links: row.links,
+        tags: [...new Set([...row.tags, 'anonymized'])],
+        account: row.account, owner: row.owner, prevUpdated: row.updated, deleted: null,
+      }),
+    );
+  }
+  return out;
 }
 
 /** Транзакционная обёртка: в tr исполняем как есть, вне — sql.begin. */

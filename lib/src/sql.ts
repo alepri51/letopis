@@ -32,6 +32,8 @@ export interface Ctx {
   owner?: string;
   /** System-аккаунт — fallback для NOT NULL Entity.account (загружается при connect). */
   systemAccount?: string;
+  /** Жёсткая изоляция арендатора: все чтения фильтруются, записи пришпилены к account. */
+  enforceAccount?: boolean;
   /** true внутри db.begin()-транзакции (write не оборачивает в begin повторно). */
   inTx?: boolean;
 }
@@ -261,7 +263,7 @@ export function resolveHop(prev: ClassDef, next: ClassDef): HopMode {
   throw new Error(`entity-chain: LINK → LINK traversal is not supported (${prev.id} → ${next.id})`);
 }
 
-export type ReadMode = 'paths' | 'rows' | 'ids' | 'count';
+export type ReadMode = 'paths' | 'rows' | 'ids' | 'count' | 'versions';
 
 export interface BuiltQuery {
   text: string;
@@ -270,15 +272,28 @@ export interface BuiltQuery {
   keys: string[];
 }
 
+function sortField(alias: string, cls: ClassDef, order: string): string {
+  if (order === 'updated') return `${alias}.updated`;
+  if (order.startsWith('data.')) {
+    const field = order.slice(5);
+    return `(${alias}.data->>'${escLit(field)}')${castOf(cls.fieldTypes.get(field))}`;
+  }
+  throw new Error(`entity-chain: order must be 'updated' or 'data.<field>'`);
+}
+
 function orderExpr(alias: string, cls: ClassDef, mods: ChainMods): string {
   if (!mods.order) return '';
-  let expr: string;
-  if (mods.order === 'updated') expr = `${alias}.updated`;
-  else if (mods.order.startsWith('data.')) {
-    const field = mods.order.slice(5);
-    expr = `(${alias}.data->>'${escLit(field)}')${castOf(cls.fieldTypes.get(field))}`;
-  } else throw new Error(`entity-chain: order must be 'updated' or 'data.<field>'`);
-  return ` ORDER BY ${expr}${mods.desc ? ' DESC' : ''}`;
+  return ` ORDER BY ${sortField(alias, cls, mods.order)}${mods.desc ? ' DESC' : ''}`;
+}
+
+/** Keyset-пагинация: (поле сортировки, id) строго после курсора. Требует .sort(). */
+function afterCond(alias: string, cls: ClassDef, mods: ChainMods, p: Params): string {
+  if (!mods.after) return '';
+  if (!mods.order) throw new Error('entity-chain: .after(cursor) requires .sort(field)');
+  const expr = sortField(alias, cls, mods.order);
+  const cast = mods.order === 'updated' ? '::timestamptz' : castOf(cls.fieldTypes.get(mods.order.slice(5)));
+  const cmp = mods.desc ? '<' : '>';
+  return ` WHERE (${expr}, ${alias}.id) ${cmp} (${p.push(mods.after.v)}${cast}, ${p.push(mods.after.id)})`;
 }
 
 /** Построить читающий запрос по цепочке. */
@@ -306,7 +321,15 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
       f.candFrags.push(frag);
       f.finalFrags.push(frag);
     }
-    for (const [col, val] of [['account', step.accountFilter], ['owner', step.ownerFilter]] as const) {
+    // enforceAccount: изоляция арендатора на КАЖДОМ шаге (явный .account(чужой) — ошибка)
+    let accFilter = step.accountFilter;
+    if (ctx.enforceAccount && ctx.account) {
+      if (accFilter && accFilter !== ctx.account) {
+        throw new Error(`entity-chain: enforceAccount is on — reads are pinned to account ${ctx.account}`);
+      }
+      accFilter = ctx.account;
+    }
+    for (const [col, val] of [['account', accFilter], ['owner', step.ownerFilter]] as const) {
       if (val === undefined) continue;
       const ph = p.push(val);
       const frag: Frag = (a) => `${a}.${col} = ${ph}::uuid`;
@@ -315,7 +338,9 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
     }
 
     const innerWhere = [`e.partition = ${pPart}`, `e.class = ${pCls}`];
-    const outerWhere = ['t.deleted IS NULL'];
+    if (mods.asOf !== undefined) innerWhere.push(`e.updated <= ${p.push(mods.asOf)}::timestamptz`); // «как было на T»
+    // versions: последний шаг включает и удалённые сущности (история существует после delete)
+    const outerWhere = [mode === 'versions' && i === steps.length - 1 ? 'TRUE' : 't.deleted IS NULL'];
     const candWhere: string[] = f.candFrags.map((fr) => fr('c'));
 
     for (const c of f.idConds) innerWhere.push(c('e'));
@@ -374,6 +399,7 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
       const obj = keys.map((k, i) => `${p.push(k)}::text, to_jsonb(h${i})`).join(', ');
       text =
         `SELECT jsonb_build_object(${obj}) AS path\n${fromClause}` +
+        afterCond(`h${last}`, lastCls, mods, p) +
         orderExpr(`h${last}`, lastCls, mods) +
         limitOffset;
       break;
@@ -384,7 +410,21 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
         `SELECT DISTINCT ON (h${last}.id) h${last}.* \n${fromClause}\n` +
         `ORDER BY h${last}.id, h${last}.updated DESC`;
       const sel = mode === 'rows' ? 'to_jsonb(z) AS row' : 'z.id';
-      text = `SELECT ${sel} FROM (${inner}) z` + orderExpr('z', lastCls, mods) + limitOffset;
+      text =
+        `SELECT ${sel} FROM (${inner}) z` +
+        afterCond('z', lastCls, mods, p) +
+        orderExpr('z', lastCls, mods) +
+        limitOffset;
+      break;
+    }
+    case 'versions': {
+      // ВСЕ версии (включая tombstone) сущностей последнего шага, по возрастанию updated
+      const inner = `SELECT DISTINCT h${last}.id \n${fromClause}`;
+      text =
+        `SELECT to_jsonb(v) AS row FROM (${inner}) z ` +
+        `JOIN ${ent} v ON v.partition = ${pPart} AND v.class = ${p.push(lastCls.id)} AND v.id = z.id ` +
+        `ORDER BY v.id, v.updated` +
+        limitOffset;
       break;
     }
     case 'count':

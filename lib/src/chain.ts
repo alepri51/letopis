@@ -8,7 +8,7 @@
  */
 import type { Row, Path, Filter, ChainMods } from './types.js';
 import { buildRead, type Ctx, type Step } from './sql.js';
-import { setOp, delOp, executeBatch, toRow, type BatchOp } from './write.js';
+import { setOp, delOp, anonymizeOp, executeBatch, toRow, type BatchOp } from './write.js';
 import { beginTx, lock, type TxCtx } from './tx.js';
 import { makeTables, type Tables } from './tables.js';
 import type { Registry } from './schema.js';
@@ -31,6 +31,14 @@ export interface ChainCore {
   offset(n: number): Chain;
   /** Сортировка по полю последнего шага: 'updated' | 'data.<поле>' (каст по типу из Schema). */
   sort(field: string, dir?: 'asc' | 'desc' | boolean): Chain;
+  /** Чтение «как было на момент T» (ISO-строка или Date): версии позже T невидимы. */
+  asOf(t: string | Date): Chain;
+  /** Keyset-пагинация: строго после курсора (см. cursorOf). Требует .sort(). */
+  after(cursor: import('./types.js').Cursor): Chain;
+  /** ВСЕ версии сущностей последнего шага (включая tombstone → $deleted), по возрастанию updated. */
+  versions(): Promise<Row[]>;
+  /** GDPR: новая версия с затёртыми string-полями ('[erased]') + тег 'anonymized'. История остаётся (см. README). */
+  anonymize(fields: string[]): Promise<Row[]>;
   /** Переименовать ключ ТЕКУЩЕГО шага в выводе путей. */
   alias(name: string): Chain;
   /** Колонка tags: строка | string[] (все) | has/hasAny/hasAll. В set() — значение тегов. */
@@ -203,7 +211,7 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batchQueue?: BatchO
           };
         case 'count':
           return async () => {
-            const q = buildRead(ctx, steps, {}, 'count');
+            const q = buildRead(ctx, steps, mods, 'count');
             const res = (await ctx.sql.unsafe(q.text, q.params as never[])) as unknown as { n: number }[];
             return res[0].n;
           };
@@ -214,6 +222,22 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batchQueue?: BatchO
         case 'sort':
           return (field: string, dir?: 'asc' | 'desc' | boolean) =>
             withMods({ order: field, desc: dir === true || dir === 'desc' });
+        case 'asOf':
+          return (t: string | Date) => withMods({ asOf: t instanceof Date ? t.toISOString() : t });
+        case 'after':
+          return (cursor: ChainMods['after']) => withMods({ after: cursor });
+        case 'versions':
+          return async () => {
+            const q = buildRead(ctx, steps, mods, 'versions');
+            const res = (await ctx.sql.unsafe(q.text, q.params as never[])) as unknown as { row: never }[];
+            return res.map((r) => {
+              const raw = r.row as { deleted: string | null };
+              const row = toRow(r.row);
+              return raw.deleted ? { ...row, $deleted: true as const } : row;
+            });
+          };
+        case 'anonymize':
+          return (fields: string[]) => anonymizeOp(ctx, steps, mods, fields);
         case 'alias':
           return (name: string) => withLast({ aliasKey: name });
         case 'tags':

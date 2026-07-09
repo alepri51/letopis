@@ -11,7 +11,11 @@ import type { Ctx } from './sql.js';
 import type { ConnectOpts } from './types.js';
 
 export async function connect(opts: ConnectOpts): Promise<EntityDb> {
-  const sql = postgres(opts.dsn, { max: opts.max ?? 10 });
+  // timestamptz — строкой (JS Date режет микросекунды → ломал бы asOf/cursorOf по updated)
+  const sql = postgres(opts.dsn, {
+    max: opts.max ?? 10,
+    types: { timestamptz: { to: 1184, from: [1184], serialize: (v: string) => v, parse: (v: string) => v } },
+  });
   const partition = opts.partition ?? 'entity';
   const registry = await loadRegistry(sql, opts.schema, partition);
 
@@ -29,8 +33,15 @@ export async function connect(opts: ConnectOpts): Promise<EntityDb> {
     account: opts.account,
     owner: opts.owner,
     systemAccount: sys[0]?.id,
+    enforceAccount: opts.enforceAccount,
   };
   return makeDb(ctx);
+}
+
+/** Курсор keyset-пагинации из последней строки страницы (field как в .sort()). */
+export function cursorOf(row: import('./types.js').Row, field: string = 'updated'): import('./types.js').Cursor {
+  const v = field === 'updated' ? row.updated : (row.data[field.slice(5)] as string | number);
+  return { v, id: row.id };
 }
 
 // операторы фильтров
@@ -41,7 +52,7 @@ export {
 
 // типы
 export type {
-  Row, Path, Filter, ChainMods, ConnectOpts,
+  Row, Path, Filter, ChainMods, Cursor, ConnectOpts,
   Account, Credential, Resource, Rule,
 } from './types.js';
 export type { EntityDb, EntityTx, Chain, Batch } from './chain.js';
