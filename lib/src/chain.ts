@@ -1,8 +1,12 @@
 /**
  * Dot-цепочки: db.Сотрудник({name:'Вася'}).навык().Услуга().execute()
  * db и цепочка — Proxy над реестром классов (id и alias работают одинаково).
+ *
+ * Выборка настраивается модификаторами: .limit(n) .offset(n) .sort(field, dir?)
+ * Колонки — модификаторами: .tags(…) .account(…) .owner(…); ключ путей — .alias(…).
+ * Запись: .set(data) — связи задаются контекст-шагами цепочки; .delete().
  */
-import type { Row, Path, Filter, ExecOpts, SetOpts, DelOpts } from './types.js';
+import type { Row, Path, Filter, ChainMods } from './types.js';
 import { buildRead, type Ctx, type Step } from './sql.js';
 import { setOp, delOp, executeBatch, toRow, type BatchOp } from './write.js';
 import { beginTx, lock, type TxCtx } from './tx.js';
@@ -15,25 +19,43 @@ import type { Registry } from './schema.js';
 
 export interface ChainCore {
   /** Пути: [{шаг1: Row, шаг2: Row, …}, …] — все узлы каждого варианта. */
-  execute(opts?: ExecOpts): Promise<Path[]>;
+  execute(): Promise<Path[]>;
   /** Уникальные сущности последнего шага. */
-  rows(opts?: ExecOpts): Promise<Row[]>;
-  first(opts?: ExecOpts): Promise<Row | null>;
-  ids(opts?: ExecOpts): Promise<string[]>;
+  rows(): Promise<Row[]>;
+  first(): Promise<Row | null>;
+  ids(): Promise<string[]>;
   count(): Promise<number>;
+  /** Максимум строк/путей. */
+  limit(n: number): Chain;
+  /** Пропустить N. */
+  offset(n: number): Chain;
+  /** Сортировка по полю последнего шага: 'updated' | 'data.<поле>' (каст по типу из Schema). */
+  sort(field: string, dir?: 'asc' | 'desc' | boolean): Chain;
   /** Переименовать ключ ТЕКУЩЕГО шага в выводе путей. */
   alias(name: string): Chain;
-  /** Фильтр текущего шага по колонке tags: строка | string[] (все) | has/hasAny/hasAll. */
+  /** Колонка tags: строка | string[] (все) | has/hasAny/hasAll. В set() — значение тегов. */
   tags(v: string | string[] | object): Chain;
-  /** Фильтр текущего шага по колонке account (uuid или Row). */
+  /** Колонка account (uuid или Row/Account). В set()-insert — значение. */
   account(v: string | { id: string }): Chain;
-  /** Фильтр текущего шага по колонке owner (uuid или Row). */
+  /** Колонка owner (uuid или Row/Account). В set()-insert — значение. */
   owner(v: string | { id: string }): Chain;
-  /** insert / update / upsert (см. README). В батче — ставится в очередь. */
-  set(data: Record<string, unknown>, links?: Record<string, unknown>, opts?: SetOpts): Promise<Row[]>;
-  /** tombstone + каскад. В батче — ставится в очередь. */
-  delete(opts?: DelOpts): Promise<Row[]>;
+  /**
+   * Записать. Связи — контекст-шагами до set() И/ИЛИ класс-вызовами после:
+   *   await db.Сотрудник(s).занятость(id).set({kind}).Окно(w)
+   *   const z = db.занятость(id).set({kind}); z.Сотрудник(s); z.Окно(w); await z
+   * Исполняется ОДНИМ INSERT при первом await (промис кешируется).
+   * Пустой фильтр без data.id → INSERT; id (фильтр или data.id) → UPSERT;
+   * фильтр-объект → версия каждого найденного.
+   */
+  set(data?: Record<string, unknown>): SetChain;
+  /** Серверный tombstone + каскад; возвращает всё удалённое с $deleted: true. */
+  delete(): Promise<Row[]>;
 }
+
+/** Ленивый билдер записи: довешивание связей + thenable (исполнение при await). */
+export type SetChain = PromiseLike<Row[]> & {
+  [className: string]: (target: string | { id: string }) => SetChain;
+};
 
 export type Chain = ChainCore & {
   [className: string]: (filter?: Filter) => Chain;
@@ -87,8 +109,22 @@ interface RawPathRow {
   path: Record<string, never>;
 }
 
-async function runPaths(ctx: Ctx, steps: Step[], opts: ExecOpts): Promise<Path[]> {
-  const q = buildRead(ctx, steps, opts, 'paths');
+/** Фильтр-аргумент принимает и Row/Account-объект — берётся его id. */
+function normalizeFilter(f: Filter | undefined): Filter | undefined {
+  if (
+    f !== undefined &&
+    typeof f === 'object' &&
+    !Array.isArray(f) &&
+    typeof (f as { id?: unknown }).id === 'string' &&
+    (typeof (f as { class?: unknown }).class === 'string' || 'categories' in (f as object))
+  ) {
+    return (f as { id: string }).id;
+  }
+  return f;
+}
+
+async function runPaths(ctx: Ctx, steps: Step[], mods: ChainMods): Promise<Path[]> {
+  const q = buildRead(ctx, steps, mods, 'paths');
   const res = (await ctx.sql.unsafe(q.text, q.params as never[])) as unknown as RawPathRow[];
   return res.map((r) => {
     const out: Path = {};
@@ -97,28 +133,71 @@ async function runPaths(ctx: Ctx, steps: Step[], opts: ExecOpts): Promise<Path[]
   });
 }
 
-async function runRows(ctx: Ctx, steps: Step[], opts: ExecOpts): Promise<Row[]> {
-  const q = buildRead(ctx, steps, opts, 'rows');
+async function runRows(ctx: Ctx, steps: Step[], mods: ChainMods): Promise<Row[]> {
+  const q = buildRead(ctx, steps, mods, 'rows');
   const res = (await ctx.sql.unsafe(q.text, q.params as never[])) as unknown as { row: never }[];
   return res.map((r) => toRow(r.row));
 }
 
-function makeChain(ctx: Ctx, steps: Step[], batchQueue?: BatchOp[]): Chain {
+const idOf = (t: string | { id: string }): string => (typeof t === 'object' ? t.id : t);
+
+/**
+ * Ленивый билдер set(): класс-вызовы довешивают связи (мутирует), await исполняет один раз.
+ * run() — исполнение (сразу setOp или отложенно через батч); links — общая ссылка,
+ * которую батч читает на execute().
+ */
+function makeSetChain(
+  registry: Registry,
+  links: Record<string, string>,
+  run: () => Promise<Row[]>,
+): SetChain {
+  let done: Promise<Row[]> | undefined;
+  const handler: ProxyHandler<object> = {
+    get(_t, prop) {
+      if (typeof prop === 'symbol') return undefined;
+      if (prop === 'then' || prop === 'catch' || prop === 'finally') {
+        done ??= run();
+        const m = done[prop as 'then'];
+        return m.bind(done);
+      }
+      if (registry.has(prop)) {
+        const cls = registry.resolve(prop);
+        return (target: string | { id: string }) => {
+          if (done) throw new Error(`entity-chain: set() already executed — link "${prop}" before the first await`);
+          links[cls.id] = idOf(target);
+          return proxy;
+        };
+      }
+      registry.resolve(prop);
+      return undefined;
+    },
+  };
+  const proxy = new Proxy({}, handler) as SetChain;
+  return proxy;
+}
+
+function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batchQueue?: BatchOp[]): Chain {
+  const withLast = (patch: Partial<Step>): Chain => {
+    const next = steps.slice();
+    next[next.length - 1] = { ...next[next.length - 1], ...patch };
+    return makeChain(ctx, next, mods, batchQueue);
+  };
+  const withMods = (patch: ChainMods): Chain => makeChain(ctx, steps, { ...mods, ...patch }, batchQueue);
+
   const handler: ProxyHandler<object> = {
     get(_t, prop) {
       if (typeof prop === 'symbol' || prop === 'then') return undefined;
 
       switch (prop) {
         case 'execute':
-          return (opts: ExecOpts = {}) => runPaths(ctx, steps, opts);
+          return () => runPaths(ctx, steps, mods);
         case 'rows':
-          return (opts: ExecOpts = {}) => runRows(ctx, steps, opts);
+          return () => runRows(ctx, steps, mods);
         case 'first':
-          return async (opts: ExecOpts = {}) =>
-            (await runRows(ctx, steps, { ...opts, limit: 1 }))[0] ?? null;
+          return async () => (await runRows(ctx, steps, { ...mods, limit: 1 }))[0] ?? null;
         case 'ids':
-          return async (opts: ExecOpts = {}) => {
-            const q = buildRead(ctx, steps, opts, 'ids');
+          return async () => {
+            const q = buildRead(ctx, steps, mods, 'ids');
             const res = (await ctx.sql.unsafe(q.text, q.params as never[])) as unknown as { id: string }[];
             return res.map((r) => r.id);
           };
@@ -128,46 +207,51 @@ function makeChain(ctx: Ctx, steps: Step[], batchQueue?: BatchOp[]): Chain {
             const res = (await ctx.sql.unsafe(q.text, q.params as never[])) as unknown as { n: number }[];
             return res[0].n;
           };
+        case 'limit':
+          return (n: number) => withMods({ limit: n });
+        case 'offset':
+          return (n: number) => withMods({ offset: n });
+        case 'sort':
+          return (field: string, dir?: 'asc' | 'desc' | boolean) =>
+            withMods({ order: field, desc: dir === true || dir === 'desc' });
         case 'alias':
+          return (name: string) => withLast({ aliasKey: name });
         case 'tags':
+          return (v: unknown) => withLast({ tagsFilter: v });
         case 'account':
+          return (v: string | { id: string }) =>
+            withLast({ accountFilter: typeof v === 'object' ? v.id : v });
         case 'owner':
-          return (v: unknown) => {
-            const next = steps.slice();
-            const last = next[next.length - 1];
-            const uuidOf = (x: unknown) =>
-              typeof x === 'object' && x !== null ? String((x as { id: unknown }).id) : String(x);
-            next[next.length - 1] =
-              prop === 'alias'   ? { ...last, aliasKey: String(v) }
-              : prop === 'tags'  ? { ...last, tagsFilter: v }
-              : prop === 'account' ? { ...last, accountFilter: uuidOf(v) }
-              : { ...last, ownerFilter: uuidOf(v) };
-            return makeChain(ctx, next, batchQueue);
-          };
+          return (v: string | { id: string }) =>
+            withLast({ ownerFilter: typeof v === 'object' ? v.id : v });
         case 'set':
-          return (data: Record<string, unknown>, links?: Record<string, unknown>, opts?: SetOpts) => {
+          return (data: Record<string, unknown> = {}) => {
+            const extraLinks: Record<string, string> = {};
             if (batchQueue) {
-              batchQueue.push({ kind: 'set', steps, data, links, opts });
-              return batchQueue.length - 1;
+              const op = { kind: 'set' as const, steps, mods, data, extraLinks };
+              batchQueue.push(op);
+              const index = batchQueue.length - 1;
+              // билдер для довешивания связей; await возвращает № в очереди
+              return makeSetChain(ctx.registry, extraLinks, async () => index as never);
             }
-            return setOp(ctx, steps, data, links, opts);
+            return makeSetChain(ctx.registry, extraLinks, () => setOp(ctx, steps, mods, data, extraLinks));
           };
         case 'delete':
-          return (opts?: DelOpts) => {
+          return () => {
             if (batchQueue) {
-              batchQueue.push({ kind: 'delete', steps, opts });
+              batchQueue.push({ kind: 'delete', steps, mods });
               return batchQueue.length - 1;
             }
-            return delOp(ctx, steps, opts);
+            return delOp(ctx, steps, mods);
           };
       }
 
       if (ctx.registry.has(prop)) {
         const cls = ctx.registry.resolve(prop);
-        return (filter?: Filter) => makeChain(ctx, [...steps, { name: prop, cls, filter }], batchQueue);
+        return (filter?: Filter) =>
+          makeChain(ctx, [...steps, { name: prop, cls, filter: normalizeFilter(filter) }], mods, batchQueue);
       }
-      // неизвестный класс — понятная ошибка при обращении
-      ctx.registry.resolve(prop);
+      ctx.registry.resolve(prop); // неизвестный класс — понятная ошибка со списком
       return undefined;
     },
   };
@@ -191,7 +275,8 @@ function makeBatch(ctx: Ctx, queue: BatchOp[]): Batch {
       }
       if (ctx.registry.has(prop)) {
         const cls = ctx.registry.resolve(prop);
-        return (filter?: Filter) => makeChain(ctx, [{ name: String(prop), cls, filter }], queue);
+        return (filter?: Filter) =>
+          makeChain(ctx, [{ name: String(prop), cls, filter: normalizeFilter(filter) }], {}, queue);
       }
       ctx.registry.resolve(prop);
       return undefined;
@@ -251,7 +336,8 @@ export function makeDb(ctx: Ctx, root?: RootState): EntityDb {
 
       if (ctx.registry.has(prop)) {
         const cls = ctx.registry.resolve(prop);
-        return (filter?: Filter) => makeChain(ctx, [{ name: String(prop), cls, filter }]);
+        return (filter?: Filter) =>
+          makeChain(ctx, [{ name: String(prop), cls, filter: normalizeFilter(filter) }], {});
       }
       ctx.registry.resolve(prop);
       return undefined;

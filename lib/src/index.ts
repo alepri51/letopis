@@ -41,7 +41,7 @@ export {
 
 // типы
 export type {
-  Row, Path, Filter, ExecOpts, SetOpts, DelOpts, ConnectOpts,
+  Row, Path, Filter, ChainMods, ConnectOpts,
   Account, Credential, Resource, Rule,
 } from './types.js';
 export type { EntityDb, EntityTx, Chain, Batch } from './chain.js';

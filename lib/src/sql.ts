@@ -18,7 +18,7 @@
  * Цепочка шагов соединяется JOIN LATERAL — комбинации путей сохраняются.
  */
 import type { Sql } from 'postgres';
-import type { ClassDef, ExecOpts, FieldType, Filter, Op } from './types.js';
+import type { ClassDef, ChainMods, FieldType, Filter, Op } from './types.js';
 import { OP } from './types.js';
 import { isOp } from './ops.js';
 import type { Registry } from './schema.js';
@@ -49,6 +49,8 @@ export interface Step {
   accountFilter?: string;
   /** .owner(uuid|Row) — фильтр по колонке owner. */
   ownerFilter?: string;
+  /** Внутреннее (write-цепочки): containment по links — контекст-связи. */
+  linksFilter?: Record<string, string>;
 }
 
 /** Накопитель позиционных параметров. */
@@ -268,19 +270,19 @@ export interface BuiltQuery {
   keys: string[];
 }
 
-function orderExpr(alias: string, cls: ClassDef, opts: ExecOpts): string {
-  if (!opts.order) return '';
+function orderExpr(alias: string, cls: ClassDef, mods: ChainMods): string {
+  if (!mods.order) return '';
   let expr: string;
-  if (opts.order === 'updated') expr = `${alias}.updated`;
-  else if (opts.order.startsWith('data.')) {
-    const field = opts.order.slice(5);
+  if (mods.order === 'updated') expr = `${alias}.updated`;
+  else if (mods.order.startsWith('data.')) {
+    const field = mods.order.slice(5);
     expr = `(${alias}.data->>'${escLit(field)}')${castOf(cls.fieldTypes.get(field))}`;
   } else throw new Error(`entity-chain: order must be 'updated' or 'data.<field>'`);
-  return ` ORDER BY ${expr}${opts.desc ? ' DESC' : ''}`;
+  return ` ORDER BY ${expr}${mods.desc ? ' DESC' : ''}`;
 }
 
 /** Построить читающий запрос по цепочке. */
-export function buildRead(ctx: Ctx, steps: Step[], opts: ExecOpts, mode: ReadMode): BuiltQuery {
+export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMode): BuiltQuery {
   const p = new Params();
   const ent = entityTable(ctx.pgSchema);
   const pPart = p.push(ctx.partition);
@@ -294,6 +296,13 @@ export function buildRead(ctx: Ctx, steps: Step[], opts: ExecOpts, mode: ReadMod
     // модификаторы шага: .tags() / .account() / .owner()
     if (step.tagsFilter !== undefined) {
       const frag = compileTags(step.tagsFilter, p);
+      f.candFrags.push(frag);
+      f.finalFrags.push(frag);
+    }
+    // контекст-связи write-цепочек: containment по links
+    if (step.linksFilter && Object.keys(step.linksFilter).length) {
+      const ph = p.push(step.linksFilter);
+      const frag: Frag = (a) => `${a}.links @> ${ph}::jsonb`;
       f.candFrags.push(frag);
       f.finalFrags.push(frag);
     }
@@ -356,8 +365,8 @@ export function buildRead(ctx: Ctx, steps: Step[], opts: ExecOpts, mode: ReadMod
   }
 
   const limitOffset =
-    (opts.limit !== undefined ? ` LIMIT ${p.push(opts.limit)}` : '') +
-    (opts.offset !== undefined ? ` OFFSET ${p.push(opts.offset)}` : '');
+    (mods.limit !== undefined ? ` LIMIT ${p.push(mods.limit)}` : '') +
+    (mods.offset !== undefined ? ` OFFSET ${p.push(mods.offset)}` : '');
 
   let text: string;
   switch (mode) {
@@ -365,7 +374,7 @@ export function buildRead(ctx: Ctx, steps: Step[], opts: ExecOpts, mode: ReadMod
       const obj = keys.map((k, i) => `${p.push(k)}::text, to_jsonb(h${i})`).join(', ');
       text =
         `SELECT jsonb_build_object(${obj}) AS path\n${fromClause}` +
-        orderExpr(`h${last}`, lastCls, opts) +
+        orderExpr(`h${last}`, lastCls, mods) +
         limitOffset;
       break;
     }
@@ -375,7 +384,7 @@ export function buildRead(ctx: Ctx, steps: Step[], opts: ExecOpts, mode: ReadMod
         `SELECT DISTINCT ON (h${last}.id) h${last}.* \n${fromClause}\n` +
         `ORDER BY h${last}.id, h${last}.updated DESC`;
       const sel = mode === 'rows' ? 'to_jsonb(z) AS row' : 'z.id';
-      text = `SELECT ${sel} FROM (${inner}) z` + orderExpr('z', lastCls, opts) + limitOffset;
+      text = `SELECT ${sel} FROM (${inner}) z` + orderExpr('z', lastCls, mods) + limitOffset;
       break;
     }
     case 'count':

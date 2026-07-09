@@ -74,30 +74,14 @@ export type Filter =
       [field: string]: FieldFilter | undefined;
     };
 
-export interface ExecOpts {
+/** Модификаторы выборки цепочки: .limit() / .offset() / .sort(). */
+export interface ChainMods {
   limit?: number;
   offset?: number;
   /** 'updated' | 'data.<поле>' (каст по типу поля последнего шага). */
   order?: string;
   desc?: boolean;
 }
-
-export interface SetOpts {
-  /** Явный id (детерминированные id, upsert новых). */
-  id?: string;
-  /** Заменить tags (иначе наследуются от прошлой версии). */
-  tags?: string[];
-  account?: string;
-  owner?: string;
-  /** Фильтр-объект ничего не нашёл → создать из фильтра+data. */
-  upsert?: boolean;
-}
-
-/**
- * Опций у delete нет: удаление серверное (триггер entity_delete),
- * каскад по links — всегда, рекурсивно, в БД.
- */
-export interface DelOpts {}
 
 // --- служебные таблицы (auth/ACL) --------------------------------------------
 

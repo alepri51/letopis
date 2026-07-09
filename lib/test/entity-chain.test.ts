@@ -1,14 +1,15 @@
 /**
- * Тесты entity-chain против локального docker-timescale (db/ddl.sql + db/seed.booking.sql).
+ * Тесты entity-chain против локального docker-timescale (db/ddl.sql + сиды).
  * Запуск: npm test (tsx --test --test-concurrency=1).
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { connect, between, gte, lte, ne, inList, ilike, has, exists, isNull, ValidationError } from '../src/index.js';
-import type { EntityDb, EntityTx } from '../src/chain.js';
+import type { EntityDb } from '../src/chain.js';
 import { buildRead } from '../src/sql.js';
 
 const DSN = process.env.ENTITY_DSN ?? 'postgres://postgres:test@localhost:15432/clockz';
+const SYS = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
 
 let db: EntityDb;
 
@@ -22,19 +23,19 @@ after(async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Триггеры БД: целостность + append-only
+// Триггеры БД: целостность + CRUD на уровне базы
 // ---------------------------------------------------------------------------
 
 test('триггер: unknown class отклоняется', async () => {
   await assert.rejects(
-    db.sql.unsafe(`INSERT INTO "booking"."Entity" (partition,id,class) VALUES ('entity','t-x1','Nope')`),
-    /unknown class "Nope"/,
+    db.sql.unsafe(`INSERT INTO "booking"."Entity" (partition,id,class,account,owner) VALUES ('entity','t-x1','Nope','${SYS}','${SYS}')`),
+    /unknown class "Nope"|entity_class_fk/,
   );
 });
 
 test('триггер: abstract класс отклоняется', async () => {
   await assert.rejects(
-    db.sql.unsafe(`INSERT INTO "booking"."Entity" (partition,id,class) VALUES ('entity','t-x2','Entity')`),
+    db.sql.unsafe(`INSERT INTO "booking"."Entity" (partition,id,class,account,owner) VALUES ('entity','t-x2','Entity','${SYS}','${SYS}')`),
     /is abstract/,
   );
 });
@@ -42,7 +43,7 @@ test('триггер: abstract класс отклоняется', async () => {
 test('триггер: LINK без обязательного конца отклоняется', async () => {
   await assert.rejects(
     db.sql.unsafe(
-      `INSERT INTO "booking"."Entity" (partition,id,class,links) VALUES ('entity','t-x3','busy','{"Staff":"s1"}')`,
+      `INSERT INTO "booking"."Entity" (partition,id,class,links,account,owner) VALUES ('entity','t-x3','busy','{"Staff":"s1"}','${SYS}','${SYS}')`,
     ),
     /requires end "Slot"/,
   );
@@ -51,21 +52,20 @@ test('триггер: LINK без обязательного конца откл
 test('триггер: links-ключ не класс отклоняется', async () => {
   await assert.rejects(
     db.sql.unsafe(
-      `INSERT INTO "booking"."Entity" (partition,id,class,links) VALUES ('entity','t-x4','Org','{"Ghost":"g1"}')`,
+      `INSERT INTO "booking"."Entity" (partition,id,class,links,account,owner) VALUES ('entity','t-x4','Org','{"Ghost":"g1"}','${SYS}','${SYS}')`,
     ),
     /is not a class/,
   );
 });
 
 test('триггеры БД: UPDATE = новая версия, DELETE = tombstone + серверный каскад', async () => {
-  const sys = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
   await db.sql.unsafe(
     `INSERT INTO "booking"."Entity" (partition,id,class,data,account,owner)
-     VALUES ('entity','t-ro','Org','{"name":"RO"}','${sys}','${sys}')`,
+     VALUES ('entity','t-ro','Org','{"name":"RO"}','${SYS}','${SYS}')`,
   );
   await db.sql.unsafe(
     `INSERT INTO "booking"."Entity" (partition,id,class,data,links,account,owner)
-     VALUES ('entity','t-ro-staff','Staff','{"name":"Ч","roles":["master"]}','{"Org":"t-ro"}','${sys}','${sys}')`,
+     VALUES ('entity','t-ro-staff','Staff','{"name":"Ч","roles":["master"]}','{"Org":"t-ro"}','${SYS}','${SYS}')`,
   );
 
   // UPDATE голым SQL → триггер вставляет новую версию, физического апдейта нет
@@ -74,19 +74,19 @@ test('триггеры БД: UPDATE = новая версия, DELETE = tombston
     `SELECT count(*)::int n, (SELECT data->>'name' FROM "booking"."Entity" WHERE id='t-ro' ORDER BY updated DESC LIMIT 1) name
      FROM "booking"."Entity" WHERE id='t-ro'`,
   )) as never as { n: number; name: string }[];
-  assert.equal(v[0].n, 2);          // версии растут
-  assert.equal(v[0].name, 'RO2');   // latest обновлён
+  assert.equal(v[0].n, 2);
+  assert.equal(v[0].name, 'RO2');
 
-  // DELETE голым SQL → tombstone + каскад на Staff (links ⊃ {Org: t-ro}) — всё в БД
+  // DELETE голым SQL → tombstone + каскад на Staff — всё в БД
   await db.sql.unsafe(`DELETE FROM "booking"."Entity" WHERE partition='entity' AND class='Org' AND id='t-ro'`);
   assert.equal(await db.Организация('t-ro').count(), 0);
-  assert.equal(await db.Сотрудник('t-ro-staff').count(), 0);     // каскад
+  assert.equal(await db.Сотрудник('t-ro-staff').count(), 0);
   const hist = (await db.sql.unsafe(
     `SELECT count(*)::int n FROM "booking"."Entity" WHERE id IN ('t-ro','t-ro-staff')`,
   )) as never as { n: number }[];
-  assert.equal(hist[0].n, 5);       // 2+1 старых + 2 tombstone — история цела
+  assert.equal(hist[0].n, 5); // 3 старых + 2 tombstone — история цела
 
-  // повторный DELETE — no-op (tombstone и история неприкосновенны)
+  // повторный DELETE — no-op
   await db.sql.unsafe(`DELETE FROM "booking"."Entity" WHERE partition='entity' AND class='Org' AND id='t-ro'`);
   const hist2 = (await db.sql.unsafe(
     `SELECT count(*)::int n FROM "booking"."Entity" WHERE id='t-ro'`,
@@ -105,19 +105,21 @@ test('Schema lineage: ancestors и descendants считает триггер', a
 
 // ---------------------------------------------------------------------------
 // Пример из ТЗ: Сотрудник({name:'Вася'}).навык().Услуга().execute()
+// Связи создаются dot-цепочкой: контекст-шаги → links.
 // ---------------------------------------------------------------------------
 
 test('пример ТЗ: услуги Васи через навык, форматом путей', async () => {
   const [org] = await db.Организация().set({ name: 'TestOrg' });
-  const [вася] = await db.Сотрудник().set({ name: 'Вася', roles: ['master'] }, { Организация: org });
-  const [петя] = await db.Сотрудник().set({ name: 'Петя', roles: ['master'] }, { Организация: org });
-  const [стрижка] = await db.Услуга().set({ name: 'Стрижка', duration: 60, price: { RUB: 1500 } }, { Организация: org });
-  const [борода] = await db.Услуга().set({ name: 'Борода', duration: 30, price: { RUB: 1000 } }, { Организация: org });
-  const [массаж] = await db.Услуга().set({ name: 'Массаж', duration: 90, price: { RUB: 3000 } }, { Организация: org });
+  const [вася] = await db.Организация(org).Сотрудник().set({ name: 'Вася', roles: ['master'] });
+  const [петя] = await db.Организация(org).Сотрудник().set({ name: 'Петя', roles: ['master'] });
+  const [стрижка] = await db.Организация(org).Услуга().set({ name: 'Стрижка', duration: 60, price: { RUB: 1500 } });
+  const [борода] = await db.Организация(org).Услуга().set({ name: 'Борода', duration: 30, price: { RUB: 1000 } });
+  const [массаж] = await db.Организация(org).Услуга().set({ name: 'Массаж', duration: 90, price: { RUB: 3000 } });
 
-  await db.навык().set({}, { Сотрудник: вася, Услуга: стрижка });
-  await db.навык().set({}, { Сотрудник: вася, Услуга: борода });
-  await db.навык().set({}, { Сотрудник: петя, Услуга: массаж }); // чужое — не должно попасть
+  // связь навык: оба конца — контекст-шагами
+  await db.Сотрудник(вася).Услуга(стрижка).навык().set({});
+  await db.Сотрудник(вася).Услуга(борода).навык().set({});
+  await db.Сотрудник(петя).Услуга(массаж).навык().set({}); // чужое — не должно попасть
 
   const пути = await db.Сотрудник({ name: 'Вася' }).навык().Услуга().execute();
 
@@ -145,7 +147,7 @@ test('.alias(): переименование ключа шага в путях',
 
 test('.rows()/.first()/.ids()/.count()', async () => {
   const rows = await db.Сотрудник({ name: 'Вася' }).навык().Услуга().rows();
-  assert.equal(rows.length, 2); // уникальные услуги
+  assert.equal(rows.length, 2);
   const first = await db.Сотрудник({ name: 'Вася' }).first();
   assert.equal(first?.data.name, 'Вася');
   const ids = await db.Сотрудник({ name: 'Вася' }).навык().Услуга().ids();
@@ -158,13 +160,27 @@ test('.rows()/.first()/.ids()/.count()', async () => {
 
 test('обход HUB→HUB: forward (по Schema.links) и reverse (containment)', async () => {
   const [org] = await db.Организация({ name: 'TestOrg' }).rows();
-  // reverse: Org → Staff (Staff.links содержит Org)
-  const staff = await db.Организация(org.id).Сотрудник().rows();
+  const staff = await db.Организация(org.id).Сотрудник().rows(); // reverse
   assert.ok(staff.length >= 2);
-  // forward: Staff → Org
-  const orgs = await db.Сотрудник({ name: 'Вася' }).Организация().rows();
+  const orgs = await db.Сотрудник({ name: 'Вася' }).Организация().rows(); // forward
   assert.equal(orgs.length, 1);
   assert.equal(orgs[0].data.name, 'TestOrg');
+});
+
+test('self-переход HUB→HUB (Папка→Папка) = дети; родитель — в row.links', async () => {
+  const [org] = await db.Организация({ name: 'TestOrg' }).rows();
+  const [root] = await db.Организация(org).Папка().set({ name: 'Корень' });
+  const [a] = await db.Организация(org).Папка(root).Папка().set({ name: 'А' });
+  await db.Организация(org).Папка(root).Папка().set({ name: 'Б' });
+  await db.Организация(org).Папка(a).Папка().set({ name: 'А1' });
+
+  const дети = await db.Папка(root.id).Папка().rows();
+  assert.deepEqual(дети.map((r) => r.data.name).sort(), ['А', 'Б']);
+
+  const внуки = await db.Папка(root.id).Папка().Папка().rows();
+  assert.deepEqual(внуки.map((r) => r.data.name), ['А1']);
+
+  assert.equal(дети[0].links.Folder, root.id); // родитель без запроса
 });
 
 test('обход без пути — понятная ошибка', async () => {
@@ -176,16 +192,15 @@ test('неизвестный класс — ошибка со списком к�
 });
 
 // ---------------------------------------------------------------------------
-// Фильтры: typed-операторы; колонки — модификаторами .tags()/.account()/.owner()
+// Фильтры и модификаторы
 // ---------------------------------------------------------------------------
 
 test('фильтры: date between (календарь), число gte/lte, ilike, ne, inList', async () => {
   const [org] = await db.Организация({ name: 'TestOrg' }).rows();
-  const [sch] = await db.Расписание().set(
-    { start: '2026-07-10T10:00:00+03:00', end: '2026-07-10T13:00:00+03:00' },
-    { Организация: org },
-  );
-  const мкОкно = (s: string, e: string) => db.Окно().set({ start: s, end: e }, { Расписание: sch });
+  const [sch] = await db.Организация(org).Расписание().set({
+    start: '2026-07-10T10:00:00+03:00', end: '2026-07-10T13:00:00+03:00',
+  });
+  const мкОкно = (s: string, e: string) => db.Расписание(sch).Окно().set({ start: s, end: e });
   await мкОкно('2026-07-10T10:00:00+03:00', '2026-07-10T11:00:00+03:00');
   await мкОкно('2026-07-10T11:00:00+03:00', '2026-07-10T12:00:00+03:00');
   await мкОкно('2026-07-10T12:00:00+03:00', '2026-07-10T13:00:00+03:00');
@@ -199,68 +214,44 @@ test('фильтры: date between (календарь), число gte/lte, ili
   const дешёвые = await db.Услуга({ price: { RUB: lte(1200) } }).rows();
   assert.deepEqual(дешёвые.map((r) => r.data.name), ['Борода']);
 
-  const не_стрижка = await db.Услуга({ name: ne('Стрижка') }).count();
-  assert.equal(не_стрижка, 2);
-
-  const списком = await db.Услуга({ name: inList(['Стрижка', 'Массаж']) }).count();
-  assert.equal(списком, 2);
-
-  const поиск = await db.Услуга({ name: ilike('%стриж%') }).rows();
-  assert.equal(поиск.length, 1);
+  assert.equal(await db.Услуга({ name: ne('Стрижка') }).count(), 2);
+  assert.equal(await db.Услуга({ name: inList(['Стрижка', 'Массаж']) }).count(), 2);
+  assert.equal((await db.Услуга({ name: ilike('%стриж%') }).rows()).length, 1);
 });
 
 test('фильтры: has по массиву ролей, exists, isNull; связи — только цепочками', async () => {
-  const мастера = await db.Сотрудник({ roles: has('master') }).count();
-  assert.ok(мастера >= 2);
-
-  const с_описанием = await db.Услуга({ description: exists() }).count();
-  assert.equal(с_описанием, 0);
-  const без_описания = await db.Услуга({ description: isNull() }).count();
-  assert.equal(без_описания, 3);
+  assert.ok((await db.Сотрудник({ roles: has('master') }).count()) >= 2);
+  assert.equal(await db.Услуга({ description: exists() }).count(), 0);
+  assert.equal(await db.Услуга({ description: isNull() }).count(), 3);
 
   const [sch] = await db.Расписание().rows();
-  const окна_расписания = await db.Расписание(sch.id).Окно().count();   // reverse-цепочка
-  assert.equal(окна_расписания, 3);
+  assert.equal(await db.Расписание(sch.id).Окно().count(), 3); // reverse-цепочка
 });
 
-test('self-переход HUB→HUB (Папка→Папка) = дети; родитель — в row.links', async () => {
-  const [org] = await db.Организация({ name: 'TestOrg' }).rows();
-  const [root] = await db.Папка().set({ name: 'Корень' }, { Организация: org });
-  const [a] = await db.Папка().set({ name: 'А' }, { Организация: org, Папка: root });
-  await db.Папка().set({ name: 'Б' }, { Организация: org, Папка: root });
-  await db.Папка().set({ name: 'А1' }, { Организация: org, Папка: a });
-
-  const дети = await db.Папка(root.id).Папка().rows();
-  assert.deepEqual(дети.map((r) => r.data.name).sort(), ['А', 'Б']);
-
-  const внуки = await db.Папка(root.id).Папка().Папка().rows();
-  assert.deepEqual(внуки.map((r) => r.data.name), ['А1']);
-
-  // родитель без запроса — прямо из links
-  assert.equal(дети[0].links.Folder, root.id);
-});
-
-test('модификаторы .tags() / .account() / .owner()', async () => {
-  const [org] = await db.Организация({ name: 'TestOrg' }).rows();
-  await db.Клиент().set({ name: 'Меченый' }, { Организация: org }, { tags: ['vip', 'telegram'] });
-  await db.Клиент().set({ name: 'Обычный' }, { Организация: org });
-
-  assert.equal((await db.Клиент().tags('vip').rows()).map((r) => r.data.name)[0], 'Меченый');
-  assert.equal(await db.Клиент().tags(['vip', 'telegram']).count(), 1);   // все теги
-  assert.equal(await db.Клиент().tags(['vip', 'нет-такого']).count(), 0);
-
-  const sys = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
-  assert.ok((await db.Клиент().account(sys).count()) >= 2);   // System — дефолтный владелец
-  assert.ok((await db.Клиент().owner(sys).count()) >= 2);
-});
-
-test('order/limit/offset', async () => {
-  const окна = await db.Окно().rows({ order: 'data.start', limit: 2 });
+test('модификаторы .limit()/.offset()/.sort()', async () => {
+  const окна = await db.Окно().sort('data.start').limit(2).rows();
   assert.equal(окна.length, 2);
   const starts = окна.map((r) => String(r.data.start));
   assert.ok(starts[0] <= starts[1]);
-  const последнее = await db.Окно().rows({ order: 'data.start', desc: true, limit: 1 });
+
+  const последнее = await db.Окно().sort('data.start', 'desc').limit(1).rows();
   assert.ok(String(последнее[0].data.start) >= starts[1]);
+
+  const второе = await db.Окно().sort('data.start').limit(1).offset(1).rows();
+  assert.equal(String(второе[0].data.start), starts[1]);
+});
+
+test('модификаторы .tags()/.account()/.owner(): фильтр в чтении, значение в записи', async () => {
+  const [org] = await db.Организация({ name: 'TestOrg' }).rows();
+  await db.Организация(org).Клиент().tags(['vip', 'telegram']).set({ name: 'Меченый' });
+  await db.Организация(org).Клиент().set({ name: 'Обычный' });
+
+  assert.equal((await db.Клиент().tags('vip').rows()).map((r) => r.data.name)[0], 'Меченый');
+  assert.equal(await db.Клиент().tags(['vip', 'telegram']).count(), 1);
+  assert.equal(await db.Клиент().tags(['vip', 'нет-такого']).count(), 0);
+
+  assert.ok((await db.Клиент().account(SYS).count()) >= 2); // System — дефолтный арендатор
+  assert.ok((await db.Клиент().owner(SYS).count()) >= 2);
 });
 
 // ---------------------------------------------------------------------------
@@ -270,55 +261,90 @@ test('order/limit/offset', async () => {
 test('set: фильтр-update создаёт новую версию; latest один; история растёт', async () => {
   const till = await db.Сотрудник({ name: 'Вася' }).first();
   assert.ok(till);
-  const versionsBefore = await db.sql.unsafe(
-    `SELECT count(*)::int AS n FROM "booking"."Entity" WHERE id = $1`,
-    [till.id] as never[],
-  );
+  const before = (await db.sql.unsafe(
+    `SELECT count(*)::int AS n FROM "booking"."Entity" WHERE id = $1`, [till.id] as never[],
+  )) as never as { n: number }[];
 
   const updated = await db.Сотрудник({ name: 'Вася' }).set({ active: false });
   assert.equal(updated.length, 1);
   assert.equal(updated[0].data.active, false);
-  assert.equal(updated[0].data.name, 'Вася'); // merge сохранил остальные поля
+  assert.equal(updated[0].data.name, 'Вася'); // merge сохранил поля
 
-  const versionsAfter = await db.sql.unsafe(
-    `SELECT count(*)::int AS n FROM "booking"."Entity" WHERE id = $1`,
-    [till.id] as never[],
-  );
-  assert.equal(
-    (versionsAfter as never as { n: number }[])[0].n,
-    (versionsBefore as never as { n: number }[])[0].n + 1,
-  );
+  const after = (await db.sql.unsafe(
+    `SELECT count(*)::int AS n FROM "booking"."Entity" WHERE id = $1`, [till.id] as never[],
+  )) as never as { n: number }[];
+  assert.equal(after[0].n, before[0].n + 1);
 
   const rows = await db.Сотрудник({ name: 'Вася' }).rows();
-  assert.equal(rows.length, 1); // latest один
+  assert.equal(rows.length, 1);
   assert.equal(rows[0].data.active, false);
 
   await db.Сотрудник({ name: 'Вася' }).set({ active: true }); // вернуть
 });
 
-test('set: upsert по явному id; повторный set тем же id — новая версия', async () => {
-  const [b1] = await db.занятость('busy-up-1').set(
-    { kind: 'hold' },
-    { Сотрудник: 'st-fake-1', Окно: 'sl-fake-1' },
-  );
+test('deep-merge: set меняет только указанные листья', async () => {
+  const [org] = await db.Организация({ name: 'TestOrg' }).rows();
+  const [svc] = await db.Организация(org).Услуга().set({
+    name: 'Мульти', duration: 30, price: { RUB: 1000, USD: 12, EUR: 11 },
+  });
+  const [v2] = await db.Услуга(svc.id).set({ price: { RUB: 1100 } });
+  assert.deepEqual(v2.data.price, { RUB: 1100, USD: 12, EUR: 11 });
+  assert.equal(v2.data.name, 'Мульти');
+  await db.Услуга(svc.id).delete();
+});
+
+test('set: upsert по id (фильтр-строка или data.id); links из контекста; наследуются при версии', async () => {
+  // upsert через контекст: id фильтром
+  const [b1] = await db.Сотрудник('st-fake-1').Окно('sl-fake-1').занятость('busy-up-1').set({ kind: 'hold' });
   assert.equal(b1.id, 'busy-up-1');
-  const [b2] = await db.занятость('busy-up-1').set({ kind: 'booking' });
+  assert.deepEqual({ Staff: b1.links.Staff, Slot: b1.links.Slot }, { Staff: 'st-fake-1', Slot: 'sl-fake-1' });
+
+  // upsert через data.id, без контекста: новая версия, links унаследованы
+  const [b2] = await db.занятость().set({ id: 'busy-up-1', kind: 'booking' });
   assert.equal(b2.id, 'busy-up-1');
   assert.equal(b2.data.kind, 'booking');
-  assert.equal(b2.links.Staff, 'st-fake-1'); // links унаследованы
-  const live = await db.занятость('busy-up-1').rows();
-  assert.equal(live.length, 1);
+  assert.equal(b2.links.Staff, 'st-fake-1');
+  assert.equal((await db.занятость('busy-up-1').rows()).length, 1);
   await db.занятость('busy-up-1').delete();
 });
 
-test('set: upsert:true создаёт из фильтра, если не нашлось', async () => {
-  const res = await db.Клиент({ name: 'Upsertный' }).set({ contact: '+70000000000' }, undefined, { upsert: true });
-  assert.equal(res.length, 1);
-  assert.equal(res[0].data.name, 'Upsertный');
-  assert.equal(res[0].data.contact, '+70000000000');
-  const again = await db.Клиент({ name: 'Upsertный' }).set({ language: 'en' }, undefined, { upsert: true });
-  assert.equal(again.length, 1);
-  assert.equal(again[0].id, res[0].id); // не создался дубль
+test('set-билдер: связи довешиваются ПОСЛЕ set() — z-форма и inline; один INSERT при await', async () => {
+  // z-форма: копим связи на переменной, исполняем await-ом
+  const z = db.занятость('bz-z1').set({ kind: 'booking' });
+  z.Сотрудник('stZ');
+  z.Окно('slZ');
+  z.Запись('bkZ');
+  const [row] = await z;
+  assert.equal(row.id, 'bz-z1');
+  assert.deepEqual(row.links, { Staff: 'stZ', Slot: 'slZ', Booking: 'bkZ' });
+
+  // повторный await — кеш, версия не плодится
+  await z;
+  const hist = (await db.sql.unsafe(
+    `SELECT count(*)::int n FROM "booking"."Entity" WHERE id = 'bz-z1'`,
+  )) as never as { n: number }[];
+  assert.equal(hist[0].n, 1);
+
+  // связь после исполнения — ошибка
+  assert.throws(() => z.Окно('другое'), /already executed/);
+
+  // inline-форма: контекст до set + связь после
+  const [row2] = await db.Сотрудник('stY').занятость('bz-z2').set({ kind: 'off' }).Окно('slY');
+  assert.deepEqual(row2.links, { Staff: 'stY', Slot: 'slY' });
+
+  // батч: билдер довешивает связи до execute()
+  const zb = db.batch('bz').Сотрудник('s1').занятость().set({ id: 'bz-z3', kind: 'hold' });
+  zb.Окно('sl1');
+  const res = await db.batch('bz').execute();
+  assert.deepEqual(res[0][0].links, { Staff: 's1', Slot: 'sl1' });
+
+  await db.занятость(['bz-z1', 'bz-z2', 'bz-z3']).delete();
+});
+
+test('set: фильтр-объект без совпадений → [] (создание — только пустой фильтр или id)', async () => {
+  const res = await db.Клиент({ name: 'Небывалый' }).set({ contact: '+7' });
+  assert.deepEqual(res, []);
+  assert.equal(await db.Клиент({ name: 'Небывалый' }).count(), 0);
 });
 
 test('валидация СТРОГАЯ: мусор, лишние поля, abstract, концы LINK', async () => {
@@ -326,55 +352,53 @@ test('валидация СТРОГАЯ: мусор, лишние поля, abst
     db.Услуга().set({ name: 'Кривая', duration: -5, price: { RUB: 100 } }),
     ValidationError,
   );
-  // лишние поля НЕ разрешены ($$strict)
   await assert.rejects(
     db.Услуга().set({ name: 'Лишняя', duration: 10, price: { RUB: 1 }, hacker_field: 1 }),
     ValidationError,
   );
   await assert.rejects(db.Сущность().set({ x: 1 }), /is abstract/);
   await assert.rejects(
-    db.навык().set({}, { Сотрудник: 'x' }), // не хватает полиморфного конца
+    db.Сотрудник('x').навык().set({}), // не хватает полиморфного конца
     /polymorphic end/,
   );
 });
 
-test('deep-merge: set меняет только указанные листья', async () => {
+test('delete: tombstone + серверный каскад; возврат всего с $deleted', async () => {
   const [org] = await db.Организация({ name: 'TestOrg' }).rows();
-  const [svc] = await db.Услуга().set(
-    { name: 'Мульти', duration: 30, price: { RUB: 1000, USD: 12, EUR: 11 } },
-    { Организация: org },
-  );
-  const [v2] = await db.Услуга(svc.id).set({ price: { RUB: 1100 } });
-  assert.deepEqual(v2.data.price, { RUB: 1100, USD: 12, EUR: 11 });  // USD/EUR не тронуты
-  assert.equal(v2.data.name, 'Мульти');
-  assert.equal(v2.data.duration, 30);
-  await db.Услуга(svc.id).delete();
-});
-
-test('delete: tombstone + каскад по links; tombstone невидим в чтении', async () => {
-  const [org] = await db.Организация({ name: 'TestOrg' }).rows();
-  const [cli] = await db.Клиент().set({ name: 'Удаляемый' }, { Организация: org });
-  const [bkg] = await db.Запись().set({ status: 'created' }, { Клиент: cli });
-  const [slot] = await db.Окно().rows({ limit: 1 });
+  const [cli] = await db.Организация(org).Клиент().set({ name: 'Удаляемый' });
+  const [bkg] = await db.Клиент(cli).Запись().set({ status: 'created' });
+  const [slot] = await db.Окно().limit(1).rows();
   const staff = await db.Сотрудник({ name: 'Вася' }).first();
-  await db.занятость('busy-del-1').set({ kind: 'booking' }, { Сотрудник: staff!, Окно: slot, Запись: bkg });
-  await db.позиция().set({ qty: 1 }, { Запись: bkg, Услуга: (await db.Услуга().first())!, Сотрудник: staff! });
+  await db.Сотрудник(staff!).Окно(slot).Запись(bkg).занятость('busy-del-1').set({ kind: 'booking' });
+  const svc = await db.Услуга().first();
+  await db.Запись(bkg).Услуга(svc!).Сотрудник(staff!).позиция().set({ qty: 1 });
 
   const deleted = await db.Запись(bkg.id).delete();
-  // возврат — ВСЁ удалённое (цель + каскад), каждый с $deleted: true
   assert.deepEqual(deleted.map((r) => r.class).sort(), ['Booking', 'busy', 'item']);
   assert.ok(deleted.every((r) => r.$deleted === true));
 
-  // каскад отработал СЕРВЕРНЫЙ триггер: занятость и позиция тоже tombstone
   assert.equal(await db.Запись(bkg.id).count(), 0);
   assert.equal((await db.занятость('busy-del-1').rows()).length, 0);
-  assert.equal(await db.Запись(bkg.id).позиция().count(), 0);
-  // физически версии живы (история)
   const hist = (await db.sql.unsafe(
-    `SELECT count(*)::int AS n FROM "booking"."Entity" WHERE id = $1`,
-    [bkg.id] as never[],
+    `SELECT count(*)::int AS n FROM "booking"."Entity" WHERE id = $1`, [bkg.id] as never[],
   )) as never as { n: number }[];
-  assert.ok(hist[0].n >= 2);
+  assert.ok(hist[0].n >= 2); // история жива
+});
+
+test('delete в контексте: db.Запись(b).занятость().delete() снимает только её занятости', async () => {
+  const [org] = await db.Организация({ name: 'TestOrg' }).rows();
+  const [cli] = await db.Организация(org).Клиент().set({ name: 'Контекстный' });
+  const [b1] = await db.Клиент(cli).Запись().set({ status: 'created' });
+  const [b2] = await db.Клиент(cli).Запись().set({ status: 'created' });
+  await db.Сотрудник('stX').Окно('slX').Запись(b1).занятость('bz-ctx-1').set({ kind: 'booking' });
+  await db.Сотрудник('stX').Окно('slY').Запись(b2).занятость('bz-ctx-2').set({ kind: 'booking' });
+
+  const удалено = await db.Запись(b1).занятость().delete();
+  assert.deepEqual(удалено.map((r) => r.id), ['bz-ctx-1']);
+  assert.equal((await db.занятость('bz-ctx-2').rows()).length, 1); // чужая цела
+
+  await db.Запись(b1).delete();
+  await db.Запись(b2).delete();
 });
 
 // ---------------------------------------------------------------------------
@@ -397,7 +421,7 @@ test('tx: rollback откатывает, commit фиксирует; lock вне 
 
 test('гонка двойной брони: две параллельные tx на одну пару (мастер, окно) → ровно одна успешна', async () => {
   const staff = await db.Сотрудник({ name: 'Вася' }).first();
-  const [slot] = await db.Окно().rows({ limit: 1 });
+  const [slot] = await db.Окно().limit(1).rows();
   const busyId = `busy-race-${staff!.id}-${slot.id}`;
 
   const попытка = async (label: string): Promise<string | null> => {
@@ -409,7 +433,7 @@ test('гонка двойной брони: две параллельные tx �
         await tr.rollback();
         return null;
       }
-      await tr.занятость(busyId).set({ kind: 'booking' }, { Сотрудник: staff!, Окно: slot });
+      await tr.Сотрудник(staff!).Окно(slot).занятость(busyId).set({ kind: 'booking' });
       await tr.commit();
       return label;
     } catch (e) {
@@ -419,11 +443,8 @@ test('гонка двойной брони: две параллельные tx �
   };
 
   const результаты = await Promise.all([попытка('A'), попытка('B')]);
-  const успешные = результаты.filter(Boolean);
-  assert.equal(успешные.length, 1, `ожидалась одна успешная бронь, got: ${JSON.stringify(результаты)}`);
-
-  const live = await db.занятость(busyId).rows();
-  assert.equal(live.length, 1);
+  assert.equal(результаты.filter(Boolean).length, 1, `ожидалась одна успешная бронь: ${JSON.stringify(результаты)}`);
+  assert.equal((await db.занятость(busyId).rows()).length, 1);
   await db.занятость(busyId).delete();
 });
 
@@ -431,17 +452,17 @@ test('гонка двойной брони: две параллельные tx �
 // Батчи
 // ---------------------------------------------------------------------------
 
-test('батч: копит, execute() атомарно, multi-insert, discard', async () => {
+test('батч: копит, execute() атомарно, контекст в батче, discard', async () => {
   const [sch] = await db.Расписание().rows();
 
-  db.batch('b1').Окно().set({ start: '2026-07-11T10:00:00+03:00', end: '2026-07-11T11:00:00+03:00' }, { Расписание: sch });
-  db.batch('b1').Окно().set({ start: '2026-07-11T11:00:00+03:00', end: '2026-07-11T12:00:00+03:00' }, { Расписание: sch });
-  db.batch('b1').Окно().set({ start: '2026-07-11T12:00:00+03:00', end: '2026-07-11T13:00:00+03:00' }, { Расписание: sch });
+  db.batch('b1').Расписание(sch).Окно().set({ start: '2026-07-11T10:00:00+03:00', end: '2026-07-11T11:00:00+03:00' });
+  db.batch('b1').Расписание(sch).Окно().set({ start: '2026-07-11T11:00:00+03:00', end: '2026-07-11T12:00:00+03:00' });
+  db.batch('b1').Расписание(sch).Окно().set({ start: '2026-07-11T12:00:00+03:00', end: '2026-07-11T13:00:00+03:00' });
   assert.equal(db.batch('b1').size(), 3);
 
   const res = await db.batch('b1').execute();
   assert.equal(res.length, 3);
-  assert.ok(res.every((r) => r.length === 1 && r[0].class === 'Slot'));
+  assert.ok(res.every((r) => r.length === 1 && r[0].class === 'Slot' && r[0].links.Schedule === sch.id));
   assert.equal(db.batch('b1').size(), 0);
 
   const окна = await db.Окно({ start: between('2026-07-11T00:00:00+03:00', '2026-07-11T23:59:59+03:00') }).count();
@@ -453,12 +474,10 @@ test('батч: копит, execute() атомарно, multi-insert, discard', 
   await assert.rejects(db.batch('b2').execute(), ValidationError);
   assert.equal(await db.Клиент({ name: 'БатчОк' }).count(), 0);
 
-  // discard
   db.batch('b3').Клиент().set({ name: 'Выброшенный' });
   db.batch('b3').discard();
   assert.equal(db.batch('b3').size(), 0);
-  const res3 = await db.batch('b3').execute();
-  assert.equal(res3.length, 0);
+  assert.deepEqual(await db.batch('b3').execute(), []);
 });
 
 // ---------------------------------------------------------------------------
@@ -467,12 +486,7 @@ test('батч: копит, execute() атомарно, multi-insert, discard', 
 
 test('EXPLAIN: цепочка использует GIN/latest-индексы (без seq scan при enable_seqscan=off)', async () => {
   const q = buildRead(
-    {
-      sql: db.sql,
-      registry: db.registry,
-      pgSchema: 'booking',
-      partition: 'entity',
-    },
+    { sql: db.sql, registry: db.registry, pgSchema: 'booking', partition: 'entity' },
     [
       { name: 'Сотрудник', cls: db.registry.resolve('Сотрудник'), filter: { name: 'Вася' } },
       { name: 'навык', cls: db.registry.resolve('навык') },

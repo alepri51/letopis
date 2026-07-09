@@ -112,7 +112,7 @@ test('tables в транзакции: rollback откатывает', async () =
 
 test('.account()/.owner(): фильтры Entity-цепочек; FK RESTRICT на удаление аккаунта с историей', async () => {
   const acc = await db.accounts.set({ categories: ['User'], data: { name: 'Владелец' } });
-  const [org] = await db.Организация().set({ name: 'OrgWithAccount' }, undefined, { account: acc.id });
+  const [org] = await db.Организация().account(acc.id).set({ name: 'OrgWithAccount' });
   assert.equal(org.account, acc.id);
   assert.equal(org.owner, acc.id); // owner default = account
 
@@ -128,7 +128,7 @@ test('.account()/.owner(): фильтры Entity-цепочек; FK RESTRICT н�
 
   // FK на несуществующий аккаунт — отклоняется
   await assert.rejects(
-    db.Организация().set({ name: 'Bad' }, undefined, { account: '00000000-0000-0000-0000-000000000001' }),
+    db.Организация().account('00000000-0000-0000-0000-000000000001').set({ name: 'Bad' }),
     /foreign key/,
   );
 

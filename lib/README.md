@@ -1,13 +1,19 @@
 # entity-chain — руководство
 
-Dot-цепочки над append-only Entity-хранилищем (TimescaleDB).
+Dot-цепочки над append-only Entity-хранилищем (TimescaleDB). Всё — точками: чтение,
+связи, запись, настройки выборки.
 
 ```ts
 import { connect } from 'entity-chain'
 
 const db = await connect({ dsn: 'postgres://…', schema: 'booking' })
+
+// чтение: пути по графу
 const пути = await db.Сотрудник({ name: 'Вася' }).навык().Услуга().execute()
 // [ { Сотрудник: Row, навык: Row, Услуга: Row }, … ]
+
+// запись: связи — тоже точками
+await db.Организация(org).Сотрудник().set({ name: 'Вася', roles: ['master'] })
 ```
 
 Содержание:
@@ -41,14 +47,9 @@ docker exec -i clockz-timescale psql -U postgres -d clockz < db/seed.auth.sql   
 ```
 
 ```ts
-import { connect, between, has } from 'entity-chain'
-
 const db = await connect({ dsn: 'postgres://postgres:test@localhost:15432/clockz', schema: 'booking' })
-
 const [org]  = await db.Организация().set({ name: 'BarberPro' })
-const [вася] = await db.Сотрудник().set({ name: 'Вася', roles: ['master'] }, { Организация: org })
-const мастера = await db.Сотрудник({ roles: has('master') }).rows()
-
+const [вася] = await db.Организация(org).Сотрудник().set({ name: 'Вася', roles: ['master'] })
 await db.close()
 ```
 
@@ -56,18 +57,18 @@ await db.close()
 
 ## 2. Хранилище
 
-`db/ddl.sql` — 7 объектов: `Entity`, `Schema`, `Account`, `Credential`, `Resource`, `Rule`
-+ триггеры. **Весь CRUD-функционал работает на уровне БД** (голый SQL равносилен либе);
-либа добавляет валидацию данных, цепочки и удобства.
+`db/ddl.sql`: `Entity`, `Schema`, `Account`, `Credential`, `Resource`, `Rule` + триггеры.
+**Весь CRUD работает на уровне БД** — голый SQL равносилен либе; либа добавляет строгую
+валидацию данных, цепочки и удобства.
 
 ### 2.1 Entity — единая append-only hypertable
 
 | Колонка | Тип | Смысл |
 |---|---|---|
-| `partition` | text | пространство данных (default `'entity'`) |
+| `partition` | text | пространство данных (`'entity'`) |
 | `id` | text | id сущности (uuid или детерминированная строка) |
 | `class` | text | класс из `Schema` (FK) |
-| `data` | jsonb | атрибуты; строгая валидация по `Schema.attributes` |
+| `data` | jsonb | атрибуты (строгая валидация по `Schema.attributes`) |
 | `updated` | timestamptz | момент версии (компонента PK) |
 | `account` | uuid **NOT NULL** | арендатор (FK → Account, RESTRICT) |
 | `owner` | uuid **NOT NULL** | владелец (FK → Account, RESTRICT) |
@@ -75,19 +76,18 @@ await db.close()
 | `links` | jsonb | связи `{"Класс": "id", …}` — произвольное число на строку |
 | `deleted` | timestamptz | tombstone-метка |
 
-- **PK `(partition, class, id, updated)`**: сущность = все её версии, строка = версия.
-- Актуальная версия = max(`updated`); живая, если её `deleted IS NULL`.
-- Партиционирование 4D: время `updated` (чанки 30 дней) + hash `partition`(2) / `class`(8) / `id`(8).
-- Индексы: `(partition, class, id, updated DESC)`; GIN `links` и `data` (jsonb_path_ops);
-  GIN `tags`; btree `account`, `owner`.
+- **PK `(partition, class, id, updated)`**: сущность = все её версии; строка = версия.
+- Актуальная версия = max(`updated`); живая, если `deleted IS NULL`.
+- Партиционирование 4D: время `updated` (чанки 30 дней) + hash `partition`(2)/`class`(8)/`id`(8).
+- Индексы: latest-btree, GIN `links`/`data` (jsonb_path_ops), GIN `tags`, btree `account`/`owner`.
 
 ### 2.2 Триггеры Entity — CRUD в БД
 
 | SQL | Триггер | Поведение |
 |---|---|---|
-| `INSERT` | `entity_check` | класс существует и не abstract; ключи `links` — существующие классы, значения — строки-id; у LINK есть все обязательные концы (`'Entity'`-концы полиморфны, их закрывает либа). Tombstone-вставки не проверяются |
-| `UPDATE` | `entity_update` | физического апдейта нет: вставляется **новая версия** (`updated = GREATEST(clock, prev+1µs)`); не-latest строки молча игнорируются — история неизменна |
-| `DELETE` | `entity_delete` | вставляется **tombstone** + **рекурсивный каскад**: DELETE живых зависимых (`links ⊃ {класс: id}`) повторяет триггер по всему дереву; advisory-lock сериализует гонки; tombstone/история неприкосновенны (повторный DELETE — no-op). Физического удаления не бывает |
+| `INSERT` | `entity_check` | класс существует (плюс FK) и не abstract; ключи `links` — существующие классы, значения — строки-id; у LINK есть обязательные концы (`'Entity'`-концы полиморфны — закрывает либа). Tombstone-вставки не проверяются |
+| `UPDATE` | `entity_update` | физического апдейта нет: вставляется **новая версия** (`updated = GREATEST(clock, prev+1µs)`); не-latest строки игнорируются — история неизменна |
+| `DELETE` | `entity_delete` | вставляется **tombstone** + **рекурсивный каскад**: DELETE живых зависимых (`links ⊃ {класс: id}`) повторяет триггер по дереву; advisory-lock; история/tombstone неприкосновенны (повторный DELETE — no-op) |
 
 ```sql
 -- голый SQL работает как либа:
@@ -97,30 +97,26 @@ DELETE FROM "booking"."Entity"
  WHERE partition='entity' AND class='Booking' AND id='…';        -- → tombstone + каскад
 ```
 
-Очистка старой истории — только политиками Timescale (compression/retention,
-закомментированы в конце `ddl.sql`).
+Очистка истории — только политики Timescale (compression/retention в конце ddl).
 
 ### 2.3 FK-целостность
 
 | FK | Правило |
 |---|---|
-| `Entity(partition, class) → Schema(partition, id)` | RESTRICT — класс с данными не удалить; rename класса каскадится |
-| `Entity.account`, `Entity.owner → Account(id)` | RESTRICT — аккаунт с историей Entity не удалить (гасите `enabled=false`); CASCADE/SET NULL невозможны на append-only |
+| `Entity(partition, class) → Schema(partition, id)` | RESTRICT: класс с данными не удалить |
+| `Entity.account / owner → Account(id)` | RESTRICT: аккаунт с историей не удалить — `enabled=false`; CASCADE/SET NULL невозможны на append-only |
 | `Credential.account → Account(id)` | CASCADE |
-| `Rule.account → Resource(alias)`, `Rule.resource → Resource(alias)` | CASCADE — оба конца правила ACL |
+| `Rule.account / resource → Resource(alias)` | CASCADE (оба конца ACL-правила) |
 
-### 2.4 Чтение «актуального» (замена вью legacy-движка)
+### 2.4 Чтение «актуального» (замена вью legacy)
 
-Каждый шаг цепочки: `DISTINCT ON (id) … ORDER BY id, updated DESC` **после** сужения по
-class + GIN-кандидатам, затем перепроверка условий на latest. Фильтр истинен относительно
-*актуальной* версии: сущность со старым `name='Вася'` и новым `name='Петя'` под
-`{name:'Вася'}` не попадает.
+Каждый шаг: `DISTINCT ON (id) … ORDER BY id, updated DESC` **после** сужения по class +
+GIN-кандидатам, затем перепроверка условий на latest. Фильтр истинен относительно
+*актуальной* версии: старое `name='Вася'` при новом `name='Петя'` не матчится.
 
 ---
 
 ## 3. Schema: классы (HUB / LINK)
-
-Таблица `Schema` — источник правды (сид: `schema.booking.v2.json` → `db/seed.booking.sql`).
 
 | Поле | Смысл |
 |---|---|
@@ -133,45 +129,40 @@ class + GIN-кандидатам, затем перепроверка услов
 | `links` | HUB: встраиваемые цели (forward-обход); LINK: обязательные концы, `'Entity'` = полиморфный |
 | `meta` | `{ abstract?, description? }` |
 
-`schema_lineage` — statement-триггер (INSERT/UPDATE(ancestor,id)/DELETE): рекурсивные CTE
-вверх и вниз пересчитывают `ancestors`/`descendants` всех строк; защита от циклов (depth ≤ 32)
-и саморекурсии (`pg_trigger_depth`). Сид может их не заполнять.
-Доступ из либы: `db.registry.resolve('связь').descendants` → `['busy','item','shift','skill']`.
-
-Фактические связи — в `Entity.links` строки; кратность на много-стороне
-(«запись → N окон» = N строк `busy` с `{Booking: id}`).
+`schema_lineage` (statement-триггер, рекурсивные CTE, защита от циклов/саморекурсии)
+пересчитывает `ancestors`/`descendants` при любом изменении Schema.
+Из либы: `db.registry.resolve('связь').descendants` → `['busy','item','shift','skill']`.
 
 ---
 
 ## 4. Чтение: цепочки
 
-### Правила обхода (по Schema)
+### Правила обхода
 
 | Переход | Механика |
 |---|---|
 | HUB → LINK | reverse: строки LINK с `links ⊃ {Hub: id}` |
-| LINK → HUB | forward: `links->>'Hub'` — работает для **любого** HUB-ключа строки, даже необъявленного |
+| LINK → HUB | forward: `links->>'Hub'` — для **любого** HUB-ключа строки |
 | HUB → HUB (разные) | forward, если цель ∈ `Schema.links` текущего; иначе reverse; иначе «no path» |
-| HUB → HUB (**тот же класс**) | reverse = **дети**: `db.Папка(id).Папка()`. Родитель — без запроса: `row.links.Folder` |
+| HUB → HUB (тот же класс) | reverse = **дети** (`db.Папка(id).Папка()`); родитель — `row.links.Folder` |
 | LINK → LINK | ошибка |
-
-Все связи выражаются цепочками; отдельного «фильтра по связям» нет.
 
 ### Терминалы
 
 ```ts
 const пути = await db.Сотрудник({ name:'Вася' }).alias('Мастер').навык().Услуга().execute()
-// [{ Мастер: Row, навык: Row, Услуга: Row }, …] — ВСЕ узлы каждого варианта пути
+// [{ Мастер: Row, навык: Row, Услуга: Row }, …]
 ```
 
 | Вызов | Возврат |
 |---|---|
-| `execute(opts?)` | `Path[]` — ключ = имя шага (или `.alias()`); повтор → `имя_2` |
-| `rows(opts?)` | `Row[]` — уникальные сущности последнего шага |
-| `first(opts?)` | `Row \| null` |
-| `ids(opts?)` | `string[]` |
-| `count()` | число **путей** (не сущностей) |
+| `execute()` | `Path[]` — все узлы каждого варианта пути; ключ = имя шага / `.alias()`; повтор → `имя_2` |
+| `rows()` | `Row[]` — уникальные сущности последнего шага |
+| `first()` | `Row \| null` |
+| `ids()` | `string[]` |
+| `count()` | число **путей** |
 
+Терминалы без аргументов — выборка настраивается модификаторами (§ 5).
 `Row = { id, class, data, links, tags, account, owner, updated, $deleted? }`.
 
 ---
@@ -182,13 +173,14 @@ const пути = await db.Сотрудник({ name:'Вася' }).alias('Мас�
 
 ```ts
 db.Услуга('uuid')                             // по id
+db.Услуга(rowИлиAccount)                      // объект с id — возьмётся .id
 db.Услуга(['id1','id2'])                      // по списку ([] → пусто)
-db.Услуга({ name: 'Стрижка', active: true }) // eq по data → GIN-containment
+db.Услуга({ name: 'Стрижка', active: true }) // eq полей data → GIN-containment
 db.Услуга({ id: 'uuid', duration: gte(30) }) // ключ id — тоже id-фильтр
 db.Услуга({ price: { RUB: lte(2000) } })      // record: вложенный путь + каст
 ```
 
-### Операторы
+### Операторы (16)
 
 ```ts
 import { ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends,
@@ -198,145 +190,120 @@ import { ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends,
 | Оператор | Типы поля | SQL |
 |---|---|---|
 | скаляр (eq) | любые | `data @> '{"f": v}'` (GIN) |
-| `ne(v)` | любые | `IS DISTINCT FROM` (с кастом) |
+| `ne(v)` | любые | `IS DISTINCT FROM` |
 | `gt/gte/lt/lte(v)`, `between(a,b)` | number, date, string | `(data->>'f')::cast ⋛ $` |
 | `inList([…])` | любые | `IN (…)`; `[]` → FALSE |
 | `like/ilike/starts/ends(s)` | string | `[I]LIKE` |
-| `has(v)/hasAll([…])/hasAny([…])` | массивы в data (`roles`) | `@>` / `?\|` |
-| `exists(true/false)` | любые | ключ есть / нет |
+| `has(v)/hasAll([…])/hasAny([…])` | массивы data (`roles`) | `@>` / `?\|` |
+| `exists(true/false)` | любые | ключ есть/нет |
 | `isNull()` | любые | null или отсутствует |
 
-Касты — по типу поля из `Schema.attributes`: `number → ::numeric`, `date → ::timestamptz`,
-`boolean → ::boolean`, прочее text. Поле вне схемы фильтруется как text
-(записать его нельзя — строгая валидация).
+Касты по `Schema.attributes`: number→`::numeric`, date→`::timestamptz`, boolean→`::boolean`.
+Поле вне схемы фильтруется как text (записать его нельзя — строгая валидация).
+Даты хранятся ISO UTC (`'…+03:00'` → `'…Z'`), сравнения корректны.
+`{ roles: ['a','b'] }` = containment «содержит оба», не «равно массиву».
 
-**Нюанс дат:** тип `date` при записи конвертируется в ISO UTC
-(`'…T10:00+03:00'` → `'…T07:00:00.000Z'`); сравнения корректны в любой форме.
-
-**Нюанс containment:** `{ roles: ['a','b'] }` = «содержит и a, и b», не «равно массиву».
-
-### Модификаторы шага — колонки Entity
+### Модификаторы цепочки
 
 ```ts
-db.Клиент().tags('vip')                        // tags ⊇ ['vip']
-db.Клиент().tags(['vip','telegram'])           // все перечисленные
-db.Клиент().tags(hasAny(['vip','b2b']))        // хотя бы один
-db.Запись().account(accId)                     // Entity.account = uuid | Row | Account
-db.Организация().owner(acc)                    // Entity.owner
-db.Сотрудник({name:'Вася'}).alias('Мастер')    // ключ шага в путях
+db.Окно().sort('data.start').limit(10).offset(20).rows()   // выборка
+db.Запись().sort('updated', 'desc').limit(50).rows()
+
+db.Клиент().tags('vip')                     // фильтр: tags ⊇ ['vip']
+db.Клиент().tags(['vip','telegram'])        // все перечисленные
+db.Клиент().tags(hasAny(['vip','b2b']))     // хотя бы один
+db.Запись().account(accId)                  // фильтр по колонке account (uuid | Row)
+db.Организация().owner(acc)                 // фильтр по owner
+db.Сотрудник({…}).alias('Мастер')           // ключ шага в путях
 ```
 
-Модификатор относится к **текущему** (последнему) шагу; допустим на любом шаге.
+| Модификатор | Область | В чтении | В `set()` |
+|---|---|---|---|
+| `limit(n)` / `offset(n)` / `sort(field, dir?)` | вся цепочка | LIMIT/OFFSET/ORDER BY | ограничивает набор целей UPDATE |
+| `tags(v)` | текущий шаг | фильтр по колонке | **значение** тегов при INSERT (string \| string[]) |
+| `account(v)` / `owner(v)` | текущий шаг | фильтр по колонке | **значение** при INSERT |
+| `alias(name)` | текущий шаг | ключ в путях | — |
 
 ---
 
 ## 6. Запись: `.set()` / `.delete()`
 
-### Анатомия вызова
-
-```
-db.Класс( ФИЛЬТР ).set( DATA , LINKS? , OPTS? )  →  Promise<Row[]>
-          └─────┘       └──┬─┘ └──┬──┘ └──┬──┘
-     кого трогаем       что писать │      служебное
-                                   └ связи строки
-```
-
-**ФИЛЬТР** (аргумент шага) — определяет режим set: нет → INSERT; id-строка → UPSERT;
-объект → UPDATE найденных (см. матрицу ниже).
-
-**DATA** — поля сущности/связи. Каждый ключ обязан быть объявлен в `Schema.attributes`
-класса (строгая валидация, лишние → `ValidationError`). Default-ы схемы подставляются
-автоматически. Значения-даты (тип `date`) конвертируются в ISO UTC.
-
-**LINKS** — карта связей строки: `{ КлассИлиАлиас: id | Row }`.
-- Ключ — имя класса (русский алиас `Организация` или англ. id `Org` — равнозначно;
-  в БД нормализуется в канонический id: `{"Org": "…"}`).
-- Значение — строка-id или целый `Row` (возьмётся его `.id`).
-- Для LINK-классов сюда идут **концы связи**: объявленные в `Schema.links` обязательны
-  (у `busy` это `Staff` и `Slot`), любые дополнительные ключи разрешены (`Запись` у брони).
-- При UPDATE-режиме links **мержатся** с существующими по ключам.
-
-**OPTS** — все поля опциональны:
-
-| Поле | Тип | Действие |
-|---|---|---|
-| `id` | string | явный id создаваемой строки (детерминированные id: `busy-<staff>-<slot>`) |
-| `tags` | string[] | заменить теги строки (иначе наследуются от прошлой версии; при insert — `[]`) |
-| `account` | uuid | арендатор строки (иначе `connect().account` → System-аккаунт) |
-| `owner` | uuid | владелец (иначе = account) |
-| `upsert` | boolean | фильтр-объект ничего не нашёл → создать из eq-полей фильтра + data |
-
-**Возврат** — `Row[]`: вставленные версии (при INSERT — одна).
-
-Разобранные примеры:
+### Связи — только точками. Три равнозначные формы
 
 ```ts
-// INSERT: фильтра нет → создать Сотрудника; links свяжут его с организацией
-// data → валидация по Schema.attributes(Staff); org — Row, возьмётся org.id
-const [вася] = await db.Сотрудник().set(
-  { name: 'Вася', roles: ['master'] },      // data  → колонка data
-  { Организация: org },                     // links → колонка links = {"Org": org.id}
-)
+// 1) контекст ДО set(): шаги-связи, затем класс-цель
+await db.Сотрудник(s).Окно(w).Запись(b).занятость().set({ id: busyId, kind: 'booking' })
 
-// UPSERT по явному id (внутри транзакции tr): бронь пары (мастер, окно)
-// busy — LINK: концы Staff+Slot обязательны, Запись — доп. ключ
-await tr.занятость(busyId).set(
-  { kind: 'booking' },                              // data связи
-  { Сотрудник: s, Окно: w, Запись: b },             // links = {"Staff":…, "Slot":…, "Booking":…}
-)
+// 2) связи ПОСЛЕ set(): продолжение цепочки
+await db.Сотрудник(s).занятость().set({ id: busyId, kind: 'booking' }).Окно(w).Запись(b)
 
-// UPDATE по фильтру: новая версия каждого найденного (deep-merge)
-await db.Сотрудник({ name: 'Вася' }).set({ active: false })
-
-// INSERT с opts: детерминированный id + теги + владелец
-await db.Клиент().set({ name: 'Пётр' }, { Организация: org }, { id: 'cli-1', tags: ['vip'], account: accId })
+// 3) z-форма: копим связи на переменной, исполняем await-ом
+const z = db.занятость().set({ id: busyId, kind: 'booking' })
+z.Сотрудник(s)
+z.Окно(w)
+z.Запись(b)
+await z
 ```
 
-### Матрица `.set(data, links?, opts?)`
+`set()` возвращает **ленивый билдер** (thenable): класс-вызовы довешивают связи,
+первый `await` исполняет ОДИН INSERT со всеми связями; промис кешируется
+(повторный `await` не создаёт версий; довесить связь после исполнения — ошибка).
 
-| Старт | Найдено | Действие |
+### Анатомия
+
+```
+db.Ктx1(id).Ктx2(id).Класс( ФИЛЬТР ).set( DATA ).Связь(id)…   →  await → Row[]
+   └───── контекст ─────┘   └─────┘        └──┬─┘  └── ещё связи ──┘
+    каждый шаг = связь      кого трогаем     что писать (id — здесь же)
+```
+
+- **Контекст-шаги** (всё, кроме последнего класса): каждый резолвится в **ровно одну**
+  сущность — id-фильтром (без запроса, значение как есть) или уникальным фильтром
+  (0 или >1 → ошибка). Дают: `links` при INSERT и containment-фильтр целей при UPDATE/DELETE.
+- **ФИЛЬТР последнего шага** — режим:
+
+| Фильтр | data.id | Действие |
 |---|---|---|
-| `db.Класс()` | — | INSERT (id: `opts.id` → `data.id` → uuid) |
-| `db.Класс(id)` | есть | UPDATE: **deep-merge** → новая версия |
-| `db.Класс(id)` | нет | UPSERT: создать с этим id |
-| `db.Класс({поля})` | есть | новая версия **каждого** найденного |
-| `db.Класс({поля})` | нет | `[]`; с `{ upsert: true }` — создать из eq-полей фильтра + data |
-| `…цепочка().set()` | — | к результату последнего шага |
+| пустой | нет | **INSERT** (id = uuid), links = контекст |
+| пустой | есть | **UPSERT** по `data.id` |
+| id-строка | — | **UPSERT** по этому id |
+| объект | — | **UPDATE**: новая версия каждого найденного (в границах контекста); пусто → `[]` |
+
+- **DATA** — поля сущности/связи; `id` передаётся здесь (`{ id: busyId, … }`).
+  Валидация **строгая, всегда**: поле вне `Schema.attributes` → `ValidationError`;
+  default-ы схемы подставляются; id в `data` не хранится (он — колонка).
+- **Deep-merge при UPDATE**: меняются только указанные листья —
+  `set({ price: { RUB: 1100 } })` сохранит `USD/EUR` и остальные поля.
+  Массивы/скаляры заменяются целиком. `links` домерживаются по ключам.
+- **Концы LINK**: объявленные в `Schema.links` обязательны; значения — id или Row.
+- **account/owner NOT NULL**: `.account()/.owner()` → `connect()` → System-аккаунт.
+- Версии монотонны (`GREATEST(clock, prev+1µs)`), коллизия 23505 ретраится.
 
 ```ts
-const [вася] = await db.Сотрудник().set({ name:'Вася', roles:['master'] }, { Организация: org })
-await db.Сотрудник({ name:'Вася' }).set({ active: false })
-await db.занятость(busyId).set({ kind:'booking' }, { Сотрудник: s, Окно: w, Запись: b })
-await db.Клиент({ name:'Пётр' }).set({ contact:'+7…' }, undefined, { upsert: true })
-```
+// INSERT со связями из контекста
+const [вася] = await db.Организация(org).Сотрудник().set({ name: 'Вася', roles: ['master'] })
 
-Правила:
-- **Deep-merge — только указанные листья**: `set({ price: { RUB: 1100 } })` обновит `RUB`,
-  сохранив `USD/EUR` и остальные поля. Массивы и скаляры заменяются целиком.
-  `links` мержатся по ключам (плоская карта Класс → id; значения — id или `Row`).
-- **Валидация строгая, всей data, всегда**: fastest-validator + `$$strict` — поле вне
-  `Schema.attributes` → `ValidationError`. Default-ы схемы подставляются
-  (`active: true`, `timezone`, …). Проверяется `{...data, id}`; id в data не хранится.
-- **LINK-концы**: конкретные обязательны; `Entity`-концы — покрыть «прочими» ключами по числу.
-- **account/owner NOT NULL**: `opts → connect() → System-аккаунт → понятная ошибка`;
-  `owner` default = account.
-- **tags**: `opts.tags` заменяет; иначе наследуются (insert — `[]`).
-- Версии монотонны (`GREATEST(clock, prev + 1µs)`); коллизия PK 23505 ретраится (×3).
+// UPDATE по фильтру в границах контекста: записи Пети со статусом created → confirmed
+await db.Клиент(петя).Запись({ status: 'created' }).set({ status: 'confirmed' })
+
+// INSERT со значениями колонок из модификаторов
+await db.Организация(org).Клиент().tags(['vip']).account(accId).set({ name: 'Пётр' })
+```
 
 ### `.delete()` — серверное удаление
 
 ```ts
 const удалено = await db.Запись(bid).delete()
 // ВСЁ удалённое (цель + каскад), каждый Row с $deleted: true:
-// [{class:'Booking', $deleted:true}, {class:'busy', $deleted:true}, {class:'item', …}]
+// [{class:'Booking', $deleted:true}, {class:'busy'…}, {class:'item'…}]
+
+await db.Запись(b).занятость().delete()   // контекст: только занятости этой записи
 ```
 
-1. Рекурсивный CTE собирает **замыкание**: цели + все живые зависимые (`links ⊃ {класс: id}`)
-   по всем уровням.
-2. Один SQL `DELETE` — триггер `entity_delete` тумбстоунит то же дерево (+advisory-lock).
-3. Возврат — замыкание с `$deleted: true`. Оба шага в одной транзакции.
-
-История неприкосновенна; повторный delete → `[]`; `set()` после удаления — воскрешение.
+Цели = фильтр последнего шага + контекст-связи. Замыкание (цели + все живые зависимые)
+собирается одним CTE, затем один SQL `DELETE` — триггер БД тумбстоунит дерево
+(+advisory-lock). История неприкосновенна; повторный delete → `[]`; `set()` после —
+воскрешение.
 
 ---
 
@@ -344,74 +311,70 @@ const удалено = await db.Запись(bid).delete()
 
 ```ts
 const tr = await db.begin()                  // тот же API на выделенном соединении
-await tr.lock('busy', staffId, slotId)       // advisory-xact-lock (до commit/rollback)
+await tr.lock('busy', staffId, slotId)       // advisory-xact-lock до конца транзакции
 const занято = await tr.занятость(busyId).first()
-if (!занято) await tr.занятость(busyId).set({ kind:'booking' }, { Сотрудник: s, Окно: w, Запись: b })
+if (!занято) await tr.Сотрудник(s).Окно(w).занятость(busyId).set({ kind: 'booking' })
 await db.commit(tr)                          // или db.rollback(tr) / tr.commit() / tr.rollback()
 ```
 
-- Повторный commit/rollback — no-op (безопасно в `catch`).
-- `lock()` вне транзакции — ошибка (xact-lock мгновенно бы отпустился).
-- Транзакции держите короткими (соединение из пула зарезервировано).
-
-**Рецепт двойной брони**: `lock(мастер, окно)` + детерминированный id занятости
-(строка/uuidv5 от пары) + перечитать `first()` **под локом** → параллельная транзакция
-ждёт лок, видит бронь, отказывает. Ровно одна успешна (покрыто тестом-гонкой).
+Повторный commit/rollback — no-op. `lock()` вне транзакции — ошибка. Держите транзакции
+короткими. **Рецепт двойной брони**: `lock(мастер, окно)` + детерминированный id занятости +
+перечитать `first()` под локом → параллельная транзакция видит бронь и отказывает
+(ровно одна успешна — покрыто тестом-гонкой).
 
 ---
 
 ## 8. Батчи
 
 ```ts
-db.batch('окна').Окно().set({ start, end }, { Расписание: sid })  // без await → № в очереди
-db.batch('окна').Окно().set({ … }, { … })
-db.batch('окна').size()                       // 2
-const res = await db.batch('окна').execute()  // Row[][] по порядку операций
-db.batch('окна').discard()                    // отменить накопленное
+db.batch('окна').Расписание(sch).Окно().set({ start, end })   // копится (без await)
+db.batch('окна').Расписание(sch).Окно().set({ … })
+db.batch('окна').size()                        // 2
+const res = await db.batch('окна').execute()   // одна транзакция; Row[][] по порядку
+db.batch('окна').discard()                     // отменить
 ```
 
-- `execute()` — **одна транзакция**: любая ошибка (включая валидацию) откатывает всё.
-- Подряд идущие чистые INSERT одного класса (один шаг, пустой фильтр, без `opts.id`)
-  склеиваются в один multi-VALUES INSERT.
+- `execute()` атомарен: любая ошибка откатывает всё.
+- `set()` в батче тоже возвращает билдер — связи довешиваются до `execute()`
+  (`const z = db.batch('b').занятость().set({…}); z.Окно(w)`); `await` билдера → № в очереди.
+- Подряд идущие чистые INSERT одного класса (один шаг, пустой фильтр, без data.id и связей)
+  склеиваются в один multi-VALUES.
 - Read-вызовы на батч-фасаде исполняются сразу, мимо очереди.
-- Имя — реестр: `db.batch('окна')` в любом месте возвращает ту же очередь.
 
 ---
 
 ## 9. Служебные таблицы (auth/ACL)
 
-Обычные таблицы (UPDATE/DELETE стандартные), доступны на `db` и в транзакции (`tr.accounts…`).
-Имена `accounts / credentials / resources / rules` зарезервированы.
+Обычные таблицы (UPDATE/DELETE стандартные), на `db` и `tr`. Имена
+`accounts / credentials / resources / rules` зарезервированы.
 
 ```ts
-const acc = await db.accounts.set({ categories: ['User'], data: { name: 'Вася' } })   // insert
-await db.accounts.set({ id: acc.id, enabled: false })                                 // update
-await db.accounts.find({ category: 'User', enabled: true })   // category — вхождение в categories[]
-await db.accounts.delete(acc.id)          // физический DELETE; RESTRICT, если есть история Entity
+const acc = await db.accounts.set({ categories: ['User'], data: { name: 'Вася' } })
+await db.accounts.set({ id: acc.id, enabled: false })
+await db.accounts.find({ category: 'User', enabled: true })
+await db.accounts.delete(acc.id)          // физический; RESTRICT при истории Entity
 
-await db.credentials.set({ account: acc.id, category: 'APIKEY', identifier: 'k1', meta: { key: 'k1' } })
-// upsert по UNIQUE (account, category, identifier); повторный set воскрешает (deleted → NULL)
-await db.credentials.find({ account: acc.id })                 // deleted IS NULL по умолчанию
-await db.credentials.delete(credId)                            // МЯГКОЕ: deleted = now()
+await db.credentials.set({ account: acc.id, category: 'APIKEY', identifier: 'k1' })
+// upsert по UNIQUE (account, category, identifier); повторный set воскрешает
+await db.credentials.find({ account: acc.id })            // deleted IS NULL по умолчанию
+await db.credentials.delete(credId)                       // мягкое: deleted = now()
 
 await db.resources.set({ alias: 'shop:API', category: 'API', pattern: { endpoint: 'booking.*' } })
 await db.rules.set({ account: 'authenticated:ACCOUNT', resource: 'shop:API', permission: 'allow', weight: 90 })
-await db.rules.find({ resource: 'shop:API', enabled: true })   // сортировка weight DESC
 ```
 
-Связка с Entity: `account`/`owner` NOT NULL, default — System-аккаунт (подхватывается при
-`connect()`); фильтры — модификаторы `.account()` / `.owner()`; профиль владельца —
-`db.accounts.get(row.owner)`. Сид `db/seed.auth.sql`: System + 16 Resource + 12 Rule.
+Связка с Entity: `account`/`owner` NOT NULL, default — System-аккаунт; фильтры и значения —
+модификаторы `.account()/.owner()`; профиль владельца — `db.accounts.get(row.owner)`.
+Сид `db/seed.auth.sql`: System + 16 Resource + 12 Rule.
 
 ---
 
 ## 10. Срез актуальных данных и история
 
 ```ts
-await db.Услуга().rows()                                   // срез класса (актуальное, живое)
-await db.Услуга({ active: true }).rows()
-await db.Запись().rows({ order: 'updated', desc: true })   // свежие сверху
-await db.Клиент(cid).Запись().позиция().execute()          // связный подграф путями
+await db.Услуга().rows()                              // срез класса (актуальное, живое)
+await db.Запись().sort('updated','desc').limit(50).rows()
+await db.Клиент(cid).Запись().позиция().execute()     // связный подграф
 ```
 
 ```sql
@@ -443,104 +406,57 @@ WHERE partition='entity' AND class='Booking' AND id=$1 ORDER BY updated;
 
 | Член | Сигнатура | Описание |
 |---|---|---|
-| `db.<Класс>` | `(filter?: Filter) => Chain` | старт цепочки (id или алиас класса) |
-| `begin` | `() => Promise<EntityTx>` | транзакция; `EntityTx` = тот же API + `commit/rollback/lock` |
-| `commit` / `rollback` | `(tr) => Promise<void>` | или `tr.commit()` / `tr.rollback()`; повторно — no-op |
-| `lock` | `(...keys) => Promise<void>` | `pg_advisory_xact_lock(hash(keys))`; только на `tr` |
+| `db.<Класс>` | `(filter?: Filter) => Chain` | старт цепочки (id или алиас) |
+| `begin` | `() => Promise<EntityTx>` | транзакция (`EntityTx` = тот же API + commit/rollback/lock) |
+| `commit` / `rollback` | `(tr) => Promise<void>` | или `tr.commit()`/`tr.rollback()`; повторно — no-op |
+| `lock` | `(...keys: (string\|number)[]) => Promise<void>` | advisory-xact-lock; только на `tr` |
 | `batch` | `(name: string) => Batch` | именованный батч |
-| `accounts / credentials / resources / rules` | таблицы | § 9 и ниже |
+| `accounts/credentials/resources/rules` | § 9 | фасады таблиц |
 | `close` | `() => Promise<void>` | закрыть пул |
-| `registry` | `Registry` | `.resolve(name)` → ClassDef (`ancestors`, `descendants`, `attributes`, `links`, `category`, …); `.all` |
-| `sql` | postgres.js | голый клиент (EXPLAIN, ручные запросы) |
+| `registry` | `Registry` | `.resolve(name)` → ClassDef (ancestors, descendants, attributes…) |
+| `sql` | postgres.js | голый клиент |
 
 ### `Chain`
 
 | Член | Сигнатура | Описание |
 |---|---|---|
-| `.<Класс>` | `(filter?: Filter) => Chain` | следующий шаг (§ 4) |
+| `.<Класс>` | `(filter?: Filter) => Chain` | следующий шаг (§ 4) / контекст-связь (§ 6) |
+| `.limit` / `.offset` | `(n: number) => Chain` | LIMIT / OFFSET |
+| `.sort` | `(field: 'updated' \| 'data.<поле>', dir?: 'asc'\|'desc'\|boolean) => Chain` | сортировка по полю последнего шага (каст по Schema) |
 | `.alias` | `(name: string) => Chain` | ключ текущего шага в путях |
-| `.tags` | `(v: string \| string[] \| has/hasAny/hasAll) => Chain` | фильтр по колонке tags |
-| `.account` / `.owner` | `(v: uuid \| Row) => Chain` | фильтр по колонкам account/owner |
-| `.execute` | `(opts?: ExecOpts) => Promise<Path[]>` | пути `{шаг: Row, …}` |
-| `.rows` | `(opts?: ExecOpts) => Promise<Row[]>` | уникальные сущности последнего шага |
-| `.first` | `(opts?: ExecOpts) => Promise<Row \| null>` | |
-| `.ids` | `(opts?: ExecOpts) => Promise<string[]>` | |
-| `.count` | `() => Promise<number>` | число путей |
-| `.set` | `(data, links?, opts?: SetOpts) => Promise<Row[]>` | § 6; в батче → № очереди |
-| `.delete` | `() => Promise<Row[]>` | § 6; всё удалённое с `$deleted: true` |
+| `.tags` | `(v: string \| string[] \| has/hasAny/hasAll) => Chain` | фильтр tags; значение при INSERT |
+| `.account` / `.owner` | `(v: uuid \| Row) => Chain` | фильтр колонки; значение при INSERT |
+| `.execute` | `() => Promise<Path[]>` | пути |
+| `.rows` / `.first` / `.ids` / `.count` | `() => Promise<…>` | `Row[]` / `Row\|null` / `string[]` / число путей |
+| `.set` | `(data?: object) => SetChain` | § 6; ленивый билдер; в батче await → № очереди |
+| `.delete` | `() => Promise<Row[]>` | всё удалённое (цели+каскад) с `$deleted: true` |
 
-### Параметры вызовов — подробно
+### `SetChain` — результат `.set()`
 
-**`Filter`** — аргумент шага `db.Класс(filter?)`, все формы:
+| Член | Сигнатура | Описание |
+|---|---|---|
+| `.<Класс>` | `(target: id \| Row) => SetChain` | довесить связь (до первого await; мутирует билдер) |
+| `await …` | `PromiseLike<Row[]>` | исполнить ОДИН INSERT/UPDATE; промис кешируется |
+
+**Формы Filter** (аргумент шага):
 
 | Форма | Пример | Смысл |
 |---|---|---|
-| не передан | `db.Услуга()` | без фильтра: чтение — весь класс; `set` — INSERT |
-| `string` | `db.Услуга('uuid')` | по id (одна сущность); `set` — upsert по id |
-| `string[]` | `db.Услуга(['a','b'])` | по списку id; `[]` — пустой результат |
-| объект: `поле: скаляр` | `{ name: 'Стрижка', active: true }` | равенство полей `data` (GIN-containment) |
-| объект: `поле: Оператор` | `{ duration: gte(30) }` | 16 операторов, касты по типу поля из Schema |
-| объект: `поле: {подключ: …}` | `{ price: { RUB: lte(2000) } }` | record-поле: вложенный путь; скаляры и операторы смешиваются |
-| ключ `id` в объекте | `{ id: 'uuid', active: true }` | id-условие вместе с полями (`string \| string[]`) |
+| — | `db.Услуга()` | чтение: весь класс; set: INSERT; контекст: ошибка |
+| `string` | `db.Услуга('uuid')` | по id; set: upsert; контекст: значение связи (без запроса) |
+| `Row`/объект с `.id` | `db.Организация(org)` | то же, что id |
+| `string[]` | `db.Услуга(['a','b'])` | по списку id |
+| объект | `{ name: 'X', duration: gte(30), price: { RUB: lte(2000) }, id: 'u1' }` | поля data (eq/операторы/record-пути) + ключ `id` |
 
-**`links`** (2-й аргумент `set`) — `{ КлассИлиАлиас: id | Row }`: ключи нормализуются в
-канонические id классов; значение-Row → его `.id`; концы LINK из `Schema.links` обязательны;
-при UPDATE мержится по ключам. Полный разбор — § 6.
-
-**`ExecOpts`** — опции всех читающих терминалов:
-
-| Поле | Тип | Default | Смысл |
-|---|---|---|---|
-| `limit` | number | без лимита | максимум строк/путей |
-| `offset` | number | 0 | пропустить N |
-| `order` | `'updated'` \| `'data.<поле>'` | без сортировки | поле последнего шага; каст по типу из Schema |
-| `desc` | boolean | false | направление сортировки |
-
-**`SetOpts`** — 3-й аргумент `set` (все поля опциональны):
-
-| Поле | Тип | Default | Смысл |
-|---|---|---|---|
-| `id` | string | `data.id` → uuid | явный id создаваемой строки (детерминированные брони) |
-| `tags` | string[] | наследуются / `[]` | заменить теги строки |
-| `account` | uuid | `connect().account` → System | арендатор |
-| `owner` | uuid | = account | владелец |
-| `upsert` | boolean | false | объект-фильтр пуст → создать из eq-полей фильтра + data |
-
-**Результаты:**
-
-```ts
-Row  = { id: string; class: string; data: object; links: Record<string,string>;
-         tags: string[]; account: uuid; owner: uuid; updated: ISO; $deleted?: true }
-Path = Record<string, Row>       // ключ = имя шага / .alias(); повтор → имя_2
-```
-
-**Остальные вызовы:**
-
-| Вызов | Параметры | Возврат |
-|---|---|---|
-| `db.begin()` | — | `EntityTx` (тот же API + commit/rollback/lock) |
-| `db.commit(tr)` / `db.rollback(tr)` | `tr: EntityTx` | `Promise<void>`; повторно — no-op |
-| `tr.commit()` / `tr.rollback()` | — | то же без аргумента |
-| `tr.lock(...keys)` | `(string \| number)[]` — склеиваются в один ключ | advisory-xact-lock до конца tr |
-| `db.batch(name)` | `name: string` — имя-реестр | `Batch` |
-| `batch.execute()` | — | `Promise<Row[][]>` — по порядку операций |
-| `batch.discard()` / `batch.size()` | — | void / number |
-| `chain.alias(name)` | `name: string` | ключ шага в путях |
-| `chain.tags(v)` | `string`(⊇один) \| `string[]`(⊇все) \| `has/hasAny/hasAll` | фильтр по колонке tags |
-| `chain.account(v)` / `chain.owner(v)` | `uuid` \| `Row`/`Account` (возьмётся `.id`) | фильтр по колонке |
-| `chain.delete()` | — | `Row[]` — всё удалённое (цели+каскад), `$deleted: true` |
-| `db.close()` | — | закрыть пул |
-
-**Операторы (16):** `ne(v)` `gt(v)` `gte(v)` `lt(v)` `lte(v)` `between(a,b)` `inList(vs)`
-`like(s)` `ilike(s)` `starts(s)` `ends(s)` `has(v)` `hasAny(vs)` `hasAll(vs)` `exists(b?)` `isNull()`
+**`data`** (аргумент set): поля по `Schema.attributes` (строго) + `id?` — явный id строки.
 
 ### `Batch`
 
 | Член | Описание |
 |---|---|
-| `.<Класс>(filter?)…` | те же цепочки; `set`/`delete` встают в очередь (возврат — индекс) |
-| `.execute()` | `Promise<Row[][]>` — одна транзакция, результаты по порядку |
-| `.discard()` / `.size()` | очистить / размер очереди |
+| `.<Класс>(filter?)…` | те же цепочки; `set` → билдер в очередь; `delete` → № очереди |
+| `.execute()` | `Promise<Row[][]>` — одна транзакция, по порядку |
+| `.discard()` / `.size()` | очистить / размер |
 
 ### Таблицы auth/ACL
 
@@ -549,14 +465,13 @@ Path = Record<string, Row>       // ключ = имя шага / .alias(); по�
 | `accounts.find` | `({ id?, enabled?, category? }?) → Account[]` | category — вхождение в categories[] |
 | `accounts.get` | `(id) → Account \| null` | |
 | `accounts.set` | `({ id?, categories?, data?, meta?, avatar?, enabled? }) → Account` | без id insert, с id update |
-| `accounts.delete` | `(id) → boolean` | физический; RESTRICT при истории Entity |
-| `credentials.find` | `({ id?, account?, category?, identifier?, confirmed?, withDeleted? }?) → Credential[]` | по умолчанию живые |
-| `credentials.set` | `({ account, category, identifier, meta?, confirmed? }) → Credential` | upsert по unique; воскрешает |
-| `credentials.delete` | `(id) → boolean` | мягкое (`deleted = now()`) |
-| `resources.find` | `({ category? }?) → Resource[]` | |
-| `resources.get` / `set` / `delete` | по `alias` | set — upsert; delete каскадит Rule |
+| `accounts.delete` | `(id) → boolean` | физический; RESTRICT при истории |
+| `credentials.find` | `({ id?, account?, category?, identifier?, confirmed?, withDeleted? }?) → Credential[]` | живые по умолчанию |
+| `credentials.set` | `({ account, category, identifier, meta?, confirmed? }) → Credential` | upsert; воскрешает |
+| `credentials.delete` | `(id) → boolean` | мягкое |
+| `resources.find/get/set/delete` | по `alias` | set — upsert; delete каскадит Rule |
 | `rules.find` | `({ account?, resource?, permission?, enabled? }?) → Rule[]` | weight DESC |
-| `rules.set` | `({ account, resource, permission, weight?, meta?, enabled? }) → Rule` | upsert по PK; оба конца — Resource.alias |
+| `rules.set` | `({ account, resource, permission, weight?, meta?, enabled? }) → Rule` | upsert по PK |
 | `rules.delete` | `(account, resource) → boolean` | |
 
 ```ts
@@ -564,6 +479,8 @@ Account    = { id, categories: string[], data, meta, avatar, enabled, created, u
 Credential = { id, account, category, identifier, meta, confirmed, created, updated, deleted }
 Resource   = { alias, category, pattern, meta }
 Rule       = { account, resource, permission, weight, meta, enabled }
+Row        = { id, class, data, links, tags, account, owner, updated, $deleted?: true }
+Path       = Record<string, Row>
 ```
 
 ---
@@ -572,37 +489,36 @@ Rule       = { account, resource, permission, weight, meta, enabled }
 
 | Ошибка | Когда |
 |---|---|
-| `unknown class "X". Known: …` | класс вне Schema (со списком доступных) |
-| `ValidationError` (`.issues: [{field, message}]`) | data не прошла строгую валидацию, в т.ч. лишние поля |
-| `class "X" is abstract` | запись в abstract (либа и триггер) |
-| `link "X" requires end "Y"` / `…polymorphic end(s)` | не хватает концов LINK |
-| `no path X → Y` | HUB→HUB без связи в Schema.links |
-| `LINK → LINK traversal is not supported` | недопустимый переход |
-| `Entity.account is NOT NULL — pass account…` | нет account и System-аккаунта |
-| `violates foreign key constraint "entity_class_fk"` | удаление класса с данными / неизвестный класс |
-| `…"entity_account_fk" / "entity_owner_fk"` | несуществующий аккаунт; удаление аккаунта с историей |
-| `lock() works only inside db.begin()` | advisory-lock вне транзакции |
-| `commit() needs a transaction` | commit/rollback на корневом db |
+| `unknown class "X". Known: …` | класс вне Schema (со списком) |
+| `ValidationError` (`.issues`) | строгая валидация: мусор или лишние поля |
+| `class "X" is abstract` | запись в abstract |
+| `link "X" requires end "Y"` / `polymorphic end(s)` | не хватает концов LINK |
+| `context step "X" must resolve to exactly one entity` | контекст-шаг дал 0 или >1 |
+| `context step "X" needs an id or a unique filter` | контекст-шаг без фильтра |
+| `set() already executed — link before the first await` | довес связи после исполнения билдера |
+| `no path X → Y` / `LINK → LINK …` | недопустимый переход чтения |
+| `Entity.account is NOT NULL…` | нет account и System-аккаунта |
+| `violates foreign key constraint "entity_*_fk"` | несуществующий класс/аккаунт; удаление класса с данными |
+| `lock() works only inside db.begin()` | лок вне транзакции |
+| `commit() needs a transaction` | commit на корневом db |
 
 ---
 
 ## 13. Что контролирует приложение
 
-- Непересечение окон внутри расписания (EXCLUDE на hypertable невозможен).
-- Бизнес-проверки брони: навык, смена, число подряд идущих окон под `duration`
-  (рецепт — § 7).
-- `total` записи = Σ `позиция.price × qty`.
-- Генерация окон из шаблонов/повторов (в ядре расписание — конкретный период).
+- Непересечение окон в расписании (EXCLUDE на hypertable невозможен).
+- Бизнес-проверки брони: навык, смена, число подряд окон под `duration` (§ 7).
+- `total` записи = Σ позиций.
+- Генерация окон из шаблонов/повторов.
 
 ## 14. Производительность
 
-- Containment-фильтры и обход графа — GIN (`jsonb_path_ops`); операторные фильтры
-  считаются на уже суженном наборе.
+- Containment и обход графа — GIN; операторы — на уже суженном наборе.
 - Начинайте цепочку с самого селективного шага.
-- `count()` — пути; количество сущностей дешевле через `ids().length`.
-- Удаление с каскадом — серверное: один DELETE на всё дерево, без раундтрипов на уровень.
-- EXPLAIN-паттерн: тест `EXPLAIN` (с `enable_seqscan=off` план обязан использовать
-  `entity_latest_idx` / `entity_links_idx` / `entity_data_idx` — покрыто).
+- `count()` — пути; количество сущностей дешевле `ids().length`.
+- Каскадное удаление — серверное: один DELETE на всё дерево.
+- Билдер `set()` пишет одним INSERT независимо от числа довешенных связей.
+- EXPLAIN-паттерн — тест `EXPLAIN` (индексы обязаны быть в плане; ноль seq scan).
 
 ---
 
@@ -611,42 +527,34 @@ Rule       = { account, resource, permission, weight, meta, enabled }
 Полный исполняемый сценарий — `test/integration.test.ts`. Скелет:
 
 ```ts
-// штат и каталог
+// штат и каталог — связи контекст-шагами
 const [org]  = await db.Организация().set({ name: 'BarberPro' })
-const [ivan] = await db.Сотрудник().set({ name: 'Иван', roles: ['owner','master'] }, { Организация: org })
-const [oleg] = await db.Сотрудник().set({ name: 'Олег', roles: ['master'] }, { Организация: org })
-const [стрижка]  = await db.Услуга().set({ name: 'Стрижка', duration: 60, price: { RUB: 1500 } }, { Организация: org })
-const [комплекс] = await db.Комплекс().set({ name: 'Стрижка+борода', duration: 90, price: { RUB: 2500 } }, { Организация: org })
-await db.позиция().set({ qty: 1 }, { Комплекс: комплекс, Услуга: стрижка })   // состав
-await db.навык().set({}, { Сотрудник: ivan, Комплекс: комплекс })              // умение
+const [ivan] = await db.Организация(org).Сотрудник().set({ name: 'Иван', roles: ['owner','master'] })
+const [oleg] = await db.Организация(org).Сотрудник().set({ name: 'Олег', roles: ['master'] })
+const [стрижка]  = await db.Организация(org).Услуга().set({ name: 'Стрижка', duration: 60, price: { RUB: 1500 } })
+const [комплекс] = await db.Организация(org).Комплекс().set({ name: 'Стрижка+борода', duration: 90, price: { RUB: 2500 } })
+await db.Комплекс(комплекс).Услуга(стрижка).позиция().set({ qty: 1 })   // состав
+await db.Сотрудник(ivan).Комплекс(комплекс).навык().set({})             // умение
 
-// календарь: период → окна (батчем) → ростер → исключение
-const [sch] = await db.Расписание().set({ start: '2026-07-10T10:00:00+03:00', end: '…13:00' }, { Организация: org })
-db.batch('о').Окно().set({ start: '…10:00', end: '…11:00' }, { Расписание: sch })   // ×3
+// календарь: период → окна батчем → ростер → исключение
+const [sch] = await db.Организация(org).Расписание().set({ start: '2026-07-10T10:00:00+03:00', end: '…13:00' })
+db.batch('о').Расписание(sch).Окно().set({ start: '…10:00', end: '…11:00' })   // ×3
 const [[w1],[w2],[w3]] = await db.batch('о').execute()
-await db.смена().set({}, { Расписание: sch, Сотрудник: ivan })     // по умолчанию во всех окнах
-await db.занятость(`off-${oleg.id}-${w3.id}`).set({ kind: 'off' }, { Сотрудник: oleg, Окно: w3 })
+await db.Расписание(sch).Сотрудник(ivan).смена().set({})
+await db.Сотрудник(oleg).Окно(w3).занятость().set({ id: `off-${oleg.id}-${w3.id}`, kind: 'off' })
 
-// свободные окна мастера = окна расписаний его смен − его живые занятости
-const все = await db.Сотрудник(oleg.id).смена().Расписание().Окно().ids()
-const busy = await db.Сотрудник(oleg.id).занятость().execute()
-const занятые = new Set(busy.map(p => p.занятость.links.Slot))
-const свободные = все.filter(id => !занятые.has(id))
+// бронь мульти-слот (90м > 60м → два окна) — z-форма набора связей
+const [bkg] = await db.Клиент(пётр).Запись().set({ status: 'created', total: { RUB: 2500 } })
+await db.Запись(bkg).Комплекс(комплекс).Сотрудник(ivan).позиция().set({ qty: 1, price: { RUB: 2500 } })
+const бронь1 = db.занятость().set({ id: `busy-${ivan.id}-${w2.id}`, kind: 'booking' })
+бронь1.Сотрудник(ivan); бронь1.Окно(w2); бронь1.Запись(bkg); await бронь1
+await db.Сотрудник(ivan).Окно(w3).Запись(bkg).занятость(`busy-${ivan.id}-${w3.id}`).set({ kind: 'booking' })
 
-// бронь мульти-слот (90м > 60м → два окна) — под локом, см. § 7
-const [bkg] = await db.Запись().set({ status: 'created', total: { RUB: 2500 } }, { Клиент: пётр })
-await db.позиция().set({ qty: 1, price: { RUB: 2500 } }, { Запись: bkg, Комплекс: комплекс, Сотрудник: ivan })
-await db.занятость(`busy-${ivan.id}-${w2.id}`).set({ kind: 'booking' }, { Сотрудник: ivan, Окно: w2, Запись: bkg })
-await db.занятость(`busy-${ivan.id}-${w3.id}`).set({ kind: 'booking' }, { Сотрудник: ivan, Окно: w3, Запись: bkg })
-
-// жизненный цикл и чтения
-await db.Запись(bkg.id).set({ status: 'confirmed' })                       // версия
-await db.Запись(bkg.id).занятость().Окно().rows({ order: 'data.start' })   // окна брони
-await db.Окно(w2.id).занятость({ kind: 'booking' }).Сотрудник().rows()     // кто занят
-await db.Клиент(пётр.id).Запись().rows()                                   // история клиента
-
-// отмена: серверный каскад освобождает окна; возврат — всё удалённое с $deleted
-const удалено = await db.Запись(bkg.id).delete()   // Booking + busy×2 + item
+// жизненный цикл, чтения, отмена
+await db.Запись(bkg.id).set({ status: 'confirmed' })
+await db.Запись(bkg.id).занятость().Окно().sort('data.start').rows()   // окна брони
+await db.Окно(w2.id).занятость({ kind: 'booking' }).Сотрудник().rows() // кто занят
+const удалено = await db.Запись(bkg.id).delete()   // всё с $deleted (Booking+busy×2+item)
 ```
 
 ---
@@ -654,15 +562,15 @@ const удалено = await db.Запись(bkg.id).delete()   // Booking + bus
 ## 16. Тесты
 
 ```bash
-npm test    # 41 тест против живого docker-timescale:
+npm test    # 43 теста против живого docker-timescale:
             # триггеры (check / UPDATE=версия / DELETE=tombstone+каскад / lineage),
-            # пример ТЗ (пути), обходы всех видов (включая self-детей),
-            # 16 операторов с кастами, модификаторы tags/account/owner,
-            # deep-merge, строгая валидация (лишние поля), set-матрица/upsert,
-            # delete с $deleted и серверным каскадом, транзакции/rollback,
-            # ГОНКА двойной брони, батчи (атомарность, multi-VALUES),
-            # auth-таблицы (FK, RESTRICT, soft-delete), EXPLAIN (GIN, ноль seq scan),
-            # интеграционный E2E-барбершоп
+            # пример ТЗ (пути), обходы (включая self-детей), 16 операторов,
+            # модификаторы limit/offset/sort/tags/account/owner,
+            # set-билдер (контекст, inline-связи, z-форма, кеш await),
+            # deep-merge, строгая валидация, upsert по id/data.id,
+            # delete с $deleted и серверным каскадом (в т.ч. в контексте),
+            # транзакции/rollback, ГОНКА двойной брони, батчи, auth-таблицы,
+            # EXPLAIN (GIN, ноль seq scan), интеграционный E2E-барбершоп
 ```
 
-`ENTITY_DSN` переопределяет DSN тестов (default `postgres://postgres:test@localhost:15432/clockz`).
+`ENTITY_DSN` переопределяет DSN (default `postgres://postgres:test@localhost:15432/clockz`).

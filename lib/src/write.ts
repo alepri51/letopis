@@ -1,12 +1,18 @@
 /**
- * Запись: терминалы .set() / .delete() на цепочке + исполнение батчей.
- * Всё — INSERT: новая версия (merge поверх latest) или tombstone (+каскад).
+ * Запись: терминалы .set(data) / .delete() на цепочке + исполнение батчей.
+ *
+ * Связи задаются dot-цепочкой: НЕ-последние шаги (контекст) резолвятся в ровно одну
+ * сущность каждый и дают:
+ *   - containment-фильтр целей при UPDATE/DELETE (links ⊇ {Класс: id}),
+ *   - links создаваемой строки при INSERT.
+ *
+ *   db.Организация(org).Сотрудник().set({ name: 'Вася' })          // INSERT + links {Org}
+ *   tr.Сотрудник(s).Окно(w).Запись(b).занятость().set({ id, kind }) // UPSERT по data.id
+ *   db.Клиент(c).Запись({ status: 'created' }).set({ status: 'confirmed' }) // UPDATE найденных
  */
 import { randomUUID } from 'node:crypto';
-import type { Row, SetOpts, DelOpts, Filter } from './types.js';
-import { isOp } from './ops.js';
+import type { Row, ChainMods, Filter, ClassDef } from './types.js';
 import { buildRead, insertSql, multiInsertSql, deleteSql, closureSql, type Ctx, type Step } from './sql.js';
-import type { ClassDef } from './types.js';
 
 export class ValidationError extends Error {
   constructor(cls: string, public issues: { field: string; message?: string }[]) {
@@ -40,26 +46,35 @@ export function toRow(r: RawRow): Row {
   };
 }
 
-/** Прочитать актуальные строки по цепочке (для set/delete). */
-export async function readRows(ctx: Ctx, steps: Step[]): Promise<Row[]> {
-  const q = buildRead(ctx, steps, {}, 'rows');
+/** Прочитать актуальные строки по цепочке. */
+export async function readRows(ctx: Ctx, steps: Step[], mods: ChainMods = {}): Promise<Row[]> {
+  const q = buildRead(ctx, steps, mods, 'rows');
   const res = (await ctx.sql.unsafe(q.text, q.params as never[])) as unknown as { row: RawRow }[];
   return res.map((r) => toRow(r.row));
 }
 
-/** Нормализация links: ключи — canonical id классов, значения — id (Row → .id). */
-export function normalizeLinks(ctx: Ctx, links?: Record<string, unknown>): Record<string, string> {
-  const out: Record<string, string> = {};
-  if (!links) return out;
-  for (const [k, v] of Object.entries(links)) {
-    if (v === undefined || v === null) continue;
-    const cls = ctx.registry.resolve(k);
-    out[cls.id] = typeof v === 'object' ? String((v as { id: unknown }).id) : String(v);
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v) && !(v instanceof Date);
+
+/**
+ * Deep-merge патча в базу: меняются ТОЛЬКО указанные листья.
+ * Вложенные plain-объекты сливаются рекурсивно; массивы/скаляры/null — заменяются.
+ */
+export function deepMerge(
+  base: Record<string, unknown>,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...base };
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === undefined) continue;
+    out[k] = isPlainObject(v) && isPlainObject(out[k])
+      ? deepMerge(out[k] as Record<string, unknown>, v)
+      : v;
   }
   return out;
 }
 
-/** Валидация данных по fastest-validator (+ id) и концов LINK. */
+/** Валидация данных по fastest-validator (строгая, + id) и концов LINK. */
 function validate(cls: ClassDef, id: string, data: Record<string, unknown>, links: Record<string, string>): Record<string, unknown> {
   if (cls.abstract) throw new Error(`entity-chain: class "${cls.id}" is abstract`);
 
@@ -100,19 +115,10 @@ interface InsertArgs {
 
 /** INSERT одной строки с ретраем коллизии PK по updated (23505). */
 async function insertOne(ctx: Ctx, a: InsertArgs): Promise<Row> {
-  // ВАЖНО: jsonb-параметры — JS-объектами (postgres.js сериализует сам;
-  // pre-stringify даёт двойную сериализацию → jsonb-строку вместо объекта)
+  // jsonb-параметры — JS-объектами (postgres.js сериализует сам)
   const params = [
-    ctx.partition,
-    a.id,
-    a.cls.id,
-    a.data,
-    a.links,
-    a.tags,
-    a.account,
-    a.owner,
-    a.prevUpdated,
-    a.deleted,
+    ctx.partition, a.id, a.cls.id, a.data, a.links, a.tags,
+    a.account, a.owner, a.prevUpdated, a.deleted,
   ];
   for (let attempt = 1; ; attempt++) {
     try {
@@ -125,113 +131,121 @@ async function insertOne(ctx: Ctx, a: InsertArgs): Promise<Row> {
   }
 }
 
-const isPlainObject = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v) && !(v instanceof Date);
+const isEmptyFilter = (f?: Filter): boolean =>
+  f === undefined || (typeof f === 'object' && !Array.isArray(f) && !Object.keys(f).length);
 
-/**
- * Deep-merge патча в базу: меняются ТОЛЬКО указанные листья.
- * Вложенные plain-объекты сливаются рекурсивно; массивы/скаляры/null — заменяются.
- * {price: {RUB: 100}} обновит RUB и сохранит остальные валюты.
- */
-export function deepMerge(
-  base: Record<string, unknown>,
-  patch: Record<string, unknown>,
-): Record<string, unknown> {
-  const out: Record<string, unknown> = { ...base };
-  for (const [k, v] of Object.entries(patch)) {
-    if (v === undefined) continue;
-    out[k] = isPlainObject(v) && isPlainObject(out[k])
-      ? deepMerge(out[k] as Record<string, unknown>, v)
-      : v;
-  }
-  return out;
-}
-
-/** Entity.account NOT NULL: opts → connect() → System-аккаунт; иначе понятная ошибка. */
-function resolveAccount(ctx: Ctx, opts: SetOpts): string {
-  const acc = opts.account ?? ctx.account ?? ctx.systemAccount;
+/** Entity.account NOT NULL: модификатор → connect() → System-аккаунт; иначе ошибка. */
+function resolveAccount(ctx: Ctx, step: Step): string {
+  const acc = step.accountFilter ?? ctx.account ?? ctx.systemAccount;
   if (!acc) {
     throw new Error(
-      'entity-chain: Entity.account is NOT NULL — pass account in connect()/set opts or seed a System account (db/seed.auth.sql)',
+      'entity-chain: Entity.account is NOT NULL — set .account(…) / connect({account}) or seed a System account (db/seed.auth.sql)',
     );
   }
   return acc;
 }
 
-const isEmptyFilter = (f?: Filter): boolean =>
-  f === undefined || (typeof f === 'object' && !Array.isArray(f) && !Object.keys(f).length);
-
-/** Скалярные eq-поля фильтра — база для upsert-создания. */
-function filterSeed(filter: Filter | undefined): Record<string, unknown> {
-  if (!filter || typeof filter !== 'object' || Array.isArray(filter)) return {};
-  const seed: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(filter)) {
-    if (k.startsWith('$') || k === 'id' || v === undefined || isOp(v)) continue;
-    if (typeof v === 'object' && v !== null && Object.values(v).some(isOp)) continue;
-    seed[k] = v;
-  }
-  return seed;
+/** Значение тегов из модификатора .tags(): строка/массив; операторы в записи не годятся. */
+function tagsValue(step: Step): string[] | undefined {
+  const t = step.tagsFilter;
+  if (t === undefined) return undefined;
+  if (typeof t === 'string') return [t];
+  if (Array.isArray(t)) return t as string[];
+  throw new Error('entity-chain: .tags() before set() accepts string | string[]');
 }
 
 /**
- * .set(data, links?, opts?):
- *  - пустой старт → INSERT;
- *  - фильтр-id, записи нет → INSERT с этим id (upsert);
- *  - найденные → merge data/links → INSERT новой версии каждой.
+ * Контекст-шаги (все, кроме последнего) → {КлассId: id}.
+ * id-фильтр берётся как есть (без запроса); иной фильтр обязан дать ровно одну сущность.
+ */
+async function resolveContext(ctx: Ctx, steps: Step[]): Promise<Record<string, string>> {
+  const links: Record<string, string> = {};
+  for (const step of steps) {
+    let id: string;
+    if (typeof step.filter === 'string') {
+      id = step.filter;
+    } else if (!isEmptyFilter(step.filter) || step.tagsFilter !== undefined || step.accountFilter || step.ownerFilter) {
+      const rows = await readRows(ctx, [step], { limit: 2 });
+      if (rows.length !== 1) {
+        throw new Error(
+          `entity-chain: context step "${step.name}" must resolve to exactly one entity (got ${rows.length})`,
+        );
+      }
+      id = rows[0].id;
+    } else {
+      throw new Error(`entity-chain: context step "${step.name}" needs an id or a unique filter`);
+    }
+    links[step.cls.id] = id;
+  }
+  return links;
+}
+
+/** Шаг поиска целей: фильтр последнего шага + containment контекст-связей. */
+function targetStep(target: Step, contextLinks: Record<string, string>, explicitId?: string): Step {
+  return {
+    ...target,
+    filter: explicitId ?? target.filter,
+    linksFilter: Object.keys(contextLinks).length ? contextLinks : undefined,
+  };
+}
+
+/**
+ * .set(data):
+ *  - пустой фильтр последнего шага и нет data.id → INSERT (links = контекст);
+ *  - id (фильтр-строка или data.id) → UPSERT: есть → новая версия (deep-merge), нет → создать;
+ *  - фильтр-объект → новая версия каждого найденного (в границах контекста); пусто → [].
  */
 export async function setOp(
   ctx: Ctx,
   steps: Step[],
+  mods: ChainMods,
   data: Record<string, unknown>,
-  links?: Record<string, unknown>,
-  opts: SetOpts = {},
+  extraLinks: Record<string, string> = {},   // связи, довешенные ПОСЛЕ set(): .set({…}).Окно(w)
 ): Promise<Row[]> {
-  const step = steps[steps.length - 1];
-  const cls = step.cls;
-  const normLinks = normalizeLinks(ctx, links);
-  const account = resolveAccount(ctx, opts);
-  const owner = opts.owner ?? ctx.owner ?? account;
+  const target = steps[steps.length - 1];
+  const cls = target.cls;
+  const contextLinks = { ...(await resolveContext(ctx, steps.slice(0, -1))), ...extraLinks };
 
-  const freshInsert = (id: string, seed: Record<string, unknown> = {}): Promise<Row> => {
-    const full = validate(cls, id, { ...seed, ...data }, normLinks);
-    return insertOne(ctx, {
-      id, cls, data: full, links: normLinks,
-      tags: opts.tags ?? [], account, owner, prevUpdated: null, deleted: null,
-    });
-  };
+  const dataId = typeof data.id === 'string' ? (data.id as string) : undefined;
+  const filterId = typeof target.filter === 'string' ? target.filter : undefined;
+  const explicitId = filterId ?? dataId;
+  const emptyFilter = isEmptyFilter(target.filter);
 
-  // чистый INSERT
-  if (steps.length === 1 && isEmptyFilter(step.filter) && !opts.id) {
-    return [await freshInsert((data.id as string) ?? randomUUID())];
+  const found =
+    emptyFilter && !explicitId
+      ? []
+      : await readRows(ctx, [targetStep(target, contextLinks, explicitId)], mods);
+
+  if (found.length) {
+    const out: Row[] = [];
+    for (const row of found) {
+      const mergedData = deepMerge(row.data, data);          // только указанные листья
+      const mergedLinks = { ...row.links, ...contextLinks }; // контекст домерживается
+      const full = validate(cls, row.id, mergedData, mergedLinks);
+      out.push(
+        await insertOne(ctx, {
+          id: row.id, cls, data: full, links: mergedLinks,
+          tags: tagsValue(target) ?? row.tags, account: row.account, owner: row.owner,
+          prevUpdated: row.updated, deleted: null,
+        }),
+      );
+    }
+    return out;
   }
-  if (steps.length === 1 && isEmptyFilter(step.filter) && opts.id) {
-    // явный id → upsert по id
-    steps = [{ ...step, filter: opts.id }];
-  }
 
-  const found = await readRows(ctx, steps);
+  // не найдено: INSERT только при явном id или пустом фильтре
+  if (!explicitId && !emptyFilter) return [];
 
-  if (!found.length) {
-    const f = steps.length === 1 ? steps[0].filter : undefined;
-    if (typeof f === 'string') return [await freshInsert(f)];
-    if (opts.upsert) return [await freshInsert(opts.id ?? randomUUID(), filterSeed(f))];
-    return [];
-  }
-
-  const out: Row[] = [];
-  for (const row of found) {
-    const mergedData = deepMerge(row.data, data);       // только указанные листья
-    const mergedLinks = { ...row.links, ...normLinks }; // links — плоская карта Класс→id
-    const full = validate(cls, row.id, mergedData, mergedLinks);
-    out.push(
-      await insertOne(ctx, {
-        id: row.id, cls, data: full, links: mergedLinks,
-        tags: opts.tags ?? row.tags, account: row.account ?? account, owner: row.owner ?? owner,
-        prevUpdated: row.updated, deleted: null,
-      }),
-    );
-  }
-  return out;
+  const id = explicitId ?? randomUUID();
+  const account = resolveAccount(ctx, target);
+  const owner = target.ownerFilter ?? ctx.owner ?? account;
+  const full = validate(cls, id, data, contextLinks);
+  return [
+    await insertOne(ctx, {
+      id, cls, data: full, links: contextLinks,
+      tags: tagsValue(target) ?? [], account, owner, prevUpdated: null, deleted: null,
+    }),
+  ];
 }
 
 /** Транзакционная обёртка: в tr исполняем как есть, вне — sql.begin. */
@@ -241,18 +255,17 @@ async function inTransaction<T>(ctx: Ctx, fn: (c: Ctx) => Promise<T>): Promise<T
 }
 
 /**
- * .delete(): СЕРВЕРНОЕ удаление.
- * 1) рекурсивным CTE собирается замыкание (цели + все живые зависимые);
- * 2) один DELETE — триггер entity_delete в БД делает tombstone + каскад (+advisory-lock).
- * Возвращает ВСЕ удалённые записи (включая каскад) с флагом $deleted: true.
+ * .delete(): цели = фильтр последнего шага + контекст-связи; серверное удаление.
+ * Триггер entity_delete: tombstone + рекурсивный каскад (+advisory-lock).
+ * Возвращает ВСЁ удалённое (цели + каскад) с $deleted: true.
  */
-export async function delOp(ctx: Ctx, steps: Step[], _opts: DelOpts = {}): Promise<Row[]> {
-  const targets = await readRows(ctx, steps);
+export async function delOp(ctx: Ctx, steps: Step[], mods: ChainMods): Promise<Row[]> {
+  const target = steps[steps.length - 1];
+  const contextLinks = await resolveContext(ctx, steps.slice(0, -1));
+  const targets = await readRows(ctx, [targetStep(target, contextLinks)], mods);
   if (!targets.length) return [];
 
-  const cls = steps[steps.length - 1].cls;
-  const params = [ctx.partition, cls.id, ...targets.map((r) => r.id)] as never[];
-
+  const params = [ctx.partition, target.cls.id, ...targets.map((r) => r.id)] as never[];
   return inTransaction(ctx, async (c) => {
     const closure = (await c.sql.unsafe(closureSql(c.pgSchema, targets.length), params)) as unknown as RawRow[];
     await c.sql.unsafe(deleteSql(c.pgSchema, targets.length), params);
@@ -262,22 +275,25 @@ export async function delOp(ctx: Ctx, steps: Step[], _opts: DelOpts = {}): Promi
 
 // ---------------------------------------------------------------------------
 // Батчи: очередь write-операций, исполнение одной транзакцией.
-// Подряд идущие «чистые INSERT» одного класса склеиваются в multi-VALUES.
+// Подряд идущие «чистые INSERT» (один шаг, пустой фильтр, без data.id)
+// одного класса склеиваются в multi-VALUES.
 // ---------------------------------------------------------------------------
 
 export interface BatchOp {
   kind: 'set' | 'delete';
   steps: Step[];
+  mods: ChainMods;
   data?: Record<string, unknown>;
-  links?: Record<string, unknown>;
-  opts?: SetOpts | DelOpts;
+  /** Связи, довешенные после set() (мутируется билдером до execute()). */
+  extraLinks?: Record<string, string>;
 }
 
 const isPureInsert = (op: BatchOp): boolean =>
   op.kind === 'set' &&
   op.steps.length === 1 &&
   isEmptyFilter(op.steps[0].filter) &&
-  !(op.opts as SetOpts | undefined)?.id;
+  typeof op.data?.id !== 'string' &&
+  !Object.keys(op.extraLinks ?? {}).length;
 
 export async function executeBatch(ctx: Ctx, queue: BatchOp[]): Promise<Row[][]> {
   if (!queue.length) return [];
@@ -288,23 +304,22 @@ export async function executeBatch(ctx: Ctx, queue: BatchOp[]): Promise<Row[][]>
     while (i < queue.length) {
       const op = queue[i];
 
-      // группа чистых INSERT одного класса → один multi-VALUES INSERT
       if (isPureInsert(op)) {
-        const cls = op.steps[0].cls;
+        const step = op.steps[0];
+        const cls = step.cls;
         let j = i;
         while (j < queue.length && isPureInsert(queue[j]) && queue[j].steps[0].cls.id === cls.id) j++;
         const group = queue.slice(i, j);
 
         const params: unknown[] = [];
         for (const g of group) {
-          const links = normalizeLinks(c, g.links);
-          const opts = (g.opts ?? {}) as SetOpts;
-          const id = ((g.data ?? {}).id as string) ?? randomUUID();
-          const full = validate(cls, id, g.data ?? {}, links);
-          const account = resolveAccount(c, opts);
+          const s = g.steps[0];
+          const id = randomUUID();
+          const full = validate(cls, id, g.data ?? {}, {});
+          const account = resolveAccount(c, s);
           params.push(
-            c.partition, id, cls.id, full, links,
-            opts.tags ?? [], account, opts.owner ?? c.owner ?? account,
+            c.partition, id, cls.id, full, {}, tagsValue(s) ?? [],
+            account, s.ownerFilter ?? c.owner ?? account,
           );
         }
         const res = (await c.sql.unsafe(
@@ -318,8 +333,8 @@ export async function executeBatch(ctx: Ctx, queue: BatchOp[]): Promise<Row[][]>
 
       results[i] =
         op.kind === 'set'
-          ? await setOp(c, op.steps, op.data ?? {}, op.links, op.opts as SetOpts)
-          : await delOp(c, op.steps, op.opts as DelOpts);
+          ? await setOp(c, op.steps, op.mods, op.data ?? {}, op.extraLinks)
+          : await delOp(c, op.steps, op.mods);
       i++;
     }
     return results;
