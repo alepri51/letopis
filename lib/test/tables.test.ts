@@ -1,6 +1,6 @@
 /**
  * Тесты служебных таблиц auth/ACL: Account, Credential, Resource, Rule
- * + фильтр $account в Entity-цепочках.
+ * + модификаторы .account()/.owner() в Entity-цепочках.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -110,20 +110,20 @@ test('tables в транзакции: rollback откатывает', async () =
   assert.equal(await db.accounts.get(acc.id), null);
 });
 
-test('$account/$owner: фильтры Entity-цепочек; FK RESTRICT на удаление аккаунта с историей', async () => {
+test('.account()/.owner(): фильтры Entity-цепочек; FK RESTRICT на удаление аккаунта с историей', async () => {
   const acc = await db.accounts.set({ categories: ['User'], data: { name: 'Владелец' } });
   const [org] = await db.Организация().set({ name: 'OrgWithAccount' }, undefined, { account: acc.id });
   assert.equal(org.account, acc.id);
   assert.equal(org.owner, acc.id); // owner default = account
 
-  const мои = await db.Организация({ $account: acc.id }).rows();
+  const мои = await db.Организация().account(acc.id).rows();
   assert.equal(мои.length, 1);
   assert.equal(мои[0].data.name, 'OrgWithAccount');
 
-  const мои2 = await db.Организация({ $owner: acc.id }).rows();
+  const мои2 = await db.Организация().owner(acc).rows();   // принимает и Row/Account-объект
   assert.equal(мои2.length, 1);
 
-  const чужие = await db.Организация({ $account: '00000000-0000-0000-0000-000000000000' }).count();
+  const чужие = await db.Организация().account('00000000-0000-0000-0000-000000000000').count();
   assert.equal(чужие, 0);
 
   // FK на несуществующий аккаунт — отклоняется

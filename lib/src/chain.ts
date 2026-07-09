@@ -23,6 +23,12 @@ export interface ChainCore {
   count(): Promise<number>;
   /** Переименовать ключ ТЕКУЩЕГО шага в выводе путей. */
   alias(name: string): Chain;
+  /** Фильтр текущего шага по колонке tags: строка | string[] (все) | has/hasAny/hasAll. */
+  tags(v: string | string[] | object): Chain;
+  /** Фильтр текущего шага по колонке account (uuid или Row). */
+  account(v: string | { id: string }): Chain;
+  /** Фильтр текущего шага по колонке owner (uuid или Row). */
+  owner(v: string | { id: string }): Chain;
   /** insert / update / upsert (см. README). В батче — ставится в очередь. */
   set(data: Record<string, unknown>, links?: Record<string, unknown>, opts?: SetOpts): Promise<Row[]>;
   /** tombstone + каскад. В батче — ставится в очередь. */
@@ -123,9 +129,19 @@ function makeChain(ctx: Ctx, steps: Step[], batchQueue?: BatchOp[]): Chain {
             return res[0].n;
           };
         case 'alias':
-          return (name: string) => {
+        case 'tags':
+        case 'account':
+        case 'owner':
+          return (v: unknown) => {
             const next = steps.slice();
-            next[next.length - 1] = { ...next[next.length - 1], aliasKey: name };
+            const last = next[next.length - 1];
+            const uuidOf = (x: unknown) =>
+              typeof x === 'object' && x !== null ? String((x as { id: unknown }).id) : String(x);
+            next[next.length - 1] =
+              prop === 'alias'   ? { ...last, aliasKey: String(v) }
+              : prop === 'tags'  ? { ...last, tagsFilter: v }
+              : prop === 'account' ? { ...last, accountFilter: uuidOf(v) }
+              : { ...last, ownerFilter: uuidOf(v) };
             return makeChain(ctx, next, batchQueue);
           };
         case 'set':

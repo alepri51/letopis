@@ -98,6 +98,7 @@ interface SchemaRow {
   meta: Record<string, unknown>;
   order: number;
   ancestors: string[] | null;
+  descendants: string[] | null;
 }
 
 function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
@@ -114,8 +115,8 @@ function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
     }
   }
 
-  // fastest-validator: валидируем {id, ...data}; лишние поля разрешены
-  const compiled = v.compile({ ...row.attributes, $$strict: false } as never);
+  // fastest-validator: валидируем {id, ...data}; СТРОГО — лишние поля запрещены
+  const compiled = v.compile({ ...row.attributes, $$strict: true } as never);
   const check: ClassDef['check'] = (data) => {
     const res = compiled(data);
     return res === true ? true : (res as { field: string; message?: string }[]);
@@ -133,6 +134,7 @@ function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
     category: row.category,
     ancestor: row.ancestor,
     ancestors,
+    descendants: row.descendants ?? [],   // считает триггер schema_lineage
     attributes: row.attributes,
     links: row.links ?? [],
     meta: row.meta ?? {},
@@ -146,7 +148,7 @@ function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
 export async function loadRegistry(sql: Sql, pgSchema: string, partition: string): Promise<Registry> {
   const ident = `"${pgSchema.replace(/"/g, '""')}"`;
   const rows = (await sql.unsafe(
-    `SELECT id, alias, category, ancestor, attributes, links, meta, "order", ancestors
+    `SELECT id, alias, category, ancestor, attributes, links, meta, "order", ancestors, descendants
        FROM ${ident}."Schema" WHERE partition = $1 ORDER BY category, "order"`,
     [partition],
   )) as unknown as SchemaRow[];

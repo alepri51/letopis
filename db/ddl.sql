@@ -24,9 +24,62 @@ CREATE TABLE IF NOT EXISTS "booking"."Schema" (
     links      text[] NOT NULL DEFAULT '{}',     -- HUB: встраиваемые цели; LINK: обязательные концы ('Entity' = полиморфный)
     meta       jsonb  NOT NULL DEFAULT '{}',     -- {abstract?, description?}
     "order"    int    NOT NULL DEFAULT 0,
-    ancestors  text[] NOT NULL DEFAULT '{}',     -- полная цепочка наследования (заполняет сид/либа)
+    ancestors   text[] NOT NULL DEFAULT '{}',    -- [self, parent, …, root] — считает триггер schema_lineage
+    descendants text[] NOT NULL DEFAULT '{}',    -- все потомки (транзитивно)  — считает триггер schema_lineage
     PRIMARY KEY (partition, id)
 );
+
+-- -----------------------------------------------------------------------------
+-- Триггер lineage: ancestors + descendants пересчитываются автоматически
+-- при любом INSERT/UPDATE(ancestor,id)/DELETE в Schema (statement-level).
+-- Рекурсивные CTE вверх и вниз; защита от циклов (depth ≤ 32) и от
+-- саморекурсии триггера (pg_trigger_depth).
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION "booking".schema_lineage() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    IF pg_trigger_depth() > 1 THEN RETURN NULL; END IF;
+
+    WITH RECURSIVE up AS (
+        SELECT s.partition, s.id, s.id AS anc, 0 AS depth FROM "booking"."Schema" s
+        UNION ALL
+        SELECT u.partition, u.id, p.ancestor, u.depth + 1
+        FROM up u
+        JOIN "booking"."Schema" p ON p.partition = u.partition AND p.id = u.anc
+        WHERE p.ancestor IS NOT NULL AND u.depth < 32
+    ),
+    anc AS (
+        SELECT partition, id, array_agg(anc ORDER BY depth) AS ancestors
+        FROM up GROUP BY partition, id
+    ),
+    down AS (
+        SELECT s.partition, s.id, s.id AS des, 0 AS depth FROM "booking"."Schema" s
+        UNION ALL
+        SELECT d.partition, d.id, c.id, d.depth + 1
+        FROM down d
+        JOIN "booking"."Schema" c ON c.partition = d.partition AND c.ancestor = d.des
+        WHERE d.depth < 32
+    ),
+    dsc AS (
+        SELECT partition, id,
+               COALESCE(array_agg(des ORDER BY depth, des) FILTER (WHERE depth > 0), '{}') AS descendants
+        FROM down GROUP BY partition, id
+    )
+    UPDATE "booking"."Schema" s
+       SET ancestors = anc.ancestors, descendants = dsc.descendants
+      FROM anc
+      JOIN dsc ON dsc.partition = anc.partition AND dsc.id = anc.id
+     WHERE s.partition = anc.partition AND s.id = anc.id
+       AND (s.ancestors IS DISTINCT FROM anc.ancestors
+            OR s.descendants IS DISTINCT FROM dsc.descendants);
+
+    RETURN NULL;
+END $$;
+
+DROP TRIGGER IF EXISTS schema_lineage ON "booking"."Schema";
+CREATE TRIGGER schema_lineage
+    AFTER INSERT OR UPDATE OF ancestor, id OR DELETE ON "booking"."Schema"
+    FOR EACH STATEMENT EXECUTE FUNCTION "booking".schema_lineage();
 
 -- -----------------------------------------------------------------------------
 -- Entity: единое хранилище сущностей и связей. Append-only hypertable.
@@ -139,19 +192,77 @@ CREATE TRIGGER entity_check
     FOR EACH ROW EXECUTE FUNCTION "booking".entity_check();
 
 -- -----------------------------------------------------------------------------
--- Триггер 2: enforce append-only — физические UPDATE/DELETE запрещены.
--- Новая версия / tombstone — только INSERT (делает либа).
+-- Триггер 2: UPDATE = новая версия. Физического UPDATE не происходит:
+--   * бьёт только АКТУАЛЬНУЮ строку (не-latest молча игнорируются, история неизменна);
+--   * вместо апдейта вставляется новая версия с монотонным updated;
+--   * вставка проходит entity_check (валидация класса/links).
+-- Работает и для голого SQL: UPDATE "booking"."Entity" SET data=… WHERE …
 -- -----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION "booking".entity_readonly() RETURNS trigger
+CREATE OR REPLACE FUNCTION "booking".entity_update() RETURNS trigger
 LANGUAGE plpgsql AS $$
+DECLARE latest timestamptz;
 BEGIN
-    RAISE EXCEPTION 'ENTITY is append-only: use INSERT (new version / tombstone)';
+    SELECT max(updated) INTO latest FROM "booking"."Entity"
+     WHERE partition = OLD.partition AND class = OLD.class AND id = OLD.id;
+    IF OLD.updated <> latest THEN
+        RETURN NULL;                                   -- историческая версия неприкосновенна
+    END IF;
+
+    INSERT INTO "booking"."Entity"
+        (partition, id, class, data, links, tags, account, owner, updated, deleted)
+    VALUES
+        (NEW.partition, NEW.id, NEW.class, NEW.data, NEW.links, NEW.tags, NEW.account, NEW.owner,
+         GREATEST(clock_timestamp(), OLD.updated + interval '1 microsecond'), NEW.deleted);
+    RETURN NULL;                                       -- физический UPDATE отменён
 END $$;
 
 DROP TRIGGER IF EXISTS entity_no_update ON "booking"."Entity";
-CREATE TRIGGER entity_no_update
-    BEFORE UPDATE OR DELETE ON "booking"."Entity"
-    FOR EACH ROW EXECUTE FUNCTION "booking".entity_readonly();
+DROP TRIGGER IF EXISTS entity_update ON "booking"."Entity";
+CREATE TRIGGER entity_update
+    BEFORE UPDATE ON "booking"."Entity"
+    FOR EACH ROW EXECUTE FUNCTION "booking".entity_update();
+
+-- -----------------------------------------------------------------------------
+-- Триггер 3: DELETE = tombstone + РЕКУРСИВНЫЙ каскад по links — целиком в БД.
+--   * бьёт только актуальную ЖИВУЮ строку (история и tombstone неприкосновенны);
+--   * advisory-lock сериализует параллельные удаления сущности;
+--   * каскад: DELETE живых зависимых (links ⊃ {класс: id}) → рекурсия этого же триггера;
+--   * физического удаления не происходит никогда (очистка истории — retention-политики).
+-- Работает и для голого SQL: DELETE FROM "booking"."Entity" WHERE partition=… AND class=… AND id=…
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION "booking".entity_delete() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE latest timestamptz;
+BEGIN
+    PERFORM pg_advisory_xact_lock(
+        hashtextextended(OLD.partition || '|' || OLD.class || '|' || OLD.id, 0));
+
+    SELECT max(updated) INTO latest FROM "booking"."Entity"
+     WHERE partition = OLD.partition AND class = OLD.class AND id = OLD.id;
+    IF OLD.updated <> latest OR OLD.deleted IS NOT NULL THEN
+        RETURN NULL;                                   -- не актуальная или уже tombstone: игнор
+    END IF;
+
+    -- tombstone-версия
+    INSERT INTO "booking"."Entity"
+        (partition, id, class, data, links, tags, account, owner, updated, deleted)
+    VALUES
+        (OLD.partition, OLD.id, OLD.class, OLD.data, OLD.links, OLD.tags, OLD.account, OLD.owner,
+         GREATEST(clock_timestamp(), OLD.updated + interval '1 microsecond'), clock_timestamp());
+
+    -- каскад: живые зависимые; их DELETE рекурсивно повторит этот триггер
+    DELETE FROM "booking"."Entity" e
+     WHERE e.partition = OLD.partition
+       AND e.deleted IS NULL
+       AND e.links @> jsonb_build_object(OLD.class, OLD.id);
+
+    RETURN NULL;                                       -- физическое удаление отменено
+END $$;
+
+DROP TRIGGER IF EXISTS entity_delete ON "booking"."Entity";
+CREATE TRIGGER entity_delete
+    BEFORE DELETE ON "booking"."Entity"
+    FOR EACH ROW EXECUTE FUNCTION "booking".entity_delete();
 
 -- =============================================================================
 -- Служебные таблицы (auth/ACL) — перенесены из legacy-дампа 1:1.

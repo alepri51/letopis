@@ -113,7 +113,7 @@ test('3. бронь №1: Пётр → Иван, стрижка 60м в 10:00 (�
     await tr.lock('busy', S.ivan.id, S.win1.id);
 
     // навык есть?
-    const умеет = await tr.навык({ $links: { Сотрудник: S.ivan.id, Услуга: S.стрижка.id } }).count();
+    const умеет = await tr.Сотрудник(S.ivan.id).навык().Услуга(S.стрижка.id).count();
     assert.equal(умеет, 1);
     // окно свободно?
     const занято = await tr.занятость(busyId).first();
@@ -191,9 +191,18 @@ test('6. жизненный цикл: created → confirmed → completed (ис�
 
 test('7. отмена: delete Записи №2 → каскад освобождает оба окна Ивана', async () => {
   const удалено = await db.Запись(S.bkg2.id).delete();
-  // Запись + 2 занятости + 1 позиция
-  assert.equal(удалено.length, 4);
+  // возврат — всё удалённое (цель + серверный каскад) с $deleted: true
   assert.deepEqual(удалено.map((r) => r.class).sort(), ['Booking', 'busy', 'busy', 'item']);
+  assert.ok(удалено.every((r) => r.$deleted === true));
+  // серверный каскад: 2 занятости + позиция затомбстоунены триггером БД
+  const мертвы = (await db.sql.unsafe(
+    `SELECT count(*)::int n FROM (
+       SELECT DISTINCT ON (class, id) deleted FROM "booking"."Entity"
+       WHERE partition='entity' AND links @> $1::jsonb ORDER BY class, id, updated DESC
+     ) t WHERE t.deleted IS NOT NULL`,
+    [{ Booking: S.bkg2.id }] as never[],
+  )) as never as { n: number }[];
+  assert.equal(мертвы[0].n, 3);
 
   // окна Ивана 11:00/12:00 свободны (нет живой занятости)
   const живые = await db.Сотрудник(S.ivan.id).занятость().execute();

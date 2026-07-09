@@ -43,6 +43,12 @@ export interface Step {
   filter?: Filter;
   /** .alias(name) — ключ шага в путях. */
   aliasKey?: string;
+  /** .tags(…) — фильтр по колонке tags: строка | string[] (все) | has/hasAny/hasAll. */
+  tagsFilter?: unknown;
+  /** .account(uuid|Row) — фильтр по колонке account. */
+  accountFilter?: string;
+  /** .owner(uuid|Row) — фильтр по колонке owner. */
+  ownerFilter?: string;
 }
 
 /** Накопитель позиционных параметров. */
@@ -146,9 +152,13 @@ function compileOp(path: string[], ft: FieldType | undefined, o: Op, p: Params):
   }
 }
 
-/** Операторы на колонку tags (text[]). */
+/** Операторы на колонку tags (text[]): строка | string[] (все) | has/hasAny/hasAll. */
 function compileTags(v: unknown, p: Params): Frag {
   if (typeof v === 'string') return (a) => `${a}.tags @> ARRAY[${p.push(v)}]::text[]`;
+  if (Array.isArray(v)) {
+    if (!v.length) return () => 'TRUE';
+    return (a) => `${a}.tags @> ARRAY[${v.map((x) => p.push(x)).join(', ')}]::text[]`;
+  }
   if (isOp(v)) {
     const args = v.args;
     switch (v[OP]) {
@@ -165,7 +175,7 @@ function compileTags(v: unknown, p: Params): Frag {
   throw new Error('entity-chain: $tags accepts a string or has/hasAny/hasAll');
 }
 
-function compileFilter(cls: ClassDef, registry: Registry, filter: Filter | undefined, p: Params): CompiledFilter {
+function compileFilter(cls: ClassDef, filter: Filter | undefined, p: Params): CompiledFilter {
   const out: CompiledFilter = { idConds: [], candFrags: [], finalFrags: [] };
   if (filter === undefined) return out;
 
@@ -189,36 +199,6 @@ function compileFilter(cls: ClassDef, registry: Registry, filter: Filter | undef
       else if (Array.isArray(value))
         out.idConds.push((a) => `${a}.id IN (${value.map((x) => p.push(x)).join(', ')})`);
       else throw new Error('entity-chain: filter.id accepts string | string[]');
-      continue;
-    }
-
-    if (key === '$links') {
-      // {Класс|алиас: id|Row} → containment на колонку links
-      const norm: Record<string, string> = {};
-      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-        const target = registry.resolve(k);
-        norm[target.id] = typeof v === 'object' && v !== null ? String((v as { id: unknown }).id) : String(v);
-      }
-      const ph = p.push(norm); // объектом — postgres.js сериализует в jsonb сам
-      const frag: Frag = (a) => `${a}.links @> ${ph}::jsonb`;
-      out.candFrags.push(frag);
-      out.finalFrags.push(frag);
-      continue;
-    }
-
-    if (key === '$tags') {
-      out.finalFrags.push(compileTags(value, p));
-      continue;
-    }
-
-    if (key === '$account' || key === '$owner') {
-      // колонки Entity.account / Entity.owner (btree-индексы); Row → .id
-      const col = key.slice(1);
-      const v = typeof value === 'object' && value !== null ? String((value as { id: unknown }).id) : String(value);
-      const ph = p.push(v);
-      const frag: Frag = (a) => `${a}.${col} = ${ph}::uuid`;
-      out.candFrags.push(frag);
-      out.finalFrags.push(frag);
       continue;
     }
 
@@ -268,6 +248,8 @@ export function resolveHop(prev: ClassDef, next: ClassDef): HopMode {
   if (prev.category === 'HUB' && next.category === 'LINK') return 'reverse';
   if (prev.category === 'LINK' && next.category === 'HUB') return 'forward';
   if (prev.category === 'HUB' && next.category === 'HUB') {
+    // self-переход (Папка→Папка) = reverse: дети; родитель и так лежит в row.links
+    if (prev.id === next.id) return 'reverse';
     if (prev.links.includes(next.id)) return 'forward';
     if (next.links.includes(prev.id)) return 'reverse';
     throw new Error(
@@ -307,7 +289,21 @@ export function buildRead(ctx: Ctx, steps: Step[], opts: ExecOpts, mode: ReadMod
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
     const pCls = p.push(step.cls.id);
-    const f = compileFilter(step.cls, ctx.registry, step.filter, p);
+    const f = compileFilter(step.cls, step.filter, p);
+
+    // модификаторы шага: .tags() / .account() / .owner()
+    if (step.tagsFilter !== undefined) {
+      const frag = compileTags(step.tagsFilter, p);
+      f.candFrags.push(frag);
+      f.finalFrags.push(frag);
+    }
+    for (const [col, val] of [['account', step.accountFilter], ['owner', step.ownerFilter]] as const) {
+      if (val === undefined) continue;
+      const ph = p.push(val);
+      const frag: Frag = (a) => `${a}.${col} = ${ph}::uuid`;
+      f.candFrags.push(frag);
+      f.finalFrags.push(frag);
+    }
 
     const innerWhere = [`e.partition = ${pPart}`, `e.class = ${pCls}`];
     const outerWhere = ['t.deleted IS NULL'];
@@ -416,15 +412,43 @@ export function multiInsertSql(pgSchema: string, n: number): string {
   );
 }
 
-/** Живые зависимые (links ⊃ {класс: id}) — для каскада delete. $1 partition, $2 jsonb. */
-export function dependentsSql(pgSchema: string): string {
+/**
+ * Серверное удаление: DELETE перехватывает триггер entity_delete —
+ * tombstone актуальной живой версии + рекурсивный каскад по links, всё в БД.
+ * $1 partition, $2 class, дальше — id-шники.
+ */
+export function deleteSql(pgSchema: string, n: number): string {
+  const ids = Array.from({ length: n }, (_, i) => `$${i + 3}`).join(', ');
+  return `DELETE FROM ${entityTable(pgSchema)} WHERE partition = $1 AND class = $2 AND id IN (${ids})`;
+}
+
+/**
+ * Замыкание удаления: цели + все живые зависимые рекурсивно (то, что каскад затомбстоунит).
+ * Рекурсивный CTE; каждый узел — актуальная живая версия. $1 partition, $2 class, $3+ — ids.
+ */
+export function closureSql(pgSchema: string, n: number): string {
   const ent = entityTable(pgSchema);
+  const ids = Array.from({ length: n }, (_, i) => `$${i + 3}`).join(', ');
   return (
-    `SELECT * FROM (` +
-    `SELECT DISTINCT ON (e.class, e.id) e.* FROM ${ent} e ` +
-    `WHERE e.partition = $1 AND (e.class, e.id) IN ` +
-    `(SELECT c.class, c.id FROM ${ent} c WHERE c.partition = $1 AND c.links @> $2::jsonb) ` +
-    `ORDER BY e.class, e.id, e.updated DESC` +
-    `) t WHERE t.deleted IS NULL AND t.links @> $2::jsonb`
+    `WITH RECURSIVE node AS (
+       SELECT * FROM (
+         SELECT DISTINCT ON (e.id) e.* FROM ${ent} e
+         WHERE e.partition = $1 AND e.class = $2 AND e.id IN (${ids})
+         ORDER BY e.id, e.updated DESC
+       ) t WHERE t.deleted IS NULL
+       UNION
+       SELECT dep.* FROM node n
+       JOIN LATERAL (
+         SELECT * FROM (
+           SELECT DISTINCT ON (e2.class, e2.id) e2.* FROM ${ent} e2
+           WHERE e2.partition = $1
+             AND (e2.class, e2.id) IN (
+               SELECT c.class, c.id FROM ${ent} c
+               WHERE c.partition = $1 AND c.links @> jsonb_build_object(n.class, n.id))
+           ORDER BY e2.class, e2.id, e2.updated DESC
+         ) x WHERE x.deleted IS NULL AND x.links @> jsonb_build_object(n.class, n.id)
+       ) dep ON true
+     )
+     SELECT DISTINCT ON (class, id) * FROM node ORDER BY class, id, updated DESC`
   );
 }

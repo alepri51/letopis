@@ -5,7 +5,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Row, SetOpts, DelOpts, Filter } from './types.js';
 import { isOp } from './ops.js';
-import { buildRead, insertSql, multiInsertSql, dependentsSql, type Ctx, type Step } from './sql.js';
+import { buildRead, insertSql, multiInsertSql, deleteSql, closureSql, type Ctx, type Step } from './sql.js';
 import type { ClassDef } from './types.js';
 
 export class ValidationError extends Error {
@@ -125,6 +125,28 @@ async function insertOne(ctx: Ctx, a: InsertArgs): Promise<Row> {
   }
 }
 
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v) && !(v instanceof Date);
+
+/**
+ * Deep-merge патча в базу: меняются ТОЛЬКО указанные листья.
+ * Вложенные plain-объекты сливаются рекурсивно; массивы/скаляры/null — заменяются.
+ * {price: {RUB: 100}} обновит RUB и сохранит остальные валюты.
+ */
+export function deepMerge(
+  base: Record<string, unknown>,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...base };
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === undefined) continue;
+    out[k] = isPlainObject(v) && isPlainObject(out[k])
+      ? deepMerge(out[k] as Record<string, unknown>, v)
+      : v;
+  }
+  return out;
+}
+
 /** Entity.account NOT NULL: opts → connect() → System-аккаунт; иначе понятная ошибка. */
 function resolveAccount(ctx: Ctx, opts: SetOpts): string {
   const acc = opts.account ?? ctx.account ?? ctx.systemAccount;
@@ -198,8 +220,8 @@ export async function setOp(
 
   const out: Row[] = [];
   for (const row of found) {
-    const mergedData = { ...row.data, ...data };
-    const mergedLinks = { ...row.links, ...normLinks };
+    const mergedData = deepMerge(row.data, data);       // только указанные листья
+    const mergedLinks = { ...row.links, ...normLinks }; // links — плоская карта Класс→id
     const full = validate(cls, row.id, mergedData, mergedLinks);
     out.push(
       await insertOne(ctx, {
@@ -219,41 +241,22 @@ async function inTransaction<T>(ctx: Ctx, fn: (c: Ctx) => Promise<T>): Promise<T
 }
 
 /**
- * .delete(): tombstone найденных + каскад зависимых (links ⊃ {класс: id}), BFS, одна транзакция.
+ * .delete(): СЕРВЕРНОЕ удаление.
+ * 1) рекурсивным CTE собирается замыкание (цели + все живые зависимые);
+ * 2) один DELETE — триггер entity_delete в БД делает tombstone + каскад (+advisory-lock).
+ * Возвращает ВСЕ удалённые записи (включая каскад) с флагом $deleted: true.
  */
-export async function delOp(ctx: Ctx, steps: Step[], opts: DelOpts = {}): Promise<Row[]> {
-  const cascade = opts.cascade !== false;
+export async function delOp(ctx: Ctx, steps: Step[], _opts: DelOpts = {}): Promise<Row[]> {
   const targets = await readRows(ctx, steps);
   if (!targets.length) return [];
 
+  const cls = steps[steps.length - 1].cls;
+  const params = [ctx.partition, cls.id, ...targets.map((r) => r.id)] as never[];
+
   return inTransaction(ctx, async (c) => {
-    const queue: { row: Row }[] = targets.map((row) => ({ row }));
-    const visited = new Set(targets.map((r) => `${r.class}|${r.id}`));
-    const out: Row[] = [];
-
-    while (queue.length) {
-      const { row } = queue.shift()!;
-      const cls = c.registry.resolve(row.class);
-      await insertOne(c, {
-        id: row.id, cls, data: row.data, links: row.links,
-        tags: row.tags, account: row.account, owner: row.owner,
-        prevUpdated: row.updated, deleted: new Date(),
-      });
-      out.push(row);
-
-      if (!cascade) continue;
-      const deps = (await c.sql.unsafe(dependentsSql(c.pgSchema), [
-        c.partition,
-        { [row.class]: row.id },
-      ] as never[])) as unknown as RawRow[];
-      for (const dep of deps) {
-        const key = `${dep.class}|${dep.id}`;
-        if (visited.has(key)) continue;
-        visited.add(key);
-        queue.push({ row: toRow(dep) });
-      }
-    }
-    return out;
+    const closure = (await c.sql.unsafe(closureSql(c.pgSchema, targets.length), params)) as unknown as RawRow[];
+    await c.sql.unsafe(deleteSql(c.pgSchema, targets.length), params);
+    return closure.map((r) => ({ ...toRow(r), $deleted: true as const }));
   });
 }
 

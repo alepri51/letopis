@@ -12,6 +12,8 @@ export interface Row {
   account: string;
   owner: string;
   updated: string;
+  /** true у строк, возвращённых .delete() (цели + каскад). */
+  $deleted?: true;
 }
 
 /** Результат execute(): вариант пути — узел на каждый шаг цепочки. */
@@ -24,6 +26,8 @@ export interface ClassDef {
   category: 'HUB' | 'LINK';
   ancestor: string | null;
   ancestors: string[];
+  /** Все потомки (транзитивно) — считает триггер schema_lineage. */
+  descendants: string[];
   attributes: Record<string, unknown>;
   links: string[];
   meta: Record<string, unknown>;
@@ -60,7 +64,8 @@ export type FieldFilter = Scalar | Scalar[] | Op | { [key: string]: Scalar | Op 
 /**
  * Фильтр шага:
  *  - строка / массив строк — id;
- *  - объект: { поле: значение | оператор, $links?: {Класс: id}, $tags?: оператор|строка }.
+ *  - объект: { поле data: значение (eq) | оператор | вложенный record-путь } + ключ id.
+ * Колонки tags/account/owner фильтруются модификаторами цепочки .tags()/.account()/.owner().
  */
 export type Filter =
   | string
@@ -88,10 +93,11 @@ export interface SetOpts {
   upsert?: boolean;
 }
 
-export interface DelOpts {
-  /** Каскадно тумбстоунить зависимых (links ⊃ {класс: id}). Default true. */
-  cascade?: boolean;
-}
+/**
+ * Опций у delete нет: удаление серверное (триггер entity_delete),
+ * каскад по links — всегда, рекурсивно, в БД.
+ */
+export interface DelOpts {}
 
 // --- служебные таблицы (auth/ACL) --------------------------------------------
 
