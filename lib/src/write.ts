@@ -131,8 +131,12 @@ async function insertOne(ctx: Ctx, a: InsertArgs): Promise<Row> {
   }
 }
 
-const isEmptyFilter = (f?: Filter): boolean =>
-  f === undefined || (typeof f === 'object' && !Array.isArray(f) && !Object.keys(f).length);
+/**
+ * Различие форм фильтра в записи:
+ *   Класс()   — БЕЗ аргумента  → INSERT новой сущности;
+ *   Класс({}) — пустой объект  → «все найденные» (UPDATE в границах контекста).
+ */
+const noFilter = (f?: Filter): boolean => f === undefined;
 
 /** Entity.account NOT NULL: модификатор → connect() → System-аккаунт; иначе ошибка. */
 function resolveAccount(ctx: Ctx, step: Step): string {
@@ -164,7 +168,7 @@ async function resolveContext(ctx: Ctx, steps: Step[]): Promise<Record<string, s
     let id: string;
     if (typeof step.filter === 'string') {
       id = step.filter;
-    } else if (!isEmptyFilter(step.filter) || step.tagsFilter !== undefined || step.accountFilter || step.ownerFilter) {
+    } else if (!noFilter(step.filter) || step.tagsFilter !== undefined || step.accountFilter || step.ownerFilter) {
       const rows = await readRows(ctx, [step], { limit: 2 });
       if (rows.length !== 1) {
         throw new Error(
@@ -204,23 +208,25 @@ export async function setOp(
 ): Promise<Row[]> {
   const target = steps[steps.length - 1];
   const cls = target.cls;
-  const contextLinks = { ...(await resolveContext(ctx, steps.slice(0, -1))), ...extraLinks };
+  // контекст-шаги: и фильтр целей, и значения; довешенные extraLinks — ТОЛЬКО значения
+  const contextLinks = await resolveContext(ctx, steps.slice(0, -1));
+  const writeLinks = { ...contextLinks, ...extraLinks };
 
   const dataId = typeof data.id === 'string' ? (data.id as string) : undefined;
   const filterId = typeof target.filter === 'string' ? target.filter : undefined;
   const explicitId = filterId ?? dataId;
-  const emptyFilter = isEmptyFilter(target.filter);
+  const insertMode = noFilter(target.filter); // Класс() без аргумента
 
   const found =
-    emptyFilter && !explicitId
+    insertMode && !explicitId
       ? []
       : await readRows(ctx, [targetStep(target, contextLinks, explicitId)], mods);
 
   if (found.length) {
     const out: Row[] = [];
     for (const row of found) {
-      const mergedData = deepMerge(row.data, data);          // только указанные листья
-      const mergedLinks = { ...row.links, ...contextLinks }; // контекст домерживается
+      const mergedData = deepMerge(row.data, data);        // только указанные листья
+      const mergedLinks = { ...row.links, ...writeLinks }; // контекст + довешенные
       const full = validate(cls, row.id, mergedData, mergedLinks);
       out.push(
         await insertOne(ctx, {
@@ -233,16 +239,16 @@ export async function setOp(
     return out;
   }
 
-  // не найдено: INSERT только при явном id или пустом фильтре
-  if (!explicitId && !emptyFilter) return [];
+  // не найдено: INSERT только при явном id или Класс() без аргумента
+  if (!explicitId && !insertMode) return [];
 
   const id = explicitId ?? randomUUID();
   const account = resolveAccount(ctx, target);
   const owner = target.ownerFilter ?? ctx.owner ?? account;
-  const full = validate(cls, id, data, contextLinks);
+  const full = validate(cls, id, data, writeLinks);
   return [
     await insertOne(ctx, {
-      id, cls, data: full, links: contextLinks,
+      id, cls, data: full, links: writeLinks,
       tags: tagsValue(target) ?? [], account, owner, prevUpdated: null, deleted: null,
     }),
   ];
@@ -291,7 +297,7 @@ export interface BatchOp {
 const isPureInsert = (op: BatchOp): boolean =>
   op.kind === 'set' &&
   op.steps.length === 1 &&
-  isEmptyFilter(op.steps[0].filter) &&
+  noFilter(op.steps[0].filter) &&
   typeof op.data?.id !== 'string' &&
   !Object.keys(op.extraLinks ?? {}).length;
 
