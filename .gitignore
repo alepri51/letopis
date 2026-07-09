@@ -1,0 +1,23 @@
+node_modules
+.nuxt
+.output
+.data
+dist
+.DS_Store
+*.log
+_design_extract
+.claude/
+dev.log
+
+ignore*
+.tmp/
+_screenshots/
+*.local.md
+*.local.txt
+
+# Backend runtime data (DB, uploads, backups) — never commit
+data/
+*.db
+*.db-shm
+*.db-wal
+.env
