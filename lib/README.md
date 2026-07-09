@@ -232,6 +232,66 @@ db.Сотрудник({name:'Вася'}).alias('Мастер')    // ключ ш
 
 ## 6. Запись: `.set()` / `.delete()`
 
+### Анатомия вызова
+
+```
+db.Класс( ФИЛЬТР ).set( DATA , LINKS? , OPTS? )  →  Promise<Row[]>
+          └─────┘       └──┬─┘ └──┬──┘ └──┬──┘
+     кого трогаем       что писать │      служебное
+                                   └ связи строки
+```
+
+**ФИЛЬТР** (аргумент шага) — определяет режим set: нет → INSERT; id-строка → UPSERT;
+объект → UPDATE найденных (см. матрицу ниже).
+
+**DATA** — поля сущности/связи. Каждый ключ обязан быть объявлен в `Schema.attributes`
+класса (строгая валидация, лишние → `ValidationError`). Default-ы схемы подставляются
+автоматически. Значения-даты (тип `date`) конвертируются в ISO UTC.
+
+**LINKS** — карта связей строки: `{ КлассИлиАлиас: id | Row }`.
+- Ключ — имя класса (русский алиас `Организация` или англ. id `Org` — равнозначно;
+  в БД нормализуется в канонический id: `{"Org": "…"}`).
+- Значение — строка-id или целый `Row` (возьмётся его `.id`).
+- Для LINK-классов сюда идут **концы связи**: объявленные в `Schema.links` обязательны
+  (у `busy` это `Staff` и `Slot`), любые дополнительные ключи разрешены (`Запись` у брони).
+- При UPDATE-режиме links **мержатся** с существующими по ключам.
+
+**OPTS** — все поля опциональны:
+
+| Поле | Тип | Действие |
+|---|---|---|
+| `id` | string | явный id создаваемой строки (детерминированные id: `busy-<staff>-<slot>`) |
+| `tags` | string[] | заменить теги строки (иначе наследуются от прошлой версии; при insert — `[]`) |
+| `account` | uuid | арендатор строки (иначе `connect().account` → System-аккаунт) |
+| `owner` | uuid | владелец (иначе = account) |
+| `upsert` | boolean | фильтр-объект ничего не нашёл → создать из eq-полей фильтра + data |
+
+**Возврат** — `Row[]`: вставленные версии (при INSERT — одна).
+
+Разобранные примеры:
+
+```ts
+// INSERT: фильтра нет → создать Сотрудника; links свяжут его с организацией
+// data → валидация по Schema.attributes(Staff); org — Row, возьмётся org.id
+const [вася] = await db.Сотрудник().set(
+  { name: 'Вася', roles: ['master'] },      // data  → колонка data
+  { Организация: org },                     // links → колонка links = {"Org": org.id}
+)
+
+// UPSERT по явному id (внутри транзакции tr): бронь пары (мастер, окно)
+// busy — LINK: концы Staff+Slot обязательны, Запись — доп. ключ
+await tr.занятость(busyId).set(
+  { kind: 'booking' },                              // data связи
+  { Сотрудник: s, Окно: w, Запись: b },             // links = {"Staff":…, "Slot":…, "Booking":…}
+)
+
+// UPDATE по фильтру: новая версия каждого найденного (deep-merge)
+await db.Сотрудник({ name: 'Вася' }).set({ active: false })
+
+// INSERT с opts: детерминированный id + теги + владелец
+await db.Клиент().set({ name: 'Пётр' }, { Организация: org }, { id: 'cli-1', tags: ['vip'], account: accId })
+```
+
 ### Матрица `.set(data, links?, opts?)`
 
 | Старт | Найдено | Действие |
@@ -409,15 +469,67 @@ WHERE partition='entity' AND class='Booking' AND id=$1 ORDER BY updated;
 | `.set` | `(data, links?, opts?: SetOpts) => Promise<Row[]>` | § 6; в батче → № очереди |
 | `.delete` | `() => Promise<Row[]>` | § 6; всё удалённое с `$deleted: true` |
 
-**Типы:**
+### Параметры вызовов — подробно
+
+**`Filter`** — аргумент шага `db.Класс(filter?)`, все формы:
+
+| Форма | Пример | Смысл |
+|---|---|---|
+| не передан | `db.Услуга()` | без фильтра: чтение — весь класс; `set` — INSERT |
+| `string` | `db.Услуга('uuid')` | по id (одна сущность); `set` — upsert по id |
+| `string[]` | `db.Услуга(['a','b'])` | по списку id; `[]` — пустой результат |
+| объект: `поле: скаляр` | `{ name: 'Стрижка', active: true }` | равенство полей `data` (GIN-containment) |
+| объект: `поле: Оператор` | `{ duration: gte(30) }` | 16 операторов, касты по типу поля из Schema |
+| объект: `поле: {подключ: …}` | `{ price: { RUB: lte(2000) } }` | record-поле: вложенный путь; скаляры и операторы смешиваются |
+| ключ `id` в объекте | `{ id: 'uuid', active: true }` | id-условие вместе с полями (`string \| string[]`) |
+
+**`links`** (2-й аргумент `set`) — `{ КлассИлиАлиас: id | Row }`: ключи нормализуются в
+канонические id классов; значение-Row → его `.id`; концы LINK из `Schema.links` обязательны;
+при UPDATE мержится по ключам. Полный разбор — § 6.
+
+**`ExecOpts`** — опции всех читающих терминалов:
+
+| Поле | Тип | Default | Смысл |
+|---|---|---|---|
+| `limit` | number | без лимита | максимум строк/путей |
+| `offset` | number | 0 | пропустить N |
+| `order` | `'updated'` \| `'data.<поле>'` | без сортировки | поле последнего шага; каст по типу из Schema |
+| `desc` | boolean | false | направление сортировки |
+
+**`SetOpts`** — 3-й аргумент `set` (все поля опциональны):
+
+| Поле | Тип | Default | Смысл |
+|---|---|---|---|
+| `id` | string | `data.id` → uuid | явный id создаваемой строки (детерминированные брони) |
+| `tags` | string[] | наследуются / `[]` | заменить теги строки |
+| `account` | uuid | `connect().account` → System | арендатор |
+| `owner` | uuid | = account | владелец |
+| `upsert` | boolean | false | объект-фильтр пуст → создать из eq-полей фильтра + data |
+
+**Результаты:**
 
 ```ts
-Filter  = string | string[] | { [поле]: скаляр | Оператор | { [подключ]: скаляр | Оператор }, id?: string | string[] }
-ExecOpts = { limit?: number; offset?: number; order?: 'updated' | 'data.<поле>'; desc?: boolean }
-SetOpts  = { id?: string; tags?: string[]; account?: uuid; owner?: uuid; upsert?: boolean }
-Row      = { id, class, data, links, tags, account, owner, updated, $deleted?: true }
-Path     = Record<string, Row>
+Row  = { id: string; class: string; data: object; links: Record<string,string>;
+         tags: string[]; account: uuid; owner: uuid; updated: ISO; $deleted?: true }
+Path = Record<string, Row>       // ключ = имя шага / .alias(); повтор → имя_2
 ```
+
+**Остальные вызовы:**
+
+| Вызов | Параметры | Возврат |
+|---|---|---|
+| `db.begin()` | — | `EntityTx` (тот же API + commit/rollback/lock) |
+| `db.commit(tr)` / `db.rollback(tr)` | `tr: EntityTx` | `Promise<void>`; повторно — no-op |
+| `tr.commit()` / `tr.rollback()` | — | то же без аргумента |
+| `tr.lock(...keys)` | `(string \| number)[]` — склеиваются в один ключ | advisory-xact-lock до конца tr |
+| `db.batch(name)` | `name: string` — имя-реестр | `Batch` |
+| `batch.execute()` | — | `Promise<Row[][]>` — по порядку операций |
+| `batch.discard()` / `batch.size()` | — | void / number |
+| `chain.alias(name)` | `name: string` | ключ шага в путях |
+| `chain.tags(v)` | `string`(⊇один) \| `string[]`(⊇все) \| `has/hasAny/hasAll` | фильтр по колонке tags |
+| `chain.account(v)` / `chain.owner(v)` | `uuid` \| `Row`/`Account` (возьмётся `.id`) | фильтр по колонке |
+| `chain.delete()` | — | `Row[]` — всё удалённое (цели+каскад), `$deleted: true` |
+| `db.close()` | — | закрыть пул |
 
 **Операторы (16):** `ne(v)` `gt(v)` `gte(v)` `lt(v)` `lte(v)` `between(a,b)` `inList(vs)`
 `like(s)` `ilike(s)` `starts(s)` `ends(s)` `has(v)` `hasAny(vs)` `hasAll(vs)` `exists(b?)` `isNull()`
