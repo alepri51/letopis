@@ -1,0 +1,276 @@
+[
+  {
+    "id": "Entity",
+    "alias": "Сущность",
+    "category": "HUB",
+    "ancestor": null,
+    "ancestors": ["Entity"],
+    "links": [],
+    "order": 100,
+    "attributes": { "id": "any" },
+    "meta": { "abstract": true, "description": "Абстрактный корень всех сущностей" }
+  },
+  {
+    "id": "Org",
+    "alias": "Организация",
+    "category": "HUB",
+    "ancestor": "Entity",
+    "ancestors": ["Org", "Entity"],
+    "links": [],
+    "order": 200,
+    "attributes": {
+      "id": "uuid",
+      "name": "string",
+      "timezone": { "type": "string", "default": "Europe/Moscow" },
+      "address": "string|optional",
+      "phone": "string|optional",
+      "active": { "type": "boolean", "default": true }
+    },
+    "meta": { "abstract": false, "description": "Организация / точка / филиал — владелец каталога и расписаний" }
+  },
+  {
+    "id": "Staff",
+    "alias": "Сотрудник",
+    "category": "HUB",
+    "ancestor": "Entity",
+    "ancestors": ["Staff", "Entity"],
+    "links": ["Org"],
+    "order": 300,
+    "attributes": {
+      "id": "uuid",
+      "name": "string",
+      "roles": {
+        "type": "array",
+        "items": { "type": "enum", "values": ["owner", "administrator", "manager", "master"] },
+        "default": ["master"]
+      },
+      "active": { "type": "boolean", "default": true }
+    },
+    "meta": {
+      "abstract": false,
+      "description": "Человек: роли совмещаются (owner+master). Бронируемый ⇔ master ∈ roles. Владелец = первый сотрудник с owner."
+    }
+  },
+  {
+    "id": "Folder",
+    "alias": "Папка",
+    "category": "HUB",
+    "ancestor": "Entity",
+    "ancestors": ["Folder", "Entity"],
+    "links": ["Org", "Folder"],
+    "order": 400,
+    "attributes": {
+      "id": "uuid",
+      "name": "string",
+      "kind": { "type": "enum", "values": ["services", "masters"], "default": "services" }
+    },
+    "meta": { "abstract": false, "description": "Папка-категория; вложенность — ссылкой на родительскую Папку в links" }
+  },
+  {
+    "id": "Service",
+    "alias": "Услуга",
+    "category": "HUB",
+    "ancestor": "Entity",
+    "ancestors": ["Service", "Entity"],
+    "links": ["Org", "Folder"],
+    "order": 500,
+    "attributes": {
+      "id": "uuid",
+      "name": "string",
+      "description": "string|optional",
+      "duration": "number|integer|positive",
+      "price": {
+        "type": "record",
+        "key": { "type": "enum", "values": ["RUB", "USD", "EUR", "AED"] },
+        "value": "number|integer|min:0",
+        "default": { "RUB": 0 }
+      },
+      "active": { "type": "boolean", "default": true }
+    },
+    "meta": { "abstract": false, "description": "Услуга: длительность (мин) + цена; занимает столько подряд окон, сколько покрывает duration" }
+  },
+  {
+    "id": "Complex",
+    "alias": "Комплекс",
+    "category": "HUB",
+    "ancestor": "Entity",
+    "ancestors": ["Complex", "Entity"],
+    "links": ["Org", "Folder"],
+    "order": 600,
+    "attributes": {
+      "id": "uuid",
+      "name": "string",
+      "description": "string|optional",
+      "duration": "number|integer|positive",
+      "discount": "number|integer|default:0",
+      "price": {
+        "type": "record",
+        "key": { "type": "enum", "values": ["RUB", "USD", "EUR", "AED"] },
+        "value": "number|integer|min:0",
+        "optional": true
+      }
+    },
+    "meta": {
+      "abstract": false,
+      "description": "Комплекс: собственный duration; состав — позиция(Комплекс→Услуга); свободный текст цены — в description"
+    }
+  },
+  {
+    "id": "Customer",
+    "alias": "Клиент",
+    "category": "HUB",
+    "ancestor": "Entity",
+    "ancestors": ["Customer", "Entity"],
+    "links": ["Org"],
+    "order": 700,
+    "attributes": {
+      "id": "uuid",
+      "name": "string|optional",
+      "contact": "string|optional",
+      "language": { "type": "enum", "values": ["ru", "en"], "default": "ru" },
+      "active": { "type": "boolean", "default": true }
+    },
+    "meta": { "abstract": false, "description": "Клиент — записывается на услуги" }
+  },
+  {
+    "id": "Schedule",
+    "alias": "Расписание",
+    "category": "HUB",
+    "ancestor": "Entity",
+    "ancestors": ["Schedule", "Entity"],
+    "links": ["Org"],
+    "order": 800,
+    "attributes": {
+      "id": "uuid",
+      "start": { "type": "date", "convert": true },
+      "end": { "type": "date", "convert": true },
+      "active": { "type": "boolean", "default": true }
+    },
+    "meta": { "abstract": false, "description": "Расписание — период организации, содержит непересекающиеся Окна (инвариант проверяет приложение)" }
+  },
+  {
+    "id": "Slot",
+    "alias": "Окно",
+    "category": "HUB",
+    "ancestor": "Entity",
+    "ancestors": ["Slot", "Entity"],
+    "links": ["Schedule"],
+    "order": 900,
+    "attributes": {
+      "id": "uuid",
+      "start": { "type": "date", "convert": true },
+      "end": { "type": "date", "convert": true }
+    },
+    "meta": {
+      "abstract": false,
+      "description": "Окно — общий таймлайн произвольной длины внутри Расписания; статуса нет — занятость мастера хранит LINK занятость"
+    }
+  },
+  {
+    "id": "Booking",
+    "alias": "Запись",
+    "category": "HUB",
+    "ancestor": "Entity",
+    "ancestors": ["Booking", "Entity"],
+    "links": ["Customer"],
+    "order": 1000,
+    "attributes": {
+      "id": "uuid",
+      "status": {
+        "type": "enum",
+        "values": ["created", "confirmed", "completed", "cancelled", "no_show"],
+        "default": "created"
+      },
+      "source": { "type": "enum", "values": ["online", "web", "admin", "telegram"], "default": "online" },
+      "comment": "string|optional",
+      "total": {
+        "type": "record",
+        "key": { "type": "enum", "values": ["RUB", "USD", "EUR", "AED"] },
+        "value": "number|integer|min:0",
+        "default": { "RUB": 0 }
+      }
+    },
+    "meta": {
+      "abstract": false,
+      "description": "Запись клиента. Без мастера (мульти-мастер): мастера — на занятости/позиции. Ручная бронь по имени: без Customer, имя в comment. Дата приёма = start первого окна брони. history: полный аудит версиями"
+    }
+  },
+
+  {
+    "id": "link",
+    "alias": "связь",
+    "category": "LINK",
+    "ancestor": null,
+    "ancestors": ["link"],
+    "links": ["Entity", "Entity"],
+    "order": 100,
+    "attributes": { "id": "any" },
+    "meta": { "abstract": true, "description": "Абстрактная связь; фактические концы — ключи Entity.links {Класс: id, …}" }
+  },
+  {
+    "id": "item",
+    "alias": "позиция",
+    "category": "LINK",
+    "ancestor": "link",
+    "ancestors": ["item", "link"],
+    "links": ["Entity", "Entity"],
+    "order": 200,
+    "attributes": {
+      "id": "any",
+      "qty": "number|integer|min:1|default:1",
+      "price": {
+        "type": "record",
+        "key": { "type": "enum", "values": ["RUB", "USD", "EUR", "AED"] },
+        "value": "number|integer|min:0",
+        "optional": true
+      }
+    },
+    "meta": {
+      "abstract": false,
+      "description": "Полиморфная позиция: {Запись,(Услуга|Комплекс),Сотрудник} — строка записи со снимком цены и исполнителем; {Комплекс,Услуга} — состав комплекса"
+    }
+  },
+  {
+    "id": "skill",
+    "alias": "навык",
+    "category": "LINK",
+    "ancestor": "link",
+    "ancestors": ["skill", "link"],
+    "links": ["Staff", "Entity"],
+    "order": 300,
+    "attributes": { "id": "any" },
+    "meta": { "abstract": false, "description": "Навык: Сотрудник умеет (Услуга|Комплекс); при записи проверяется" }
+  },
+  {
+    "id": "shift",
+    "alias": "смена",
+    "category": "LINK",
+    "ancestor": "link",
+    "ancestors": ["shift", "link"],
+    "links": ["Schedule", "Staff"],
+    "order": 400,
+    "attributes": { "id": "any" },
+    "meta": {
+      "abstract": false,
+      "description": "Ростер: сотрудник работает в расписании ⇒ по умолчанию доступен во всех его окнах"
+    }
+  },
+  {
+    "id": "busy",
+    "alias": "занятость",
+    "category": "LINK",
+    "ancestor": "link",
+    "ancestors": ["busy", "link"],
+    "links": ["Staff", "Slot"],
+    "order": 500,
+    "attributes": {
+      "id": "any",
+      "kind": { "type": "enum", "values": ["off", "hold", "booking"], "default": "booking" },
+      "reason": "string|optional"
+    },
+    "meta": {
+      "abstract": false,
+      "description": "Негативная доступность: свободно = НЕТ живой занятости. off — мастер убран из окна; hold — оформление; booking — бронь (+ключ Запись в links). id = uuidv5(Сотрудник, Окно) — детерминирован против двойной брони"
+    }
+  }
+]

@@ -1,0 +1,50 @@
+/**
+ * entity-chain: dot-цепочки над append-only Entity-хранилищем (TimescaleDB).
+ *
+ *   const db = await connect({ dsn, schema: 'booking' })
+ *   await db.Сотрудник({ name: 'Вася' }).навык().Услуга().execute()
+ */
+import postgres from 'postgres';
+import { loadRegistry } from './schema.js';
+import { makeDb, type EntityDb } from './chain.js';
+import type { Ctx } from './sql.js';
+import type { ConnectOpts } from './types.js';
+
+export async function connect(opts: ConnectOpts): Promise<EntityDb> {
+  const sql = postgres(opts.dsn, { max: opts.max ?? 10 });
+  const partition = opts.partition ?? 'entity';
+  const registry = await loadRegistry(sql, opts.schema, partition);
+
+  // Entity.account NOT NULL: fallback — System-аккаунт (семантика legacy-движка)
+  const ident = `"${opts.schema.replace(/"/g, '""')}"`;
+  const sys = (await sql.unsafe(
+    `SELECT id FROM ${ident}."Account" WHERE 'System' = ANY(categories) LIMIT 1`,
+  )) as unknown as { id: string }[];
+
+  const ctx: Ctx = {
+    sql,
+    registry,
+    pgSchema: opts.schema,
+    partition,
+    account: opts.account,
+    owner: opts.owner,
+    systemAccount: sys[0]?.id,
+  };
+  return makeDb(ctx);
+}
+
+// операторы фильтров
+export {
+  ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends,
+  has, hasAny, hasAll, exists, isNull,
+} from './ops.js';
+
+// типы
+export type {
+  Row, Path, Filter, ExecOpts, SetOpts, DelOpts, ConnectOpts,
+  Account, Credential, Resource, Rule,
+} from './types.js';
+export type { EntityDb, EntityTx, Chain, Batch } from './chain.js';
+export type { Tables, AccountsApi, CredentialsApi, ResourcesApi, RulesApi } from './tables.js';
+export { ValidationError } from './write.js';
+export { Registry } from './schema.js';
