@@ -1,6 +1,6 @@
 {
   "name": "entity-chain",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Dot-notation chained queries over append-only Entity storage (TimescaleDB)",
   "type": "module",
   "main": "dist/index.js",
@@ -11,10 +11,13 @@
       "import": "./dist/index.js"
     }
   },
+  "files": ["dist", "README.md", "CHANGELOG.md"],
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test --test-concurrency=1 test/*.test.ts"
+    "test": "tsx --test --test-concurrency=1 test/*.test.ts",
+    "bench": "tsx bench/history.bench.mjs",
+    "prepublishOnly": "npm run typecheck && npm run build"
   },
   "dependencies": {
     "fastest-validator": "^1.19.0",

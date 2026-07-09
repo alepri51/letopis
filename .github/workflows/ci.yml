@@ -1,0 +1,54 @@
+name: ci
+
+on:
+  push:
+    branches: [dev, master, main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      timescale:
+        image: timescale/timescaledb:latest-pg17
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: clockz
+        ports: ['15432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d clockz"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: lib/package-lock.json
+
+      - name: Install
+        working-directory: lib
+        run: npm ci
+
+      - name: Apply engine + seeds (booking schema)
+        run: node db/apply.mjs --dsn='postgres://postgres:test@localhost:15432/clockz' --schema=booking
+
+      - name: Typecheck
+        working-directory: lib
+        run: npx tsc --noEmit
+
+      - name: Tests
+        working-directory: lib
+        env:
+          ENTITY_DSN: postgres://postgres:test@localhost:15432/clockz
+        run: npm test
+
+      - name: Build package artifact
+        working-directory: lib
+        run: |
+          npm run build
+          npm pack
+      - uses: actions/upload-artifact@v4
+        with:
+          name: entity-chain-package
+          path: lib/entity-chain-*.tgz
