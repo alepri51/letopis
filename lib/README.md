@@ -412,20 +412,32 @@ const история = await db.Запись(id).versions()
 
 ### 10.2 Пагинация курсором: `.after()` + `cursorOf()`
 
-Offset на больших списках заставляет БД пролистывать пропущенное; keyset — нет:
+Offset заставляет БД построить и выбросить всё пропущенное (и «съезжает» при вставках).
+Keyset — закладка: курсор = значение поля сортировки **+ id** последней строки страницы;
+следующая страница — «строго после закладки» (`WHERE (поле, id) > (v, id)` — пара делает
+порядок тотальным, дубли значений не теряются и не повторяются).
 
 ```ts
 const стр1 = await db.Запись().sort('updated', 'desc').limit(50).rows()
-const стр2 = await db.Запись().sort('updated', 'desc')
-  .after(cursorOf(стр1.at(-1)!))                     // строго после последней строки
-  .limit(50).rows()
+const кур  = cursorOf(стр1.at(-1)!)                  // { v: '<updated>', id: '…' } — просто объект,
+const стр2 = await db.Запись().sort('updated', 'desc') //  можно хранить в URL/state
+  .after(кур).limit(50).rows()
 
-// по data-полю — курсор с тем же field, что в sort
+// по data-пути ЛЮБОЙ глубины — field тот же, что в sort
 const дальше = await db.Окно().sort('data.start')
   .after(cursorOf(окно, 'data.start')).limit(20).rows()
+
+// бесконечная лента: .after(undefined) не добавляет условия — один код для всех страниц
+let cursor
+do {
+  const page = await db.Запись({ status: 'confirmed' }).sort('updated', 'desc')
+    .after(cursor).limit(50).rows()
+  render(page)
+  cursor = page.length ? cursorOf(page.at(-1)!) : undefined
+} while (cursor)
 ```
 
-`.after()` требует `.sort()` (иначе ошибка); сравнение `(поле, id)` — стабильно при дублях.
+`.after()` требует `.sort()` (иначе ошибка); поле курсора — то же, что в sort.
 
 ### 10.3 Агрегации: считает БД
 
