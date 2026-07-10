@@ -40,6 +40,7 @@ try {
   for (const f of files) {
     let text = await readFile(join(here, f), 'utf8');
     text = text.replaceAll('"booking"', `"${schema.replaceAll('"', '""')}"`);
+    text = text.replaceAll(`pg_notify('booking'`, `pg_notify('${schema.replaceAll("'", "''")}'`); // канал realtime
     await sql.unsafe(text); // multi-statement simple query
     console.log(`applied ${f} → schema "${schema}"`);
   }

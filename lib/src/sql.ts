@@ -53,6 +53,8 @@ export interface Step {
   ownerFilter?: string;
   /** Внутреннее (write-цепочки): containment по links — контекст-связи. */
   linksFilter?: Record<string, string>;
+  /** .deep(max): рекурсивный self-обход (дети любой глубины), только reverse того же класса. */
+  deepMax?: number;
 }
 
 /** Накопитель позиционных параметров. */
@@ -151,6 +153,12 @@ function compileOp(path: string[], ft: FieldType | undefined, o: Op, p: Params):
         : (a) => `NOT (${a}.data ? '${escLit(path[0])}')`;
     case 'isNull':
       return (a) => `${lhs(a)} IS NULL`;
+    case 'not': {
+      const inner = isOp(args[0])
+        ? compileOp(path, ft, args[0] as Op, p)
+        : compileOp(path, ft, { [OP]: 'ne', args: [args[0]] } as Op, p);
+      return isOp(args[0]) ? (a) => `NOT (${inner(a)})` : inner; // not(скаляр) = ne
+    }
     default:
       throw new Error(`entity-chain: unknown operator "${name}"`);
   }
@@ -182,6 +190,17 @@ function compileTags(v: unknown, p: Params): Frag {
 function compileFilter(cls: ClassDef, filter: Filter | undefined, p: Params): CompiledFilter {
   const out: CompiledFilter = { idConds: [], candFrags: [], finalFrags: [] };
   if (filter === undefined) return out;
+
+  // or(...фильтры): дизъюнкция под-фильтров; только перепроверка (в GIN-кандидаты не идёт)
+  if (isOp(filter) && filter[OP] === 'or') {
+    const parts = (filter.args[0] as Record<string, unknown>[]).map((f) => {
+      const sub = compileFilter(cls, f as Filter, p);
+      const frags = [...sub.idConds, ...sub.finalFrags];
+      return (a: string) => (frags.length ? `(${frags.map((fr) => fr(a)).join(' AND ')})` : 'TRUE');
+    });
+    if (parts.length) out.finalFrags.push((a) => `(${parts.map((fr) => fr(a)).join(' OR ')})`);
+    return out;
+  }
 
   if (typeof filter === 'string') {
     out.idConds.push((a) => `${a}.id = ${p.push(filter)}`);
@@ -263,7 +282,13 @@ export function resolveHop(prev: ClassDef, next: ClassDef): HopMode {
   throw new Error(`entity-chain: LINK → LINK traversal is not supported (${prev.id} → ${next.id})`);
 }
 
-export type ReadMode = 'paths' | 'rows' | 'ids' | 'count' | 'versions';
+export type ReadMode = 'paths' | 'rows' | 'ids' | 'count' | 'versions' | 'agg';
+
+/** Тип листа data-пути (для каста агрегаций): 1 уровень или record-значение. */
+function cls0Field(cls: ClassDef, path: string[]): FieldType | undefined {
+  const ft = cls.fieldTypes.get(path[0]);
+  return path.length === 1 ? ft : ft?.kind === 'record' ? ft.value : undefined;
+}
 
 export interface BuiltQuery {
   text: string;
@@ -346,7 +371,8 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
     for (const c of f.idConds) innerWhere.push(c('e'));
     for (const fr of f.finalFrags) outerWhere.push(fr('t'));
 
-    if (i > 0) {
+    const isDeep = step.deepMax !== undefined;
+    if (i > 0 && !isDeep) { // deep строит containment сам (recursive CTE)
       const prev = steps[i - 1];
       const hop = resolveHop(prev.cls, step.cls);
       if (hop === 'forward') {
@@ -366,11 +392,35 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
       );
     }
 
-    const block =
+    let block =
       `(SELECT * FROM (` +
       `SELECT DISTINCT ON (e.id) e.* FROM ${ent} e WHERE ${innerWhere.join(' AND ')} ` +
       `ORDER BY e.id, e.updated DESC` +
       `) t WHERE ${outerWhere.join(' AND ')}) h${i}`;
+
+    // .deep(): рекурсивный обход детей того же класса (recursive CTE поверх latest-паттерна)
+    if (isDeep) {
+      const prev = steps[i - 1];
+      if (i === 0 || prev.cls.id !== step.cls.id) {
+        throw new Error('entity-chain: .deep() works on a self hop (same class as previous step)');
+      }
+      const pMax = p.push(step.deepMax);
+      // latest живые дети узла ref (id-выражение родителя)
+      const kids = (ref: string) =>
+        `(SELECT * FROM (` +
+        `SELECT DISTINCT ON (e.id) e.* FROM ${ent} e WHERE e.partition = ${pPart} AND e.class = ${pCls}` +
+        (mods.asOf !== undefined ? ` AND e.updated <= ${p.push(mods.asOf)}::timestamptz` : '') +
+        ` AND e.id IN (SELECT c.id FROM ${ent} c WHERE c.partition = ${pPart} AND c.class = ${pCls}` +
+        ` AND c.links @> jsonb_build_object(${p.push(step.cls.id)}::text, ${ref}))` +
+        ` ORDER BY e.id, e.updated DESC) t` +
+        ` WHERE t.deleted IS NULL AND t.links @> jsonb_build_object(${p.push(step.cls.id)}::text, ${ref}))`;
+      block =
+        `(WITH RECURSIVE d AS (` +
+        `SELECT k.*, 1 AS depth FROM ${kids(`h${i - 1}.id`)} k` +
+        ` UNION ALL ` +
+        `SELECT k.*, d.depth + 1 FROM d JOIN LATERAL ${kids('d.id')} k ON true WHERE d.depth < ${pMax}::int` +
+        `) SELECT * FROM d) h${i}`;
+    }
 
     blocks.push(i === 0 ? `FROM ${block}` : `JOIN LATERAL ${block} ON true`);
   }
@@ -430,6 +480,26 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
     case 'count':
       text = `SELECT count(*)::int AS n\n${fromClause}`;
       break;
+    case 'agg': {
+      const { aggFn, aggField } = mods;
+      if (!aggFn || !aggField?.startsWith('data.')) {
+        throw new Error("entity-chain: aggregation needs field 'data.<путь>'");
+      }
+      const path = aggField.slice(5).split('.');
+      const acc =
+        path.length === 1
+          ? `h${last}.data->>'${escLit(path[0])}'`
+          : `h${last}.data->'${escLit(path[0])}'->>'${escLit(path[1])}'`;
+      if (aggFn === 'countBy') {
+        text = `SELECT ${acc} AS k, count(*)::int AS n\n${fromClause}\nGROUP BY 1 ORDER BY 2 DESC`;
+      } else {
+        // sum/avg — всегда numeric; min/max — по типу поля
+        const ft = cls0Field(lastCls, path);
+        const cast = aggFn === 'sum' || aggFn === 'avg' ? '::numeric' : castOf(ft);
+        text = `SELECT ${aggFn}((${acc})${cast}) AS v\n${fromClause}`;
+      }
+      break;
+    }
   }
 
   return { text, params: p.list, keys };

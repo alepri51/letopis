@@ -37,6 +37,14 @@ export interface ChainCore {
   after(cursor: import('./types.js').Cursor): Chain;
   /** ВСЕ версии сущностей последнего шага (включая tombstone → $deleted), по возрастанию updated. */
   versions(): Promise<Row[]>;
+  /** Рекурсивный self-обход: дети любой глубины (тот же класс), $depth в Row. */
+  deep(max?: number): Chain;
+  /** Агрегации по полю последнего шага ('data.<путь>'), считает БД. */
+  sum(field: string): Promise<number | null>;
+  avg(field: string): Promise<number | null>;
+  min(field: string): Promise<unknown>;
+  max(field: string): Promise<unknown>;
+  countBy(field: string): Promise<Record<string, number>>;
   /** GDPR: новая версия с затёртыми string-полями ('[erased]') + тег 'anonymized'. История остаётся (см. README). */
   anonymize(fields: string[]): Promise<Row[]>;
   /** Переименовать ключ ТЕКУЩЕГО шага в выводе путей. */
@@ -76,6 +84,11 @@ export interface DbCore {
   rollback(tr: EntityTx): Promise<void>;
   /** Именованный батч: те же цепочки, set/delete копятся до execute(). */
   batch(name: string): Batch;
+  /**
+   * Realtime: события каждой вставленной версии (insert/update/delete-tombstone).
+   * watch(cb) — все классы; watch('Запись', cb) — один. Возврат — stop-функция.
+   */
+  watch(classOrCb: string | ((e: WatchEvent) => void), cb?: (e: WatchEvent) => void): Promise<() => void>;
   close(): Promise<void>;
   registry: Registry;
   /** Голый postgres-клиент (тесты, EXPLAIN). */
@@ -96,6 +109,15 @@ export type EntityTx = EntityDb & {
   rollback(): Promise<void>;
   lock(...keys: (string | number)[]): Promise<void>;
 };
+
+/** Событие watch(): факт новой версии; данные дочитываются запросом при надобности. */
+export interface WatchEvent {
+  partition: string;
+  class: string;
+  id: string;
+  updated: string;
+  deleted: boolean;
+}
 
 export type Batch = {
   execute(): Promise<Row[][]>;
@@ -144,7 +166,11 @@ async function runPaths(ctx: Ctx, steps: Step[], mods: ChainMods): Promise<Path[
 async function runRows(ctx: Ctx, steps: Step[], mods: ChainMods): Promise<Row[]> {
   const q = buildRead(ctx, steps, mods, 'rows');
   const res = (await ctx.sql.unsafe(q.text, q.params as never[])) as unknown as { row: never }[];
-  return res.map((r) => toRow(r.row));
+  return res.map((r) => {
+    const row = toRow(r.row);
+    const d = (r.row as { depth?: number }).depth;
+    return d != null ? { ...row, $depth: d } : row;
+  });
 }
 
 const idOf = (t: string | { id: string }): string => (typeof t === 'object' ? t.id : t);
@@ -224,6 +250,24 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batchQueue?: BatchO
             withMods({ order: field, desc: dir === true || dir === 'desc' });
         case 'asOf':
           return (t: string | Date) => withMods({ asOf: t instanceof Date ? t.toISOString() : t });
+        case 'deep':
+          return (max = 32) => withLast({ deepMax: max });
+        case 'sum':
+        case 'avg':
+        case 'min':
+        case 'max':
+          return async (field: string) => {
+            const q = buildRead(ctx, steps, { ...mods, aggFn: prop, aggField: field }, 'agg');
+            const res = (await ctx.sql.unsafe(q.text, q.params as never[])) as unknown as { v: unknown }[];
+            const v = res[0]?.v;
+            return v === null || v === undefined ? null : typeof v === 'string' && prop !== 'min' && prop !== 'max' ? Number(v) : v;
+          };
+        case 'countBy':
+          return async (field: string) => {
+            const q = buildRead(ctx, steps, { ...mods, aggFn: 'countBy', aggField: field }, 'agg');
+            const res = (await ctx.sql.unsafe(q.text, q.params as never[])) as unknown as { k: string; n: number }[];
+            return Object.fromEntries(res.map((r) => [r.k ?? 'null', r.n]));
+          };
         case 'after':
           return (cursor: ChainMods['after']) => withMods({ after: cursor });
         case 'versions':
@@ -349,6 +393,21 @@ export function makeDb(ctx: Ctx, root?: RootState): EntityDb {
               state.batches.set(name, q);
             }
             return makeBatch(ctx, q);
+          };
+        case 'watch':
+          return async (a: string | ((e: WatchEvent) => void), b?: (e: WatchEvent) => void) => {
+            const cls = typeof a === 'string' ? ctx.registry.resolve(a).id : undefined;
+            const cb = typeof a === 'function' ? a : b!;
+            const listener = (payload: string) => {
+              const e = JSON.parse(payload) as WatchEvent;
+              if (e.partition !== ctx.partition) return;
+              if (cls && e.class !== cls) return;
+              cb(e);
+            };
+            const { unlisten } = await (ctx.sql as unknown as {
+              listen(ch: string, fn: (p: string) => void): Promise<{ unlisten(): Promise<void> }>;
+            }).listen(ctx.pgSchema, listener);
+            return unlisten;
           };
         case 'close':
           return () => (ctx.sql as unknown as { end(): Promise<void> }).end();

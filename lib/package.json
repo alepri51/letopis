@@ -1,6 +1,6 @@
 {
   "name": "entity-chain",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Dot-notation chained queries over append-only Entity storage (TimescaleDB)",
   "type": "module",
   "main": "dist/index.js",

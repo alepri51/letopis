@@ -41,3 +41,7 @@ export const hasAll = (vs: Scalar[]) => op('hasAll', vs);
 export const exists = (yes = true) => op('exists', yes);
 /** поле NULL или отсутствует */
 export const isNull = () => op('isNull');
+/** НЕ-условие по полю: not(ilike('%тест%')); скаляр → «не равно» */
+export const not = (v: Scalar | Op) => op('not', v);
+/** ИЛИ на уровне фильтра шага: db.Запись(or({status:'created'}, {status:'confirmed'})) */
+export const or = (...filters: Record<string, unknown>[]) => op('or', filters);

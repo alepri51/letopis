@@ -12,8 +12,10 @@ export interface Row {
   account: string;
   owner: string;
   updated: string;
-  /** true у строк, возвращённых .delete() (цели + каскад). */
+  /** true у строк, возвращённых .delete() (цели + каскад) и tombstone-версий в .versions(). */
   $deleted?: true;
+  /** Глубина узла при .deep()-обходе (1 = прямой ребёнок). */
+  $depth?: number;
 }
 
 /** Результат execute(): вариант пути — узел на каждый шаг цепочки. */
@@ -70,6 +72,7 @@ export type FieldFilter = Scalar | Scalar[] | Op | { [key: string]: Scalar | Op 
 export type Filter =
   | string
   | string[]
+  | Op // or(...)
   | {
       [field: string]: FieldFilter | undefined;
     };
@@ -91,6 +94,9 @@ export interface ChainMods {
   asOf?: string;
   /** Keyset-пагинация от курсора (требует sort). */
   after?: Cursor;
+  /** Внутреннее: агрегация терминалов .sum/.avg/.min/.max/.countBy. */
+  aggFn?: 'sum' | 'avg' | 'min' | 'max' | 'countBy';
+  aggField?: string;
 }
 
 // --- служебные таблицы (auth/ACL) --------------------------------------------

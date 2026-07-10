@@ -327,6 +327,26 @@ CREATE TABLE IF NOT EXISTS "booking"."Rule" (
 );
 
 -- -----------------------------------------------------------------------------
+-- Триггер 4: realtime — факт каждой новой версии в pg_notify (канал = имя схемы).
+-- Payload лёгкий (без data): подписчик дочитывает нужное сам. Потребитель: db.watch().
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION "booking".entity_notify() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    -- канал = имя схемы ЛИТЕРАЛОМ: триггер исполняется на чанке hypertable,
+    -- где TG_TABLE_SCHEMA = '_timescaledb_internal' (apply.mjs заменяет литерал)
+    PERFORM pg_notify('booking', json_build_object(
+        'partition', NEW.partition, 'class', NEW.class, 'id', NEW.id,
+        'updated', NEW.updated, 'deleted', NEW.deleted IS NOT NULL)::text);
+    RETURN NULL;
+END $$;
+
+DROP TRIGGER IF EXISTS entity_notify ON "booking"."Entity";
+CREATE TRIGGER entity_notify
+    AFTER INSERT ON "booking"."Entity"
+    FOR EACH ROW EXECUTE FUNCTION "booking".entity_notify();
+
+-- -----------------------------------------------------------------------------
 -- Опционально (включать по мере роста данных):
 --
 -- Сжатие старых чанков (экономия на версиях занятости/записей):

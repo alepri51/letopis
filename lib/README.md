@@ -180,7 +180,7 @@ db.Услуга({ id: 'uuid', duration: gte(30) }) // ключ id — тоже i
 db.Услуга({ price: { RUB: lte(2000) } })      // record: вложенный путь + каст
 ```
 
-### Операторы (16)
+### Операторы (18: + `not`, `or`)
 
 ```ts
 import { ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends,
@@ -405,6 +405,7 @@ WHERE partition='entity' AND class='Booking' AND id=$1 ORDER BY updated;
 | `account` | uuid | System-аккаунт | default-арендатор записей |
 | `owner` | uuid | `account` | default-владелец |
 | `max` | number | `10` | пул соединений |
+| `enforceAccount` | boolean | `false` | жёсткая изоляция арендатора: чтения фильтруются по `account`, записи пришпилены (подмена → ошибка `pinned`) |
 
 ### `EntityDb` / `EntityTx`
 
@@ -415,6 +416,7 @@ WHERE partition='entity' AND class='Booking' AND id=$1 ORDER BY updated;
 | `commit` / `rollback` | `(tr) => Promise<void>` | или `tr.commit()`/`tr.rollback()`; повторно — no-op |
 | `lock` | `(...keys: (string\|number)[]) => Promise<void>` | advisory-xact-lock; только на `tr` |
 | `batch` | `(name: string) => Batch` | именованный батч |
+| `watch` | `(classOrCb, cb?) => Promise<() => void>` | realtime: `WatchEvent {partition, class, id, updated, deleted}` на каждую версию (триггер `entity_notify` → LISTEN); возврат — stop |
 | `accounts/credentials/resources/rules` | § 9 | фасады таблиц |
 | `close` | `() => Promise<void>` | закрыть пул |
 | `registry` | `Registry` | `.resolve(name)` → ClassDef (ancestors, descendants, attributes…) |
@@ -434,6 +436,14 @@ WHERE partition='entity' AND class='Booking' AND id=$1 ORDER BY updated;
 | `.rows` / `.first` / `.ids` / `.count` | `() => Promise<…>` | `Row[]` / `Row\|null` / `string[]` / число путей |
 | `.set` | `(data?: object) => SetChain` | § 6; ленивый билдер; в батче await → № очереди |
 | `.delete` | `() => Promise<Row[]>` | всё удалённое (цели+каскад) с `$deleted: true` |
+| `.asOf` | `(t: string \| Date) => Chain` | чтение «как было на T» — версии позже T невидимы (все терминалы) |
+| `.after` | `(c: Cursor) => Chain` | keyset-пагинация после курсора; требует `.sort()`; курсор — `cursorOf(row, field?)` |
+| `.versions` | `() => Promise<Row[]>` | ВСЯ история сущностей последнего шага (tombstone → `$deleted`), по возрастанию |
+| `.anonymize` | `(fields: string[]) => Promise<Row[]>` | GDPR: `'[erased]'` в string-полях + тег `anonymized`; история остаётся |
+| `.deep` | `(max = 32) => Chain` | рекурсивные дети self-hop; `$depth` в Row |
+| `.sum/.avg` | `('data.<путь>') => Promise<number \| null>` | агрегация в БД (record-путь `data.total.RUB` поддержан) |
+| `.min/.max` | `(field) => Promise<unknown>` | каст по типу поля из Schema |
+| `.countBy` | `(field) => Promise<Record<string, number>>` | GROUP BY значению поля |
 
 ### `SetChain` — результат `.set()`
 

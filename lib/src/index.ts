@@ -47,7 +47,7 @@ export function cursorOf(row: import('./types.js').Row, field: string = 'updated
 // операторы фильтров
 export {
   ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends,
-  has, hasAny, hasAll, exists, isNull,
+  has, hasAny, hasAll, exists, isNull, not, or,
 } from './ops.js';
 
 // типы
