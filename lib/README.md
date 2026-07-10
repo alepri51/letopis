@@ -124,7 +124,7 @@ GIN-кандидатам, затем перепроверка условий н�
 | `ancestor` | прямой родитель |
 | `ancestors` | `[self, parent, …, root]` — **считает триггер `schema_lineage`** |
 | `descendants` | все потомки транзитивно — **тот же триггер** |
-| `attributes` | [fastest-validator](https://github.com/icebob/fastest-validator) DSL; строгая валидация |
+| `attributes` | [fastest-validator](https://github.com/icebob/fastest-validator) DSL; вложенные `{type:'object', props:{…}}` любой глубины; строгая валидация |
 | `links` | HUB: встраиваемые цели (forward-обход); LINK: обязательные концы, `'Entity'` = полиморфный |
 | `meta` | `{ abstract?, description? }` |
 
@@ -176,7 +176,7 @@ db.Услуга(rowИлиAccount)                      // объект с id —
 db.Услуга(['id1','id2'])                      // по списку ([] → пусто)
 db.Услуга({ name: 'Стрижка', active: true }) // eq полей data → GIN-containment
 db.Услуга({ id: 'uuid', duration: gte(30) }) // ключ id — тоже id-фильтр
-db.Услуга({ price: { RUB: lte(2000) } })      // record: вложенный путь + каст
+db.Услуга({ price: { RUB: lte(2000) } })      // вложенные пути ЛЮБОЙ глубины (record/object) + каст по листу
 ```
 
 ### Операторы (18: + `not`, `or`)
@@ -611,7 +611,7 @@ import type {
 |---|---|---|
 | `.<Класс>` | `(filter?: Filter) => Chain` | следующий шаг (§ 4) / контекст-связь (§ 6) |
 | `.limit` / `.offset` | `(n: number) => Chain` | LIMIT / OFFSET |
-| `.sort` | `(field: 'updated' \| 'data.<поле>' \| 'data.<record>.<ключ>', dir?: 'asc'\|'desc'\|boolean) => Chain` | сортировка по полю последнего шага, вложенные record-пути поддержаны (каст по Schema) |
+| `.sort` | `(field: 'updated' \| 'data.<путь>', dir?: 'asc'\|'desc'\|boolean) => Chain` | сортировка по data-пути ЛЮБОЙ глубины (каст по типу листа из Schema) |
 | `.alias` | `(name: string) => Chain` | ключ текущего шага в путях |
 | `.tags` | `(v: string \| string[] \| has/hasAny/hasAll) => Chain` | фильтр tags; значение при INSERT |
 | `.account` / `.owner` | `(v: uuid \| Row) => Chain` | фильтр колонки; значение при INSERT |

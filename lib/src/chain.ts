@@ -7,7 +7,7 @@
  * Запись: .set(data) — связи задаются контекст-шагами цепочки; .delete().
  */
 import type { Row, Path, Filter, ChainMods } from './types.js';
-import { buildRead, runQuery, type Ctx, type Step } from './sql.js';
+import { buildRead, runQuery, leafType, type Ctx, type Step } from './sql.js';
 import { setOp, delOp, anonymizeOp, executeBatch, toRow, type BatchOp } from './write.js';
 import { beginTx, lock, type TxCtx } from './tx.js';
 import { makeTables, type Tables } from './tables.js';
@@ -265,10 +265,8 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batchQueue?: BatchO
             if (v === null || v === undefined) return null;
             if (typeof v !== 'string') return v;
             if (prop === 'sum' || prop === 'avg') return Number(v);
-            // min/max: postgres.js отдаёт numeric строкой — приводим, если поле числовое по Schema
-            const path = field.slice(5).split('.');
-            const ft = steps[steps.length - 1].cls.fieldTypes.get(path[0]);
-            const leaf = path.length === 1 ? ft : ft?.kind === 'record' ? ft.value : undefined;
+            // min/max: postgres.js отдаёт numeric строкой — приводим, если лист числовой по Schema
+            const leaf = leafType(steps[steps.length - 1].cls, field.slice(5).split('.'));
             return leaf?.kind === 'number' ? Number(v) : v;
           };
         case 'countBy':

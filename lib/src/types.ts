@@ -48,6 +48,7 @@ export type FieldType =
   | { kind: 'string' }
   | { kind: 'array' }
   | { kind: 'record'; value: FieldType }
+  | { kind: 'object'; props: Map<string, FieldType> }
   | { kind: 'any' };
 
 /** Метка операторов фильтра (Symbol — не конфликтует с данными). */

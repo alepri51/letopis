@@ -24,9 +24,33 @@
       "timezone": { "type": "string", "default": "Europe/Moscow" },
       "address": "string|optional",
       "phone": "string|optional",
-      "active": { "type": "boolean", "default": true }
+      "active": { "type": "boolean", "default": true },
+      "settings": {
+        "type": "object",
+        "optional": true,
+        "strict": true,
+        "props": {
+          "booking": {
+            "type": "object",
+            "optional": true,
+            "strict": true,
+            "props": {
+              "deposit": {
+                "type": "object",
+                "optional": true,
+                "strict": true,
+                "props": {
+                  "amount": "number|integer|min:0|default:0",
+                  "currency": { "type": "enum", "values": ["RUB", "USD", "EUR", "AED"], "default": "RUB" }
+                }
+              },
+              "autoconfirm": "boolean|default:false"
+            }
+          }
+        }
+      }
     },
-    "meta": { "abstract": false, "description": "Организация / точка / филиал — владелец каталога и расписаний" }
+    "meta": { "abstract": false, "description": "Организация / точка / филиал — владелец каталога и расписаний; settings — вложенные настройки (пример структуры глубины 4)" }
   },
   {
     "id": "Staff",

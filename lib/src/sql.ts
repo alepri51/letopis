@@ -123,10 +123,25 @@ function castOf(ft: FieldType | undefined): string {
 const jsCast = (v: unknown): string =>
   typeof v === 'number' ? '::numeric' : typeof v === 'boolean' ? '::boolean' : '::text';
 
-/** Доступ к полю data: 1 уровень — data->>'f'; 2 (record) — data->'f'->>'k'. */
+/** jsonb-выражение до пути (без извлечения текста): data->'a'->'b'. */
+function jsonbAt(path: string[]): Frag {
+  return (a) => `${a}.data${path.map((k) => `->'${escLit(k)}'`).join('')}`;
+}
+
+/** Текст листа по data-пути ЛЮБОЙ глубины: data->'a'->'b'->>'c'. */
 function accessor(path: string[]): Frag {
-  if (path.length === 1) return (a) => `${a}.data->>'${escLit(path[0])}'`;
-  return (a) => `${a}.data->'${escLit(path[0])}'->>'${escLit(path[1])}'`;
+  const head = path.slice(0, -1);
+  const last = path[path.length - 1];
+  return (a) => `${jsonbAt(head)(a)}->>'${escLit(last)}'`;
+}
+
+/** Тип листа data-пути по Schema: спуск через record (значение) и object (props). */
+export function leafType(cls: ClassDef, path: string[]): FieldType | undefined {
+  let ft = cls.fieldTypes.get(path[0]);
+  for (let i = 1; i < path.length && ft; i++) {
+    ft = ft.kind === 'record' ? ft.value : ft.kind === 'object' ? ft.props.get(path[i]) : undefined;
+  }
+  return ft;
 }
 
 function compileOp(path: string[], ft: FieldType | undefined, o: Op, p: Params): Frag {
@@ -160,23 +175,26 @@ function compileOp(path: string[], ft: FieldType | undefined, o: Op, p: Params):
       return (a) => `${lhs(a)} ILIKE ${p.push(args[0])}`;
     case 'has':
       // jsonb_build_array с кастом по JS-типу — JS-массив postgres.js слал бы как PG-array
-      return (a) => `${a}.data->'${escLit(path[0])}' @> jsonb_build_array(${p.push(args[0])}${jsCast(args[0])})`;
+      return (a) => `${jsonbAt(path)(a)} @> jsonb_build_array(${p.push(args[0])}${jsCast(args[0])})`;
     case 'hasAll': {
       const vs = args[0] as unknown[];
       if (!vs.length) return () => 'TRUE';
       return (a) =>
-        `${a}.data->'${escLit(path[0])}' @> jsonb_build_array(${vs.map((x) => p.push(x) + jsCast(x)).join(', ')})`;
+        `${jsonbAt(path)(a)} @> jsonb_build_array(${vs.map((x) => p.push(x) + jsCast(x)).join(', ')})`;
     }
     case 'hasAny': {
       const vs = args[0] as unknown[];
       if (!vs.length) return () => 'FALSE';
       return (a) =>
-        `${a}.data->'${escLit(path[0])}' ?| ARRAY[${vs.map((x) => p.push(String(x))).join(', ')}]::text[]`;
+        `${jsonbAt(path)(a)} ?| ARRAY[${vs.map((x) => p.push(String(x))).join(', ')}]::text[]`;
     }
-    case 'exists':
+    case 'exists': {
+      const holder = jsonbAt(path.slice(0, -1));
+      const last = escLit(path[path.length - 1]);
       return args[0]
-        ? (a) => `${a}.data ? '${escLit(path[0])}'`
-        : (a) => `NOT (${a}.data ? '${escLit(path[0])}')`;
+        ? (a) => `${holder(a)} ? '${last}'`
+        : (a) => `NOT (${holder(a)} ? '${last}')`;
+    }
     case 'isNull':
       return (a) => `${lhs(a)} IS NULL`;
     case 'not': {
@@ -239,6 +257,35 @@ function compileFilter(cls: ClassDef, filter: Filter | undefined, p: Params): Co
   }
 
   const eqData: Record<string, unknown> = {};
+  const isPlain = (v: unknown): v is Record<string, unknown> =>
+    typeof v === 'object' && v !== null && !Array.isArray(v) && !isOp(v);
+
+  /**
+   * Рекурсивный разбор объекта фильтра на ЛЮБУЮ глубину:
+   * операторы уходят в finalFrags по своему пути (каст по типу листа из Schema),
+   * скаляры/массивы собираются в containment-поддерево (GIN).
+   * Возврат: поддерево для eqData; undefined — внутри были только операторы.
+   */
+  const walk = (path: string[], obj: Record<string, unknown>): Record<string, unknown> | undefined => {
+    const eq: Record<string, unknown> = {};
+    let hadOps = false;
+    for (const [k, v] of Object.entries(obj)) {
+      if (v === undefined) continue;
+      const sub = [...path, k];
+      if (isOp(v)) {
+        out.finalFrags.push(compileOp(sub, leafType(cls, sub), v, p));
+        hadOps = true;
+      } else if (isPlain(v)) {
+        const nested = walk(sub, v);
+        if (nested !== undefined) eq[k] = nested;
+        else hadOps = true;
+      } else {
+        eq[k] = v;
+      }
+    }
+    if (Object.keys(eq).length) return eq;
+    return hadOps ? undefined : {}; // пустой объект без операторов → containment {}
+  };
 
   for (const [key, value] of Object.entries(filter)) {
     if (value === undefined) continue;
@@ -251,28 +298,14 @@ function compileFilter(cls: ClassDef, filter: Filter | undefined, p: Params): Co
       continue;
     }
 
-    const ft = cls.fieldTypes.get(key);
-
     if (isOp(value)) {
-      out.finalFrags.push(compileOp([key], ft, value, p));
+      out.finalFrags.push(compileOp([key], cls.fieldTypes.get(key), value, p));
       continue;
     }
 
-    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-      // объект: операторы по вложенным путям (record) и/или containment-скаляры
-      const nestedEq: Record<string, unknown> = {};
-      let hasNested = false;
-      for (const [sub, sv] of Object.entries(value as Record<string, unknown>)) {
-        if (isOp(sv)) {
-          const vt = ft?.kind === 'record' ? ft.value : undefined;
-          out.finalFrags.push(compileOp([key, sub], vt, sv, p));
-          hasNested = true;
-        } else {
-          nestedEq[sub] = sv;
-        }
-      }
-      if (Object.keys(nestedEq).length) eqData[key] = nestedEq;
-      else if (!hasNested) eqData[key] = value;
+    if (isPlain(value)) {
+      const nested = walk([key], value);
+      if (nested !== undefined) eqData[key] = nested;
       continue;
     }
 
@@ -310,12 +343,6 @@ export function resolveHop(prev: ClassDef, next: ClassDef): HopMode {
 
 export type ReadMode = 'paths' | 'rows' | 'ids' | 'count' | 'versions' | 'agg';
 
-/** Тип листа data-пути (для каста агрегаций): 1 уровень или record-значение. */
-function cls0Field(cls: ClassDef, path: string[]): FieldType | undefined {
-  const ft = cls.fieldTypes.get(path[0]);
-  return path.length === 1 ? ft : ft?.kind === 'record' ? ft.value : undefined;
-}
-
 export interface BuiltQuery {
   text: string;
   params: unknown[];
@@ -326,12 +353,11 @@ export interface BuiltQuery {
 function sortField(alias: string, cls: ClassDef, order: string): string {
   if (order === 'updated') return `${alias}.updated`;
   if (order.startsWith('data.')) {
+    // data-путь любой глубины ('data.settings.booking.deposit.amount') + каст по типу листа
     const path = order.slice(5).split('.');
-    if (path.length > 2) throw new Error(`letopis: sort supports 'data.<field>' or 'data.<record>.<key>'`);
-    // вложенный record-путь ('data.price.RUB') + каст по типу листа — как в фильтрах/агрегациях
-    return `(${accessor(path)(alias)})${castOf(cls0Field(cls, path))}`;
+    return `(${accessor(path)(alias)})${castOf(leafType(cls, path))}`;
   }
-  throw new Error(`letopis: order must be 'updated' or 'data.<field>'`);
+  throw new Error(`letopis: order must be 'updated' or 'data.<path>'`);
 }
 
 function orderExpr(alias: string, cls: ClassDef, mods: ChainMods): string {
@@ -345,7 +371,7 @@ function afterCond(alias: string, cls: ClassDef, mods: ChainMods, p: Params): st
   if (!mods.order) throw new Error('letopis: .after(cursor) requires .sort(field)');
   const expr = sortField(alias, cls, mods.order);
   const cast =
-    mods.order === 'updated' ? '::timestamptz' : castOf(cls0Field(cls, mods.order.slice(5).split('.')));
+    mods.order === 'updated' ? '::timestamptz' : castOf(leafType(cls, mods.order.slice(5).split('.')));
   const cmp = mods.desc ? '<' : '>';
   return ` WHERE (${expr}, ${alias}.id) ${cmp} (${p.push(mods.after.v)}${cast}, ${p.push(mods.after.id)})`;
 }
@@ -515,16 +541,12 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
         throw new Error("letopis: aggregation needs field 'data.<путь>'");
       }
       const path = aggField.slice(5).split('.');
-      const acc =
-        path.length === 1
-          ? `h${last}.data->>'${escLit(path[0])}'`
-          : `h${last}.data->'${escLit(path[0])}'->>'${escLit(path[1])}'`;
+      const acc = accessor(path)(`h${last}`); // data-путь любой глубины
       if (aggFn === 'countBy') {
         text = `SELECT ${acc} AS k, count(*)::int AS n\n${fromClause}\nGROUP BY 1 ORDER BY 2 DESC`;
       } else {
-        // sum/avg — всегда numeric; min/max — по типу поля
-        const ft = cls0Field(lastCls, path);
-        const cast = aggFn === 'sum' || aggFn === 'avg' ? '::numeric' : castOf(ft);
+        // sum/avg — всегда numeric; min/max — по типу листа
+        const cast = aggFn === 'sum' || aggFn === 'avg' ? '::numeric' : castOf(leafType(lastCls, path));
         text = `SELECT ${aggFn}((${acc})${cast}) AS v\n${fromClause}`;
       }
       break;

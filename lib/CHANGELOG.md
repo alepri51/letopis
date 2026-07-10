@@ -2,6 +2,20 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/), версии — semver.
 
+## [0.6.0] — 2026-07-10
+
+### Added
+- **data-пути любой глубины** во всём API: containment-фильтры, операторы (включая
+  `exists`/`has*` на вложенных ключах), `.sort()`, `.after()`/`cursorOf()`,
+  `.sum/.avg/.min/.max/.countBy`. Тип листа (и SQL-каст) берётся из вложенных
+  `{type:'object', props:{…}}` схемы — новый `FieldType 'object'`.
+- Пример в booking-схеме: `Org.settings.booking.deposit.{amount,currency}` (лист глубины 4),
+  строгая валидация и default-ы на каждом уровне; deep-merge обновляет один вложенный лист,
+  не трогая соседей (покрыто тестом).
+- Наследование классов 3+ уровней покрыто тестом lineage (`Vehicle → Car → SportsCar`).
+- `gen-types`: `{type:'object', props}` → вложенные TS-литералы.
+- `test/depth.test.ts` — 5 сцен глубины; суммарно 91 тест.
+
 ## [0.5.1] — 2026-07-10
 
 ### Fixed

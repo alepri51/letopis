@@ -69,7 +69,7 @@ DELETE FROM "booking"."Entity"
 
 - **HUB** — сущности (Организация, Сотрудник, Услуга, Клиент, Окно, Запись…).
 - **LINK** — связи с атрибутами (навык, смена, занятость, позиция). У LINK обязательные концы; конец `'Entity'` — полиморфный («что угодно»).
-- `attributes` — схема полей в DSL [fastest-validator](https://github.com/icebob/fastest-validator): типы, enum, default-ы, `optional`. Валидация всегда строгая: лишнее поле — ошибка.
+- `attributes` — схема полей в DSL [fastest-validator](https://github.com/icebob/fastest-validator): типы, enum, default-ы, `optional`, вложенные структуры `{type:'object', props:{…}}` любой глубины. Валидация всегда строгая: лишнее поле — ошибка (и на вложенных уровнях).
 - Наследование: `ancestor` → триггер `schema_lineage` сам пересчитывает `ancestors`/`descendants` рекурсивными CTE.
 - У каждого класса два равноправных имени: `Staff` и `Сотрудник`. API работает с обоими.
 
@@ -496,7 +496,52 @@ versions(): [ { "name": "Анна",     "contact": "+7 911 111-11-11" },
               { "name": "[erased]", "contact": "[erased]" } ]
 ```
 
-### 4.21 Инструменты рядом с API
+### 4.21 Глубина без ограничений: наследование и вложенные структуры
+
+Наследование классов — любой глубины: цепочку `ancestors`/`descendants` считает триггер `schema_lineage` рекурсивным CTE (защита до 32 уровней). Тест заводит `Vehicle → Car → SportsCar`:
+
+```ts
+db.registry.resolve('SportsCar').ancestors   // ['SportsCar', 'Car', 'Vehicle', 'Entity']
+db.registry.resolve('Vehicle').descendants   // ['Car', 'SportsCar']
+```
+
+Вложенные структуры в `data` — тоже любой глубины, с типами и строгой валидацией на каждом уровне. В схеме Org живёт `settings` c листом на глубине 4 (`{type:'object', props:{…}}` в DSL):
+
+```ts
+const [org] = await db.Организация('…0001').set({ settings: { booking: { deposit: { amount: 500 } } } })
+// [28.4 ms] defaults подставились на всех уровнях:
+// { booking: { deposit: { amount: 500, currency: 'RUB' }, autoconfirm: false } }
+```
+
+Обновление **одного вложенного листа** — deep-merge не трогает соседей ни на каком уровне:
+
+```ts
+await db.Организация('…0001').set({ settings: { booking: { deposit: { amount: 900 } } } })  // [7.3 ms]
+// → { booking: { deposit: { amount: 900, currency: 'RUB' }, autoconfirm: false } }
+//                                        ↑ currency и autoconfirm целы; в БД — новая версия
+```
+
+Фильтры, сортировка, курсор и агрегации по глубокому листу (реальные ответы, 1.1M-база):
+
+```ts
+await db.Организация({ settings: { booking: { deposit: { currency: 'USD' } } } }).count()   // [5.6 ms] → 1
+await db.Организация({ settings: { booking: { deposit: { amount: gte(900) } } } }).count()  // [4.1 ms] → 2
+await db.Организация({…}).sort('data.settings.booking.deposit.amount', 'desc').rows()       // [6.2 ms]
+// → [{ Орг 0: 2000 }, { BarberPro: 900 }];  cursorOf(…) → { "v": 2000, "id": "00000001-…" }
+await db.Организация({}).sum('data.settings.booking.deposit.amount')                        // [3.7 ms] → 2900
+await db.Организация({}).max('data.settings.booking.deposit.amount')                        // [2.8 ms] → 2000
+```
+
+Касты берутся из типа листа (`amount` — число → `::numeric`), лишний ключ на любой глубине — `ValidationError`. Кстати, поле `settings` доехало до этой 1.1M-базы не пересозданием, а миграцией:
+
+```
+$ node scripts/schema-sync.mjs --file=../schema.booking.v2.json --dsn=… --schema=article --apply
+  ~ Org — изменены: attributes, meta
+  ✓ Org: 22 живых строк проходят новую валидацию
+применено: 0 новых, 1 изменённых классов
+```
+
+### 4.22 Инструменты рядом с API
 
 ```bash
 $ node db/policies.mjs --dsn=… --schema=article --compress-after=30d

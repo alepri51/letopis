@@ -77,6 +77,16 @@ export function fieldTypeOf(attr: unknown): FieldType {
     const t = (attr as Record<string, unknown>).type;
     if (t === 'record')
       return { kind: 'record', value: fieldTypeOf((attr as Record<string, unknown>).value ?? 'any') };
+    if (t === 'object') {
+      // вложенная структура: {type:'object', props:{…}} — типы листьев любой глубины
+      const props = (attr as Record<string, unknown>).props ?? (attr as Record<string, unknown>).properties;
+      if (props && typeof props === 'object') {
+        const m = new Map<string, FieldType>();
+        for (const [k, v] of Object.entries(props as Record<string, unknown>)) m.set(k, fieldTypeOf(v));
+        return { kind: 'object', props: m };
+      }
+      return { kind: 'any' };
+    }
     if (t === 'array') return { kind: 'array' };
     if (t === 'number') return { kind: 'number' };
     if (t === 'date') return { kind: 'date' };
