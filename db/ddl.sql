@@ -106,19 +106,17 @@ CREATE TABLE IF NOT EXISTS "booking"."Entity" (
         ON UPDATE CASCADE ON DELETE RESTRICT
 );
 
--- Партиционирование по (partition, class, id, updated):
---   updated — временная размерность (чанки по 30 дней),
---   partition / class / id — hash-размерности (число партиций подстроить под нагрузку).
--- PK (partition, class, id, updated) содержит все размерности — требование Timescale выполнено.
+-- Партиционирование: ТОЛЬКО время updated (чанки по 30 дней). Hash-размерности
+-- (partition/class/id) убраны по результатам bench/dimensions.bench.mjs (1.1M строк,
+-- год истории): точечный доступ равен PK-btree, простые фильтры −10-20%, зато
+-- цепочки LATERAL ×2…×140 медленнее (93 чанка/год против 14) и планирование дороже.
+-- Локальность версий сущности даёт компрессия segmentby (db/policies.mjs), не hash.
 SELECT create_hypertable(
     '"booking"."Entity"', 'updated',
     chunk_time_interval => INTERVAL '30 days',
     if_not_exists       => TRUE,
     migrate_data        => TRUE
 );
-SELECT add_dimension('"booking"."Entity"', 'partition', number_partitions => 2,  if_not_exists => TRUE);
-SELECT add_dimension('"booking"."Entity"', 'class',     number_partitions => 8,  if_not_exists => TRUE);
-SELECT add_dimension('"booking"."Entity"', 'id',        number_partitions => 8,  if_not_exists => TRUE);
 
 -- Индексы: «последняя версия», обход графа, фильтры, теги, арендатор/владелец.
 -- account/owner — полные (не partial): нужны и фильтрам $account/$owner, и RI-сканам FK.

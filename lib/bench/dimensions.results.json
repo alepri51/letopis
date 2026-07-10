@@ -1,0 +1,72 @@
+{
+  "bench_class": {
+    "seedSec": 3.4,
+    "rows": 11131,
+    "point_first": {
+      "p50": 2.1,
+      "p95": 3.6
+    },
+    "filter_rows": {
+      "p50": 9.4,
+      "p95": 12.2
+    },
+    "class_sort": {
+      "p50": 4.1,
+      "p95": 12.8
+    },
+    "chain3_paths": {
+      "p50": 16.6,
+      "p95": 25.5
+    },
+    "hop2_rows": {
+      "p50": 31.3,
+      "p95": 41.2
+    },
+    "versions": {
+      "p50": 3.5,
+      "p95": 6.1
+    },
+    "asof_first": {
+      "p50": 1.9,
+      "p95": 3.2
+    },
+    "agg_countBy": {
+      "p50": 6.5,
+      "p95": 8.7
+    },
+    "agg_sum": {
+      "p50": 9.5,
+      "p95": 13.3
+    },
+    "keyset_page": {
+      "p50": 19.3,
+      "p95": 27.8
+    },
+    "count_paths": {
+      "p50": 179,
+      "p95": 193.6
+    },
+    "write_version": {
+      "p50": 6.9,
+      "p95": 12.6
+    },
+    "insert_one": {
+      "p50": 4.1,
+      "p95": 7.2
+    },
+    "delete_cascade": {
+      "p50": 89.8,
+      "p95": 141.9
+    },
+    "explain_point": {
+      "planning": 1.308,
+      "execution": 0.381
+    },
+    "explain_sort": {
+      "planning": 1.396,
+      "execution": 1.255
+    },
+    "chunks": 71,
+    "size": "18 MB"
+  }
+}

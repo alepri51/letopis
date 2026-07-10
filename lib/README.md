@@ -77,7 +77,7 @@ await db.close()
 
 - **PK `(partition, class, id, updated)`**: сущность = все её версии; строка = версия.
 - Актуальная версия = max(`updated`); живая, если `deleted IS NULL`.
-- Партиционирование 4D: время `updated` (чанки 30 дней) + hash `partition`(2)/`class`(8)/`id`(8).
+- Партиционирование: ТОЛЬКО время `updated` (чанки 30 дней). Hash-размерности убраны: на 1.1M строк точечный доступ равен PK-btree, простые фильтры −10–20%, но цепочки ×2…×140 медленнее и 93 чанка/год против 14 (`bench/dimensions.bench.mjs`).
 - Индексы: latest-btree, GIN `links`/`data` (jsonb_path_ops), GIN `tags`, btree `account`/`owner`.
 
 ### 2.2 Триггеры Entity — CRUD в БД
