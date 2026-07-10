@@ -677,6 +677,7 @@ import type {
   Row, Path, Filter, Cursor, ChainMods, ConnectOpts, QueryEvent,
   EntityDb, EntityTx, Chain, Batch, Tables,
   Account, Credential, Resource, Rule,
+  AuthApi, AuthResult, SessionStore, Sessions, Session,
 } from 'letopis'
 ```
 
@@ -703,6 +704,7 @@ await db.Услуга().sort('data.price.RUB', 'desc').after(кур).limit(3).ro
 | `batch` | `(name: string) => Batch` | именованный батч |
 | `watch` | `(classOrCb, cb?) => Promise<() => void>` | realtime: `WatchEvent {partition, class, id, updated, deleted}` на каждую версию (триггер `entity_notify` → LISTEN); возврат — stop |
 | `accounts/credentials/resources/rules` | § 9 | фасады таблиц |
+| `auth` | `AuthApi` (§ 9.1, таблица ниже) | вход по кредам + сессии в Redis |
 | `close` | `() => Promise<void>` | закрыть пул |
 | `registry` | `Registry` | `.resolve(name)` → ClassDef (ancestors, descendants, attributes…) |
 | `sql` | postgres.js | голый клиент |
@@ -875,6 +877,41 @@ await db.rules.set({ account: 'api.booking', resource: 'api.booking', permission
 // → { permission: 'allow', weight: 90, enabled: true }
 ```
 
+### `db.auth` — вход и сессии (§ 9.1)
+
+Все `verify*`/`lookup` → `{ account, credential } | null`; ворота: кред жив (`deleted IS NULL`)
++ `confirmed` (отключаемо `requireConfirmed: false`) + аккаунт `enabled`. Однозначность
+identifier — индекс `credential_identity_udx` (один живой на `(category, identifier)` в схеме).
+`account` везде принимает uuid или объект с `.id`.
+
+| Метод | Сигнатура | Заметки |
+|---|---|---|
+| `auth.setPassword` | `({ account, identifier, password, category?, confirmed? }) → Credential` | upsert; category default `'PASSWORD'`; в БД scrypt-хэш |
+| `auth.verifyPassword` | `({ identifier, password, category?, requireConfirmed? }) → AuthResult \| null` | ~60–80 ms (scrypt); время выровнено dummy-verify |
+| `auth.issueApiKey` | `({ account, name? }) → { key, credential }` | `key = lts_<48hex>` — один раз; в БД sha256 |
+| `auth.verifyApiKey` | `(key, { requireConfirmed? }?) → AuthResult \| null` | [4.0 ms] |
+| `auth.issueKeySecret` | `({ account, name? }) → { key, secret, credential }` | key — открытый id пары; secret в БД sha256 |
+| `auth.verifyKeySecret` | `(key, secret, { requireConfirmed? }?) → AuthResult \| null` | [3.1 ms] |
+| `auth.link` | `({ account, category, identifier, meta?, confirmed? }) → Credential` | внешняя identity (oauth/sso/telegram) |
+| `auth.lookup` | `({ category, identifier, requireConfirmed? }) → AuthResult \| null` | [2.4 ms] |
+| `auth.sessions` | `(store: SessionStore) → Sessions` | Redis-клиент инжектируется (ioredis как есть) |
+| `sessions.start` | `(account, { ttlSec?, meta? }?) → Promise<token>` | default ttl 7 суток; в Redis sha256 токена [2.0 ms] |
+| `sessions.check` | `(token) → Session \| null` | `{ account, meta, created }` [0.3 ms] |
+| `sessions.revoke` | `(token) → boolean` | повторный → `false` |
+| `sessions.revokeAll` | `(account) → number` | гасит все сессии аккаунта |
+
+```ts
+await db.auth.setPassword({ account: acc, identifier: 'anna@salon.io', password: 'весна-2026' })
+// → Credential: meta.password = "scrypt$32768$8$1$FXhtqBo5…"                  [70.9 ms]
+await db.auth.verifyPassword({ identifier: 'anna@salon.io', password: 'весна-2026' })
+// → { account: {id: 'f6656764-…', enabled: true, …}, credential: {category: 'PASSWORD', …} } [63.8 ms]
+const { key } = await db.auth.issueApiKey({ account: acc, name: 'касса-1' })
+// key = "lts_c58819b615e44a0e6c…"; в БД identifier = sha256(key)               [7.1 ms]
+const sess = db.auth.sessions(new Redis('redis://localhost:16379'))
+const token = await sess.start(acc, { ttlSec: 3600, meta: { device: 'iphone' } })  // [2.0 ms]
+await sess.check(token)   // → { account: 'f6656764-…', meta: {…}, created: '2026-07-10T…' } [0.3 ms]
+```
+
 ### Типы
 
 ```ts
@@ -890,6 +927,9 @@ Account    = { id, categories: string[], data, meta, avatar, enabled, created, u
 Credential = { id, account, category, identifier, meta, confirmed, created, updated, deleted }
 Resource   = { alias, category, pattern, meta }
 Rule       = { account, resource, permission, weight, meta, enabled }
+AuthResult = { account: Account, credential: Credential }        // все verify*/lookup
+Session    = { account: string, meta, created }                  // sessions.check()
+SessionStore = { set, get, del, sadd, srem, smembers, expire }   // ioredis-совместимый срез
 ```
 
 ---

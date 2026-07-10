@@ -2,7 +2,7 @@
 
 *Версионируемое entity-хранилище поверх TimescaleDB с запросами точками: `db.Сотрудник({name:'Вася'}).навык().Услуга().execute()`. Каждая запись — навсегда. Каждое изменение — новая строка. Каждый спор «а какая цена была на момент брони» решается одним вызовом.*
 
-> Пакет: [`letopis`](https://www.npmjs.com/package/letopis) (ранее entity-chain). 86 автономных тестов, бенчмарки на 1.1M строк, статус — крепкая beta. Все примеры, ответы и тайминги в этой статье — снятые с живого прогона на базе в **1 112 860 строк**, не выдуманные.
+> Пакет: [`letopis`](https://www.npmjs.com/package/letopis) (ранее entity-chain). 98 автономных тестов, бенчмарки на 1.1M строк, статус — крепкая beta. Все примеры, ответы и тайминги в этой статье — снятые с живого прогона на базе в **1 112 860 строк**, не выдуманные.
 
 ---
 
@@ -536,7 +536,7 @@ Payload лёгкий — факт версии; данные подписчик 
 
 ```ts
 const acc = await db.accounts.set({ categories: ['Client'], data: { название: 'ИП Анна' } })  // [7.5 ms]
-// → { id: '2e2df59e-…', categories: ['Client'], enabled: true, created: …, updated: … }
+// → { id: 'f6656764-…', categories: ['Client'], enabled: true, created: …, updated: … }
 await db.credentials.set({ account: acc.id, category: 'phone', identifier: '+7 911 111-11-11' })
 // → { id: 'cce28a7c-…', confirmed: true, deleted: null }   upsert по (account, category, identifier)
 await db.rules.set({ account: 'api.booking', resource: 'api.booking', permission: 'allow', weight: 90 })
@@ -544,6 +544,69 @@ await db.rules.set({ account: 'api.booking', resource: 'api.booking', permission
 ```
 
 Обычные таблицы с обычным CRUD; аккаунт с историей в Entity физически неудаляем (FK RESTRICT) — только `enabled: false`.
+
+### 4.19a Вход: `db.auth` — на аккаунт много способов
+
+Слой над `credentials`: пароль (логин или почта), api-ключ, ключ-секрет, внешние identity
+(oauth/sso/telegram). Секретов в БД нет: пароль — scrypt-хэш (node:crypto, ноль зависимостей),
+ключи и секреты — sha256. Однозначность входа гарантирует частичный уникальный индекс
+`credential_identity_udx`: один **живой** кред на `(category, identifier)` во всей схеме
+(мягко удалённый identifier освобождается). Каждый `verify*` проверяет три ворот — кред жив,
+подтверждён (`confirmed`, отключаемо), аккаунт `enabled` — и возвращает `{ account, credential } | null`.
+
+```ts
+await db.auth.setPassword({ account: acc, identifier: 'anna@salon.io', password: 'весна-2026' })
+// → Credential; в БД не пароль, а слоёный хэш:                                [70.9 ms]
+//   meta.password = "scrypt$32768$8$1$FXhtqBo5Rysfl93YlXOhAQ==$NaZlchEOICgzqOsN4J0y…"
+
+await db.auth.verifyPassword({ identifier: 'anna@salon.io', password: 'весна-2026' })
+// → { account: { id: 'f6656764-…', data: { название: 'ИП Анна' }, enabled: true, … },
+//     credential: { category: 'PASSWORD', identifier: 'anna@salon.io', … } }  [63.8 ms]
+await db.auth.verifyPassword({ identifier: 'anna@salon.io', password: 'зима' })   // → null [60.7 ms]
+await db.auth.verifyPassword({ identifier: 'кто@это.io', password: 'x' })         // → null [81.2 ms]
+// цену задаёт scrypt (~60–80 ms — защита от перебора), и она ВЫРОВНЕНА:
+// «нет такого identifier» не отвечает быстрее «пароль неверен» — тайминг не оракул
+
+const { key } = await db.auth.issueApiKey({ account: acc, name: 'касса-1' })       // [7.1 ms]
+// key = "lts_c58819b615e44a0e6c3fddb7d2040bd385ad61b250dcae53" — показывается ОДИН раз;
+// в БД: identifier = "4b16dd088ac0…" (sha256), meta = { name: 'касса-1', prefix: 'lts_c58819b6' }
+await db.auth.verifyApiKey(key)                       // → { account, credential }  [4.0 ms]
+
+const { key: k, secret } = await db.auth.issueKeySecret({ account: acc, name: 'интеграция-1С' })
+// k = "34c686446f32730a" (открытый id пары), secret = "765fe71fb4a51ef8…" (48 hex) [4.5 ms]
+await db.auth.verifyKeySecret(k, secret)              // → { account, credential }  [3.1 ms]
+
+await db.auth.link({ account: acc, category: 'TELEGRAM', identifier: '163524691', meta: { username: 'roboteza' } })
+await db.auth.lookup({ category: 'TELEGRAM', identifier: '163524691' })
+// → { account, credential } — сам OAuth-танец на приложении, тут связка identity → Account [2.4 ms]
+```
+
+Что лежит в `Credential` у одного аккаунта после этого — ровно «много кредов на аккаунт»:
+
+| category | identifier | meta |
+|---|---|---|
+| `phone` | `+7 911 111-11-11` | `{}` |
+| `PASSWORD` | `anna@salon.io` | `{password: "scrypt$32768$8$1$FXhtqBo5…"}` |
+| `APIKEY` | `4b16dd088ac0b3caf9696…` (sha256) | `{name: "касса-1", prefix: "lts_c58819b6"}` |
+| `KEYSECRET` | `34c686446f32730a` | `{name: "интеграция-1С", secret: "316e4e8bf726…"}` |
+| `TELEGRAM` | `163524691` | `{username: "roboteza"}` |
+
+Сессии — во внешнем Redis (клиент инжектируется, интерфейс `SessionStore`, ioredis подходит
+как есть; в зависимости letopis не входит):
+
+```ts
+const sess = db.auth.sessions(new Redis('redis://localhost:16379'))
+const token = await sess.start(acc, { ttlSec: 3600, meta: { device: 'iphone-анны' } })
+// → "54a75461852dccde1a4f875b5ab7da0db60a9a0d21abeee3b0a91af05fac2155"        [2.0 ms]
+await sess.check(token)
+// → { account: 'f6656764-…', meta: { device: 'iphone-анны' }, created: '2026-07-10T19:31:14.539Z' } [0.3 ms]
+// в Redis — sha256 токена, не сам токен (+ set-индекс для revokeAll):
+//   sess:1fb7985f35a8b652…   sess:acc:f6656764-7676-…
+await sess.revoke(token)    // → true [1.3 ms]; повторно → false; revokeAll(acc) гасит все
+```
+
+Rate-limit, lockout и проверка внешних oauth-токенов — осознанно на приложении;
+legacy-bcrypt-хэши из старых дампов не верифицируются (пароль задаётся заново).
 
 ### 4.20 Изоляция арендатора и GDPR
 
@@ -666,6 +729,9 @@ TS-типы всех классов из живой Schema (enum → union-ли�
 | Каскадное удаление дерева (поиск зависимых среди 500k связей) | 421 ms |
 | `countBy` / `sum` по 250 000 записей | 600 / 278 ms |
 | Батч из 2 INSERT одной транзакцией | 34 ms |
+| Вход по паролю — `db.auth.verifyPassword` (цена scrypt, выровнена) | 60–80 ms |
+| Вход по api-ключу / ключ-секрету / внешней identity | 2–7 ms |
+| Сессия в Redis: `start` / `check` | 2.0 / 0.3 ms |
 | **Сортировка/keyset ВСЕГО класса 250k без фильтра** | **~1.7–1.9 s** |
 
 Отдельная история — выбор партиционирования. Исходный дизайн (унаследованный от legacy-системы) добавлял hash-размерности по partition/class/id. Бенчмарк на одинаковых данных показал: точечный доступ не ускоряется вовсе (PK-btree уже оптимален), простые фильтры выигрывают 10–20%, зато многошаговые LATERAL-цепочки проседают в **2–140 раз** (трёхшаговый count: 1 секунда против 150), а чанков становится 93/год вместо 14. Hash-размерности убрали; решение и цифры зафиксированы в `bench/dimensions.results.json` репозитория.
@@ -713,9 +779,9 @@ TS-типы всех классов из живой Schema (enum → union-ли�
 
 ## 9. Статус и что дальше
 
-Сегодня: движок (DDL + триггеры + FK) ~360 строк SQL, библиотека ~2.5k строк TypeScript без тяжёлых зависимостей (postgres.js + fastest-validator), 86 автономных тестов (включая сквозной чек-лист каждого публичного метода и 16 «живых» сцен дня салона), CI на живой БД, три бенчмарка, полный API reference, пакет [`letopis`](https://www.npmjs.com/package/letopis) в npm. Из 16 пробелов, найденных при сравнении со зрелыми системами, закрыто 15 — остался row-level ACL поверх правил доступа, осознанно отложенный.
+Сегодня: движок (DDL + триггеры + FK) ~370 строк SQL, библиотека ~3k строк TypeScript без тяжёлых зависимостей (postgres.js + fastest-validator), 98 автономных тестов (включая сквозной чек-лист каждого публичного метода, 16 «живых» сцен дня салона и вход/сессии на живом Redis), CI на живой БД, три бенчмарка, полный API reference, пакет [`letopis`](https://www.npmjs.com/package/letopis) в npm. Auth-слой встроен: много кредов на аккаунт (пароль scrypt / api-ключи sha256 / ключ-секрет / внешние identity) и сессии в Redis. Из 16 пробелов, найденных при сравнении со зрелыми системами, закрыто 15 — остался row-level ACL поверх правил доступа, осознанно отложенный.
 
-Кандидаты следующей волны: ускорение «широких» выборок класса (материализация latest-среза), полнотекст, клиенты вне JS.
+Кандидаты следующей волны: полнотекст, клиенты вне JS.
 
 ---
 
