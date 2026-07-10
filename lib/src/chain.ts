@@ -11,6 +11,7 @@ import { buildRead, runQuery, leafType, type Ctx, type Step } from './sql.js';
 import { setOp, delOp, anonymizeOp, executeBatch, toRow, type BatchOp } from './write.js';
 import { beginTx, lock, type TxCtx } from './tx.js';
 import { makeTables, type Tables } from './tables.js';
+import { makeAuth, type AuthApi } from './auth.js';
 import type { Registry } from './schema.js';
 
 // ---------------------------------------------------------------------------
@@ -98,6 +99,8 @@ export interface DbCore {
   credentials: Tables['credentials'];
   resources: Tables['resources'];
   rules: Tables['rules'];
+  /** Вход по кредам (пароль/api-key/key-secret/внешние identity) + сессии в Redis. */
+  auth: AuthApi;
 }
 
 export type EntityDb = DbCore & {
@@ -363,6 +366,7 @@ function makeBatch(ctx: Ctx, queue: BatchOp[]): Batch {
 export function makeDb(ctx: Ctx, root?: RootState): EntityDb {
   const state: RootState = root ?? { batches: new Map() };
   let tables: Tables | undefined; // лениво, на ctx этого фасада (работает и в tr)
+  let auth: AuthApi | undefined;
 
   const handler: ProxyHandler<object> = {
     get(_t, prop) {
@@ -371,6 +375,11 @@ export function makeDb(ctx: Ctx, root?: RootState): EntityDb {
       if (prop === 'accounts' || prop === 'credentials' || prop === 'resources' || prop === 'rules') {
         tables ??= makeTables(ctx);
         return tables[prop];
+      }
+      if (prop === 'auth') {
+        tables ??= makeTables(ctx);
+        auth ??= makeAuth(tables);
+        return auth;
       }
 
       switch (prop) {

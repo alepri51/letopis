@@ -39,8 +39,10 @@ await db.Организация(org).Сотрудник().set({ name: 'Вася'
 ## 1. Быстрый старт
 
 ```bash
+# dev-контейнер: TimescaleDB + Redis (сессии db.auth) в одном контейнере
+docker build -t clockz-db db/docker
 docker run -d --name clockz-timescale -e POSTGRES_PASSWORD=test -e POSTGRES_DB=clockz \
-  -p 15432:5432 timescale/timescaledb:latest-pg17
+  -p 15432:5432 -p 16379:6379 clockz-db
 node db/apply.mjs --dsn=postgres://postgres:test@localhost:15432/clockz --schema=booking
 # = ddl.sql + seed.booking.sql + seed.auth.sql в указанную PG-схему (любую; --no-seed — только ddl)
 ```
@@ -374,6 +376,67 @@ await db.rules.set({ account: 'authenticated:ACCOUNT', resource: 'shop:API', per
 Связка с Entity: `account`/`owner` NOT NULL, default — System-аккаунт; фильтры и значения —
 модификаторы `.account()/.owner()`; профиль владельца — `db.accounts.get(row.owner)`.
 Сид `db/seed.auth.sql`: System + 16 Resource + 12 Rule.
+
+### 9.1 Вход: `db.auth` — много кредов на аккаунт
+
+Слой над `db.credentials`: пароль (логин или почта), api-ключ, ключ-секрет, внешние
+identity (oauth/sso/telegram). Однозначность входа гарантирует БД:
+`credential_identity_udx` — один **живой** кред на `(category, identifier)` во всей схеме
+(мягко удалённый identifier освобождается). Пароли — scrypt (node:crypto, зависимостей нет),
+ключи и секреты хранятся **только sha256-хэшем**. Все `verify*` возвращают
+`{ account, credential } | null` и проверяют три ворот: кред жив (`deleted IS NULL`),
+подтверждён (`confirmed`, отключаемо `requireConfirmed: false`), аккаунт `enabled`.
+
+```ts
+const acc = await db.accounts.set({ categories: ['User'], data: { name: 'Вася' } })
+
+// ПАРОЛЬ (почта/пароль и логин/пароль — одна механика, различает category)
+await db.auth.setPassword({ account: acc, identifier: 'vasya@salon.io', password: 'корень-огня-77' })
+// → Credential; в БД НЕ пароль, а слоёный хэш:                          [64.8 ms]
+//   meta.password = "scrypt$32768$8$1$EmyOQlletdEahwgoXendhw==$vGQB9LrwcDSIB0+…"
+await db.auth.verifyPassword({ identifier: 'vasya@salon.io', password: 'корень-огня-77' })
+// → { account: {id: '7277…', data: {name: 'Вася'}, enabled: true, …},
+//     credential: {category: 'PASSWORD', identifier: 'vasya@salon.io', …} }   [71.8 ms]
+await db.auth.verifyPassword({ identifier: 'vasya@salon.io', password: 'хм' })   // → null [82.8 ms]
+// цена задана scrypt-ом (~70 ms) и выровнена: «нет такого identifier» не быстрее «пароль неверен»
+
+// API-КЛЮЧ: показывается ОДИН раз, в БД — только sha256
+const { key } = await db.auth.issueApiKey({ account: acc, name: 'CI' })
+// key = "lts_a61118c4af31868640529131927eb578211730bcd092856c"            [6.3 ms]
+// в БД: identifier = "ae9002e2cd4c…" (sha256), meta = {name: 'CI', prefix: 'lts_a61118c4'}
+await db.auth.verifyApiKey(key)                    // → { account, credential } [5.6 ms]
+
+// КЛЮЧ-СЕКРЕТ: key — открытый id пары, secret — только sha256
+const { key: k, secret } = await db.auth.issueKeySecret({ account: acc, name: 'integration' })
+// k = "96d327b741421f74", secret = "38f69922c9748aa8…" (48 hex)            [4.7 ms]
+await db.auth.verifyKeySecret(k, secret)           // → { account, credential } [3.4 ms]
+
+// ВНЕШНЯЯ IDENTITY (oauth/sso/telegram): токен проверяет приложение, тут — связка
+await db.auth.link({ account: acc, category: 'TELEGRAM', identifier: '1635246915', meta: { username: 'roboteza' } })
+await db.auth.lookup({ category: 'TELEGRAM', identifier: '1635246915' })
+// → { account, credential }                                                [2.6 ms]
+```
+
+Сессии — во внешнем Redis (клиент инжектируется, в зависимости не входит; ioredis
+подходит как есть — интерфейс `SessionStore`):
+
+```ts
+import Redis from 'ioredis'
+const s = db.auth.sessions(new Redis('redis://localhost:16379'))
+
+const token = await s.start(acc, { ttlSec: 3600, meta: { device: 'iphone' } })
+// → "843a351714b3a9e43447ad0cfa2a88f8d2d166cd1642b49472335e7a13291585"     [2.4 ms]
+await s.check(token)
+// → { account: '7277…', meta: {device: 'iphone'}, created: '2026-07-10T18:43:12.815Z' } [0.4 ms]
+// в Redis лежит sha256(token), не сам токен (+ set-индекс аккаунта для revokeAll):
+//   sess:d3fa766175d67e10…   sess:acc:72778374-3857-…
+await s.revoke(token)      // → true; повторно → false
+await s.revokeAll(acc)     // → сколько сессий погасло
+```
+
+Границы (осознанно на приложении): OAuth-танец/проверка внешних токенов, rate-limit,
+lockout после N неудач. Legacy-bcrypt-хэши (`$2b$…` из дампа) библиотека не верифицирует —
+пароль задаётся заново через `setPassword`.
 
 ---
 
@@ -922,10 +985,13 @@ const удалено = await db.Запись(bkg.id).delete()   // всё с $de
 ## 16. Тесты
 
 ```bash
-npm test    # 86 тестов против живого docker-timescale, по файлам:
+npm test    # 98 тестов против живого docker (timescale + redis), по файлам:
             # api-full      — сквозной чек-лист ВСЕХ публичных методов API (15 групп)
+            # auth          — db.auth: пароль/api-key/key-secret/link+lookup, ворота verify,
+            #                 глобальная идентичность, сессии на живом Redis (expire/revoke)
             # core          — триггеры (check/версии/каскад/lineage), обходы, операторы,
             #                 модификаторы, set-формы, delete, гонка, батчи, EXPLAIN
+            # depth         — наследование 3+ уровней, data-пути любой глубины
             # integration   — E2E-барбершоп (8 сцен)
             # real-life     — 16 сцен «дня салона»: 4 руки, гонки ×3, переносы, no-show
             # tables        — auth/ACL-таблицы
@@ -935,5 +1001,6 @@ npm test    # 86 тестов против живого docker-timescale, по �
 npm run bench   # производительность на 105k строк (§ 14)
 ```
 
-`ENTITY_DSN` переопределяет DSN (default `postgres://postgres:test@localhost:15432/clockz`).
-Тесты полностью автономны: `wave4` сам создаёт себе PG-схему через `db/apply.mjs`.
+`ENTITY_DSN` переопределяет DSN (default `postgres://postgres:test@localhost:15432/clockz`),
+`ENTITY_REDIS` — Redis для auth-теста (default `redis://localhost:16379`).
+Тесты полностью автономны: `wave4`/`depth` сами создают себе PG-схемы через `db/apply.mjs`.

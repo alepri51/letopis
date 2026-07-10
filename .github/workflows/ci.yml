@@ -18,6 +18,12 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres -d clockz"
           --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ['16379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -41,6 +47,7 @@ jobs:
         working-directory: lib
         env:
           ENTITY_DSN: postgres://postgres:test@localhost:15432/clockz
+          ENTITY_REDIS: redis://localhost:16379
         run: npm test
 
       - name: Build package artifact
@@ -50,5 +57,5 @@ jobs:
           npm pack
       - uses: actions/upload-artifact@v4
         with:
-          name: entity-chain-package
-          path: lib/entity-chain-*.tgz
+          name: letopis-package
+          path: lib/letopis-*.tgz

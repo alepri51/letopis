@@ -2,6 +2,31 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/), версии — semver.
 
+## [0.7.0] — 2026-07-10
+
+### Added
+- **`db.auth`** — вход по таблице Credential, на аккаунт много способов:
+  - пароль (`setPassword`/`verifyPassword`) — scrypt из node:crypto (без зависимостей),
+    формат `scrypt$N$r$p$salt$hash`; время ответа выровнено dummy-verify;
+  - api-ключ (`issueApiKey`/`verifyApiKey`) — `lts_<48hex>` показывается один раз,
+    в БД только sha256 (legacy хранил открыто — исправлено);
+  - ключ-секрет (`issueKeySecret`/`verifyKeySecret`) — key открытый id, secret хэшем;
+  - внешние identity (`link`/`lookup`) — oauth/sso/telegram: токен проверяет приложение;
+  - все verify: кред жив + `confirmed` (отключаемо `requireConfirmed:false`) + аккаунт `enabled`.
+- **Сессии в Redis**: `db.auth.sessions(store)` → `start/check/revoke/revokeAll`;
+  клиент инжектируется (интерфейс `SessionStore`, ioredis подходит как есть; в prod-зависимости
+  не входит); в Redis — sha256 токена, не сам токен.
+- `credential_identity_udx` — один живой кред на `(category, identifier)` во всей схеме:
+  вход по identifier однозначен; мягко удалённый identifier освобождается.
+- Dev-контейнер `db/docker/Dockerfile`: TimescaleDB + Redis в одном контейнере
+  (порты 15432/16379); CI — сервис redis:7.
+- `test/auth.test.ts` — 7 сцен, включая живой Redis (expire/revoke); суммарно 98 тестов.
+
+### Fixed
+- CI: артефакт пакета собирался по паттерну `entity-chain-*.tgz` и был пуст после
+  переименования пакета — теперь `letopis-*.tgz`.
+- `bench/article-demo.mjs`: битый относительный импорт `./src/index.js` → `../src/index.js`.
+
 ## [0.6.0] — 2026-07-10
 
 ### Added

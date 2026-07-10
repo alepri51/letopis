@@ -304,6 +304,8 @@ CREATE TABLE IF NOT EXISTS "booking"."Credential" (
     CONSTRAINT credential_unique UNIQUE (account, category, identifier)
 );
 CREATE INDEX IF NOT EXISTS credential_account_idx ON "booking"."Credential" (account) WHERE deleted IS NULL;
+-- Вход по identifier должен быть однозначен: один живой кред на (category, identifier) во всей схеме.
+CREATE UNIQUE INDEX IF NOT EXISTS credential_identity_udx ON "booking"."Credential" (category, identifier) WHERE deleted IS NULL;
 
 -- Именованные ресурсы ACL: субъекты ('authenticated:ACCOUNT') и объекты ('payment:API').
 CREATE TABLE IF NOT EXISTS "booking"."Resource" (
