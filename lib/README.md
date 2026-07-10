@@ -41,9 +41,8 @@ await db.Организация(org).Сотрудник().set({ name: 'Вася'
 ```bash
 docker run -d --name clockz-timescale -e POSTGRES_PASSWORD=test -e POSTGRES_DB=clockz \
   -p 15432:5432 timescale/timescaledb:latest-pg17
-docker exec -i clockz-timescale psql -U postgres -d clockz < db/ddl.sql           # движок
-docker exec -i clockz-timescale psql -U postgres -d clockz < db/seed.booking.sql  # классы booking
-docker exec -i clockz-timescale psql -U postgres -d clockz < db/seed.auth.sql     # System + ACL
+node db/apply.mjs --dsn=postgres://postgres:test@localhost:15432/clockz --schema=booking
+# = ddl.sql + seed.booking.sql + seed.auth.sql в указанную PG-схему (любую; --no-seed — только ddl)
 ```
 
 ```ts
@@ -97,7 +96,7 @@ DELETE FROM "booking"."Entity"
  WHERE partition='entity' AND class='Booking' AND id='…';        -- → tombstone + каскад
 ```
 
-Очистка истории — только политики Timescale (compression/retention в конце ddl).
+Управление объёмом истории — только политики Timescale: `db/policies.mjs` (§ 10.8).
 
 ### 2.3 FK-целостность
 
@@ -184,7 +183,7 @@ db.Услуга({ price: { RUB: lte(2000) } })      // record: вложенны�
 
 ```ts
 import { ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends,
-         has, hasAny, hasAll, exists, isNull } from 'entity-chain'
+         has, hasAny, hasAll, exists, isNull, not, or } from 'entity-chain'
 ```
 
 | Оператор | Типы поля | SQL |
@@ -197,6 +196,8 @@ import { ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends,
 | `has(v)/hasAll([…])/hasAny([…])` | массивы data (`roles`) | `@>` / `?\|` |
 | `exists(true/false)` | любые | ключ есть/нет |
 | `isNull()` | любые | null или отсутствует |
+| `not(op \| скаляр)` | по внутреннему | `NOT (…)`; `not(скаляр)` = `ne` |
+| `or(f1, f2, …)` | **фильтр целиком** | `db.Запись(or({status:'created'}, {status:'confirmed'}))` — дизъюнкция под-фильтров |
 
 Касты по `Schema.attributes`: number→`::numeric`, date→`::timestamptz`, boolean→`::boolean`.
 Поле вне схемы фильтруется как text (записать его нельзя — строгая валидация).
@@ -220,6 +221,9 @@ db.Сотрудник({…}).alias('Мастер')           // ключ шаг�
 | Модификатор | Область | В чтении | В `set()` |
 |---|---|---|---|
 | `limit(n)` / `offset(n)` / `sort(field, dir?)` | вся цепочка | LIMIT/OFFSET/ORDER BY | ограничивает набор целей UPDATE |
+| `asOf(t)` | вся цепочка | «как было на T» (§ 10.1) | — |
+| `after(cursor)` | вся цепочка | keyset-пагинация, требует `sort` (§ 10.2) | — |
+| `deep(max?)` | текущий шаг (self-hop) | рекурсивные дети, `$depth` (§ 10.4) | — |
 | `tags(v)` | текущий шаг | фильтр по колонке | **значение** тегов при INSERT (string \| string[]) |
 | `account(v)` / `owner(v)` | текущий шаг | фильтр по колонке | **значение** при INSERT |
 | `alias(name)` | текущий шаг | ключ в путях | — |
@@ -391,6 +395,162 @@ SELECT updated, deleted, data, links FROM "booking"."Entity"
 WHERE partition='entity' AND class='Booking' AND id=$1 ORDER BY updated;
 ```
 
+### 10.1 Время-путешествия: `.asOf()` / `.versions()`
+
+```ts
+// «какая цена была на момент брони» — версии позже T невидимы, tombstone до T = «удалён»
+const тогда = await db.Услуга(id).asOf('2026-07-01T12:00:00Z').first()
+const срезДня = await db.Запись().asOf(вчера).count()      // работает со ВСЕМИ терминалами
+
+// вся история сущности без сырого SQL (tombstone-версии приходят с $deleted: true)
+const история = await db.Запись(id).versions()
+// [{data:{status:'created'}}, {data:{status:'confirmed'}}, {…, $deleted:true}]
+```
+
+`asOf` применяется к каждому шагу цепочки — подграф целиком «как был». `versions()`
+работает и после удаления сущности (у последнего шага tombstone не отфильтровывается).
+
+### 10.2 Пагинация курсором: `.after()` + `cursorOf()`
+
+Offset на больших списках заставляет БД пролистывать пропущенное; keyset — нет:
+
+```ts
+const стр1 = await db.Запись().sort('updated', 'desc').limit(50).rows()
+const стр2 = await db.Запись().sort('updated', 'desc')
+  .after(cursorOf(стр1.at(-1)!))                     // строго после последней строки
+  .limit(50).rows()
+
+// по data-полю — курсор с тем же field, что в sort
+const дальше = await db.Окно().sort('data.start')
+  .after(cursorOf(окно, 'data.start')).limit(20).rows()
+```
+
+`.after()` требует `.sort()` (иначе ошибка); сравнение `(поле, id)` — стабильно при дублях.
+
+### 10.3 Агрегации: считает БД
+
+```ts
+await db.Запись({ status: 'completed' }).sum('data.total.RUB')   // выручка: number | null
+await db.Услуга().avg('data.duration')                           // среднее
+await db.Запись().countBy('data.status')   // { confirmed: 12, cancelled: 3 } ({} на пустом)
+await db.Окно().min('data.start')          // min/max — каст по типу поля из Schema
+```
+
+Один проход в БД вместо перекачки строк в JS. Путь — `'data.<поле>'` или record-лист
+`'data.total.RUB'`. `sum`/`avg` кастуются в numeric; пустое множество → `null`.
+
+### 10.4 Деревья: `.deep()`
+
+```ts
+const всё = await db.Папка(root).Папка().deep().rows()     // ВСЕ вложенные папки (default ≤ 32)
+// Row.$depth: 1 = прямой ребёнок, 2 = внук…
+const дваУровня = await db.Папка(root).Папка().deep(2).rows()
+```
+
+Один recursive-CTE-запрос вместо запроса на уровень. Только self-hop (тот же класс,
+reverse = дети); на другом переходе — ошибка. Работает с `asOf`.
+
+### 10.5 Realtime: `db.watch()`
+
+```ts
+const stop = await db.watch('Запись', (e) => {
+  // e = { partition, class, id, updated, deleted } — факт версии (insert/update/tombstone)
+  обновитьКалендарь(e.id)
+})
+const stopAll = await db.watch((e) => log(e))   // все классы
+await stop()                                     // отписка
+```
+
+Триггер `entity_notify` шлёт лёгкий `pg_notify` (канал = имя PG-схемы) на каждую
+вставленную версию; данные подписчик дочитывает обычной цепочкой. Основа живых
+интерфейсов без поллинга.
+
+### 10.6 Изоляция арендатора: `enforceAccount`
+
+```ts
+const db = await connect({ dsn, schema, account: tenantId, enforceAccount: true })
+await db.Запись().rows()                 // ТОЛЬКО строки этого account (фильтр на каждом шаге)
+await db.Клиент().set({ name: 'X' })     // запись пришпилена к account
+db.Запись().account(чужой).rows()        // ошибка: reads are pinned to account …
+```
+
+Изоляцию гарантирует либа, а не дисциплина: забытый `.account()` в одном запросе
+больше не утечка данных соседнего салона.
+
+### 10.7 Анонимизация (GDPR): `.anonymize()`
+
+```ts
+await db.Клиент(id).anonymize(['name', 'contact'])
+// новая версия: string-поля = '[erased]', тег 'anonymized'; остальные поля целы
+```
+
+Физического стирания НЕТ — история священна: старые версии хранят PII до retention-политики
+(§ 10.8). Полное «право на забвение» = `anonymize()` сейчас + настроенный retention потом.
+Не-string поле в списке — ошибка (типы сверяются по Schema).
+
+### 10.8 Политики хранения: `db/policies.mjs`
+
+```bash
+node db/policies.mjs --dsn=… --schema=booking --compress-after=30d   # сжатие (история цела)
+node db/policies.mjs --dsn=… --schema=booking --retain=2y            # + retention (drop навсегда!)
+node db/policies.mjs --dsn=… --schema=booking                        # текущее состояние
+```
+
+- **Сжатие** — чанки старше N: `segmentby (partition, class, id)` кладёт версии сущности рядом
+  (~10–20× экономии); чтение прозрачно (`rows`/`versions`/`asOf` — покрыто тестом); новые
+  версии идут в свежие несжатые чанки — идеально ложится на append-only.
+- **Retention** — осознанный рубильник: чанки старше N УДАЛЯЮТСЯ насовсем (здесь наступает
+  «забвение» из § 10.7). По умолчанию ВЫКЛ.
+- Интервалы: `30d`, `2y`, `12h`, `6mon` или сырой PG (`'90 days'`). Повторный запуск
+  переустанавливает политику.
+
+### 10.9 Миграции классов: `scripts/schema-sync.mjs`
+
+```bash
+node scripts/schema-sync.mjs --file=../schema.booking.v2.json --dsn=… --schema=booking
+#   schema-sync: … ↔ booking.Schema (partition entity)
+#     + Coupon (HUB · Купон) — новый класс
+#     ~ Service — изменены: attributes
+#     ! Service: 3/50 живых строк НЕ пройдут новую валидацию:
+#         id=… → brand — The 'brand' field is required.
+#   ИТОГ: ломающие изменения (3 строк) … exit 1
+node scripts/schema-sync.mjs --file=… --dsn=… --schema=booking --apply   # применить
+```
+
+Diff файла и таблицы Schema (новые/изменённые/отсутствующие классы) + отчёт совместимости:
+живые latest-строки изменённых классов прогоняются НОВОЙ строгой валидацией до применения.
+Без `--apply` — только отчёт (exit 1 при breaking — удобно в CI). Отсутствующие в файле
+классы не удаляются. `ancestors`/`descendants` пересчитает триггер `schema_lineage`.
+
+### 10.10 Наблюдаемость: `onQuery` / `slowMs`
+
+```ts
+const db = await connect({
+  dsn, schema,
+  onQuery: (e) => metrics.observe(e),   // {mode:'rows', classes:['Staff','skill'], ms:4.2, rows:7, slow:false}
+  slowMs: 200,                          // ms > 200 → slow: true
+})
+// slowMs БЕЗ onQuery: console.warn('entity-chain: slow query 312ms — rows Staff→skill')
+```
+
+Событие на каждый SQL цепочек: чтения (`paths/rows/ids/count/versions/agg`) и записи
+(`insert/delete`). Служебные запросы (реестр, auth-таблицы, listen) не шумят.
+
+### 10.11 TS-типы из Schema: `scripts/gen-types.mjs`
+
+```bash
+npx tsx scripts/gen-types.mjs --dsn=… --schema=booking --out=entity-types.d.ts
+```
+
+```ts
+import type { TypedDb } from './entity-types'
+const t = db as unknown as TypedDb
+const [svc] = await t.Услуга({ active: true }).rows()   // svc.data.duration: number
+```
+
+Интерфейсы data-полей всех классов (enum → union-литералы, record → `Partial<Record<…>>`)
++ фасад `TypedDb`. Ядро остаётся динамическим — типы это надстройка.
+
 ---
 
 ## 11. API Reference
@@ -406,6 +566,29 @@ WHERE partition='entity' AND class='Booking' AND id=$1 ORDER BY updated;
 | `owner` | uuid | `account` | default-владелец |
 | `max` | number | `10` | пул соединений |
 | `enforceAccount` | boolean | `false` | жёсткая изоляция арендатора: чтения фильтруются по `account`, записи пришпилены (подмена → ошибка `pinned`) |
+| `onQuery` | `(e: QueryEvent) => void` | — | хук на каждый запрос цепочки (§ 10.10) |
+| `slowMs` | number | — | порог: `ms > slowMs` → `e.slow = true`; без `onQuery` — `console.warn` |
+
+### Экспорты модуля
+
+```ts
+import {
+  connect, cursorOf,                                     // функции
+  ne, gt, gte, lt, lte, between, inList, like, ilike,    // операторы (18)
+  starts, ends, has, hasAny, hasAll, exists, isNull, not, or,
+  ValidationError, Registry,                             // классы
+} from 'entity-chain'
+import type {
+  Row, Path, Filter, Cursor, ChainMods, ConnectOpts, QueryEvent,
+  EntityDb, EntityTx, Chain, Batch, Tables,
+  Account, Credential, Resource, Rule,
+} from 'entity-chain'
+```
+
+### `cursorOf(row, field = 'updated'): Cursor`
+
+Курсор keyset-пагинации из последней строки страницы; `field` — тот же, что в `.sort()`
+(`'updated'` или `'data.<поле>'`). Возврат `{ v, id }` — аргумент `.after()`.
 
 ### `EntityDb` / `EntityTx`
 
@@ -489,13 +672,21 @@ WHERE partition='entity' AND class='Booking' AND id=$1 ORDER BY updated;
 | `rules.set` | `({ account, resource, permission, weight?, meta?, enabled? }) → Rule` | upsert по PK |
 | `rules.delete` | `(account, resource) → boolean` | |
 
+### Типы
+
 ```ts
+Row        = { id, class, data, links, tags, account, owner, updated,
+               $deleted?: true,     // у .delete()-результатов и tombstone в .versions()
+               $depth?: number }    // у .deep()-строк: 1 = прямой ребёнок
+Path       = Record<string, Row>            // вариант пути: ключ шага → узел
+Cursor     = { v: string | number, id: string }               // .after() / cursorOf()
+QueryEvent = { mode: 'paths'|'rows'|'ids'|'count'|'versions'|'agg'|'insert'|'delete',
+               classes: string[], ms: number, rows: number, slow: boolean }
+ChainMods  = { limit?, offset?, order?, desc?, asOf?, after?, aggFn?, aggField? }
 Account    = { id, categories: string[], data, meta, avatar, enabled, created, updated }
 Credential = { id, account, category, identifier, meta, confirmed, created, updated, deleted }
 Resource   = { alias, category, pattern, meta }
 Rule       = { account, resource, permission, weight, meta, enabled }
-Row        = { id, class, data, links, tags, account, owner, updated, $deleted?: true }
-Path       = Record<string, Row>
 ```
 
 ---
@@ -591,15 +782,18 @@ const удалено = await db.Запись(bkg.id).delete()   // всё с $de
 ## 16. Тесты
 
 ```bash
-npm test    # 43 теста против живого docker-timescale:
-            # триггеры (check / UPDATE=версия / DELETE=tombstone+каскад / lineage),
-            # пример ТЗ (пути), обходы (включая self-детей), 16 операторов,
-            # модификаторы limit/offset/sort/tags/account/owner,
-            # set-билдер (контекст, inline-связи, z-форма, кеш await),
-            # deep-merge, строгая валидация, upsert по id/data.id,
-            # delete с $deleted и серверным каскадом (в т.ч. в контексте),
-            # транзакции/rollback, ГОНКА двойной брони, батчи, auth-таблицы,
-            # EXPLAIN (GIN, ноль seq scan), интеграционный E2E-барбершоп
+npm test    # 86 тестов против живого docker-timescale, по файлам:
+            # api-full      — сквозной чек-лист ВСЕХ публичных методов API (15 групп)
+            # entity-chain  — триггеры (check/версии/каскад/lineage), обходы, операторы,
+            #                 модификаторы, set-формы, delete, гонка, батчи, EXPLAIN
+            # integration   — E2E-барбершоп (8 сцен)
+            # real-life     — 16 сцен «дня салона»: 4 руки, гонки ×3, переносы, no-show
+            # tables        — auth/ACL-таблицы
+            # wave2         — asOf/versions, keyset-курсор, gen-types, enforceAccount, anonymize
+            # wave3         — or/not, агрегации, deep, watch
+            # wave4         — compression-политики (чтение сжатого чанка), schema-sync, onQuery
+npm run bench   # производительность на 105k строк (§ 14)
 ```
 
 `ENTITY_DSN` переопределяет DSN (default `postgres://postgres:test@localhost:15432/clockz`).
+Тесты полностью автономны: `wave4` сам создаёт себе PG-схему через `db/apply.mjs`.
