@@ -159,6 +159,12 @@ test('✔ модификаторы: limit/offset/sort/asOf/after/alias/tags/acco
   assert.equal(await db.Услуга().owner({ id: SYS }).count(), 2);
   assert.equal(await db.Услуга().account('00000000-0000-4000-8000-00000000dead').count(), 0);
 
+  // sort по вложенному record-пути + keyset-курсор по нему (каст по типу листа)
+  const поЦене = await db.Услуга().sort('data.price.RUB', 'desc').rows();
+  assert.deepEqual(поЦене.map((r) => (r.data.price as { RUB: number }).RUB), [2500, 1500]);
+  const дороже = await db.Услуга().sort('data.price.RUB').after(cursorOf(поЦене[1], 'data.price.RUB')).rows();
+  assert.deepEqual(дороже.map((r) => (r.data.price as { RUB: number }).RUB), [2500]);
+
   // deep: default и max, ошибка на не-self
   const all = await db.Папка(S.root.id).Папка().deep().rows();
   assert.deepEqual(all.map((r) => [r.data.name, r.$depth]).sort(), [['Ногти', 1], ['Спа', 2]]);
@@ -190,8 +196,10 @@ test('✔ терминалы: execute/rows/first/ids/count/versions/sum/avg/min/
   // агрегации + null/{} на пустом множестве
   assert.equal(await db.Услуга().sum('data.duration'), 90);
   assert.equal(await db.Услуга().avg('data.duration'), 45);
-  assert.equal(Number(await db.Услуга().min('data.duration')), 30);
-  assert.equal(Number(await db.Услуга().max('data.duration')), 60);
+  assert.equal(await db.Услуга().min('data.duration'), 30);          // number-поле → number (не строка)
+  assert.equal(await db.Услуга().max('data.duration'), 60);
+  assert.equal(await db.Услуга().min('data.price.RUB'), 1500);       // record-лист number → number
+  assert.equal(await db.Услуга().max('data.price.RUB'), 2500);
   assert.deepEqual(await db.Услуга().countBy('data.name'), { Маникюр: 1, Стрижка: 1 });
   assert.equal(await db.Услуга({ name: 'Пусто' }).sum('data.duration'), null);
   assert.deepEqual(await db.Услуга({ name: 'Пусто' }).countBy('data.name'), {});

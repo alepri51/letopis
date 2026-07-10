@@ -611,7 +611,7 @@ import type {
 |---|---|---|
 | `.<Класс>` | `(filter?: Filter) => Chain` | следующий шаг (§ 4) / контекст-связь (§ 6) |
 | `.limit` / `.offset` | `(n: number) => Chain` | LIMIT / OFFSET |
-| `.sort` | `(field: 'updated' \| 'data.<поле>', dir?: 'asc'\|'desc'\|boolean) => Chain` | сортировка по полю последнего шага (каст по Schema) |
+| `.sort` | `(field: 'updated' \| 'data.<поле>' \| 'data.<record>.<ключ>', dir?: 'asc'\|'desc'\|boolean) => Chain` | сортировка по полю последнего шага, вложенные record-пути поддержаны (каст по Schema) |
 | `.alias` | `(name: string) => Chain` | ключ текущего шага в путях |
 | `.tags` | `(v: string \| string[] \| has/hasAny/hasAll) => Chain` | фильтр tags; значение при INSERT |
 | `.account` / `.owner` | `(v: uuid \| Row) => Chain` | фильтр колонки; значение при INSERT |
@@ -625,7 +625,7 @@ import type {
 | `.anonymize` | `(fields: string[]) => Promise<Row[]>` | GDPR: `'[erased]'` в string-полях + тег `anonymized`; история остаётся |
 | `.deep` | `(max = 32) => Chain` | рекурсивные дети self-hop; `$depth` в Row |
 | `.sum/.avg` | `('data.<путь>') => Promise<number \| null>` | агрегация в БД (record-путь `data.total.RUB` поддержан) |
-| `.min/.max` | `(field) => Promise<unknown>` | каст по типу поля из Schema |
+| `.min/.max` | `(field) => Promise<unknown>` | каст по типу поля из Schema; number-поля возвращаются числом |
 | `.countBy` | `(field) => Promise<Record<string, number>>` | GROUP BY значению поля |
 
 ### `SetChain` — результат `.set()`

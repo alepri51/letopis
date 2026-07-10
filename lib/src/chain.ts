@@ -262,7 +262,14 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batchQueue?: BatchO
             const q = buildRead(ctx, steps, { ...mods, aggFn: prop, aggField: field }, 'agg');
             const res = await runQuery<{ v: unknown }>(ctx, q.text, q.params, 'agg', clsOf(steps));
             const v = res[0]?.v;
-            return v === null || v === undefined ? null : typeof v === 'string' && prop !== 'min' && prop !== 'max' ? Number(v) : v;
+            if (v === null || v === undefined) return null;
+            if (typeof v !== 'string') return v;
+            if (prop === 'sum' || prop === 'avg') return Number(v);
+            // min/max: postgres.js отдаёт numeric строкой — приводим, если поле числовое по Schema
+            const path = field.slice(5).split('.');
+            const ft = steps[steps.length - 1].cls.fieldTypes.get(path[0]);
+            const leaf = path.length === 1 ? ft : ft?.kind === 'record' ? ft.value : undefined;
+            return leaf?.kind === 'number' ? Number(v) : v;
           };
         case 'countBy':
           return async (field: string) => {

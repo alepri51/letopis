@@ -40,9 +40,12 @@ export async function connect(opts: ConnectOpts): Promise<EntityDb> {
   return makeDb(ctx);
 }
 
-/** Курсор keyset-пагинации из последней строки страницы (field как в .sort()). */
+/** Курсор keyset-пагинации из последней строки страницы (field как в .sort(), вложенные пути поддержаны). */
 export function cursorOf(row: import('./types.js').Row, field: string = 'updated'): import('./types.js').Cursor {
-  const v = field === 'updated' ? row.updated : (row.data[field.slice(5)] as string | number);
+  const v =
+    field === 'updated'
+      ? row.updated
+      : (field.slice(5).split('.').reduce<unknown>((o, k) => (o as Record<string, unknown>)?.[k], row.data) as string | number);
   return { v, id: row.id };
 }
 

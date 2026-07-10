@@ -326,8 +326,10 @@ export interface BuiltQuery {
 function sortField(alias: string, cls: ClassDef, order: string): string {
   if (order === 'updated') return `${alias}.updated`;
   if (order.startsWith('data.')) {
-    const field = order.slice(5);
-    return `(${alias}.data->>'${escLit(field)}')${castOf(cls.fieldTypes.get(field))}`;
+    const path = order.slice(5).split('.');
+    if (path.length > 2) throw new Error(`letopis: sort supports 'data.<field>' or 'data.<record>.<key>'`);
+    // вложенный record-путь ('data.price.RUB') + каст по типу листа — как в фильтрах/агрегациях
+    return `(${accessor(path)(alias)})${castOf(cls0Field(cls, path))}`;
   }
   throw new Error(`letopis: order must be 'updated' or 'data.<field>'`);
 }
@@ -342,7 +344,8 @@ function afterCond(alias: string, cls: ClassDef, mods: ChainMods, p: Params): st
   if (!mods.after) return '';
   if (!mods.order) throw new Error('letopis: .after(cursor) requires .sort(field)');
   const expr = sortField(alias, cls, mods.order);
-  const cast = mods.order === 'updated' ? '::timestamptz' : castOf(cls.fieldTypes.get(mods.order.slice(5)));
+  const cast =
+    mods.order === 'updated' ? '::timestamptz' : castOf(cls0Field(cls, mods.order.slice(5).split('.')));
   const cmp = mods.desc ? '<' : '>';
   return ` WHERE (${expr}, ${alias}.id) ${cmp} (${p.push(mods.after.v)}${cast}, ${p.push(mods.after.id)})`;
 }
