@@ -107,7 +107,7 @@ export function makeTables(ctx: Ctx): Tables {
           `UPDATE ${T(ctx, 'Account')} SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING *`,
           params,
         );
-        if (!rows[0]) throw new Error(`entity-chain: account "${a.id}" not found`);
+        if (!rows[0]) throw new Error(`letopis: account "${a.id}" not found`);
         return rows[0];
       }
       const cols: string[] = [];

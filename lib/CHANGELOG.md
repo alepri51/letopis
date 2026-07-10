@@ -2,6 +2,16 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/), версии — semver.
 
+## [0.5.0] — 2026-07-10
+
+### Changed
+- **Пакет переименован: `entity-chain` → `letopis`** (летопись — append-only хроника; история
+  священна). Первая публикация в npm. Префикс сообщений об ошибках теперь `letopis:`.
+  API не менялся.
+
+### Added
+- Лицензия MIT, keywords, `ARTICLE.md` — статья о проекте.
+
 ## [0.4.1] — 2026-07-10
 
 ### Changed

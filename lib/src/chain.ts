@@ -199,7 +199,7 @@ function makeSetChain(
       if (registry.has(prop)) {
         const cls = registry.resolve(prop);
         return (target: string | { id: string }) => {
-          if (done) throw new Error(`entity-chain: set() already executed — link "${prop}" before the first await`);
+          if (done) throw new Error(`letopis: set() already executed — link "${prop}" before the first await`);
           links[cls.id] = idOf(target);
           return proxy;
         };
@@ -376,14 +376,14 @@ export function makeDb(ctx: Ctx, root?: RootState): EntityDb {
             if (tr) return tr.commit();
             const c = ctx as TxCtx;
             if (typeof c.commit === 'function') return c.commit();
-            throw new Error('entity-chain: commit() needs a transaction: db.commit(tr) or tr.commit()');
+            throw new Error('letopis: commit() needs a transaction: db.commit(tr) or tr.commit()');
           };
         case 'rollback':
           return (tr?: EntityTx) => {
             if (tr) return tr.rollback();
             const c = ctx as TxCtx;
             if (typeof c.rollback === 'function') return c.rollback();
-            throw new Error('entity-chain: rollback() needs a transaction: db.rollback(tr) or tr.rollback()');
+            throw new Error('letopis: rollback() needs a transaction: db.rollback(tr) or tr.rollback()');
           };
         case 'lock':
           return (...keys: (string | number)[]) => lock(ctx, ...keys);

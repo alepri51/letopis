@@ -16,7 +16,7 @@ import { buildRead, runQuery, insertSql, multiInsertSql, deleteSql, closureSql, 
 
 export class ValidationError extends Error {
   constructor(cls: string, public issues: { field: string; message?: string }[]) {
-    super(`entity-chain: validation failed for "${cls}": ${issues.map((i) => `${i.field} — ${i.message ?? 'invalid'}`).join('; ')}`);
+    super(`letopis: validation failed for "${cls}": ${issues.map((i) => `${i.field} — ${i.message ?? 'invalid'}`).join('; ')}`);
   }
 }
 
@@ -76,7 +76,7 @@ export function deepMerge(
 
 /** Валидация данных по fastest-validator (строгая, + id) и концов LINK. */
 function validate(cls: ClassDef, id: string, data: Record<string, unknown>, links: Record<string, string>): Record<string, unknown> {
-  if (cls.abstract) throw new Error(`entity-chain: class "${cls.id}" is abstract`);
+  if (cls.abstract) throw new Error(`letopis: class "${cls.id}" is abstract`);
 
   const merged: Record<string, unknown> = { ...data, id };
   const res = cls.check(merged);
@@ -89,11 +89,11 @@ function validate(cls: ClassDef, id: string, data: Record<string, unknown>, link
     for (const end of cls.links) {
       if (end === 'Entity') polymorphic++;
       else if (present.has(end)) present.delete(end);
-      else throw new Error(`entity-chain: link "${cls.id}" requires end "${end}"`);
+      else throw new Error(`letopis: link "${cls.id}" requires end "${end}"`);
     }
     if (present.size < polymorphic) {
       throw new Error(
-        `entity-chain: link "${cls.id}" requires ${polymorphic} polymorphic end(s) (any class), got ${present.size}`,
+        `letopis: link "${cls.id}" requires ${polymorphic} polymorphic end(s) (any class), got ${present.size}`,
       );
     }
   }
@@ -141,12 +141,12 @@ const noFilter = (f?: Filter): boolean => f === undefined;
 /** Entity.account NOT NULL: модификатор → connect() → System-аккаунт; иначе ошибка. */
 function resolveAccount(ctx: Ctx, step: Step): string {
   if (ctx.enforceAccount && ctx.account && step.accountFilter && step.accountFilter !== ctx.account) {
-    throw new Error(`entity-chain: enforceAccount is on — writes are pinned to account ${ctx.account}`);
+    throw new Error(`letopis: enforceAccount is on — writes are pinned to account ${ctx.account}`);
   }
   const acc = step.accountFilter ?? ctx.account ?? ctx.systemAccount;
   if (!acc) {
     throw new Error(
-      'entity-chain: Entity.account is NOT NULL — set .account(…) / connect({account}) or seed a System account (db/seed.auth.sql)',
+      'letopis: Entity.account is NOT NULL — set .account(…) / connect({account}) or seed a System account (db/seed.auth.sql)',
     );
   }
   return acc;
@@ -158,7 +158,7 @@ function tagsValue(step: Step): string[] | undefined {
   if (t === undefined) return undefined;
   if (typeof t === 'string') return [t];
   if (Array.isArray(t)) return t as string[];
-  throw new Error('entity-chain: .tags() before set() accepts string | string[]');
+  throw new Error('letopis: .tags() before set() accepts string | string[]');
 }
 
 /**
@@ -175,12 +175,12 @@ async function resolveContext(ctx: Ctx, steps: Step[]): Promise<Record<string, s
       const rows = await readRows(ctx, [step], { limit: 2 });
       if (rows.length !== 1) {
         throw new Error(
-          `entity-chain: context step "${step.name}" must resolve to exactly one entity (got ${rows.length})`,
+          `letopis: context step "${step.name}" must resolve to exactly one entity (got ${rows.length})`,
         );
       }
       id = rows[0].id;
     } else {
-      throw new Error(`entity-chain: context step "${step.name}" needs an id or a unique filter`);
+      throw new Error(`letopis: context step "${step.name}" needs an id or a unique filter`);
     }
     links[step.cls.id] = id;
   }
@@ -266,7 +266,7 @@ export async function anonymizeOp(ctx: Ctx, steps: Step[], mods: ChainMods, fiel
   const cls = target.cls;
   for (const f of fields) {
     if (cls.fieldTypes.get(f)?.kind !== 'string') {
-      throw new Error(`entity-chain: anonymize() erases string fields only; "${f}" is ${cls.fieldTypes.get(f)?.kind ?? 'unknown'}`);
+      throw new Error(`letopis: anonymize() erases string fields only; "${f}" is ${cls.fieldTypes.get(f)?.kind ?? 'unknown'}`);
     }
   }
   const contextLinks = await resolveContext(ctx, steps.slice(0, -1));

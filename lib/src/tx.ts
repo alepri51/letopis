@@ -39,7 +39,7 @@ export async function beginTx(ctx: Ctx): Promise<TxCtx> {
 /** Advisory-lock на составной ключ; живёт до конца транзакции. */
 export async function lock(ctx: Ctx, ...keys: (string | number)[]): Promise<void> {
   if (!ctx.inTx) {
-    throw new Error('entity-chain: lock() works only inside db.begin() transaction (pg_advisory_xact_lock)');
+    throw new Error('letopis: lock() works only inside db.begin() transaction (pg_advisory_xact_lock)');
   }
   await ctx.sql.unsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [keys.join('|')] as never[]);
 }

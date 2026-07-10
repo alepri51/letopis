@@ -1,5 +1,5 @@
 /**
- * entity-chain: типы.
+ * letopis: типы.
  */
 
 /** Строка Entity (актуальная версия), как отдаёт либа. account/owner — NOT NULL. */
@@ -51,7 +51,7 @@ export type FieldType =
   | { kind: 'any' };
 
 /** Метка операторов фильтра (Symbol — не конфликтует с данными). */
-export const OP: unique symbol = Symbol('entity-chain.op');
+export const OP: unique symbol = Symbol('letopis.op');
 
 export interface Op {
   [OP]: string;

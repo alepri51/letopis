@@ -1,10 +1,10 @@
-# entity-chain — руководство
+# Letopis — руководство
 
 Dot-цепочки над append-only Entity-хранилищем (TimescaleDB). Всё — точками: чтение,
 связи, запись, настройки выборки.
 
 ```ts
-import { connect } from 'entity-chain'
+import { connect } from 'letopis'
 
 const db = await connect({ dsn: 'postgres://…', schema: 'booking' })
 
@@ -183,7 +183,7 @@ db.Услуга({ price: { RUB: lte(2000) } })      // record: вложенны�
 
 ```ts
 import { ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends,
-         has, hasAny, hasAll, exists, isNull, not, or } from 'entity-chain'
+         has, hasAny, hasAll, exists, isNull, not, or } from 'letopis'
 ```
 
 | Оператор | Типы поля | SQL |
@@ -530,7 +530,7 @@ const db = await connect({
   onQuery: (e) => metrics.observe(e),   // {mode:'rows', classes:['Staff','skill'], ms:4.2, rows:7, slow:false}
   slowMs: 200,                          // ms > 200 → slow: true
 })
-// slowMs БЕЗ onQuery: console.warn('entity-chain: slow query 312ms — rows Staff→skill')
+// slowMs БЕЗ onQuery: console.warn('letopis: slow query 312ms — rows Staff→skill')
 ```
 
 Событие на каждый SQL цепочек: чтения (`paths/rows/ids/count/versions/agg`) и записи
@@ -577,12 +577,12 @@ import {
   ne, gt, gte, lt, lte, between, inList, like, ilike,    // операторы (18)
   starts, ends, has, hasAny, hasAll, exists, isNull, not, or,
   ValidationError, Registry,                             // классы
-} from 'entity-chain'
+} from 'letopis'
 import type {
   Row, Path, Filter, Cursor, ChainMods, ConnectOpts, QueryEvent,
   EntityDb, EntityTx, Chain, Batch, Tables,
   Account, Credential, Resource, Rule,
-} from 'entity-chain'
+} from 'letopis'
 ```
 
 ### `cursorOf(row, field = 'updated'): Cursor`
@@ -784,7 +784,7 @@ const удалено = await db.Запись(bkg.id).delete()   // всё с $de
 ```bash
 npm test    # 86 тестов против живого docker-timescale, по файлам:
             # api-full      — сквозной чек-лист ВСЕХ публичных методов API (15 групп)
-            # entity-chain  — триггеры (check/версии/каскад/lineage), обходы, операторы,
+            # core          — триггеры (check/версии/каскад/lineage), обходы, операторы,
             #                 модификаторы, set-формы, delete, гонка, батчи, EXPLAIN
             # integration   — E2E-барбершоп (8 сцен)
             # real-life     — 16 сцен «дня салона»: 4 руки, гонки ×3, переносы, no-show

@@ -59,7 +59,7 @@ export async function runQuery<T>(
     const ms = performance.now() - t0;
     const slow = ctx.slowMs !== undefined && ms > ctx.slowMs;
     if (ctx.onQuery) ctx.onQuery({ mode, classes, ms, rows: res.length, slow });
-    else if (slow) console.warn(`entity-chain: slow query ${ms.toFixed(0)}ms — ${mode} ${classes.join('→')}`);
+    else if (slow) console.warn(`letopis: slow query ${ms.toFixed(0)}ms — ${mode} ${classes.join('→')}`);
   }
   return res;
 }
@@ -186,7 +186,7 @@ function compileOp(path: string[], ft: FieldType | undefined, o: Op, p: Params):
       return isOp(args[0]) ? (a) => `NOT (${inner(a)})` : inner; // not(скаляр) = ne
     }
     default:
-      throw new Error(`entity-chain: unknown operator "${name}"`);
+      throw new Error(`letopis: unknown operator "${name}"`);
   }
 }
 
@@ -210,7 +210,7 @@ function compileTags(v: unknown, p: Params): Frag {
           `${a}.tags && ARRAY[${(args[0] as unknown[]).map((x) => p.push(x)).join(', ')}]::text[]`;
     }
   }
-  throw new Error('entity-chain: $tags accepts a string or has/hasAny/hasAll');
+  throw new Error('letopis: $tags accepts a string or has/hasAny/hasAll');
 }
 
 function compileFilter(cls: ClassDef, filter: Filter | undefined, p: Params): CompiledFilter {
@@ -247,7 +247,7 @@ function compileFilter(cls: ClassDef, filter: Filter | undefined, p: Params): Co
       if (typeof value === 'string') out.idConds.push((a) => `${a}.id = ${p.push(value)}`);
       else if (Array.isArray(value))
         out.idConds.push((a) => `${a}.id IN (${value.map((x) => p.push(x)).join(', ')})`);
-      else throw new Error('entity-chain: filter.id accepts string | string[]');
+      else throw new Error('letopis: filter.id accepts string | string[]');
       continue;
     }
 
@@ -302,10 +302,10 @@ export function resolveHop(prev: ClassDef, next: ClassDef): HopMode {
     if (prev.links.includes(next.id)) return 'forward';
     if (next.links.includes(prev.id)) return 'reverse';
     throw new Error(
-      `entity-chain: no path ${prev.id} → ${next.id}: neither embeds the other (Schema.links)`,
+      `letopis: no path ${prev.id} → ${next.id}: neither embeds the other (Schema.links)`,
     );
   }
-  throw new Error(`entity-chain: LINK → LINK traversal is not supported (${prev.id} → ${next.id})`);
+  throw new Error(`letopis: LINK → LINK traversal is not supported (${prev.id} → ${next.id})`);
 }
 
 export type ReadMode = 'paths' | 'rows' | 'ids' | 'count' | 'versions' | 'agg';
@@ -329,7 +329,7 @@ function sortField(alias: string, cls: ClassDef, order: string): string {
     const field = order.slice(5);
     return `(${alias}.data->>'${escLit(field)}')${castOf(cls.fieldTypes.get(field))}`;
   }
-  throw new Error(`entity-chain: order must be 'updated' or 'data.<field>'`);
+  throw new Error(`letopis: order must be 'updated' or 'data.<field>'`);
 }
 
 function orderExpr(alias: string, cls: ClassDef, mods: ChainMods): string {
@@ -340,7 +340,7 @@ function orderExpr(alias: string, cls: ClassDef, mods: ChainMods): string {
 /** Keyset-пагинация: (поле сортировки, id) строго после курсора. Требует .sort(). */
 function afterCond(alias: string, cls: ClassDef, mods: ChainMods, p: Params): string {
   if (!mods.after) return '';
-  if (!mods.order) throw new Error('entity-chain: .after(cursor) requires .sort(field)');
+  if (!mods.order) throw new Error('letopis: .after(cursor) requires .sort(field)');
   const expr = sortField(alias, cls, mods.order);
   const cast = mods.order === 'updated' ? '::timestamptz' : castOf(cls.fieldTypes.get(mods.order.slice(5)));
   const cmp = mods.desc ? '<' : '>';
@@ -376,7 +376,7 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
     let accFilter = step.accountFilter;
     if (ctx.enforceAccount && ctx.account) {
       if (accFilter && accFilter !== ctx.account) {
-        throw new Error(`entity-chain: enforceAccount is on — reads are pinned to account ${ctx.account}`);
+        throw new Error(`letopis: enforceAccount is on — reads are pinned to account ${ctx.account}`);
       }
       accFilter = ctx.account;
     }
@@ -428,7 +428,7 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
     if (isDeep) {
       const prev = steps[i - 1];
       if (i === 0 || prev.cls.id !== step.cls.id) {
-        throw new Error('entity-chain: .deep() works on a self hop (same class as previous step)');
+        throw new Error('letopis: .deep() works on a self hop (same class as previous step)');
       }
       const pMax = p.push(step.deepMax);
       // latest живые дети узла ref (id-выражение родителя)
@@ -509,7 +509,7 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
     case 'agg': {
       const { aggFn, aggField } = mods;
       if (!aggFn || !aggField?.startsWith('data.')) {
-        throw new Error("entity-chain: aggregation needs field 'data.<путь>'");
+        throw new Error("letopis: aggregation needs field 'data.<путь>'");
       }
       const path = aggField.slice(5).split('.');
       const acc =

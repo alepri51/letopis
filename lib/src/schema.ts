@@ -39,7 +39,7 @@ export class Registry {
     const def = this.byName.get(name);
     if (!def) {
       const names = this.all.map((d) => `${d.id}·${d.alias}`).join(', ');
-      throw new Error(`entity-chain: unknown class "${name}". Known: ${names}`);
+      throw new Error(`letopis: unknown class "${name}". Known: ${names}`);
     }
     return def;
   }
@@ -154,7 +154,7 @@ export async function loadRegistry(sql: Sql, pgSchema: string, partition: string
   )) as unknown as SchemaRow[];
 
   if (!rows.length) {
-    throw new Error(`entity-chain: schema "${pgSchema}" has no classes for partition "${partition}"`);
+    throw new Error(`letopis: schema "${pgSchema}" has no classes for partition "${partition}"`);
   }
 
   const byId = new Map(rows.map((r) => [r.id, r]));
