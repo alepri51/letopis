@@ -7,7 +7,7 @@
  * Запись: .set(data) — связи задаются контекст-шагами цепочки; .delete().
  */
 import type { Row, Path, Filter, ChainMods } from './types.js';
-import { buildRead, type Ctx, type Step } from './sql.js';
+import { buildRead, runQuery, type Ctx, type Step } from './sql.js';
 import { setOp, delOp, anonymizeOp, executeBatch, toRow, type BatchOp } from './write.js';
 import { beginTx, lock, type TxCtx } from './tx.js';
 import { makeTables, type Tables } from './tables.js';
@@ -153,9 +153,11 @@ function normalizeFilter(f: Filter | undefined): Filter | undefined {
   return f;
 }
 
+const clsOf = (steps: Step[]): string[] => steps.map((s) => s.cls.id);
+
 async function runPaths(ctx: Ctx, steps: Step[], mods: ChainMods): Promise<Path[]> {
   const q = buildRead(ctx, steps, mods, 'paths');
-  const res = (await ctx.sql.unsafe(q.text, q.params as never[])) as unknown as RawPathRow[];
+  const res = await runQuery<RawPathRow>(ctx, q.text, q.params, 'paths', clsOf(steps));
   return res.map((r) => {
     const out: Path = {};
     for (const [k, v] of Object.entries(r.path)) out[k] = toRow(v);
@@ -165,7 +167,7 @@ async function runPaths(ctx: Ctx, steps: Step[], mods: ChainMods): Promise<Path[
 
 async function runRows(ctx: Ctx, steps: Step[], mods: ChainMods): Promise<Row[]> {
   const q = buildRead(ctx, steps, mods, 'rows');
-  const res = (await ctx.sql.unsafe(q.text, q.params as never[])) as unknown as { row: never }[];
+  const res = await runQuery<{ row: never }>(ctx, q.text, q.params, 'rows', clsOf(steps));
   return res.map((r) => {
     const row = toRow(r.row);
     const d = (r.row as { depth?: number }).depth;
@@ -232,13 +234,13 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batchQueue?: BatchO
         case 'ids':
           return async () => {
             const q = buildRead(ctx, steps, mods, 'ids');
-            const res = (await ctx.sql.unsafe(q.text, q.params as never[])) as unknown as { id: string }[];
+            const res = await runQuery<{ id: string }>(ctx, q.text, q.params, 'ids', clsOf(steps));
             return res.map((r) => r.id);
           };
         case 'count':
           return async () => {
             const q = buildRead(ctx, steps, mods, 'count');
-            const res = (await ctx.sql.unsafe(q.text, q.params as never[])) as unknown as { n: number }[];
+            const res = await runQuery<{ n: number }>(ctx, q.text, q.params, 'count', clsOf(steps));
             return res[0].n;
           };
         case 'limit':
@@ -258,14 +260,14 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batchQueue?: BatchO
         case 'max':
           return async (field: string) => {
             const q = buildRead(ctx, steps, { ...mods, aggFn: prop, aggField: field }, 'agg');
-            const res = (await ctx.sql.unsafe(q.text, q.params as never[])) as unknown as { v: unknown }[];
+            const res = await runQuery<{ v: unknown }>(ctx, q.text, q.params, 'agg', clsOf(steps));
             const v = res[0]?.v;
             return v === null || v === undefined ? null : typeof v === 'string' && prop !== 'min' && prop !== 'max' ? Number(v) : v;
           };
         case 'countBy':
           return async (field: string) => {
             const q = buildRead(ctx, steps, { ...mods, aggFn: 'countBy', aggField: field }, 'agg');
-            const res = (await ctx.sql.unsafe(q.text, q.params as never[])) as unknown as { k: string; n: number }[];
+            const res = await runQuery<{ k: string; n: number }>(ctx, q.text, q.params, 'agg', clsOf(steps));
             return Object.fromEntries(res.map((r) => [r.k ?? 'null', r.n]));
           };
         case 'after':
@@ -273,7 +275,7 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batchQueue?: BatchO
         case 'versions':
           return async () => {
             const q = buildRead(ctx, steps, mods, 'versions');
-            const res = (await ctx.sql.unsafe(q.text, q.params as never[])) as unknown as { row: never }[];
+            const res = await runQuery<{ row: never }>(ctx, q.text, q.params, 'versions', clsOf(steps));
             return res.map((r) => {
               const raw = r.row as { deleted: string | null };
               const row = toRow(r.row);

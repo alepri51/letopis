@@ -34,6 +34,8 @@ export async function connect(opts: ConnectOpts): Promise<EntityDb> {
     owner: opts.owner,
     systemAccount: sys[0]?.id,
     enforceAccount: opts.enforceAccount,
+    onQuery: opts.onQuery,
+    slowMs: opts.slowMs,
   };
   return makeDb(ctx);
 }
@@ -52,7 +54,7 @@ export {
 
 // типы
 export type {
-  Row, Path, Filter, ChainMods, Cursor, ConnectOpts,
+  Row, Path, Filter, ChainMods, Cursor, ConnectOpts, QueryEvent,
   Account, Credential, Resource, Rule,
 } from './types.js';
 export type { EntityDb, EntityTx, Chain, Batch } from './chain.js';

@@ -12,7 +12,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { Row, ChainMods, Filter, ClassDef } from './types.js';
-import { buildRead, insertSql, multiInsertSql, deleteSql, closureSql, type Ctx, type Step } from './sql.js';
+import { buildRead, runQuery, insertSql, multiInsertSql, deleteSql, closureSql, type Ctx, type Step } from './sql.js';
 
 export class ValidationError extends Error {
   constructor(cls: string, public issues: { field: string; message?: string }[]) {
@@ -49,7 +49,7 @@ export function toRow(r: RawRow): Row {
 /** Прочитать актуальные строки по цепочке. */
 export async function readRows(ctx: Ctx, steps: Step[], mods: ChainMods = {}): Promise<Row[]> {
   const q = buildRead(ctx, steps, mods, 'rows');
-  const res = (await ctx.sql.unsafe(q.text, q.params as never[])) as unknown as { row: RawRow }[];
+  const res = await runQuery<{ row: RawRow }>(ctx, q.text, q.params, 'rows', steps.map((s) => s.cls.id));
   return res.map((r) => toRow(r.row));
 }
 
@@ -122,7 +122,7 @@ async function insertOne(ctx: Ctx, a: InsertArgs): Promise<Row> {
   ];
   for (let attempt = 1; ; attempt++) {
     try {
-      const res = (await ctx.sql.unsafe(insertSql(ctx.pgSchema), params as never[])) as unknown as RawRow[];
+      const res = await runQuery<RawRow>(ctx, insertSql(ctx.pgSchema), params, 'insert', [a.cls.id]);
       return toRow(res[0]);
     } catch (e) {
       if ((e as { code?: string }).code === '23505' && attempt < 3) continue;
@@ -304,10 +304,10 @@ export async function delOp(ctx: Ctx, steps: Step[], mods: ChainMods): Promise<R
   const targets = await readRows(ctx, [targetStep(target, contextLinks)], mods);
   if (!targets.length) return [];
 
-  const params = [ctx.partition, target.cls.id, ...targets.map((r) => r.id)] as never[];
+  const params = [ctx.partition, target.cls.id, ...targets.map((r) => r.id)];
   return inTransaction(ctx, async (c) => {
-    const closure = (await c.sql.unsafe(closureSql(c.pgSchema, targets.length), params)) as unknown as RawRow[];
-    await c.sql.unsafe(deleteSql(c.pgSchema, targets.length), params);
+    const closure = await runQuery<RawRow>(c, closureSql(c.pgSchema, targets.length), params, 'delete', [target.cls.id]);
+    await runQuery(c, deleteSql(c.pgSchema, targets.length), params, 'delete', [target.cls.id]);
     return closure.map((r) => ({ ...toRow(r), $deleted: true as const }));
   });
 }
@@ -361,10 +361,7 @@ export async function executeBatch(ctx: Ctx, queue: BatchOp[]): Promise<Row[][]>
             account, s.ownerFilter ?? c.owner ?? account,
           );
         }
-        const res = (await c.sql.unsafe(
-          multiInsertSql(c.pgSchema, group.length),
-          params as never[],
-        )) as unknown as RawRow[];
+        const res = await runQuery<RawRow>(c, multiInsertSql(c.pgSchema, group.length), params, 'insert', [cls.id]);
         for (let k = 0; k < group.length; k++) results[i + k] = [toRow(res[k])];
         i = j;
         continue;

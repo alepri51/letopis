@@ -18,7 +18,7 @@
  * Цепочка шагов соединяется JOIN LATERAL — комбинации путей сохраняются.
  */
 import type { Sql } from 'postgres';
-import type { ClassDef, ChainMods, FieldType, Filter, Op } from './types.js';
+import type { ClassDef, ChainMods, FieldType, Filter, Op, QueryEvent } from './types.js';
 import { OP } from './types.js';
 import { isOp } from './ops.js';
 import type { Registry } from './schema.js';
@@ -36,6 +36,32 @@ export interface Ctx {
   enforceAccount?: boolean;
   /** true внутри db.begin()-транзакции (write не оборачивает в begin повторно). */
   inTx?: boolean;
+  /** Наблюдаемость: хук на каждый запрос цепочки. */
+  onQuery?: (e: QueryEvent) => void;
+  /** Порог «медленного» запроса, мс (без onQuery — console.warn). */
+  slowMs?: number;
+}
+
+/**
+ * Единая точка исполнения запросов цепочек: sql.unsafe + событие onQuery/slowMs.
+ * Служебные запросы (loadRegistry, tables, listen) через неё не идут.
+ */
+export async function runQuery<T>(
+  ctx: Ctx,
+  text: string,
+  params: unknown[],
+  mode: QueryEvent['mode'],
+  classes: string[],
+): Promise<T[]> {
+  const t0 = performance.now();
+  const res = (await ctx.sql.unsafe(text, params as never[])) as unknown as T[];
+  if (ctx.onQuery || ctx.slowMs !== undefined) {
+    const ms = performance.now() - t0;
+    const slow = ctx.slowMs !== undefined && ms > ctx.slowMs;
+    if (ctx.onQuery) ctx.onQuery({ mode, classes, ms, rows: res.length, slow });
+    else if (slow) console.warn(`entity-chain: slow query ${ms.toFixed(0)}ms — ${mode} ${classes.join('→')}`);
+  }
+  return res;
 }
 
 export interface Step {

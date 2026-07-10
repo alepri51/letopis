@@ -6,8 +6,9 @@
  *   node db/apply.mjs --dsn=postgres://user:pass@host:5432/db --schema=prod_booking
  *   node db/apply.mjs --dsn=... --schema=booking --no-seed     # только ddl
  *
- * Заменяется ТОЛЬКО квотированный идентификатор "booking" — строки вида 'booking.*'
- * внутри jsonb-паттернов не затрагиваются.
+ * Заменяются ТОЛЬКО идентификаторы схемы: квалифицированные имена ("booking".…),
+ * CREATE SCHEMA и канал pg_notify. Строки "booking" внутри jsonb-сидов (enum-значения
+ * и т.п.) не затрагиваются.
  */
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -39,7 +40,9 @@ const sql = postgres(dsn, { max: 1 });
 try {
   for (const f of files) {
     let text = await readFile(join(here, f), 'utf8');
-    text = text.replaceAll('"booking"', `"${schema.replaceAll('"', '""')}"`);
+    const q = schema.replaceAll('"', '""');
+    text = text.replaceAll('"booking".', `"${q}".`); // только квалифицированные имена — не jsonb-строки
+    text = text.replaceAll('CREATE SCHEMA IF NOT EXISTS "booking"', `CREATE SCHEMA IF NOT EXISTS "${q}"`);
     text = text.replaceAll(`pg_notify('booking'`, `pg_notify('${schema.replaceAll("'", "''")}'`); // канал realtime
     await sql.unsafe(text); // multi-statement simple query
     console.log(`applied ${f} → schema "${schema}"`);

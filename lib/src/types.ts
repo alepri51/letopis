@@ -140,6 +140,20 @@ export interface Rule {
   enabled: boolean;
 }
 
+/** Событие хука onQuery: один SQL-запрос цепочки (чтение или запись). */
+export interface QueryEvent {
+  /** Режим чтения или write-операция. */
+  mode: 'paths' | 'rows' | 'ids' | 'count' | 'versions' | 'agg' | 'insert' | 'delete';
+  /** Классы шагов цепочки (id из Schema). */
+  classes: string[];
+  /** Длительность, мс. */
+  ms: number;
+  /** Число строк результата. */
+  rows: number;
+  /** true при ms > slowMs (если slowMs задан). */
+  slow: boolean;
+}
+
 export interface ConnectOpts {
   /** postgres://user:pass@host:port/db */
   dsn: string;
@@ -155,4 +169,8 @@ export interface ConnectOpts {
   max?: number;
   /** Жёсткая изоляция арендатора: чтения фильтруются по account, записи пришпилены к нему. */
   enforceAccount?: boolean;
+  /** Хук на каждый запрос цепочки (метрики, лог). */
+  onQuery?: (e: QueryEvent) => void;
+  /** Порог «медленного» запроса, мс: событие получает slow: true; без onQuery — console.warn. */
+  slowMs?: number;
 }
