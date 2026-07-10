@@ -555,6 +555,11 @@ const [svc] = await t.Услуга({ active: true }).rows()   // svc.data.durati
 
 ## 11. API Reference
 
+Все примеры ниже — **реальные ответы и тайминги** с базы в 1 112 860 строк (год истории:
+250k записей ×2 версии, 250k занятостей, 250k позиций; воспроизводится
+`bench/article-demo.mjs`). id сокращены: `…0021` = `00000000-0000-4000-8000-000000000021`;
+одинаковые везде `account`/`owner`/`partition` в ответах опущены.
+
 ### `connect(opts): Promise<EntityDb>`
 
 | Параметр | Тип | Default | Описание |
@@ -568,6 +573,16 @@ const [svc] = await t.Услуга({ active: true }).rows()   // svc.data.durati
 | `enforceAccount` | boolean | `false` | жёсткая изоляция арендатора: чтения фильтруются по `account`, записи пришпилены (подмена → ошибка `pinned`) |
 | `onQuery` | `(e: QueryEvent) => void` | — | хук на каждый запрос цепочки (§ 10.10) |
 | `slowMs` | number | — | порог: `ms > slowMs` → `e.slow = true`; без `onQuery` — `console.warn` |
+
+```ts
+const db = await connect({ dsn: 'postgres://…', schema: 'booking', onQuery: (e) => log(e) })
+// реальное событие onQuery: {"mode":"insert","classes":["Slot"],"ms":2.5,"rows":1,"slow":false}
+
+const iso = await connect({ dsn, schema, account: tenantId, enforceAccount: true })
+await iso.Организация().count()          // [7.0 ms] → 1 — остальные 20 орг базы невидимы
+await iso.Организация().account(SYS).rows()
+// Error: letopis: enforceAccount is on — reads are pinned to account 2e2df59e-…
+```
 
 ### Экспорты модуля
 
@@ -588,7 +603,14 @@ import type {
 ### `cursorOf(row, field = 'updated'): Cursor`
 
 Курсор keyset-пагинации из последней строки страницы; `field` — тот же, что в `.sort()`
-(`'updated'` или `'data.<поле>'`). Возврат `{ v, id }` — аргумент `.after()`.
+(`'updated'` или data-путь любой глубины). Возврат `{ v, id }` — аргумент `.after()`.
+
+```ts
+const топ = await db.Услуга().sort('data.price.RUB', 'desc').limit(3).rows()   // [24.0 ms]
+const кур = cursorOf(топ.at(-1), 'data.price.RUB')   // → { v: 1598, id: '00000004-…0398' }
+await db.Услуга().sort('data.price.RUB', 'desc').after(кур).limit(3).rows()    // [11.3 ms]
+// → 1597, 1596, 1595 — следующая страница, стабильно и при дублях значений
+```
 
 ### `EntityDb` / `EntityTx`
 
@@ -604,6 +626,27 @@ import type {
 | `close` | `() => Promise<void>` | закрыть пул |
 | `registry` | `Registry` | `.resolve(name)` → ClassDef (ancestors, descendants, attributes…) |
 | `sql` | postgres.js | голый клиент |
+
+```ts
+// транзакции: гонка двойной брони — реальный вывод: «tr1: бронь моя; tr2: ОТКАЗ»
+const tr = await db.begin()
+await tr.lock('busy', staffId, slotId)              // соперник на той же паре ВИСИТ до commit
+const занято = await tr.занятость(busyId).first()   // перечитка под локом → null | Row
+if (!занято) { await tr.Сотрудник(s).Окно(w).занятость(busyId).set({ kind: 'booking' }); await tr.commit() }
+else await tr.rollback()
+
+// watch: реальные события insert → tombstone
+const stop = await db.watch('Клиент', (e) => события.push(e))
+// { class: 'Customer', id: '…0033', updated: '…30.622140', deleted: false }
+// { class: 'Customer', id: '…0033', updated: '…30.692691', deleted: true }
+await stop()
+
+// batch: две вставки одной транзакцией
+const b = db.batch('окна')
+b.Окно().set({ id: '…0053', start: '…12:00Z', end: '…13:00Z' })
+b.Окно().set({ id: '…0054', start: '…13:00Z', end: '…14:00Z' })
+await b.execute()                                    // [34.2 ms] → Row[][] по порядку; size() → 0
+```
 
 ### `Chain`
 
@@ -628,12 +671,83 @@ import type {
 | `.min/.max` | `(field) => Promise<unknown>` | каст по типу поля из Schema; number-поля возвращаются числом |
 | `.countBy` | `(field) => Promise<Record<string, number>>` | GROUP BY значению поля |
 
+**Чтение** (класс Услуга — 402 сущности, Запись — 250 000):
+
+```ts
+await db.Сотрудник({ name: 'Вася' }).навык().Услуга().execute()   // [17.4 ms]
+// → [{ Сотрудник: Row, навык: Row, Услуга: Row }] — полные узлы каждого пути
+await db.Услуга().rows()                          // [10.9 ms] → 402 Row
+await db.Сотрудник({ name: 'Олег' }).first()      // [4.3 ms]  → Row | null
+await db.Сотрудник().ids()                        // [2.6 ms]  → 302 id
+await db.Организация(org).Сотрудник().count()     // [4.6 ms]  → 2
+await db.Услуга({ price: { RUB: gte(1300) } }).count()          // [6.9 ms] → 301
+await db.Организация({ settings: { booking: { deposit: { amount: gte(900) } } } }).count()
+// [4.1 ms] → 2 — оператор на листе глубины 4, каст numeric по Schema
+```
+
+**Модификаторы**:
+
+```ts
+await db.Услуга().sort('data.duration', 'desc').limit(3).rows()  // [25.0 ms] → 75, 75, 75
+await db.Услуга().sort('data.price.RUB', 'desc').limit(3).rows() // [24.0 ms] → 1800, 1599, 1598
+await db.Запись().sort('updated', 'desc').limit(2).rows()
+// [1854.5 ms] — ЧЕСТНО: DISTINCT ON всех 250k сущностей класса без фильтра (§ 14)
+await db.Клиент().tags('vip').count()             // [43.2 ms] → 1 (среди 30 002)
+await db.Папка('…0071').Папка().deep().rows()     // [8.6 ms]
+// → [{ name: 'Мужской зал', $depth: 1 }, { name: 'Борода и усы', $depth: 2 }]
+```
+
+**Время и история**:
+
+```ts
+await db.Услуга('…0021').asOf(t1).first()         // [7.7 ms] → { price: { RUB: 1500 } } — цена ТОГДА
+await db.Услуга('…0021').versions()               // [3.7 ms]
+// → [{ price: {RUB:1500}, updated: …23.358271 }, { price: {RUB:1800,USD:20}, updated: …23.445881 }]
+// после delete: […, { status: 'confirmed', updated: …30.294244, $deleted: true }]
+```
+
+**Агрегации** (считает БД):
+
+```ts
+await db.Запись().countBy('data.status')
+// [599.9 ms] → { confirmed: 150001, cancelled: 50000, completed: 50000 }
+await db.Запись({ status: 'completed' }).sum('data.total.RUB')   // [277.9 ms] → 177500000
+await db.Услуга().avg('data.duration')            // [4.0 ms] → 52.46
+await db.Услуга().min('data.price.RUB')           // [6.3 ms] → 800  (числом)
+await db.Организация({}).sum('data.settings.booking.deposit.amount')  // [3.7 ms] → 2900 (глубина 4)
+```
+
+**Запись и удаление**:
+
+```ts
+await db.Организация().set({ id: '…0001', name: 'BarberPro' })   // [14.6 ms] INSERT (+defaults)
+await db.Организация(org).Сотрудник().set({ name: 'Вася' })      // [10.4 ms] links из контекста
+await db.Услуга('…0021').set({ price: { RUB: 1800, USD: 20 } })  // [9.9 ms] UPSERT: новая версия,
+// deep-merge листьев: { price: { RUB: 1800, USD: 20 }, duration: 60, description: 'классика' }
+await db.Клиент(анна).Запись({ status: 'created' }).set({ status: 'confirmed' })
+// [75.5 ms] UPDATE найденных в контексте клиента — среди 250k записей класса
+await db.Клиент('…0031').anonymize(['name', 'contact'])          // [6.6 ms]
+// → { name: '[erased]', contact: '[erased]', … }, tags: ['anonymized']; история цела
+
+const удалено = await db.Запись('…0061').delete()                // [421.0 ms]
+// → [{ class: 'Booking', $deleted: true }, { class: 'busy', … }, { class: 'item', … }]
+// сервер нашёл зависимых среди 500k связей и затомбстоунил дерево; повторный delete → []
+```
+
 ### `SetChain` — результат `.set()`
 
 | Член | Сигнатура | Описание |
 |---|---|---|
 | `.<Класс>` | `(target: id \| Row) => SetChain` | довесить связь (до первого await; мутирует билдер) |
 | `await …` | `PromiseLike<Row[]>` | исполнить ОДИН INSERT/UPDATE; промис кешируется |
+
+```ts
+const z = db.навык().set({})   // z-форма: копим связи, исполняем await-ом
+z.Сотрудник(вася)
+z.Услуга(стрижка)
+const [навык] = await z        // [6.8 ms] ОДИН INSERT
+// → { class: 'skill', links: { Staff: '…0011', Service: '…0021' } }
+```
 
 **Формы Filter** (аргумент шага):
 
@@ -671,6 +785,15 @@ import type {
 | `rules.find` | `({ account?, resource?, permission?, enabled? }?) → Rule[]` | weight DESC |
 | `rules.set` | `({ account, resource, permission, weight?, meta?, enabled? }) → Rule` | upsert по PK |
 | `rules.delete` | `(account, resource) → boolean` | |
+
+```ts
+const acc = await db.accounts.set({ categories: ['Client'], data: { название: 'ИП Анна' } })  // [7.5 ms]
+// → { id: '2e2df59e-…', categories: ['Client'], enabled: true, created: …, updated: … }
+await db.credentials.set({ account: acc.id, category: 'phone', identifier: '+7 911 111-11-11' })
+// → { id: 'cce28a7c-…', confirmed: true, deleted: null } — upsert; повторный set воскрешает
+await db.rules.set({ account: 'api.booking', resource: 'api.booking', permission: 'allow', weight: 90 })
+// → { permission: 'allow', weight: 90, enabled: true }
+```
 
 ### Типы
 
