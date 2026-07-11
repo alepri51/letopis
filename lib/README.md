@@ -545,6 +545,15 @@ await stop()                                     // отписка
 вставленную версию; данные подписчик дочитывает обычной цепочкой. Основа живых
 интерфейсов без поллинга.
 
+Обрывы LISTEN-соединение переживает само (postgres.js переподключается с backoff и
+повторяет LISTEN), но `NOTIFY` за время разрыва потеряны — для этого `onReconnect`:
+
+```ts
+const stop = await db.watch('Запись', onEvent, {
+  onReconnect: () => дочитатьПропущенное(),   // напр. перечитать всё с последнего e.updated
+})
+```
+
 ### 10.6 Изоляция арендатора: `enforceAccount`
 
 ```ts
@@ -631,6 +640,31 @@ const [svc] = await t.Услуга({ active: true }).rows()   // svc.data.durati
 Интерфейсы data-полей всех классов (enum → union-литералы, record → `Partial<Record<…>>`)
 + фасад `TypedDb`. Ядро остаётся динамическим — типы это надстройка.
 
+### 10.12 Устойчивость к сбоям
+
+Транзиентные ошибки PG — deadlock (`40P01`) и serialization failure (`40001`) —
+библиотека гасит сама там, где повтор безопасен:
+
+- **чтения в автокоммите** — до 3 попыток с backoff (40–160 ms);
+- **`insertOne`** — ретрай гонки `updated` (23505, мгновенно) и transient (с backoff);
+- **внутренние транзакции** (`.delete()`-каскад, батчи) — повтор ВСЕЙ транзакции:
+  откат полный, побочек нет, повтор честен.
+
+Внутри `db.begin()` повтор невозможен семантикой PG (вся транзакция aborted) — ошибка
+уходит наружу немедленно, с дописанной подсказкой:
+
+```
+deadlock detected — letopis: transaction is aborted, retry the whole db.begin() block
+```
+
+Ретраить весь `db.begin()`-блок — ответственность приложения (только оно знает,
+можно ли повторять его побочные эффекты). Встречный порядок `tr.lock()` двух транзакций —
+классический способ поймать 40P01; фиксируйте порядок ключей блокировок.
+
+Обрывы соединений: пул postgres.js лениво переустанавливает коннекты (упавший в полёте
+запрос завершается ошибкой, следующий получает новое соединение); LISTEN-канал `watch()`
+переподключается сам, пропущенные NOTIFY дочитываются в `onReconnect` (§ 10.5).
+
 ---
 
 ## 11. API Reference
@@ -678,6 +712,7 @@ import type {
   EntityDb, EntityTx, Chain, Batch, Tables,
   Account, Credential, Resource, Rule,
   AuthApi, AuthResult, SessionStore, Sessions, Session,
+  WatchEvent, WatchOpts,
 } from 'letopis'
 ```
 
@@ -702,7 +737,7 @@ await db.Услуга().sort('data.price.RUB', 'desc').after(кур).limit(3).ro
 | `commit` / `rollback` | `(tr) => Promise<void>` | или `tr.commit()`/`tr.rollback()`; повторно — no-op |
 | `lock` | `(...keys: (string\|number)[]) => Promise<void>` | advisory-xact-lock; только на `tr` |
 | `batch` | `(name: string) => Batch` | именованный батч |
-| `watch` | `(classOrCb, cb?) => Promise<() => void>` | realtime: `WatchEvent {partition, class, id, updated, deleted}` на каждую версию (триггер `entity_notify` → LISTEN); возврат — stop |
+| `watch` | `(cls?, cb, opts?: WatchOpts) => Promise<() => void>` | realtime: `WatchEvent {partition, class, id, updated, deleted}` на каждую версию (триггер `entity_notify` → LISTEN); авто-reconnect, `opts.onReconnect` — дочитать пропущенное (§ 10.5); возврат — stop |
 | `accounts/credentials/resources/rules` | § 9 | фасады таблиц |
 | `auth` | `AuthApi` (§ 9.1, таблица ниже) | вход по кредам + сессии в Redis |
 | `close` | `() => Promise<void>` | закрыть пул |
@@ -930,6 +965,8 @@ Rule       = { account, resource, permission, weight, meta, enabled }
 AuthResult = { account: Account, credential: Credential }        // все verify*/lookup
 Session    = { account: string, meta, created }                  // sessions.check()
 SessionStore = { set, get, del, sadd, srem, smembers, expire }   // ioredis-совместимый срез
+WatchEvent = { partition, class, id, updated, deleted: boolean } // db.watch()
+WatchOpts  = { onReconnect?: () => void }                        // после re-listen (§ 10.5)
 ```
 
 ---
@@ -1025,10 +1062,12 @@ const удалено = await db.Запись(bkg.id).delete()   // всё с $de
 ## 16. Тесты
 
 ```bash
-npm test    # 98 тестов против живого docker (timescale + redis), по файлам:
+npm test    # 103 теста против живого docker (timescale + redis), по файлам:
             # api-full      — сквозной чек-лист ВСЕХ публичных методов API (15 групп)
             # auth          — db.auth: пароль/api-key/key-secret/link+lookup, ворота verify,
             #                 глобальная идентичность, сессии на живом Redis (expire/revoke)
+            # resilience    — ретраи 40P01/40001, реальный deadlock двух транзакций,
+            #                 watch переживает обрыв LISTEN (pg_terminate_backend)
             # core          — триггеры (check/версии/каскад/lineage), обходы, операторы,
             #                 модификаторы, set-формы, delete, гонка, батчи, EXPLAIN
             # depth         — наследование 3+ уровней, data-пути любой глубины

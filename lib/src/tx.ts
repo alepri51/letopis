@@ -3,7 +3,7 @@
  * db.commit(tr) / db.rollback(tr) / tr.commit() / tr.rollback().
  * tr.lock(...) — pg_advisory_xact_lock (сериализация гонок, напр. двойная бронь).
  */
-import type { Ctx } from './sql.js';
+import { hintTxRetry, isTransient, type Ctx } from './sql.js';
 
 export interface TxCtx extends Ctx {
   commit(): Promise<void>;
@@ -31,6 +31,7 @@ export async function beginTx(ctx: Ctx): Promise<TxCtx> {
     ...ctx,
     sql: reserved,
     inTx: true,
+    userTx: true,
     commit: () => finish('COMMIT'),
     rollback: () => finish('ROLLBACK'),
   };
@@ -41,5 +42,11 @@ export async function lock(ctx: Ctx, ...keys: (string | number)[]): Promise<void
   if (!ctx.inTx) {
     throw new Error('letopis: lock() works only inside db.begin() transaction (pg_advisory_xact_lock)');
   }
-  await ctx.sql.unsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [keys.join('|')] as never[]);
+  try {
+    await ctx.sql.unsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [keys.join('|')] as never[]);
+  } catch (e) {
+    // встречный порядок lock() двух транзакций → deadlock 40P01 (PG убивает одну)
+    if (isTransient(e)) hintTxRetry(e);
+    throw e;
+  }
 }

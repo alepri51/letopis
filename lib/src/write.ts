@@ -12,7 +12,10 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { Row, ChainMods, Filter, ClassDef } from './types.js';
-import { buildRead, runQuery, insertSql, multiInsertSql, deleteSql, closureSql, type Ctx, type Step } from './sql.js';
+import {
+  buildRead, runQuery, insertSql, multiInsertSql, deleteSql, closureSql,
+  isTransient, retryDelay, RETRIES, type Ctx, type Step,
+} from './sql.js';
 
 export class ValidationError extends Error {
   constructor(cls: string, public issues: { field: string; message?: string }[]) {
@@ -113,7 +116,7 @@ interface InsertArgs {
   deleted: Date | null;
 }
 
-/** INSERT одной строки с ретраем коллизии PK по updated (23505). */
+/** INSERT одной строки с ретраем гонок: 23505 (коллизия updated) и transient (40P01/40001). */
 async function insertOne(ctx: Ctx, a: InsertArgs): Promise<Row> {
   // jsonb-параметры — JS-объектами (postgres.js сериализует сам)
   const params = [
@@ -125,7 +128,14 @@ async function insertOne(ctx: Ctx, a: InsertArgs): Promise<Row> {
       const res = await runQuery<RawRow>(ctx, insertSql(ctx.pgSchema), params, 'insert', [a.cls.id]);
       return toRow(res[0]);
     } catch (e) {
-      if ((e as { code?: string }).code === '23505' && attempt < 3) continue;
+      // внутри транзакции повтор невозможен (aborted) — любая ошибка наружу
+      if (!ctx.inTx && attempt < RETRIES) {
+        if ((e as { code?: string }).code === '23505') continue; // новый clock_timestamp сразу
+        if (isTransient(e)) {
+          await retryDelay(attempt);
+          continue;
+        }
+      }
       throw e;
     }
   }
@@ -287,10 +297,21 @@ export async function anonymizeOp(ctx: Ctx, steps: Step[], mods: ChainMods, fiel
   return out;
 }
 
-/** Транзакционная обёртка: в tr исполняем как есть, вне — sql.begin. */
+/** Транзакционная обёртка: в tr исполняем как есть, вне — sql.begin с ретраем transient
+ *  (deadlock/serialization откатывает ВСЮ внутреннюю транзакцию — повтор честен). */
 async function inTransaction<T>(ctx: Ctx, fn: (c: Ctx) => Promise<T>): Promise<T> {
   if (ctx.inTx) return fn(ctx);
-  return (await ctx.sql.begin(async (tsql) => fn({ ...ctx, sql: tsql as never, inTx: true }))) as T;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return (await ctx.sql.begin(async (tsql) => fn({ ...ctx, sql: tsql as never, inTx: true }))) as T;
+    } catch (e) {
+      if (isTransient(e) && attempt < RETRIES) {
+        await retryDelay(attempt);
+        continue;
+      }
+      throw e;
+    }
+  }
 }
 
 /**

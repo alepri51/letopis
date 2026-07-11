@@ -2,6 +2,25 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/), версии — semver.
 
+## [0.8.0] — 2026-07-11
+
+### Added
+- **Устойчивость к сбоям** (§ 10.12 README):
+  - transient-ошибки PG (deadlock `40P01`, serialization `40001`) ретраятся там, где
+    повтор безопасен: чтения в автокоммите (до 3 попыток, backoff 40–160 ms), `insertOne`
+    (плюс прежний 23505), внутренние транзакции delete-каскада и батчей — повтор целиком;
+  - внутри `db.begin()` повтор невозможен (транзакция aborted) — ошибка уходит сразу
+    с подсказкой `retry the whole db.begin() block`; `tr.lock()` при deadlock — та же подсказка;
+  - ретрай 23505/transient в `insertOne` больше не срабатывает внутри транзакции
+    (раньше повтор в aborted-транзакции маскировал исходную ошибку кодом 25P02).
+- **`watch(…, { onReconnect })`** — LISTEN-соединение и так переживает обрывы
+  (postgres.js: reconnect + повторный LISTEN), но NOTIFY за время разрыва потеряны;
+  `onReconnect` зовётся после каждого восстановления — точка дочитать пропущенное.
+  Типы `WatchEvent`/`WatchOpts` экспортированы.
+- `test/resilience.test.ts` — юнит-ретраи, настоящий deadlock двух транзакций
+  (встречные `lock()`), обрыв LISTEN через `pg_terminate_backend` (reconnect ~0.4 s);
+  суммарно 103 теста.
+
 ## [0.7.0] — 2026-07-10
 
 ### Added

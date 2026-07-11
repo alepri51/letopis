@@ -36,14 +36,40 @@ export interface Ctx {
   enforceAccount?: boolean;
   /** true внутри db.begin()-транзакции (write не оборачивает в begin повторно). */
   inTx?: boolean;
+  /** true только у db.begin()-транзакций (не у внутренних): управляет подсказкой при 40P01/40001. */
+  userTx?: boolean;
   /** Наблюдаемость: хук на каждый запрос цепочки. */
   onQuery?: (e: QueryEvent) => void;
   /** Порог «медленного» запроса, мс (без onQuery — console.warn). */
   slowMs?: number;
 }
 
+/** Транзиентные ошибки PG — гонка, снимаемая повтором: deadlock / serialization failure. */
+export function isTransient(e: unknown): boolean {
+  const code = (e as { code?: string }).code;
+  return code === '40P01' || code === '40001';
+}
+
+/** Внутри db.begin() повтор невозможен (вся транзакция aborted) — дописываем подсказку. */
+export function hintTxRetry(e: unknown): void {
+  const err = e as { message?: string; letopisHinted?: true };
+  if (err.letopisHinted || typeof err.message !== 'string') return;
+  err.letopisHinted = true;
+  err.message += ' — letopis: transaction is aborted, retry the whole db.begin() block';
+}
+
+export const RETRIES = 3;
+export const retryDelay = (attempt: number): Promise<void> =>
+  new Promise((r) => setTimeout(r, 40 * attempt + Math.random() * 40));
+
+const READ_MODES: ReadonlySet<QueryEvent['mode']> = new Set([
+  'paths', 'rows', 'ids', 'count', 'versions', 'agg',
+]);
+
 /**
  * Единая точка исполнения запросов цепочек: sql.unsafe + событие onQuery/slowMs.
+ * Чтения в автокоммите ретраят transient-ошибки (40P01/40001); внутри db.begin()
+ * повтор запрещён семантикой PG — ошибка уходит наружу с подсказкой.
  * Служебные запросы (loadRegistry, tables, listen) через неё не идут.
  */
 export async function runQuery<T>(
@@ -53,15 +79,29 @@ export async function runQuery<T>(
   mode: QueryEvent['mode'],
   classes: string[],
 ): Promise<T[]> {
-  const t0 = performance.now();
-  const res = (await ctx.sql.unsafe(text, params as never[])) as unknown as T[];
-  if (ctx.onQuery || ctx.slowMs !== undefined) {
-    const ms = performance.now() - t0;
-    const slow = ctx.slowMs !== undefined && ms > ctx.slowMs;
-    if (ctx.onQuery) ctx.onQuery({ mode, classes, ms, rows: res.length, slow });
-    else if (slow) console.warn(`letopis: slow query ${ms.toFixed(0)}ms — ${mode} ${classes.join('→')}`);
+  for (let attempt = 1; ; attempt++) {
+    const t0 = performance.now();
+    try {
+      const res = (await ctx.sql.unsafe(text, params as never[])) as unknown as T[];
+      if (ctx.onQuery || ctx.slowMs !== undefined) {
+        const ms = performance.now() - t0;
+        const slow = ctx.slowMs !== undefined && ms > ctx.slowMs;
+        if (ctx.onQuery) ctx.onQuery({ mode, classes, ms, rows: res.length, slow });
+        else if (slow) console.warn(`letopis: slow query ${ms.toFixed(0)}ms — ${mode} ${classes.join('→')}`);
+      }
+      return res;
+    } catch (e) {
+      if (isTransient(e)) {
+        if (ctx.inTx) {
+          if (ctx.userTx) hintTxRetry(e);
+        } else if (READ_MODES.has(mode) && attempt < RETRIES) {
+          await retryDelay(attempt);
+          continue;
+        }
+      }
+      throw e;
+    }
   }
-  return res;
 }
 
 export interface Step {

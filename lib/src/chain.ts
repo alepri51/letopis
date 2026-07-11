@@ -88,8 +88,11 @@ export interface DbCore {
   /**
    * Realtime: события каждой вставленной версии (insert/update/delete-tombstone).
    * watch(cb) — все классы; watch('Запись', cb) — один. Возврат — stop-функция.
+   * LISTEN-соединение переживает обрывы (re-listen автоматом), но NOTIFY за время
+   * разрыва потеряны — opts.onReconnect зовётся после восстановления: дочитайте пропущенное.
    */
-  watch(classOrCb: string | ((e: WatchEvent) => void), cb?: (e: WatchEvent) => void): Promise<() => void>;
+  watch(cb: (e: WatchEvent) => void, opts?: WatchOpts): Promise<() => void>;
+  watch(cls: string, cb: (e: WatchEvent) => void, opts?: WatchOpts): Promise<() => void>;
   close(): Promise<void>;
   registry: Registry;
   /** Голый postgres-клиент (тесты, EXPLAIN). */
@@ -120,6 +123,12 @@ export interface WatchEvent {
   id: string;
   updated: string;
   deleted: boolean;
+}
+
+/** Опции watch(): реакция на восстановление LISTEN-соединения. */
+export interface WatchOpts {
+  /** Зовётся после каждого re-listen (не на первом подключении): NOTIFY за разрыв потеряны. */
+  onReconnect?: () => void;
 }
 
 export type Batch = {
@@ -411,18 +420,34 @@ export function makeDb(ctx: Ctx, root?: RootState): EntityDb {
             return makeBatch(ctx, q);
           };
         case 'watch':
-          return async (a: string | ((e: WatchEvent) => void), b?: (e: WatchEvent) => void) => {
+          return async (
+            a: string | ((e: WatchEvent) => void),
+            b?: ((e: WatchEvent) => void) | WatchOpts,
+            c?: WatchOpts,
+          ) => {
             const cls = typeof a === 'string' ? ctx.registry.resolve(a).id : undefined;
-            const cb = typeof a === 'function' ? a : b!;
+            const cb = typeof a === 'function' ? a : (b as (e: WatchEvent) => void);
+            const opts = (typeof a === 'function' ? (b as WatchOpts) : c) ?? {};
             const listener = (payload: string) => {
               const e = JSON.parse(payload) as WatchEvent;
               if (e.partition !== ctx.partition) return;
               if (cls && e.class !== cls) return;
               cb(e);
             };
+            // postgres.js: dedicated LISTEN-соединение само переподключается (backoff) и
+            // повторяет LISTEN; onlisten зовётся на первом connect И на каждом re-listen.
+            // NOTIFY за время разрыва потеряны — onReconnect даёт точку дочитать пропущенное.
+            let first = true;
+            const onlisten = () => {
+              if (first) {
+                first = false;
+                return;
+              }
+              opts.onReconnect?.();
+            };
             const { unlisten } = await (ctx.sql as unknown as {
-              listen(ch: string, fn: (p: string) => void): Promise<{ unlisten(): Promise<void> }>;
-            }).listen(ctx.pgSchema, listener);
+              listen(ch: string, fn: (p: string) => void, ol?: () => void): Promise<{ unlisten(): Promise<void> }>;
+            }).listen(ctx.pgSchema, listener, onlisten);
             return unlisten;
           };
         case 'close':
