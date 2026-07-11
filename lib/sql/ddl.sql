@@ -3,7 +3,7 @@
 -- В БД только: структура таблиц + индексы + триггеры ЦЕЛОСТНОСТИ.
 -- Вся логика приложения (версии, каскады, локи, валидация data) — в либе letopis.
 -- Идемпотентен: можно применять повторно.
--- "<SCHEMA-NAME>" — маркер: db/apply.mjs подставляет полное имя схемы vN.<имя> (--schema + --version).
+-- "<SCHEMA-NAME>" — маркер: letopis.up() / db/apply.mjs подставляет полное имя схемы vN.<имя>.
 -- =============================================================================
 
 CREATE EXTENSION IF NOT EXISTS timescaledb;
@@ -12,7 +12,7 @@ CREATE SCHEMA IF NOT EXISTS "<SCHEMA-NAME>";
 
 -- -----------------------------------------------------------------------------
 -- Schema: классы предметной области (HUB — сущности, LINK — связи).
--- Сидится из schema.booking.v2.json (db/seed.booking.sql).
+-- Сидится из schema.booking.v2.json (lib/sql/seed.booking.sql).
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS "<SCHEMA-NAME>"."Schema" (
     partition  text   NOT NULL DEFAULT 'entity',

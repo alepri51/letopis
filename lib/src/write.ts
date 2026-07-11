@@ -185,7 +185,7 @@ function resolveAccount(ctx: Ctx, step: Step): string {
   const acc = step.accountFilter ?? ctx.account ?? ctx.systemAccount;
   if (!acc) {
     throw new Error(
-      'letopis: Entity.account is NOT NULL — set .account(…) / connect({account}) or seed a System account (db/seed.auth.sql)',
+      'letopis: Entity.account is NOT NULL — set .account(…) / connect({account}) or seed a System account (lib/sql/seed.auth.sql)',
     );
   }
   return acc;

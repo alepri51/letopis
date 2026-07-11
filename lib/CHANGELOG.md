@@ -2,6 +2,31 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/), версии — semver.
 
+## [0.13.0] — 2026-07-11
+
+### Added — `up()`: одна точка входа
+- **`up(opts): Promise<EntityDb>`** — от пустой машины до готового `db` одной функцией:
+  probe `dsn` (живой postgres — docker пропускается: CI-сервисы, внешние БД) → docker
+  ensure через CLI (`inspect`/`build` из пакованного Dockerfile/`run`/`start`) → ожидание
+  готовности PG + Redis → автосоздание базы из `dsn` (3D000) → версионная схема
+  `"v<version>.<schema>"` из шаблонов пакета (маркер `"<SCHEMA-NAME>"`) → сквозной
+  `connect()`. Идемпотентно на каждом шаге; `fresh: true` — дроп схемы и накат заново;
+  `seeds: string[] | false` — свои сиды вместо демо. Живые тайминги: с нуля
+  (build+initdb+apply) 7.4 s, `docker start` 1.2 s, всё готово ~110 ms.
+- **Данные PG — на хосте**: контейнер поднимается с named volume **`letopis-pgdata`**
+  (кроссплатформенно, переживает пересоздание контейнера; физически — внутри
+  docker-диска WSL2/ext4), `dataDir: '/path'` — bind mount папки (на Windows/NTFS —
+  на свой риск). Redis без персиста — сессии эфемерны.
+- SQL-шаблоны и Dockerfile теперь **пакуются в npm** (`lib/sql/`, `lib/docker/`,
+  `files += sql, docker`) — `up()` работает у любого потребителя пакета из коробки.
+
+### Changed
+- Dev-контейнер переименован: образ `clockz-db` → **`letopis-db`**, контейнер
+  `clockz-timescale` → **`letopis-timescale`** (данные перенесены дампом, полигон
+  `v1.article` 1 112 952 строк цел).
+- Шаблоны переехали `db/*.sql` → `lib/sql/`, докер-файлы `db/docker/` → `lib/docker/`;
+  `db/apply.mjs` остался CLI-обёрткой и читает шаблоны из `lib/sql/`.
+
 ## [0.12.0] — 2026-07-11
 
 ### Changed — BREAKING: шаблон SQL + версия движка в имени схемы

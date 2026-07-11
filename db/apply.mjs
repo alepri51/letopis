@@ -42,12 +42,13 @@ if (!/^[1-9][0-9]*$/.test(String(version))) {
 const full = `v${version}.${schema}`;
 
 const here = dirname(fileURLToPath(import.meta.url));
+const sqlDir = join(here, '../lib/sql'); // шаблоны пакуются в npm-пакет letopis
 const files = ['ddl.sql', ...(args['no-seed'] ? [] : ['seed.booking.sql', 'seed.auth.sql'])];
 
 const sql = postgres(dsn, { max: 1 });
 try {
   for (const f of files) {
-    let text = await readFile(join(here, f), 'utf8');
+    let text = await readFile(join(sqlDir, f), 'utf8');
     // маркер стоит и в идентификаторах ("<SCHEMA-NAME>"."Entity"), и в канале
     // pg_notify('<SCHEMA-NAME>') — одна тотальная замена покрывает оба контекста
     text = text.replaceAll('<SCHEMA-NAME>', full);

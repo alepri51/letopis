@@ -38,28 +38,49 @@ await db.Организация(org).Сотрудник().set({ name: 'Вася'
 
 ## 1. Быстрый старт
 
+Одна функция — весь путь от нуля: dev-контейнер (TimescaleDB + Redis), готовность,
+версионная схема с сидами, подключение:
+
+```ts
+import { up } from 'letopis'
+
+const db = await up({ schema: 'booking', version: 1 })   // → PG-схема "v1.booking"
+// [letopis.up] building image letopis-db (first time pulls the timescaledb base — may take minutes)…
+// [letopis.up] container letopis-timescale created (data: volume letopis-pgdata)
+// [letopis.up] postgres ready in 5.0 s
+// [letopis.up] redis ready on 16379
+// [letopis.up] schema "v1.booking" applied (3 files)
+// [letopis.up] connected (schema "v1.booking")
+
+const [org]  = await db.Организация().set({ name: 'BarberPro' }).rows()
+const [вася] = await db.Организация(org).Сотрудник().set({ name: 'Вася', roles: ['master'] }).rows()
+await db.close()
+```
+
+Идемпотентно: живой postgres на `dsn` → docker пропускается; существующая схема не трогается.
+Данные PG живут в named volume `letopis-pgdata` (кроссплатформенно, переживает пересоздание
+контейнера); `dataDir: '/path'` — bind mount папки хоста. Полный контракт — [§11.1a](#111a-upopts).
+
+Вручную (то же самое по шагам):
+
 ```bash
-# dev-контейнер: TimescaleDB + Redis (сессии db.auth) в одном контейнере
-docker build -t clockz-db db/docker
-docker run -d --name clockz-timescale -e POSTGRES_PASSWORD=test -e POSTGRES_DB=clockz \
-  -p 15432:5432 -p 16379:6379 clockz-db
+docker build -t letopis-db lib/docker
+docker run -d --name letopis-timescale -e POSTGRES_PASSWORD=test -e POSTGRES_DB=clockz \
+  -p 15432:5432 -p 16379:6379 -v letopis-pgdata:/var/lib/postgresql/data letopis-db
 node db/apply.mjs --dsn=postgres://postgres:test@localhost:15432/clockz --schema=booking --version=1
-# SQL-шаблоны держат маркер <SCHEMA-NAME>; итоговая PG-схема — "v1.booking" (версия движка в имени)
-# = ddl.sql + seed.booking.sql + seed.auth.sql в указанную PG-схему (любую; --no-seed — только ddl)
+# SQL-шаблоны (lib/sql/) держат маркер <SCHEMA-NAME>; итоговая PG-схема — "v1.booking"
+# = ddl.sql + seed.booking.sql + seed.auth.sql в указанную PG-схему (--no-seed — только ddl)
 ```
 
 ```ts
 const db = await connect({ dsn: 'postgres://postgres:test@localhost:15432/clockz', schema: 'v1.booking' })
-const [org]  = await db.Организация().set({ name: 'BarberPro' }).rows()
-const [вася] = await db.Организация(org).Сотрудник().set({ name: 'Вася', roles: ['master'] }).rows()
-await db.close()
 ```
 
 ---
 
 ## 2. Хранилище
 
-`db/ddl.sql`: `Entity`, `Schema`, `Account`, `Credential`, `Resource`, `Rule` + триггеры.
+`lib/sql/ddl.sql`: `Entity`, `Schema`, `Account`, `Credential`, `Resource`, `Rule` + триггеры.
 **Весь CRUD работает на уровне БД** — голый SQL равносилен либе; либа добавляет строгую
 валидацию данных, цепочки и удобства.
 
@@ -394,7 +415,7 @@ await db.rules.set({ account: 'authenticated:ACCOUNT', resource: 'shop:API', per
 
 Связка с Entity: `account`/`owner` NOT NULL, default — System-аккаунт; фильтры и значения —
 модификаторы `.account()/.owner()`; профиль владельца — `db.accounts.get(row.owner)`.
-Сид `db/seed.auth.sql`: System + 16 Resource + 12 Rule.
+Сид `lib/sql/seed.auth.sql`: System + 16 Resource + 12 Rule.
 
 ### 9.1 Вход: `db.auth` — много кредов на аккаунт
 
@@ -785,7 +806,7 @@ deadlock detected — letopis: transaction is aborted, retry the whole db.begin(
 `…0021` = `00000000-0000-4000-8000-000000000021`; повторяющиеся `account`/`owner`/`partition`
 в ответах опущены.
 
-Разделы: [11.1 Модуль](#111-модуль-connect-и-экспорты) ·
+Разделы: [11.1 Модуль](#111-модуль-connect-и-экспорты) · [11.1a up](#111a-upopts) ·
 [11.2 EntityDb](#112-entitydb--корень) · [11.3 Chain: чтение](#113-chain--чтение) ·
 [11.4 Операторы](#114-операторы-фильтров) · [11.5 Запись](#115-запись-set--delete--anonymize) ·
 [11.6 Транзакции](#116-транзакции-entitytx) · [11.7 Батчи](#117-batch) ·
@@ -800,7 +821,7 @@ deadlock detected — letopis: transaction is aborted, retry the whole db.begin(
 | Параметр | Тип | Default | Описание |
 |---|---|---|---|
 | `opts.dsn` | `string` | — | строка подключения `postgres://user:pass@host:port/db` |
-| `opts.schema` | `string` | — | ПОЛНОЕ имя PG-схемы с версией движка: `'v1.booking'` (создаёт `db/apply.mjs --schema=booking --version=1`; либа префикс не достраивает) |
+| `opts.schema` | `string` | — | ПОЛНОЕ имя PG-схемы с версией движка: `'v1.booking'` (создаёт `up({schema: 'booking', version: 1})` либо `db/apply.mjs --schema=booking --version=1`; либа префикс не достраивает) |
 | `opts.partition` | `string?` | `'entity'` | партиция данных: все чтения/записи этого подключения живут в ней |
 | `opts.account` | `uuid?` | System-аккаунт схемы | default-`account` (арендатор) новых строк |
 | `opts.owner` | `uuid?` | = `account` | default-`owner` (владелец) новых строк |
@@ -843,17 +864,95 @@ await uc.Организация().rows()
 await iso.close(); await uc.close()
 ```
 
+### 11.1a up(opts)
+
+#### `up(opts: UpOpts): Promise<EntityDb>`
+
+| Параметр | Тип | Default | Описание |
+|---|---|---|---|
+| `opts.dsn` | `string?` | `postgres://postgres:test@localhost:15432/letopis` | строка подключения; хост не `localhost` → docker-шаги пропускаются (только ожидание готовности) |
+| `opts.schema` | `string` | — | **базовое** имя схемы БЕЗ версии и точек (`'booking'`) |
+| `opts.version` | `number` | — | версия движка, целое ≥ 1: итоговая PG-схема `"v<N>.<schema>"`; бамп руками при breaking-изменении DDL |
+| `opts.container` | `string?` | `'letopis-timescale'` | имя dev-контейнера |
+| `opts.image` | `string?` | `'letopis-db'` | имя образа; при отсутствии собирается из пакованного `docker/Dockerfile` (TimescaleDB + Redis) |
+| `opts.dataDir` | `string?` | volume `letopis-pgdata` | путь на хосте (bind mount; на Windows/NTFS — на свой риск) либо имя docker-volume для данных PG |
+| `opts.redisPort` | `number?` | `16379` | хост-порт Redis контейнера |
+| `opts.seeds` | `string[] \| false?` | демо booking + auth | свои сид-файлы (маркер `"<SCHEMA-NAME>"` поддержан; нужен хотя бы один класс в `Schema`, иначе connect упадёт `has no classes`); `false` — голая структура без сидов |
+| `opts.fresh` | `boolean?` | `false` | дропнуть схему и накатить заново — **данные схемы теряются** |
+| `opts.quiet` | `boolean?` | `false` | без `[letopis.up]`-прогресса в консоли |
+| `opts.waitTimeoutMs` | `number?` | `120 000` | максимум ожидания готовности (первый запуск: pull образа + initdb) |
+| …остальные | `ConnectOpts` | — | `partition`/`account`/`enforceAcl`/`onQuery` и все опции `connect()` прокидываются насквозь |
+
+**Назначение и алгоритм.** Одна точка входа: от пустой машины до готового `db`.
+(1) **Probe**: одна попытка `SELECT 1` по `dsn` — живой postgres (свой контейнер, CI-сервис,
+внешняя БД) означает «docker не нужен»; ответ «базы нет» (3D000) — база создаётся через
+служебное подключение к `postgres`. (2) **Docker** (только localhost-`dsn` и только если probe
+не ответил): `container inspect` → бежит — reuse; остановлен — `docker start`; нет — `image
+inspect`, при отсутствии `docker build` из пакованного Dockerfile, затем `docker run` с
+портами/паролем/базой из `dsn` и данными в `letopis-pgdata` (или `dataDir`). (3) **Ожидание**:
+ретраи ping каждые 500 мс до `waitTimeoutMs` (ошибка аутентификации — фатально сразу), затем
+TCP-проверка Redis-порта. (4) **Схема**: `fresh` → `DROP SCHEMA … CASCADE`; схема есть →
+apply пропущен; нет → `ddl.sql` + сиды из пакета (`lib/sql/`) с тотальной заменой маркера
+`"<SCHEMA-NAME>"` → `"v<N>.<schema>"`. (5) `connect()` со сквозными опциями. Повторный вызов
+идемпотентен на каждом шаге.
+
+**Примеры**
+
+```ts
+const db = await up({ dsn, schema: 'booking', version: 1 })      // [7.4 s] — с нуля
+// [letopis.up] building image letopis-db (first time pulls the timescaledb base — may take minutes)…
+// [letopis.up] image letopis-db built
+// [letopis.up] container letopis-timescale created (data: volume letopis-pgdata)
+// [letopis.up] postgres ready in 5.0 s
+// [letopis.up] redis ready on 16379
+// [letopis.up] schema "v1.booking" applied (3 files)
+// [letopis.up] connected (schema "v1.booking")
+
+const db2 = await up({ dsn, schema: 'booking', version: 1 })     // [110 ms] — всё уже есть
+// [letopis.up] postgres is up at localhost:15432 — docker skipped
+// [letopis.up] schema "v1.booking" already exists — apply skipped
+// [letopis.up] connected (schema "v1.booking")
+
+const db3 = await up({ dsn, schema: 'booking', version: 1 })     // [1.2 s] — после docker stop
+// [letopis.up] container letopis-timescale started
+// [letopis.up] postgres ready in 0.7 s
+// [letopis.up] redis ready on 16379
+// [letopis.up] schema "v1.booking" already exists — apply skipped
+// [letopis.up] connected (schema "v1.booking")
+
+const scratch = await up({ dsn, schema: 'scratch', version: 1, fresh: true, quiet: true })
+// [263 ms] — схема снесена и накачена заново, данные схемы потеряны
+
+await up({ dsn, schema: 'v1.booking', version: 1 })
+// Error: letopis.up: bad schema name "v1.booking" (базовое имя без версии и точек; версию задаёт version)
+```
+
+**Кейс: жизненный цикл dev-машины — данные переживают контейнер**
+
+```ts
+const db = await up({ schema: 'booking', version: 1, dsn })      // [7.4 s] образ+контейнер+схема
+await db.Клиент().count()                                        // → 0 — свежая схема
+const [аня] = await db.Клиент().set({ name: 'Аня', contact: '+7 900' }).rows()
+await db.close()
+
+// … docker stop letopis-timescale (ребут, уборка, что угодно) …
+
+const db2 = await up({ schema: 'booking', version: 1, dsn })     // [1.2 s] start + reuse
+await db2.Клиент().count()                                       // → 2 — volume letopis-pgdata: всё на месте
+await db2.close()
+```
+
 #### Экспорты модуля
 
 ```ts
 import {
-  connect, cursorOf, totpCode,                           // функции
+  connect, up, cursorOf, totpCode,                       // функции
   ne, gt, gte, lt, lte, between, inList, like, ilike,    // операторы (18)
   starts, ends, has, hasAny, hasAll, exists, isNull, not, or,
   ValidationError, Registry,                             // классы
 } from 'letopis'
 import type {
-  Row, Path, Filter, Cursor, ChainMods, ConnectOpts, QueryEvent,
+  Row, Path, Filter, Cursor, ChainMods, ConnectOpts, UpOpts, QueryEvent,
   EntityDb, EntityTx, Chain, Batch, Tables,
   Account, Credential, Resource, Rule,
   AccountsApi, CredentialsApi, ResourcesApi, RulesApi,
@@ -2656,6 +2755,9 @@ AclDecision = { allow, rule?, filter?, code?, message? }         // filter — �
 | `violates foreign key constraint "entity_*_fk"` | несуществующий класс/аккаунт; удаление класса с данными |
 | `lock() works only inside db.begin()` | лок вне транзакции |
 | `commit() needs a transaction` | commit на корневом db |
+| `letopis.up: bad schema name "X"` / `bad version` | `up()`: имя с точкой/версией либо version не целое ≥ 1 |
+| `letopis.up: docker CLI not found…` | `up()`: docker не установлен, а postgres на dsn не отвечает |
+| `letopis.up: postgres not ready in N s…` / `redis not ready` | `up()`: контейнер не поднялся за `waitTimeoutMs` (подсказка: `docker logs`) |
 
 ---
 
@@ -2737,7 +2839,7 @@ const удалено = await db.Запись(bkg.id).delete({ confirm: true }).r
 ## 16. Тесты
 
 ```bash
-npm test    # 124 теста против живого docker (timescale + redis), по файлам:
+npm test    # 132 теста против живого docker (timescale + redis), по файлам:
             # acl           — Resource/Rule: маски/weight/deny-by-default, шаблоны строк
             #                 с $account, enforceAcl (предикаты в SQL, каскад, watch)
             # api-full      — сквозной чек-лист ВСЕХ публичных методов API (15 групп)
@@ -2753,6 +2855,8 @@ npm test    # 124 теста против живого docker (timescale + redis
             # integration   — E2E-барбершоп (8 сцен)
             # real-life     — 16 сцен «дня салона»: 4 руки, гонки ×3, переносы, no-show
             # tables        — auth/ACL-таблицы
+            # up            — up(): docker-argv, probe-ветка, идемпотентность, fresh,
+            #                 свои сиды/seeds:false, автосоздание базы, валидация
             # wave2         — asOf/versions, keyset-курсор, gen-types, enforceAccount, anonymize
             # wave3         — or/not, агрегации, deep, watch
             # wave4         — compression-политики (чтение сжатого чанка), schema-sync, onQuery

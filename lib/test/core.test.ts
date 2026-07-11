@@ -1,5 +1,5 @@
 /**
- * Тесты letopis против локального docker-timescale (db/ddl.sql + сиды).
+ * Тесты letopis против локального docker-timescale (lib/sql/ddl.sql + сиды).
  * Запуск: npm test (tsx --test --test-concurrency=1).
  */
 import { test, before, after } from 'node:test';

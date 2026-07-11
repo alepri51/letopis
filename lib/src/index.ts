@@ -64,6 +64,10 @@ export function cursorOf(row: import('./types.js').Row, field: string = 'updated
   return { v, id: row.id };
 }
 
+// одна точка входа: контейнер + готовность + схема + connect
+export { up } from './up.js';
+export type { UpOpts } from './up.js';
+
 // операторы фильтров
 export {
   ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends,
