@@ -17,6 +17,13 @@
     "jsonb"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alepri51/letopis.git",
+    "directory": "lib"
+  },
+  "homepage": "https://github.com/alepri51/letopis/tree/main/lib#readme",
+  "bugs": "https://github.com/alepri51/letopis/issues",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
