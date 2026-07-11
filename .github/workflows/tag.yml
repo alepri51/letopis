@@ -1,0 +1,31 @@
+# Авто-тег при merge в main: версия из lib/package.json → тег vX.Y.Z (если ещё нет).
+# Дальше по контуру: publish GitHub Release руками → release.yml публикует в npm.
+name: tag
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read version
+        id: v
+        run: echo "version=$(node -p "require('./lib/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Create tag if missing
+        run: |
+          V="v${{ steps.v.outputs.version }}"
+          if git ls-remote --tags origin "refs/tags/$V" | grep -q "refs/tags/$V"; then
+            echo "tag $V already exists — skip"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag "$V"
+            git push origin "$V"
+            echo "tagged $V"
+          fi
