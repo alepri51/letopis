@@ -109,7 +109,7 @@ import { connect } from 'letopis'
 const db = await connect({ dsn: 'postgres://…', schema: 'article' })
 ```
 
-Опции: `partition` (default `'entity'`), `account`/`owner` (владелец записей по умолчанию; без них — System-аккаунт), `max` (пул), `enforceAccount` (§ 4.16), `onQuery`/`slowMs` (§ 4.14).
+Опции: `partition` (default `'entity'`), `account`/`owner` (владелец записей по умолчанию; без них — System-аккаунт), `max` (пул), `enforceAccount` (§ 4.20), `enforceAcl` (§ 4.19b), `onQuery`/`slowMs` (§ 4.14).
 
 ### 4.2 INSERT: `Класс().set(data)`
 
@@ -666,7 +666,8 @@ const [z] = await u.Запись().set({})   // owner пришпилен пра�
 await u.Запись(чужаяId).set({ status: 'confirmed' })   // → [] — и НЕ перехватывается вставкой
 ```
 
-Оверхед на этом же полигоне (p50 из 20, `bench/acl.bench.mjs`): безусловное правило —
+Примеры выше сняты с тестовой схемы (правила заводит `test/acl.test.ts`); тайминги бенча —
+с article-полигона. Оверхед (p50 из 20, `bench/acl.bench.mjs`): безусловное правило —
 бесплатно (точечное чтение 2.2 → 3.1 ms, остальное в пределах шума — решение из кэша,
 SQL не меняется); предикат в worst-case (пропускает 100% строк) добавляет к full-scan
 сценам +33–99% (keyset 250k: 1.6 → 2.2 s, count: 440 → 875 ms) — но в реальности предикат
