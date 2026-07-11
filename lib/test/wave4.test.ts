@@ -36,7 +36,7 @@ test('policies: сжатый чанк читается (first/versions/asOf), з
      VALUES ('entity', $1, 'Service', $2, '${SYS}', '${SYS}', now() - interval '70 days')`,
     [id, { name: 'Стрижка', duration: 30, price: { RUB: 1000 }, active: true }] as never[],
   );
-  await db.Услуга(id).set({ price: { RUB: 1500 } });
+  await db.Услуга(id).set({ price: { RUB: 1500 } }).rows();
 
   const out = execFileSync(
     'node',
@@ -62,7 +62,7 @@ test('policies: сжатый чанк читается (first/versions/asOf), з
   assert.equal(rub(old), 1000);
 
   // новые версии идут в свежие чанки — сжатие модели не мешает
-  const [v3] = await db.Услуга(id).set({ price: { RUB: 2000 } });
+  const [v3] = await db.Услуга(id).set({ price: { RUB: 2000 } }).rows();
   assert.equal(rub(v3), 2000);
   assert.equal((await db.Услуга(id).versions()).length, 3);
 });
@@ -115,10 +115,10 @@ test('onQuery: событие на каждый запрос цепочки; slo
   // класс Customer: его schema-sync в тесте выше не менял (Service получил breaking-поле brand)
   const events: QueryEvent[] = [];
   const hooked = await connect({ dsn: DSN, schema: SCHEMA, onQuery: (e) => events.push(e) });
-  const [cli] = await hooked.Клиент().set({ name: 'Хук' });
+  const [cli] = await hooked.Клиент().set({ name: 'Хук' }).rows();
   await hooked.Клиент({ name: 'Хук' }).rows();
   await hooked.Клиент({}).count();
-  await hooked.Клиент(cli.id).delete();
+  await hooked.Клиент(cli.id).delete({ confirm: true }).rows();
   await hooked.close();
 
   const modes = events.map((e) => e.mode);

@@ -18,7 +18,7 @@ export interface Row {
   $depth?: number;
 }
 
-/** Результат execute(): вариант пути — узел на каждый шаг цепочки. */
+/** Результат run(): вариант пути — узел на каждый шаг цепочки. */
 export type Path = Record<string, Row>;
 
 /** Класс из таблицы Schema. */
@@ -82,6 +82,22 @@ export type Filter =
 export interface Cursor {
   v: string | number;
   id: string;
+}
+
+/**
+ * Операция записи, привязанная к шагу цепочки: .set() / .delete() / .anonymize().
+ * Терминал исполняет план (все операции + финальное чтение) одной транзакцией.
+ */
+export interface PlanOp {
+  kind: 'set' | 'delete' | 'anonymize';
+  /** set: данные новой версии (deep-merge листьев). */
+  data?: Record<string, unknown>;
+  /** anonymize: string-поля под '[erased]'. */
+  fields?: string[];
+  /** delete: true — удалить; без confirm — превью (вернуть кандидатов, БД не трогать). */
+  confirm?: boolean;
+  /** Снапшот модификаторов на момент вызова операции (limit/sort для поиска целей). */
+  mods: ChainMods;
 }
 
 /** Модификаторы выборки цепочки: .limit() / .offset() / .sort() / .asOf() / .after(). */

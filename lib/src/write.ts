@@ -1,17 +1,21 @@
 /**
- * Запись: терминалы .set(data) / .delete() на цепочке + исполнение батчей.
+ * Запись: операции .set(data) / .delete(opts) / .anonymize(fields) — ЗВЕНЬЯ цепочки;
+ * терминал (rows/first/ids/count/run/versions/агрегации) исполняет весь план
+ * ОДНОЙ транзакцией (runPlan) — любой отказ (валидация/ACL) откатывает всё.
  *
- * Связи задаются dot-цепочкой: НЕ-последние шаги (контекст) резолвятся в ровно одну
+ * Связи задаются dot-цепочкой: шаги до операции (контекст) резолвятся в ровно одну
  * сущность каждый и дают:
  *   - containment-фильтр целей при UPDATE/DELETE (links ⊇ {Класс: id}),
  *   - links создаваемой строки при INSERT.
  *
- *   db.Организация(org).Сотрудник().set({ name: 'Вася' })          // INSERT + links {Org}
- *   tr.Сотрудник(s).Окно(w).Запись(b).занятость().set({ id, kind }) // UPSERT по data.id
- *   db.Клиент(c).Запись({ status: 'created' }).set({ status: 'confirmed' }) // UPDATE найденных
+ *   await db.Организация(org).Сотрудник().set({ name: 'Вася' }).rows()   // INSERT + links {Org}
+ *   await db.Клиент(c).Запись({ status: 'created' }).set({ status: 'confirmed' }).rows()
+ *   await db.Клиент({ vip: true }).set({ bonus: 500 })       // сегмент 1: UPDATE всех vip
+ *           .Запись().delete({ confirm: true }).rows()       // сегмент 2: снести записи каждого
+ * Продолжение после операции идёт ОТ ЕЁ РЕЗУЛЬТАТА (fan-out по записанным строкам).
  */
 import { randomUUID } from 'node:crypto';
-import type { Row, ChainMods, Filter, ClassDef } from './types.js';
+import type { Row, Path, ChainMods, Filter, ClassDef, PlanOp } from './types.js';
 import {
   buildRead, runQuery, insertSql, multiInsertSql, deleteSql, closureSql,
   isTransient, retryDelay, RETRIES, type Ctx, type Step,
@@ -242,14 +246,13 @@ export async function setOp(
   steps: Step[],
   mods: ChainMods,
   data: Record<string, unknown>,
-  extraLinks: Record<string, string> = {},   // связи, довешенные ПОСЛЕ set(): .set({…}).Окно(w)
 ): Promise<Row[]> {
   const target = steps[steps.length - 1];
   const cls = target.cls;
   aclWrite(ctx, target, 'WRITE');
-  // контекст-шаги: и фильтр целей, и значения; довешенные extraLinks — ТОЛЬКО значения
+  // контекст-шаги: и фильтр целей, и значения; .link() — ТОЛЬКО значения (фильтр не трогает)
   const contextLinks = await resolveContext(ctx, steps.slice(0, -1));
-  const writeLinks = { ...contextLinks, ...extraLinks };
+  const writeLinks = { ...contextLinks, ...(target.extraLinks ?? {}) };
 
   const dataId = typeof data.id === 'string' ? (data.id as string) : undefined;
   const filterId = typeof target.filter === 'string' ? target.filter : undefined;
@@ -265,7 +268,7 @@ export async function setOp(
     const out: Row[] = [];
     for (const row of found) {
       const mergedData = deepMerge(row.data, data);        // только указанные листья
-      const mergedLinks = { ...row.links, ...writeLinks }; // контекст + довешенные
+      const mergedLinks = { ...row.links, ...writeLinks }; // контекст + .link()
       const full = validate(cls, row.id, mergedData, mergedLinks);
       out.push(
         await insertOne(ctx, {
@@ -358,11 +361,12 @@ async function inTransaction<T>(ctx: Ctx, fn: (c: Ctx) => Promise<T>): Promise<T
 }
 
 /**
- * .delete(): цели = фильтр последнего шага + контекст-связи; серверное удаление.
- * Триггер entity_delete: tombstone + рекурсивный каскад (+advisory-lock).
- * Возвращает ВСЁ удалённое (цели + каскад) с $deleted: true.
+ * .delete({confirm}): цели = фильтр последнего шага + контекст-связи.
+ * confirm: true — серверное удаление (триггер entity_delete: tombstone + рекурсивный
+ * каскад + advisory-lock); возвращает ВСЁ удалённое (цели + каскад) с $deleted: true.
+ * Без confirm — ПРЕВЬЮ: то же замыкание (цели + каскад), но БД не трогается.
  */
-export async function delOp(ctx: Ctx, steps: Step[], mods: ChainMods): Promise<Row[]> {
+export async function delOp(ctx: Ctx, steps: Step[], mods: ChainMods, confirm: boolean): Promise<Row[]> {
   const target = steps[steps.length - 1];
   aclWrite(ctx, target, 'DELETE');
   const contextLinks = await resolveContext(ctx, steps.slice(0, -1));
@@ -372,6 +376,7 @@ export async function delOp(ctx: Ctx, steps: Step[], mods: ChainMods): Promise<R
   const params = [ctx.partition, target.cls.id, ...targets.map((r) => r.id)];
   return inTransaction(ctx, async (c) => {
     const closure = await runQuery<RawRow>(c, closureSql(c.pgSchema, targets.length), params, 'delete', [target.cls.id]);
+    if (!confirm) return closure.map((r) => toRow(r)); // превью: кандидаты живы, БД не тронута
     // каскад дотянется до зависимых ЛЮБЫХ классов — на каждый нужно DELETE-право
     if (c.aclDecide) {
       for (const cn of new Set(closure.map((r) => r.class))) {
@@ -385,49 +390,200 @@ export async function delOp(ctx: Ctx, steps: Step[], mods: ChainMods): Promise<R
 }
 
 // ---------------------------------------------------------------------------
-// Батчи: очередь write-операций, исполнение одной транзакцией.
-// Подряд идущие «чистые INSERT» (один шаг, пустой фильтр, без data.id)
+// План: цепочка с операциями на шагах. Терминал зовёт runPlan — сегменты
+// исполняются по порядку одной транзакцией, продолжение идёт от результата
+// предыдущей операции (fan-out по строкам), финальный хвост — чтение.
+// ---------------------------------------------------------------------------
+
+interface Segment {
+  /** Шаги сегмента; последний несёт op (target). Пусто не бывает (self-шаг). */
+  steps: Step[];
+  op: PlanOp;
+}
+
+/** Разрезать план: сегменты (…шаги + op-шаг) и читающий хвост после последней операции. */
+function splitPlan(steps: Step[]): { segments: Segment[]; tail: Step[] } {
+  const segments: Segment[] = [];
+  let buf: Step[] = [];
+  for (const s of steps) {
+    buf.push(s);
+    if (s.op) {
+      segments.push({ steps: buf, op: s.op });
+      buf = [];
+    }
+  }
+  return { segments, tail: buf };
+}
+
+function opCall(c: Ctx, steps: Step[], op: PlanOp): Promise<Row[]> {
+  switch (op.kind) {
+    case 'set':
+      return setOp(c, steps, op.mods, op.data ?? {});
+    case 'anonymize':
+      return anonymizeOp(c, steps, op.mods, op.fields ?? []);
+    case 'delete':
+      return delOp(c, steps, op.mods, op.confirm === true);
+  }
+}
+
+/** Виртуальный старт-шаг «от этих строк»: контекст/чтение следующего сегмента. */
+const virtualStep = (c: Ctx, row: Row): Step => ({ name: row.class, cls: c.registry.resolve(row.class), filter: row.id });
+
+const RawRowFmt = {
+  rows: (res: { row: RawRow & { depth?: number } }[]): Row[] =>
+    res.map((r) => {
+      const row = toRow(r.row);
+      return r.row.depth != null ? { ...row, $depth: r.row.depth } : row;
+    }),
+  paths: (res: { path: Record<string, RawRow> }[]): Path[] =>
+    res.map((r) => Object.fromEntries(Object.entries(r.path).map(([k, v]) => [k, toRow(v)]))),
+  versions: (res: { row: RawRow }[]): Row[] =>
+    res.map((r) => (r.row.deleted ? { ...toRow(r.row), $deleted: true as const } : toRow(r.row))),
+};
+
+export type PlanMode = 'rows' | 'ids' | 'count' | 'paths' | 'versions' | 'agg';
+
+/**
+ * Исполнить план целиком: все операции + финальное чтение — одна транзакция
+ * (внутренняя, с ретраем transient; внутри db.begin() — транзакция пользователя).
+ * Продолжение после операции: fan-out — каждый следующий сегмент исполняется от каждой
+ * строки результата (контекст = строка); self-шаг (op сразу после op) пишет в те же строки.
+ * После delete продолжение идёт от строк КЛАССА ЦЕЛИ (замыкание каскада шире).
+ */
+export async function runPlan(ctx: Ctx, steps: Step[], mods: ChainMods, mode: PlanMode): Promise<unknown> {
+  const { segments, tail } = splitPlan(steps);
+  return inTransaction(ctx, async (c) => {
+    let last: Row[] = [];   // полный результат последней операции (для терминала)
+    let start: Row[] = [];  // строки для продолжения (класс цели)
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i];
+      const targetCls = seg.steps[seg.steps.length - 1].cls;
+      if (i === 0) {
+        last = await opCall(c, seg.steps, seg.op);
+      } else {
+        last = [];
+        for (const row of start) {
+          const rowSteps: Step[] = seg.steps[0].self
+            ? [{ ...seg.steps[0], self: undefined, filter: row.id, op: undefined }]
+            : [virtualStep(c, row), ...seg.steps.map((s) => ({ ...s, op: undefined }))];
+          last.push(...await opCall(c, rowSteps, seg.op));
+        }
+      }
+      start = seg.op.kind === 'delete' ? last.filter((r) => r.class === targetCls.id) : last;
+    }
+
+    const opStep = segments[segments.length - 1].steps.at(-1)!;
+    const keyName = opStep.aliasKey ?? opStep.name;
+
+    // хвост-чтение от результата последней операции (в той же транзакции)
+    if (tail.length) {
+      if (!start.length) return emptyFor(mode, mods);
+      const virt: Step = { name: keyName, cls: opStep.cls, filter: start.map((r) => r.id) };
+      return readByMode(c, [virt, ...tail], mods, mode);
+    }
+
+    // терминал прямо на операции
+    switch (mode) {
+      case 'rows':
+        return last;
+      case 'ids':
+        return last.map((r) => r.id);
+      case 'count':
+        return last.length;
+      case 'paths':
+        return last.map((r) => ({ [keyName]: r }) as Path);
+      case 'versions':
+      case 'agg': {
+        if (!start.length) return emptyFor(mode, mods);
+        const virt: Step = { name: keyName, cls: opStep.cls, filter: start.map((r) => r.id) };
+        return readByMode(c, [virt], mods, mode);
+      }
+    }
+  });
+}
+
+function emptyFor(mode: PlanMode, mods: ChainMods): unknown {
+  switch (mode) {
+    case 'rows':
+    case 'versions':
+    case 'paths':
+    case 'ids':
+      return [];
+    case 'count':
+      return 0;
+    case 'agg':
+      return mods.aggFn === 'countBy' ? [] : [{ v: null }];
+  }
+}
+
+/** Финальное чтение плана: тот же buildRead, что у обычных цепочек. */
+async function readByMode(c: Ctx, steps: Step[], mods: ChainMods, mode: PlanMode): Promise<unknown> {
+  const classes = steps.map((s) => s.cls.id);
+  switch (mode) {
+    case 'rows': {
+      const q = buildRead(c, steps, mods, 'rows');
+      return RawRowFmt.rows(await runQuery(c, q.text, q.params, 'rows', classes));
+    }
+    case 'paths': {
+      const q = buildRead(c, steps, mods, 'paths');
+      return RawRowFmt.paths(await runQuery(c, q.text, q.params, 'paths', classes));
+    }
+    case 'versions': {
+      const q = buildRead(c, steps, mods, 'versions');
+      return RawRowFmt.versions(await runQuery(c, q.text, q.params, 'versions', classes));
+    }
+    case 'ids': {
+      const q = buildRead(c, steps, mods, 'ids');
+      return (await runQuery<{ id: string }>(c, q.text, q.params, 'ids', classes)).map((r) => r.id);
+    }
+    case 'count': {
+      const q = buildRead(c, steps, mods, 'count');
+      return (await runQuery<{ n: number }>(c, q.text, q.params, 'count', classes))[0].n;
+    }
+    case 'agg': {
+      const q = buildRead(c, steps, mods, 'agg');
+      return runQuery(c, q.text, q.params, 'agg', classes);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Батчи: очередь ПЛАНОВ, исполнение одной транзакцией batch.run().
+// Подряд идущие «чистые INSERT»-планы (один шаг с set, пустой фильтр, без data.id)
 // одного класса склеиваются в multi-VALUES.
 // ---------------------------------------------------------------------------
 
-export interface BatchOp {
-  kind: 'set' | 'delete';
+/** План в очереди батча; steps обновляется по мере роста цепочки. */
+export interface BatchPlan {
   steps: Step[];
-  mods: ChainMods;
-  data?: Record<string, unknown>;
-  /** Связи, довешенные после set() (мутируется билдером до execute()). */
-  extraLinks?: Record<string, string>;
 }
 
-const isPureInsert = (op: BatchOp): boolean =>
-  op.kind === 'set' &&
-  op.steps.length === 1 &&
-  noFilter(op.steps[0].filter) &&
-  typeof op.data?.id !== 'string' &&
-  !Object.keys(op.extraLinks ?? {}).length;
+const isPureInsertPlan = (p: BatchPlan): boolean =>
+  p.steps.length === 1 &&
+  p.steps[0].op?.kind === 'set' &&
+  noFilter(p.steps[0].filter) &&
+  typeof p.steps[0].op.data?.id !== 'string' &&
+  !Object.keys(p.steps[0].extraLinks ?? {}).length;
 
-export async function executeBatch(ctx: Ctx, queue: BatchOp[]): Promise<Row[][]> {
+export async function executeBatch(ctx: Ctx, queue: BatchPlan[]): Promise<Row[][]> {
   if (!queue.length) return [];
   return inTransaction(ctx, async (c) => {
     const results: Row[][] = new Array(queue.length);
 
     let i = 0;
     while (i < queue.length) {
-      const op = queue[i];
-
-      if (isPureInsert(op)) {
-        const step = op.steps[0];
-        const cls = step.cls;
+      if (isPureInsertPlan(queue[i])) {
+        const cls = queue[i].steps[0].cls;
         let j = i;
-        while (j < queue.length && isPureInsert(queue[j]) && queue[j].steps[0].cls.id === cls.id) j++;
+        while (j < queue.length && isPureInsertPlan(queue[j]) && queue[j].steps[0].cls.id === cls.id) j++;
         const group = queue.slice(i, j);
 
         const params: unknown[] = [];
         for (const g of group) {
-          const s = g.steps[0];
+          const s = { ...g.steps[0] };
           aclWrite(c, s, 'WRITE'); // склейка multi-VALUES идёт мимо setOp — право+пришпиливание на каждый
           const id = randomUUID();
-          const full = validate(cls, id, g.data ?? {}, {});
+          const full = validate(cls, id, s.op?.data ?? {}, {});
           const account = resolveAccount(c, s);
           params.push(
             c.partition, id, cls.id, full, {}, tagsValue(s) ?? [],
@@ -440,10 +596,7 @@ export async function executeBatch(ctx: Ctx, queue: BatchOp[]): Promise<Row[][]>
         continue;
       }
 
-      results[i] =
-        op.kind === 'set'
-          ? await setOp(c, op.steps, op.mods, op.data ?? {}, op.extraLinks)
-          : await delOp(c, op.steps, op.mods);
+      results[i] = (await runPlan(c, queue[i].steps, {}, 'rows')) as Row[];
       i++;
     }
     return results;

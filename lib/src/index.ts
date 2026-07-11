@@ -2,7 +2,7 @@
  * letopis: dot-цепочки над append-only Entity-хранилищем (TimescaleDB).
  *
  *   const db = await connect({ dsn, schema: 'booking' })
- *   await db.Сотрудник({ name: 'Вася' }).навык().Услуга().execute()
+ *   await db.Сотрудник({ name: 'Вася' }).навык().Услуга().run()
  */
 import postgres from 'postgres';
 import { loadRegistry } from './schema.js';

@@ -44,7 +44,7 @@ test('наследование 3+ уровней: lineage считает всю 
   assert.deepEqual(t.registry.resolve('Vehicle').descendants.sort(), ['Car', 'SportsCar']);
   assert.ok(t.registry.resolve('Entity').descendants.includes('SportsCar'));
 
-  const [car] = await t.SportsCar().set({ name: 'Феррари' });   // класс-внук пишется как любой
+  const [car] = await t.SportsCar().set({ name: 'Феррари' }).rows();   // класс-внук пишется как любой
   assert.equal(car.class, 'SportsCar');
   await t.close();
 });
@@ -53,14 +53,14 @@ test('валидация вложенной структуры: defaults, strict
   const [org] = await db.Организация().set({
     name: 'Глубокая',
     settings: { booking: { deposit: { amount: 500 } } },
-  });
+  }).rows();
   // defaults подставлены на всех уровнях вложенности
   assert.deepEqual(org.data.settings, {
     booking: { deposit: { amount: 500, currency: 'RUB' }, autoconfirm: false },
   });
-  // лишний ключ ГЛУБОКО внутри — строгая ошибка
+  // лишний ключ ГЛУБОКО внутри — строгая ошибка (летит из терминала)
   await assert.rejects(
-    db.Организация().set({ name: 'Х', settings: { booking: { deposit: { amount: 1, лишнее: 2 } } } } as never),
+    db.Организация().set({ name: 'Х', settings: { booking: { deposit: { amount: 1, лишнее: 2 } } } } as never).rows(),
     /validation failed/,
   );
   Object.assign(S, { org });
@@ -70,14 +70,14 @@ const S: Record<string, never> = {};
 test('deep-merge: обновление ОДНОГО вложенного листа не трогает соседей', async () => {
   const org = S.org as { id: string };
   // меняем только amount на глубине 4
-  const [v2] = await db.Организация(org.id).set({ settings: { booking: { deposit: { amount: 900 } } } });
+  const [v2] = await db.Организация(org.id).set({ settings: { booking: { deposit: { amount: 900 } } } }).rows();
   assert.deepEqual(v2.data.settings, {
     booking: { deposit: { amount: 900, currency: 'RUB' }, autoconfirm: false }, // currency/autoconfirm целы
   });
   assert.equal(v2.data.name, 'Глубокая');
 
   // меняем соседний лист другого уровня — amount цел
-  const [v3] = await db.Организация(org.id).set({ settings: { booking: { autoconfirm: true } } });
+  const [v3] = await db.Организация(org.id).set({ settings: { booking: { autoconfirm: true } } }).rows();
   assert.deepEqual(v3.data.settings, {
     booking: { deposit: { amount: 900, currency: 'RUB' }, autoconfirm: true },
   });
@@ -91,9 +91,9 @@ test('deep-merge: обновление ОДНОГО вложенного лис�
 });
 
 test('фильтры по глубоким путям: containment, операторы, exists', async () => {
-  await db.Организация().set({ name: 'Дешёвая', settings: { booking: { deposit: { amount: 100, currency: 'USD' } } } });
-  await db.Организация().set({ name: 'Дорогая', settings: { booking: { deposit: { amount: 2000 } } } });
-  await db.Организация().set({ name: 'Без настроек' });
+  await db.Организация().set({ name: 'Дешёвая', settings: { booking: { deposit: { amount: 100, currency: 'USD' } } } }).rows();
+  await db.Организация().set({ name: 'Дорогая', settings: { booking: { deposit: { amount: 2000 } } } }).rows();
+  await db.Организация().set({ name: 'Без настроек' }).rows();
 
   // containment на глубину 4 (GIN)
   assert.equal(await db.Организация({ settings: { booking: { deposit: { currency: 'USD' } } } }).count(), 1);

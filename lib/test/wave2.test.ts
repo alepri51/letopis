@@ -15,10 +15,10 @@ before(async () => {
 after(async () => db.close());
 
 test('asOf: чтение «как было»; versions: вся история с $deleted', async () => {
-  const [org] = await db.Организация().set({ name: 'Хронос' });
-  const [svc] = await db.Организация(org).Услуга().set({ name: 'Стрижка', duration: 30, price: { RUB: 1000 } });
+  const [org] = await db.Организация().set({ name: 'Хронос' }).rows();
+  const [svc] = await db.Организация(org).Услуга().set({ name: 'Стрижка', duration: 30, price: { RUB: 1000 } }).rows();
   const t1 = svc.updated; // серверное время версии (clock skew клиент/БД не влияет)
-  await db.Услуга(svc.id).set({ price: { RUB: 2000 } });
+  await db.Услуга(svc.id).set({ price: { RUB: 2000 } }).rows();
 
   // сейчас 2000, на момент t1 — 1000
   assert.deepEqual((await db.Услуга(svc.id).first())!.data.price, { RUB: 2000 });
@@ -27,7 +27,7 @@ test('asOf: чтение «как было»; versions: вся история с
 
   // до создания — не существует; после delete на «сейчас» — нет, на t1 — есть
   assert.equal(await db.Услуга(svc.id).asOf('2020-01-01').count(), 0);
-  await db.Услуга(svc.id).delete();
+  await db.Услуга(svc.id).delete({ confirm: true }).rows();
   assert.equal(await db.Услуга(svc.id).count(), 0);
   assert.equal((await db.Услуга(svc.id).asOf(t1).first())!.id, svc.id);
 
@@ -41,7 +41,7 @@ test('asOf: чтение «как было»; versions: вся история с
 test('after: keyset-пагинация стабильна и совпадает с полной выборкой', async () => {
   const [org] = await db.Организация({ name: 'Хронос' }).rows();
   for (let i = 0; i < 7; i++) {
-    await db.Организация(org).Клиент().set({ name: `К${i}`, contact: `+7900000000${i}` });
+    await db.Организация(org).Клиент().set({ name: `К${i}`, contact: `+7900000000${i}` }).rows();
   }
   const все = await db.Клиент().sort('data.name').rows();
   assert.equal(все.length, 7);
@@ -64,8 +64,8 @@ test('after: keyset-пагинация стабильна и совпадает 
 test('enforceAccount: чужое невидимо, запись пришпилена', async () => {
   const a1 = await db.accounts.set({ categories: ['User'], data: { name: 'Салон1' } });
   const a2 = await db.accounts.set({ categories: ['User'], data: { name: 'Салон2' } });
-  await db.Организация().account(a1.id).set({ name: 'Org-A1' });
-  await db.Организация().account(a2.id).set({ name: 'Org-A2' });
+  await db.Организация().account(a1.id).set({ name: 'Org-A1' }).rows();
+  await db.Организация().account(a2.id).set({ name: 'Org-A2' }).rows();
 
   const t1 = await connect({ dsn: DSN, schema: 'booking', account: a1.id, enforceAccount: true });
   try {
@@ -73,8 +73,8 @@ test('enforceAccount: чужое невидимо, запись пришпиле
     assert.deepEqual(мои.map((r) => r.data.name), ['Org-A1']);           // чужого не видно
     assert.equal(await t1.Организация({ name: 'Org-A2' }).count(), 0);
     await assert.rejects(t1.Организация().account(a2.id).rows(), /pinned/); // подмена фильтра — ошибка
-    await assert.rejects(t1.Организация().account(a2.id).set({ name: 'X' }), /pinned/);
-    const [своё] = await t1.Организация().set({ name: 'Org-A1-new' });
+    await assert.rejects(t1.Организация().account(a2.id).set({ name: 'X' }).rows(), /pinned/);
+    const [своё] = await t1.Организация().set({ name: 'Org-A1-new' }).rows();
     assert.equal(своё.account, a1.id);                                   // запись всегда своя
   } finally {
     await t1.close();
@@ -83,15 +83,15 @@ test('enforceAccount: чужое невидимо, запись пришпиле
 
 test('anonymize: string-поля затёрты, тег anonymized, история хранит оригинал', async () => {
   const [org] = await db.Организация({ name: 'Хронос' }).rows();
-  const [cli] = await db.Организация(org).Клиент().set({ name: 'Персональный', contact: '+79219876543' });
-  const [anon] = await db.Клиент(cli.id).anonymize(['name', 'contact']);
+  const [cli] = await db.Организация(org).Клиент().set({ name: 'Персональный', contact: '+79219876543' }).rows();
+  const [anon] = await db.Клиент(cli.id).anonymize(['name', 'contact']).rows();
   assert.equal(anon.data.name, '[erased]');
   assert.equal(anon.data.contact, '[erased]');
   assert.ok(anon.tags.includes('anonymized'));
   const история = await db.Клиент(cli.id).versions();
   assert.equal(история[0].data.name, 'Персональный'); // старая версия жива (документированное ограничение)
   // не-строковое поле — отказ
-  await assert.rejects(db.Клиент(cli.id).anonymize(['active' as never]), /string fields only/);
+  await assert.rejects(db.Клиент(cli.id).anonymize(['active' as never]).rows(), /string fields only/);
 });
 
 test('gen-types: генерирует интерфейсы классов и TypedDb', async () => {

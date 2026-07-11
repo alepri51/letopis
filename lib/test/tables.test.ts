@@ -112,7 +112,7 @@ test('tables в транзакции: rollback откатывает', async () =
 
 test('.account()/.owner(): фильтры Entity-цепочек; FK RESTRICT на удаление аккаунта с историей', async () => {
   const acc = await db.accounts.set({ categories: ['User'], data: { name: 'Владелец' } });
-  const [org] = await db.Организация().account(acc.id).set({ name: 'OrgWithAccount' });
+  const [org] = await db.Организация().account(acc.id).set({ name: 'OrgWithAccount' }).rows();
   assert.equal(org.account, acc.id);
   assert.equal(org.owner, acc.id); // owner default = account
 
@@ -126,14 +126,14 @@ test('.account()/.owner(): фильтры Entity-цепочек; FK RESTRICT н�
   const чужие = await db.Организация().account('00000000-0000-0000-0000-000000000000').count();
   assert.equal(чужие, 0);
 
-  // FK на несуществующий аккаунт — отклоняется
+  // FK на несуществующий аккаунт — отклоняется (ошибка на терминале)
   await assert.rejects(
-    db.Организация().account('00000000-0000-0000-0000-000000000001').set({ name: 'Bad' }),
+    db.Организация().account('00000000-0000-0000-0000-000000000001').set({ name: 'Bad' }).rows(),
     /foreign key/,
   );
 
   // append-only: у аккаунта есть история Entity (даже после tombstone) → удалить нельзя, только disable
-  await db.Организация(org.id).delete();
+  await db.Организация(org.id).delete({ confirm: true }).rows();
   await assert.rejects(db.accounts.delete(acc.id), /foreign key|violates/);
   const off = await db.accounts.set({ id: acc.id, enabled: false });
   assert.equal(off.enabled, false);

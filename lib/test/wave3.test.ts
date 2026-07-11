@@ -10,10 +10,10 @@ let db: EntityDb;
 before(async () => {
   db = await connect({ dsn: DSN, schema: 'booking' });
   await db.sql.unsafe('TRUNCATE "booking"."Entity"');
-  const [org] = await db.Организация().set({ name: 'W3' });
-  const [cli] = await db.Организация(org).Клиент().set({ name: 'Клиент3' });
+  const [org] = await db.Организация().set({ name: 'W3' }).rows();
+  const [cli] = await db.Организация(org).Клиент().set({ name: 'Клиент3' }).rows();
   for (const [status, rub] of [['created', 100], ['confirmed', 200], ['confirmed', 300], ['completed', 400], ['cancelled', 500]] as const) {
-    await db.Клиент(cli).Запись().set({ status, total: { RUB: rub } });
+    await db.Клиент(cli).Запись().set({ status, total: { RUB: rub } }).rows();
   }
   Object.assign(S, { org, cli });
 });
@@ -42,11 +42,11 @@ test('агрегации: sum/avg/min/max/countBy считает БД', async ()
 
 test('deep: дерево папок любой глубины одним запросом, $depth', async () => {
   const org = S.org as never;
-  const [root] = await db.Организация(org).Папка().set({ name: 'root' });
-  const [a] = await db.Организация(org).Папка(root).Папка().set({ name: 'a' });
-  const [b] = await db.Организация(org).Папка(root).Папка().set({ name: 'b' });
-  const [a1] = await db.Организация(org).Папка(a).Папка().set({ name: 'a1' });
-  await db.Организация(org).Папка(a1).Папка().set({ name: 'a1x' });
+  const [root] = await db.Организация(org).Папка().set({ name: 'root' }).rows();
+  const [a] = await db.Организация(org).Папка(root).Папка().set({ name: 'a' }).rows();
+  const [b] = await db.Организация(org).Папка(root).Папка().set({ name: 'b' }).rows();
+  const [a1] = await db.Организация(org).Папка(a).Папка().set({ name: 'a1' }).rows();
+  await db.Организация(org).Папка(a1).Папка().set({ name: 'a1x' }).rows();
 
   const всё = await db.Папка(root.id).Папка().deep().rows();
   assert.deepEqual(всё.map((r) => [r.data.name, r.$depth]).sort(), [['a', 1], ['a1', 2], ['a1x', 3], ['b', 1]].sort());
@@ -62,8 +62,8 @@ test('deep: дерево папок любой глубины одним зап�
 test('watch: событие приходит на insert и tombstone', async () => {
   const events: { class: string; deleted: boolean }[] = [];
   const stop = await db.watch('Клиент', (e) => events.push({ class: e.class, deleted: e.deleted }));
-  const [cli] = await db.Организация(S.org as never).Клиент().set({ name: 'Живой' });
-  await db.Клиент(cli.id).delete();
+  const [cli] = await db.Организация(S.org as never).Клиент().set({ name: 'Живой' }).rows();
+  await db.Клиент(cli.id).delete({ confirm: true }).rows();
   await new Promise((r) => setTimeout(r, 300)); // notify асинхронен
   await stop();
   assert.ok(events.length >= 2, `events: ${JSON.stringify(events)}`);
@@ -71,7 +71,7 @@ test('watch: событие приходит на insert и tombstone', async ()
   assert.ok(events.some((e) => e.deleted === true));
   // после stop — тишина
   const n = events.length;
-  await db.Организация(S.org as never).Клиент().set({ name: 'После' });
+  await db.Организация(S.org as never).Клиент().set({ name: 'После' }).rows();
   await new Promise((r) => setTimeout(r, 200));
   assert.equal(events.length, n);
 });

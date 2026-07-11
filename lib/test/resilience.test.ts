@@ -97,7 +97,7 @@ test('watch: переживает обрыв LISTEN-соединения — onR
   let reconnects = 0;
   const stop = await db.watch('Услуга', (e) => events.push(e), { onReconnect: () => reconnects++ });
 
-  await db.Услуга().set({ name: 'до обрыва', price: { RUB: 100 }, duration: 30 });
+  await db.Услуга().set({ name: 'до обрыва', price: { RUB: 100 }, duration: 30 }).rows();
   await waitFor(() => events.length >= 1, 5000);
 
   // убиваем выделенное LISTEN-соединение на сервере
@@ -109,7 +109,7 @@ test('watch: переживает обрыв LISTEN-соединения — onR
 
   await waitFor(() => reconnects >= 1); // postgres.js: reconnect c backoff + повторный LISTEN
   const seen = events.length;
-  await db.Услуга().set({ name: 'после обрыва', price: { RUB: 200 }, duration: 30 });
+  await db.Услуга().set({ name: 'после обрыва', price: { RUB: 200 }, duration: 30 }).rows();
   await waitFor(() => events.length > seen, 5000);
 
   await stop();

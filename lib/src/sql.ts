@@ -122,10 +122,16 @@ export interface Step {
   ownerFilter?: string;
   /** Внутреннее (write-цепочки): containment по links — контекст-связи. */
   linksFilter?: Record<string, string>;
+  /** .link(Класс, target) — значение связи при записи БЕЗ участия в фильтре целей. */
+  extraLinks?: Record<string, string>;
   /** Внутреннее (enforceAcl): предикат WRITE/DELETE-правила — цели ищутся только среди своих. */
   aclFilter?: Record<string, unknown>;
   /** .deep(max): рекурсивный self-обход (дети любой глубины), только reverse того же класса. */
   deepMax?: number;
+  /** Операция записи на шаге (.set/.delete/.anonymize) — исполняется терминалом плана. */
+  op?: import('./types.js').PlanOp;
+  /** Внутреннее: шаг «те же сущности» (операция сразу после операции) — цель = строки старта. */
+  self?: boolean;
 }
 
 /** Накопитель позиционных параметров. */

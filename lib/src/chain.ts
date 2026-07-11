@@ -1,14 +1,15 @@
 /**
- * Dot-цепочки: db.Сотрудник({name:'Вася'}).навык().Услуга().execute()
+ * Dot-цепочки: db.Сотрудник({name:'Вася'}).навык().Услуга().run()
  * db и цепочка — Proxy над реестром классов (id и alias работают одинаково).
  *
  * Выборка настраивается модификаторами: .limit(n) .offset(n) .sort(field, dir?)
  * Колонки — модификаторами: .tags(…) .account(…) .owner(…); ключ путей — .alias(…).
- * Запись: .set(data) — связи задаются контекст-шагами цепочки; .delete().
+ * Запись: .set(data) / .delete({confirm}) / .anonymize(fields) — ЗВЕНЬЯ (возвращают
+ * цепочку, продолжение — от результата); исполняет ТЕРМИНАЛ, весь план одной транзакцией.
  */
-import type { Row, Path, Filter, ChainMods } from './types.js';
+import type { Row, Path, Filter, ChainMods, PlanOp } from './types.js';
 import { buildRead, runQuery, leafType, type Ctx, type Step } from './sql.js';
-import { setOp, delOp, anonymizeOp, executeBatch, toRow, type BatchOp } from './write.js';
+import { runPlan, executeBatch, toRow, type BatchPlan } from './write.js';
 import { beginTx, lock, type TxCtx } from './tx.js';
 import { makeTables, type Tables } from './tables.js';
 import { makeAuth, type AuthApi } from './auth.js';
@@ -20,8 +21,8 @@ import type { Registry } from './schema.js';
 // ---------------------------------------------------------------------------
 
 export interface ChainCore {
-  /** Пути: [{шаг1: Row, шаг2: Row, …}, …] — все узлы каждого варианта. */
-  execute(): Promise<Path[]>;
+  /** Пути: [{шаг1: Row, шаг2: Row, …}, …] — все узлы каждого варианта (бывший execute). */
+  run(): Promise<Path[]>;
   /** Уникальные сущности последнего шага. */
   rows(): Promise<Row[]>;
   first(): Promise<Row | null>;
@@ -47,8 +48,11 @@ export interface ChainCore {
   min(field: string): Promise<unknown>;
   max(field: string): Promise<unknown>;
   countBy(field: string): Promise<Record<string, number>>;
-  /** GDPR: новая версия с затёртыми string-полями ('[erased]') + тег 'anonymized'. История остаётся (см. README). */
-  anonymize(fields: string[]): Promise<Row[]>;
+  /**
+   * GDPR-звено: новая версия с затёртыми string-полями ('[erased]') + тег 'anonymized'.
+   * История остаётся. Возвращает цепочку — исполняет терминал; продолжение — от затёртых версий.
+   */
+  anonymize(fields: string[]): Chain;
   /** Переименовать ключ ТЕКУЩЕГО шага в выводе путей. */
   alias(name: string): Chain;
   /** Колонка tags: строка | string[] (все) | has/hasAny/hasAll. В set() — значение тегов. */
@@ -58,22 +62,25 @@ export interface ChainCore {
   /** Колонка owner (uuid или Row/Account). В set()-insert — значение. */
   owner(v: string | { id: string }): Chain;
   /**
-   * Записать. Связи — контекст-шагами до set() И/ИЛИ класс-вызовами после:
-   *   await db.Сотрудник(s).занятость(id).set({kind}).Окно(w)
-   *   const z = db.занятость(id).set({kind}); z.Сотрудник(s); z.Окно(w); await z
-   * Исполняется ОДНИМ INSERT при первом await (промис кешируется).
-   * Пустой фильтр без data.id → INSERT; id (фильтр или data.id) → UPSERT;
-   * фильтр-объект → версия каждого найденного.
+   * Значение связи для записи БЕЗ участия в фильтре целей (в отличие от контекст-шага):
+   *   tr.Запись(b).позиция({}).link('Сотрудник', новый).set({}).rows()  // перевесить исполнителя
    */
-  set(data?: Record<string, unknown>): SetChain;
-  /** Серверный tombstone + каскад; возвращает всё удалённое с $deleted: true. */
-  delete(): Promise<Row[]>;
+  link(className: string, target: string | { id: string }): Chain;
+  /**
+   * Записать в шаг, к которому приклеен точкой (ЗВЕНО — вернёт цепочку, исполняет терминал):
+   *   await db.Организация(org).Сотрудник().set({ name: 'Вася' }).rows()
+   * Связи — контекст-шагами до set(). Пустой фильтр без data.id → INSERT;
+   * id (фильтр или data.id) → UPSERT; фильтр-объект → версия каждого найденного.
+   * Продолжение цепочки — от записанных строк (fan-out при множестве).
+   */
+  set(data?: Record<string, unknown>): Chain;
+  /**
+   * Удаление-звено. { confirm: true } — серверный tombstone + каскад (продолжение — от
+   * затомбстоуненных, $deleted: true); БЕЗ confirm — превью: терминал вернёт кандидатов
+   * (цели + каскад), БД не тронута.
+   */
+  delete(opts?: { confirm?: boolean }): Chain;
 }
-
-/** Ленивый билдер записи: довешивание связей + thenable (исполнение при await). */
-export type SetChain = PromiseLike<Row[]> & {
-  [className: string]: (target: string | { id: string }) => SetChain;
-};
 
 export type Chain = ChainCore & {
   [className: string]: (filter?: Filter) => Chain;
@@ -84,7 +91,7 @@ export interface DbCore {
   begin(): Promise<EntityTx>;
   commit(tr: EntityTx): Promise<void>;
   rollback(tr: EntityTx): Promise<void>;
-  /** Именованный батч: те же цепочки, set/delete копятся до execute(). */
+  /** Именованный батч: те же цепочки, планы записи копятся до run(). */
   batch(name: string): Batch;
   /**
    * Realtime: события каждой вставленной версии (insert/update/delete-tombstone).
@@ -135,7 +142,8 @@ export interface WatchOpts {
 }
 
 export type Batch = {
-  execute(): Promise<Row[][]>;
+  /** Исполнить всю очередь планов одной транзакцией (бывший execute). */
+  run(): Promise<Row[][]>;
   discard(): void;
   size(): number;
 } & {
@@ -147,7 +155,13 @@ export type Batch = {
 // ---------------------------------------------------------------------------
 
 interface RootState {
-  batches: Map<string, BatchOp[]>;
+  batches: Map<string, BatchPlan[]>;
+}
+
+/** Батч-контекст цепочки: общая очередь + план ЭТОЙ цепочки в ней (появляется на первой операции). */
+interface BatchRef {
+  queue: BatchPlan[];
+  entry?: BatchPlan;
 }
 
 interface RawPathRow {
@@ -190,70 +204,80 @@ async function runRows(ctx: Ctx, steps: Step[], mods: ChainMods): Promise<Row[]>
   });
 }
 
-const idOf = (t: string | { id: string }): string => (typeof t === 'object' ? t.id : t);
+function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef): Chain {
+  const hasOps = steps.some((s) => s.op);
 
-/**
- * Ленивый билдер set(): класс-вызовы довешивают связи (мутирует), await исполняет один раз.
- * run() — исполнение (сразу setOp или отложенно через батч); links — общая ссылка,
- * которую батч читает на execute().
- */
-function makeSetChain(
-  registry: Registry,
-  links: Record<string, string>,
-  run: () => Promise<Row[]>,
-): SetChain {
-  let done: Promise<Row[]> | undefined;
-  const handler: ProxyHandler<object> = {
-    get(_t, prop) {
-      if (typeof prop === 'symbol') return undefined;
-      if (prop === 'then' || prop === 'catch' || prop === 'finally') {
-        done ??= run();
-        const m = done[prop as 'then'];
-        return m.bind(done);
-      }
-      if (registry.has(prop)) {
-        const cls = registry.resolve(prop);
-        return (target: string | { id: string }) => {
-          if (done) throw new Error(`letopis: set() already executed — link "${prop}" before the first await`);
-          links[cls.id] = idOf(target);
-          return proxy;
-        };
-      }
-      registry.resolve(prop);
-      return undefined;
-    },
-  };
-  const proxy = new Proxy({}, handler) as SetChain;
-  return proxy;
-}
-
-function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batchQueue?: BatchOp[]): Chain {
   const withLast = (patch: Partial<Step>): Chain => {
+    const last = steps[steps.length - 1];
+    if (last.op) {
+      throw new Error(`letopis: step modifier after ${last.op.kind}() — add a class step first`);
+    }
     const next = steps.slice();
-    next[next.length - 1] = { ...next[next.length - 1], ...patch };
-    return makeChain(ctx, next, mods, batchQueue);
+    next[next.length - 1] = { ...last, ...patch };
+    return makeChain(ctx, next, mods, batch);
   };
-  const withMods = (patch: ChainMods): Chain => makeChain(ctx, steps, { ...mods, ...patch }, batchQueue);
+  const withMods = (patch: ChainMods): Chain => makeChain(ctx, steps, { ...mods, ...patch }, batch);
+
+  /** Операция-звено: op на последний шаг (op уже есть → self-шаг «те же сущности»); mods сбрасываются. */
+  const withOp = (op: PlanOp): Chain => {
+    const last = steps[steps.length - 1];
+    const next = last.op
+      ? [...steps, { name: last.name, cls: last.cls, self: true, op } as Step]
+      : [...steps.slice(0, -1), { ...last, op }];
+    if (batch) {
+      if (batch.entry) batch.entry.steps = next;
+      else {
+        batch.entry = { steps: next };
+        batch.queue.push(batch.entry);
+      }
+    }
+    return makeChain(ctx, next, {}, batch);
+  };
+
+  /** Терминал: план (есть операции) — runPlan одной транзакцией; иначе прямое чтение. */
+  const guardBatch = () => {
+    if (batch && hasOps) {
+      throw new Error('letopis: plan is queued in the batch — call batch.run()');
+    }
+  };
 
   const handler: ProxyHandler<object> = {
     get(_t, prop) {
       if (typeof prop === 'symbol' || prop === 'then') return undefined;
 
       switch (prop) {
+        case 'run':
+          return () => {
+            guardBatch();
+            return hasOps ? (runPlan(ctx, steps, mods, 'paths') as Promise<Path[]>) : runPaths(ctx, steps, mods);
+          };
         case 'execute':
-          return () => runPaths(ctx, steps, mods);
+          throw new Error('letopis: execute() renamed to run() (0.11.0)');
         case 'rows':
-          return () => runRows(ctx, steps, mods);
+          return () => {
+            guardBatch();
+            return hasOps ? (runPlan(ctx, steps, mods, 'rows') as Promise<Row[]>) : runRows(ctx, steps, mods);
+          };
         case 'first':
-          return async () => (await runRows(ctx, steps, { ...mods, limit: 1 }))[0] ?? null;
+          return async () => {
+            guardBatch();
+            const rows = hasOps
+              ? ((await runPlan(ctx, steps, mods, 'rows')) as Row[])
+              : await runRows(ctx, steps, { ...mods, limit: 1 });
+            return rows[0] ?? null;
+          };
         case 'ids':
           return async () => {
+            guardBatch();
+            if (hasOps) return runPlan(ctx, steps, mods, 'ids') as Promise<string[]>;
             const q = buildRead(ctx, steps, mods, 'ids');
             const res = await runQuery<{ id: string }>(ctx, q.text, q.params, 'ids', clsOf(steps));
             return res.map((r) => r.id);
           };
         case 'count':
           return async () => {
+            guardBatch();
+            if (hasOps) return runPlan(ctx, steps, mods, 'count') as Promise<number>;
             const q = buildRead(ctx, steps, mods, 'count');
             const res = await runQuery<{ n: number }>(ctx, q.text, q.params, 'count', clsOf(steps));
             return res[0].n;
@@ -274,8 +298,14 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batchQueue?: BatchO
         case 'min':
         case 'max':
           return async (field: string) => {
-            const q = buildRead(ctx, steps, { ...mods, aggFn: prop, aggField: field }, 'agg');
-            const res = await runQuery<{ v: unknown }>(ctx, q.text, q.params, 'agg', clsOf(steps));
+            guardBatch();
+            const aggMods = { ...mods, aggFn: prop, aggField: field };
+            const res = hasOps
+              ? ((await runPlan(ctx, steps, aggMods, 'agg')) as { v: unknown }[])
+              : await (async () => {
+                  const q = buildRead(ctx, steps, aggMods, 'agg');
+                  return runQuery<{ v: unknown }>(ctx, q.text, q.params, 'agg', clsOf(steps));
+                })();
             const v = res[0]?.v;
             if (v === null || v === undefined) return null;
             if (typeof v !== 'string') return v;
@@ -286,14 +316,22 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batchQueue?: BatchO
           };
         case 'countBy':
           return async (field: string) => {
-            const q = buildRead(ctx, steps, { ...mods, aggFn: 'countBy', aggField: field }, 'agg');
-            const res = await runQuery<{ k: string; n: number }>(ctx, q.text, q.params, 'agg', clsOf(steps));
+            guardBatch();
+            const aggMods = { ...mods, aggFn: 'countBy' as const, aggField: field };
+            const res = hasOps
+              ? ((await runPlan(ctx, steps, aggMods, 'agg')) as { k: string; n: number }[])
+              : await (async () => {
+                  const q = buildRead(ctx, steps, aggMods, 'agg');
+                  return runQuery<{ k: string; n: number }>(ctx, q.text, q.params, 'agg', clsOf(steps));
+                })();
             return Object.fromEntries(res.map((r) => [r.k ?? 'null', r.n]));
           };
         case 'after':
           return (cursor: ChainMods['after']) => withMods({ after: cursor });
         case 'versions':
           return async () => {
+            guardBatch();
+            if (hasOps) return runPlan(ctx, steps, mods, 'versions') as Promise<Row[]>;
             const q = buildRead(ctx, steps, mods, 'versions');
             const res = await runQuery<{ row: never }>(ctx, q.text, q.params, 'versions', clsOf(steps));
             return res.map((r) => {
@@ -302,8 +340,13 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batchQueue?: BatchO
               return raw.deleted ? { ...row, $deleted: true as const } : row;
             });
           };
+        case 'set':
+          return (data: Record<string, unknown> = {}) => withOp({ kind: 'set', data, mods });
+        case 'delete':
+          return (opts?: { confirm?: boolean }) =>
+            withOp({ kind: 'delete', confirm: opts?.confirm === true, mods });
         case 'anonymize':
-          return (fields: string[]) => anonymizeOp(ctx, steps, mods, fields);
+          return (fields: string[]) => withOp({ kind: 'anonymize', fields, mods });
         case 'alias':
           return (name: string) => withLast({ aliasKey: name });
         case 'tags':
@@ -314,32 +357,20 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batchQueue?: BatchO
         case 'owner':
           return (v: string | { id: string }) =>
             withLast({ ownerFilter: typeof v === 'object' ? v.id : v });
-        case 'set':
-          return (data: Record<string, unknown> = {}) => {
-            const extraLinks: Record<string, string> = {};
-            if (batchQueue) {
-              const op = { kind: 'set' as const, steps, mods, data, extraLinks };
-              batchQueue.push(op);
-              const index = batchQueue.length - 1;
-              // билдер для довешивания связей; await возвращает № в очереди
-              return makeSetChain(ctx.registry, extraLinks, async () => index as never);
-            }
-            return makeSetChain(ctx.registry, extraLinks, () => setOp(ctx, steps, mods, data, extraLinks));
-          };
-        case 'delete':
-          return () => {
-            if (batchQueue) {
-              batchQueue.push({ kind: 'delete', steps, mods });
-              return batchQueue.length - 1;
-            }
-            return delOp(ctx, steps, mods);
+        case 'link':
+          return (clsName: string, target: string | { id: string }) => {
+            const linkCls = ctx.registry.resolve(clsName);
+            const last = steps[steps.length - 1];
+            return withLast({
+              extraLinks: { ...(last.extraLinks ?? {}), [linkCls.id]: typeof target === 'object' ? target.id : target },
+            });
           };
       }
 
       if (ctx.registry.has(prop)) {
         const cls = ctx.registry.resolve(prop);
         return (filter?: Filter) =>
-          makeChain(ctx, [...steps, { name: prop, cls, filter: normalizeFilter(filter) }], mods, batchQueue);
+          makeChain(ctx, [...steps, { name: prop, cls, filter: normalizeFilter(filter) }], mods, batch);
       }
       ctx.registry.resolve(prop); // неизвестный класс — понятная ошибка со списком
       return undefined;
@@ -348,16 +379,18 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batchQueue?: BatchO
   return new Proxy({}, handler) as Chain;
 }
 
-function makeBatch(ctx: Ctx, queue: BatchOp[]): Batch {
+function makeBatch(ctx: Ctx, queue: BatchPlan[]): Batch {
   const handler: ProxyHandler<object> = {
     get(_t, prop) {
       if (typeof prop === 'symbol' || prop === 'then') return undefined;
       switch (prop) {
-        case 'execute':
+        case 'run':
           return async () => {
-            const ops = queue.splice(0, queue.length);
-            return executeBatch(ctx, ops);
+            const plans = queue.splice(0, queue.length);
+            return executeBatch(ctx, plans);
           };
+        case 'execute':
+          throw new Error('letopis: batch.execute() renamed to batch.run() (0.11.0)');
         case 'discard':
           return () => void queue.splice(0, queue.length);
         case 'size':
@@ -366,7 +399,7 @@ function makeBatch(ctx: Ctx, queue: BatchOp[]): Batch {
       if (ctx.registry.has(prop)) {
         const cls = ctx.registry.resolve(prop);
         return (filter?: Filter) =>
-          makeChain(ctx, [{ name: String(prop), cls, filter: normalizeFilter(filter) }], {}, queue);
+          makeChain(ctx, [{ name: String(prop), cls, filter: normalizeFilter(filter) }], {}, { queue });
       }
       ctx.registry.resolve(prop);
       return undefined;
