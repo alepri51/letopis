@@ -18,9 +18,10 @@
  * Цепочка шагов соединяется JOIN LATERAL — комбинации путей сохраняются.
  */
 import type { Sql } from 'postgres';
-import type { ClassDef, ChainMods, FieldType, Filter, Op, QueryEvent } from './types.js';
+import type { AclOp, AclDecision, ClassDef, ChainMods, FieldType, Filter, Op, QueryEvent } from './types.js';
 import { OP } from './types.js';
 import { isOp } from './ops.js';
+import { aclDenied } from './acl.js';
 import type { Registry } from './schema.js';
 
 export interface Ctx {
@@ -34,6 +35,8 @@ export interface Ctx {
   systemAccount?: string;
   /** Жёсткая изоляция арендатора: все чтения фильтруются, записи пришпилены к account. */
   enforceAccount?: boolean;
+  /** enforceAcl: скомпилированный на connect резолвер Rule/Resource (READ/WRITE/DELETE). */
+  aclDecide?: (cls: ClassDef, op: AclOp) => AclDecision;
   /** true внутри db.begin()-транзакции (write не оборачивает в begin повторно). */
   inTx?: boolean;
   /** true только у db.begin()-транзакций (не у внутренних): управляет подсказкой при 40P01/40001. */
@@ -119,6 +122,8 @@ export interface Step {
   ownerFilter?: string;
   /** Внутреннее (write-цепочки): containment по links — контекст-связи. */
   linksFilter?: Record<string, string>;
+  /** Внутреннее (enforceAcl): предикат WRITE/DELETE-правила — цели ищутся только среди своих. */
+  aclFilter?: Record<string, unknown>;
   /** .deep(max): рекурсивный self-обход (дети любой глубины), только reverse того же класса. */
   deepMax?: number;
 }
@@ -137,6 +142,32 @@ const escLit = (s: string) => s.replace(/'/g, "''");
 export const entityTable = (pgSchema: string) => `${escId(pgSchema)}.${escId('Entity')}`;
 
 type Frag = (alias: string) => string;
+
+/**
+ * ACL-шаблон строки Entity → WHERE-фраги: колонки равенством, jsonb/tags — containment.
+ * Вливается и в кандидаты (GIN), и в перепроверку — ДО сортировки/лимита (пагинация цела).
+ */
+function rowTemplateFrags(tpl: Record<string, unknown>, p: Params): Frag[] {
+  const frags: Frag[] = [];
+  for (const [k, v] of Object.entries(tpl)) {
+    if (k === 'data' || k === 'links') {
+      const ph = p.push(v);
+      frags.push((a) => `${a}.${k} @> ${ph}::jsonb`);
+    } else if (k === 'tags') {
+      const ph = p.push(Array.isArray(v) ? v : [v]);
+      frags.push((a) => `${a}.tags @> ${ph}`);
+    } else if (k === 'owner' || k === 'account') {
+      const ph = p.push(v);
+      frags.push((a) => `${a}.${k} = ${ph}::uuid`);
+    } else if (k === 'id' || k === 'partition') {
+      const ph = p.push(v);
+      frags.push((a) => `${a}.${k} = ${ph}`);
+    } else {
+      throw new Error(`letopis: acl pattern key "${k}" is not an Entity column`);
+    }
+  }
+  return frags;
+}
 
 interface CompiledFilter {
   idConds: Frag[];
@@ -455,6 +486,24 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
       const frag: Frag = (a) => `${a}.${col} = ${ph}::uuid`;
       f.candFrags.push(frag);
       f.finalFrags.push(frag);
+    }
+    // enforceAcl: READ-право на КАЖДЫЙ шаг; предикат победившего правила — в WHERE заранее
+    if (ctx.aclDecide) {
+      const d = ctx.aclDecide(step.cls, 'READ');
+      if (!d.allow) throw aclDenied('READ', step.cls.id, d);
+      if (d.filter) {
+        for (const fr of rowTemplateFrags(d.filter, p)) {
+          f.candFrags.push(fr);
+          f.finalFrags.push(fr);
+        }
+      }
+    }
+    // предикат WRITE/DELETE-правила (поиск целей записи): только свои строки
+    if (step.aclFilter) {
+      for (const fr of rowTemplateFrags(step.aclFilter, p)) {
+        f.candFrags.push(fr);
+        f.finalFrags.push(fr);
+      }
     }
 
     const innerWhere = [`e.partition = ${pPart}`, `e.class = ${pCls}`];

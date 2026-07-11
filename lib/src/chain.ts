@@ -12,6 +12,7 @@ import { setOp, delOp, anonymizeOp, executeBatch, toRow, type BatchOp } from './
 import { beginTx, lock, type TxCtx } from './tx.js';
 import { makeTables, type Tables } from './tables.js';
 import { makeAuth, type AuthApi } from './auth.js';
+import { makeAcl, type AclApi } from './acl.js';
 import type { Registry } from './schema.js';
 
 // ---------------------------------------------------------------------------
@@ -104,6 +105,8 @@ export interface DbCore {
   rules: Tables['rules'];
   /** Вход по кредам (пароль/api-key/key-secret/внешние identity) + сессии в Redis. */
   auth: AuthApi;
+  /** ACL по Resource/Rule: check(эндпоинт) / checkData(класс, READ|WRITE|DELETE) / reload. */
+  acl: AclApi;
 }
 
 export type EntityDb = DbCore & {
@@ -376,6 +379,7 @@ export function makeDb(ctx: Ctx, root?: RootState): EntityDb {
   const state: RootState = root ?? { batches: new Map() };
   let tables: Tables | undefined; // лениво, на ctx этого фасада (работает и в tr)
   let auth: AuthApi | undefined;
+  let acl: AclApi | undefined;
 
   const handler: ProxyHandler<object> = {
     get(_t, prop) {
@@ -389,6 +393,11 @@ export function makeDb(ctx: Ctx, root?: RootState): EntityDb {
         tables ??= makeTables(ctx);
         auth ??= makeAuth(tables);
         return auth;
+      }
+      if (prop === 'acl') {
+        tables ??= makeTables(ctx);
+        acl ??= makeAcl(tables, ctx.registry);
+        return acl;
       }
 
       switch (prop) {
@@ -432,6 +441,16 @@ export function makeDb(ctx: Ctx, root?: RootState): EntityDb {
               const e = JSON.parse(payload) as WatchEvent;
               if (e.partition !== ctx.partition) return;
               if (cls && e.class !== cls) return;
+              // enforceAcl: отдаём только при БЕЗУСЛОВНОМ allow — payload не содержит
+              // owner/account/data, предикат строки проверить нечем (id — тоже утечка)
+              if (ctx.aclDecide) {
+                try {
+                  const d = ctx.aclDecide(ctx.registry.resolve(e.class), 'READ');
+                  if (!d.allow || d.filter) return;
+                } catch {
+                  return;
+                }
+              }
               cb(e);
             };
             // postgres.js: dedicated LISTEN-соединение само переподключается (backoff) и

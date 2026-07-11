@@ -95,7 +95,7 @@ schema-in-DB (HUB/LINK) + fluent dot-обход jsonb-графа + tombstone-к�
 ### Критично
 1. **as-of API** — версии хранятся, но чтения «на момент T» цепочкой нет (`.asOf(t)`); у Datomic/XTDB/Dolt — 1-й класс.
 2. **GDPR-erasure** — «история вечна» ⇒ право на забвение невыполнимо (аналоги: Datomic excision, XTDB ERASE); Timescale retention дропает чанки целиком, не по сущности.
-3. **ACL не применяется к данным** — таблицы Resource/Rule есть, но цепочки ими не фильтруются (эталон: делегирование в Postgres RLS, как PostGraphile).
+3. ~~**ACL не применяется к данным**~~ — ЗАКРЫТО в 0.10.0: категории ресурсов READ/WRITE/DELETE, pattern = шаблон строки Entity с $account, `enforceAcl` вливает предикаты в SQL до пагинации.
 4. **Типизация по цепочке** — `Row.data: Record<string, unknown>`; тренд — генерация TS-типов из Schema (`Loaded<>`, `$infer`).
 5. **Пагинация курсором** (keyset) — limit/offset деградирует на объёме.
 

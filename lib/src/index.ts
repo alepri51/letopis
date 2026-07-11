@@ -7,6 +7,8 @@
 import postgres from 'postgres';
 import { loadRegistry } from './schema.js';
 import { makeDb, type EntityDb } from './chain.js';
+import { makeTables } from './tables.js';
+import { compileEnforcer } from './acl.js';
 import type { Ctx } from './sql.js';
 import type { ConnectOpts } from './types.js';
 
@@ -37,6 +39,19 @@ export async function connect(opts: ConnectOpts): Promise<EntityDb> {
     onQuery: opts.onQuery,
     slowMs: opts.slowMs,
   };
+
+  // enforceAcl: правила и категории субъекта фиксируются на connect (перечитка — новый connect)
+  if (opts.enforceAcl) {
+    if (!opts.account) throw new Error('letopis: enforceAcl requires connect({ account })');
+    const tables = makeTables(ctx);
+    const [account, resources, rules] = await Promise.all([
+      tables.accounts.get(opts.account),
+      tables.resources.find(),
+      tables.rules.find({ enabled: true }),
+    ]);
+    if (!account) throw new Error(`letopis: enforceAcl — account "${opts.account}" not found`);
+    ctx.aclDecide = compileEnforcer({ resources, rules }, account.id, account.categories, registry);
+  }
   return makeDb(ctx);
 }
 
@@ -58,12 +73,13 @@ export {
 // типы
 export type {
   Row, Path, Filter, ChainMods, Cursor, ConnectOpts, QueryEvent,
-  Account, Credential, Resource, Rule,
+  Account, Credential, Resource, Rule, AclOp, AclDecision,
 } from './types.js';
 export type { EntityDb, EntityTx, Chain, Batch, WatchEvent, WatchOpts } from './chain.js';
 export type { Tables, AccountsApi, CredentialsApi, ResourcesApi, RulesApi } from './tables.js';
 export { totpCode } from './auth.js';
 export type { AuthApi, AuthResult } from './auth.js';
+export type { AclApi } from './acl.js';
 export type { SessionStore, Sessions, Session } from './sessions.js';
 export { ValidationError } from './write.js';
 export { Registry } from './schema.js';

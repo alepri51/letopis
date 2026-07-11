@@ -456,6 +456,76 @@ await s.revokeAll(acc)     // → сколько сессий погасло
 lockout после N неудач. Legacy-bcrypt-хэши (`$2b$…` из дампа) библиотека не верифицирует —
 пароль задаётся заново через `setPassword`.
 
+### 9.2 ACL: `db.acl` + `enforceAcl` — Resource/Rule в работе
+
+**Resource** — именованное множество, pattern — шаблон «своей» сущности. **Rule** — стрелка
+«группа → группа» (`allow|deny` + `weight`); правила никогда не указывают на конкретный
+аккаунт — принадлежность вычисляется из `Account.categories` на лету.
+
+| category | pattern — шаблон чего | пример |
+|---|---|---|
+| `ACCOUNT` | аккаунта | `{"categories": "{Staff}"}`; `"!{Anonymous,Shadow}"` — нет ни одной; NULL — все |
+| `API` | адреса эндпоинта | `{"endpoint": "v2.auth.apikey.*"}` — маска: `.`-сегменты, `{a,b}`, `*` — хвост |
+| `READ` / `WRITE` / `DELETE` | **строки Entity** (операция = категория) | `{"class": "Booking", "owner": "$account"}` |
+
+Pattern операций — реальные колонки Entity (`class`, `owner`, `account`, `tags`, `data`,
+`links`…), значения — литералы или `"$account"` (id субъекта, подставляется в запрос);
+`class` — маска с наследованием (право на `Vehicle` действует на `SportsCar`).
+
+Резолюция: субъекты аккаунта × объекты цели → правила → побеждает **ровно одно**
+(max weight; при равенстве deny); **нет правил — deny**. Остальные ключи победившего
+allow — предикат строк, **вливается в SQL до сортировки и лимита**: пагинация, `count()`,
+keyset честные, постфильтрации нет.
+
+```ts
+await db.acl.check(anon, 'v2.auth.password.signup')
+// → { allow: true, rule: {account: 'any:ACCOUNT', resource: 'auth.anonymous:API', weight: 105} } [2.0 ms]
+await db.acl.check(anon, 'v2.auth.apikey.create')
+// → { allow: false, code: 403, message: 'Access denied - default …' } — победило дно-правило deny 0
+
+await db.acl.checkData(user, 'Booking', 'READ')     // ресурс {"class":"Booking","owner":"$account"}
+// → { allow: true, filter: { owner: '24c49a43-…' }, rule: {…weight: 60} }   [1.7 ms]
+await db.acl.checkData(user, 'SportsCar', 'READ')   // право дал предок Vehicle (lineage)
+// → { allow: true }                                — безусловный, без предиката
+await db.acl.checkData(user, 'Org', 'READ')
+// → { allow: false, message: 'no matching rule (deny by default)' }
+db.acl.reload()                                     // сброс кэша Resource/Rule фасада
+```
+
+**`connect({ account, enforceAcl: true })`** — те же решения в цепочках: каждый шаг —
+`READ`, `set()`/anonymize/батчи — `WRITE`, `delete()` — `DELETE` **по всем классам каскада**
+(deny в замыкании откатывает транзакцию); `watch()` отдаёт события только безусловных
+allow-классов (payload нечем проверить предикат). Правила фиксируются на connect.
+
+```ts
+const u = await connect({ dsn, schema, account: user.id, enforceAcl: true })
+await u.Запись().rows()      // [7.6 ms] только owner = user.id — предикат в WHERE заранее
+await u.Запись().count()     // честный count по суженному множеству
+await u.Организация().rows() // Error: letopis: acl denies READ on Org — no matching rule
+const [z] = await u.Запись().set({})            // owner пришпилен правилом → user.id
+await u.Запись().owner(other).set({})           // Error: acl pins Booking writes to owner …
+await u.Запись(чужаяId).set({ status: '…' })    // → [] — цель вне предиката не находится
+// и не перехватывается: «не нашёл среди своих» при существующей чужой НЕ превращается в INSERT
+```
+
+Оверхед (article-полигон 1.1M, p50 из 20; `bench/acl.bench.mjs`):
+
+| Сцена | без ACL | allow (класс целиком) | allow с предикатом* |
+|---|---|---|---|
+| точечный `first(id)` | 2.2 ms | 3.1 ms | 3.5 ms |
+| фильтр `rows` limit 100 | 119.8 ms | 121.6 ms | 119.9 ms |
+| keyset-страница всего класса 250k | 1619 ms | 1652 ms | 2155 ms |
+| `count()` класса 250k | 440 ms | 453 ms | 875 ms |
+| цепочка 2 шага | 5.5 ms | 6.6 ms | 7.0 ms |
+
+Безусловное правило — бесплатно (решение из кэша, SQL тот же). *Предикат замерен в
+worst-case (пропускает 100% строк — чистый оверхед доп. условия на full-scan);
+в реальности предикат СУЖАЕТ выборку, и тяжёлые сцены становятся ДЕШЕВЛЕ, чем без ACL.
+`db.acl.checkData` — справочный (1.3 ms: SQL за категориями аккаунта на каждый вызов);
+горячий путь цепочек использует резолвер, скомпилированный на connect (микросекунды, memo).
+
+`enforceAccount` (§ 10.6) остаётся простым флагом-изоляцией без таблиц правил.
+
 ---
 
 ## 10. Срез актуальных данных и история
@@ -703,6 +773,7 @@ deadlock detected — letopis: transaction is aborted, retry the whole db.begin(
 | `owner` | uuid | `account` | default-владелец |
 | `max` | number | `10` | пул соединений |
 | `enforceAccount` | boolean | `false` | жёсткая изоляция арендатора: чтения фильтруются по `account`, записи пришпилены (подмена → ошибка `pinned`) |
+| `enforceAcl` | boolean | `false` | ACL по Resource/Rule (§ 9.2): READ/WRITE/DELETE-права на классы, предикаты строк в SQL заранее; требует `account`; deny-by-default |
 | `onQuery` | `(e: QueryEvent) => void` | — | хук на каждый запрос цепочки (§ 10.10) |
 | `slowMs` | number | — | порог: `ms > slowMs` → `e.slow = true`; без `onQuery` — `console.warn` |
 
@@ -730,7 +801,7 @@ import type {
   EntityDb, EntityTx, Chain, Batch, Tables,
   Account, Credential, Resource, Rule,
   AuthApi, AuthResult, SessionStore, Sessions, Session,
-  WatchEvent, WatchOpts,
+  WatchEvent, WatchOpts, AclApi, AclOp, AclDecision,
 } from 'letopis'
 ```
 
@@ -758,6 +829,7 @@ await db.Услуга().sort('data.price.RUB', 'desc').after(кур).limit(3).ro
 | `watch` | `(cls?, cb, opts?: WatchOpts) => Promise<() => void>` | realtime: `WatchEvent {partition, class, id, updated, deleted}` на каждую версию (триггер `entity_notify` → LISTEN); авто-reconnect, `opts.onReconnect` — дочитать пропущенное (§ 10.5); возврат — stop |
 | `accounts/credentials/resources/rules` | § 9 | фасады таблиц |
 | `auth` | `AuthApi` (§ 9.1, таблица ниже) | вход по кредам + сессии в Redis |
+| `acl` | `AclApi` (§ 9.2) | check(эндпоинт) / checkData(класс, операция) / reload |
 | `close` | `() => Promise<void>` | закрыть пул |
 | `registry` | `Registry` | `.resolve(name)` → ClassDef (ancestors, descendants, attributes…) |
 | `sql` | postgres.js | голый клиент |
@@ -953,6 +1025,9 @@ identifier — индекс `credential_identity_udx` (один живой на 
 | `auth.issueOtp` | `({ account, identifier, category?, ttlSec?, digits? }) → { code, credential }` | в БД sha256; TTL 600 s; перевыпуск затирает |
 | `auth.verifyOtp` | `({ identifier, code, category?, maxAttempts? }) → AuthResult \| null` | одноразовый: успех/5 неудач/TTL сжигают [6.0 ms] |
 | `auth.sessions` | `(store: SessionStore) → Sessions` | Redis-клиент инжектируется (ioredis как есть) |
+| `acl.check` | `(account, endpoint) → Promise<AclDecision>` | Resource category='API'; маски `*`/`{a,b}` [1.4–2.0 ms] |
+| `acl.checkData` | `(account, className, 'READ'\|'WRITE'\|'DELETE') → Promise<AclDecision>` | шаблон строк + lineage классов [1.7 ms] |
+| `acl.reload` | `() → void` | сброс кэша Resource/Rule фасада |
 | `sessions.start` | `(account, { ttlSec?, meta? }?) → Promise<token>` | default ttl 7 суток; в Redis sha256 токена [2.0 ms] |
 | `sessions.check` | `(token) → Session \| null` | `{ account, meta, created }` [0.3 ms] |
 | `sessions.revoke` | `(token) → boolean` | повторный → `false` |
@@ -990,6 +1065,8 @@ Session    = { account: string, meta, created }                  // sessions.che
 SessionStore = { set, get, del, sadd, srem, smembers, expire }   // ioredis-совместимый срез
 WatchEvent = { partition, class, id, updated, deleted: boolean } // db.watch()
 WatchOpts  = { onReconnect?: () => void }                        // после re-listen (§ 10.5)
+AclOp      = 'READ' | 'WRITE' | 'DELETE'                         // операция = category ресурса
+AclDecision = { allow, rule?, filter?, code?, message? }         // filter — предикат строк (§ 9.2)
 ```
 
 ---
@@ -1085,9 +1162,11 @@ const удалено = await db.Запись(bkg.id).delete()   // всё с $de
 ## 16. Тесты
 
 ```bash
-npm test    # 103 теста против живого docker (timescale + redis), по файлам:
+npm test    # 114 тестов против живого docker (timescale + redis), по файлам:
+            # acl           — Resource/Rule: маски/weight/deny-by-default, шаблоны строк
+            #                 с $account, enforceAcl (предикаты в SQL, каскад, watch)
             # api-full      — сквозной чек-лист ВСЕХ публичных методов API (15 групп)
-            # auth          — db.auth: пароль/api-key/key-secret/link+lookup, ворота verify,
+            # auth          — db.auth: пароль/api-key/key-secret/TOTP/OTP/link+lookup,
             #                 глобальная идентичность, сессии на живом Redis (expire/revoke)
             # resilience    — ретраи 40P01/40001, реальный deadlock двух транзакций,
             #                 watch переживает обрыв LISTEN (pg_terminate_backend)

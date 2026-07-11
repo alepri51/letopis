@@ -2,6 +2,29 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/), версии — semver.
 
+## [0.10.0] — 2026-07-11
+
+### Added
+- **ACL по Resource/Rule** (формат согласован повторно, закрыт последний гэп RESEARCH.md):
+  - `db.acl.check(account, endpoint)` — legacy-семантика 1:1: субъект-группы по
+    `Account.categories` (`{A,B}` / `!{A,B}` / NULL), маски эндпоинтов (`*`, `{a,b}`),
+    победа ровно одного правила (max weight, при равенстве deny), без правил — deny.
+  - **Операции над данными = категории ресурсов `READ`/`WRITE`/`DELETE`**; pattern —
+    **шаблон строки Entity**: реальные колонки (`class`, `owner`, `account`, `tags`,
+    `data`, `links`…) с литералами или `"$account"` (подставляется динамически);
+    `class`-маска действует на потомков (lineage). Никаких выдуманных полей.
+  - `db.acl.checkData(account, class, op)` → `{allow, filter?}` — filter = остаточный
+    шаблон строк победившего правила с подставленным `$account`.
+  - **`connect({ account, enforceAcl: true })`**: READ на каждый шаг цепочки, WRITE на
+    `set()`/anonymize/батчи, DELETE на цели и все классы каскадного замыкания (deny
+    откатывает транзакцию). **Предикат вливается в SQL до сортировки/лимита** — пагинация,
+    count, keyset честные. INSERT пришпиливает `$account`-колонки; upsert по явному id
+    НЕ перехватывает существующую недоступную сущность. `watch()` отдаёт события только
+    безусловных allow-классов. Deny-by-default; правила фиксируются на connect.
+  - `bench/acl.bench.mjs` (1.1M): безусловное правило — бесплатно; предикат в worst-case
+    (100% строк) +33–99% на full-scan; в реальности предикат сужает выборку — дешевле базы.
+  - `test/acl.test.ts` — 9 сцен; суммарно 114 тестов. Сид не менялся.
+
 ## [0.9.0] — 2026-07-11
 
 ### Added

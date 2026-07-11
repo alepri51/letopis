@@ -2,7 +2,7 @@
 
 *Версионируемое entity-хранилище поверх TimescaleDB с запросами точками: `db.Сотрудник({name:'Вася'}).навык().Услуга().execute()`. Каждая запись — навсегда. Каждое изменение — новая строка. Каждый спор «а какая цена была на момент брони» решается одним вызовом.*
 
-> Пакет: [`letopis`](https://www.npmjs.com/package/letopis) (ранее entity-chain). 105 автономных тестов, бенчмарки на 1.1M строк, статус — крепкая beta. Все примеры, ответы и тайминги в этой статье — снятые с живого прогона на базе в **1 112 860 строк**, не выдуманные.
+> Пакет: [`letopis`](https://www.npmjs.com/package/letopis) (ранее entity-chain). 114 автономных тестов, бенчмарки на 1.1M строк, статус — крепкая beta. Все примеры, ответы и тайминги в этой статье — снятые с живого прогона на базе в **1 112 860 строк**, не выдуманные.
 
 ---
 
@@ -628,6 +628,50 @@ await db.auth.verifyOtp({ identifier: 'anna@salon.io', code })   // → null [1.
 Одноразовость жёсткая: успех сжигает код, 5 неверных попыток сжигают, истёкший TTL сжигает,
 повторный `issueOtp` затирает предыдущий код (валиден только последний).
 
+### 4.19b ACL: Resource/Rule — от эндпоинтов до строк
+
+Таблицы `Resource`/`Rule` (перенесены из legacy 1:1) — язык групп. **Resource** — именованное
+множество, его pattern — шаблон «своей» сущности: у субъектов (`category='ACCOUNT'`) — шаблон
+аккаунта по `categories`, у эндпоинтов (`'API'`) — маска адреса, у **операций над данными**
+(`'READ' | 'WRITE' | 'DELETE'`) — **шаблон строки Entity**: реальные колонки + плейсхолдер
+`"$account"`. **Rule** — стрелка «группа → группа» с `allow|deny` и весом; правило никогда
+не указывает на конкретный аккаунт. Побеждает ровно одно правило (max weight, при равенстве
+deny), нет правил — deny.
+
+```ts
+await db.acl.check(anon, 'v2.auth.password.signup')
+// → { allow: true, rule: {account: 'any:ACCOUNT', resource: 'auth.anonymous:API', weight: 105} } [2.0 ms]
+await db.acl.check(anon, 'v2.auth.apikey.create')
+// → { allow: false, code: 403, message: 'Access denied - default for any ACCOUNT to any API' }
+
+// ресурс ('booking.own:READ', 'READ', {"class": "Booking", "owner": "$account"})
+await db.acl.checkData(user, 'Booking', 'READ')
+// → { allow: true, filter: { owner: '24c49a43-…' } }   — allow + предикат строк [1.7 ms]
+await db.acl.checkData(user, 'SportsCar', 'READ')
+// → { allow: true }   — право дал предок Vehicle (lineage), предиката нет
+await db.acl.checkData(user, 'Org', 'READ')
+// → { allow: false, message: 'no matching rule (deny by default)' }
+```
+
+`connect({ account, enforceAcl: true })` применяет решения к цепочкам: каждый шаг — READ,
+записи — WRITE, `delete()` — DELETE по всем классам каскада (deny в замыкании откатывает
+транзакцию). Предикат победившего правила **вливается в SQL до сортировки и лимита** —
+пагинация, count и keyset работают по уже суженному множеству, постфильтрации нет:
+
+```ts
+const u = await connect({ dsn, schema, account: user.id, enforceAcl: true })
+await u.Запись().rows()        // [7.6 ms] WHERE … AND owner = 'user-uuid' — только свои
+await u.Организация().rows()   // Error: letopis: acl denies READ on Org
+const [z] = await u.Запись().set({})   // owner пришпилен правилом
+await u.Запись(чужаяId).set({ status: 'confirmed' })   // → [] — и НЕ перехватывается вставкой
+```
+
+Оверхед на этом же полигоне (p50 из 20, `bench/acl.bench.mjs`): безусловное правило —
+бесплатно (точечное чтение 2.2 → 3.1 ms, остальное в пределах шума — решение из кэша,
+SQL не меняется); предикат в worst-case (пропускает 100% строк) добавляет к full-scan
+сценам +33–99% (keyset 250k: 1.6 → 2.2 s, count: 440 → 875 ms) — но в реальности предикат
+СУЖАЕТ выборку, и те же сцены становятся дешевле, чем без ACL.
+
 Сессии — во внешнем Redis (клиент инжектируется, интерфейс `SessionStore`, ioredis подходит
 как есть; в зависимости letopis не входит):
 
@@ -769,6 +813,7 @@ TS-типы всех классов из живой Schema (enum → union-ли�
 | Вход по паролю — `db.auth.verifyPassword` (цена scrypt, выровнена) | 60–80 ms |
 | Вход по api-ключу / ключ-секрету / внешней identity | 2–7 ms |
 | TOTP enroll / verify; одноразовый код issue / verify | 3–6 ms |
+| ACL: `check` эндпоинта / `checkData` класса; enforceAcl безусловный — бесплатно | 1.4–2.0 ms / +0–1 ms |
 | Сессия в Redis: `start` / `check` | 2.0 / 0.3 ms |
 | **Сортировка/keyset ВСЕГО класса 250k без фильтра** | **~1.7–1.9 s** |
 
@@ -817,7 +862,7 @@ TS-типы всех классов из живой Schema (enum → union-ли�
 
 ## 9. Статус и что дальше
 
-Сегодня: движок (DDL + триггеры + FK) ~370 строк SQL, библиотека ~3k строк TypeScript без тяжёлых зависимостей (postgres.js + fastest-validator), 105 автономных тестов (включая сквозной чек-лист каждого публичного метода, 16 «живых» сцен дня салона, вход/сессии на живом Redis и сбои: настоящий deadlock, обрыв LISTEN-соединения), CI на живой БД, три бенчмарка, полный API reference, пакет [`letopis`](https://www.npmjs.com/package/letopis) в npm. Auth-слой встроен: много кредов на аккаунт (пароль scrypt / api-ключи sha256 / ключ-секрет / внешние identity) и сессии в Redis. Transient-ошибки (deadlock/serialization) ретраятся там, где повтор безопасен; в `db.begin()` — честная ошибка с подсказкой. Из 16 пробелов, найденных при сравнении со зрелыми системами, закрыто 15 — остался row-level ACL поверх правил доступа, осознанно отложенный.
+Сегодня: движок (DDL + триггеры + FK) ~370 строк SQL, библиотека ~3k строк TypeScript без тяжёлых зависимостей (postgres.js + fastest-validator), 114 автономных тестов (включая сквозной чек-лист каждого публичного метода, 16 «живых» сцен дня салона, вход/сессии на живом Redis и сбои: настоящий deadlock, обрыв LISTEN-соединения), CI на живой БД, три бенчмарка, полный API reference, пакет [`letopis`](https://www.npmjs.com/package/letopis) в npm. Auth-слой встроен: много кредов на аккаунт (пароль scrypt / api-ключи sha256 / ключ-секрет / TOTP / одноразовые коды / внешние identity) и сессии в Redis. ACL по Resource/Rule работает и на эндпоинтах, и на данных: pattern — шаблон строки Entity с `$account`, предикаты вливаются в SQL до пагинации. Transient-ошибки (deadlock/serialization) ретраятся там, где повтор безопасен; в `db.begin()` — честная ошибка с подсказкой. Все 16 пробелов, найденных при сравнении со зрелыми системами, закрыты.
 
 Кандидаты следующей волны: полнотекст, клиенты вне JS.
 

@@ -16,6 +16,7 @@ import {
   buildRead, runQuery, insertSql, multiInsertSql, deleteSql, closureSql,
   isTransient, retryDelay, RETRIES, type Ctx, type Step,
 } from './sql.js';
+import { aclDenied } from './acl.js';
 
 export class ValidationError extends Error {
   constructor(cls: string, public issues: { field: string; message?: string }[]) {
@@ -142,6 +143,30 @@ async function insertOne(ctx: Ctx, a: InsertArgs): Promise<Row> {
 }
 
 /**
+ * enforceAcl: право операции на класс цели. Предикат победившего правила:
+ *  - фильтрует цели UPDATE/DELETE (step.aclFilter → WHERE при поиске);
+ *  - колоночные ключи owner/account пришпиливают значения INSERT
+ *    (явный чужой модификатор на цепочке → ошибка).
+ * Мутирует step (объект создаётся цепочкой на вызов — локально безопасно).
+ */
+function aclWrite(ctx: Ctx, step: Step, op: 'WRITE' | 'DELETE'): void {
+  if (!ctx.aclDecide) return;
+  const d = ctx.aclDecide(step.cls, op);
+  if (!d.allow) throw aclDenied(op, step.cls.id, d);
+  if (!d.filter) return;
+  step.aclFilter = d.filter;
+  for (const col of ['owner', 'account'] as const) {
+    const v = d.filter[col];
+    if (typeof v !== 'string') continue;
+    const key = col === 'owner' ? 'ownerFilter' : 'accountFilter';
+    if (step[key] && step[key] !== v) {
+      throw new Error(`letopis: acl pins ${step.cls.id} writes to ${col} ${v}`);
+    }
+    step[key] = v;
+  }
+}
+
+/**
  * Различие форм фильтра в записи:
  *   Класс()   — БЕЗ аргумента  → INSERT новой сущности;
  *   Класс({}) — пустой объект  → «все найденные» (UPDATE в границах контекста).
@@ -221,6 +246,7 @@ export async function setOp(
 ): Promise<Row[]> {
   const target = steps[steps.length - 1];
   const cls = target.cls;
+  aclWrite(ctx, target, 'WRITE');
   // контекст-шаги: и фильтр целей, и значения; довешенные extraLinks — ТОЛЬКО значения
   const contextLinks = await resolveContext(ctx, steps.slice(0, -1));
   const writeLinks = { ...contextLinks, ...extraLinks };
@@ -255,6 +281,22 @@ export async function setOp(
   // не найдено: INSERT только при явном id или Класс() без аргумента
   if (!explicitId && !insertMode) return [];
 
+  // enforceAcl-предикат + явный id: «не нашёл среди доступных» НЕ значит «можно создать» —
+  // существующая, но недоступная сущность иначе перехватывалась бы новой версией с чужим owner.
+  // Проверка существования — БЕЗ предиката и БЕЗ пришпиленных им колонок.
+  if (explicitId && target.aclFilter) {
+    const bare = { ...ctx, aclDecide: undefined };
+    const probe: Step = {
+      ...targetStep(target, contextLinks, explicitId),
+      aclFilter: undefined,
+      ownerFilter: undefined,
+      accountFilter: undefined,
+      linksFilter: undefined,
+    };
+    const taken = await readRows(bare, [probe], {});
+    if (taken.length) return [];
+  }
+
   const id = explicitId ?? randomUUID();
   const account = resolveAccount(ctx, target);
   const owner = target.ownerFilter ?? ctx.owner ?? account;
@@ -274,6 +316,7 @@ export async function setOp(
 export async function anonymizeOp(ctx: Ctx, steps: Step[], mods: ChainMods, fields: string[]): Promise<Row[]> {
   const target = steps[steps.length - 1];
   const cls = target.cls;
+  aclWrite(ctx, target, 'WRITE');
   for (const f of fields) {
     if (cls.fieldTypes.get(f)?.kind !== 'string') {
       throw new Error(`letopis: anonymize() erases string fields only; "${f}" is ${cls.fieldTypes.get(f)?.kind ?? 'unknown'}`);
@@ -321,6 +364,7 @@ async function inTransaction<T>(ctx: Ctx, fn: (c: Ctx) => Promise<T>): Promise<T
  */
 export async function delOp(ctx: Ctx, steps: Step[], mods: ChainMods): Promise<Row[]> {
   const target = steps[steps.length - 1];
+  aclWrite(ctx, target, 'DELETE');
   const contextLinks = await resolveContext(ctx, steps.slice(0, -1));
   const targets = await readRows(ctx, [targetStep(target, contextLinks)], mods);
   if (!targets.length) return [];
@@ -328,6 +372,13 @@ export async function delOp(ctx: Ctx, steps: Step[], mods: ChainMods): Promise<R
   const params = [ctx.partition, target.cls.id, ...targets.map((r) => r.id)];
   return inTransaction(ctx, async (c) => {
     const closure = await runQuery<RawRow>(c, closureSql(c.pgSchema, targets.length), params, 'delete', [target.cls.id]);
+    // каскад дотянется до зависимых ЛЮБЫХ классов — на каждый нужно DELETE-право
+    if (c.aclDecide) {
+      for (const cn of new Set(closure.map((r) => r.class))) {
+        const d = c.aclDecide(c.registry.resolve(cn), 'DELETE');
+        if (!d.allow) throw aclDenied('DELETE', `${cn} (в каскаде от ${target.cls.id})`, d);
+      }
+    }
     await runQuery(c, deleteSql(c.pgSchema, targets.length), params, 'delete', [target.cls.id]);
     return closure.map((r) => ({ ...toRow(r), $deleted: true as const }));
   });
@@ -374,6 +425,7 @@ export async function executeBatch(ctx: Ctx, queue: BatchOp[]): Promise<Row[][]>
         const params: unknown[] = [];
         for (const g of group) {
           const s = g.steps[0];
+          aclWrite(c, s, 'WRITE'); // склейка multi-VALUES идёт мимо setOp — право+пришпиливание на каждый
           const id = randomUUID();
           const full = validate(cls, id, g.data ?? {}, {});
           const account = resolveAccount(c, s);

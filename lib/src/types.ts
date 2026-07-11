@@ -141,6 +141,27 @@ export interface Rule {
   enabled: boolean;
 }
 
+// --- ACL (Resource/Rule) ------------------------------------------------------
+
+/** Операция над данными = категория Resource: 'READ' | 'WRITE' | 'DELETE'. */
+export type AclOp = 'READ' | 'WRITE' | 'DELETE';
+
+/** Решение ACL: победившее правило (max weight; при равенстве deny; нет правил — deny). */
+export interface AclDecision {
+  allow: boolean;
+  /** Победившее правило (нет — deny «no matching rule»). */
+  rule?: Rule;
+  /**
+   * Остаточный шаблон строки Entity из pattern победившего allow-ресурса
+   * (ключи-колонки без class, "$account" уже подставлен) — вливается в SQL
+   * до сортировки/лимита. Отсутствует = класс целиком.
+   */
+  filter?: Record<string, unknown>;
+  /** Из meta deny-правила: код и сообщение для ответа клиенту. */
+  code?: number;
+  message?: string;
+}
+
 /** Событие хука onQuery: один SQL-запрос цепочки (чтение или запись). */
 export interface QueryEvent {
   /** Режим чтения или write-операция. */
@@ -170,6 +191,14 @@ export interface ConnectOpts {
   max?: number;
   /** Жёсткая изоляция арендатора: чтения фильтруются по account, записи пришпилены к нему. */
   enforceAccount?: boolean;
+  /**
+   * ACL по Resource/Rule: категории READ/WRITE/DELETE, pattern — шаблон строки Entity
+   * (колонки + "$account"). Каждый шаг цепочки проверяется на READ, записи — WRITE,
+   * delete — DELETE (включая классы каскада); предикат победившего правила вливается
+   * в SQL до сортировки/лимита. Требует account. Deny-by-default.
+   * Правила читаются один раз при connect (перечитка — новый connect).
+   */
+  enforceAcl?: boolean;
   /** Хук на каждый запрос цепочки (метрики, лог). */
   onQuery?: (e: QueryEvent) => void;
   /** Порог «медленного» запроса, мс: событие получает slow: true; без onQuery — console.warn. */
