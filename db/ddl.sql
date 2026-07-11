@@ -3,18 +3,18 @@
 -- В БД только: структура таблиц + индексы + триггеры ЦЕЛОСТНОСТИ.
 -- Вся логика приложения (версии, каскады, локи, валидация data) — в либе letopis.
 -- Идемпотентен: можно применять повторно.
--- Для другой PG-схемы замените "booking" на своё имя.
+-- "<SCHEMA-NAME>" — маркер: db/apply.mjs подставляет полное имя схемы vN.<имя> (--schema + --version).
 -- =============================================================================
 
 CREATE EXTENSION IF NOT EXISTS timescaledb;
 
-CREATE SCHEMA IF NOT EXISTS "booking";
+CREATE SCHEMA IF NOT EXISTS "<SCHEMA-NAME>";
 
 -- -----------------------------------------------------------------------------
 -- Schema: классы предметной области (HUB — сущности, LINK — связи).
 -- Сидится из schema.booking.v2.json (db/seed.booking.sql).
 -- -----------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS "booking"."Schema" (
+CREATE TABLE IF NOT EXISTS "<SCHEMA-NAME>"."Schema" (
     partition  text   NOT NULL DEFAULT 'entity',
     id         text   NOT NULL,                  -- англ. id класса: 'Staff', 'skill'
     alias      text   NOT NULL,                  -- рус. алиас: 'Сотрудник', 'навык'
@@ -35,17 +35,17 @@ CREATE TABLE IF NOT EXISTS "booking"."Schema" (
 -- Рекурсивные CTE вверх и вниз; защита от циклов (depth ≤ 32) и от
 -- саморекурсии триггера (pg_trigger_depth).
 -- -----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION "booking".schema_lineage() RETURNS trigger
+CREATE OR REPLACE FUNCTION "<SCHEMA-NAME>".schema_lineage() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
     IF pg_trigger_depth() > 1 THEN RETURN NULL; END IF;
 
     WITH RECURSIVE up AS (
-        SELECT s.partition, s.id, s.id AS anc, 0 AS depth FROM "booking"."Schema" s
+        SELECT s.partition, s.id, s.id AS anc, 0 AS depth FROM "<SCHEMA-NAME>"."Schema" s
         UNION ALL
         SELECT u.partition, u.id, p.ancestor, u.depth + 1
         FROM up u
-        JOIN "booking"."Schema" p ON p.partition = u.partition AND p.id = u.anc
+        JOIN "<SCHEMA-NAME>"."Schema" p ON p.partition = u.partition AND p.id = u.anc
         WHERE p.ancestor IS NOT NULL AND u.depth < 32
     ),
     anc AS (
@@ -53,11 +53,11 @@ BEGIN
         FROM up GROUP BY partition, id
     ),
     down AS (
-        SELECT s.partition, s.id, s.id AS des, 0 AS depth FROM "booking"."Schema" s
+        SELECT s.partition, s.id, s.id AS des, 0 AS depth FROM "<SCHEMA-NAME>"."Schema" s
         UNION ALL
         SELECT d.partition, d.id, c.id, d.depth + 1
         FROM down d
-        JOIN "booking"."Schema" c ON c.partition = d.partition AND c.ancestor = d.des
+        JOIN "<SCHEMA-NAME>"."Schema" c ON c.partition = d.partition AND c.ancestor = d.des
         WHERE d.depth < 32
     ),
     dsc AS (
@@ -65,7 +65,7 @@ BEGIN
                COALESCE(array_agg(des ORDER BY depth, des) FILTER (WHERE depth > 0), '{}') AS descendants
         FROM down GROUP BY partition, id
     )
-    UPDATE "booking"."Schema" s
+    UPDATE "<SCHEMA-NAME>"."Schema" s
        SET ancestors = anc.ancestors, descendants = dsc.descendants
       FROM anc
       JOIN dsc ON dsc.partition = anc.partition AND dsc.id = anc.id
@@ -76,17 +76,17 @@ BEGIN
     RETURN NULL;
 END $$;
 
-DROP TRIGGER IF EXISTS schema_lineage ON "booking"."Schema";
+DROP TRIGGER IF EXISTS schema_lineage ON "<SCHEMA-NAME>"."Schema";
 CREATE TRIGGER schema_lineage
-    AFTER INSERT OR UPDATE OF ancestor, id OR DELETE ON "booking"."Schema"
-    FOR EACH STATEMENT EXECUTE FUNCTION "booking".schema_lineage();
+    AFTER INSERT OR UPDATE OF ancestor, id OR DELETE ON "<SCHEMA-NAME>"."Schema"
+    FOR EACH STATEMENT EXECUTE FUNCTION "<SCHEMA-NAME>".schema_lineage();
 
 -- -----------------------------------------------------------------------------
 -- Entity: единое хранилище сущностей и связей. Append-only hypertable.
 -- Версия = строка; актуальная версия = max(updated); удаление = tombstone (deleted).
 -- links = {"Класс": "id", ...} — произвольное число ссылок в одной строке.
 -- -----------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS "booking"."Entity" (
+CREATE TABLE IF NOT EXISTS "<SCHEMA-NAME>"."Entity" (
     partition text        NOT NULL,
     id        text        NOT NULL,
     class     text        NOT NULL,
@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS "booking"."Entity" (
     -- Timescale поддерживает FK hypertable → обычная таблица.
     -- RESTRICT: класс с данными нельзя удалить из Schema (проверка через префикс entity_latest_idx).
     CONSTRAINT entity_class_fk FOREIGN KEY (partition, class)
-        REFERENCES "booking"."Schema"(partition, id)
+        REFERENCES "<SCHEMA-NAME>"."Schema"(partition, id)
         ON UPDATE CASCADE ON DELETE RESTRICT
 );
 
@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS "booking"."Entity" (
 -- цепочки LATERAL ×2…×140 медленнее (93 чанка/год против 14) и планирование дороже.
 -- Локальность версий сущности даёт компрессия segmentby (db/policies.mjs), не hash.
 SELECT create_hypertable(
-    '"booking"."Entity"', 'updated',
+    '"<SCHEMA-NAME>"."Entity"', 'updated',
     chunk_time_interval => INTERVAL '30 days',
     if_not_exists       => TRUE,
     migrate_data        => TRUE
@@ -120,12 +120,12 @@ SELECT create_hypertable(
 
 -- Индексы: «последняя версия», обход графа, фильтры, теги, арендатор/владелец.
 -- account/owner — полные (не partial): нужны и фильтрам $account/$owner, и RI-сканам FK.
-CREATE INDEX IF NOT EXISTS entity_latest_idx  ON "booking"."Entity" (partition, class, id, updated DESC);
-CREATE INDEX IF NOT EXISTS entity_links_idx   ON "booking"."Entity" USING gin (links jsonb_path_ops);
-CREATE INDEX IF NOT EXISTS entity_data_idx    ON "booking"."Entity" USING gin (data  jsonb_path_ops);
-CREATE INDEX IF NOT EXISTS entity_tags_idx    ON "booking"."Entity" USING gin (tags);
-CREATE INDEX IF NOT EXISTS entity_account_idx ON "booking"."Entity" (account);
-CREATE INDEX IF NOT EXISTS entity_owner_idx   ON "booking"."Entity" (owner);
+CREATE INDEX IF NOT EXISTS entity_latest_idx  ON "<SCHEMA-NAME>"."Entity" (partition, class, id, updated DESC);
+CREATE INDEX IF NOT EXISTS entity_links_idx   ON "<SCHEMA-NAME>"."Entity" USING gin (links jsonb_path_ops);
+CREATE INDEX IF NOT EXISTS entity_data_idx    ON "<SCHEMA-NAME>"."Entity" USING gin (data  jsonb_path_ops);
+CREATE INDEX IF NOT EXISTS entity_tags_idx    ON "<SCHEMA-NAME>"."Entity" USING gin (tags);
+CREATE INDEX IF NOT EXISTS entity_account_idx ON "<SCHEMA-NAME>"."Entity" (account);
+CREATE INDEX IF NOT EXISTS entity_owner_idx   ON "<SCHEMA-NAME>"."Entity" (owner);
 
 -- -----------------------------------------------------------------------------
 -- Триггер 1: целостность при INSERT (только проверки, никакой логики приложения).
@@ -136,7 +136,7 @@ CREATE INDEX IF NOT EXISTS entity_owner_idx   ON "booking"."Entity" (owner);
 --     ('Entity' — полиморфный конец, его резолвит либа).
 -- Tombstone-версии (deleted IS NOT NULL) не валидируются.
 -- -----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION "booking".entity_check() RETURNS trigger
+CREATE OR REPLACE FUNCTION "<SCHEMA-NAME>".entity_check() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
     s   RECORD;
@@ -148,7 +148,7 @@ BEGIN
     END IF;
 
     SELECT * INTO s
-    FROM "booking"."Schema"
+    FROM "<SCHEMA-NAME>"."Schema"
     WHERE partition = NEW.partition AND id = NEW.class;
 
     IF NOT FOUND THEN
@@ -164,7 +164,7 @@ BEGIN
     FROM jsonb_each(COALESCE(NEW.links, '{}'::jsonb)) e
     WHERE jsonb_typeof(e.value) <> 'string'
        OR NOT EXISTS (
-            SELECT 1 FROM "booking"."Schema" c
+            SELECT 1 FROM "<SCHEMA-NAME>"."Schema" c
             WHERE c.partition = NEW.partition AND c.id = e.key)
     LIMIT 1;
 
@@ -184,29 +184,29 @@ BEGIN
     RETURN NEW;
 END $$;
 
-DROP TRIGGER IF EXISTS entity_check ON "booking"."Entity";
+DROP TRIGGER IF EXISTS entity_check ON "<SCHEMA-NAME>"."Entity";
 CREATE TRIGGER entity_check
-    BEFORE INSERT ON "booking"."Entity"
-    FOR EACH ROW EXECUTE FUNCTION "booking".entity_check();
+    BEFORE INSERT ON "<SCHEMA-NAME>"."Entity"
+    FOR EACH ROW EXECUTE FUNCTION "<SCHEMA-NAME>".entity_check();
 
 -- -----------------------------------------------------------------------------
 -- Триггер 2: UPDATE = новая версия. Физического UPDATE не происходит:
 --   * бьёт только АКТУАЛЬНУЮ строку (не-latest молча игнорируются, история неизменна);
 --   * вместо апдейта вставляется новая версия с монотонным updated;
 --   * вставка проходит entity_check (валидация класса/links).
--- Работает и для голого SQL: UPDATE "booking"."Entity" SET data=… WHERE …
+-- Работает и для голого SQL: UPDATE "<SCHEMA-NAME>"."Entity" SET data=… WHERE …
 -- -----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION "booking".entity_update() RETURNS trigger
+CREATE OR REPLACE FUNCTION "<SCHEMA-NAME>".entity_update() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE latest timestamptz;
 BEGIN
-    SELECT max(updated) INTO latest FROM "booking"."Entity"
+    SELECT max(updated) INTO latest FROM "<SCHEMA-NAME>"."Entity"
      WHERE partition = OLD.partition AND class = OLD.class AND id = OLD.id;
     IF OLD.updated <> latest THEN
         RETURN NULL;                                   -- историческая версия неприкосновенна
     END IF;
 
-    INSERT INTO "booking"."Entity"
+    INSERT INTO "<SCHEMA-NAME>"."Entity"
         (partition, id, class, data, links, tags, account, owner, updated, deleted)
     VALUES
         (NEW.partition, NEW.id, NEW.class, NEW.data, NEW.links, NEW.tags, NEW.account, NEW.owner,
@@ -214,11 +214,11 @@ BEGIN
     RETURN NULL;                                       -- физический UPDATE отменён
 END $$;
 
-DROP TRIGGER IF EXISTS entity_no_update ON "booking"."Entity";
-DROP TRIGGER IF EXISTS entity_update ON "booking"."Entity";
+DROP TRIGGER IF EXISTS entity_no_update ON "<SCHEMA-NAME>"."Entity";
+DROP TRIGGER IF EXISTS entity_update ON "<SCHEMA-NAME>"."Entity";
 CREATE TRIGGER entity_update
-    BEFORE UPDATE ON "booking"."Entity"
-    FOR EACH ROW EXECUTE FUNCTION "booking".entity_update();
+    BEFORE UPDATE ON "<SCHEMA-NAME>"."Entity"
+    FOR EACH ROW EXECUTE FUNCTION "<SCHEMA-NAME>".entity_update();
 
 -- -----------------------------------------------------------------------------
 -- Триггер 3: DELETE = tombstone + РЕКУРСИВНЫЙ каскад по links — целиком в БД.
@@ -226,30 +226,30 @@ CREATE TRIGGER entity_update
 --   * advisory-lock сериализует параллельные удаления сущности;
 --   * каскад: DELETE живых зависимых (links ⊃ {класс: id}) → рекурсия этого же триггера;
 --   * физического удаления не происходит никогда (очистка истории — retention-политики).
--- Работает и для голого SQL: DELETE FROM "booking"."Entity" WHERE partition=… AND class=… AND id=…
+-- Работает и для голого SQL: DELETE FROM "<SCHEMA-NAME>"."Entity" WHERE partition=… AND class=… AND id=…
 -- -----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION "booking".entity_delete() RETURNS trigger
+CREATE OR REPLACE FUNCTION "<SCHEMA-NAME>".entity_delete() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE latest timestamptz;
 BEGIN
     PERFORM pg_advisory_xact_lock(
         hashtextextended(OLD.partition || '|' || OLD.class || '|' || OLD.id, 0));
 
-    SELECT max(updated) INTO latest FROM "booking"."Entity"
+    SELECT max(updated) INTO latest FROM "<SCHEMA-NAME>"."Entity"
      WHERE partition = OLD.partition AND class = OLD.class AND id = OLD.id;
     IF OLD.updated <> latest OR OLD.deleted IS NOT NULL THEN
         RETURN NULL;                                   -- не актуальная или уже tombstone: игнор
     END IF;
 
     -- tombstone-версия
-    INSERT INTO "booking"."Entity"
+    INSERT INTO "<SCHEMA-NAME>"."Entity"
         (partition, id, class, data, links, tags, account, owner, updated, deleted)
     VALUES
         (OLD.partition, OLD.id, OLD.class, OLD.data, OLD.links, OLD.tags, OLD.account, OLD.owner,
          GREATEST(clock_timestamp(), OLD.updated + interval '1 microsecond'), clock_timestamp());
 
     -- каскад: живые зависимые; их DELETE рекурсивно повторит этот триггер
-    DELETE FROM "booking"."Entity" e
+    DELETE FROM "<SCHEMA-NAME>"."Entity" e
      WHERE e.partition = OLD.partition
        AND e.deleted IS NULL
        AND e.links @> jsonb_build_object(OLD.class, OLD.id);
@@ -257,10 +257,10 @@ BEGIN
     RETURN NULL;                                       -- физическое удаление отменено
 END $$;
 
-DROP TRIGGER IF EXISTS entity_delete ON "booking"."Entity";
+DROP TRIGGER IF EXISTS entity_delete ON "<SCHEMA-NAME>"."Entity";
 CREATE TRIGGER entity_delete
-    BEFORE DELETE ON "booking"."Entity"
-    FOR EACH ROW EXECUTE FUNCTION "booking".entity_delete();
+    BEFORE DELETE ON "<SCHEMA-NAME>"."Entity"
+    FOR EACH ROW EXECUTE FUNCTION "<SCHEMA-NAME>".entity_delete();
 
 -- =============================================================================
 -- Служебные таблицы (auth/ACL) — перенесены из legacy-дампа 1:1.
@@ -268,7 +268,7 @@ CREATE TRIGGER entity_delete
 -- =============================================================================
 
 -- Аккаунты: пользователи и сервисы. Категории: System | User | Anonymous | Shadow…
-CREATE TABLE IF NOT EXISTS "booking"."Account" (
+CREATE TABLE IF NOT EXISTS "<SCHEMA-NAME>"."Account" (
     id         uuid                   DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     categories character varying[]    DEFAULT ARRAY['User'::text] NOT NULL,
     data       jsonb                  DEFAULT '{}'::jsonb NOT NULL,
@@ -282,18 +282,18 @@ CREATE TABLE IF NOT EXISTS "booking"."Account" (
 -- Ссылочная целостность Entity → Account. ТОЛЬКО RESTRICT:
 -- CASCADE/SET NULL невозможны — Entity append-only (физические UPDATE/DELETE запрещены триггером).
 -- Аккаунт со строками Entity (включая историю/tombstone) не удаляется — вместо этого enabled = false.
-ALTER TABLE "booking"."Entity" DROP CONSTRAINT IF EXISTS entity_account_fk;
-ALTER TABLE "booking"."Entity" ADD CONSTRAINT entity_account_fk
-    FOREIGN KEY (account) REFERENCES "booking"."Account"(id) ON UPDATE RESTRICT ON DELETE RESTRICT;
-ALTER TABLE "booking"."Entity" DROP CONSTRAINT IF EXISTS entity_owner_fk;
-ALTER TABLE "booking"."Entity" ADD CONSTRAINT entity_owner_fk
-    FOREIGN KEY (owner) REFERENCES "booking"."Account"(id) ON UPDATE RESTRICT ON DELETE RESTRICT;
+ALTER TABLE "<SCHEMA-NAME>"."Entity" DROP CONSTRAINT IF EXISTS entity_account_fk;
+ALTER TABLE "<SCHEMA-NAME>"."Entity" ADD CONSTRAINT entity_account_fk
+    FOREIGN KEY (account) REFERENCES "<SCHEMA-NAME>"."Account"(id) ON UPDATE RESTRICT ON DELETE RESTRICT;
+ALTER TABLE "<SCHEMA-NAME>"."Entity" DROP CONSTRAINT IF EXISTS entity_owner_fk;
+ALTER TABLE "<SCHEMA-NAME>"."Entity" ADD CONSTRAINT entity_owner_fk
+    FOREIGN KEY (owner) REFERENCES "<SCHEMA-NAME>"."Account"(id) ON UPDATE RESTRICT ON DELETE RESTRICT;
 
 -- Способы входа аккаунта: EMAILPASSWORD | APIKEY | KEYSECRET | TELEGRAM …
 -- Мягкое удаление колонкой deleted; уникальность способа на аккаунт.
-CREATE TABLE IF NOT EXISTS "booking"."Credential" (
+CREATE TABLE IF NOT EXISTS "<SCHEMA-NAME>"."Credential" (
     id         uuid                   DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    account    uuid                   NOT NULL REFERENCES "booking"."Account"(id) ON UPDATE CASCADE ON DELETE CASCADE,
+    account    uuid                   NOT NULL REFERENCES "<SCHEMA-NAME>"."Account"(id) ON UPDATE CASCADE ON DELETE CASCADE,
     category   character varying(255) DEFAULT 'EMAIL'::character varying NOT NULL,
     identifier character varying(255) NOT NULL,
     meta       jsonb                  DEFAULT '{}'::jsonb NOT NULL,
@@ -303,12 +303,12 @@ CREATE TABLE IF NOT EXISTS "booking"."Credential" (
     deleted    timestamptz,
     CONSTRAINT credential_unique UNIQUE (account, category, identifier)
 );
-CREATE INDEX IF NOT EXISTS credential_account_idx ON "booking"."Credential" (account) WHERE deleted IS NULL;
+CREATE INDEX IF NOT EXISTS credential_account_idx ON "<SCHEMA-NAME>"."Credential" (account) WHERE deleted IS NULL;
 -- Вход по identifier должен быть однозначен: один живой кред на (category, identifier) во всей схеме.
-CREATE UNIQUE INDEX IF NOT EXISTS credential_identity_udx ON "booking"."Credential" (category, identifier) WHERE deleted IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS credential_identity_udx ON "<SCHEMA-NAME>"."Credential" (category, identifier) WHERE deleted IS NULL;
 
 -- Именованные ресурсы ACL: субъекты ('authenticated:ACCOUNT') и объекты ('payment:API').
-CREATE TABLE IF NOT EXISTS "booking"."Resource" (
+CREATE TABLE IF NOT EXISTS "<SCHEMA-NAME>"."Resource" (
     alias    character varying(255) NOT NULL PRIMARY KEY,
     category character varying(255) NOT NULL,
     pattern  jsonb,
@@ -316,9 +316,9 @@ CREATE TABLE IF NOT EXISTS "booking"."Resource" (
 );
 
 -- Правила ACL: субъект → объект → allow|deny (+вес). Оба конца — Resource.alias (как в дампе).
-CREATE TABLE IF NOT EXISTS "booking"."Rule" (
-    account    character varying(255) NOT NULL REFERENCES "booking"."Resource"(alias) ON UPDATE CASCADE ON DELETE CASCADE,
-    resource   character varying(255) NOT NULL REFERENCES "booking"."Resource"(alias) ON UPDATE CASCADE ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS "<SCHEMA-NAME>"."Rule" (
+    account    character varying(255) NOT NULL REFERENCES "<SCHEMA-NAME>"."Resource"(alias) ON UPDATE CASCADE ON DELETE CASCADE,
+    resource   character varying(255) NOT NULL REFERENCES "<SCHEMA-NAME>"."Resource"(alias) ON UPDATE CASCADE ON DELETE CASCADE,
     permission character varying(255) NOT NULL,
     weight     integer,
     meta       jsonb,
@@ -330,33 +330,33 @@ CREATE TABLE IF NOT EXISTS "booking"."Rule" (
 -- Триггер 4: realtime — факт каждой новой версии в pg_notify (канал = имя схемы).
 -- Payload лёгкий (без data): подписчик дочитывает нужное сам. Потребитель: db.watch().
 -- -----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION "booking".entity_notify() RETURNS trigger
+CREATE OR REPLACE FUNCTION "<SCHEMA-NAME>".entity_notify() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
     -- канал = имя схемы ЛИТЕРАЛОМ: триггер исполняется на чанке hypertable,
     -- где TG_TABLE_SCHEMA = '_timescaledb_internal' (apply.mjs заменяет литерал)
-    PERFORM pg_notify('booking', json_build_object(
+    PERFORM pg_notify('<SCHEMA-NAME>', json_build_object(
         'partition', NEW.partition, 'class', NEW.class, 'id', NEW.id,
         'updated', NEW.updated, 'deleted', NEW.deleted IS NOT NULL)::text);
     RETURN NULL;
 END $$;
 
-DROP TRIGGER IF EXISTS entity_notify ON "booking"."Entity";
+DROP TRIGGER IF EXISTS entity_notify ON "<SCHEMA-NAME>"."Entity";
 CREATE TRIGGER entity_notify
-    AFTER INSERT ON "booking"."Entity"
-    FOR EACH ROW EXECUTE FUNCTION "booking".entity_notify();
+    AFTER INSERT ON "<SCHEMA-NAME>"."Entity"
+    FOR EACH ROW EXECUTE FUNCTION "<SCHEMA-NAME>".entity_notify();
 
 -- -----------------------------------------------------------------------------
 -- Опционально (включать по мере роста данных):
 --
 -- Сжатие старых чанков (экономия на версиях занятости/записей):
---   ALTER TABLE "booking"."Entity" SET (
+--   ALTER TABLE "<SCHEMA-NAME>"."Entity" SET (
 --       timescaledb.compress,
 --       timescaledb.compress_segmentby = 'partition, class, id',
 --       timescaledb.compress_orderby   = 'updated DESC'
 --   );
---   SELECT add_compression_policy('"booking"."Entity"', INTERVAL '30 days');
+--   SELECT add_compression_policy('"<SCHEMA-NAME>"."Entity"', INTERVAL '30 days');
 --
 -- Retention (если старые версии не нужны вечно):
---   SELECT add_retention_policy('"booking"."Entity"', INTERVAL '2 years');
+--   SELECT add_retention_policy('"<SCHEMA-NAME>"."Entity"', INTERVAL '2 years');
 -- -----------------------------------------------------------------------------

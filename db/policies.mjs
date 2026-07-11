@@ -4,9 +4,9 @@
  * История НЕ теряется при сжатии (~10-20×); retention — осознанный drop чанков старше N
  * (там наступает полное «забвение» анонимизированных персон, см. lib/README «Анонимизация»).
  *
- *   node db/policies.mjs --dsn=postgres://… --schema=booking --compress-after=30d
- *   node db/policies.mjs --dsn=… --schema=booking --compress-after=30d --retain=2y
- *   node db/policies.mjs --dsn=… --schema=booking                # показать текущее состояние
+ *   node db/policies.mjs --dsn=postgres://… --schema=v1.booking --compress-after=30d
+ *   node db/policies.mjs --dsn=… --schema=v1.booking --compress-after=30d --retain=2y
+ *   node db/policies.mjs --dsn=… --schema=v1.booking                # показать текущее состояние
  *
  * Интервалы: <n>m|h|d|w|mon|y ('30d', '2y') или сырой PG-интервал ('90 days').
  * Повторный запуск переустанавливает политику на новый интервал (remove + add).

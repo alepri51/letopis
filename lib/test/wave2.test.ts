@@ -9,8 +9,8 @@ const DSN = process.env.ENTITY_DSN ?? 'postgres://postgres:test@localhost:15432/
 let db: EntityDb;
 
 before(async () => {
-  db = await connect({ dsn: DSN, schema: 'booking' });
-  await db.sql.unsafe('TRUNCATE "booking"."Entity"');
+  db = await connect({ dsn: DSN, schema: 'v1.booking' });
+  await db.sql.unsafe('TRUNCATE "v1.booking"."Entity"');
 });
 after(async () => db.close());
 
@@ -67,7 +67,7 @@ test('enforceAccount: чужое невидимо, запись пришпиле
   await db.Организация().account(a1.id).set({ name: 'Org-A1' }).rows();
   await db.Организация().account(a2.id).set({ name: 'Org-A2' }).rows();
 
-  const t1 = await connect({ dsn: DSN, schema: 'booking', account: a1.id, enforceAccount: true });
+  const t1 = await connect({ dsn: DSN, schema: 'v1.booking', account: a1.id, enforceAccount: true });
   try {
     const мои = await t1.Организация().rows();
     assert.deepEqual(мои.map((r) => r.data.name), ['Org-A1']);           // чужого не видно
@@ -95,7 +95,7 @@ test('anonymize: string-поля затёрты, тег anonymized, истори
 });
 
 test('gen-types: генерирует интерфейсы классов и TypedDb', async () => {
-  execFileSync('npx', ['tsx', 'scripts/gen-types.mjs', `--dsn=${DSN}`, '--schema=booking', '--out=entity-types.gen.d.ts'], {
+  execFileSync('npx', ['tsx', 'scripts/gen-types.mjs', `--dsn=${DSN}`, '--schema=v1.booking', '--out=entity-types.gen.d.ts'], {
     cwd: new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'),
     shell: true,
   });

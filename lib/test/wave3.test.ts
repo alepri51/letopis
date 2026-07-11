@@ -8,8 +8,8 @@ const DSN = process.env.ENTITY_DSN ?? 'postgres://postgres:test@localhost:15432/
 let db: EntityDb;
 
 before(async () => {
-  db = await connect({ dsn: DSN, schema: 'booking' });
-  await db.sql.unsafe('TRUNCATE "booking"."Entity"');
+  db = await connect({ dsn: DSN, schema: 'v1.booking' });
+  await db.sql.unsafe('TRUNCATE "v1.booking"."Entity"');
   const [org] = await db.Организация().set({ name: 'W3' }).rows();
   const [cli] = await db.Организация(org).Клиент().set({ name: 'Клиент3' }).rows();
   for (const [status, rub] of [['created', 100], ['confirmed', 200], ['confirmed', 300], ['completed', 400], ['cancelled', 500]] as const) {

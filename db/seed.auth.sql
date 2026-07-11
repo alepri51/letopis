@@ -5,12 +5,12 @@
 -- =============================================================================
 
 -- Системный аккаунт (фиксированный id из дампа)
-INSERT INTO "booking"."Account" (id, categories, data, meta, avatar, enabled) VALUES
+INSERT INTO "<SCHEMA-NAME>"."Account" (id, categories, data, meta, avatar, enabled) VALUES
   ('2eba6d0a-1edd-4bb6-a85a-a703dab49035', '{System}', '{"id": "System", "name": "System"}', '{}', 'https://i.pravatar.cc/128?img=28', true)
   ON CONFLICT (id) DO NOTHING;
 
 -- Ресурсы: субъекты (категории аккаунтов) и объекты (API-эндпоинты)
-INSERT INTO "booking"."Resource" (alias, category, pattern, meta) VALUES
+INSERT INTO "<SCHEMA-NAME>"."Resource" (alias, category, pattern, meta) VALUES
   ('anonymous:ACCOUNT',      'ACCOUNT', '{"categories": "{Anonymous,Shadow}"}',  '{"description": "Unauthenticated users (includes Anonymous and Shadow categories)"}'),
   ('authenticated:ACCOUNT',  'ACCOUNT', '{"categories": "!{Anonymous,Shadow}"}', '{"description": "Authenticated users (excludes Anonymous and Shadow)"}'),
   ('any:ACCOUNT',            'ACCOUNT', NULL,                                    '{"description": "All account categories (no pattern = match all)"}'),
@@ -30,7 +30,7 @@ INSERT INTO "booking"."Resource" (alias, category, pattern, meta) VALUES
   ON CONFLICT (alias) DO UPDATE SET category = EXCLUDED.category, pattern = EXCLUDED.pattern, meta = EXCLUDED.meta;
 
 -- Правила: субъект → объект → allow|deny (weight — приоритет)
-INSERT INTO "booking"."Rule" (account, resource, permission, weight, meta, enabled) VALUES
+INSERT INTO "<SCHEMA-NAME>"."Rule" (account, resource, permission, weight, meta, enabled) VALUES
   ('authenticated:ACCOUNT', 'auth.user.password:API', 'allow',  90, '{"description": "Users can change their own password"}', true),
   ('authenticated:ACCOUNT', 'auth.user.session:API',  'allow',  90, '{"description": "Users can logout (revoke their session)"}', true),
   ('authenticated:ACCOUNT', 'auth.user.apikey:API',   'allow',  90, '{"description": "Users can manage their own API keys (service auto-filters by ctx.meta.$account.id)"}', true),

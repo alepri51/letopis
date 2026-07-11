@@ -15,7 +15,7 @@ import { connect, cursorOf, gte, exists } from '../src/index.js';
 import type { EntityDb } from '../src/chain.js';
 
 const DSN = process.env.ENTITY_DSN ?? 'postgres://postgres:test@localhost:15432/clockz';
-const SCHEMA = 'depth';
+const SCHEMA = 'v1.depth';
 const here = dirname(fileURLToPath(import.meta.url));
 const amount = (r: { data: Record<string, unknown> }) =>
   (r.data.settings as { booking: { deposit: { amount: number } } }).booking.deposit.amount;
@@ -26,7 +26,7 @@ before(async () => {
   const admin = postgres(DSN, { max: 1, onnotice: () => {} });
   await admin.unsafe(`DROP SCHEMA IF EXISTS "${SCHEMA}" CASCADE`);
   await admin.end();
-  execFileSync('node', [join(here, '../../db/apply.mjs'), `--dsn=${DSN}`, `--schema=${SCHEMA}`], { stdio: 'ignore' });
+  execFileSync('node', [join(here, '../../db/apply.mjs'), `--dsn=${DSN}`, '--schema=depth', '--version=1'], { stdio: 'ignore' });
   db = await connect({ dsn: DSN, schema: SCHEMA });
 });
 after(async () => db.close());

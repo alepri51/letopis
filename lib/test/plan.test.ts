@@ -13,7 +13,7 @@ import { connect } from '../src/index.js';
 import type { EntityDb } from '../src/chain.js';
 
 const DSN = process.env.ENTITY_DSN ?? 'postgres://postgres:test@localhost:15432/clockz';
-const SCHEMA = 'plan';
+const SCHEMA = 'v1.plan';
 const here = dirname(fileURLToPath(import.meta.url));
 
 let db: EntityDb;
@@ -22,7 +22,7 @@ before(async () => {
   const admin = postgres(DSN, { max: 1 });
   await admin.unsafe(`DROP SCHEMA IF EXISTS "${SCHEMA}" CASCADE`);
   await admin.end();
-  execFileSync('node', [join(here, '../../db/apply.mjs'), `--dsn=${DSN}`, `--schema=${SCHEMA}`], { stdio: 'ignore' });
+  execFileSync('node', [join(here, '../../db/apply.mjs'), `--dsn=${DSN}`, '--schema=plan', '--version=1'], { stdio: 'ignore' });
   db = await connect({ dsn: DSN, schema: SCHEMA });
 });
 after(async () => db.close());

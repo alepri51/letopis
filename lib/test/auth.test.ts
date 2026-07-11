@@ -18,7 +18,7 @@ let db: EntityDb;
 let redis: Redis;
 
 before(async () => {
-  db = await connect({ dsn: DSN, schema: 'booking' });
+  db = await connect({ dsn: DSN, schema: 'v1.booking' });
   redis = new Redis(REDIS);
 });
 after(async () => {

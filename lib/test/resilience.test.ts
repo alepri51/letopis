@@ -15,7 +15,7 @@ const DSN = process.env.ENTITY_DSN ?? 'postgres://postgres:test@localhost:15432/
 
 let db: EntityDb;
 before(async () => {
-  db = await connect({ dsn: DSN, schema: 'booking' });
+  db = await connect({ dsn: DSN, schema: 'v1.booking' });
 });
 after(async () => db.close());
 

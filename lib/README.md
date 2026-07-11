@@ -6,7 +6,7 @@ Dot-цепочки над append-only Entity-хранилищем (TimescaleDB).
 ```ts
 import { connect } from 'letopis'
 
-const db = await connect({ dsn: 'postgres://…', schema: 'booking' })
+const db = await connect({ dsn: 'postgres://…', schema: 'v1.booking' })
 
 // чтение: пути по графу
 const пути = await db.Сотрудник({ name: 'Вася' }).навык().Услуга().run()
@@ -43,12 +43,13 @@ await db.Организация(org).Сотрудник().set({ name: 'Вася'
 docker build -t clockz-db db/docker
 docker run -d --name clockz-timescale -e POSTGRES_PASSWORD=test -e POSTGRES_DB=clockz \
   -p 15432:5432 -p 16379:6379 clockz-db
-node db/apply.mjs --dsn=postgres://postgres:test@localhost:15432/clockz --schema=booking
+node db/apply.mjs --dsn=postgres://postgres:test@localhost:15432/clockz --schema=booking --version=1
+# SQL-шаблоны держат маркер <SCHEMA-NAME>; итоговая PG-схема — "v1.booking" (версия движка в имени)
 # = ddl.sql + seed.booking.sql + seed.auth.sql в указанную PG-схему (любую; --no-seed — только ddl)
 ```
 
 ```ts
-const db = await connect({ dsn: 'postgres://postgres:test@localhost:15432/clockz', schema: 'booking' })
+const db = await connect({ dsn: 'postgres://postgres:test@localhost:15432/clockz', schema: 'v1.booking' })
 const [org]  = await db.Организация().set({ name: 'BarberPro' }).rows()
 const [вася] = await db.Организация(org).Сотрудник().set({ name: 'Вася', roles: ['master'] }).rows()
 await db.close()
@@ -92,9 +93,9 @@ await db.close()
 
 ```sql
 -- голый SQL работает как либа:
-UPDATE "booking"."Entity" SET data = data || '{"duration":45}'
+UPDATE "v1.booking"."Entity" SET data = data || '{"duration":45}'
  WHERE partition='entity' AND class='Service' AND id='…';       -- → новая версия
-DELETE FROM "booking"."Entity"
+DELETE FROM "v1.booking"."Entity"
  WHERE partition='entity' AND class='Booking' AND id='…';        -- → tombstone + каскад
 ```
 
@@ -556,11 +557,11 @@ await db.Клиент(cid).Запись().позиция().run()     // связ
 
 ```sql
 -- вся партиция одним SQL
-SELECT * FROM (SELECT DISTINCT ON (class, id) * FROM "booking"."Entity"
+SELECT * FROM (SELECT DISTINCT ON (class, id) * FROM "v1.booking"."Entity"
   WHERE partition='entity' ORDER BY class, id, updated DESC) t WHERE t.deleted IS NULL;
 
 -- история сущности (все версии, включая tombstone)
-SELECT updated, deleted, data, links FROM "booking"."Entity"
+SELECT updated, deleted, data, links FROM "v1.booking"."Entity"
 WHERE partition='entity' AND class='Booking' AND id=$1 ORDER BY updated;
 ```
 
@@ -687,9 +688,9 @@ await db.Клиент(id).anonymize(['name', 'contact']).rows()
 ### 10.8 Политики хранения: `db/policies.mjs`
 
 ```bash
-node db/policies.mjs --dsn=… --schema=booking --compress-after=30d   # сжатие (история цела)
-node db/policies.mjs --dsn=… --schema=booking --retain=2y            # + retention (drop навсегда!)
-node db/policies.mjs --dsn=… --schema=booking                        # текущее состояние
+node db/policies.mjs --dsn=… --schema=v1.booking --compress-after=30d   # сжатие (история цела)
+node db/policies.mjs --dsn=… --schema=v1.booking --retain=2y            # + retention (drop навсегда!)
+node db/policies.mjs --dsn=… --schema=v1.booking                     # текущее состояние
 ```
 
 - **Сжатие** — чанки старше N: `segmentby (partition, class, id)` кладёт версии сущности рядом
@@ -703,14 +704,14 @@ node db/policies.mjs --dsn=… --schema=booking                        # тек�
 ### 10.9 Миграции классов: `scripts/schema-sync.mjs`
 
 ```bash
-node scripts/schema-sync.mjs --file=../schema.booking.v2.json --dsn=… --schema=booking
+node scripts/schema-sync.mjs --file=../schema.booking.v2.json --dsn=… --schema=v1.booking
 #   schema-sync: … ↔ booking.Schema (partition entity)
 #     + Coupon (HUB · Купон) — новый класс
 #     ~ Service — изменены: attributes
 #     ! Service: 3/50 живых строк НЕ пройдут новую валидацию:
 #         id=… → brand — The 'brand' field is required.
 #   ИТОГ: ломающие изменения (3 строк) … exit 1
-node scripts/schema-sync.mjs --file=… --dsn=… --schema=booking --apply   # применить
+node scripts/schema-sync.mjs --file=… --dsn=… --schema=v1.booking --apply   # применить
 ```
 
 Diff файла и таблицы Schema (новые/изменённые/отсутствующие классы) + отчёт совместимости:
@@ -735,7 +736,7 @@ const db = await connect({
 ### 10.11 TS-типы из Schema: `scripts/gen-types.mjs`
 
 ```bash
-npx tsx scripts/gen-types.mjs --dsn=… --schema=booking --out=entity-types.d.ts
+npx tsx scripts/gen-types.mjs --dsn=… --schema=v1.booking --out=entity-types.d.ts
 ```
 
 ```ts
@@ -799,7 +800,7 @@ deadlock detected — letopis: transaction is aborted, retry the whole db.begin(
 | Параметр | Тип | Default | Описание |
 |---|---|---|---|
 | `opts.dsn` | `string` | — | строка подключения `postgres://user:pass@host:port/db` |
-| `opts.schema` | `string` | — | PG-схема с таблицами Entity/Schema/Account/… (движок ставится `db/apply.mjs`) |
+| `opts.schema` | `string` | — | ПОЛНОЕ имя PG-схемы с версией движка: `'v1.booking'` (создаёт `db/apply.mjs --schema=booking --version=1`; либа префикс не достраивает) |
 | `opts.partition` | `string?` | `'entity'` | партиция данных: все чтения/записи этого подключения живут в ней |
 | `opts.account` | `uuid?` | System-аккаунт схемы | default-`account` (арендатор) новых строк |
 | `opts.owner` | `uuid?` | = `account` | default-`owner` (владелец) новых строк |
@@ -820,11 +821,11 @@ NOT NULL `Entity.account`. При `enforceAcl: true` дополнительно 
 **Примеры**
 
 ```ts
-const db = await connect({ dsn, schema: 'article', onQuery: (e) => log(e) })   // [34.4 ms]
+const db = await connect({ dsn, schema: 'v1.article', onQuery: (e) => log(e) })   // [34.4 ms]
 await db.Услуга('…0021').first()
 // событие onQuery: {"mode":"rows","classes":["Service"],"ms":13.1,"rows":1,"slow":false}
 
-const dbSlow = await connect({ dsn, schema: 'article', slowMs: 200, onQuery: … })  // [32.8 ms]
+const dbSlow = await connect({ dsn, schema: 'v1.article', slowMs: 200, onQuery: … })  // [32.8 ms]
 await dbSlow.Запись().count()   // 250k сущностей — дольше порога:
 // {"mode":"count","classes":["Booking"],"ms":491.9,"rows":1,"slow":true}
 ```
@@ -1019,7 +1020,7 @@ db.registry.resolve('Запись')   // [90 µs] → ClassDef {id: 'Booking', a
 Ответственность за SQL — на вызывающем (движок цепочек его не проверяет).
 
 ```ts
-await db.sql.unsafe('SELECT count(*)::int AS n FROM "article"."Entity"')
+await db.sql.unsafe('SELECT count(*)::int AS n FROM "v1.article"."Entity"')
 // [32.3 ms] → [{ n: 1112925 }]
 ```
 

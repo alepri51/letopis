@@ -12,7 +12,7 @@ import type { QueryEvent } from '../src/types.js';
 import type { EntityDb } from '../src/chain.js';
 
 const DSN = process.env.ENTITY_DSN ?? 'postgres://postgres:test@localhost:15432/clockz';
-const SCHEMA = 'wave4'; // своя PG-схема: compression не должна трогать тестовую "booking"
+const SCHEMA = 'v1.wave4'; // своя PG-схема: compression не должна трогать тестовую "v1.booking"
 const here = dirname(fileURLToPath(import.meta.url));
 const SYS = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
 const rub = (r: unknown) => (r as { data: { price: { RUB: number } } }).data.price.RUB;
@@ -23,7 +23,7 @@ before(async () => {
   const admin = postgres(DSN, { max: 1 });
   await admin.unsafe(`DROP SCHEMA IF EXISTS "${SCHEMA}" CASCADE`);
   await admin.end();
-  execFileSync('node', [join(here, '../../db/apply.mjs'), `--dsn=${DSN}`, `--schema=${SCHEMA}`], { stdio: 'ignore' });
+  execFileSync('node', [join(here, '../../db/apply.mjs'), `--dsn=${DSN}`, '--schema=wave4', '--version=1'], { stdio: 'ignore' });
   db = await connect({ dsn: DSN, schema: SCHEMA });
 });
 after(async () => db.close());

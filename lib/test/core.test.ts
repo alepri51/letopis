@@ -14,8 +14,8 @@ const SYS = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
 let db: EntityDb;
 
 before(async () => {
-  db = await connect({ dsn: DSN, schema: 'booking' });
-  await db.sql.unsafe('TRUNCATE "booking"."Entity"');
+  db = await connect({ dsn: DSN, schema: 'v1.booking' });
+  await db.sql.unsafe('TRUNCATE "v1.booking"."Entity"');
 });
 
 after(async () => {
@@ -28,14 +28,14 @@ after(async () => {
 
 test('триггер: unknown class отклоняется', async () => {
   await assert.rejects(
-    db.sql.unsafe(`INSERT INTO "booking"."Entity" (partition,id,class,account,owner) VALUES ('entity','t-x1','Nope','${SYS}','${SYS}')`),
+    db.sql.unsafe(`INSERT INTO "v1.booking"."Entity" (partition,id,class,account,owner) VALUES ('entity','t-x1','Nope','${SYS}','${SYS}')`),
     /unknown class "Nope"|entity_class_fk/,
   );
 });
 
 test('триггер: abstract класс отклоняется', async () => {
   await assert.rejects(
-    db.sql.unsafe(`INSERT INTO "booking"."Entity" (partition,id,class,account,owner) VALUES ('entity','t-x2','Entity','${SYS}','${SYS}')`),
+    db.sql.unsafe(`INSERT INTO "v1.booking"."Entity" (partition,id,class,account,owner) VALUES ('entity','t-x2','Entity','${SYS}','${SYS}')`),
     /is abstract/,
   );
 });
@@ -43,7 +43,7 @@ test('триггер: abstract класс отклоняется', async () => {
 test('триггер: LINK без обязательного конца отклоняется', async () => {
   await assert.rejects(
     db.sql.unsafe(
-      `INSERT INTO "booking"."Entity" (partition,id,class,links,account,owner) VALUES ('entity','t-x3','busy','{"Staff":"s1"}','${SYS}','${SYS}')`,
+      `INSERT INTO "v1.booking"."Entity" (partition,id,class,links,account,owner) VALUES ('entity','t-x3','busy','{"Staff":"s1"}','${SYS}','${SYS}')`,
     ),
     /requires end "Slot"/,
   );
@@ -52,7 +52,7 @@ test('триггер: LINK без обязательного конца откл
 test('триггер: links-ключ не класс отклоняется', async () => {
   await assert.rejects(
     db.sql.unsafe(
-      `INSERT INTO "booking"."Entity" (partition,id,class,links,account,owner) VALUES ('entity','t-x4','Org','{"Ghost":"g1"}','${SYS}','${SYS}')`,
+      `INSERT INTO "v1.booking"."Entity" (partition,id,class,links,account,owner) VALUES ('entity','t-x4','Org','{"Ghost":"g1"}','${SYS}','${SYS}')`,
     ),
     /is not a class/,
   );
@@ -60,36 +60,36 @@ test('триггер: links-ключ не класс отклоняется', as
 
 test('триггеры БД: UPDATE = новая версия, DELETE = tombstone + серверный каскад', async () => {
   await db.sql.unsafe(
-    `INSERT INTO "booking"."Entity" (partition,id,class,data,account,owner)
+    `INSERT INTO "v1.booking"."Entity" (partition,id,class,data,account,owner)
      VALUES ('entity','t-ro','Org','{"name":"RO"}','${SYS}','${SYS}')`,
   );
   await db.sql.unsafe(
-    `INSERT INTO "booking"."Entity" (partition,id,class,data,links,account,owner)
+    `INSERT INTO "v1.booking"."Entity" (partition,id,class,data,links,account,owner)
      VALUES ('entity','t-ro-staff','Staff','{"name":"Ч","roles":["master"]}','{"Org":"t-ro"}','${SYS}','${SYS}')`,
   );
 
   // UPDATE голым SQL → триггер вставляет новую версию, физического апдейта нет
-  await db.sql.unsafe(`UPDATE "booking"."Entity" SET data = data || '{"name":"RO2"}' WHERE id='t-ro' AND class='Org'`);
+  await db.sql.unsafe(`UPDATE "v1.booking"."Entity" SET data = data || '{"name":"RO2"}' WHERE id='t-ro' AND class='Org'`);
   const v = (await db.sql.unsafe(
-    `SELECT count(*)::int n, (SELECT data->>'name' FROM "booking"."Entity" WHERE id='t-ro' ORDER BY updated DESC LIMIT 1) name
-     FROM "booking"."Entity" WHERE id='t-ro'`,
+    `SELECT count(*)::int n, (SELECT data->>'name' FROM "v1.booking"."Entity" WHERE id='t-ro' ORDER BY updated DESC LIMIT 1) name
+     FROM "v1.booking"."Entity" WHERE id='t-ro'`,
   )) as never as { n: number; name: string }[];
   assert.equal(v[0].n, 2);
   assert.equal(v[0].name, 'RO2');
 
   // DELETE голым SQL → tombstone + каскад на Staff — всё в БД
-  await db.sql.unsafe(`DELETE FROM "booking"."Entity" WHERE partition='entity' AND class='Org' AND id='t-ro'`);
+  await db.sql.unsafe(`DELETE FROM "v1.booking"."Entity" WHERE partition='entity' AND class='Org' AND id='t-ro'`);
   assert.equal(await db.Организация('t-ro').count(), 0);
   assert.equal(await db.Сотрудник('t-ro-staff').count(), 0);
   const hist = (await db.sql.unsafe(
-    `SELECT count(*)::int n FROM "booking"."Entity" WHERE id IN ('t-ro','t-ro-staff')`,
+    `SELECT count(*)::int n FROM "v1.booking"."Entity" WHERE id IN ('t-ro','t-ro-staff')`,
   )) as never as { n: number }[];
   assert.equal(hist[0].n, 5); // 3 старых + 2 tombstone — история цела
 
   // повторный DELETE — no-op
-  await db.sql.unsafe(`DELETE FROM "booking"."Entity" WHERE partition='entity' AND class='Org' AND id='t-ro'`);
+  await db.sql.unsafe(`DELETE FROM "v1.booking"."Entity" WHERE partition='entity' AND class='Org' AND id='t-ro'`);
   const hist2 = (await db.sql.unsafe(
-    `SELECT count(*)::int n FROM "booking"."Entity" WHERE id='t-ro'`,
+    `SELECT count(*)::int n FROM "v1.booking"."Entity" WHERE id='t-ro'`,
   )) as never as { n: number }[];
   assert.equal(hist2[0].n, 3);
 });
@@ -262,7 +262,7 @@ test('set: фильтр-update создаёт новую версию; latest о
   const till = await db.Сотрудник({ name: 'Вася' }).first();
   assert.ok(till);
   const before = (await db.sql.unsafe(
-    `SELECT count(*)::int AS n FROM "booking"."Entity" WHERE id = $1`, [till.id] as never[],
+    `SELECT count(*)::int AS n FROM "v1.booking"."Entity" WHERE id = $1`, [till.id] as never[],
   )) as never as { n: number }[];
 
   const updated = await db.Сотрудник({ name: 'Вася' }).set({ active: false }).rows();
@@ -271,7 +271,7 @@ test('set: фильтр-update создаёт новую версию; latest о
   assert.equal(updated[0].data.name, 'Вася'); // merge сохранил поля
 
   const after = (await db.sql.unsafe(
-    `SELECT count(*)::int AS n FROM "booking"."Entity" WHERE id = $1`, [till.id] as never[],
+    `SELECT count(*)::int AS n FROM "v1.booking"."Entity" WHERE id = $1`, [till.id] as never[],
   )) as never as { n: number }[];
   assert.equal(after[0].n, before[0].n + 1);
 
@@ -321,7 +321,7 @@ test('.link(): значения связей ДО set() — link-форма и i
 
   // один терминал — один INSERT, версия не плодится
   const hist = (await db.sql.unsafe(
-    `SELECT count(*)::int n FROM "booking"."Entity" WHERE id = 'bz-z1'`,
+    `SELECT count(*)::int n FROM "v1.booking"."Entity" WHERE id = 'bz-z1'`,
   )) as never as { n: number }[];
   assert.equal(hist[0].n, 1);
 
@@ -379,7 +379,7 @@ test('delete: tombstone + серверный каскад; возврат все
   assert.equal(await db.Запись(bkg.id).count(), 0);
   assert.equal((await db.занятость('busy-del-1').rows()).length, 0);
   const hist = (await db.sql.unsafe(
-    `SELECT count(*)::int AS n FROM "booking"."Entity" WHERE id = $1`, [bkg.id] as never[],
+    `SELECT count(*)::int AS n FROM "v1.booking"."Entity" WHERE id = $1`, [bkg.id] as never[],
   )) as never as { n: number }[];
   assert.ok(hist[0].n >= 2); // история жива
 });
@@ -485,7 +485,7 @@ test('батч: копит, run() атомарно, контекст в батч
 
 test('EXPLAIN: цепочка использует GIN/latest-индексы (без seq scan при enable_seqscan=off)', async () => {
   const q = buildRead(
-    { sql: db.sql, registry: db.registry, pgSchema: 'booking', partition: 'entity' },
+    { sql: db.sql, registry: db.registry, pgSchema: 'v1.booking', partition: 'entity' },
     [
       { name: 'Сотрудник', cls: db.registry.resolve('Сотрудник'), filter: { name: 'Вася' } },
       { name: 'навык', cls: db.registry.resolve('навык') },

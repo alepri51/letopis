@@ -15,8 +15,8 @@ let db: EntityDb;
 const S: Record<string, Row> = {}; // сцена
 
 before(async () => {
-  db = await connect({ dsn: DSN, schema: 'booking' });
-  await db.sql.unsafe('TRUNCATE "booking"."Entity"');
+  db = await connect({ dsn: DSN, schema: 'v1.booking' });
+  await db.sql.unsafe('TRUNCATE "v1.booking"."Entity"');
 });
 
 after(async () => {
@@ -161,7 +161,7 @@ test('6. жизненный цикл: created → confirmed → completed (ис�
   assert.equal(актуальная.data.source, 'online'); // merge сохранил поля
 
   const версии = (await db.sql.unsafe(
-    `SELECT count(*)::int AS n FROM "booking"."Entity" WHERE id = $1 AND class = 'Booking'`,
+    `SELECT count(*)::int AS n FROM "v1.booking"."Entity" WHERE id = $1 AND class = 'Booking'`,
     [S.bkg1.id] as never[],
   )) as never as { n: number }[];
   assert.equal(версии[0].n, 3);

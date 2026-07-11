@@ -28,8 +28,8 @@ const rub = (item: Row) => (item.data.price as { RUB: number }).RUB;
 const busyId = (master: Row, win: Row) => `busy-${master.id}-${win.id}`;
 
 before(async () => {
-  db = await connect({ dsn: DSN, schema: 'booking' });
-  await db.sql.unsafe('TRUNCATE "booking"."Entity"');
+  db = await connect({ dsn: DSN, schema: 'v1.booking' });
+  await db.sql.unsafe('TRUNCATE "v1.booking"."Entity"');
 
   // Салон, мастера, каталог, навыки — связи dot-цепочками
   [S.салон] = await db.Организация().set({ name: 'Ласточка' }).rows();
@@ -254,7 +254,7 @@ test('С3. Race: Оля и Боря одновременно на Марину 1
 
   const живые = (await db.sql.unsafe(
     `SELECT count(*)::int n FROM (
-       SELECT DISTINCT ON (id) deleted FROM "booking"."Entity"
+       SELECT DISTINCT ON (id) deleted FROM "v1.booking"."Entity"
        WHERE partition='entity' AND class='busy' AND id=$1 ORDER BY id, updated DESC
      ) t WHERE t.deleted IS NULL`,
     [busyId(S.марина, окно(13))] as never[],
@@ -290,7 +290,7 @@ test('С6. Перенос времени: Аня 10:00 → 12:00 (та же Св
   assert.ok((await freeSlots(S.света)).has(окно(10).id)); // 10:00 свободно
 
   const версии = (await db.sql.unsafe(
-    `SELECT count(*)::int n FROM "booking"."Entity" WHERE id=$1 AND class='Booking'`,
+    `SELECT count(*)::int n FROM "v1.booking"."Entity" WHERE id=$1 AND class='Booking'`,
     [S.зАни.id] as never[],
   )) as never as { n: number }[];
   assert.equal(версии[0].n, 2); // created → confirmed
@@ -335,11 +335,11 @@ test('С9. Отмена: Оля отменяет педикюр → окна 14,
 
 test('С10. Повторная отмена — идемпотентный no-op', async () => {
   const версииДо = (await db.sql.unsafe(
-    `SELECT count(*)::int n FROM "booking"."Entity" WHERE id=$1`, [S.зОлиПедикюр.id] as never[],
+    `SELECT count(*)::int n FROM "v1.booking"."Entity" WHERE id=$1`, [S.зОлиПедикюр.id] as never[],
   )) as never as { n: number }[];
   assert.equal(await cancel(S.зОлиПедикюр), false);
   const версииПосле = (await db.sql.unsafe(
-    `SELECT count(*)::int n FROM "booking"."Entity" WHERE id=$1`, [S.зОлиПедикюр.id] as never[],
+    `SELECT count(*)::int n FROM "v1.booking"."Entity" WHERE id=$1`, [S.зОлиПедикюр.id] as never[],
   )) as never as { n: number }[];
   assert.equal(версииПосле[0].n, версииДо[0].n); // версий не прибавилось
 });
@@ -458,7 +458,7 @@ test('С16. Конец дня: завершение визитов, отчёты
   }
   // (в) история цела: у но-шоу Ани ≥ 3 версий (created→confirmed→no_show)
   const версииАни = (await db.sql.unsafe(
-    `SELECT count(*)::int n FROM "booking"."Entity" WHERE id=$1 AND class='Booking'`,
+    `SELECT count(*)::int n FROM "v1.booking"."Entity" WHERE id=$1 AND class='Booking'`,
     [S.зАни.id] as never[],
   )) as never as { n: number }[];
   assert.ok(версииАни[0].n >= 3);

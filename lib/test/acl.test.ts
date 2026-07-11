@@ -17,7 +17,7 @@ import type { EntityDb, WatchEvent } from '../src/chain.js';
 import type { Account } from '../src/index.js';
 
 const DSN = process.env.ENTITY_DSN ?? 'postgres://postgres:test@localhost:15432/clockz';
-const SCHEMA = 'acl';
+const SCHEMA = 'v1.acl';
 const here = dirname(fileURLToPath(import.meta.url));
 
 let sys: EntityDb; // без enforce — обустройство полигона
@@ -30,7 +30,7 @@ before(async () => {
   const admin = postgres(DSN, { max: 1, onnotice: () => {} });
   await admin.unsafe(`DROP SCHEMA IF EXISTS "${SCHEMA}" CASCADE`);
   await admin.end();
-  execFileSync('node', [join(here, '../../db/apply.mjs'), `--dsn=${DSN}`, `--schema=${SCHEMA}`], { stdio: 'ignore' });
+  execFileSync('node', [join(here, '../../db/apply.mjs'), `--dsn=${DSN}`, '--schema=acl', '--version=1'], { stdio: 'ignore' });
 
   sys = await connect({ dsn: DSN, schema: SCHEMA });
   // наследование для lineage-прав: Vehicle → Car → SportsCar

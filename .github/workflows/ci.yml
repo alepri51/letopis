@@ -37,7 +37,7 @@ jobs:
         run: npm ci
 
       - name: Apply engine + seeds (booking schema)
-        run: node db/apply.mjs --dsn='postgres://postgres:test@localhost:15432/clockz' --schema=booking
+        run: node db/apply.mjs --dsn='postgres://postgres:test@localhost:15432/clockz' --schema=booking --version=1
 
       - name: Typecheck
         working-directory: lib

@@ -19,8 +19,8 @@ let db: EntityDb;
 const S: Record<string, Row> = {}; // общий сид
 
 before(async () => {
-  db = await connect({ dsn: DSN, schema: 'booking', max: 4 });
-  await db.sql.unsafe('TRUNCATE "booking"."Entity"');
+  db = await connect({ dsn: DSN, schema: 'v1.booking', max: 4 });
+  await db.sql.unsafe('TRUNCATE "v1.booking"."Entity"');
 
   const [org] = await db.Организация().set({ name: 'API-салон', phone: '+7-900-000-00-00' }).rows();
   const [vasya] = await db.Организация(org).Сотрудник().set({ name: 'Вася', roles: ['owner', 'master'] }).rows();
@@ -53,7 +53,7 @@ test('✔ connect: schema/partition/account/owner/max, System-fallback, неиз
 
   // account/owner из connect
   const acc = await db.accounts.set({ categories: ['Client'] });
-  const scoped = await connect({ dsn: DSN, schema: 'booking', account: acc.id, owner: acc.id, max: 2 });
+  const scoped = await connect({ dsn: DSN, schema: 'v1.booking', account: acc.id, owner: acc.id, max: 2 });
   const [mine] = await scoped.Организация().set({ name: 'Своя орга' }).rows();
   assert.equal(mine.account, acc.id);
   assert.equal(mine.owner, acc.id);
@@ -61,7 +61,7 @@ test('✔ connect: schema/partition/account/owner/max, System-fallback, неиз
   await db.Организация(mine.id).delete({ confirm: true }).rows();
 
   // partition: классов для чужой партиции нет → понятная ошибка
-  await assert.rejects(connect({ dsn: DSN, schema: 'booking', partition: 'нет-такой' }), /no classes for partition/);
+  await assert.rejects(connect({ dsn: DSN, schema: 'v1.booking', partition: 'нет-такой' }), /no classes for partition/);
 
   // неизвестный класс — ошибка со списком известных (id·alias)
   assert.throws(() => (db as unknown as Record<string, () => void>).Чебурашка(), /unknown class "Чебурашка".*Staff·Сотрудник/);
@@ -355,7 +355,7 @@ test('✔ tx: begin/commit/rollback (обе формы), повторный no-o
 test('✔ batch: копление/size/discard, multi-VALUES, атомарный откат, контекст-связи', async () => {
   // события запросов покажут склейку multi-VALUES
   const events: QueryEvent[] = [];
-  const hooked = await connect({ dsn: DSN, schema: 'booking', onQuery: (e) => events.push(e) });
+  const hooked = await connect({ dsn: DSN, schema: 'v1.booking', onQuery: (e) => events.push(e) });
 
   // чистые INSERT (один шаг, без контекста и data.id) склеиваются в один multi-VALUES
   const b = hooked.batch('пачка');
@@ -464,7 +464,7 @@ test('✔ watch: все классы и фильтр-класс, insert/tombston
 
 test('✔ enforceAccount: чужое невидимо, чтение и запись пришпилены', async () => {
   const tenant = await db.accounts.set({ categories: ['Client'] });
-  const iso = await connect({ dsn: DSN, schema: 'booking', account: tenant.id, enforceAccount: true });
+  const iso = await connect({ dsn: DSN, schema: 'v1.booking', account: tenant.id, enforceAccount: true });
 
   const [own] = await iso.Организация().set({ name: 'Только моя' }).rows();
   assert.equal(own.account, tenant.id);
@@ -480,7 +480,7 @@ test('✔ enforceAccount: чужое невидимо, чтение и запи�
 
 test('✔ onQuery/slowMs: события чтения и записи с mode/classes/ms/rows', async () => {
   const events: QueryEvent[] = [];
-  const hooked = await connect({ dsn: DSN, schema: 'booking', slowMs: 10_000, onQuery: (e) => events.push(e) });
+  const hooked = await connect({ dsn: DSN, schema: 'v1.booking', slowMs: 10_000, onQuery: (e) => events.push(e) });
   await hooked.Услуга().навык().count();
   const [tmp] = await hooked.Организация(S.org).Клиент().set({ name: 'Хукнутый' }).rows();
   await hooked.Клиент(tmp.id).delete({ confirm: true }).rows();
