@@ -2,7 +2,7 @@
 
 *Версионируемое entity-хранилище поверх TimescaleDB с запросами точками: `db.Сотрудник({name:'Вася'}).навык().Услуга().execute()`. Каждая запись — навсегда. Каждое изменение — новая строка. Каждый спор «а какая цена была на момент брони» решается одним вызовом.*
 
-> Пакет: [`letopis`](https://www.npmjs.com/package/letopis) (ранее entity-chain). 103 автономных теста, бенчмарки на 1.1M строк, статус — крепкая beta. Все примеры, ответы и тайминги в этой статье — снятые с живого прогона на базе в **1 112 860 строк**, не выдуманные.
+> Пакет: [`letopis`](https://www.npmjs.com/package/letopis) (ранее entity-chain). 105 автономных тестов, бенчмарки на 1.1M строк, статус — крепкая beta. Все примеры, ответы и тайминги в этой статье — снятые с живого прогона на базе в **1 112 860 строк**, не выдуманные.
 
 ---
 
@@ -597,6 +597,37 @@ await db.auth.lookup({ category: 'TELEGRAM', identifier: '163524691' })
 | `KEYSECRET` | `34c686446f32730a` | `{name: "интеграция-1С", secret: "316e4e8bf726…"}` |
 | `TELEGRAM` | `163524691` | `{username: "roboteza"}` |
 
+OTP — оба вида, без зависимостей. **TOTP** (authenticator-приложения, RFC 6238):
+
+```ts
+const { secret, uri } = await db.auth.enrollTotp({ account: acc, issuer: 'clockz', label: 'anna@salon.io' })
+// secret = "RWVB3WWQ62LEED55AMU6L425C6KIT5EJ" — в QR для Google Authenticator/1Password [5.6 ms]
+// uri = "otpauth://totp/anna%40salon.io?secret=…&issuer=clockz&algorithm=SHA1&digits=6&period=30"
+
+await db.auth.verifyTotp({ account: acc, code: '139999' })   // → true   [4.9 ms]
+await db.auth.verifyTotp({ account: acc, code: '139999' })   // → false  — replay того же шага отбит (meta.lastStep)
+await db.auth.totpEnabled(acc)                               // → true   — фактор активен после первой проверки
+```
+
+Окно ±1 шаг (30 s, часы плывут), однажды принятый шаг не принимается вторично,
+re-enroll выдаёт новый секрет и сбрасывает подтверждение. Хелпер `totpCode(secret)`
+экспортирован — тесты и серверная генерация.
+
+**Одноразовые коды** (email/SMS/сброс пароля — доставку делает приложение, хранение и проверку — БД):
+
+```ts
+const { code } = await db.auth.issueOtp({ account: acc, identifier: 'anna@salon.io', ttlSec: 600 })
+// code = "273746" — отдаётся один раз; в БД:                              [3.3 ms]
+//   meta = { code: "efa7374487c3…" (sha256), expires: "2026-07-11T11:06:19.150Z", attempts: 0 }
+
+await db.auth.verifyOtp({ identifier: 'anna@salon.io', code })
+// → { account, credential } — и код СОЖЖЁН                                [6.0 ms]
+await db.auth.verifyOtp({ identifier: 'anna@salon.io', code })   // → null [1.3 ms]
+```
+
+Одноразовость жёсткая: успех сжигает код, 5 неверных попыток сжигают, истёкший TTL сжигает,
+повторный `issueOtp` затирает предыдущий код (валиден только последний).
+
 Сессии — во внешнем Redis (клиент инжектируется, интерфейс `SessionStore`, ioredis подходит
 как есть; в зависимости letopis не входит):
 
@@ -737,6 +768,7 @@ TS-типы всех классов из живой Schema (enum → union-ли�
 | Батч из 2 INSERT одной транзакцией | 34 ms |
 | Вход по паролю — `db.auth.verifyPassword` (цена scrypt, выровнена) | 60–80 ms |
 | Вход по api-ключу / ключ-секрету / внешней identity | 2–7 ms |
+| TOTP enroll / verify; одноразовый код issue / verify | 3–6 ms |
 | Сессия в Redis: `start` / `check` | 2.0 / 0.3 ms |
 | **Сортировка/keyset ВСЕГО класса 250k без фильтра** | **~1.7–1.9 s** |
 
@@ -785,7 +817,7 @@ TS-типы всех классов из живой Schema (enum → union-ли�
 
 ## 9. Статус и что дальше
 
-Сегодня: движок (DDL + триггеры + FK) ~370 строк SQL, библиотека ~3k строк TypeScript без тяжёлых зависимостей (postgres.js + fastest-validator), 103 автономных теста (включая сквозной чек-лист каждого публичного метода, 16 «живых» сцен дня салона, вход/сессии на живом Redis и сбои: настоящий deadlock, обрыв LISTEN-соединения), CI на живой БД, три бенчмарка, полный API reference, пакет [`letopis`](https://www.npmjs.com/package/letopis) в npm. Auth-слой встроен: много кредов на аккаунт (пароль scrypt / api-ключи sha256 / ключ-секрет / внешние identity) и сессии в Redis. Transient-ошибки (deadlock/serialization) ретраятся там, где повтор безопасен; в `db.begin()` — честная ошибка с подсказкой. Из 16 пробелов, найденных при сравнении со зрелыми системами, закрыто 15 — остался row-level ACL поверх правил доступа, осознанно отложенный.
+Сегодня: движок (DDL + триггеры + FK) ~370 строк SQL, библиотека ~3k строк TypeScript без тяжёлых зависимостей (postgres.js + fastest-validator), 105 автономных тестов (включая сквозной чек-лист каждого публичного метода, 16 «живых» сцен дня салона, вход/сессии на живом Redis и сбои: настоящий deadlock, обрыв LISTEN-соединения), CI на живой БД, три бенчмарка, полный API reference, пакет [`letopis`](https://www.npmjs.com/package/letopis) в npm. Auth-слой встроен: много кредов на аккаунт (пароль scrypt / api-ключи sha256 / ключ-секрет / внешние identity) и сессии в Redis. Transient-ошибки (deadlock/serialization) ретраятся там, где повтор безопасен; в `db.begin()` — честная ошибка с подсказкой. Из 16 пробелов, найденных при сравнении со зрелыми системами, закрыто 15 — остался row-level ACL поверх правил доступа, осознанно отложенный.
 
 Кандидаты следующей волны: полнотекст, клиенты вне JS.
 

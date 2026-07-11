@@ -62,6 +62,7 @@ export type {
 } from './types.js';
 export type { EntityDb, EntityTx, Chain, Batch, WatchEvent, WatchOpts } from './chain.js';
 export type { Tables, AccountsApi, CredentialsApi, ResourcesApi, RulesApi } from './tables.js';
+export { totpCode } from './auth.js';
 export type { AuthApi, AuthResult } from './auth.js';
 export type { SessionStore, Sessions, Session } from './sessions.js';
 export { ValidationError } from './write.js';

@@ -6,7 +6,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import Redis from 'ioredis';
-import { connect } from '../src/index.js';
+import { connect, totpCode } from '../src/index.js';
 import type { EntityDb } from '../src/chain.js';
 
 const DSN = process.env.ENTITY_DSN ?? 'postgres://postgres:test@localhost:15432/clockz';
@@ -130,6 +130,64 @@ test('глобальная идентичность: один живой identif
   await db.credentials.delete(cred.id);
   const took = await db.auth.setPassword({ account: a2, identifier: email, password: 'p2' });
   assert.equal(took.account, a2.id);
+});
+
+test('TOTP: enroll → verify активирует, replay отбит, re-enroll сбрасывает', async () => {
+  const acc = await newAccount('Тотпщик');
+
+  const { secret, uri } = await db.auth.enrollTotp({ account: acc, issuer: 'letopis', label: 'totp@x.io' });
+  assert.match(secret, /^[A-Z2-7]{32}$/); // 20 байт → 32 символа base32
+  assert.match(uri, /^otpauth:\/\/totp\/totp%40x\.io\?secret=[A-Z2-7]+&issuer=letopis&algorithm=SHA1&digits=6&period=30$/);
+  assert.equal(await db.auth.totpEnabled(acc), false); // до первой проверки фактор неактивен
+
+  const code = totpCode(secret);
+  assert.equal(await db.auth.verifyTotp({ account: acc, code }), true);
+  assert.equal(await db.auth.totpEnabled(acc), true);
+
+  // replay: тот же код (тот же шаг) второй раз не проходит
+  assert.equal(await db.auth.verifyTotp({ account: acc, code }), false);
+  // мусорный код не проходит
+  const wrong = code === '123456' ? '654321' : '123456';
+  assert.equal(await db.auth.verifyTotp({ account: acc, code: wrong }), false);
+  // код далеко из будущего (за окном ±1 шаг) не проходит
+  assert.equal(await db.auth.verifyTotp({ account: acc, code: totpCode(secret, Date.now() + 120_000) }), false);
+
+  // re-enroll: новый секрет, активация сброшена, старый секрет мёртв
+  const again = await db.auth.enrollTotp({ account: acc });
+  assert.notEqual(again.secret, secret);
+  assert.equal(await db.auth.totpEnabled(acc), false);
+  assert.equal(await db.auth.verifyTotp({ account: acc, code: totpCode(secret, Date.now() + 60_000) }), false);
+});
+
+test('OTP-код: одноразовость, лимит попыток, TTL, перевыпуск', async () => {
+  const acc = await newAccount('Отпщик');
+  const email = uniq('otp') + '@x.io';
+
+  const { code, credential } = await db.auth.issueOtp({ account: acc, identifier: email });
+  assert.match(code, /^\d{6}$/);
+  assert.equal(credential.meta.code, sha256(code)); // в БД только хэш
+  assert.notEqual(credential.meta.code, code);
+
+  const ok = await db.auth.verifyOtp({ identifier: email, code });
+  assert.equal(ok?.account.id, acc.id);
+  assert.equal(await db.auth.verifyOtp({ identifier: email, code }), null); // сожжён успехом
+
+  // лимит попыток: 5 неверных сжигают код — верный после уже не работает
+  const second = await db.auth.issueOtp({ account: acc, identifier: email });
+  const bad = second.code === '000000' ? '111111' : '000000';
+  for (let i = 0; i < 5; i++) assert.equal(await db.auth.verifyOtp({ identifier: email, code: bad }), null);
+  assert.equal(await db.auth.verifyOtp({ identifier: email, code: second.code }), null);
+
+  // TTL: протухший код не работает
+  const shortLived = await db.auth.issueOtp({ account: acc, identifier: email, ttlSec: 1 });
+  await new Promise((r) => setTimeout(r, 1100));
+  assert.equal(await db.auth.verifyOtp({ identifier: email, code: shortLived.code }), null);
+
+  // перевыпуск: валиден только последний код
+  const old = await db.auth.issueOtp({ account: acc, identifier: email });
+  const fresh = await db.auth.issueOtp({ account: acc, identifier: email });
+  if (old.code !== fresh.code) assert.equal(await db.auth.verifyOtp({ identifier: email, code: old.code }), null);
+  assert.ok(await db.auth.verifyOtp({ identifier: email, code: fresh.code }));
 });
 
 test('сессии в Redis: start/check/expire/revoke/revokeAll; токен в Redis не хранится', async () => {

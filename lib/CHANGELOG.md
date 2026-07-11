@@ -2,6 +2,20 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/), версии — semver.
 
+## [0.9.0] — 2026-07-11
+
+### Added
+- **OTP** в `db.auth` (node:crypto, без зависимостей):
+  - **TOTP** (RFC 6238, authenticator-приложения): `enrollTotp` (секрет base32 + otpauth-URI
+    для QR; re-enroll сбрасывает), `verifyTotp` (окно ±1 шаг, replay принятого шага отбит
+    через `meta.lastStep`, первая успешная проверка активирует фактор), `totpEnabled`;
+    хелпер `totpCode(secret, atMs?)` экспортирован (тесты/серверная генерация).
+  - **Одноразовые коды** (email/SMS/сброс — доставка на приложении): `issueOtp` (в БД
+    только sha256 + expires + attempts; повторный выпуск затирает старый код),
+    `verifyOtp` (успех сжигает код; 5 неудач сжигают; истёкший TTL сжигает).
+- `test/auth.test.ts`: +2 сцены (TOTP: enroll/verify/replay/окно/re-enroll; OTP:
+  одноразовость/лимит/TTL/перевыпуск); суммарно 105 тестов.
+
 ## [0.8.0] — 2026-07-11
 
 ### Added

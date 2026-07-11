@@ -415,7 +415,25 @@ await db.auth.verifyKeySecret(k, secret)           // → { account, credential 
 await db.auth.link({ account: acc, category: 'TELEGRAM', identifier: '1635246915', meta: { username: 'roboteza' } })
 await db.auth.lookup({ category: 'TELEGRAM', identifier: '1635246915' })
 // → { account, credential }                                                [2.6 ms]
+
+// TOTP (authenticator, RFC 6238): секрет в QR, активен после первой проверки
+const { secret, uri } = await db.auth.enrollTotp({ account: acc, issuer: 'clockz', label: 'anna@salon.io' })
+// secret = "RWVB3WWQ62LEED55AMU6L425C6KIT5EJ" (base32, 20 байт)            [5.6 ms]
+// uri = "otpauth://totp/anna%40salon.io?secret=…&issuer=clockz&algorithm=SHA1&digits=6&period=30"
+await db.auth.verifyTotp({ account: acc, code: '139999' })   // → true      [4.9 ms]
+await db.auth.verifyTotp({ account: acc, code: '139999' })   // → false — replay того же шага отбит
+await db.auth.totpEnabled(acc)                               // → true (после первой проверки)
+
+// ОДНОРАЗОВЫЙ КОД (email/SMS/reset — доставка на приложении)
+const { code } = await db.auth.issueOtp({ account: acc, identifier: 'anna@salon.io', ttlSec: 600 })
+// code = "273746"; в БД sha256 + expires + attempts           [3.3 ms]
+await db.auth.verifyOtp({ identifier: 'anna@salon.io', code })
+// → { account, credential }; код СОЖЖЁН (одноразовость)       [6.0 ms]; повторно → null
+// 5 неверных попыток тоже сжигают; повторный issue перезаписывает код (валиден последний)
 ```
+
+Хелпер `totpCode(secret, atMs?)` (экспорт) — код authenticator-а для секрета: тесты,
+серверная генерация.
 
 Сессии — во внешнем Redis (клиент инжектируется, в зависимости не входит; ioredis
 подходит как есть — интерфейс `SessionStore`):
@@ -702,7 +720,7 @@ await iso.Организация().account(SYS).rows()
 
 ```ts
 import {
-  connect, cursorOf,                                     // функции
+  connect, cursorOf, totpCode,                           // функции
   ne, gt, gte, lt, lte, between, inList, like, ilike,    // операторы (18)
   starts, ends, has, hasAny, hasAll, exists, isNull, not, or,
   ValidationError, Registry,                             // классы
@@ -929,6 +947,11 @@ identifier — индекс `credential_identity_udx` (один живой на 
 | `auth.verifyKeySecret` | `(key, secret, { requireConfirmed? }?) → AuthResult \| null` | [3.1 ms] |
 | `auth.link` | `({ account, category, identifier, meta?, confirmed? }) → Credential` | внешняя identity (oauth/sso/telegram) |
 | `auth.lookup` | `({ category, identifier, requireConfirmed? }) → AuthResult \| null` | [2.4 ms] |
+| `auth.enrollTotp` | `({ account, issuer?, label? }) → { secret, uri, credential }` | RFC 6238; re-enroll сбрасывает; [5.6 ms] |
+| `auth.verifyTotp` | `({ account, code, window? }) → boolean` | окно ±1 шаг; replay отбит (lastStep); первая проверка активирует |
+| `auth.totpEnabled` | `(account) → boolean` | фактор подтверждён |
+| `auth.issueOtp` | `({ account, identifier, category?, ttlSec?, digits? }) → { code, credential }` | в БД sha256; TTL 600 s; перевыпуск затирает |
+| `auth.verifyOtp` | `({ identifier, code, category?, maxAttempts? }) → AuthResult \| null` | одноразовый: успех/5 неудач/TTL сжигают [6.0 ms] |
 | `auth.sessions` | `(store: SessionStore) → Sessions` | Redis-клиент инжектируется (ioredis как есть) |
 | `sessions.start` | `(account, { ttlSec?, meta? }?) → Promise<token>` | default ttl 7 суток; в Redis sha256 токена [2.0 ms] |
 | `sessions.check` | `(token) → Session \| null` | `{ account, meta, created }` [0.3 ms] |

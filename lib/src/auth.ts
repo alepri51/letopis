@@ -5,7 +5,7 @@
  * Однозначность входа даёт credential_identity_udx: один живой кред на (category, identifier).
  * OAuth-танец, rate-limit, lockout — на приложении: здесь хранение и проверка.
  */
-import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, randomInt, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import type { Account, Credential } from './types.js';
 import type { Tables } from './tables.js';
@@ -50,6 +50,69 @@ const eqHex = (a: string, b: string) => {
   return ba.length === bb.length && timingSafeEqual(ba, bb);
 };
 
+const eqStr = (a: string, b: string) => {
+  const ba = Buffer.from(a);
+  const bb = Buffer.from(b);
+  return ba.length === bb.length && timingSafeEqual(ba, bb);
+};
+
+// --- TOTP (RFC 6238 / HOTP RFC 4226) ---------------------------------------
+
+const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+
+function base32Encode(buf: Buffer): string {
+  let bits = 0;
+  let value = 0;
+  let out = '';
+  for (const byte of buf) {
+    value = (value << 8) | byte;
+    bits += 8;
+    while (bits >= 5) {
+      out += B32[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+  if (bits > 0) out += B32[(value << (5 - bits)) & 31];
+  return out;
+}
+
+function base32Decode(s: string): Buffer {
+  let bits = 0;
+  let value = 0;
+  const out: number[] = [];
+  for (const ch of s.replace(/=+$/, '').toUpperCase()) {
+    const idx = B32.indexOf(ch);
+    if (idx < 0) throw new Error('letopis: invalid base32 TOTP secret');
+    value = (value << 5) | idx;
+    bits += 5;
+    if (bits >= 8) {
+      out.push((value >>> (bits - 8)) & 255);
+      bits -= 8;
+    }
+  }
+  return Buffer.from(out);
+}
+
+const TOTP_PERIOD = 30; // секунд на шаг (стандарт authenticator-приложений)
+const TOTP_DIGITS = 6;
+
+function hotp(secret: Buffer, counter: number): string {
+  const buf = Buffer.alloc(8);
+  buf.writeBigUInt64BE(BigInt(counter));
+  const h = createHmac('sha1', secret).update(buf).digest();
+  const off = h[h.length - 1] & 0xf;
+  const code =
+    (((h[off] & 0x7f) << 24) | (h[off + 1] << 16) | (h[off + 2] << 8) | h[off + 3]) % 10 ** TOTP_DIGITS;
+  return String(code).padStart(TOTP_DIGITS, '0');
+}
+
+const totpStep = (atMs: number) => Math.floor(atMs / 1000 / TOTP_PERIOD);
+
+/** Код authenticator-а для секрета на момент времени (хелпер для тестов/сервисов). */
+export function totpCode(secretBase32: string, atMs = Date.now()): string {
+  return hotp(base32Decode(secretBase32), totpStep(atMs));
+}
+
 // ---------------------------------------------------------------------------
 
 /** Успешный вход: чей кред и какой именно. */
@@ -85,6 +148,33 @@ export interface AuthApi {
   /** Пара key(открытый id)+secret: secret отдаётся один раз, в БД — sha256. */
   issueKeySecret(a: { account: string | { id: string }; name?: string }): Promise<{ key: string; secret: string; credential: Credential }>;
   verifyKeySecret(key: string, secret: string, opts?: VerifyOpts): Promise<AuthResult | null>;
+
+  /** TOTP (authenticator): секрет + otpauth-URI для QR; активен после первой успешной проверки. */
+  enrollTotp(a: { account: string | { id: string }; issuer?: string; label?: string }): Promise<{
+    secret: string;
+    uri: string;
+    credential: Credential;
+  }>;
+  /** Проверка 6-значного кода: окно ±window шагов (default 1), replay того же шага отбит. */
+  verifyTotp(a: { account: string | { id: string }; code: string; window?: number }): Promise<boolean>;
+  /** true — TOTP-фактор включён (enroll подтверждён хотя бы одной проверкой). */
+  totpEnabled(account: string | { id: string }): Promise<boolean>;
+
+  /** Одноразовый код (email/SMS/reset — доставка на приложении): в БД sha256 + TTL + лимит попыток. */
+  issueOtp(a: {
+    account: string | { id: string };
+    identifier: string;
+    category?: string; // default 'OTP'
+    ttlSec?: number; // default 600
+    digits?: number; // default 6
+  }): Promise<{ code: string; credential: Credential }>;
+  /** Успех сжигает код (одноразовость); maxAttempts (default 5) неудач тоже сжигают. */
+  verifyOtp(a: {
+    identifier: string;
+    code: string;
+    category?: string;
+    maxAttempts?: number;
+  }): Promise<AuthResult | null>;
 
   /** Внешняя identity (TELEGRAM / GOOGLE / SSO-провайдер…): токен проверяет приложение, тут — связка. */
   link(a: {
@@ -172,6 +262,94 @@ export function makeAuth(tables: Tables): AuthApi {
       const stored = cred?.meta.secret;
       if (!cred || typeof stored !== 'string' || !eqHex(sha256(secret), stored)) return null;
       return finalize(cred, opts);
+    },
+
+    async enrollTotp(a) {
+      const id = accId(a.account);
+      const secret = base32Encode(randomBytes(20));
+      const label = encodeURIComponent(a.label ?? id);
+      const issuer = a.issuer ? `&issuer=${encodeURIComponent(a.issuer)}` : '';
+      const uri =
+        `otpauth://totp/${label}?secret=${secret}${issuer}` +
+        `&algorithm=SHA1&digits=${TOTP_DIGITS}&period=${TOTP_PERIOD}`;
+      // re-enroll перезаписывает секрет и сбрасывает подтверждение
+      const credential = await tables.credentials.set({
+        account: id,
+        category: 'TOTP',
+        identifier: id, // один TOTP-фактор на аккаунт
+        meta: { secret, lastStep: 0 },
+        confirmed: false,
+      });
+      return { secret, uri, credential };
+    },
+
+    async verifyTotp(a) {
+      const id = accId(a.account);
+      const cred = (await tables.credentials.find({ account: id, category: 'TOTP' }))[0];
+      const secretB32 = cred?.meta.secret;
+      if (!cred || typeof secretB32 !== 'string') return false;
+      const secret = base32Decode(secretB32);
+      const lastStep = typeof cred.meta.lastStep === 'number' ? cred.meta.lastStep : 0;
+      const now = totpStep(Date.now());
+      const window = a.window ?? 1;
+      for (let s = now - window; s <= now + window; s++) {
+        if (s <= lastStep) continue; // replay: шаг уже использован
+        if (!eqStr(a.code, hotp(secret, s))) continue;
+        await tables.credentials.set({
+          account: id,
+          category: 'TOTP',
+          identifier: cred.identifier,
+          meta: { ...cred.meta, lastStep: s },
+          confirmed: true, // первая успешная проверка активирует фактор
+        });
+        return true;
+      }
+      return false;
+    },
+
+    async totpEnabled(account) {
+      const cred = (await tables.credentials.find({ account: accId(account), category: 'TOTP' }))[0];
+      return cred?.confirmed === true;
+    },
+
+    async issueOtp(a) {
+      const digits = a.digits ?? 6;
+      const code = String(randomInt(0, 10 ** digits)).padStart(digits, '0');
+      // повторный issue на тот же identifier перезаписывает код (валиден только последний)
+      const credential = await tables.credentials.set({
+        account: accId(a.account),
+        category: a.category ?? 'OTP',
+        identifier: a.identifier,
+        meta: {
+          code: sha256(code),
+          expires: new Date(Date.now() + (a.ttlSec ?? 600) * 1000).toISOString(),
+          attempts: 0,
+        },
+      });
+      return { code, credential };
+    },
+
+    async verifyOtp(a) {
+      const cred = await findLive(a.category ?? 'OTP', a.identifier);
+      if (!cred) return null;
+      const { code, expires, attempts } = cred.meta as { code?: string; expires?: string; attempts?: number };
+      if (typeof code !== 'string' || !expires || Date.parse(expires) < Date.now()) {
+        await tables.credentials.delete(cred.id);
+        return null;
+      }
+      if (!eqHex(sha256(a.code), code)) {
+        const n = (attempts ?? 0) + 1;
+        if (n >= (a.maxAttempts ?? 5)) await tables.credentials.delete(cred.id); // перебор — код сожжён
+        else await tables.credentials.set({
+          account: cred.account,
+          category: cred.category,
+          identifier: cred.identifier,
+          meta: { ...cred.meta, attempts: n },
+        });
+        return null;
+      }
+      await tables.credentials.delete(cred.id); // одноразовость: успех сжигает код
+      return finalize(cred, {});
     },
 
     async link(a) {
