@@ -58,6 +58,7 @@ export interface ClassDef {
   ancestors: string[];
   /** Все потомки (транзитивно) — считает триггер schema_lineage. */
   descendants: string[];
+  /** Поля data с НАСЛЕДОВАНИЕМ по ancestor-цепочке (потомок поверх предка). */
   attributes: Record<string, unknown>;
   links: LinkEnd[];
   /**

@@ -2,6 +2,8 @@
  * Загрузка таблицы Schema → реестр классов:
  *  - резолв имени по id и alias;
  *  - цепочка ancestors (walk по ancestor, если в БД не заполнена);
+ *  - attributes НАСЛЕДУЮТСЯ по цепочке (потомок поверх предка; поле = замена правила
+ *    целиком) — включая правило id (генерация v4/v5/v7); links НЕ наследуются;
  *  - скомпилированный fastest-validator per class;
  *  - карта типов полей (для SQL-кастов фильтров).
  */
@@ -176,8 +178,15 @@ function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
     }
   }
 
+  // attributes НАСЛЕДУЮТСЯ по цепочке ancestor: потомок ПОВЕРХ предка, переопределение
+  // поля — замена правила ЦЕЛИКОМ (не слияние объекта-правила). links не наследуются.
+  const merged: Record<string, unknown> = {};
+  for (let i = ancestors.length - 1; i >= 0; i--) {
+    Object.assign(merged, byId.get(ancestors[i])?.attributes ?? {});
+  }
+
   // attributes.id: спецификация генерации (generate/from) отделяется от правила валидации
-  const { idGen, attrs } = parseIdGen(row.id, row.attributes);
+  const { idGen, attrs } = parseIdGen(row.id, merged);
 
   // fastest-validator: валидируем {id, ...data}; СТРОГО — лишние поля запрещены
   const compiled = v.compile({ ...attrs, $$strict: true } as never);
@@ -226,7 +235,7 @@ function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
     ancestor: row.ancestor,
     ancestors,
     descendants: row.descendants ?? [],   // считает триггер schema_lineage
-    attributes: row.attributes,
+    attributes: merged,
     links: ends,
     strictEnds,
     idGen,

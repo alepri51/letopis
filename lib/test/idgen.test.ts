@@ -136,6 +136,30 @@ test('v5 из концов: занятость(окно, мастер) — дв�
   Object.assign(S, { бронь: b1 });
 });
 
+test('наследование attributes: потомок получает поля и id-правило предка; переопределение', async () => {
+  // потомки с ПУСТЫМИ attributes: всё — от предка (links НЕ наследуются, объявлены заново)
+  await db.sql.unsafe(`
+    INSERT INTO "${SCHEMA}"."Schema" (partition, id, alias, category, ancestor, attributes, links, meta, "order") VALUES
+      ('entity', 'VipCustomer', 'ВипКлиент', 'HUB', 'Customer', '{}', '[{"class":"Org"}]', '{}', 960),
+      ('entity', 'DeluxeBusy', 'вип-занятость', 'LINK', 'busy', '{}',
+       '[{"class":"Staff"},{"class":"Slot"},{"class":"Booking","optional":true}]', '{}', 961)`);
+  const t = await connect({ dsn: DSN, schema: SCHEMA }); // свежий реестр
+
+  // поля предка видны на потомке (name/contact от Customer, kind от busy)
+  assert.ok('contact' in t.registry.resolve('VipCustomer').attributes);
+  assert.equal(t.registry.resolve('DeluxeBusy').idGen.version, 5); // id-правило busy унаследовано
+
+  // валидация по унаследованным полям: строгость и defaults работают
+  const [vip] = await t.Организация(S.org).ВипКлиент().create({ name: 'Вип' }).rows();
+  assert.equal(vip.id.charAt(14), '7'); // id-правило Entity (v7) дошло через Customer
+  await assert.rejects(t.Организация(S.org).ВипКлиент().create({ nope: 1 } as never).rows(), /validation failed/);
+
+  // v5-правило предка на потомке: формула считается с СОБСТВЕННЫМ именем класса
+  const [db2] = await t.Сотрудник(S.ана).DeluxeBusy().create({ kind: 'hold' }).Окно.set(S.окно11).rows();
+  assert.equal(db2.id, uuidv5(`${SCHEMA}:entity:DeluxeBusy:${S.окно11.id}:${S.ана.id}`));
+  await t.close();
+});
+
 test('схема-гарды: кривой generate, v5 без from, from не конец/не поле, from на optional-конце', async () => {
   const wasBusy = { type: 'uuid', generate: 5, from: ['Slot', 'Staff'] };
   const bad = async (cls: string, rule: object, back: object, re: RegExp) => {

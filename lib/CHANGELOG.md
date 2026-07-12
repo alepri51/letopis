@@ -35,8 +35,15 @@
     (формула открыта; namespace letopis `c7a2f9d4-3b61-4e8a-9f05-8d2c1e6b7a90`).
   - Батч: multi-VALUES-склейка для v5-классов отключена (id нужны концы) —
     такие планы исполняются поштучно, семантика та же.
-- **Демо-схема booking целиком на generate**: Org/Staff/Folder/Customer/Schedule/
-  Booking/item → v7; `busy ← v5(Slot, Staff)`; `skill ← v5(Staff, Service|Complex)`;
+- **Наследование attributes по иерархии Schema**: при загрузке реестра attributes
+  класса собираются по цепочке `ancestor` — потомок ПОВЕРХ предка, переопределение
+  поля = замена правила целиком (не слияние). Правило `id` (генерация) наследуется
+  так же; `links` НЕ наследуются (концы объявляются каждым классом). Валидатор и
+  fieldTypes компилируются из слитых attributes.
+- **Демо-схема booking целиком на generate** — с наследованием: `Entity` и `link`
+  объявляют дефолт `{generate: 7}`, v7-классы (Org/Staff/Folder/Customer/Schedule/
+  Booking/item) наследуют его без собственного правила; v5-классы переопределяют:
+  `busy ← v5(Slot, Staff)`; `skill ← v5(Staff, Service|Complex)`;
   `shift ← v5(Schedule, Staff)`; `compo ← v5(Complex, Service)`;
   `Slot ← v5(Schedule, data.start)`; `Service`/`Complex` ← `v5(Org, data.name)`
   (имя уникально в организации). Полигоны `v1.salondemo`/`v1.article` обновлены
@@ -44,7 +51,8 @@
 - Тесты мигрированы (все `set`→`create`/`update`, слот `.delete`→`.unset`,
   фикс-id v5-классов → вычисляемые); новый **`test/idgen.test.ts`** — генерация
   id на боевых классах Schema (v4/v7/v5 из поля и концов, гонка без локов,
-  схема-гарды). SALON.md и демо-полигон перегнаны на 0.16.0. Итого **164 теста**.
+  наследование attributes/id-правила, схема-гарды). SALON.md и демо-полигон
+  перегнаны на 0.16.0. Итого **165 тестов**.
 
 ## [0.15.0] — 2026-07-12
 

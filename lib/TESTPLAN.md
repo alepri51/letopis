@@ -75,6 +75,6 @@ ConnectOpts[А1/20] · UpOpts[А2] · create-контекст tags/account/owner
 ## Критерии приёмки
 
 1. `npx tsx --test --test-force-exit test/salon.test.ts` — **21/21 pass**.
-2. `npm test` (весь набор) — **164/164 pass**.
+2. `npm test` (весь набор) — **165/165 pass**.
 3. Каждая из 145 точек API затронута хотя бы одним актом (см. матрицу).
 4. Прогон идемпотентен: схема пересоздаётся в `before`, повторный запуск зелёный.
