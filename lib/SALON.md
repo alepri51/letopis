@@ -57,19 +57,24 @@ node lib/bench/salon-article-demo.mjs  # снять все ответы этой
 
 ### id считает схема (`attributes.id`)
 
-С 0.16.0 у каждого класса в `attributes.id` объявлено, **как рождается id**:
+С 0.16.0 в `attributes.id` объявлено, **как рождается id** — и это правило, как и любые
+attributes, **наследуется по иерархии классов** (потомок поверх предка, переопределение
+поля — замена правила целиком; концы `links` не наследуются — они у каждого свои):
 
 ```jsonc
-"id": { "type": "uuid", "generate": 7 }                        // v7: время в старших битах
-"id": { "type": "uuid", "generate": 5, "from": ["Slot","Staff"] }  // v5: вычисляется из данных
+// корни иерархий объявляют дефолт ОДИН раз:
+"Entity": { "id": { "type": "uuid", "generate": 7 } }   // v7: время в старших битах
+"link":   { "id": { "type": "uuid", "generate": 7 } }
+// потомки либо молчат (наследуют v7), либо переопределяют:
+"busy":   { "id": { "type": "uuid", "generate": 5, "from": ["Slot","Staff"] } }  // v5: из данных
 ```
 
 В полигоне это разложено так:
 
 | generate | Классы | Формула id |
 |---|---|---|
-| **v7** (time-ordered) | Org, Staff, Folder, Customer, Schedule, Booking, item | время + random — вставки ложатся в хвост индекса |
-| **v5** (детерминированный) | `busy` | `uuidv5(Slot, Staff)` — пара (окно, мастер) |
+| **v7** (time-ordered) | Org, Staff, Folder, Customer, Schedule, Booking, item — своего правила НЕ имеют, наследуют от `Entity`/`link` | время + random — вставки ложатся в хвост индекса |
+| **v5** (детерминированный, переопределяет дефолт) | `busy` | `uuidv5(Slot, Staff)` — пара (окно, мастер) |
 | | `skill` | `uuidv5(Staff, Service\|Complex)` |
 | | `shift` | `uuidv5(Schedule, Staff)` |
 | | `compo` | `uuidv5(Complex, Service)` |
