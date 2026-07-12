@@ -7,7 +7,7 @@
  */
 import { createRequire } from 'node:module';
 import type { Sql } from 'postgres';
-import type { ClassDef, FieldType, LinkEnd } from './types.js';
+import type { ClassDef, FieldType, IdGen, LinkEnd } from './types.js';
 
 // fastest-validator — CJS с ESM-типами; берём класс из module.exports напрямую.
 interface FastestValidator {
@@ -135,6 +135,33 @@ function parseEnd(cls: string, raw: string | Record<string, unknown>): [LinkEnd,
   return [{ classes, optional: o.optional === true, cardinality: o.cardinality }, true];
 }
 
+/**
+ * attributes.id: правило валидации + (объектом) спецификация генерации.
+ * generate/from — ключи letopis, вырезаются из правила перед компиляцией валидатора.
+ */
+function parseIdGen(cls: string, attributes: Record<string, unknown>): { idGen: IdGen; attrs: Record<string, unknown> } {
+  const raw = attributes.id;
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { idGen: { version: 4 }, attrs: attributes };
+  }
+  const { generate, from, ...rule } = raw as { generate?: unknown; from?: unknown };
+  const attrs = { ...attributes, id: rule };
+  if (generate === undefined) return { idGen: { version: 4 }, attrs };
+  if (generate !== 4 && generate !== 5 && generate !== 7) {
+    throw new Error(`letopis: class "${cls}" — attributes.id.generate must be 4 | 5 | 7, got ${JSON.stringify(generate)}`);
+  }
+  if (generate === 5) {
+    if (!Array.isArray(from) || !from.length || from.some((f) => typeof f !== 'string' || !f)) {
+      throw new Error(`letopis: class "${cls}" — id generate:5 needs "from": non-empty string[] (link ends / data fields)`);
+    }
+    return { idGen: { version: 5, from: from as string[] }, attrs };
+  }
+  if (from !== undefined) {
+    throw new Error(`letopis: class "${cls}" — attributes.id.from is for generate:5 only`);
+  }
+  return { idGen: { version: generate }, attrs };
+}
+
 function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
   // цепочка наследования: из БД или walk по ancestor
   let ancestors = row.ancestors ?? [];
@@ -149,15 +176,18 @@ function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
     }
   }
 
+  // attributes.id: спецификация генерации (generate/from) отделяется от правила валидации
+  const { idGen, attrs } = parseIdGen(row.id, row.attributes);
+
   // fastest-validator: валидируем {id, ...data}; СТРОГО — лишние поля запрещены
-  const compiled = v.compile({ ...row.attributes, $$strict: true } as never);
+  const compiled = v.compile({ ...attrs, $$strict: true } as never);
   const check: ClassDef['check'] = (data) => {
     const res = compiled(data);
     return res === true ? true : (res as { field: string; message?: string }[]);
   };
 
   const fieldTypes = new Map<string, FieldType>();
-  for (const [field, attr] of Object.entries(row.attributes)) {
+  for (const [field, attr] of Object.entries(attrs)) {
     if (field.startsWith('$$')) continue;
     fieldTypes.set(field, fieldTypeOf(attr));
   }
@@ -173,6 +203,22 @@ function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
     return end;
   });
 
+  // id v5: каждый источник from — обязательный конец links (класс или полное имя союза
+  // 'Service|Complex') ЛИБО поле data
+  if (idGen.version === 5) {
+    for (const f of idGen.from!) {
+      const end = ends.find((e) => e.classes.includes(f) || e.classes.join('|') === f);
+      if (end) {
+        if (end.optional) {
+          throw new Error(`letopis: class "${row.id}" — id (uuid v5) can't depend on optional end "${f}"`);
+        }
+        continue;
+      }
+      if (f !== 'id' && f in attrs) continue;
+      throw new Error(`letopis: class "${row.id}" — id "from" source "${f}" is neither a link end nor a data field`);
+    }
+  }
+
   return {
     id: row.id,
     alias: row.alias,
@@ -183,6 +229,7 @@ function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
     attributes: row.attributes,
     links: ends,
     strictEnds,
+    idGen,
     meta: row.meta ?? {},
     abstract: row.meta?.abstract === true || row.meta?.abstract === 'true',
     order: row.order,

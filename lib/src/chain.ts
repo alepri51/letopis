@@ -4,8 +4,9 @@
  *
  * Выборка настраивается модификаторами: .limit(n) .offset(n) .sort(field, dir?)
  * Колонки — модификаторами: .tags(…) .account(…) .owner(…); ключ путей — .alias(…).
- * Запись: .set(data) / .delete({confirm}) / .anonymize(fields) — ЗВЕНЬЯ (возвращают
- * цепочку, продолжение — от результата); исполняет ТЕРМИНАЛ, весь план одной транзакцией.
+ * Запись: .create(data) / .update(data) / .delete({confirm}) / .anonymize(fields) — ЗВЕНЬЯ
+ * (возвращают цепочку, продолжение — от результата); исполняет ТЕРМИНАЛ, весь план
+ * одной транзакцией.
  */
 import type { Row, Path, Filter, ChainMods, PlanOp, ClassDef, LinkEnd } from './types.js';
 import {
@@ -58,11 +59,11 @@ export interface ChainCore {
   anonymize(fields: string[]): Chain;
   /** Переименовать ключ ТЕКУЩЕГО шага в выводе путей. */
   alias(name: string): Chain;
-  /** Колонка tags: строка | string[] (все) | has/hasAny/hasAll. В set() — значение тегов. */
+  /** Колонка tags: строка | string[] (все) | has/hasAny/hasAll. В записи — значение тегов. */
   tags(v: string | string[] | object): Chain;
-  /** Колонка account (uuid или Row/Account). В set()-insert — значение. */
+  /** Колонка account (uuid или Row/Account). В create() — значение. */
   account(v: string | { id: string }): Chain;
-  /** Колонка owner (uuid или Row/Account). В set()-insert — значение. */
+  /** Колонка owner (uuid или Row/Account). В create() — значение. */
   owner(v: string | { id: string }): Chain;
   /**
    * Вставить узел в путь: x — ленивая цепочка-паттерн (стык проверяется правилами
@@ -71,13 +72,20 @@ export interface ChainCore {
    */
   entity(x: Chain | Row): Chain;
   /**
-   * Записать в шаг, к которому приклеен точкой (ЗВЕНО — вернёт цепочку, исполняет терминал):
-   *   await db.Организация(org).Сотрудник().set({ name: 'Вася' }).rows()
-   * Связи — контекст-шагами до set(). Пустой фильтр без data.id → INSERT;
-   * id (фильтр или data.id) → UPSERT; фильтр-объект → версия каждого найденного.
+   * Создать сущность (ЗВЕНО — вернёт цепочку, исполняет терминал):
+   *   await db.Организация(org).Сотрудник().create({ name: 'Вася' }).rows()
+   * Связи — контекст-шагами до create() + слотами .Класс.set(…) после. id — по Schema
+   * (attributes.id: v4 | v7 | v5-вычисляемый); известный id (Класс(id) / data.id / v5)
+   * уже существует → новая версия (идемпотентно). Фильтр-объект — ошибка: это update().
+   */
+  create(data?: Record<string, unknown>): Chain;
+  /**
+   * Новая версия КАЖДОГО найденного путём (deep-merge листьев data):
+   *   await db.Запись(з).позиция({ qty: 1 }).update({ qty: 2 }).rows()
+   * Класс() ≡ Класс({}) — все в границах контекста. Не найдено → [] (НИКОГДА не создаёт).
    * Продолжение цепочки — от записанных строк (fan-out при множестве).
    */
-  set(data?: Record<string, unknown>): Chain;
+  update(data?: Record<string, unknown>): Chain;
   /**
    * Удаление-звено. { confirm: true } — серверный tombstone + каскад (продолжение — от
    * затомбстоуненных, $deleted: true); БЕЗ confirm — превью: терминал вернёт кандидатов
@@ -90,16 +98,16 @@ export interface ChainCore {
  * Свойство-класс на цепочке:
  *   ВЫЗОВ  `Класс(фильтр?)` — шаг-навигация; повтор LINK-класса в пути = возврат
  *          к его узлу (pivot: ветвление к другому концу, дофильтровка AND);
- *   СЛОТ   `Класс` без скобок — поле links предыдущего шага:
- *     .set(target) — записать конец (id | Row | вложенная цепочка: та же транзакция,
+ *   СЛОТ   `Класс` без скобок — конец links записываемой версии:
+ *     .set(target) — установить конец (id | Row | вложенная цепочка: та же транзакция,
  *                    ровно одна сущность класса конца); союз-конец замещается целиком;
- *     .delete()    — снять optional-конец.
- * Слот валиден только для конца из Schema.links владельца; смежный с set() — та же
- * версия строки; без операции — сам операция записи.
+ *     .unset()     — снять optional-конец.
+ * Слот валиден только для конца из Schema.links владельца и ТОЛЬКО после операции
+ * записи: …create(…).Класс.set(x) / …update(…).Класс.unset() — та же версия строки.
  */
 export type StepProp = ((filter?: Filter) => Chain) & {
   set(target: string | { id: string } | Chain): Chain;
-  delete(): Chain;
+  unset(): Chain;
 };
 
 export type Chain = ChainCore & {
@@ -323,20 +331,25 @@ function classProp(
           return applySlot!(cls, slotValue(cls, v));
         };
       }
-      if (p === 'delete') {
+      if (p === 'unset') {
         return () => {
           const ownerCls = slotGuard();
           const end = findEnd(ownerCls, cls)!;
           if (ownerCls.strictEnds && !end.optional) {
-            throw new Error(`letopis: link end "${cls.id}" of "${ownerCls.id}" is required — cannot delete`);
+            throw new Error(`letopis: link end "${cls.id}" of "${ownerCls.id}" is required — cannot unset`);
           }
           return applySlot!(cls, null);
+        };
+      }
+      if (p === 'delete') {
+        return () => {
+          throw new Error(`letopis: slot .delete() renamed to .unset() (0.16.0) — .${name}.unset() removes the link end`);
         };
       }
       if (typeof p === 'symbol' || p === 'then' || p in Function.prototype || p === 'name' || p === 'length' || p === 'prototype') {
         return Reflect.get(t, p, r);
       }
-      throw new Error(`letopis: "${name}" without call is a link slot (set/delete); for navigation call ${name}(…)`);
+      throw new Error(`letopis: "${name}" without call is a link slot (set/unset); for navigation call ${name}(…)`);
     },
   }) as StepProp;
 }
@@ -376,28 +389,29 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef, n
   };
 
   /**
-   * Слот связи: значение конца записываемой версии последнего шага.
-   * Смежный с set() — та же версия; без операции — сам создаёт set({}).
+   * Слот связи: значение конца ЗАПИСЫВАЕМОЙ версии последнего шага — только после
+   * операции записи (…create(…).Класс.set(x) / …update(…).Класс.unset()): та же версия.
    */
   const applySlot = (slotCls: ClassDef, value: SlotValue): Chain => {
     const last = steps[steps.length - 1];
+    if (!last.op) {
+      throw new Error(
+        `letopis: link slot "${slotCls.alias}" needs a write — add .create(…)/.update(…) before .${slotCls.alias}.${value === null ? 'unset()' : 'set(…)'}`,
+      );
+    }
+    if (last.op.kind !== 'create' && last.op.kind !== 'update') {
+      throw new Error(`letopis: link slot after ${last.op.kind}() — slots apply to create()/update()`);
+    }
     if (last.extraLinks && slotCls.id in last.extraLinks) {
       throw new Error(`letopis: duplicate link slot "${slotCls.id}" in one write`);
-    }
-    if (last.op && last.op.kind !== 'set') {
-      throw new Error(`letopis: link slot after ${last.op.kind}() — slots apply to set()`);
-    }
-    if (last.pivotKey !== undefined && !last.op) {
-      // op на pivot-шаге пишет узел; слот сам создаст set({}) — валидно; ничего особенного
     }
     const patched: Step = {
       ...last,
       extraLinks: { ...(last.extraLinks ?? {}), [slotCls.id]: value },
-      op: last.op ?? { kind: 'set', data: {}, mods },
     };
     const next = [...steps.slice(0, -1), patched];
     syncBatch(next);
-    return makeChain(ctx, next, last.op ? mods : {}, batch, nodes);
+    return makeChain(ctx, next, mods, batch, nodes);
   };
 
   /** entity(x): вклейка узла/паттерна; та же переменная повторно — возврат к её узлу. */
@@ -540,8 +554,25 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef, n
               return raw.deleted ? { ...row, $deleted: true as const } : row;
             });
           };
+        case 'create':
+          return (data: Record<string, unknown> = {}) => {
+            const last = steps[steps.length - 1];
+            if (last && !last.op) {   // после op create пишет результат — фильтр там подставит план
+              if (last.pivotKey !== undefined) {
+                throw new Error('letopis: create() on a pivot step — pivot returns to an existing node, use update()');
+              }
+              if (last.filter !== undefined && typeof last.filter !== 'string') {
+                throw new Error(`letopis: create() takes no filter — ${last.name}(id).create(…) fixes the id, searching is update()`);
+              }
+            }
+            return withOp({ kind: 'create', data, mods });
+          };
+        case 'update':
+          return (data: Record<string, unknown> = {}) => withOp({ kind: 'update', data, mods });
         case 'set':
-          return (data: Record<string, unknown> = {}) => withOp({ kind: 'set', data, mods });
+          throw new Error(
+            'letopis: set() split into create()/update() (0.16.0) — create() inserts, update() versions what the path finds',
+          );
         case 'delete':
           return (opts?: { confirm?: boolean }) =>
             withOp({ kind: 'delete', confirm: opts?.confirm === true, mods });

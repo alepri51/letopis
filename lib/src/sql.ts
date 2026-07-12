@@ -137,7 +137,7 @@ export interface Step {
   /** Внутреннее (write-цепочки): containment по links — контекст-связи. */
   linksFilter?: Record<string, string>;
   /**
-   * Слоты связей (`.Класс.set(target)` / `.Класс.delete()`): значения концов записываемой
+   * Слоты связей (`.Класс.set(target)` / `.Класс.unset()`): значения концов записываемой
    * версии БЕЗ участия в фильтре целей. string — id; {plan} — вложенная цепочка (та же
    * транзакция, ровно одна сущность класса конца); null — снять optional-конец.
    */
@@ -146,7 +146,7 @@ export interface Step {
   aclFilter?: Record<string, unknown>;
   /** .deep(max): рекурсивный self-обход (дети любой глубины), только reverse того же класса. */
   deepMax?: number;
-  /** Операция записи на шаге (.set/.delete/.anonymize) — исполняется терминалом плана. */
+  /** Операция записи на шаге (.create/.update/.delete/.anonymize) — исполняется терминалом плана. */
   op?: import('./types.js').PlanOp;
   /** Внутреннее: шаг «те же сущности» (операция сразу после операции) — цель = строки старта. */
   self?: boolean;

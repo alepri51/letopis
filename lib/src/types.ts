@@ -35,6 +35,20 @@ export interface LinkEnd {
   cardinality?: number;
 }
 
+/**
+ * Генерация id класса — из attributes.id:
+ *   "uuid" | {type:'uuid'}                    → v4 (random, дефолт);
+ *   {type:'uuid', generate: 7}                → v7 (время в старших битах);
+ *   {type:'uuid', generate: 5, from: ['Slot','Staff']} → v5: детерминированный id из значений
+ *     from — имена ОБЯЗАТЕЛЬНЫХ концов Schema.links (класс или полное имя союза
+ *     'Service|Complex') и/или скалярных полей data.
+ */
+export interface IdGen {
+  version: 4 | 5 | 7;
+  /** Только v5: источники имени (порядок значим). */
+  from?: string[];
+}
+
 /** Класс из таблицы Schema. */
 export interface ClassDef {
   id: string;
@@ -55,6 +69,8 @@ export interface ClassDef {
   meta: Record<string, unknown>;
   abstract: boolean;
   order: number;
+  /** Как генерить id новой сущности (attributes.id). */
+  idGen: IdGen;
   /** Скомпилированный fastest-validator: true | ошибки. */
   check: (data: Record<string, unknown>) => true | { field: string; message?: string }[];
   /** Тип каждого поля attributes — для SQL-кастов в фильтрах. */
@@ -105,12 +121,13 @@ export interface Cursor {
 }
 
 /**
- * Операция записи, привязанная к шагу цепочки: .set() / .delete() / .anonymize().
+ * Операция записи, привязанная к шагу цепочки:
+ * .create() / .update() / .delete() / .anonymize().
  * Терминал исполняет план (все операции + финальное чтение) одной транзакцией.
  */
 export interface PlanOp {
-  kind: 'set' | 'delete' | 'anonymize';
-  /** set: данные новой версии (deep-merge листьев). */
+  kind: 'create' | 'update' | 'delete' | 'anonymize';
+  /** create/update: данные новой версии (deep-merge листьев). */
   data?: Record<string, unknown>;
   /** anonymize: string-поля под '[erased]'. */
   fields?: string[];

@@ -19,6 +19,7 @@ import {
   ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends,
   has, hasAny, hasAll, exists, isNull, not, or,
 } from '../src/index.js';
+import { uuidv5 } from '../src/uuid.js';
 import type { EntityDb, EntityTx, Row } from '../src/chain.js';
 
 const DSN = process.env.ENTITY_DSN ?? 'postgres://postgres:test@localhost:15432/clockz';
@@ -33,7 +34,8 @@ let redis: Redis;
 
 // детерминированные окна дня: 10:00…18:00, часовые
 const iso = (h: number) => `2026-08-01T${String(h).padStart(2, '0')}:00:00+03:00`;
-const busyId = (staff: Row, slot: Row) => `busy-${staff.id.slice(-6)}-${slot.id.slice(-6)}`;
+/** Schema: занятость id = uuidv5(Slot, Staff) — формула открыта, id знаем ДО создания. */
+const busyId = (staff: Row, slot: Row) => uuidv5(`${SCHEMA}:entity:busy:${slot.id}:${staff.id}`);
 
 before(async () => {
   const admin = postgres(DSN, { max: 1, onnotice: () => {} });
@@ -50,7 +52,7 @@ after(async () => {
 
 // ===========================================================================
 // АКТ 1. Открытие салона — connect-опции, System-fallback, создание HUB, батч
-// покрывает: [1 connect][30 db.Класс][53 set][21 registry][22 sql]
+// покрывает: [1 connect][30 db.Класс][53 create][21 registry][22 sql]
 //            [117-126 ConnectOpts][78-81 batch][17 db.batch]
 // ===========================================================================
 test('Акт 1. Открытие: организация, филиалы, владелец — HUB-создание и батч', async () => {
@@ -60,7 +62,7 @@ test('Акт 1. Открытие: организация, филиалы, вла
   assert.ok(db.registry.has('позиция'));                            // [9]
   assert.ok(db.registry.all.length >= 15);                          // [10]
 
-  const [org] = await db.Организация().set({ name: 'Салон «Локоны»', phone: '+7 900 111', timezone: 'Europe/Moscow' }).rows(); // [30][53]
+  const [org] = await db.Организация().create({ name: 'Салон «Локоны»', phone: '+7 900 111', timezone: 'Europe/Moscow' }).rows(); // [30][53]
   assert.equal(org.data.name, 'Салон «Локоны»');
 
   // System-fallback: без account в connect строки получают System-аккаунт
@@ -69,8 +71,8 @@ test('Акт 1. Открытие: организация, филиалы, вла
 
   // батч: два мастера-заготовки одним заходом (multi-VALUES склейка чистых INSERT)
   const b = db.batch('setup');                                      // [17]
-  b.Организация(org).Сотрудник().set({ name: 'Ольга', roles: ['owner', 'master'] }); // [81]
-  b.Организация(org).Сотрудник().set({ name: 'Ирина', roles: ['master'] });
+  b.Организация(org).Сотрудник().create({ name: 'Ольга', roles: ['owner', 'master'] }); // [81]
+  b.Организация(org).Сотрудник().create({ name: 'Ирина', roles: ['master'] });
   assert.equal(b.size(), 2);                                        // [80]
   const res = await b.run();                                        // [78]
   assert.equal(res.length, 2);
@@ -80,7 +82,7 @@ test('Акт 1. Открытие: организация, филиалы, вла
 
   // discard: план в очередь — и выброшен
   const b2 = db.batch('scratch');
-  b2.Организация(org).Клиент().set({ name: 'Черновик' });
+  b2.Организация(org).Клиент().create({ name: 'Черновик' });
   assert.equal(b2.size(), 1);
   b2.discard();                                                     // [79]
   assert.equal(b2.size(), 0);
@@ -102,17 +104,17 @@ test('Акт 2. up(): вход одной функцией на уже живо�
 // ===========================================================================
 test('Акт 3. Каталог: папки-дерево, услуги, комплекс + состав через слот', async () => {
   const { org } = S;
-  const [корень] = await db.Организация(org).Папка().set({ name: 'Каталог' }).rows();
-  const [волосы] = await db.Организация(org).Папка(корень).Папка().set({ name: 'Волосы' }).rows(); // Папка→Папка (self)
+  const [корень] = await db.Организация(org).Папка().create({ name: 'Каталог' }).rows();
+  const [волосы] = await db.Организация(org).Папка(корень).Папка().create({ name: 'Волосы' }).rows(); // Папка→Папка (self)
 
-  const [стрижка] = await db.Организация(org).Папка(волосы).Услуга().set({ name: 'Стрижка', duration: 60, price: { RUB: 1500 } }).rows();
-  const [укладка] = await db.Организация(org).Папка(волосы).Услуга().set({ name: 'Укладка', duration: 30, price: { RUB: 900 } }).rows();
-  const [борода] = await db.Организация(org).Услуга().set({ name: 'Борода', duration: 30, price: { RUB: 800 }, description: 'моделирование' }).rows();
+  const [стрижка] = await db.Организация(org).Папка(волосы).Услуга().create({ name: 'Стрижка', duration: 60, price: { RUB: 1500 } }).rows();
+  const [укладка] = await db.Организация(org).Папка(волосы).Услуга().create({ name: 'Укладка', duration: 30, price: { RUB: 900 } }).rows();
+  const [борода] = await db.Организация(org).Услуга().create({ name: 'Борода', duration: 30, price: { RUB: 800 }, description: 'моделирование' }).rows();
 
   // комплекс + его состав (LINK «состав» = [Комплекс, Услуга]) — предмет слотом
-  const [набор] = await db.Организация(org).Комплекс().set({ name: 'Образ', duration: 90, discount: 10 }).rows();
-  await db.Комплекс(набор).состав().set({ qty: 1 }).Услуга.set(стрижка).rows();  // [56 слот]
-  await db.Комплекс(набор).состав().set({ qty: 1 }).Услуга.set(укладка).rows();
+  const [набор] = await db.Организация(org).Комплекс().create({ name: 'Образ', duration: 90, discount: 10 }).rows();
+  await db.Комплекс(набор).состав().create({ qty: 1 }).Услуга.set(стрижка).rows();  // [56 слот]
+  await db.Комплекс(набор).состав().create({ qty: 1 }).Услуга.set(укладка).rows();
 
   // deep: вся ветка папок от корня
   const ветка = await db.Организация(org).Папка(корень).Папка().deep().rows();    // [42]
@@ -132,11 +134,11 @@ test('Акт 3. Каталог: папки-дерево, услуги, комп�
 test('Акт 4. Навыки мастеров: слоты, союз-конец, проверка умения через pivot', async () => {
   const { ольга, ирина, стрижка, укладка, борода, набор } = S;
   // навык [Сотрудник, Услуга|Комплекс] — владелец из пути, предмет слотом
-  await db.Сотрудник(ольга).навык().set({}).Услуга.set(стрижка).rows();
-  await db.Сотрудник(ольга).навык().set({}).Услуга.set(укладка).rows();
-  await db.Сотрудник(ольга).навык().set({}).Комплекс.set(набор).rows();          // союз: предмет-Комплекс
-  await db.Сотрудник(ирина).навык().set({}).Услуга.set(стрижка).rows();
-  await db.Сотрудник(ирина).навык().set({}).Услуга.set(борода).rows();
+  await db.Сотрудник(ольга).навык().create().Услуга.set(стрижка).rows();
+  await db.Сотрудник(ольга).навык().create().Услуга.set(укладка).rows();
+  await db.Сотрудник(ольга).навык().create().Комплекс.set(набор).rows();          // союз: предмет-Комплекс
+  await db.Сотрудник(ирина).навык().create().Услуга.set(стрижка).rows();
+  await db.Сотрудник(ирина).навык().create().Услуга.set(борода).rows();
 
   // умения Ольги
   const уменияО = await db.Сотрудник(ольга).навык().Услуга().rows();
@@ -156,10 +158,10 @@ test('Акт 4. Навыки мастеров: слоты, союз-конец, 
 // ===========================================================================
 test('Акт 5. Расписание: окна дня батчем, ростер сменами, выходное окно off', async () => {
   const { org, ольга, ирина } = S;
-  const [расп] = await db.Организация(org).Расписание().set({ start: iso(10), end: iso(18) }).rows();
+  const [расп] = await db.Организация(org).Расписание().create({ start: iso(10), end: iso(18) }).rows();
 
   const b = db.batch('окна');
-  for (let h = 10; h < 18; h++) b.Расписание(расп).Окно().set({ start: iso(h), end: iso(h + 1) });
+  for (let h = 10; h < 18; h++) b.Расписание(расп).Окно().create({ start: iso(h), end: iso(h + 1) });
   const созданы = await b.run();
   assert.equal(созданы.length, 8);
 
@@ -169,13 +171,13 @@ test('Акт 5. Расписание: окна дня батчем, ростер
   const w = (h: number) => созданы[h - 10][0];
 
   // ростер: обе мастерицы работают в расписании (смена = [Расписание, Сотрудник])
-  await db.Расписание(расп).смена().set({}).Сотрудник.set(ольга).rows();
-  await db.Расписание(расп).смена().set({}).Сотрудник.set(ирина).rows();
+  await db.Расписание(расп).смена().create().Сотрудник.set(ольга).rows();
+  await db.Расписание(расп).смена().create().Сотрудник.set(ирина).rows();
   const ростер = await db.Расписание(расп).смена().Сотрудник().rows();
   assert.deepEqual(ростер.map((r) => r.data.name).sort(), ['Ирина', 'Ольга']);
 
   // Ирина не работает в 17:00 — off-занятость (владелец Сотрудник, окно слотом)
-  await db.Сотрудник(ирина).занятость(busyId(ирина, w(17))).set({ kind: 'off', reason: 'учёба' }).Окно.set(w(17)).rows();
+  await db.Сотрудник(ирина).занятость().create({ kind: 'off', reason: 'учёба' }).Окно.set(w(17)).rows(); // id считает схема (v5)
 
   Object.assign(S, { расп, окна10: w(10), окна11: w(11), окна12: w(12), окна17: w(17) });
 });
@@ -186,17 +188,17 @@ test('Акт 5. Расписание: окна дня батчем, ростер
 // ===========================================================================
 test('Акт 6. Бронь №1: Аня → Ольга, стрижка 10:00 (транзакция + lock)', async () => {
   const { org, ольга, стрижка, окна10 } = S;
-  const [аня] = await db.Организация(org).Клиент().set({ name: 'Аня', contact: '+7 911 001' }).rows();
+  const [аня] = await db.Организация(org).Клиент().create({ name: 'Аня', contact: '+7 911 001' }).rows();
 
   const tr: EntityTx = await db.begin();                            // [11]
   try {
     await tr.lock('busy', ольга.id, окна10.id);                     // [16]
     assert.equal(await tr.занятость(busyId(ольга, окна10)).first(), null); // [33] окно свободно
-    const [зап] = await tr.Клиент(аня).Запись().set({ status: 'created', source: 'online', total: { RUB: 1500 } }).rows();
+    const [зап] = await tr.Клиент(аня).Запись().create({ status: 'created', source: 'online', total: { RUB: 1500 } }).rows();
     // позиция: владелец Запись из пути, предмет+исполнитель слотами
-    await tr.Запись(зап).позиция().set({ qty: 1, price: { RUB: 1500 } }).Услуга.set(стрижка).Сотрудник.set(ольга).rows();
+    await tr.Запись(зап).позиция().create({ qty: 1, price: { RUB: 1500 } }).Услуга.set(стрижка).Сотрудник.set(ольга).rows();
     // занятость: владелец Сотрудник, окно+запись слотами
-    await tr.Сотрудник(ольга).занятость(busyId(ольга, окна10)).set({ kind: 'booking' }).Окно.set(окна10).Запись.set(зап).rows();
+    await tr.Сотрудник(ольга).занятость().create({ kind: 'booking' }).Окно.set(окна10).Запись.set(зап).rows(); // id = v5(окно, мастер)
     await tr.commit();                                             // [14]
     S.зАни = зап;
     S.аня = аня;
@@ -213,17 +215,17 @@ test('Акт 6. Бронь №1: Аня → Ольга, стрижка 10:00 (т
 // ===========================================================================
 test('Акт 7. Гонка: Боря и Вера одновременно на Ольгу 11:00 → ровно один успех', async () => {
   const { org, ольга, стрижка, окна11 } = S;
-  const [боря] = await db.Организация(org).Клиент().set({ name: 'Боря' }).rows();
-  const [вера] = await db.Организация(org).Клиент().set({ name: 'Вера' }).rows();
+  const [боря] = await db.Организация(org).Клиент().create({ name: 'Боря' }).rows();
+  const [вера] = await db.Организация(org).Клиент().create({ name: 'Вера' }).rows();
 
   const попытка = async (клиент: Row, label: string): Promise<string | null> => {
     const tr = await db.begin();
     try {
       await tr.lock('busy', ольга.id, окна11.id);
       if (await tr.занятость(busyId(ольга, окна11)).first()) { await tr.rollback(); return null; } // [15]
-      const [зап] = await tr.Клиент(клиент).Запись().set({ status: 'created', total: { RUB: 1500 } }).rows();
-      await tr.Запись(зап).позиция().set({ qty: 1 }).Услуга.set(стрижка).Сотрудник.set(ольга).rows();
-      await tr.Сотрудник(ольга).занятость(busyId(ольга, окна11)).set({ kind: 'booking' }).Окно.set(окна11).Запись.set(зап).rows();
+      const [зап] = await tr.Клиент(клиент).Запись().create({ status: 'created', total: { RUB: 1500 } }).rows();
+      await tr.Запись(зап).позиция().create({ qty: 1 }).Услуга.set(стрижка).Сотрудник.set(ольга).rows();
+      await tr.Сотрудник(ольга).занятость().create({ kind: 'booking' }).Окно.set(окна11).Запись.set(зап).rows();
       await tr.commit();
       return label;
     } catch (e) {
@@ -243,11 +245,11 @@ test('Акт 7. Гонка: Боря и Вера одновременно на �
 // ===========================================================================
 test('Акт 8. Комбо-запись: Аня — стрижка у Ольги + борода у Ирины, 12:00', async () => {
   const { ольга, ирина, стрижка, борода, окна12, аня } = S;
-  const [зап] = await db.Клиент(аня).Запись().set({ status: 'created', total: { RUB: 2300 } }).rows();
-  await db.Запись(зап).позиция().set({ qty: 1, price: { RUB: 1500 } }).Услуга.set(стрижка).Сотрудник.set(ольга).rows();
-  await db.Запись(зап).позиция().set({ qty: 1, price: { RUB: 800 } }).Услуга.set(борода).Сотрудник.set(ирина).rows();
-  await db.Сотрудник(ольга).занятость(busyId(ольга, окна12)).set({ kind: 'booking' }).Окно.set(окна12).Запись.set(зап).rows();
-  await db.Сотрудник(ирина).занятость(busyId(ирина, окна12)).set({ kind: 'booking' }).Окно.set(окна12).Запись.set(зап).rows();
+  const [зап] = await db.Клиент(аня).Запись().create({ status: 'created', total: { RUB: 2300 } }).rows();
+  await db.Запись(зап).позиция().create({ qty: 1, price: { RUB: 1500 } }).Услуга.set(стрижка).Сотрудник.set(ольга).rows();
+  await db.Запись(зап).позиция().create({ qty: 1, price: { RUB: 800 } }).Услуга.set(борода).Сотрудник.set(ирина).rows();
+  await db.Сотрудник(ольга).занятость().create({ kind: 'booking' }).Окно.set(окна12).Запись.set(зап).rows();
+  await db.Сотрудник(ирина).занятость().create({ kind: 'booking' }).Окно.set(окна12).Запись.set(зап).rows();
 
   assert.equal(await db.Запись(зап).позиция().count(), 2);
   // оба мастера заняты в 12:00 (Окно→занятость→Сотрудник)
@@ -258,12 +260,12 @@ test('Акт 8. Комбо-запись: Аня — стрижка у Ольги
 
 // ===========================================================================
 // АКТ 9. Операции дня — перевес мастера (слот), союз-замена предмета, снятие
-// покрывает: [56 слот .set перевес][57 слот .delete][52 pivot перевес][36 versions]
+// покрывает: [56 слот .set перевес][57 слот .unset][52 pivot перевес][36 versions]
 // ===========================================================================
 test('Акт 9. Перенос исполнителя: позиции Ольги в комбо-записи → Ирине; союз-замена; снятие', async () => {
   const { зКомбо, ольга, ирина, стрижка, набор, зАни } = S;
   // перевес: позиции комбо-записи, где мастер Ольга → Ирине (pivot-поиск + слот-запись)
-  const перевес = await db.Запись(зКомбо).позиция().Сотрудник(ольга).позиция().set({}).Сотрудник.set(ирина).rows(); // [52][56]
+  const перевес = await db.Запись(зКомбо).позиция().Сотрудник(ольга).позиция().update().Сотрудник.set(ирина).rows(); // [52][56]
   assert.equal(перевес.length, 1);
   assert.equal(перевес[0].links.Staff, ирина.id);
   // версий позиции стало 2 (создание + перевес)
@@ -271,20 +273,20 @@ test('Акт 9. Перенос исполнителя: позиции Ольги
 
   // союз-замена: у позиции записи Ани предмет Стрижка → Комплекс «Образ» (конец один)
   const [позАни] = await db.Запись(зАни).позиция().rows();
-  const [зам] = await db.позиция(позАни.id).Комплекс.set(набор).rows();
+  const [зам] = await db.позиция(позАни.id).update().Комплекс.set(набор).rows();
   assert.ok(!('Service' in зам.links), 'Услуга снята');
   assert.equal(зам.links.Complex, набор.id);
   // вернуть обратно (для дальнейших актов) — Услуга замещает Комплекс
-  await db.позиция(позАни.id).Услуга.set(стрижка).rows();
+  await db.позиция(позАни.id).update().Услуга.set(стрижка).rows();
 
   // снятие optional-конца: у занятости Ани убрать связь Запись (станет hold без брони)
   const [busyAni] = await db.Запись(зАни).занятость().rows();
-  const [снято] = await db.занятость(busyAni.id).set({ kind: 'hold' }).Запись.delete().rows();  // [57]
+  const [снято] = await db.занятость(busyAni.id).update({ kind: 'hold' }).Запись.unset().rows();  // [57]
   assert.ok(!('Booking' in снято.links));
   // required-конец снять нельзя
-  assert.throws(() => db.занятость(busyAni.id).Окно.delete(), /required — cannot delete/);
+  assert.throws(() => db.занятость(busyAni.id).update().Окно.unset(), /required — cannot unset/);
   // вернуть booking-связь
-  await db.занятость(busyAni.id).set({ kind: 'booking' }).Запись.set(зАни).rows();
+  await db.занятость(busyAni.id).update({ kind: 'booking' }).Запись.set(зАни).rows();
 });
 
 // ===========================================================================
@@ -379,8 +381,8 @@ test('Акт 13. Аналитика: агрегации, keyset, alias, tags', a
   const пути = await db.Сотрудник(S.ольга).alias('Мастер').навык().Услуга().run();   // [48][31]
   assert.ok(пути[0]['Мастер'] && пути[0]['Мастер'].data.name === 'Ольга');
 
-  // tags: значение при создании (модификатор tags в set = метки строки) + поиск по тегу
-  const [хит] = await db.Организация(S.org).Услуга().tags('топ').set({ name: 'Хит сезона', duration: 45, price: { RUB: 2500 } }).rows(); // [49]
+  // tags: значение при создании (модификатор tags в записи = метки строки) + поиск по тегу
+  const [хит] = await db.Организация(S.org).Услуга().tags('топ').create({ name: 'Хит сезона', duration: 45, price: { RUB: 2500 } }).rows(); // [49]
   const поТегу = await db.Услуга().tags('топ').rows();
   assert.equal(поТегу.length, 1);
   assert.equal(поТегу[0].id, хит.id);
@@ -395,7 +397,7 @@ test('Акт 14. История: asOf и versions по изменению цен
   const { борода } = S;
   const before = new Date().toISOString();
   await new Promise((r) => setTimeout(r, 10));
-  await db.Услуга(борода).set({ price: { RUB: 1000 } }).rows();     // подорожание
+  await db.Услуга(борода).update({ price: { RUB: 1000 } }).rows();  // подорожание
 
   const сейчас = await db.Услуга(борода).first();
   assert.equal((сейчас!.data.price as { RUB: number }).RUB, 1000);
@@ -418,7 +420,7 @@ test('Акт 15. Realtime: watch ловит новые версии', async () =
   const stopCls = await db.watch('Клиент', (e) => клиентские.push(e.id));         // [19]
   await new Promise((r) => setTimeout(r, 100));
 
-  const [гость] = await db.Организация(S.org).Клиент().set({ name: 'Гость' }).rows();
+  const [гость] = await db.Организация(S.org).Клиент().create({ name: 'Гость' }).rows();
   await new Promise((r) => setTimeout(r, 200));
 
   await stopAll();
@@ -433,7 +435,7 @@ test('Акт 15. Realtime: watch ловит новые версии', async () =
 // ===========================================================================
 test('Акт 16. GDPR: anonymize клиента, история сохранена', async () => {
   const { org } = S;
-  const [клиент] = await db.Организация(org).Клиент().set({ name: 'Пётр Удаляев', contact: 'secret@mail' }).rows();
+  const [клиент] = await db.Организация(org).Клиент().create({ name: 'Пётр Удаляев', contact: 'secret@mail' }).rows();
   const [аноним] = await db.Клиент(клиент.id).anonymize(['name', 'contact']).rows();  // [55]
   assert.equal(аноним.data.name, '[erased]');
   assert.equal(аноним.data.contact, '[erased]');
@@ -552,12 +554,12 @@ test('Акт 19. ACL: ресурс-субъект, ресурс-объект, п
 // АКТ 20. Изоляция арендатора + наблюдаемость — enforceAccount, onQuery/slowMs
 // покрывает: [123 enforceAccount][125 onQuery][126 slowMs][138-141 set-контекст]
 // ===========================================================================
-test('Акт 20. Аренда и наблюдаемость: enforceAccount, onQuery/slowMs, tags/owner в set', async () => {
+test('Акт 20. Аренда и наблюдаемость: enforceAccount, onQuery/slowMs, tags/owner в create', async () => {
   // отдельный арендатор: свои строки видит, чужие — нет
   const tenant = await db.accounts.set({ categories: ['Client'] });
   const iso = await connect({ dsn: DSN, schema: SCHEMA, account: tenant.id, owner: tenant.id, enforceAccount: true }); // [123]
-  const [своя] = await iso.Организация().set({ name: 'Частная' }).rows();
-  assert.equal(своя.account, tenant.id);                                           // [139 owner/account в set INSERT]
+  const [своя] = await iso.Организация().create({ name: 'Частная' }).rows();
+  assert.equal(своя.account, tenant.id);                                           // [139 owner/account в create INSERT]
   assert.equal(своя.owner, tenant.id);
   assert.equal(await iso.Организация().count(), 1);                                // только своя (чужие невидимы)
   await iso.close();
@@ -570,8 +572,8 @@ test('Акт 20. Аренда и наблюдаемость: enforceAccount, onQ
   assert.ok(события.length >= 1);
   assert.equal(события[0].slow, true);                                             // slowMs:0 → всё slow
 
-  // tags/owner как значения при INSERT (set-контекст)
-  const [svc] = await db.Организация(S.org).Услуга().tags(['акция', 'сезон']).set({ name: 'Спец', duration: 20, price: { RUB: 500 } }).rows(); // [138]
+  // tags/owner как значения при INSERT (create-контекст)
+  const [svc] = await db.Организация(S.org).Услуга().tags(['акция', 'сезон']).create({ name: 'Спец', duration: 20, price: { RUB: 500 } }).rows(); // [138]
   assert.deepEqual(svc.tags.sort(), ['акция', 'сезон']);
   await db.Услуга(svc.id).delete({ confirm: true }).rows();
 });
@@ -581,18 +583,27 @@ test('Акт 20. Аренда и наблюдаемость: enforceAccount, onQ
 // покрывает: [5 ValidationError][143 .link removed][144 .execute][145 batch.execute]
 //            [58 no-path/LINK→LINK][59 слот-гард][12 commit-гард]
 // ===========================================================================
-test('Акт 21. Гарды: валидация, снесённый .link, execute→run, пути, слот-гарды', async () => {
+test('Акт 21. Гарды: валидация, снесённые set()/.link/.delete-слот, execute→run, пути', async () => {
   // строгая валидация данных
-  await assert.rejects(db.Организация(S.org).Услуга().set({ name: 'Плохая', duration: -1, price: { RUB: 1 } }).rows(), ValidationError); // [5]
-  await assert.rejects(db.Организация(S.org).Услуга().set({ name: 'Лишнее', duration: 10, price: { RUB: 1 }, xx: 1 }).rows(), ValidationError);
+  await assert.rejects(db.Организация(S.org).Услуга().create({ name: 'Плохая', duration: -1, price: { RUB: 1 } }).rows(), ValidationError); // [5]
+  await assert.rejects(db.Организация(S.org).Услуга().create({ name: 'Лишнее', duration: 10, price: { RUB: 1 }, xx: 1 }).rows(), ValidationError);
 
   // невалидные пути — синхронно при построении
   assert.throws(() => db.Запись(S.зАни).Сотрудник(), /no path/);                   // [58] Booking→Staff
   assert.throws(() => db.позиция().навык(), /LINK → LINK/);                         // [58]
 
+  // глаголы: create не ищет, update не создаёт; set() снесён
+  assert.throws(() => db.Услуга({ name: 'X' }).create({}), /takes no filter/);     // [53] фильтр → update
+  assert.throws(() => (db.Услуга() as unknown as { set: (d: object) => void }).set({}), /set\(\) split into create\(\)\/update\(\)/);
+
   // слот-гарды
-  assert.throws(() => db.Запись(S.зАни).Сотрудник.set('x'), /is not a link end/);  // [59] не конец
+  assert.throws(() => db.Запись(S.зАни).update().Сотрудник.set('x'), /is not a link end/);  // [59] не конец
   assert.throws(() => (db as unknown as { Сотрудник: { set(x: string): void } }).Сотрудник.set('x'), /needs an owner step/); // [59] без владельца
+  assert.throws(() => db.занятость('x').Окно.set('y'), /needs a write/);           // [59] слот без операции
+  assert.throws(
+    () => (db.занятость('x').update() as unknown as { Запись: { delete(): void } }).Запись.delete(),
+    /renamed to \.unset\(\)/,                                                      // [57] слот .delete снесён
+  );
 
   // снесённые/переименованные
   assert.throws(() => (db.Услуга() as unknown as { link: (a: string, b: string) => void }).link('X', 'y'), /\.link\(\) removed/); // [143]
@@ -618,8 +629,8 @@ test('Акт 21. Гарды: валидация, снесённый .link, execu
  *                asOf[40]А14 after[41]А13 deep[42]А3 sum[43]А13 avg[44]А13
  *                min[45]А13 max[46]А13 countBy[47]А13 alias[48]А13 tags[49]А13
  *                account[50]А20 owner[51]А20 entity·pivot[52]А4/А9/А11
- * Запись:        set[53]А1 delete[54]А10 anonymize[55]А16
- *                слот.set[56]А3/А4/А9 слот.delete[57]А9
+ * Запись:        create/update[53]А1/А9/А14 delete[54]А10 anonymize[55]А16
+ *                слот.set[56]А3/А4/А9 слот.unset[57]А9
  * Навигация:     Класс()·pivot[58]А4/А9 слот-гард[59]А21
  * Операторы(18): ne..or[60-77]А12
  * Batch:         run[78]А1 discard[79]А1 size[80]А1 batch.Класс[81]А1/А5
@@ -635,7 +646,7 @@ test('Акт 21. Гарды: валидация, снесённый .link, execu
  * ConnectOpts:   dsn/schema/partition/account/owner/max[117-122]А1 enforceAccount[123]А20
  *                enforceAcl[124]см.acl.test onQuery[125]А20 slowMs[126]А20
  * UpOpts:        dsn/schema/version[127-129]А2 quiet[136]А2 (+ прочие поля up.test)
- * set-контекст:  tags-значение[138]А13/А20 account/owner-INSERT[139]А20
+ * create-контекст: tags-значение[138]А13/А20 account/owner-INSERT[139]А20
  * Гарды:         .link()removed[143] execute→run[144] batch.execute[145] — А21
  *
  * Не в салоне (покрыто прицельно в других файлах): enforceAcl-цепочки [124] — acl.test;

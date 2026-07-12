@@ -43,7 +43,7 @@ test('dockerRunArgs: volume по умолчанию, dataDir → bind, порт�
 
 test('up(): живой postgres → docker skipped, схема применяется, db работает', async () => {
   const db = await up({ dsn: DSN, schema: 'uptest', version: 1, quiet: true });
-  const [аня] = await db.Клиент().set({ name: 'Уп-Аня', contact: '+7 900' }).rows();
+  const [аня] = await db.Клиент().create({ name: 'Уп-Аня', contact: '+7 900' }).rows();
   assert.equal(аня.data.name, 'Уп-Аня');
   await db.close();
 });
@@ -84,7 +84,7 @@ test('seeds: свои файлы с маркером "<SCHEMA-NAME>" вмест�
   );
   const db = await up({ dsn: DSN, schema: 'uptest_seeded', version: 1, seeds: [seedFile], quiet: true });
   assert.equal(await db.Штука().count(), 0); // свой класс виден реестру
-  const [шт] = await db.Штука().set({ name: 'первая' }).rows(); // System-аккаунт из сида позволяет писать
+  const [шт] = await db.Штука().create({ name: 'первая' }).rows(); // System-аккаунт из сида позволяет писать
   assert.equal(шт.data.name, 'первая');
   const sql = postgres(DSN, { max: 1 });
   const rows = await sql.unsafe('SELECT data->>\'name\' AS name FROM "v1.uptest_seeded"."Account"') as unknown as { name: string }[];

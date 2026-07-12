@@ -29,7 +29,10 @@
     "links": [],
     "order": 200,
     "attributes": {
-      "id": "uuid",
+      "id": {
+        "type": "uuid",
+        "generate": 7
+      },
       "name": "string",
       "timezone": {
         "type": "string",
@@ -97,7 +100,10 @@
     ],
     "order": 300,
     "attributes": {
-      "id": "uuid",
+      "id": {
+        "type": "uuid",
+        "generate": 7
+      },
       "name": "string",
       "roles": {
         "type": "array",
@@ -146,7 +152,10 @@
     ],
     "order": 400,
     "attributes": {
-      "id": "uuid",
+      "id": {
+        "type": "uuid",
+        "generate": 7
+      },
       "name": "string",
       "kind": {
         "type": "enum",
@@ -184,7 +193,14 @@
     ],
     "order": 500,
     "attributes": {
-      "id": "uuid",
+      "id": {
+        "type": "uuid",
+        "generate": 5,
+        "from": [
+          "Org",
+          "name"
+        ]
+      },
       "name": "string",
       "description": "string|optional",
       "duration": "number|integer|positive",
@@ -236,7 +252,14 @@
     ],
     "order": 600,
     "attributes": {
-      "id": "uuid",
+      "id": {
+        "type": "uuid",
+        "generate": 5,
+        "from": [
+          "Org",
+          "name"
+        ]
+      },
       "name": "string",
       "description": "string|optional",
       "duration": "number|integer|positive",
@@ -278,7 +301,10 @@
     ],
     "order": 700,
     "attributes": {
-      "id": "uuid",
+      "id": {
+        "type": "uuid",
+        "generate": 7
+      },
       "name": "string|optional",
       "contact": "string|optional",
       "language": {
@@ -316,7 +342,10 @@
     ],
     "order": 800,
     "attributes": {
-      "id": "uuid",
+      "id": {
+        "type": "uuid",
+        "generate": 7
+      },
       "start": {
         "type": "date",
         "convert": true
@@ -352,7 +381,14 @@
     ],
     "order": 900,
     "attributes": {
-      "id": "uuid",
+      "id": {
+        "type": "uuid",
+        "generate": 5,
+        "from": [
+          "Schedule",
+          "start"
+        ]
+      },
       "start": {
         "type": "date",
         "convert": true
@@ -385,7 +421,10 @@
     ],
     "order": 1000,
     "attributes": {
-      "id": "uuid",
+      "id": {
+        "type": "uuid",
+        "generate": 7
+      },
       "status": {
         "type": "enum",
         "values": [
@@ -479,7 +518,10 @@
     ],
     "order": 200,
     "attributes": {
-      "id": "any",
+      "id": {
+        "type": "uuid",
+        "generate": 7
+      },
       "qty": "number|integer|min:1|default:1",
       "price": {
         "type": "record",
@@ -522,7 +564,14 @@
     ],
     "order": 250,
     "attributes": {
-      "id": "any",
+      "id": {
+        "type": "uuid",
+        "generate": 5,
+        "from": [
+          "Complex",
+          "Service"
+        ]
+      },
       "qty": "number|integer|min:1|default:1"
     },
     "meta": {
@@ -554,7 +603,14 @@
     ],
     "order": 300,
     "attributes": {
-      "id": "any"
+      "id": {
+        "type": "uuid",
+        "generate": 5,
+        "from": [
+          "Staff",
+          "Service|Complex"
+        ]
+      }
     },
     "meta": {
       "abstract": false,
@@ -582,7 +638,14 @@
     ],
     "order": 400,
     "attributes": {
-      "id": "any"
+      "id": {
+        "type": "uuid",
+        "generate": 5,
+        "from": [
+          "Schedule",
+          "Staff"
+        ]
+      }
     },
     "meta": {
       "abstract": false,
@@ -615,7 +678,14 @@
     ],
     "order": 500,
     "attributes": {
-      "id": "any",
+      "id": {
+        "type": "uuid",
+        "generate": 5,
+        "from": [
+          "Slot",
+          "Staff"
+        ]
+      },
       "kind": {
         "type": "enum",
         "values": [

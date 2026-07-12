@@ -68,6 +68,9 @@ export function cursorOf(row: import('./types.js').Row, field: string = 'updated
 export { up } from './up.js';
 export type { UpOpts } from './up.js';
 
+// генерация id (attributes.id): формула v5 открыта — id считается ДО создания
+export { uuidv5, uuidv7, LETOPIS_NS } from './uuid.js';
+
 // операторы фильтров
 export {
   ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends,

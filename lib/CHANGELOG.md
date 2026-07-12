@@ -2,6 +2,50 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/), версии — semver.
 
+## [0.16.0] — 2026-07-12
+
+### Changed — BREAKING: глаголы записи create/update, слот unset, id считает Schema
+
+- **`set()` разбит на `create()` / `update()`** — мина «`Класс()` → INSERT,
+  `Класс({})` → UPDATE всех» мертва, намерение всегда явное:
+  - **`create(data?)`** — INSERT; известный id (шаг `Класс(id)`, `data.id` или
+    вычисленный v5) уже существует → новая версия (идемпотентный create,
+    REST-PUT семантика). Фильтр-объект перед create — ошибка ПОСТРОЕНИЯ
+    (`create() takes no filter`); create на pivot-шаге — ошибка.
+  - **`update(data?)`** — новая версия КАЖДОГО найденного путём;
+    `Класс()` ≡ `Класс({})` — «все в границах контекста»; не найдено → `[]`,
+    update НИКОГДА не создаёт.
+  - `set()` бросает подсказку `set() split into create()/update() (0.16.0)`.
+- **Слот-снятие переименовано: `.Класс.delete()` → `.Класс.unset()`** — развели
+  «удалить сущность» (`delete()`) и «снять конец связи» (`unset()`); старое имя
+  бросает подсказку. Слот теперь требует глагол записи ПЕРЕД собой:
+  `…create(…).Класс.set(x)` / `…update(…).Класс.unset()`; слот без операции —
+  ошибка `link slot needs a write` (раньше слот молча создавал `set({})`).
+- **Генерация id по Schema** — `attributes.id`:
+  - `"uuid"` / `{type:'uuid'}` → **v4** (random, как раньше — дефолт);
+  - `{type:'uuid', generate: 7}` → **v7** (unix-время в старших битах — вставки
+    ложатся в хвост btree-индекса);
+  - `{type:'uuid', generate: 5, from:[…]}` → **v5, детерминированный**:
+    `uuidv5("pgSchema:partition:класс:значения from")`; `from` — имена
+    ОБЯЗАТЕЛЬНЫХ концов `Schema.links` (класс или полное имя союза
+    `'Service|Complex'`; значение — id конца) и/или скалярных полей `data`.
+    Явный id у v5-класса запрещён (`computes id`). Свойства: **create
+    идемпотентен** (та же комбинация → та же сущность, дубль невозможен даже в
+    гонке — двойная бронь мертва на уровне схемы) и **id известен ДО создания**
+    (формула открыта; namespace letopis `c7a2f9d4-3b61-4e8a-9f05-8d2c1e6b7a90`).
+  - Батч: multi-VALUES-склейка для v5-классов отключена (id нужны концы) —
+    такие планы исполняются поштучно, семантика та же.
+- **Демо-схема booking целиком на generate**: Org/Staff/Folder/Customer/Schedule/
+  Booking/item → v7; `busy ← v5(Slot, Staff)`; `skill ← v5(Staff, Service|Complex)`;
+  `shift ← v5(Schedule, Staff)`; `compo ← v5(Complex, Service)`;
+  `Slot ← v5(Schedule, data.start)`; `Service`/`Complex` ← `v5(Org, data.name)`
+  (имя уникально в организации). Полигоны `v1.salondemo`/`v1.article` обновлены
+  на месте (UPDATE Schema; данные нетронуты).
+- Тесты мигрированы (все `set`→`create`/`update`, слот `.delete`→`.unset`,
+  фикс-id v5-классов → вычисляемые); новый **`test/idgen.test.ts`** — генерация
+  id на боевых классах Schema (v4/v7/v5 из поля и концов, гонка без локов,
+  схема-гарды). SALON.md и демо-полигон перегнаны на 0.16.0. Итого **164 теста**.
+
 ## [0.15.0] — 2026-07-12
 
 ### Changed — BREAKING: единый закон пути, слоты связей, pivot, entity()

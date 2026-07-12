@@ -22,23 +22,23 @@ before(async () => {
   db = await connect({ dsn: DSN, schema: 'v1.booking', max: 4 });
   await db.sql.unsafe('TRUNCATE "v1.booking"."Entity"');
 
-  const [org] = await db.Организация().set({ name: 'API-салон', phone: '+7-900-000-00-00' }).rows();
-  const [vasya] = await db.Организация(org).Сотрудник().set({ name: 'Вася', roles: ['owner', 'master'] }).rows();
-  const [petya] = await db.Организация(org).Сотрудник().set({ name: 'Петя' }).rows();
-  const [root] = await db.Организация(org).Папка().set({ name: 'Каталог' }).rows();
-  const [nails] = await db.Организация(org).Папка(root).Папка().set({ name: 'Ногти' }).rows();
-  const [spa] = await db.Организация(org).Папка(nails).Папка().set({ name: 'Спа' }).rows();
-  const [manik] = await db.Организация(org).Папка(nails).Услуга().set({ name: 'Маникюр', duration: 60, price: { RUB: 2000 } }).rows();
-  const [strizh] = await db.Организация(org).Услуга().set({ name: 'Стрижка', duration: 30, price: { RUB: 1500 }, description: 'классика' }).rows();
-  const [cli] = await db.Организация(org).Клиент().set({ name: 'Анна', contact: '+7-911-111-11-11' }).rows();
-  const [sched] = await db.Организация(org).Расписание().set({ start: '2026-07-01T00:00:00Z', end: '2026-07-31T23:59:59Z' }).rows();
-  const [slot1] = await db.Расписание(sched).Окно().set({ start: '2026-07-15T10:00:00Z', end: '2026-07-15T11:00:00Z' }).rows();
-  const [slot2] = await db.Расписание(sched).Окно().set({ start: '2026-07-15T11:00:00Z', end: '2026-07-15T12:00:00Z' }).rows();
-  const [booking] = await db.Клиент(cli).Запись().set({ status: 'confirmed', total: { RUB: 2000 } }).rows();
-  const [skill] = await db.Сотрудник(vasya).навык().set({}).Услуга.set(manik).rows();
-  const [shift] = await db.Расписание(sched).смена().set({}).Сотрудник.set(vasya).rows();
-  const [busy] = await db.Сотрудник(vasya).занятость().set({ kind: 'booking' }).Окно.set(slot1).Запись.set(booking).rows();
-  const [item] = await db.Запись(booking).позиция().set({ qty: 1, price: { RUB: 2000 } }).Услуга.set(manik).rows();
+  const [org] = await db.Организация().create({ name: 'API-салон', phone: '+7-900-000-00-00' }).rows();
+  const [vasya] = await db.Организация(org).Сотрудник().create({ name: 'Вася', roles: ['owner', 'master'] }).rows();
+  const [petya] = await db.Организация(org).Сотрудник().create({ name: 'Петя' }).rows();
+  const [root] = await db.Организация(org).Папка().create({ name: 'Каталог' }).rows();
+  const [nails] = await db.Организация(org).Папка(root).Папка().create({ name: 'Ногти' }).rows();
+  const [spa] = await db.Организация(org).Папка(nails).Папка().create({ name: 'Спа' }).rows();
+  const [manik] = await db.Организация(org).Папка(nails).Услуга().create({ name: 'Маникюр', duration: 60, price: { RUB: 2000 } }).rows();
+  const [strizh] = await db.Организация(org).Услуга().create({ name: 'Стрижка', duration: 30, price: { RUB: 1500 }, description: 'классика' }).rows();
+  const [cli] = await db.Организация(org).Клиент().create({ name: 'Анна', contact: '+7-911-111-11-11' }).rows();
+  const [sched] = await db.Организация(org).Расписание().create({ start: '2026-07-01T00:00:00Z', end: '2026-07-31T23:59:59Z' }).rows();
+  const [slot1] = await db.Расписание(sched).Окно().create({ start: '2026-07-15T10:00:00Z', end: '2026-07-15T11:00:00Z' }).rows();
+  const [slot2] = await db.Расписание(sched).Окно().create({ start: '2026-07-15T11:00:00Z', end: '2026-07-15T12:00:00Z' }).rows();
+  const [booking] = await db.Клиент(cli).Запись().create({ status: 'confirmed', total: { RUB: 2000 } }).rows();
+  const [skill] = await db.Сотрудник(vasya).навык().create().Услуга.set(manik).rows();
+  const [shift] = await db.Расписание(sched).смена().create().Сотрудник.set(vasya).rows();
+  const [busy] = await db.Сотрудник(vasya).занятость().create({ kind: 'booking' }).Окно.set(slot1).Запись.set(booking).rows();
+  const [item] = await db.Запись(booking).позиция().create({ qty: 1, price: { RUB: 2000 } }).Услуга.set(manik).rows();
 
   Object.assign(S, { org, vasya, petya, root, nails, spa, manik, strizh, cli, sched, slot1, slot2, booking, skill, shift, busy, item });
 });
@@ -54,7 +54,7 @@ test('✔ connect: schema/partition/account/owner/max, System-fallback, неиз
   // account/owner из connect
   const acc = await db.accounts.set({ categories: ['Client'] });
   const scoped = await connect({ dsn: DSN, schema: 'v1.booking', account: acc.id, owner: acc.id, max: 2 });
-  const [mine] = await scoped.Организация().set({ name: 'Своя орга' }).rows();
+  const [mine] = await scoped.Организация().create({ name: 'Своя орга' }).rows();
   assert.equal(mine.account, acc.id);
   assert.equal(mine.owner, acc.id);
   await scoped.close();
@@ -125,10 +125,10 @@ test('✔ модификаторы: limit/offset/sort/asOf/after/alias/tags/acco
 
   // asOf: до правки цена старая; count тоже видит asOf
   const t0 = S.manik.updated;
-  await db.Услуга(S.manik.id).set({ price: { RUB: 2500 } }).rows();
+  await db.Услуга(S.manik.id).update({ price: { RUB: 2500 } }).rows();
   const old = await db.Услуга(S.manik.id).asOf(t0).first();
   assert.equal((old?.data.price as { RUB: number }).RUB, 2000);
-  const [orgNew] = await db.Организация().set({ name: 'Позже' }).rows();
+  const [orgNew] = await db.Организация().create({ name: 'Позже' }).rows();
   assert.equal(await db.Организация().asOf(t0).count(), 1);
   await db.Организация(orgNew.id).delete({ confirm: true }).rows();
 
@@ -147,7 +147,7 @@ test('✔ модификаторы: limit/offset/sort/asOf/after/alias/tags/acco
   assert.deepEqual(Object.keys(paths[0]).sort(), ['салон', 'услуга']);
 
   // tags: значение при записи, фильтр строкой/массивом/hasAny при чтении
-  const [tagged] = await db.Организация(S.org).Клиент().tags(['vip', 'net']).set({ name: 'Тэгги' }).rows();
+  const [tagged] = await db.Организация(S.org).Клиент().tags(['vip', 'net']).create({ name: 'Тэгги' }).rows();
   assert.deepEqual(tagged.tags, ['vip', 'net']);
   assert.equal(await db.Клиент().tags('vip').count(), 1);
   assert.equal(await db.Клиент().tags(['vip', 'net']).count(), 1);
@@ -185,8 +185,8 @@ test('✔ терминалы: run/rows/first/ids/count/versions/sum/avg/min/max/
   assert.equal(await db.Сотрудник().count(), 2);
 
   // versions: вся история + $deleted у tombstone
-  const [tmp] = await db.Организация(S.org).Клиент().set({ name: 'Версионный' }).rows();
-  await db.Клиент(tmp.id).set({ language: 'en' }).rows();
+  const [tmp] = await db.Организация(S.org).Клиент().create({ name: 'Версионный' }).rows();
+  await db.Клиент(tmp.id).update({ language: 'en' }).rows();
   await db.Клиент(tmp.id).delete({ confirm: true }).rows();
   const hist = await db.Клиент(tmp.id).versions();
   assert.equal(hist.length, 3);
@@ -222,68 +222,68 @@ test('✔ обходы: HUB→LINK, LINK→HUB (+необъявленный кл
   assert.throws(() => db.Сотрудник(S.vasya.id).навык().занятость(), /LINK → LINK/);
 });
 
-test('✔ set: INSERT/UPSERT/UPDATE, deep-merge, связи путь+слоты, повторный терминал, валидация, LINK-концы', async () => {
+test('✔ create/update: INSERT, идемпотентный create по id, update найденных, deep-merge, связи путь+слоты, повторный терминал, валидация, LINK-концы', async () => {
   // чистый INSERT: Класс() без аргумента
-  const [ins] = await db.Организация(S.org).Клиент().set({ name: 'Новый' }).rows();
+  const [ins] = await db.Организация(S.org).Клиент().create({ name: 'Новый' }).rows();
   assert.ok(ins.id);
   assert.equal(ins.links.Org, S.org.id);
 
   // upsert по фильтр-id (нет → создать) и по data.id
   const idA = '00000000-0000-4000-8000-0000000000aa';
-  const [upA] = await db.Организация(S.org).Клиент(idA).set({ name: 'По фильтр-id' }).rows();
+  const [upA] = await db.Организация(S.org).Клиент(idA).create({ name: 'По фильтр-id' }).rows();
   assert.equal(upA.id, idA);
-  const [upA2] = await db.Клиент(idA).set({ language: 'en' }).rows();          // есть → новая версия
+  const [upA2] = await db.Клиент(idA).create({ language: 'en' }).rows();          // есть → новая версия
   assert.deepEqual([upA2.data.name, upA2.data.language], ['По фильтр-id', 'en']);
   const idB = '00000000-0000-4000-8000-0000000000bb';
-  const [upB] = await db.Организация(S.org).Клиент().set({ id: idB, name: 'По data.id' }).rows();
+  const [upB] = await db.Организация(S.org).Клиент().create({ id: idB, name: 'По data.id' }).rows();
   assert.equal(upB.id, idB);
 
-  // UPDATE по объект-фильтру: deep-merge меняет ТОЛЬКО указанные листья record-поля
-  await db.Услуга(S.manik.id).set({ price: { USD: 25 } }).rows();
+  // update по id: deep-merge меняет ТОЛЬКО указанные листья record-поля
+  await db.Услуга(S.manik.id).update({ price: { USD: 25 } }).rows();
   const merged = await db.Услуга(S.manik.id).first();
   assert.deepEqual(merged?.data.price, { RUB: 2500, USD: 25 });         // RUB остался (2500 из группы модификаторов)
 
   // UPDATE {} — все в контексте; [] без совпадений на непустом фильтре
-  const off = await db.Организация(S.org).Услуга({}).set({ active: false }).rows();
+  const off = await db.Организация(S.org).Услуга({}).update({ active: false }).rows();
   assert.equal(off.length, 2);
   assert.ok(off.every((r) => r.data.active === false));
-  assert.deepEqual(await db.Услуга({ name: 'Нет такой' }).set({ active: true }).rows(), []);
+  assert.deepEqual(await db.Услуга({ name: 'Нет такой' }).update({ active: true }).rows(), []);
 
   // 2 формы связей: владелец из пути + конец слотом / без пути — все концы слотами (.Класс.set())
-  const [viaCtx] = await db.Сотрудник(S.petya).навык().set({}).Услуга.set(S.strizh).rows();
+  const [viaCtx] = await db.Сотрудник(S.petya).навык().create().Услуга.set(S.strizh).rows();
   assert.deepEqual([viaCtx.links.Staff, viaCtx.links.Service], [S.petya.id, S.strizh.id]);
-  const [viaLink] = await db.занятость().set({ kind: 'off' }).Сотрудник.set(S.petya).Окно.set(S.slot2).rows();
+  const [viaLink] = await db.занятость().create({ kind: 'off' }).Сотрудник.set(S.petya).Окно.set(S.slot2).rows();
   assert.deepEqual([viaLink.links.Staff, viaLink.links.Slot], [S.petya.id, S.slot2.id]);
 
   // цепочка переиспользуема: каждый терминал исполняет план ЗАНОВО (INSERT-форма — новая
-  // сущность на каждый вызов); модификатор шага сразу после set() — ошибка
-  const sc = db.Организация(S.org).Клиент().set({ name: 'Кешик' });
+  // сущность на каждый вызов); модификатор шага сразу после create() — ошибка
+  const sc = db.Организация(S.org).Клиент().create({ name: 'Кешик' });
   const r1 = await sc.rows();
   const r2 = await sc.rows();
   assert.notEqual(r1[0].id, r2[0].id);
   assert.equal(await db.Клиент({ name: 'Кешик' }).count(), 2);
-  assert.throws(() => sc.alias('x'), /step modifier after set/);
+  assert.throws(() => sc.alias('x'), /step modifier after create/);
 
   // строгая валидация: неверный тип и лишнее поле; abstract-класс — ошибки на терминале
-  await assert.rejects(db.Организация(S.org).Услуга().set({ name: 'Х', duration: 'час' as never }).rows(), /validation failed/);
-  await assert.rejects(db.Организация(S.org).Услуга().set({ name: 'Х', duration: 5, лишнее: 1 }).rows(), /validation failed/);
-  await assert.rejects(db.Сущность().set({}).rows(), /abstract/);
+  await assert.rejects(db.Организация(S.org).Услуга().create({ name: 'Х', duration: 'час' as never }).rows(), /validation failed/);
+  await assert.rejects(db.Организация(S.org).Услуга().create({ name: 'Х', duration: 5, лишнее: 1 }).rows(), /validation failed/);
+  await assert.rejects(db.Сущность().create().rows(), /abstract/);
 
-  // LINK-концы v2: обязательный и союз
-  await assert.rejects(db.Сотрудник(S.vasya).занятость().set({ kind: 'off' }).rows(), /requires end "Slot"/);
-  await assert.rejects(db.Сотрудник(S.vasya).навык().set({}).rows(), /requires end "Service\|Complex"/);
+  // LINK-концы v2: обязательный и союз (v5-id: «needs end» летит раньше валидации)
+  await assert.rejects(db.Сотрудник(S.vasya).занятость().create({ kind: 'off' }).rows(), /end "Slot"/);
+  await assert.rejects(db.Сотрудник(S.vasya).навык().create().rows(), /end "Service\|Complex"/);
 
   // прибираем
   for (const r of [ins, upA, upB]) await db.Клиент(r.id).delete({ confirm: true }).rows();
   await db.Клиент({ name: 'Кешик' }).delete({ confirm: true }).rows();
   await db.занятость({ kind: 'off' }).delete({ confirm: true }).rows();
   await db.Сотрудник(S.petya.id).навык().delete({ confirm: true }).rows();
-  await db.Организация(S.org).Услуга({}).set({ active: true }).rows();
+  await db.Организация(S.org).Услуга({}).update({ active: true }).rows();
 });
 
 test('✔ delete: по id/фильтру/контексту, $deleted, каскад, повторный, воскрешение', async () => {
-  const [c1] = await db.Организация(S.org).Клиент().set({ name: 'Удаляемый' }).rows();
-  const [b1] = await db.Клиент(c1).Запись().set({ status: 'created' }).rows();
+  const [c1] = await db.Организация(S.org).Клиент().create({ name: 'Удаляемый' }).rows();
+  const [b1] = await db.Клиент(c1).Запись().create({ status: 'created' }).rows();
 
   // по id (confirm: true — реальное удаление): цели + каскад (Запись ссылается на Клиента) — все с $deleted
   const gone = await db.Клиент(c1.id).delete({ confirm: true }).rows();
@@ -294,13 +294,13 @@ test('✔ delete: по id/фильтру/контексту, $deleted, каск�
   // повторный — no-op
   assert.deepEqual(await db.Клиент(c1.id).delete({ confirm: true }).rows(), []);
 
-  // воскрешение set-ом по id
-  const [alive] = await db.Организация(S.org).Клиент(c1.id).set({ name: 'Воскрес' }).rows();
+  // воскрешение create-ом по id
+  const [alive] = await db.Организация(S.org).Клиент(c1.id).create({ name: 'Воскрес' }).rows();
   assert.equal(alive.id, c1.id);
   assert.equal(await db.Клиент(c1.id).count(), 1);
 
   // по фильтру и в контексте (границы контекста уважаются)
-  const [c2] = await db.Организация(S.org).Клиент().set({ name: 'Фильтровый' }).rows();
+  const [c2] = await db.Организация(S.org).Клиент().create({ name: 'Фильтровый' }).rows();
   assert.equal((await db.Клиент({ name: 'Фильтровый' }).delete({ confirm: true }).rows()).length, 1);
   const delInCtx = await db.Организация(S.org).Клиент({ name: 'Воскрес' }).delete({ confirm: true }).rows();
   assert.equal(delInCtx.length, 1);
@@ -308,7 +308,7 @@ test('✔ delete: по id/фильтру/контексту, $deleted, каск�
 });
 
 test('✔ anonymize: string-поля затёрты, тег, история цела, не-string — ошибка', async () => {
-  const [p] = await db.Организация(S.org).Клиент().set({ name: 'Персона', language: 'ru' }).rows();
+  const [p] = await db.Организация(S.org).Клиент().create({ name: 'Персона', language: 'ru' }).rows();
   const [anon] = await db.Клиент(p.id).anonymize(['name']).rows();
   assert.equal(anon.data.name, '[erased]');
   assert.equal(anon.data.language, 'ru');                        // не тронуто
@@ -323,14 +323,14 @@ test('✔ anonymize: string-поля затёрты, тег, история це
 test('✔ tx: begin/commit/rollback (обе формы), повторный no-op, lock', async () => {
   // commit через db.commit(tr)
   const tr1 = await db.begin();
-  const [a] = await tr1.Организация(S.org).Клиент().set({ name: 'В-транзакции' }).rows();
+  const [a] = await tr1.Организация(S.org).Клиент().create({ name: 'В-транзакции' }).rows();
   assert.equal(await db.Клиент(a.id).count(), 0);                // снаружи не видно до commit
   await db.commit(tr1);
   assert.equal(await db.Клиент(a.id).count(), 1);
 
   // rollback через tr.rollback(); повторный rollback/commit — no-op
   const tr2 = await db.begin();
-  await tr2.Клиент(a.id).set({ name: 'Откачусь' }).rows();
+  await tr2.Клиент(a.id).update({ name: 'Откачусь' }).rows();
   await tr2.rollback();
   await tr2.rollback();
   await tr2.commit();
@@ -359,9 +359,9 @@ test('✔ batch: копление/size/discard, multi-VALUES, атомарный
 
   // чистые INSERT (один шаг, без контекста и data.id) склеиваются в один multi-VALUES
   const b = hooked.batch('пачка');
-  const q1 = b.Клиент().set({ name: 'Б1' });                              // план встал в очередь, вернулась цепочка
-  b.Клиент().set({ name: 'Б2' });
-  b.Клиент().set({ name: 'Б3' });
+  const q1 = b.Клиент().create({ name: 'Б1' });                              // план встал в очередь, вернулась цепочка
+  b.Клиент().create({ name: 'Б2' });
+  b.Клиент().create({ name: 'Б3' });
   assert.throws(() => q1.rows(), /plan is queued in the batch/);          // терминал в батче — только b.run()
   assert.equal(b.size(), 3);
 
@@ -376,7 +376,7 @@ test('✔ batch: копление/size/discard, multi-VALUES, атомарный
 
   // discard: очередь очищается без исполнения
   const d = hooked.batch('мусор');
-  d.Организация(S.org).Клиент().set({ name: 'НеБудет' });
+  d.Организация(S.org).Клиент().create({ name: 'НеБудет' });
   assert.equal(d.size(), 1);
   d.discard();
   assert.equal(d.size(), 0);
@@ -384,14 +384,14 @@ test('✔ batch: копление/size/discard, multi-VALUES, атомарный
 
   // атомарность: невалидная операция в конце откатывает ВСЮ пачку
   const bad = hooked.batch('сломанная');
-  bad.Организация(S.org).Клиент().set({ name: 'НеЗапишется' });
-  bad.Организация(S.org).Услуга().set({ name: 'Х', duration: 'плохо' as never });
+  bad.Организация(S.org).Клиент().create({ name: 'НеЗапишется' });
+  bad.Организация(S.org).Услуга().create({ name: 'Х', duration: 'плохо' as never });
   await assert.rejects(bad.run(), /validation failed/);
   assert.equal(await hooked.Клиент({ name: 'НеЗапишется' }).count(), 0);
 
   // связи контекст-шагами работают и в батче
   const b2 = hooked.batch('связи');
-  b2.Сотрудник(S.petya).навык().set({}).Услуга.set(S.strizh);
+  b2.Сотрудник(S.petya).навык().create().Услуга.set(S.strizh);
   const [linked] = (await b2.run())[0];
   assert.deepEqual([linked.links.Staff, linked.links.Service], [S.petya.id, S.strizh.id]);
 
@@ -444,8 +444,8 @@ test('✔ watch: все классы и фильтр-класс, insert/tombston
   const stopAll = await db.watch((e) => all.push(e.class));
   const stopCli = await db.watch('Клиент', (e) => only.push({ deleted: e.deleted }));
 
-  const [w] = await db.Организация(S.org).Клиент().set({ name: 'Наблюдаемый' }).rows();
-  await db.Организация(S.org).Услуга(S.strizh.id).set({ description: 'обновка' }).rows();
+  const [w] = await db.Организация(S.org).Клиент().create({ name: 'Наблюдаемый' }).rows();
+  await db.Организация(S.org).Услуга(S.strizh.id).update({ description: 'обновка' }).rows();
   await db.Клиент(w.id).delete({ confirm: true }).rows();
   await new Promise((r) => setTimeout(r, 300));
 
@@ -455,7 +455,7 @@ test('✔ watch: все классы и фильтр-класс, insert/tombston
 
   await stopCli();
   const n = only.length;
-  const [w2] = await db.Организация(S.org).Клиент().set({ name: 'После stop' }).rows();
+  const [w2] = await db.Организация(S.org).Клиент().create({ name: 'После stop' }).rows();
   await new Promise((r) => setTimeout(r, 200));
   assert.equal(only.length, n);                                    // после stop — тишина
   await stopAll();
@@ -466,12 +466,12 @@ test('✔ enforceAccount: чужое невидимо, чтение и запи�
   const tenant = await db.accounts.set({ categories: ['Client'] });
   const iso = await connect({ dsn: DSN, schema: 'v1.booking', account: tenant.id, enforceAccount: true });
 
-  const [own] = await iso.Организация().set({ name: 'Только моя' }).rows();
+  const [own] = await iso.Организация().create({ name: 'Только моя' }).rows();
   assert.equal(own.account, tenant.id);
   assert.equal(await iso.Организация().count(), 1);                // System-орга невидима
   assert.equal((await iso.Организация().first())?.id, own.id);
   await assert.rejects(iso.Организация().account(SYS).rows(), /pinned to account/);       // чтение чужого
-  await assert.rejects(iso.Организация().account(SYS).set({ name: 'Чужая' }).rows(), /pinned to account/); // запись чужим
+  await assert.rejects(iso.Организация().account(SYS).create({ name: 'Чужая' }).rows(), /pinned to account/); // запись чужим
   await iso.Организация(own.id).delete({ confirm: true }).rows();
   await iso.close();
   // аккаунт с Entity-историей физически НЕудаляем (FK RESTRICT) — tombstone-строки остаются навсегда
@@ -482,7 +482,7 @@ test('✔ onQuery/slowMs: события чтения и записи с mode/cl
   const events: QueryEvent[] = [];
   const hooked = await connect({ dsn: DSN, schema: 'v1.booking', slowMs: 10_000, onQuery: (e) => events.push(e) });
   await hooked.Услуга().навык().count();
-  const [tmp] = await hooked.Организация(S.org).Клиент().set({ name: 'Хукнутый' }).rows();
+  const [tmp] = await hooked.Организация(S.org).Клиент().create({ name: 'Хукнутый' }).rows();
   await hooked.Клиент(tmp.id).delete({ confirm: true }).rows();
   await hooked.close();
 

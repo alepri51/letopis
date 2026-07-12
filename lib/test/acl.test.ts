@@ -109,7 +109,7 @@ test('checkData: lineage, deny-by-default, filter с подставленным 
 test('enforceAcl: предикат owner=$account сужает чтение ЗАРАНЕЕ — пагинация и count честные', async () => {
   // 3 свои + 2 чужие записи
   for (const [who, n] of [[user, 3], [other, 2]] as const) {
-    for (let i = 0; i < n; i++) await sys.Запись().account(who.id).owner(who.id).set({}).rows();
+    for (let i = 0; i < n; i++) await sys.Запись().account(who.id).owner(who.id).create().rows();
   }
   const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true });
   try {
@@ -129,8 +129,9 @@ test('enforceAcl: предикат owner=$account сужает чтение ЗА
 });
 
 test('enforceAcl: статический data-шаблон — виден только срез', async () => {
-  await sys.Услуга().set({ name: 'Активная', price: { RUB: 100 }, duration: 30 }).rows();
-  await sys.Услуга().set({ name: 'Выключенная', price: { RUB: 100 }, duration: 30, active: false }).rows();
+  const [салон] = await sys.Организация().create({ name: 'Салон ACL' }).rows();
+  await sys.Организация(салон.id).Услуга().create({ name: 'Активная', price: { RUB: 100 }, duration: 30 }).rows();
+  await sys.Организация(салон.id).Услуга().create({ name: 'Выключенная', price: { RUB: 100 }, duration: 30, active: false }).rows();
 
   const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true });
   try {
@@ -146,26 +147,28 @@ test('enforceAcl: статический data-шаблон — виден тол
 test('enforceAcl запись: INSERT пришпилен к owner=$account, чужие цели не находятся', async () => {
   const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true });
   try {
-    const [своя] = await u.Запись().set({}).rows();
+    const [своя] = await u.Запись().create().rows();
     assert.equal(своя.owner, user.id); // пришпилено правилом
     // явный чужой owner — ошибка (летит из терминала)
-    await assert.rejects(u.Запись().owner(other.id).set({}).rows(), /acl pins Booking writes to owner/);
+    await assert.rejects(u.Запись().owner(other.id).create().rows(), /acl pins Booking writes to owner/);
     // UPDATE чужой записи: цель не найдена (предикат в поиске целей) — тихий []
-    const [чужая] = await sys.Запись().account(other.id).owner(other.id).set({}).rows();
-    assert.deepEqual(await u.Запись(чужая.id).set({ status: 'confirmed' }).rows(), []);
+    const [чужая] = await sys.Запись().account(other.id).owner(other.id).create().rows();
+    assert.deepEqual(await u.Запись(чужая.id).update({ status: 'confirmed' }).rows(), []);
+    // create с id чужой записи: probe без предиката видит занятость — тихий [] (не перехват версией)
+    assert.deepEqual(await u.Запись(чужая.id).create({ status: 'confirmed' }).rows(), []);
     // а своей — работает
-    const [après] = await u.Запись(своя.id).set({ status: 'confirmed' }).rows();
+    const [après] = await u.Запись(своя.id).update({ status: 'confirmed' }).rows();
     assert.equal(après.data.status, 'confirmed');
     // WRITE без правила — deny (на терминале)
-    await assert.rejects(u.Клиент().set({ name: 'х' }).rows(), /acl denies WRITE on Customer/);
+    await assert.rejects(u.Клиент().create({ name: 'х' }).rows(), /acl denies WRITE on Customer/);
   } finally {
     await u.close();
   }
 });
 
 test('enforceAcl: tenant-шаблон account=$account', async () => {
-  await sys.Клиент().account(user.id).set({ name: 'Мой клиент' }).rows();
-  await sys.Клиент().account(other.id).set({ name: 'Чужой клиент' }).rows();
+  await sys.Клиент().account(user.id).create({ name: 'Мой клиент' }).rows();
+  await sys.Клиент().account(other.id).create({ name: 'Чужой клиент' }).rows();
   const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true });
   try {
     const мои = await u.Клиент().rows();
@@ -176,7 +179,7 @@ test('enforceAcl: tenant-шаблон account=$account', async () => {
 });
 
 test('delete-каскад: замыкание проверяется по всем классам — deny внутри откатывает всё', async () => {
-  const [car] = await sys.SportsCar().account(user.id).owner(user.id).set({ name: 'Феррари' }).rows();
+  const [car] = await sys.SportsCar().account(user.id).owner(user.id).create({ name: 'Феррари' }).rows();
   const [garage] = await sys.sql.unsafe(
     `INSERT INTO "${SCHEMA}"."Entity" (partition, id, class, data, links, account, owner)
      VALUES ('entity', gen_random_uuid()::text, 'Org', '{"name":"Гараж"}', $1::jsonb, $2, $2) RETURNING id`,
@@ -194,7 +197,7 @@ test('delete-каскад: замыкание проверяется по все
     assert.equal(await u.SportsCar(car.id).count(), 1); // транзакция откатилась
     assert.equal(await sys.Организация((garage as { id: string }).id).count(), 1);
     // без запретного зависимого каскад проходит
-    const [lone] = await u.SportsCar().set({ name: 'Одинокий' }).rows();
+    const [lone] = await u.SportsCar().create({ name: 'Одинокий' }).rows();
     assert.equal((await u.SportsCar(lone.id).delete({ confirm: true }).rows()).length, 1);
   } finally {
     await u.close();
@@ -206,9 +209,9 @@ test('watch: события отдаются только при БЕЗУСЛО�
   const seen: WatchEvent[] = [];
   const stop = await u.watch((e) => seen.push(e));
   try {
-    await sys.SportsCar().set({ name: 'Виден' }).rows(); // vehicle:READ без предиката
-    await sys.Запись().account(user.id).owner(user.id).set({}).rows(); // own-предикат → скрыто (payload не проверить)
-    await sys.Организация().set({ name: 'Скрыта' }).rows(); // deny → скрыто
+    await sys.SportsCar().create({ name: 'Виден' }).rows(); // vehicle:READ без предиката
+    await sys.Запись().account(user.id).owner(user.id).create().rows(); // own-предикат → скрыто (payload не проверить)
+    await sys.Организация().create({ name: 'Скрыта' }).rows(); // deny → скрыто
     await new Promise((r) => setTimeout(r, 500));
     assert.ok(seen.some((e) => e.class === 'SportsCar'));
     assert.ok(!seen.some((e) => e.class === 'Booking'));
