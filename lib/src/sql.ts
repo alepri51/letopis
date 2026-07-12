@@ -107,11 +107,25 @@ export async function runQuery<T>(
   }
 }
 
+/** Значение слота связи: id | вложенный план | null (снять конец). */
+export type SlotValue = string | { plan: Step[]; mods?: ChainMods } | null;
+
+let nodeSeq = 0;
+/** Уникальная метка узла пути (для pivot-возвратов; переживает нарезку плана). */
+export const nextNodeKey = (): number => ++nodeSeq;
+
 export interface Step {
   /** Имя, как вызвано в цепочке (алиас или id). */
   name: string;
   cls: ClassDef;
   filter?: Filter;
+  /** Метка узла (есть у каждого реального шага). */
+  nodeKey?: number;
+  /**
+   * Pivot: шаг-ВОЗВРАТ к уже введённому узлу (повтор LINK-класса / entity(та же переменная)).
+   * Не создаёт узел; его фильтры дофильтровывают узел (AND); следующий шаг ветвится от узла.
+   */
+  pivotKey?: number;
   /** .alias(name) — ключ шага в путях. */
   aliasKey?: string;
   /** .tags(…) — фильтр по колонке tags: строка | string[] (все) | has/hasAny/hasAll. */
@@ -122,13 +136,17 @@ export interface Step {
   ownerFilter?: string;
   /** Внутреннее (write-цепочки): containment по links — контекст-связи. */
   linksFilter?: Record<string, string>;
-  /** .link(Класс, target) — значение связи при записи БЕЗ участия в фильтре целей. */
-  extraLinks?: Record<string, string>;
+  /**
+   * Слоты связей (`.Класс.set(target)` / `.Класс.unset()`): значения концов записываемой
+   * версии БЕЗ участия в фильтре целей. string — id; {plan} — вложенная цепочка (та же
+   * транзакция, ровно одна сущность класса конца); null — снять optional-конец.
+   */
+  extraLinks?: Record<string, SlotValue>;
   /** Внутреннее (enforceAcl): предикат WRITE/DELETE-правила — цели ищутся только среди своих. */
   aclFilter?: Record<string, unknown>;
   /** .deep(max): рекурсивный self-обход (дети любой глубины), только reverse того же класса. */
   deepMax?: number;
-  /** Операция записи на шаге (.set/.delete/.anonymize) — исполняется терминалом плана. */
+  /** Операция записи на шаге (.create/.update/.delete/.anonymize) — исполняется терминалом плана. */
   op?: import('./types.js').PlanOp;
   /** Внутреннее: шаг «те же сущности» (операция сразу после операции) — цель = строки старта. */
   self?: boolean;
@@ -402,6 +420,11 @@ function compileFilter(cls: ClassDef, filter: Filter | undefined, p: Params): Co
 
 type HopMode = 'forward' | 'reverse';
 
+/** Класс target входит в какой-нибудь конец def (союзы учитываются). */
+export function linksTo(def: ClassDef, target: string): boolean {
+  return def.links.some((end) => end.classes.includes(target));
+}
+
 /** Правило обхода между шагами (по реестру Schema). */
 export function resolveHop(prev: ClassDef, next: ClassDef): HopMode {
   if (prev.category === 'HUB' && next.category === 'LINK') return 'reverse';
@@ -409,8 +432,8 @@ export function resolveHop(prev: ClassDef, next: ClassDef): HopMode {
   if (prev.category === 'HUB' && next.category === 'HUB') {
     // self-переход (Папка→Папка) = reverse: дети; родитель и так лежит в row.links
     if (prev.id === next.id) return 'reverse';
-    if (prev.links.includes(next.id)) return 'forward';
-    if (next.links.includes(prev.id)) return 'reverse';
+    if (linksTo(prev, next.id)) return 'forward';
+    if (linksTo(next, prev.id)) return 'reverse';
     throw new Error(
       `letopis: no path ${prev.id} → ${next.id}: neither embeds the other (Schema.links)`,
     );
@@ -442,16 +465,21 @@ function orderExpr(alias: string, cls: ClassDef, mods: ChainMods): string {
   return ` ORDER BY ${sortField(alias, cls, mods.order)}${mods.desc ? ' DESC' : ''}`;
 }
 
-/** Keyset-пагинация: (поле сортировки, id) строго после курсора. Требует .sort(). */
-function afterCond(alias: string, cls: ClassDef, mods: ChainMods, p: Params): string {
-  if (!mods.after) return '';
+/** Keyset-пагинация: (поле сортировки, id) строго после курсора. Требует .sort(). Выражение без WHERE. */
+function afterExpr(alias: string, cls: ClassDef, mods: ChainMods, p: Params): string | undefined {
+  if (!mods.after) return undefined;
   if (!mods.order) throw new Error('letopis: .after(cursor) requires .sort(field)');
   const expr = sortField(alias, cls, mods.order);
   const cast =
     mods.order === 'updated' ? '::timestamptz' : castOf(leafType(cls, mods.order.slice(5).split('.')));
   const cmp = mods.desc ? '<' : '>';
-  return ` WHERE (${expr}, ${alias}.id) ${cmp} (${p.push(mods.after.v)}${cast}, ${p.push(mods.after.id)})`;
+  return `(${expr}, ${alias}.id) ${cmp} (${p.push(mods.after.v)}${cast}, ${p.push(mods.after.id)})`;
 }
+
+const whereOf = (conds: (string | undefined)[]): string => {
+  const list = conds.filter((c): c is string => !!c);
+  return list.length ? ` WHERE ${list.join(' AND ')}` : '';
+};
 
 /** Построить читающий запрос по цепочке. */
 export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMode): BuiltQuery {
@@ -459,9 +487,37 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
   const ent = entityTable(ctx.pgSchema);
   const pPart = p.push(ctx.partition);
 
+  // pivot: карта эффективных блоков. real[i] — индекс блока-узла шага i
+  // (pivot-шаг блока не строит, ссылается на узел по pivotKey).
+  const real: number[] = [];
+  const byNodeKey = new Map<number, number>();
+  const tailConds: string[] = []; // дофильтры pivot-шагов (alias подставлен) — в хвостовой WHERE
+  for (let i = 0; i < steps.length; i++) {
+    const s = steps[i];
+    if (s.pivotKey !== undefined) {
+      const at = byNodeKey.get(s.pivotKey);
+      if (at === undefined) throw new Error(`letopis: pivot "${s.name}" — node is not in this path`);
+      real[i] = at;
+    } else {
+      real[i] = i;
+      if (s.nodeKey !== undefined) byNodeKey.set(s.nodeKey, i);
+    }
+  }
+
   const blocks: string[] = [];
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
+
+    // pivot-шаг: узел уже есть — только дофильтры (AND на алиас узла)
+    if (step.pivotKey !== undefined) {
+      const a = `h${real[i]}`;
+      const f = compileFilter(step.cls, step.filter, p);
+      for (const c of f.idConds) tailConds.push(c(a));
+      for (const fr of f.finalFrags) tailConds.push(fr(a));
+      if (step.tagsFilter !== undefined) tailConds.push(compileTags(step.tagsFilter, p)(a));
+      continue;
+    }
+
     const pCls = p.push(step.cls.id);
     const f = compileFilter(step.cls, step.filter, p);
 
@@ -524,15 +580,16 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
     const isDeep = step.deepMax !== undefined;
     if (i > 0 && !isDeep) { // deep строит containment сам (recursive CTE)
       const prev = steps[i - 1];
+      const prevAlias = `h${real[i - 1]}`; // pivot: ветвление от узла-возврата
       const hop = resolveHop(prev.cls, step.cls);
       if (hop === 'forward') {
         // id неизменен — условие сразу во внутренний WHERE, перепроверка не нужна
-        innerWhere.push(`e.id = h${i - 1}.links->>${p.push(step.cls.id)}`);
+        innerWhere.push(`e.id = ${prevAlias}.links->>${p.push(step.cls.id)}`);
       } else {
         // reverse containment: кандидаты по GIN + перепроверка на latest
         const pKey = p.push(prev.cls.id);
-        candWhere.push(`c.links @> jsonb_build_object(${pKey}::text, h${i - 1}.id)`);
-        outerWhere.push(`t.links @> jsonb_build_object(${pKey}::text, h${i - 1}.id)`);
+        candWhere.push(`c.links @> jsonb_build_object(${pKey}::text, ${prevAlias}.id)`);
+        outerWhere.push(`t.links @> jsonb_build_object(${pKey}::text, ${prevAlias}.id)`);
       }
     }
 
@@ -566,7 +623,7 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
         ` WHERE t.deleted IS NULL AND t.links @> jsonb_build_object(${p.push(step.cls.id)}::text, ${ref}))`;
       block =
         `(WITH RECURSIVE d AS (` +
-        `SELECT k.*, 1 AS depth FROM ${kids(`h${i - 1}.id`)} k` +
+        `SELECT k.*, 1 AS depth FROM ${kids(`h${real[i - 1]}.id`)} k` +
         ` UNION ALL ` +
         `SELECT k.*, d.depth + 1 FROM d JOIN LATERAL ${kids('d.id')} k ON true WHERE d.depth < ${pMax}::int` +
         `) SELECT * FROM d) h${i}`;
@@ -576,18 +633,21 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
   }
 
   const fromClause = blocks.join('\n');
-  const last = steps.length - 1;
-  const lastCls = steps[last].cls;
+  const last = real[steps.length - 1]; // pivot в конце → терминал на его узле
+  const lastCls = steps[steps.length - 1].cls;
 
-  // ключи шагов в путях: alias → имя вызова; дубликаты получают _2, _3…
-  const keys: string[] = [];
+  // ключи шагов в путях: alias → имя вызова; pivot узла не добавляет; дубликаты — _2, _3…
+  const keyed: { key: string; block: number }[] = [];
   const seen = new Map<string, number>();
-  for (const s of steps) {
+  for (let i = 0; i < steps.length; i++) {
+    const s = steps[i];
+    if (s.pivotKey !== undefined) continue;
     const base = s.aliasKey ?? s.name;
     const n = (seen.get(base) ?? 0) + 1;
     seen.set(base, n);
-    keys.push(n === 1 ? base : `${base}_${n}`);
+    keyed.push({ key: n === 1 ? base : `${base}_${n}`, block: i });
   }
+  const keys = keyed.map((k) => k.key);
 
   const limitOffset =
     (mods.limit !== undefined ? ` LIMIT ${p.push(mods.limit)}` : '') +
@@ -596,10 +656,10 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
   let text: string;
   switch (mode) {
     case 'paths': {
-      const obj = keys.map((k, i) => `${p.push(k)}::text, to_jsonb(h${i})`).join(', ');
+      const obj = keyed.map(({ key, block }) => `${p.push(key)}::text, to_jsonb(h${block})`).join(', ');
       text =
         `SELECT jsonb_build_object(${obj}) AS path\n${fromClause}` +
-        afterCond(`h${last}`, lastCls, mods, p) +
+        whereOf([...tailConds, afterExpr(`h${last}`, lastCls, mods, p)]) +
         orderExpr(`h${last}`, lastCls, mods) +
         limitOffset;
       break;
@@ -607,19 +667,19 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
     case 'rows':
     case 'ids': {
       const inner =
-        `SELECT DISTINCT ON (h${last}.id) h${last}.* \n${fromClause}\n` +
+        `SELECT DISTINCT ON (h${last}.id) h${last}.* \n${fromClause}${whereOf(tailConds)}\n` +
         `ORDER BY h${last}.id, h${last}.updated DESC`;
       const sel = mode === 'rows' ? 'to_jsonb(z) AS row' : 'z.id';
       text =
         `SELECT ${sel} FROM (${inner}) z` +
-        afterCond('z', lastCls, mods, p) +
+        whereOf([afterExpr('z', lastCls, mods, p)]) +
         orderExpr('z', lastCls, mods) +
         limitOffset;
       break;
     }
     case 'versions': {
       // ВСЕ версии (включая tombstone) сущностей последнего шага, по возрастанию updated
-      const inner = `SELECT DISTINCT h${last}.id \n${fromClause}`;
+      const inner = `SELECT DISTINCT h${last}.id \n${fromClause}${whereOf(tailConds)}`;
       text =
         `SELECT to_jsonb(v) AS row FROM (${inner}) z ` +
         `JOIN ${ent} v ON v.partition = ${pPart} AND v.class = ${p.push(lastCls.id)} AND v.id = z.id ` +
@@ -628,7 +688,7 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
       break;
     }
     case 'count':
-      text = `SELECT count(*)::int AS n\n${fromClause}`;
+      text = `SELECT count(*)::int AS n\n${fromClause}${whereOf(tailConds)}`;
       break;
     case 'agg': {
       const { aggFn, aggField } = mods;
@@ -638,11 +698,11 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
       const path = aggField.slice(5).split('.');
       const acc = accessor(path)(`h${last}`); // data-путь любой глубины
       if (aggFn === 'countBy') {
-        text = `SELECT ${acc} AS k, count(*)::int AS n\n${fromClause}\nGROUP BY 1 ORDER BY 2 DESC`;
+        text = `SELECT ${acc} AS k, count(*)::int AS n\n${fromClause}${whereOf(tailConds)}\nGROUP BY 1 ORDER BY 2 DESC`;
       } else {
         // sum/avg — всегда numeric; min/max — по типу листа
         const cast = aggFn === 'sum' || aggFn === 'avg' ? '::numeric' : castOf(leafType(lastCls, path));
-        text = `SELECT ${aggFn}((${acc})${cast}) AS v\n${fromClause}`;
+        text = `SELECT ${aggFn}((${acc})${cast}) AS v\n${fromClause}${whereOf(tailConds)}`;
       }
       break;
     }

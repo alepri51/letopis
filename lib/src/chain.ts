@@ -4,11 +4,15 @@
  *
  * Выборка настраивается модификаторами: .limit(n) .offset(n) .sort(field, dir?)
  * Колонки — модификаторами: .tags(…) .account(…) .owner(…); ключ путей — .alias(…).
- * Запись: .set(data) / .delete({confirm}) / .anonymize(fields) — ЗВЕНЬЯ (возвращают
- * цепочку, продолжение — от результата); исполняет ТЕРМИНАЛ, весь план одной транзакцией.
+ * Запись: .create(data) / .update(data) / .delete({confirm}) / .anonymize(fields) — ЗВЕНЬЯ
+ * (возвращают цепочку, продолжение — от результата); исполняет ТЕРМИНАЛ, весь план
+ * одной транзакцией.
  */
-import type { Row, Path, Filter, ChainMods, PlanOp } from './types.js';
-import { buildRead, runQuery, leafType, type Ctx, type Step } from './sql.js';
+import type { Row, Path, Filter, ChainMods, PlanOp, ClassDef, LinkEnd } from './types.js';
+import {
+  buildRead, runQuery, leafType, resolveHop, nextNodeKey,
+  type Ctx, type Step, type SlotValue,
+} from './sql.js';
 import { runPlan, executeBatch, toRow, type BatchPlan } from './write.js';
 import { beginTx, lock, type TxCtx } from './tx.js';
 import { makeTables, type Tables } from './tables.js';
@@ -55,25 +59,33 @@ export interface ChainCore {
   anonymize(fields: string[]): Chain;
   /** Переименовать ключ ТЕКУЩЕГО шага в выводе путей. */
   alias(name: string): Chain;
-  /** Колонка tags: строка | string[] (все) | has/hasAny/hasAll. В set() — значение тегов. */
+  /** Колонка tags: строка | string[] (все) | has/hasAny/hasAll. В записи — значение тегов. */
   tags(v: string | string[] | object): Chain;
-  /** Колонка account (uuid или Row/Account). В set()-insert — значение. */
+  /** Колонка account (uuid или Row/Account). В create() — значение. */
   account(v: string | { id: string }): Chain;
-  /** Колонка owner (uuid или Row/Account). В set()-insert — значение. */
+  /** Колонка owner (uuid или Row/Account). В create() — значение. */
   owner(v: string | { id: string }): Chain;
   /**
-   * Значение связи для записи БЕЗ участия в фильтре целей (в отличие от контекст-шага):
-   *   tr.Запись(b).позиция({}).link('Сотрудник', новый).set({}).rows()  // перевесить исполнителя
+   * Вставить узел в путь: x — ленивая цепочка-паттерн (стык проверяется правилами
+   * переходов) либо Row (шаг его класса по id). ТА ЖЕ переменная-цепочка повторно
+   * в одном пути — возврат к её узлу (ветвление); разные переменные — разные узлы.
    */
-  link(className: string, target: string | { id: string }): Chain;
+  entity(x: Chain | Row): Chain;
   /**
-   * Записать в шаг, к которому приклеен точкой (ЗВЕНО — вернёт цепочку, исполняет терминал):
-   *   await db.Организация(org).Сотрудник().set({ name: 'Вася' }).rows()
-   * Связи — контекст-шагами до set(). Пустой фильтр без data.id → INSERT;
-   * id (фильтр или data.id) → UPSERT; фильтр-объект → версия каждого найденного.
+   * Создать сущность (ЗВЕНО — вернёт цепочку, исполняет терминал):
+   *   await db.Организация(org).Сотрудник().create({ name: 'Вася' }).rows()
+   * Связи — контекст-шагами до create() + слотами .Класс.set(…) после. id — по Schema
+   * (attributes.id: v4 | v7 | v5-вычисляемый); известный id (Класс(id) / data.id / v5)
+   * уже существует → новая версия (идемпотентно). Фильтр-объект — ошибка: это update().
+   */
+  create(data?: Record<string, unknown>): Chain;
+  /**
+   * Новая версия КАЖДОГО найденного путём (deep-merge листьев data):
+   *   await db.Запись(з).позиция({ qty: 1 }).update({ qty: 2 }).rows()
+   * Класс() ≡ Класс({}) — все в границах контекста. Не найдено → [] (НИКОГДА не создаёт).
    * Продолжение цепочки — от записанных строк (fan-out при множестве).
    */
-  set(data?: Record<string, unknown>): Chain;
+  update(data?: Record<string, unknown>): Chain;
   /**
    * Удаление-звено. { confirm: true } — серверный tombstone + каскад (продолжение — от
    * затомбстоуненных, $deleted: true); БЕЗ confirm — превью: терминал вернёт кандидатов
@@ -82,8 +94,24 @@ export interface ChainCore {
   delete(opts?: { confirm?: boolean }): Chain;
 }
 
+/**
+ * Свойство-класс на цепочке:
+ *   ВЫЗОВ  `Класс(фильтр?)` — шаг-навигация; повтор LINK-класса в пути = возврат
+ *          к его узлу (pivot: ветвление к другому концу, дофильтровка AND);
+ *   СЛОТ   `Класс` без скобок — конец links записываемой версии:
+ *     .set(target) — установить конец (id | Row | вложенная цепочка: та же транзакция,
+ *                    ровно одна сущность класса конца); союз-конец замещается целиком;
+ *     .unset()     — снять optional-конец.
+ * Слот валиден только для конца из Schema.links владельца и ТОЛЬКО после операции
+ * записи: …create(…).Класс.set(x) / …update(…).Класс.unset() — та же версия строки.
+ */
+export type StepProp = ((filter?: Filter) => Chain) & {
+  set(target: string | { id: string } | Chain): Chain;
+  unset(): Chain;
+};
+
 export type Chain = ChainCore & {
-  [className: string]: (filter?: Filter) => Chain;
+  [className: string]: StepProp;
 };
 
 export interface DbCore {
@@ -114,6 +142,8 @@ export interface DbCore {
   auth: AuthApi;
   /** ACL по Resource/Rule: check(эндпоинт) / checkData(класс, READ|WRITE|DELETE) / reload. */
   acl: AclApi;
+  /** Начать путь с готового узла/паттерна: db.entity(pos).… (pos — ленивая цепочка или Row). */
+  entity(x: Chain | Row): Chain;
 }
 
 export type EntityDb = DbCore & {
@@ -184,6 +214,50 @@ function normalizeFilter(f: Filter | undefined): Filter | undefined {
 
 const clsOf = (steps: Step[]): string[] => steps.map((s) => s.cls.id);
 
+/** Внутренний канал: план чужой ленивой цепочки (слот-значения, entity()). */
+export const PLAN: unique symbol = Symbol('letopis.plan');
+
+type PlanPeek = { steps: Step[]; mods: ChainMods };
+const peekPlan = (x: unknown): PlanPeek | undefined =>
+  x !== null && typeof x === 'object' ? (x as { [PLAN]?: PlanPeek })[PLAN] : undefined;
+
+/** Конец схемы владельца, принимающий класс слота (legacy: 'Entity'-конец берёт любой HUB). */
+function findEnd(owner: ClassDef, slot: ClassDef): LinkEnd | undefined {
+  return owner.links.find(
+    (e) => e.classes.includes(slot.id) || (!owner.strictEnds && e.classes.includes('Entity') && slot.category === 'HUB'),
+  );
+}
+
+/** Значение слота: id-строка | Row | цепочка (одношаговый адрес сворачивается в id). */
+function slotValue(slotCls: ClassDef, v: unknown): SlotValue {
+  if (typeof v === 'string') return v;
+  const plan = peekPlan(v);
+  if (plan) {
+    const [head] = plan.steps;
+    if (plan.steps.length === 1 && !head.op && typeof head.filter === 'string') {
+      if (head.cls.id !== slotCls.id) {
+        throw new Error(`letopis: slot "${slotCls.id}" got a chain of class "${head.cls.id}"`);
+      }
+      return head.filter; // просто адрес db.Класс(id) — без вложенного исполнения
+    }
+    return { plan: plan.steps, mods: plan.mods };
+  }
+  if (v !== null && typeof v === 'object' && typeof (v as { id?: unknown }).id === 'string') {
+    return (v as { id: string }).id; // Row / Account
+  }
+  throw new Error(`letopis: slot "${slotCls.id}" accepts an id, a Row or a chain`);
+}
+
+/** Узел для pivot: последний реальный шаг класса cls в ТЕКУЩЕМ читающем сегменте (до op). */
+function pivotNodeOf(steps: Step[], cls: ClassDef): Step | undefined {
+  for (let i = steps.length - 1; i >= 0; i--) {
+    const s = steps[i];
+    if (s.op) return undefined; // операция закрывает паттерн — узлы до неё недоступны
+    if (s.pivotKey === undefined && s.cls.id === cls.id) return s;
+  }
+  return undefined;
+}
+
 async function runPaths(ctx: Ctx, steps: Step[], mods: ChainMods): Promise<Path[]> {
   const q = buildRead(ctx, steps, mods, 'paths');
   const res = await runQuery<RawPathRow>(ctx, q.text, q.params, 'paths', clsOf(steps));
@@ -204,7 +278,83 @@ async function runRows(ctx: Ctx, steps: Step[], mods: ChainMods): Promise<Row[]>
   });
 }
 
-function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef): Chain {
+/** entity-идентичность: переменная-цепочка → nodeKey её узла в этом пути. */
+type NodeMap = ReadonlyMap<object, number>;
+const NO_NODES: NodeMap = new Map();
+
+/**
+ * Свойство-класс (вызов = шаг/pivot; без скобок = слот). ownerSteps undefined — корень
+ * (db/batch): слот без владельца — ошибка.
+ */
+function classProp(
+  ctx: Ctx,
+  name: string,
+  cls: ClassDef,
+  ownerSteps: Step[] | undefined,
+  mods: ChainMods,
+  batch: BatchRef | undefined,
+  nodes: NodeMap,
+  applySlot?: (slotCls: ClassDef, value: SlotValue) => Chain,
+): StepProp {
+  const step = (filter?: Filter): Chain => {
+    const prev = ownerSteps?.[ownerSteps.length - 1];
+    // повтор LINK-класса в текущем паттерне — возврат к узлу (pivot)
+    const node = prev && cls.category === 'LINK' ? pivotNodeOf(ownerSteps!, cls) : undefined;
+    if (node) {
+      const pivot: Step = { name, cls, filter: normalizeFilter(filter), pivotKey: node.nodeKey };
+      return makeChain(ctx, [...ownerSteps!, pivot], mods, batch, nodes);
+    }
+    if (prev && !prev.op) resolveHop(prev.cls, cls); // ранняя проверка пути (после op — продолжение от результата)
+    const next: Step = { name, cls, filter: normalizeFilter(filter), nodeKey: nextNodeKey() };
+    return makeChain(ctx, [...(ownerSteps ?? []), next], ownerSteps ? mods : {}, batch, nodes);
+  };
+
+  const slotGuard = (): ClassDef => {
+    if (!ownerSteps?.length || !applySlot) {
+      throw new Error(`letopis: slot "${name}" needs an owner step — start with a class call: db.Класс(…).${name}.set(…)`);
+    }
+    const owner = ownerSteps[ownerSteps.length - 1];
+    if (!findEnd(owner.cls, cls)) {
+      throw new Error(
+        `letopis: "${cls.id}" is not a link end of "${owner.cls.id}" (Schema.links: ${owner.cls.links.map((e) => e.classes.join('|')).join(', ') || '—'})`,
+      );
+    }
+    return owner.cls;
+  };
+
+  return new Proxy(step, {
+    apply: (t, _self, args: [Filter?]) => t(...args),
+    get(t, p, r) {
+      if (p === 'set') {
+        return (v: unknown) => {
+          slotGuard();
+          return applySlot!(cls, slotValue(cls, v));
+        };
+      }
+      if (p === 'unset') {
+        return () => {
+          const ownerCls = slotGuard();
+          const end = findEnd(ownerCls, cls)!;
+          if (ownerCls.strictEnds && !end.optional) {
+            throw new Error(`letopis: link end "${cls.id}" of "${ownerCls.id}" is required — cannot unset`);
+          }
+          return applySlot!(cls, null);
+        };
+      }
+      if (p === 'delete') {
+        return () => {
+          throw new Error(`letopis: slot .delete() renamed to .unset() (0.16.0) — .${name}.unset() removes the link end`);
+        };
+      }
+      if (typeof p === 'symbol' || p === 'then' || p in Function.prototype || p === 'name' || p === 'length' || p === 'prototype') {
+        return Reflect.get(t, p, r);
+      }
+      throw new Error(`letopis: "${name}" without call is a link slot (set/unset); for navigation call ${name}(…)`);
+    },
+  }) as StepProp;
+}
+
+function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef, nodes: NodeMap = NO_NODES): Chain {
   const hasOps = steps.some((s) => s.op);
 
   const withLast = (patch: Partial<Step>): Chain => {
@@ -214,24 +364,85 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef): 
     }
     const next = steps.slice();
     next[next.length - 1] = { ...last, ...patch };
-    return makeChain(ctx, next, mods, batch);
+    return makeChain(ctx, next, mods, batch, nodes);
   };
-  const withMods = (patch: ChainMods): Chain => makeChain(ctx, steps, { ...mods, ...patch }, batch);
+  const withMods = (patch: ChainMods): Chain => makeChain(ctx, steps, { ...mods, ...patch }, batch, nodes);
+
+  /** Обновить план в батче (регистрируется на первой операции, дальше мутируется). */
+  const syncBatch = (next: Step[]): void => {
+    if (!batch) return;
+    if (batch.entry) batch.entry.steps = next;
+    else {
+      batch.entry = { steps: next };
+      batch.queue.push(batch.entry);
+    }
+  };
 
   /** Операция-звено: op на последний шаг (op уже есть → self-шаг «те же сущности»); mods сбрасываются. */
   const withOp = (op: PlanOp): Chain => {
     const last = steps[steps.length - 1];
     const next = last.op
-      ? [...steps, { name: last.name, cls: last.cls, self: true, op } as Step]
+      ? [...steps, { name: last.name, cls: last.cls, self: true, op, nodeKey: nextNodeKey() } as Step]
       : [...steps.slice(0, -1), { ...last, op }];
-    if (batch) {
-      if (batch.entry) batch.entry.steps = next;
-      else {
-        batch.entry = { steps: next };
-        batch.queue.push(batch.entry);
-      }
+    syncBatch(next);
+    return makeChain(ctx, next, {}, batch, nodes);
+  };
+
+  /**
+   * Слот связи: значение конца ЗАПИСЫВАЕМОЙ версии последнего шага — только после
+   * операции записи (…create(…).Класс.set(x) / …update(…).Класс.unset()): та же версия.
+   */
+  const applySlot = (slotCls: ClassDef, value: SlotValue): Chain => {
+    const last = steps[steps.length - 1];
+    if (!last.op) {
+      throw new Error(
+        `letopis: link slot "${slotCls.alias}" needs a write — add .create(…)/.update(…) before .${slotCls.alias}.${value === null ? 'unset()' : 'set(…)'}`,
+      );
     }
-    return makeChain(ctx, next, {}, batch);
+    if (last.op.kind !== 'create' && last.op.kind !== 'update') {
+      throw new Error(`letopis: link slot after ${last.op.kind}() — slots apply to create()/update()`);
+    }
+    if (last.extraLinks && slotCls.id in last.extraLinks) {
+      throw new Error(`letopis: duplicate link slot "${slotCls.id}" in one write`);
+    }
+    const patched: Step = {
+      ...last,
+      extraLinks: { ...(last.extraLinks ?? {}), [slotCls.id]: value },
+    };
+    const next = [...steps.slice(0, -1), patched];
+    syncBatch(next);
+    return makeChain(ctx, next, mods, batch, nodes);
+  };
+
+  /** entity(x): вклейка узла/паттерна; та же переменная повторно — возврат к её узлу. */
+  const entityStep = (x: unknown): Chain => {
+    const plan = peekPlan(x);
+    if (plan) {
+      const known = nodes.get(x as object);
+      if (known !== undefined) {
+        const lastX = plan.steps[plan.steps.length - 1];
+        const pivot: Step = { name: lastX.name, cls: lastX.cls, pivotKey: known };
+        return makeChain(ctx, [...steps, pivot], mods, batch, nodes);
+      }
+      if (plan.steps.some((s) => s.op)) {
+        throw new Error('letopis: entity() takes a read pattern — a chain with operations cannot be embedded');
+      }
+      const prev = steps[steps.length - 1];
+      if (prev && !prev.op) resolveHop(prev.cls, plan.steps[0].cls); // стык по правилам пути
+      const nodeKey = plan.steps[plan.steps.length - 1].nodeKey!;
+      const nextNodes = new Map(nodes);
+      nextNodes.set(x as object, nodeKey);
+      return makeChain(ctx, [...steps, ...plan.steps], mods, batch, nextNodes);
+    }
+    if (x !== null && typeof x === 'object' && typeof (x as Row).id === 'string' && typeof (x as Row).class === 'string') {
+      const row = x as Row;
+      const cls = ctx.registry.resolve(row.class);
+      const prev = steps[steps.length - 1];
+      if (prev && !prev.op) resolveHop(prev.cls, cls);
+      const next: Step = { name: cls.alias, cls, filter: row.id, nodeKey: nextNodeKey() };
+      return makeChain(ctx, [...steps, next], mods, batch, nodes);
+    }
+    throw new Error('letopis: entity() accepts a lazy chain or a Row');
   };
 
   /** Терминал: план (есть операции) — runPlan одной транзакцией; иначе прямое чтение. */
@@ -243,9 +454,12 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef): 
 
   const handler: ProxyHandler<object> = {
     get(_t, prop) {
+      if (prop === PLAN) return { steps, mods } satisfies PlanPeek;
       if (typeof prop === 'symbol' || prop === 'then') return undefined;
 
       switch (prop) {
+        case 'entity':
+          return entityStep;
         case 'run':
           return () => {
             guardBatch();
@@ -340,8 +554,25 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef): 
               return raw.deleted ? { ...row, $deleted: true as const } : row;
             });
           };
+        case 'create':
+          return (data: Record<string, unknown> = {}) => {
+            const last = steps[steps.length - 1];
+            if (last && !last.op) {   // после op create пишет результат — фильтр там подставит план
+              if (last.pivotKey !== undefined) {
+                throw new Error('letopis: create() on a pivot step — pivot returns to an existing node, use update()');
+              }
+              if (last.filter !== undefined && typeof last.filter !== 'string') {
+                throw new Error(`letopis: create() takes no filter — ${last.name}(id).create(…) fixes the id, searching is update()`);
+              }
+            }
+            return withOp({ kind: 'create', data, mods });
+          };
+        case 'update':
+          return (data: Record<string, unknown> = {}) => withOp({ kind: 'update', data, mods });
         case 'set':
-          return (data: Record<string, unknown> = {}) => withOp({ kind: 'set', data, mods });
+          throw new Error(
+            'letopis: set() split into create()/update() (0.16.0) — create() inserts, update() versions what the path finds',
+          );
         case 'delete':
           return (opts?: { confirm?: boolean }) =>
             withOp({ kind: 'delete', confirm: opts?.confirm === true, mods });
@@ -358,19 +589,11 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef): 
           return (v: string | { id: string }) =>
             withLast({ ownerFilter: typeof v === 'object' ? v.id : v });
         case 'link':
-          return (clsName: string, target: string | { id: string }) => {
-            const linkCls = ctx.registry.resolve(clsName);
-            const last = steps[steps.length - 1];
-            return withLast({
-              extraLinks: { ...(last.extraLinks ?? {}), [linkCls.id]: typeof target === 'object' ? target.id : target },
-            });
-          };
+          throw new Error('letopis: .link() removed (0.15.0) — use the link slot: .Класс.set(target)');
       }
 
       if (ctx.registry.has(prop)) {
-        const cls = ctx.registry.resolve(prop);
-        return (filter?: Filter) =>
-          makeChain(ctx, [...steps, { name: prop, cls, filter: normalizeFilter(filter) }], mods, batch);
+        return classProp(ctx, prop, ctx.registry.resolve(prop), steps, mods, batch, nodes, applySlot);
       }
       ctx.registry.resolve(prop); // неизвестный класс — понятная ошибка со списком
       return undefined;
@@ -397,9 +620,7 @@ function makeBatch(ctx: Ctx, queue: BatchPlan[]): Batch {
           return () => queue.length;
       }
       if (ctx.registry.has(prop)) {
-        const cls = ctx.registry.resolve(prop);
-        return (filter?: Filter) =>
-          makeChain(ctx, [{ name: String(prop), cls, filter: normalizeFilter(filter) }], {}, { queue });
+        return classProp(ctx, String(prop), ctx.registry.resolve(prop), undefined, {}, { queue }, NO_NODES);
       }
       ctx.registry.resolve(prop);
       return undefined;
@@ -510,10 +731,12 @@ export function makeDb(ctx: Ctx, root?: RootState): EntityDb {
           return ctx.sql;
       }
 
+      if (prop === 'entity') {
+        // старт пути с готового паттерна/строки: db.entity(pos).…
+        return (x: unknown) => makeChain(ctx, [], {}, undefined, NO_NODES).entity(x as Chain | Row);
+      }
       if (ctx.registry.has(prop)) {
-        const cls = ctx.registry.resolve(prop);
-        return (filter?: Filter) =>
-          makeChain(ctx, [{ name: String(prop), cls, filter: normalizeFilter(filter) }], {});
+        return classProp(ctx, String(prop), ctx.registry.resolve(prop), undefined, {}, undefined, NO_NODES);
       }
       ctx.registry.resolve(prop);
       return undefined;

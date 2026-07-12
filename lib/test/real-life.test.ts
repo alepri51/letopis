@@ -9,6 +9,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { connect } from '../src/index.js';
+import { uuidv5 } from '../src/uuid.js';
 import type { EntityDb, EntityTx } from '../src/chain.js';
 import type { Row } from '../src/types.js';
 
@@ -25,44 +26,45 @@ const окно = (h: number) => {
   return w!;
 };
 const rub = (item: Row) => (item.data.price as { RUB: number }).RUB;
-const busyId = (master: Row, win: Row) => `busy-${master.id}-${win.id}`;
+// id занятости детерминирован схемой: uuidv5 из концов (СНАЧАЛА Окно, потом Сотрудник)
+const busyId = (master: Row, win: Row) => uuidv5(`v1.booking:entity:busy:${win.id}:${master.id}`);
 
 before(async () => {
   db = await connect({ dsn: DSN, schema: 'v1.booking' });
   await db.sql.unsafe('TRUNCATE "v1.booking"."Entity"');
 
   // Салон, мастера, каталог, навыки — связи dot-цепочками
-  [S.салон] = await db.Организация().set({ name: 'Ласточка' }).rows();
-  [S.марина] = await db.Организация(S.салон).Сотрудник().set({ name: 'Марина', roles: ['owner', 'master'] }).rows();
-  [S.света] = await db.Организация(S.салон).Сотрудник().set({ name: 'Света', roles: ['master'] }).rows();
+  [S.салон] = await db.Организация().create({ name: 'Ласточка' }).rows();
+  [S.марина] = await db.Организация(S.салон).Сотрудник().create({ name: 'Марина', roles: ['owner', 'master'] }).rows();
+  [S.света] = await db.Организация(S.салон).Сотрудник().create({ name: 'Света', roles: ['master'] }).rows();
 
-  [S.маникюр] = await db.Организация(S.салон).Услуга().set({ name: 'Маникюр', duration: 60, price: { RUB: 2000 } }).rows();
-  [S.педикюр] = await db.Организация(S.салон).Услуга().set({ name: 'Педикюр', duration: 90, price: { RUB: 3000 } }).rows();
-  [S.комплекс] = await db.Организация(S.салон).Комплекс().set({ name: 'М+П', duration: 150, price: { RUB: 4500 } }).rows();
-  await db.Комплекс(S.комплекс).Услуга(S.маникюр).позиция().set({ qty: 1 }).rows();
-  await db.Комплекс(S.комплекс).Услуга(S.педикюр).позиция().set({ qty: 1 }).rows();
+  [S.маникюр] = await db.Организация(S.салон).Услуга().create({ name: 'Маникюр', duration: 60, price: { RUB: 2000 } }).rows();
+  [S.педикюр] = await db.Организация(S.салон).Услуга().create({ name: 'Педикюр', duration: 90, price: { RUB: 3000 } }).rows();
+  [S.комплекс] = await db.Организация(S.салон).Комплекс().create({ name: 'М+П', duration: 150, price: { RUB: 4500 } }).rows();
+  await db.Комплекс(S.комплекс).состав().create({ qty: 1 }).Услуга.set(S.маникюр).rows();
+  await db.Комплекс(S.комплекс).состав().create({ qty: 1 }).Услуга.set(S.педикюр).rows();
 
-  await db.Сотрудник(S.марина).Услуга(S.маникюр).навык().set({}).rows();
-  await db.Сотрудник(S.марина).Услуга(S.педикюр).навык().set({}).rows();
-  await db.Сотрудник(S.марина).Комплекс(S.комплекс).навык().set({}).rows();
-  await db.Сотрудник(S.света).Услуга(S.маникюр).навык().set({}).rows();
+  await db.Сотрудник(S.марина).навык().create().Услуга.set(S.маникюр).rows();
+  await db.Сотрудник(S.марина).навык().create().Услуга.set(S.педикюр).rows();
+  await db.Сотрудник(S.марина).навык().create().Комплекс.set(S.комплекс).rows();
+  await db.Сотрудник(S.света).навык().create().Услуга.set(S.маникюр).rows();
 
   for (const имя of ['Аня', 'Оля', 'Катя', 'Боря']) {
-    [S[имя]] = await db.Организация(S.салон).Клиент().set({ name: имя }).rows();
+    [S[имя]] = await db.Организация(S.салон).Клиент().create({ name: имя }).rows();
   }
 
   // Календарь: расписание пятницы + 6 окон по 60м + обе в смене
-  [S.расписание] = await db.Организация(S.салон).Расписание().set({
+  [S.расписание] = await db.Организация(S.салон).Расписание().create({
     start: '2026-07-10T10:00:00+03:00', end: '2026-07-10T16:00:00+03:00',
   }).rows();
   for (let h = 10; h <= 15; h++) {
-    db.batch('окна').Расписание(S.расписание).Окно().set({
+    db.batch('окна').Расписание(S.расписание).Окно().create({
       start: `2026-07-10T${h}:00:00+03:00`, end: `2026-07-10T${h + 1}:00:00+03:00`,
     });
   }
   W = (await db.batch('окна').run()).map((r) => r[0]);
-  await db.Расписание(S.расписание).Сотрудник(S.марина).смена().set({}).rows();
-  await db.Расписание(S.расписание).Сотрудник(S.света).смена().set({}).rows();
+  await db.Расписание(S.расписание).смена().create().Сотрудник.set(S.марина).rows();
+  await db.Расписание(S.расписание).смена().create().Сотрудник.set(S.света).rows();
 });
 
 after(async () => {
@@ -112,19 +114,19 @@ async function bookVisit(req: VisitReq): Promise<Row> {
     }
 
     const запись = req.client
-      ? (await tr.Клиент(req.client).Запись().set({
+      ? (await tr.Клиент(req.client).Запись().create({
           status: 'created', source: req.source ?? 'online', total: { RUB: rub(req.item) },
         }).rows())[0]
-      : (await tr.Запись().set({
+      : (await tr.Запись().create({
           status: 'created', source: 'admin', comment: req.comment, total: { RUB: rub(req.item) },
         }).rows())[0];
 
-    // связь Услуга|Комплекс — динамическое имя класса: .link() ДО set() даёт значение связи INSERT
-    await tr.Запись(запись).Сотрудник(req.master).позиция().link(kind, req.item)
-      .set({ qty: 1, price: { RUB: rub(req.item) } }).rows();
+    // связь предмета — динамическое имя класса (Услуга|Комплекс): слот после create()
+    const поз = tr.Запись(запись).позиция().create({ qty: 1, price: { RUB: rub(req.item) } }).Сотрудник.set(req.master);
+    await (kind === 'Услуга' ? поз.Услуга.set(req.item) : поз.Комплекс.set(req.item)).rows();
 
     for (const w of wins) {
-      await tr.Сотрудник(req.master).Окно(w).Запись(запись).занятость(busyId(req.master, w)).set({ kind: 'booking' }).rows();
+      await tr.Сотрудник(req.master).занятость().create({ kind: 'booking' }).Окно.set(w).Запись.set(запись).rows();
     }
     await tr.commit();
     return запись;
@@ -154,10 +156,10 @@ async function reschedule(запись: Row, master: Row, startHour: number, nee
     }
     await tr.Запись(запись.id).занятость().delete({ confirm: true }).rows(); // освободить старые
     for (const w of wins) {
-      await tr.Сотрудник(master).Окно(w).Запись(запись).занятость(busyId(master, w)).set({ kind: 'booking' }).rows();
+      await tr.Сотрудник(master).занятость().create({ kind: 'booking' }).Окно.set(w).Запись.set(запись).rows();
     }
-    await tr.Запись(запись.id).позиция({}).link('Сотрудник', master).set({}).rows(); // ({}) = все позиции записи; .link — новый исполнитель БЕЗ фильтра целей
-    await tr.Запись(запись.id).set({ status: 'confirmed' }).rows();
+    await tr.Запись(запись.id).позиция({}).update().Сотрудник.set(master).rows(); // ({}) = все позиции записи; слот перевешивает исполнителя БЕЗ фильтра целей
+    await tr.Запись(запись.id).update({ status: 'confirmed' }).rows();
     await tr.commit();
     return true;
   } catch (e) {
@@ -176,7 +178,7 @@ async function finishNegative(запись: Row, status: 'cancelled' | 'no_show'
       await tr.rollback();
       return false;
     }
-    await tr.Запись(запись.id).set({ status }).rows();
+    await tr.Запись(запись.id).update({ status }).rows();
     await tr.Запись(запись.id).занятость().delete({ confirm: true }).rows();
     await tr.commit();
     return true;
@@ -213,12 +215,12 @@ test('С2. «4 РУКИ»: Катя 11:00 — Света маникюр + Мар
         assert.equal(await tr.занятость(busyId(m, w)).first(), null);
       }
     }
-    [S.з4руки] = await tr.Клиент(S.Катя).Запись().set({ status: 'created', total: { RUB: 5000 } }).rows();
-    await tr.Запись(S.з4руки).Услуга(S.маникюр).Сотрудник(S.света).позиция().set({ qty: 1, price: { RUB: 2000 } }).rows();
-    await tr.Запись(S.з4руки).Услуга(S.педикюр).Сотрудник(S.марина).позиция().set({ qty: 1, price: { RUB: 3000 } }).rows();
-    await tr.Сотрудник(S.света).Окно(окно(11)).Запись(S.з4руки).занятость(busyId(S.света, окно(11))).set({ kind: 'booking' }).rows();
-    await tr.Сотрудник(S.марина).Окно(окно(11)).Запись(S.з4руки).занятость(busyId(S.марина, окно(11))).set({ kind: 'booking' }).rows();
-    await tr.Сотрудник(S.марина).Окно(окно(12)).Запись(S.з4руки).занятость(busyId(S.марина, окно(12))).set({ kind: 'booking' }).rows();
+    [S.з4руки] = await tr.Клиент(S.Катя).Запись().create({ status: 'created', total: { RUB: 5000 } }).rows();
+    await tr.Запись(S.з4руки).позиция().create({ qty: 1, price: { RUB: 2000 } }).Услуга.set(S.маникюр).Сотрудник.set(S.света).rows();
+    await tr.Запись(S.з4руки).позиция().create({ qty: 1, price: { RUB: 3000 } }).Услуга.set(S.педикюр).Сотрудник.set(S.марина).rows();
+    await tr.Сотрудник(S.света).занятость().create({ kind: 'booking' }).Окно.set(окно(11)).Запись.set(S.з4руки).rows();
+    await tr.Сотрудник(S.марина).занятость().create({ kind: 'booking' }).Окно.set(окно(11)).Запись.set(S.з4руки).rows();
+    await tr.Сотрудник(S.марина).занятость().create({ kind: 'booking' }).Окно.set(окно(12)).Запись.set(S.з4руки).rows();
     await tr.commit();
   } catch (e) {
     await tr.rollback();
@@ -381,7 +383,7 @@ test('С13. Отказ: комплекс к Свете (нет навыка) —
 });
 
 test('С14. Отказ: Марина снята с 15:00 (off) — бронь отклонена', async () => {
-  await db.Сотрудник(S.марина).Окно(окно(15)).занятость(busyId(S.марина, окно(15))).set({ kind: 'off', reason: 'уборка' }).rows();
+  await db.Сотрудник(S.марина).занятость().create({ kind: 'off', reason: 'уборка' }).Окно.set(окно(15)).rows();
 
   await assert.rejects(
     bookVisit({ client: S.Оля, master: S.марина, item: S.маникюр, startHour: 15 }),
@@ -413,7 +415,7 @@ test('С16. Конец дня: завершение визитов, отчёты
   const активные = await db.Запись({ status: 'created' }).rows();
   const подтверждённые = await db.Запись({ status: 'confirmed' }).rows();
   for (const з of [...активные, ...подтверждённые]) {
-    await db.Запись(з.id).set({ status: 'completed' }).rows();
+    await db.Запись(з.id).update({ status: 'completed' }).rows();
   }
 
   // расписание дня по мастерам: окно → кто занят

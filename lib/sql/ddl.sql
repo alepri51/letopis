@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS "<SCHEMA-NAME>"."Schema" (
     category   text   NOT NULL CHECK (category IN ('HUB', 'LINK')),
     ancestor   text,                             -- прямой родитель (наследование)
     attributes jsonb  NOT NULL DEFAULT '{}',     -- fastest-validator DSL (валидирует либа)
-    links      text[] NOT NULL DEFAULT '{}',     -- HUB: встраиваемые цели; LINK: обязательные концы ('Entity' = полиморфный)
+    links      jsonb  NOT NULL DEFAULT '[]',     -- МАССИВ ОБЪЕКТОВ-концов: {"class":…}/{"classes":[…],"optional":…,"cardinality":…} (союзы ролей, матчинг по порядку); legacy-элемент-строка "Org" ("Entity" = полиморфный)
     meta       jsonb  NOT NULL DEFAULT '{}',     -- {abstract?, description?}
     "order"    int    NOT NULL DEFAULT 0,
     ancestors   text[] NOT NULL DEFAULT '{}',    -- [self, parent, …, root] — считает триггер schema_lineage
@@ -132,16 +132,26 @@ CREATE INDEX IF NOT EXISTS entity_owner_idx   ON "<SCHEMA-NAME>"."Entity" (owner
 --   * класс существует в Schema той же partition;
 --   * класс не абстрактный;
 --   * каждый ключ links — существующий класс, значение — строка (id);
---   * LINK содержит все обязательные концы из Schema.links
---     ('Entity' — полиморфный конец, его резолвит либа).
+--   * LINK: концы из Schema.links.
+--     Формат v2 (элемент — JSON-объект '{"class":…}' / '{"classes":[…]}'):
+--     жадный матчинг по порядку объявления, optional-концы могут отсутствовать,
+--     связи вне объявленных концов — ошибка.
+--     Legacy (элемент — имя класса): конец обязателен по имени, 'Entity' —
+--     полиморфный (его резолвит либа), лишние связи не проверяются.
 -- Tombstone-версии (deleted IS NOT NULL) не валидируются.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION "<SCHEMA-NAME>".entity_check() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
-    s   RECORD;
-    bad text;
-    k   text;
+    s    RECORD;
+    bad  text;
+    k    text;
+    used text[];
+    ej   jsonb;
+    ecs  text[];
+    hit  text;
+    c2   text;
+    is_v2 boolean;
 BEGIN
     IF NEW.deleted IS NOT NULL THEN
         RETURN NEW;
@@ -172,13 +182,45 @@ BEGIN
         RAISE EXCEPTION 'ENTITY_CHECK: links key "%" is not a class or its value is not an id string', bad;
     END IF;
 
-    -- LINK: все объявленные концы обязаны присутствовать
+    -- LINK: концы по Schema.links — jsonb-массив; элемент-объект = v2 (строгий жадный
+    -- матчинг по порядку), элемент-строка = legacy-имя класса
     IF s.category = 'LINK' THEN
-        FOREACH k IN ARRAY COALESCE(s.links, '{}') LOOP
-            IF k <> 'Entity' AND NOT (COALESCE(NEW.links, '{}'::jsonb) ? k) THEN
-                RAISE EXCEPTION 'ENTITY_CHECK: link "%" requires end "%"', NEW.class, k;
+        is_v2 := EXISTS (
+            SELECT 1 FROM jsonb_array_elements(COALESCE(s.links, '[]'::jsonb)) le
+            WHERE jsonb_typeof(le.value) = 'object');
+        IF is_v2 THEN
+            used := ARRAY[]::text[];
+            FOR ej IN SELECT le.value FROM jsonb_array_elements(COALESCE(s.links, '[]'::jsonb)) le LOOP
+                ecs := COALESCE(
+                    (SELECT array_agg(x) FROM jsonb_array_elements_text(ej->'classes') x),
+                    ARRAY[ej->>'class']);
+                hit := NULL;
+                FOREACH c2 IN ARRAY ecs LOOP
+                    IF (COALESCE(NEW.links, '{}'::jsonb) ? c2) AND NOT (c2 = ANY(used)) THEN
+                        hit := c2;
+                        EXIT;
+                    END IF;
+                END LOOP;
+                IF hit IS NOT NULL THEN
+                    used := used || hit;
+                ELSIF NOT COALESCE((ej->>'optional')::boolean, false) THEN
+                    RAISE EXCEPTION 'ENTITY_CHECK: link "%" requires end "%"', NEW.class, array_to_string(ecs, '|');
+                END IF;
+            END LOOP;
+            SELECT e.key INTO bad
+            FROM jsonb_each(COALESCE(NEW.links, '{}'::jsonb)) e
+            WHERE NOT (e.key = ANY(used))
+            LIMIT 1;
+            IF bad IS NOT NULL THEN
+                RAISE EXCEPTION 'ENTITY_CHECK: link "%" has stray link "%" — not an end in Schema.links', NEW.class, bad;
             END IF;
-        END LOOP;
+        ELSE
+            FOR k IN SELECT le.value #>> '{}' FROM jsonb_array_elements(COALESCE(s.links, '[]'::jsonb)) le LOOP
+                IF k <> 'Entity' AND NOT (COALESCE(NEW.links, '{}'::jsonb) ? k) THEN
+                    RAISE EXCEPTION 'ENTITY_CHECK: link "%" requires end "%"', NEW.class, k;
+                END IF;
+            END LOOP;
+        END IF;
     END IF;
 
     RETURN NEW;

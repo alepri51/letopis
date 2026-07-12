@@ -21,6 +21,34 @@ export interface Row {
 /** Результат run(): вариант пути — узел на каждый шаг цепочки. */
 export type Path = Record<string, Row>;
 
+/**
+ * Конец связи класса (Schema.links v2). В БД элемент text[]: JSON-объект
+ * `{"class":"Org","cardinality":1}` / `{"classes":["Service","Complex"],"cardinality":1}`
+ * (союз ролей); legacy-строка 'Org' — сахар для {classes:['Org']} (старые схемы).
+ */
+export interface LinkEnd {
+  /** Допустимые классы конца; ровно один из них присутствует в Entity.links. */
+  classes: string[];
+  /** Конец может отсутствовать. Default false. */
+  optional?: boolean;
+  /** ЗАРЕЗЕРВИРОВАНО (не имплементировано): 0 — безлимит, N — точное число. Default 1. */
+  cardinality?: number;
+}
+
+/**
+ * Генерация id класса — из attributes.id:
+ *   "uuid" | {type:'uuid'}                    → v4 (random, дефолт);
+ *   {type:'uuid', generate: 7}                → v7 (время в старших битах);
+ *   {type:'uuid', generate: 5, from: ['Slot','Staff']} → v5: детерминированный id из значений
+ *     from — имена ОБЯЗАТЕЛЬНЫХ концов Schema.links (класс или полное имя союза
+ *     'Service|Complex') и/или скалярных полей data.
+ */
+export interface IdGen {
+  version: 4 | 5 | 7;
+  /** Только v5: источники имени (порядок значим). */
+  from?: string[];
+}
+
 /** Класс из таблицы Schema. */
 export interface ClassDef {
   id: string;
@@ -30,11 +58,20 @@ export interface ClassDef {
   ancestors: string[];
   /** Все потомки (транзитивно) — считает триггер schema_lineage. */
   descendants: string[];
+  /** Поля data с НАСЛЕДОВАНИЕМ по ancestor-цепочке (потомок поверх предка). */
   attributes: Record<string, unknown>;
-  links: string[];
+  links: LinkEnd[];
+  /**
+   * true — хотя бы один конец объявлен объектом (схема v2): строгая валидация
+   * (жадный матчинг по порядку, союзы, optional, лишние связи — ошибка).
+   * false — все концы legacy-строками: старое поведение ('Entity' = полиморф, лишние молчат).
+   */
+  strictEnds: boolean;
   meta: Record<string, unknown>;
   abstract: boolean;
   order: number;
+  /** Как генерить id новой сущности (attributes.id). */
+  idGen: IdGen;
   /** Скомпилированный fastest-validator: true | ошибки. */
   check: (data: Record<string, unknown>) => true | { field: string; message?: string }[];
   /** Тип каждого поля attributes — для SQL-кастов в фильтрах. */
@@ -85,12 +122,13 @@ export interface Cursor {
 }
 
 /**
- * Операция записи, привязанная к шагу цепочки: .set() / .delete() / .anonymize().
+ * Операция записи, привязанная к шагу цепочки:
+ * .create() / .update() / .delete() / .anonymize().
  * Терминал исполняет план (все операции + финальное чтение) одной транзакцией.
  */
 export interface PlanOp {
-  kind: 'set' | 'delete' | 'anonymize';
-  /** set: данные новой версии (deep-merge листьев). */
+  kind: 'create' | 'update' | 'delete' | 'anonymize';
+  /** create/update: данные новой версии (deep-merge листьев). */
   data?: Record<string, unknown>;
   /** anonymize: string-поля под '[erased]'. */
   fields?: string[];

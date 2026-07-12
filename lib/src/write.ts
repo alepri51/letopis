@@ -1,20 +1,21 @@
 /**
- * Запись: операции .set(data) / .delete(opts) / .anonymize(fields) — ЗВЕНЬЯ цепочки;
- * терминал (rows/first/ids/count/run/versions/агрегации) исполняет весь план
- * ОДНОЙ транзакцией (runPlan) — любой отказ (валидация/ACL) откатывает всё.
+ * Запись: операции .create(data) / .update(data) / .delete(opts) / .anonymize(fields) —
+ * ЗВЕНЬЯ цепочки; терминал (rows/first/ids/count/run/versions/агрегации) исполняет весь
+ * план ОДНОЙ транзакцией (runPlan) — любой отказ (валидация/ACL) откатывает всё.
  *
  * Связи задаются dot-цепочкой: шаги до операции (контекст) резолвятся в ровно одну
  * сущность каждый и дают:
- *   - containment-фильтр целей при UPDATE/DELETE (links ⊇ {Класс: id}),
- *   - links создаваемой строки при INSERT.
+ *   - containment-фильтр целей при update/delete (links ⊇ {Класс: id}),
+ *   - links создаваемой строки при create.
  *
- *   await db.Организация(org).Сотрудник().set({ name: 'Вася' }).rows()   // INSERT + links {Org}
- *   await db.Клиент(c).Запись({ status: 'created' }).set({ status: 'confirmed' }).rows()
- *   await db.Клиент({ vip: true }).set({ bonus: 500 })       // сегмент 1: UPDATE всех vip
- *           .Запись().delete({ confirm: true }).rows()       // сегмент 2: снести записи каждого
+ *   await db.Организация(org).Сотрудник().create({ name: 'Вася' }).rows()  // INSERT + links {Org}
+ *   await db.Клиент(c).Запись({ status: 'created' }).update({ status: 'confirmed' }).rows()
+ *   await db.Клиент({ vip: true }).update({ bonus: 500 })     // сегмент 1: версия каждого vip
+ *           .Запись().delete({ confirm: true }).rows()        // сегмент 2: снести записи каждого
  * Продолжение после операции идёт ОТ ЕЁ РЕЗУЛЬТАТА (fan-out по записанным строкам).
  */
 import { randomUUID } from 'node:crypto';
+import { uuidv5, uuidv7 } from './uuid.js';
 import type { Row, Path, ChainMods, Filter, ClassDef, PlanOp } from './types.js';
 import {
   buildRead, runQuery, insertSql, multiInsertSql, deleteSql, closureSql,
@@ -92,17 +93,35 @@ function validate(cls: ClassDef, id: string, data: Record<string, unknown>, link
   delete (merged as { id?: unknown }).id;
 
   if (cls.category === 'LINK') {
-    let polymorphic = 0;
     const present = new Set(Object.keys(links));
-    for (const end of cls.links) {
-      if (end === 'Entity') polymorphic++;
-      else if (present.has(end)) present.delete(end);
-      else throw new Error(`letopis: link "${cls.id}" requires end "${end}"`);
-    }
-    if (present.size < polymorphic) {
-      throw new Error(
-        `letopis: link "${cls.id}" requires ${polymorphic} polymorphic end(s) (any class), got ${present.size}`,
-      );
+    if (cls.strictEnds) {
+      // схема v2: жадный матчинг по порядку объявления концов; союз занимает один ключ;
+      // обязательный конец без ключа и ключ вне концов — ошибки
+      for (const end of cls.links) {
+        const hit = end.classes.find((c) => present.has(c));
+        if (hit) present.delete(hit);
+        else if (!end.optional)
+          throw new Error(`letopis: link "${cls.id}" requires end "${end.classes.join('|')}"`);
+      }
+      if (present.size) {
+        throw new Error(
+          `letopis: link "${cls.id}" has stray link(s) ${[...present].map((k) => `"${k}"`).join(', ')} — not an end in Schema.links`,
+        );
+      }
+    } else {
+      // legacy-схема (строковые концы): 'Entity' — полиморф-счётчик, лишние связи молчат
+      let polymorphic = 0;
+      for (const end of cls.links) {
+        const name = end.classes[0];
+        if (name === 'Entity') polymorphic++;
+        else if (present.has(name)) present.delete(name);
+        else throw new Error(`letopis: link "${cls.id}" requires end "${name}"`);
+      }
+      if (present.size < polymorphic) {
+        throw new Error(
+          `letopis: link "${cls.id}" requires ${polymorphic} polymorphic end(s) (any class), got ${present.size}`,
+        );
+      }
     }
   }
   return merged;
@@ -170,11 +189,6 @@ function aclWrite(ctx: Ctx, step: Step, op: 'WRITE' | 'DELETE'): void {
   }
 }
 
-/**
- * Различие форм фильтра в записи:
- *   Класс()   — БЕЗ аргумента  → INSERT новой сущности;
- *   Класс({}) — пустой объект  → «все найденные» (UPDATE в границах контекста).
- */
 const noFilter = (f?: Filter): boolean => f === undefined;
 
 /** Entity.account NOT NULL: модификатор → connect() → System-аккаунт; иначе ошибка. */
@@ -200,48 +214,141 @@ function tagsValue(step: Step): string[] | undefined {
   throw new Error('letopis: .tags() before set() accepts string | string[]');
 }
 
+/** Конец target, принимающий класс cls (legacy: 'Entity'-конец берёт любой HUB). */
+function endFor(target: ClassDef, cls: ClassDef): { classes: string[] } | undefined {
+  return target.links.find(
+    (e) => e.classes.includes(cls.id) || (!target.strictEnds && e.classes.includes('Entity') && cls.category === 'HUB'),
+  );
+}
+
 /**
- * Контекст-шаги (все, кроме последнего) → {КлассId: id}.
- * id-фильтр берётся как есть (без запроса); иной фильтр обязан дать ровно одну сущность.
+ * Связи создаваемой сущности из ПУТИ: каждый реальный шаг-предок, чей класс — конец
+ * target, обязан дать ровно одну сущность (id-фильтр — как есть; иначе чтение путём
+ * от начала до него: контекст честно учитывается).
  */
-async function resolveContext(ctx: Ctx, steps: Step[]): Promise<Record<string, string>> {
+async function resolvePathEnds(ctx: Ctx, steps: Step[]): Promise<Record<string, string>> {
+  const target = steps[steps.length - 1].cls;
   const links: Record<string, string> = {};
-  for (const step of steps) {
+  for (let k = 0; k < steps.length - 1; k++) {
+    const step = steps[k];
+    if (step.pivotKey !== undefined || step.op) continue;
+    if (!endFor(target, step.cls)) continue;
     let id: string;
     if (typeof step.filter === 'string') {
       id = step.filter;
-    } else if (!noFilter(step.filter) || step.tagsFilter !== undefined || step.accountFilter || step.ownerFilter) {
-      const rows = await readRows(ctx, [step], { limit: 2 });
+    } else {
+      const rows = await readRows(ctx, steps.slice(0, k + 1), { limit: 2 });
       if (rows.length !== 1) {
         throw new Error(
           `letopis: context step "${step.name}" must resolve to exactly one entity (got ${rows.length})`,
         );
       }
       id = rows[0].id;
-    } else {
-      throw new Error(`letopis: context step "${step.name}" needs an id or a unique filter`);
     }
     links[step.cls.id] = id;
   }
   return links;
 }
 
-/** Шаг поиска целей: фильтр последнего шага + containment контекст-связей. */
-function targetStep(target: Step, contextLinks: Record<string, string>, explicitId?: string): Step {
-  return {
-    ...target,
-    filter: explicitId ?? target.filter,
-    linksFilter: Object.keys(contextLinks).length ? contextLinks : undefined,
-  };
+/** Резолв слот-значений: строки как есть; вложенные планы — в той же транзакции, ровно одна сущность. */
+async function resolveSlots(
+  ctx: Ctx,
+  target: ClassDef,
+  extra: Step['extraLinks'],
+): Promise<{ vals: Record<string, string>; drops: Set<string> }> {
+  const vals: Record<string, string> = {};
+  const drops = new Set<string>();
+  for (const [clsId, v] of Object.entries(extra ?? {})) {
+    // союз-замещение: слот занимает КОНЕЦ целиком — соседние классы союза снимаются
+    const end = endFor(target, ctx.registry.resolve(clsId));
+    for (const c of end?.classes ?? [clsId]) drops.add(c);
+    if (v === null) continue; // .delete() — только снятие
+    let id: string;
+    if (typeof v === 'string') {
+      id = v;
+    } else {
+      const rows = v.plan.some((s) => s.op)
+        ? ((await runPlan(ctx, v.plan, v.mods ?? {}, 'rows')) as Row[])
+        : await readRows(ctx, v.plan, { ...(v.mods ?? {}), limit: 2 });
+      if (rows.length !== 1) {
+        throw new Error(`letopis: slot "${clsId}" value plan must resolve to exactly one entity (got ${rows.length})`);
+      }
+      if (rows[0].class !== clsId) {
+        throw new Error(`letopis: slot "${clsId}" value plan resolved to class "${rows[0].class}"`);
+      }
+      id = rows[0].id;
+    }
+    vals[clsId] = id;
+  }
+  return { vals, drops };
+}
+
+/** id новой сущности по IdGen класса (v5 считается отдельно — нужны концы/данные). */
+const genId = (cls: ClassDef): string => (cls.idGen.version === 7 ? uuidv7() : randomUUID());
+
+/**
+ * Детерминированный id (uuid v5): имя = «схема:партиция:класс:значения from».
+ * from-источник — конец Schema.links (класс или полное имя союза 'Service|Complex';
+ * значение — id присутствующего класса конца) или скалярное поле data.
+ */
+function v5Id(ctx: Ctx, cls: ClassDef, links: Record<string, string>, data: Record<string, unknown>): string {
+  const parts: string[] = [];
+  for (const f of cls.idGen.from!) {
+    const end = cls.links.find((e) => e.classes.includes(f) || e.classes.join('|') === f);
+    if (end) {
+      const hit = end.classes.find((c) => c in links);
+      if (!hit) {
+        throw new Error(
+          `letopis: id (uuid v5) of "${cls.id}" needs end "${end.classes.join('|')}" — set it in the path or with a slot`,
+        );
+      }
+      parts.push(links[hit]);
+    } else {
+      const v = data[f];
+      if (v === undefined || v === null || typeof v === 'object') {
+        throw new Error(`letopis: id (uuid v5) of "${cls.id}" needs scalar data field "${f}"`);
+      }
+      parts.push(String(v));
+    }
+  }
+  return uuidv5(`${ctx.pgSchema}:${ctx.partition}:${cls.id}:${parts.join(':')}`);
+}
+
+/** Новая версия каждой строки: deep-merge данных + слоты концов (союз-конец замещается целиком). */
+async function versionRows(
+  ctx: Ctx,
+  target: Step,
+  found: Row[],
+  data: Record<string, unknown>,
+  slots: { vals: Record<string, string>; drops: Set<string> },
+): Promise<Row[]> {
+  const cls = target.cls;
+  const out: Row[] = [];
+  for (const row of found) {
+    const mergedData = deepMerge(row.data, data);   // только указанные листья
+    const mergedLinks = { ...row.links };
+    for (const c of slots.drops) delete mergedLinks[c];
+    Object.assign(mergedLinks, slots.vals);
+    const full = validate(cls, row.id, mergedData, mergedLinks);
+    out.push(
+      await insertOne(ctx, {
+        id: row.id, cls, data: full, links: mergedLinks,
+        tags: tagsValue(target) ?? row.tags, account: row.account, owner: row.owner,
+        prevUpdated: row.updated, deleted: null,
+      }),
+    );
+  }
+  return out;
 }
 
 /**
- * .set(data):
- *  - пустой фильтр последнего шага и нет data.id → INSERT (links = контекст);
- *  - id (фильтр-строка или data.id) → UPSERT: есть → новая версия (deep-merge), нет → создать;
- *  - фильтр-объект → новая версия каждого найденного (в границах контекста); пусто → [].
+ * .create(data) — «чтобы сущность существовала»:
+ *  - id не задан → INSERT (id по IdGen класса; links = концы из пути + слоты);
+ *  - id известен (Класс(id) / data.id / вычислен v5): есть → новая версия (deep-merge),
+ *    нет → INSERT с этим id (идемпотентный create, REST-PUT семантика);
+ *  - фильтр-объект / pivot — ошибка: create не ищет, это update().
  */
-export async function setOp(
+export async function createOp(
   ctx: Ctx,
   steps: Step[],
   mods: ChainMods,
@@ -250,57 +357,62 @@ export async function setOp(
   const target = steps[steps.length - 1];
   const cls = target.cls;
   aclWrite(ctx, target, 'WRITE');
-  // контекст-шаги: и фильтр целей, и значения; .link() — ТОЛЬКО значения (фильтр не трогает)
-  const contextLinks = await resolveContext(ctx, steps.slice(0, -1));
-  const writeLinks = { ...contextLinks, ...(target.extraLinks ?? {}) };
+  if (target.pivotKey !== undefined) {
+    throw new Error(`letopis: create() on a pivot step — pivot returns to an existing node, use update()`);
+  }
+  const filterId = typeof target.filter === 'string' ? target.filter : undefined;
+  if (!noFilter(target.filter) && filterId === undefined) {
+    throw new Error(`letopis: create() takes no filter — ${cls.alias}(id).create(…) fixes the id, searching is update()`);
+  }
+  // слоты (.Класс.set/.unset): значения/снятия концов; союз-конец замещается целиком
+  const slots = await resolveSlots(ctx, cls, target.extraLinks);
 
   const dataId = typeof data.id === 'string' ? (data.id as string) : undefined;
-  const filterId = typeof target.filter === 'string' ? target.filter : undefined;
-  const explicitId = filterId ?? dataId;
-  const insertMode = noFilter(target.filter); // Класс() без аргумента
+  if (filterId && dataId && filterId !== dataId) {
+    throw new Error(`letopis: create() got two ids — step "${filterId}" vs data.id "${dataId}"`);
+  }
+  let explicitId = filterId ?? dataId;
 
-  const found =
-    insertMode && !explicitId
-      ? []
-      : await readRows(ctx, [targetStep(target, contextLinks, explicitId)], mods);
+  // связи создаваемого: концы из пути + слоты (слоты выигрывают, unset снимает)
+  const pathEnds = await resolvePathEnds(ctx, steps);
+  const writeLinks = { ...pathEnds };
+  for (const c of slots.drops) delete writeLinks[c];
+  Object.assign(writeLinks, slots.vals);
 
-  if (found.length) {
-    const out: Row[] = [];
-    for (const row of found) {
-      const mergedData = deepMerge(row.data, data);        // только указанные листья
-      const mergedLinks = { ...row.links, ...writeLinks }; // контекст + .link()
-      const full = validate(cls, row.id, mergedData, mergedLinks);
-      out.push(
-        await insertOne(ctx, {
-          id: row.id, cls, data: full, links: mergedLinks,
-          tags: tagsValue(target) ?? row.tags, account: row.account, owner: row.owner,
-          prevUpdated: row.updated, deleted: null,
-        }),
+  if (cls.idGen.version === 5) {
+    if (explicitId) {
+      throw new Error(
+        `letopis: class "${cls.id}" computes id (uuid v5 from ${cls.idGen.from!.join(', ')}) — remove the explicit id`,
       );
     }
-    return out;
+    explicitId = v5Id(ctx, cls, writeLinks, data);
   }
 
-  // не найдено: INSERT только при явном id или Класс() без аргумента
-  if (!explicitId && !insertMode) return [];
+  if (explicitId !== undefined) {
+    // id известен и существует (в границах пути) → новая версия
+    const pathSteps: Step[] = [...steps.slice(0, -1), { ...target, filter: explicitId }];
+    const found = await readRows(ctx, pathSteps, mods);
+    if (found.length) return versionRows(ctx, target, found, data, slots);
 
-  // enforceAcl-предикат + явный id: «не нашёл среди доступных» НЕ значит «можно создать» —
-  // существующая, но недоступная сущность иначе перехватывалась бы новой версией с чужим owner.
-  // Проверка существования — БЕЗ предиката и БЕЗ пришпиленных им колонок.
-  if (explicitId && target.aclFilter) {
-    const bare = { ...ctx, aclDecide: undefined };
-    const probe: Step = {
-      ...targetStep(target, contextLinks, explicitId),
-      aclFilter: undefined,
-      ownerFilter: undefined,
-      accountFilter: undefined,
-      linksFilter: undefined,
-    };
-    const taken = await readRows(bare, [probe], {});
-    if (taken.length) return [];
+    // enforceAcl-предикат: «не нашёл среди доступных» НЕ значит «можно создать» —
+    // существующая, но недоступная сущность иначе перехватывалась бы новой версией
+    // с чужим owner. Проверка существования — БЕЗ предиката и пришпиленных колонок.
+    if (target.aclFilter) {
+      const bare = { ...ctx, aclDecide: undefined };
+      const probe: Step = {
+        ...target,
+        filter: explicitId,
+        aclFilter: undefined,
+        ownerFilter: undefined,
+        accountFilter: undefined,
+        linksFilter: undefined,
+      };
+      const taken = await readRows(bare, [probe], {});
+      if (taken.length) return [];
+    }
   }
 
-  const id = explicitId ?? randomUUID();
+  const id = explicitId ?? genId(cls);
   const account = resolveAccount(ctx, target);
   const owner = target.ownerFilter ?? ctx.owner ?? account;
   const full = validate(cls, id, data, writeLinks);
@@ -310,6 +422,31 @@ export async function setOp(
       tags: tagsValue(target) ?? [], account, owner, prevUpdated: null, deleted: null,
     }),
   ];
+}
+
+/**
+ * .update(data?) — новая версия КАЖДОГО найденного путём (deep-merge листьев);
+ * цели: Класс() ≡ Класс({}) — все в границах контекста, id/фильтр/pivot — как в чтении.
+ * Не найдено → [] — update НИКОГДА не создаёт.
+ */
+export async function updateOp(
+  ctx: Ctx,
+  steps: Step[],
+  mods: ChainMods,
+  data: Record<string, unknown>,
+): Promise<Row[]> {
+  const target = steps[steps.length - 1];
+  aclWrite(ctx, target, 'WRITE');
+  const slots = await resolveSlots(ctx, target.cls, target.extraLinks);
+
+  // data.id — цель, только если у шага нет своего фильтра
+  const dataId = typeof data.id === 'string' ? (data.id as string) : undefined;
+  const pathSteps: Step[] =
+    noFilter(target.filter) && dataId !== undefined
+      ? [...steps.slice(0, -1), { ...target, filter: dataId }]
+      : steps;
+  const found = await readRows(ctx, pathSteps, mods); // честный путь: переходы, pivot
+  return versionRows(ctx, target, found, data, slots);
 }
 
 /**
@@ -325,8 +462,7 @@ export async function anonymizeOp(ctx: Ctx, steps: Step[], mods: ChainMods, fiel
       throw new Error(`letopis: anonymize() erases string fields only; "${f}" is ${cls.fieldTypes.get(f)?.kind ?? 'unknown'}`);
     }
   }
-  const contextLinks = await resolveContext(ctx, steps.slice(0, -1));
-  const found = await readRows(ctx, [targetStep(target, contextLinks)], mods);
+  const found = await readRows(ctx, steps, mods); // цели — честный путь
   const out: Row[] = [];
   for (const row of found) {
     const patch = Object.fromEntries(fields.filter((f) => f in row.data).map((f) => [f, '[erased]']));
@@ -369,8 +505,7 @@ async function inTransaction<T>(ctx: Ctx, fn: (c: Ctx) => Promise<T>): Promise<T
 export async function delOp(ctx: Ctx, steps: Step[], mods: ChainMods, confirm: boolean): Promise<Row[]> {
   const target = steps[steps.length - 1];
   aclWrite(ctx, target, 'DELETE');
-  const contextLinks = await resolveContext(ctx, steps.slice(0, -1));
-  const targets = await readRows(ctx, [targetStep(target, contextLinks)], mods);
+  const targets = await readRows(ctx, steps, mods); // цели — честный путь
   if (!targets.length) return [];
 
   const params = [ctx.partition, target.cls.id, ...targets.map((r) => r.id)];
@@ -417,8 +552,10 @@ function splitPlan(steps: Step[]): { segments: Segment[]; tail: Step[] } {
 
 function opCall(c: Ctx, steps: Step[], op: PlanOp): Promise<Row[]> {
   switch (op.kind) {
-    case 'set':
-      return setOp(c, steps, op.mods, op.data ?? {});
+    case 'create':
+      return createOp(c, steps, op.mods, op.data ?? {});
+    case 'update':
+      return updateOp(c, steps, op.mods, op.data ?? {});
     case 'anonymize':
       return anonymizeOp(c, steps, op.mods, op.fields ?? []);
     case 'delete':
@@ -549,8 +686,8 @@ async function readByMode(c: Ctx, steps: Step[], mods: ChainMods, mode: PlanMode
 
 // ---------------------------------------------------------------------------
 // Батчи: очередь ПЛАНОВ, исполнение одной транзакцией batch.run().
-// Подряд идущие «чистые INSERT»-планы (один шаг с set, пустой фильтр, без data.id)
-// одного класса склеиваются в multi-VALUES.
+// Подряд идущие «чистые INSERT»-планы (один шаг с create, без id/слотов; id не v5 —
+// тому нужны концы) одного класса склеиваются в multi-VALUES.
 // ---------------------------------------------------------------------------
 
 /** План в очереди батча; steps обновляется по мере роста цепочки. */
@@ -560,10 +697,11 @@ export interface BatchPlan {
 
 const isPureInsertPlan = (p: BatchPlan): boolean =>
   p.steps.length === 1 &&
-  p.steps[0].op?.kind === 'set' &&
+  p.steps[0].op?.kind === 'create' &&
   noFilter(p.steps[0].filter) &&
   typeof p.steps[0].op.data?.id !== 'string' &&
-  !Object.keys(p.steps[0].extraLinks ?? {}).length;
+  !Object.keys(p.steps[0].extraLinks ?? {}).length &&
+  p.steps[0].cls.idGen.version !== 5;
 
 export async function executeBatch(ctx: Ctx, queue: BatchPlan[]): Promise<Row[][]> {
   if (!queue.length) return [];
@@ -581,8 +719,8 @@ export async function executeBatch(ctx: Ctx, queue: BatchPlan[]): Promise<Row[][
         const params: unknown[] = [];
         for (const g of group) {
           const s = { ...g.steps[0] };
-          aclWrite(c, s, 'WRITE'); // склейка multi-VALUES идёт мимо setOp — право+пришпиливание на каждый
-          const id = randomUUID();
+          aclWrite(c, s, 'WRITE'); // склейка multi-VALUES идёт мимо createOp — право+пришпиливание на каждый
+          const id = genId(cls);
           const full = validate(cls, id, s.op?.data ?? {}, {});
           const account = resolveAccount(c, s);
           params.push(

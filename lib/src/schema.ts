@@ -2,12 +2,14 @@
  * Загрузка таблицы Schema → реестр классов:
  *  - резолв имени по id и alias;
  *  - цепочка ancestors (walk по ancestor, если в БД не заполнена);
+ *  - attributes НАСЛЕДУЮТСЯ по цепочке (потомок поверх предка; поле = замена правила
+ *    целиком) — включая правило id (генерация v4/v5/v7); links НЕ наследуются;
  *  - скомпилированный fastest-validator per class;
  *  - карта типов полей (для SQL-кастов фильтров).
  */
 import { createRequire } from 'node:module';
 import type { Sql } from 'postgres';
-import type { ClassDef, FieldType } from './types.js';
+import type { ClassDef, FieldType, IdGen, LinkEnd } from './types.js';
 
 // fastest-validator — CJS с ESM-типами; берём класс из module.exports напрямую.
 interface FastestValidator {
@@ -104,11 +106,62 @@ interface SchemaRow {
   category: 'HUB' | 'LINK';
   ancestor: string | null;
   attributes: Record<string, unknown>;
-  links: string[] | null;
+  /** jsonb-массив: объект-конец v2 | legacy-строка; у старых схем колонка text[] → string[]. */
+  links: (string | Record<string, unknown>)[] | null;
   meta: Record<string, unknown>;
   order: number;
   ancestors: string[] | null;
   descendants: string[] | null;
+}
+
+/**
+ * Элемент Schema.links: объект-конец v2 (jsonb) либо legacy-строка 'Org'
+ * (включая JSON-текст в text[] у старых схем). Возвращает [конец, isV2].
+ */
+function parseEnd(cls: string, raw: string | Record<string, unknown>): [LinkEnd, boolean] {
+  let o: { class?: string; classes?: string[]; optional?: boolean; cardinality?: number };
+  if (typeof raw === 'string') {
+    if (!raw.trimStart().startsWith('{')) return [{ classes: [raw] }, false];
+    try {
+      o = JSON.parse(raw);
+    } catch {
+      throw new Error(`letopis: class "${cls}" has malformed link end (bad JSON): ${raw}`);
+    }
+  } else {
+    o = raw;
+  }
+  const classes = o.classes ?? (o.class ? [o.class] : []);
+  if (!classes.length || classes.some((c) => typeof c !== 'string' || !c)) {
+    throw new Error(`letopis: class "${cls}" has link end without classes: ${JSON.stringify(raw)}`);
+  }
+  return [{ classes, optional: o.optional === true, cardinality: o.cardinality }, true];
+}
+
+/**
+ * attributes.id: правило валидации + (объектом) спецификация генерации.
+ * generate/from — ключи letopis, вырезаются из правила перед компиляцией валидатора.
+ */
+function parseIdGen(cls: string, attributes: Record<string, unknown>): { idGen: IdGen; attrs: Record<string, unknown> } {
+  const raw = attributes.id;
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { idGen: { version: 4 }, attrs: attributes };
+  }
+  const { generate, from, ...rule } = raw as { generate?: unknown; from?: unknown };
+  const attrs = { ...attributes, id: rule };
+  if (generate === undefined) return { idGen: { version: 4 }, attrs };
+  if (generate !== 4 && generate !== 5 && generate !== 7) {
+    throw new Error(`letopis: class "${cls}" — attributes.id.generate must be 4 | 5 | 7, got ${JSON.stringify(generate)}`);
+  }
+  if (generate === 5) {
+    if (!Array.isArray(from) || !from.length || from.some((f) => typeof f !== 'string' || !f)) {
+      throw new Error(`letopis: class "${cls}" — id generate:5 needs "from": non-empty string[] (link ends / data fields)`);
+    }
+    return { idGen: { version: 5, from: from as string[] }, attrs };
+  }
+  if (from !== undefined) {
+    throw new Error(`letopis: class "${cls}" — attributes.id.from is for generate:5 only`);
+  }
+  return { idGen: { version: generate }, attrs };
 }
 
 function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
@@ -125,17 +178,54 @@ function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
     }
   }
 
+  // attributes НАСЛЕДУЮТСЯ по цепочке ancestor: потомок ПОВЕРХ предка, переопределение
+  // поля — замена правила ЦЕЛИКОМ (не слияние объекта-правила). links не наследуются.
+  const merged: Record<string, unknown> = {};
+  for (let i = ancestors.length - 1; i >= 0; i--) {
+    Object.assign(merged, byId.get(ancestors[i])?.attributes ?? {});
+  }
+
+  // attributes.id: спецификация генерации (generate/from) отделяется от правила валидации
+  const { idGen, attrs } = parseIdGen(row.id, merged);
+
   // fastest-validator: валидируем {id, ...data}; СТРОГО — лишние поля запрещены
-  const compiled = v.compile({ ...row.attributes, $$strict: true } as never);
+  const compiled = v.compile({ ...attrs, $$strict: true } as never);
   const check: ClassDef['check'] = (data) => {
     const res = compiled(data);
     return res === true ? true : (res as { field: string; message?: string }[]);
   };
 
   const fieldTypes = new Map<string, FieldType>();
-  for (const [field, attr] of Object.entries(row.attributes)) {
+  for (const [field, attr] of Object.entries(attrs)) {
     if (field.startsWith('$$')) continue;
     fieldTypes.set(field, fieldTypeOf(attr));
+  }
+
+  let strictEnds = false;
+  // jsonb-массив; text[] у legacy-схем даёт string[]; jsonb-строка "[…]" (двойная
+  // сериализация внешних писателей) — распарсить
+  let rawLinks = row.links ?? [];
+  if (typeof rawLinks === 'string') rawLinks = JSON.parse(rawLinks);
+  const ends = rawLinks.map((raw) => {
+    const [end, v2] = parseEnd(row.id, raw);
+    if (v2) strictEnds = true;
+    return end;
+  });
+
+  // id v5: каждый источник from — обязательный конец links (класс или полное имя союза
+  // 'Service|Complex') ЛИБО поле data
+  if (idGen.version === 5) {
+    for (const f of idGen.from!) {
+      const end = ends.find((e) => e.classes.includes(f) || e.classes.join('|') === f);
+      if (end) {
+        if (end.optional) {
+          throw new Error(`letopis: class "${row.id}" — id (uuid v5) can't depend on optional end "${f}"`);
+        }
+        continue;
+      }
+      if (f !== 'id' && f in attrs) continue;
+      throw new Error(`letopis: class "${row.id}" — id "from" source "${f}" is neither a link end nor a data field`);
+    }
   }
 
   return {
@@ -145,8 +235,10 @@ function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
     ancestor: row.ancestor,
     ancestors,
     descendants: row.descendants ?? [],   // считает триггер schema_lineage
-    attributes: row.attributes,
-    links: row.links ?? [],
+    attributes: merged,
+    links: ends,
+    strictEnds,
+    idGen,
     meta: row.meta ?? {},
     abstract: row.meta?.abstract === true || row.meta?.abstract === 'true',
     order: row.order,
