@@ -78,7 +78,7 @@ test('seeds: свои файлы с маркером "<SCHEMA-NAME>" вмест�
   await writeFile(
     seedFile,
     `INSERT INTO "<SCHEMA-NAME>"."Schema" (partition, id, alias, category, ancestor, attributes, meta, links, "order", ancestors) VALUES
-       ('entity', 'Item', 'Штука', 'HUB', NULL, '{"id":"uuid","name":"string"}'::jsonb, '{}'::jsonb, '{}'::text[], 100, '{"Item"}'::text[]);
+       ('entity', 'Item', 'Штука', 'HUB', NULL, '{"id":"uuid","name":"string"}'::jsonb, '{}'::jsonb, '[]'::jsonb, 100, '{"Item"}'::text[]);
      INSERT INTO "<SCHEMA-NAME>"."Account" (categories, data) VALUES ('{System}', '{"name":"UpSeed"}');`,
     'utf8',
   );

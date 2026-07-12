@@ -96,7 +96,7 @@ test('триггеры БД: UPDATE = новая версия, DELETE = tombston
 
 test('Schema lineage: ancestors и descendants считает триггер', async () => {
   const link = db.registry.resolve('связь');
-  assert.deepEqual(link.descendants.sort(), ['busy', 'item', 'shift', 'skill']);
+  assert.deepEqual(link.descendants.sort(), ['busy', 'compo', 'item', 'shift', 'skill']);
   const busy = db.registry.resolve('занятость');
   assert.deepEqual(busy.ancestors, ['busy', 'link']);
   const entity = db.registry.resolve('Entity');
@@ -357,8 +357,8 @@ test('валидация СТРОГАЯ: мусор, лишние поля, abst
   );
   await assert.rejects(db.Сущность().set({ x: 1 }).rows(), /is abstract/);
   await assert.rejects(
-    db.Сотрудник('x').навык().set({}).rows(), // не хватает полиморфного конца
-    /polymorphic end/,
+    db.Сотрудник('x').навык().set({}).rows(), // не хватает конца-союза (предмет навыка)
+    /requires end "Service\|Complex"/,
   );
 });
 

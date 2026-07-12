@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS "<SCHEMA-NAME>"."Schema" (
     category   text   NOT NULL CHECK (category IN ('HUB', 'LINK')),
     ancestor   text,                             -- прямой родитель (наследование)
     attributes jsonb  NOT NULL DEFAULT '{}',     -- fastest-validator DSL (валидирует либа)
-    links      text[] NOT NULL DEFAULT '{}',     -- концы связей; элемент v2 — JSON-объект '{"class":…}'/'{"classes":[…],"optional":…}' (союзы ролей, матчинг по порядку); legacy-строка 'Org' ('Entity' = полиморфный)
+    links      jsonb  NOT NULL DEFAULT '[]',     -- МАССИВ ОБЪЕКТОВ-концов: {"class":…}/{"classes":[…],"optional":…,"cardinality":…} (союзы ролей, матчинг по порядку); legacy-элемент-строка "Org" ("Entity" = полиморфный)
     meta       jsonb  NOT NULL DEFAULT '{}',     -- {abstract?, description?}
     "order"    int    NOT NULL DEFAULT 0,
     ancestors   text[] NOT NULL DEFAULT '{}',    -- [self, parent, …, root] — считает триггер schema_lineage
@@ -151,6 +151,7 @@ DECLARE
     ecs  text[];
     hit  text;
     c2   text;
+    is_v2 boolean;
 BEGIN
     IF NEW.deleted IS NOT NULL THEN
         RETURN NEW;
@@ -181,12 +182,15 @@ BEGIN
         RAISE EXCEPTION 'ENTITY_CHECK: links key "%" is not a class or its value is not an id string', bad;
     END IF;
 
-    -- LINK: концы по Schema.links (v2-объекты — строгий жадный матчинг; legacy-строки — по-старому)
+    -- LINK: концы по Schema.links — jsonb-массив; элемент-объект = v2 (строгий жадный
+    -- матчинг по порядку), элемент-строка = legacy-имя класса
     IF s.category = 'LINK' THEN
-        IF EXISTS (SELECT 1 FROM unnest(COALESCE(s.links, '{}')) le WHERE left(le, 1) = '{') THEN
+        is_v2 := EXISTS (
+            SELECT 1 FROM jsonb_array_elements(COALESCE(s.links, '[]'::jsonb)) le
+            WHERE jsonb_typeof(le.value) = 'object');
+        IF is_v2 THEN
             used := ARRAY[]::text[];
-            FOREACH k IN ARRAY COALESCE(s.links, '{}') LOOP
-                ej  := k::jsonb;
+            FOR ej IN SELECT le.value FROM jsonb_array_elements(COALESCE(s.links, '[]'::jsonb)) le LOOP
                 ecs := COALESCE(
                     (SELECT array_agg(x) FROM jsonb_array_elements_text(ej->'classes') x),
                     ARRAY[ej->>'class']);
@@ -211,7 +215,7 @@ BEGIN
                 RAISE EXCEPTION 'ENTITY_CHECK: link "%" has stray link "%" — not an end in Schema.links', NEW.class, bad;
             END IF;
         ELSE
-            FOREACH k IN ARRAY COALESCE(s.links, '{}') LOOP
+            FOR k IN SELECT le.value #>> '{}' FROM jsonb_array_elements(COALESCE(s.links, '[]'::jsonb)) le LOOP
                 IF k <> 'Entity' AND NOT (COALESCE(NEW.links, '{}'::jsonb) ? k) THEN
                     RAISE EXCEPTION 'ENTITY_CHECK: link "%" requires end "%"', NEW.class, k;
                 END IF;

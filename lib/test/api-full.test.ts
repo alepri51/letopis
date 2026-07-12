@@ -269,9 +269,9 @@ test('✔ set: INSERT/UPSERT/UPDATE, deep-merge, связи контекст/.li
   await assert.rejects(db.Организация(S.org).Услуга().set({ name: 'Х', duration: 5, лишнее: 1 }).rows(), /validation failed/);
   await assert.rejects(db.Сущность().set({}).rows(), /abstract/);
 
-  // LINK-концы: обязательные и полиморфные
+  // LINK-концы v2: обязательный и союз
   await assert.rejects(db.Сотрудник(S.vasya).занятость().set({ kind: 'off' }).rows(), /requires end "Slot"/);
-  await assert.rejects(db.Сотрудник(S.vasya).навык().set({}).rows(), /polymorphic/);
+  await assert.rejects(db.Сотрудник(S.vasya).навык().set({}).rows(), /requires end "Service\|Complex"/);
 
   // прибираем
   for (const r of [ins, upA, upB]) await db.Клиент(r.id).delete({ confirm: true }).rows();

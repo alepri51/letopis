@@ -460,8 +460,7 @@
     "links": [
       {
         "classes": [
-          "Booking",
-          "Complex"
+          "Booking"
         ],
         "cardinality": 1
       },
@@ -499,7 +498,36 @@
     },
     "meta": {
       "abstract": false,
-      "description": "Позиция: владелец [Запись|Комплекс] × предмет [Услуга|Комплекс] × Сотрудник?. Лики: строка заказа {Запись,(Услуга|Комплекс),Сотрудник?} и состав комплекса {Комплекс,Услуга}. Концы матчатся по порядку объявления"
+      "description": "Позиция заказа: Запись × предмет [Услуга|Комплекс] × Сотрудник?. Снимок цены в price. Состав комплекса — отдельный LINK «состав» (compo)"
+    }
+  },
+  {
+    "id": "compo",
+    "alias": "состав",
+    "category": "LINK",
+    "ancestor": "link",
+    "ancestors": [
+      "compo",
+      "link"
+    ],
+    "links": [
+      {
+        "class": "Complex",
+        "cardinality": 1
+      },
+      {
+        "class": "Service",
+        "cardinality": 1
+      }
+    ],
+    "order": 250,
+    "attributes": {
+      "id": "any",
+      "qty": "number|integer|min:1|default:1"
+    },
+    "meta": {
+      "abstract": false,
+      "description": "Состав комплекса: Комплекс ← Услуга (+qty). Раньше жил на позиции — вынесен отдельным классом"
     }
   },
   {

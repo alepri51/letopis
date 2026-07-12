@@ -104,7 +104,8 @@ interface SchemaRow {
   category: 'HUB' | 'LINK';
   ancestor: string | null;
   attributes: Record<string, unknown>;
-  links: string[] | null;
+  /** jsonb-массив: объект-конец v2 | legacy-строка; у старых схем колонка text[] → string[]. */
+  links: (string | Record<string, unknown>)[] | null;
   meta: Record<string, unknown>;
   order: number;
   ancestors: string[] | null;
@@ -112,24 +113,26 @@ interface SchemaRow {
 }
 
 /**
- * Элемент Schema.links: JSON-объект конца (v2) либо legacy-строка 'Org'.
- * Возвращает [конец, isV2].
+ * Элемент Schema.links: объект-конец v2 (jsonb) либо legacy-строка 'Org'
+ * (включая JSON-текст в text[] у старых схем). Возвращает [конец, isV2].
  */
-function parseEnd(cls: string, raw: string): [LinkEnd, boolean] {
-  if (raw.trimStart().startsWith('{')) {
-    let o: { class?: string; classes?: string[]; optional?: boolean; cardinality?: number };
+function parseEnd(cls: string, raw: string | Record<string, unknown>): [LinkEnd, boolean] {
+  let o: { class?: string; classes?: string[]; optional?: boolean; cardinality?: number };
+  if (typeof raw === 'string') {
+    if (!raw.trimStart().startsWith('{')) return [{ classes: [raw] }, false];
     try {
       o = JSON.parse(raw);
     } catch {
       throw new Error(`letopis: class "${cls}" has malformed link end (bad JSON): ${raw}`);
     }
-    const classes = o.classes ?? (o.class ? [o.class] : []);
-    if (!classes.length || classes.some((c) => typeof c !== 'string' || !c)) {
-      throw new Error(`letopis: class "${cls}" has link end without classes: ${raw}`);
-    }
-    return [{ classes, optional: o.optional === true, cardinality: o.cardinality }, true];
+  } else {
+    o = raw;
   }
-  return [{ classes: [raw] }, false];
+  const classes = o.classes ?? (o.class ? [o.class] : []);
+  if (!classes.length || classes.some((c) => typeof c !== 'string' || !c)) {
+    throw new Error(`letopis: class "${cls}" has link end without classes: ${JSON.stringify(raw)}`);
+  }
+  return [{ classes, optional: o.optional === true, cardinality: o.cardinality }, true];
 }
 
 function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
@@ -160,7 +163,11 @@ function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
   }
 
   let strictEnds = false;
-  const ends = (row.links ?? []).map((raw) => {
+  // jsonb-массив; text[] у legacy-схем даёт string[]; jsonb-строка "[…]" (двойная
+  // сериализация внешних писателей) — распарсить
+  let rawLinks = row.links ?? [];
+  if (typeof rawLinks === 'string') rawLinks = JSON.parse(rawLinks);
+  const ends = rawLinks.map((raw) => {
     const [end, v2] = parseEnd(row.id, raw);
     if (v2) strictEnds = true;
     return end;
