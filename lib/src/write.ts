@@ -92,17 +92,35 @@ function validate(cls: ClassDef, id: string, data: Record<string, unknown>, link
   delete (merged as { id?: unknown }).id;
 
   if (cls.category === 'LINK') {
-    let polymorphic = 0;
     const present = new Set(Object.keys(links));
-    for (const end of cls.links) {
-      if (end === 'Entity') polymorphic++;
-      else if (present.has(end)) present.delete(end);
-      else throw new Error(`letopis: link "${cls.id}" requires end "${end}"`);
-    }
-    if (present.size < polymorphic) {
-      throw new Error(
-        `letopis: link "${cls.id}" requires ${polymorphic} polymorphic end(s) (any class), got ${present.size}`,
-      );
+    if (cls.strictEnds) {
+      // схема v2: жадный матчинг по порядку объявления концов; союз занимает один ключ;
+      // обязательный конец без ключа и ключ вне концов — ошибки
+      for (const end of cls.links) {
+        const hit = end.classes.find((c) => present.has(c));
+        if (hit) present.delete(hit);
+        else if (!end.optional)
+          throw new Error(`letopis: link "${cls.id}" requires end "${end.classes.join('|')}"`);
+      }
+      if (present.size) {
+        throw new Error(
+          `letopis: link "${cls.id}" has stray link(s) ${[...present].map((k) => `"${k}"`).join(', ')} — not an end in Schema.links`,
+        );
+      }
+    } else {
+      // legacy-схема (строковые концы): 'Entity' — полиморф-счётчик, лишние связи молчат
+      let polymorphic = 0;
+      for (const end of cls.links) {
+        const name = end.classes[0];
+        if (name === 'Entity') polymorphic++;
+        else if (present.has(name)) present.delete(name);
+        else throw new Error(`letopis: link "${cls.id}" requires end "${name}"`);
+      }
+      if (present.size < polymorphic) {
+        throw new Error(
+          `letopis: link "${cls.id}" requires ${polymorphic} polymorphic end(s) (any class), got ${present.size}`,
+        );
+      }
     }
   }
   return merged;

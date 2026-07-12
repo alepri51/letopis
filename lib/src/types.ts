@@ -21,6 +21,20 @@ export interface Row {
 /** Результат run(): вариант пути — узел на каждый шаг цепочки. */
 export type Path = Record<string, Row>;
 
+/**
+ * Конец связи класса (Schema.links v2). В БД элемент text[]: JSON-объект
+ * `{"class":"Org","cardinality":1}` / `{"classes":["Service","Complex"],"cardinality":1}`
+ * (союз ролей); legacy-строка 'Org' — сахар для {classes:['Org']} (старые схемы).
+ */
+export interface LinkEnd {
+  /** Допустимые классы конца; ровно один из них присутствует в Entity.links. */
+  classes: string[];
+  /** Конец может отсутствовать. Default false. */
+  optional?: boolean;
+  /** ЗАРЕЗЕРВИРОВАНО (не имплементировано): 0 — безлимит, N — точное число. Default 1. */
+  cardinality?: number;
+}
+
 /** Класс из таблицы Schema. */
 export interface ClassDef {
   id: string;
@@ -31,7 +45,13 @@ export interface ClassDef {
   /** Все потомки (транзитивно) — считает триггер schema_lineage. */
   descendants: string[];
   attributes: Record<string, unknown>;
-  links: string[];
+  links: LinkEnd[];
+  /**
+   * true — хотя бы один конец объявлен объектом (схема v2): строгая валидация
+   * (жадный матчинг по порядку, союзы, optional, лишние связи — ошибка).
+   * false — все концы legacy-строками: старое поведение ('Entity' = полиморф, лишние молчат).
+   */
+  strictEnds: boolean;
   meta: Record<string, unknown>;
   abstract: boolean;
   order: number;

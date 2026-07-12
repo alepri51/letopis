@@ -402,6 +402,11 @@ function compileFilter(cls: ClassDef, filter: Filter | undefined, p: Params): Co
 
 type HopMode = 'forward' | 'reverse';
 
+/** Класс target входит в какой-нибудь конец def (союзы учитываются). */
+export function linksTo(def: ClassDef, target: string): boolean {
+  return def.links.some((end) => end.classes.includes(target));
+}
+
 /** Правило обхода между шагами (по реестру Schema). */
 export function resolveHop(prev: ClassDef, next: ClassDef): HopMode {
   if (prev.category === 'HUB' && next.category === 'LINK') return 'reverse';
@@ -409,8 +414,8 @@ export function resolveHop(prev: ClassDef, next: ClassDef): HopMode {
   if (prev.category === 'HUB' && next.category === 'HUB') {
     // self-переход (Папка→Папка) = reverse: дети; родитель и так лежит в row.links
     if (prev.id === next.id) return 'reverse';
-    if (prev.links.includes(next.id)) return 'forward';
-    if (next.links.includes(prev.id)) return 'reverse';
+    if (linksTo(prev, next.id)) return 'forward';
+    if (linksTo(next, prev.id)) return 'reverse';
     throw new Error(
       `letopis: no path ${prev.id} → ${next.id}: neither embeds the other (Schema.links)`,
     );

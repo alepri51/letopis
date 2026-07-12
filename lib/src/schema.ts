@@ -7,7 +7,7 @@
  */
 import { createRequire } from 'node:module';
 import type { Sql } from 'postgres';
-import type { ClassDef, FieldType } from './types.js';
+import type { ClassDef, FieldType, LinkEnd } from './types.js';
 
 // fastest-validator — CJS с ESM-типами; берём класс из module.exports напрямую.
 interface FastestValidator {
@@ -111,6 +111,27 @@ interface SchemaRow {
   descendants: string[] | null;
 }
 
+/**
+ * Элемент Schema.links: JSON-объект конца (v2) либо legacy-строка 'Org'.
+ * Возвращает [конец, isV2].
+ */
+function parseEnd(cls: string, raw: string): [LinkEnd, boolean] {
+  if (raw.trimStart().startsWith('{')) {
+    let o: { class?: string; classes?: string[]; optional?: boolean; cardinality?: number };
+    try {
+      o = JSON.parse(raw);
+    } catch {
+      throw new Error(`letopis: class "${cls}" has malformed link end (bad JSON): ${raw}`);
+    }
+    const classes = o.classes ?? (o.class ? [o.class] : []);
+    if (!classes.length || classes.some((c) => typeof c !== 'string' || !c)) {
+      throw new Error(`letopis: class "${cls}" has link end without classes: ${raw}`);
+    }
+    return [{ classes, optional: o.optional === true, cardinality: o.cardinality }, true];
+  }
+  return [{ classes: [raw] }, false];
+}
+
 function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
   // цепочка наследования: из БД или walk по ancestor
   let ancestors = row.ancestors ?? [];
@@ -138,6 +159,13 @@ function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
     fieldTypes.set(field, fieldTypeOf(attr));
   }
 
+  let strictEnds = false;
+  const ends = (row.links ?? []).map((raw) => {
+    const [end, v2] = parseEnd(row.id, raw);
+    if (v2) strictEnds = true;
+    return end;
+  });
+
   return {
     id: row.id,
     alias: row.alias,
@@ -146,7 +174,8 @@ function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
     ancestors,
     descendants: row.descendants ?? [],   // считает триггер schema_lineage
     attributes: row.attributes,
-    links: row.links ?? [],
+    links: ends,
+    strictEnds,
     meta: row.meta ?? {},
     abstract: row.meta?.abstract === true || row.meta?.abstract === 'true',
     order: row.order,
