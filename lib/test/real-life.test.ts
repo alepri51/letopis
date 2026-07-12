@@ -39,13 +39,13 @@ before(async () => {
   [S.маникюр] = await db.Организация(S.салон).Услуга().set({ name: 'Маникюр', duration: 60, price: { RUB: 2000 } }).rows();
   [S.педикюр] = await db.Организация(S.салон).Услуга().set({ name: 'Педикюр', duration: 90, price: { RUB: 3000 } }).rows();
   [S.комплекс] = await db.Организация(S.салон).Комплекс().set({ name: 'М+П', duration: 150, price: { RUB: 4500 } }).rows();
-  await db.Комплекс(S.комплекс).Услуга(S.маникюр).состав().set({ qty: 1 }).rows();
-  await db.Комплекс(S.комплекс).Услуга(S.педикюр).состав().set({ qty: 1 }).rows();
+  await db.Комплекс(S.комплекс).состав().set({ qty: 1 }).Услуга.set(S.маникюр).rows();
+  await db.Комплекс(S.комплекс).состав().set({ qty: 1 }).Услуга.set(S.педикюр).rows();
 
-  await db.Сотрудник(S.марина).Услуга(S.маникюр).навык().set({}).rows();
-  await db.Сотрудник(S.марина).Услуга(S.педикюр).навык().set({}).rows();
-  await db.Сотрудник(S.марина).Комплекс(S.комплекс).навык().set({}).rows();
-  await db.Сотрудник(S.света).Услуга(S.маникюр).навык().set({}).rows();
+  await db.Сотрудник(S.марина).навык().set({}).Услуга.set(S.маникюр).rows();
+  await db.Сотрудник(S.марина).навык().set({}).Услуга.set(S.педикюр).rows();
+  await db.Сотрудник(S.марина).навык().set({}).Комплекс.set(S.комплекс).rows();
+  await db.Сотрудник(S.света).навык().set({}).Услуга.set(S.маникюр).rows();
 
   for (const имя of ['Аня', 'Оля', 'Катя', 'Боря']) {
     [S[имя]] = await db.Организация(S.салон).Клиент().set({ name: имя }).rows();
@@ -61,8 +61,8 @@ before(async () => {
     });
   }
   W = (await db.batch('окна').run()).map((r) => r[0]);
-  await db.Расписание(S.расписание).Сотрудник(S.марина).смена().set({}).rows();
-  await db.Расписание(S.расписание).Сотрудник(S.света).смена().set({}).rows();
+  await db.Расписание(S.расписание).смена().set({}).Сотрудник.set(S.марина).rows();
+  await db.Расписание(S.расписание).смена().set({}).Сотрудник.set(S.света).rows();
 });
 
 after(async () => {
@@ -119,12 +119,12 @@ async function bookVisit(req: VisitReq): Promise<Row> {
           status: 'created', source: 'admin', comment: req.comment, total: { RUB: rub(req.item) },
         }).rows())[0];
 
-    // связь Услуга|Комплекс — динамическое имя класса: .link() ДО set() даёт значение связи INSERT
-    await tr.Запись(запись).Сотрудник(req.master).позиция().link(kind, req.item)
-      .set({ qty: 1, price: { RUB: rub(req.item) } }).rows();
+    // связь предмета — динамическое имя класса (Услуга|Комплекс): слот после set()
+    const поз = tr.Запись(запись).позиция().set({ qty: 1, price: { RUB: rub(req.item) } }).Сотрудник.set(req.master);
+    await (kind === 'Услуга' ? поз.Услуга.set(req.item) : поз.Комплекс.set(req.item)).rows();
 
     for (const w of wins) {
-      await tr.Сотрудник(req.master).Окно(w).Запись(запись).занятость(busyId(req.master, w)).set({ kind: 'booking' }).rows();
+      await tr.Сотрудник(req.master).занятость(busyId(req.master, w)).set({ kind: 'booking' }).Окно.set(w).Запись.set(запись).rows();
     }
     await tr.commit();
     return запись;
@@ -154,9 +154,9 @@ async function reschedule(запись: Row, master: Row, startHour: number, nee
     }
     await tr.Запись(запись.id).занятость().delete({ confirm: true }).rows(); // освободить старые
     for (const w of wins) {
-      await tr.Сотрудник(master).Окно(w).Запись(запись).занятость(busyId(master, w)).set({ kind: 'booking' }).rows();
+      await tr.Сотрудник(master).занятость(busyId(master, w)).set({ kind: 'booking' }).Окно.set(w).Запись.set(запись).rows();
     }
-    await tr.Запись(запись.id).позиция({}).link('Сотрудник', master).set({}).rows(); // ({}) = все позиции записи; .link — новый исполнитель БЕЗ фильтра целей
+    await tr.Запись(запись.id).позиция({}).set({}).Сотрудник.set(master).rows(); // ({}) = все позиции записи; слот перевешивает исполнителя БЕЗ фильтра целей
     await tr.Запись(запись.id).set({ status: 'confirmed' }).rows();
     await tr.commit();
     return true;
@@ -214,11 +214,11 @@ test('С2. «4 РУКИ»: Катя 11:00 — Света маникюр + Мар
       }
     }
     [S.з4руки] = await tr.Клиент(S.Катя).Запись().set({ status: 'created', total: { RUB: 5000 } }).rows();
-    await tr.Запись(S.з4руки).Услуга(S.маникюр).Сотрудник(S.света).позиция().set({ qty: 1, price: { RUB: 2000 } }).rows();
-    await tr.Запись(S.з4руки).Услуга(S.педикюр).Сотрудник(S.марина).позиция().set({ qty: 1, price: { RUB: 3000 } }).rows();
-    await tr.Сотрудник(S.света).Окно(окно(11)).Запись(S.з4руки).занятость(busyId(S.света, окно(11))).set({ kind: 'booking' }).rows();
-    await tr.Сотрудник(S.марина).Окно(окно(11)).Запись(S.з4руки).занятость(busyId(S.марина, окно(11))).set({ kind: 'booking' }).rows();
-    await tr.Сотрудник(S.марина).Окно(окно(12)).Запись(S.з4руки).занятость(busyId(S.марина, окно(12))).set({ kind: 'booking' }).rows();
+    await tr.Запись(S.з4руки).позиция().set({ qty: 1, price: { RUB: 2000 } }).Услуга.set(S.маникюр).Сотрудник.set(S.света).rows();
+    await tr.Запись(S.з4руки).позиция().set({ qty: 1, price: { RUB: 3000 } }).Услуга.set(S.педикюр).Сотрудник.set(S.марина).rows();
+    await tr.Сотрудник(S.света).занятость(busyId(S.света, окно(11))).set({ kind: 'booking' }).Окно.set(окно(11)).Запись.set(S.з4руки).rows();
+    await tr.Сотрудник(S.марина).занятость(busyId(S.марина, окно(11))).set({ kind: 'booking' }).Окно.set(окно(11)).Запись.set(S.з4руки).rows();
+    await tr.Сотрудник(S.марина).занятость(busyId(S.марина, окно(12))).set({ kind: 'booking' }).Окно.set(окно(12)).Запись.set(S.з4руки).rows();
     await tr.commit();
   } catch (e) {
     await tr.rollback();
@@ -381,7 +381,7 @@ test('С13. Отказ: комплекс к Свете (нет навыка) —
 });
 
 test('С14. Отказ: Марина снята с 15:00 (off) — бронь отклонена', async () => {
-  await db.Сотрудник(S.марина).Окно(окно(15)).занятость(busyId(S.марина, окно(15))).set({ kind: 'off', reason: 'уборка' }).rows();
+  await db.Сотрудник(S.марина).занятость(busyId(S.марина, окно(15))).set({ kind: 'off', reason: 'уборка' }).Окно.set(окно(15)).rows();
 
   await assert.rejects(
     bookVisit({ client: S.Оля, master: S.марина, item: S.маникюр, startHour: 15 }),

@@ -1,7 +1,7 @@
 /**
  * План-модель 0.11.0: операции — звенья, терминал исполняет весь план одной транзакцией.
  * Покрытие: продолжение от результата, fan-out, self-set, превью/confirm delete,
- * ОТКАТ плана целиком, .link() при UPDATE, хвост-чтение, батч-гард.
+ * ОТКАТ плана целиком, слот-перевес при UPDATE, хвост-чтение, батч-гард.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -90,9 +90,7 @@ test('fan-out: сегмент исполняется для каждой стр�
 test('delete без confirm — превью: кандидаты (цель + каскад), БД не тронута', async () => {
   const [зап] = await db.Клиент({ name: 'Аня' }).Запись().set({ status: 'created', total: { RUB: 9 } }).rows();
   const [усл] = await db.Услуга().set({ name: 'Тест', duration: 30, price: { RUB: 100 } }).rows();
-  await db.Запись(зап.id).Услуга(усл.id) // ошибочный маршрут не строим — позиция через контекст:
-    .rows().catch(() => []); // (заодно: чтение чужого маршрута не мешает плану ниже)
-  await db.Запись(зап.id).позиция().link('Услуга', усл.id).set({ qty: 1, price: { RUB: 9 } }).rows();
+  await db.Запись(зап.id).позиция().set({ qty: 1, price: { RUB: 9 } }).Услуга.set(усл.id).rows();
 
   const превью = await db.Запись(зап.id).delete().rows();
   assert.deepEqual(превью.map((r) => r.class).sort(), ['Booking', 'item']); // цель + каскад
@@ -118,24 +116,25 @@ test('откат: ошибка любого сегмента откатывае�
   assert.equal((await db.Клиент(клиент.id).versions()).length, 1); // и версии не прибавилось
 });
 
-test('.link(): значение связи при UPDATE без участия в фильтре целей', async () => {
+test('слот-перевес: значение связи при UPDATE без участия в фильтре целей', async () => {
   const [старый] = await db.Сотрудник().set({ name: 'Старый' }).rows();
   const [новый] = await db.Сотрудник().set({ name: 'Новый' }).rows();
   const [зап] = await db.Клиент({ name: 'Аня' }).Запись().set({ status: 'created', total: { RUB: 5 } }).rows();
   const [усл] = await db.Услуга({ name: 'Тест' }).first().then((s) => [s!]);
-  await db.Запись(зап.id).позиция().link('Услуга', усл.id).link('Сотрудник', старый.id)
-    .set({ qty: 1, price: { RUB: 5 } }).rows();
+  await db.Запись(зап.id).позиция().set({ qty: 1, price: { RUB: 5 } }).Услуга.set(усл.id).Сотрудник.set(старый.id).rows();
 
-  // контекст-шаг ФИЛЬТРУЕТ (позиции нового мастера нет) — .link не фильтрует, а перевешивает
-  const перевес = await db.Запись(зап.id).позиция({}).link('Сотрудник', новый.id).set({}).rows();
+  // цель ищется путём (все позиции записи); слот перевешивает исполнителя БЕЗ участия в фильтре
+  const перевес = await db.Запись(зап.id).позиция({}).set({}).Сотрудник.set(новый.id).rows();
   assert.equal(перевес.length, 1);
   assert.equal(перевес[0].links.Staff, новый.id);
 
-  // модификатор сразу после операции — ошибка
+  // дубль слота в одной записи — ошибка
   assert.throws(
-    () => (db.Запись(зап.id).set({ status: 'x' }) as never as { link: (a: string, b: string) => void }).link('Сотрудник', новый.id),
-    /step modifier after set/,
+    () => db.Запись(зап.id).позиция({}).set({}).Сотрудник.set(старый.id).Сотрудник.set(новый.id),
+    /duplicate link slot/,
   );
+  // слот без владельца-шага — ошибка
+  assert.throws(() => (db as unknown as { Сотрудник: { set(x: string): void } }).Сотрудник.set(новый.id), /needs an owner step/);
 });
 
 test('хвост-чтение после операции: та же транзакция, обычные терминалы', async () => {

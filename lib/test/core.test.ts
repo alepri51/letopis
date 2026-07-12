@@ -116,10 +116,10 @@ test('пример ТЗ: услуги Васи через навык, форма
   const [борода] = await db.Организация(org).Услуга().set({ name: 'Борода', duration: 30, price: { RUB: 1000 } }).rows();
   const [массаж] = await db.Организация(org).Услуга().set({ name: 'Массаж', duration: 90, price: { RUB: 3000 } }).rows();
 
-  // связь навык: оба конца — контекст-шагами
-  await db.Сотрудник(вася).Услуга(стрижка).навык().set({}).rows();
-  await db.Сотрудник(вася).Услуга(борода).навык().set({}).rows();
-  await db.Сотрудник(петя).Услуга(массаж).навык().set({}).rows(); // чужое — не должно попасть
+  // связь навык: владелец (Сотрудник) — из пути, предмет — слотом
+  await db.Сотрудник(вася).навык().set({}).Услуга.set(стрижка).rows();
+  await db.Сотрудник(вася).навык().set({}).Услуга.set(борода).rows();
+  await db.Сотрудник(петя).навык().set({}).Услуга.set(массаж).rows(); // чужое — не должно попасть
 
   const пути = await db.Сотрудник({ name: 'Вася' }).навык().Услуга().run();
 
@@ -183,8 +183,8 @@ test('self-переход HUB→HUB (Папка→Папка) = дети; род
   assert.equal(дети[0].links.Folder, root.id); // родитель без запроса
 });
 
-test('обход без пути — понятная ошибка', async () => {
-  await assert.rejects(async () => db.Клиент().Услуга().run(), /no path/);
+test('обход без пути — понятная ошибка (синхронно при построении)', () => {
+  assert.throws(() => db.Клиент().Услуга(), /no path/);
 });
 
 test('неизвестный класс — ошибка со списком классов', async () => {
@@ -293,9 +293,9 @@ test('deep-merge: set меняет только указанные листья'
   await db.Услуга(svc.id).delete({ confirm: true }).rows();
 });
 
-test('set: upsert по id (фильтр-строка или data.id); links из контекста; наследуются при версии', async () => {
-  // upsert через контекст: id фильтром
-  const [b1] = await db.Сотрудник('st-fake-1').Окно('sl-fake-1').занятость('busy-up-1').set({ kind: 'hold' }).rows();
+test('set: upsert по id (фильтр-строка или data.id); links из пути/слотов; наследуются при версии', async () => {
+  // upsert по id: владелец (Сотрудник) из пути, второй конец — слотом
+  const [b1] = await db.Сотрудник('st-fake-1').занятость('busy-up-1').set({ kind: 'hold' }).Окно.set('sl-fake-1').rows();
   assert.equal(b1.id, 'busy-up-1');
   assert.deepEqual({ Staff: b1.links.Staff, Slot: b1.links.Slot }, { Staff: 'st-fake-1', Slot: 'sl-fake-1' });
 
@@ -308,13 +308,13 @@ test('set: upsert по id (фильтр-строка или data.id); links из
   await db.занятость('busy-up-1').delete({ confirm: true }).rows();
 });
 
-test('.link(): значения связей ДО set() — link-форма и inline; исполняет терминал, один INSERT', async () => {
-  // link-форма: связи модификаторами до set(), исполняет терминал
+test('слоты связей: концы через .Класс.set() после set(); один INSERT; союз/дубль/снятие', async () => {
+  // слоты: все три конца — .Класс.set() после set(), одна версия
   const [row] = await db.занятость('bz-z1')
-    .link('Сотрудник', 'stZ')
-    .link('Окно', 'slZ')
-    .link('Запись', 'bkZ')
     .set({ kind: 'booking' })
+    .Сотрудник.set('stZ')
+    .Окно.set('slZ')
+    .Запись.set('bkZ')
     .rows();
   assert.equal(row.id, 'bz-z1');
   assert.deepEqual(row.links, { Staff: 'stZ', Slot: 'slZ', Booking: 'bkZ' });
@@ -325,15 +325,15 @@ test('.link(): значения связей ДО set() — link-форма и i
   )) as never as { n: number }[];
   assert.equal(hist[0].n, 1);
 
-  // модификатор шага сразу после операции — ошибка
-  assert.throws(() => db.занятость('bz-z1').set({ kind: 'booking' }).link('Окно', 'другое'), /step modifier after set/);
+  // дубль одного слота в одной записи — ошибка
+  assert.throws(() => db.занятость('bz-z1').set({ kind: 'off' }).Окно.set('a').Окно.set('b'), /duplicate link slot/);
 
-  // inline-форма: контекст до set + .link() перед set (цель с id)
-  const [row2] = await db.Сотрудник('stY').занятость('bz-z2').link('Окно', 'slY').set({ kind: 'off' }).rows();
+  // владелец из пути + слот: контекст-шаг Сотрудник даёт Staff, Окно — слотом
+  const [row2] = await db.Сотрудник('stY').занятость('bz-z2').set({ kind: 'off' }).Окно.set('slY').rows();
   assert.deepEqual(row2.links, { Staff: 'stY', Slot: 'slY' });
 
-  // батч: связи контекст-шагами, план копится до run()
-  db.batch('bz').Сотрудник('s1').Окно('sl1').занятость().set({ id: 'bz-z3', kind: 'hold' });
+  // батч: владелец из пути, второй конец слотом, план копится до run()
+  db.batch('bz').Сотрудник('s1').занятость().set({ id: 'bz-z3', kind: 'hold' }).Окно.set('sl1');
   const res = await db.batch('bz').run();
   assert.deepEqual(res[0][0].links, { Staff: 's1', Slot: 'sl1' });
 
@@ -368,9 +368,9 @@ test('delete: tombstone + серверный каскад; возврат все
   const [bkg] = await db.Клиент(cli).Запись().set({ status: 'created' }).rows();
   const [slot] = await db.Окно().limit(1).rows();
   const staff = await db.Сотрудник({ name: 'Вася' }).first();
-  await db.Сотрудник(staff!).Окно(slot).Запись(bkg).занятость('busy-del-1').set({ kind: 'booking' }).rows();
+  await db.Сотрудник(staff!).занятость('busy-del-1').set({ kind: 'booking' }).Окно.set(slot).Запись.set(bkg).rows();
   const svc = await db.Услуга().first();
-  await db.Запись(bkg).Услуга(svc!).Сотрудник(staff!).позиция().set({ qty: 1 }).rows();
+  await db.Запись(bkg).позиция().set({ qty: 1 }).Услуга.set(svc!).Сотрудник.set(staff!).rows();
 
   const deleted = await db.Запись(bkg.id).delete({ confirm: true }).rows();
   assert.deepEqual(deleted.map((r) => r.class).sort(), ['Booking', 'busy', 'item']);
@@ -389,8 +389,8 @@ test('delete в контексте: db.Запись(b).занятость().dele
   const [cli] = await db.Организация(org).Клиент().set({ name: 'Контекстный' }).rows();
   const [b1] = await db.Клиент(cli).Запись().set({ status: 'created' }).rows();
   const [b2] = await db.Клиент(cli).Запись().set({ status: 'created' }).rows();
-  await db.Сотрудник('stX').Окно('slX').Запись(b1).занятость('bz-ctx-1').set({ kind: 'booking' }).rows();
-  await db.Сотрудник('stX').Окно('slY').Запись(b2).занятость('bz-ctx-2').set({ kind: 'booking' }).rows();
+  await db.Сотрудник('stX').занятость('bz-ctx-1').set({ kind: 'booking' }).Окно.set('slX').Запись.set(b1).rows();
+  await db.Сотрудник('stX').занятость('bz-ctx-2').set({ kind: 'booking' }).Окно.set('slY').Запись.set(b2).rows();
 
   const удалено = await db.Запись(b1).занятость().delete({ confirm: true }).rows();
   assert.deepEqual(удалено.map((r) => r.id), ['bz-ctx-1']);
@@ -432,7 +432,7 @@ test('гонка двойной брони: две параллельные tx �
         await tr.rollback();
         return null;
       }
-      await tr.Сотрудник(staff!).Окно(slot).занятость(busyId).set({ kind: 'booking' }).rows();
+      await tr.Сотрудник(staff!).занятость(busyId).set({ kind: 'booking' }).Окно.set(slot).rows();
       await tr.commit();
       return label;
     } catch (e) {

@@ -35,10 +35,10 @@ before(async () => {
   const [slot1] = await db.Расписание(sched).Окно().set({ start: '2026-07-15T10:00:00Z', end: '2026-07-15T11:00:00Z' }).rows();
   const [slot2] = await db.Расписание(sched).Окно().set({ start: '2026-07-15T11:00:00Z', end: '2026-07-15T12:00:00Z' }).rows();
   const [booking] = await db.Клиент(cli).Запись().set({ status: 'confirmed', total: { RUB: 2000 } }).rows();
-  const [skill] = await db.Сотрудник(vasya).Услуга(manik).навык().set({}).rows();
-  const [shift] = await db.Расписание(sched).Сотрудник(vasya).смена().set({}).rows();
-  const [busy] = await db.Сотрудник(vasya).Окно(slot1).Запись(booking).занятость().set({ kind: 'booking' }).rows();
-  const [item] = await db.Запись(booking).Услуга(manik).позиция().set({ qty: 1, price: { RUB: 2000 } }).rows();
+  const [skill] = await db.Сотрудник(vasya).навык().set({}).Услуга.set(manik).rows();
+  const [shift] = await db.Расписание(sched).смена().set({}).Сотрудник.set(vasya).rows();
+  const [busy] = await db.Сотрудник(vasya).занятость().set({ kind: 'booking' }).Окно.set(slot1).Запись.set(booking).rows();
+  const [item] = await db.Запись(booking).позиция().set({ qty: 1, price: { RUB: 2000 } }).Услуга.set(manik).rows();
 
   Object.assign(S, { org, vasya, petya, root, nails, spa, manik, strizh, cli, sched, slot1, slot2, booking, skill, shift, busy, item });
 });
@@ -217,12 +217,12 @@ test('✔ обходы: HUB→LINK, LINK→HUB (+необъявленный кл
   assert.equal(await db.Организация(S.org.id).Услуга().count(), 2);
   // self-hop = дети
   assert.deepEqual((await db.Папка(S.nails.id).Папка().rows()).map((r) => r.data.name), ['Спа']);
-  // нет пути / LINK→LINK
-  await assert.rejects(db.Услуга(S.manik.id).Клиент().rows(), /no path/);
-  await assert.rejects(db.Сотрудник(S.vasya.id).навык().занятость().rows(), /LINK → LINK/);
+  // нет пути / LINK→LINK — ошибка синхронно при построении цепочки (0.15.0)
+  assert.throws(() => db.Услуга(S.manik.id).Клиент(), /no path/);
+  assert.throws(() => db.Сотрудник(S.vasya.id).навык().занятость(), /LINK → LINK/);
 });
 
-test('✔ set: INSERT/UPSERT/UPDATE, deep-merge, связи контекст/.link, повторный терминал, валидация, LINK-концы', async () => {
+test('✔ set: INSERT/UPSERT/UPDATE, deep-merge, связи путь+слоты, повторный терминал, валидация, LINK-концы', async () => {
   // чистый INSERT: Класс() без аргумента
   const [ins] = await db.Организация(S.org).Клиент().set({ name: 'Новый' }).rows();
   assert.ok(ins.id);
@@ -249,10 +249,10 @@ test('✔ set: INSERT/UPSERT/UPDATE, deep-merge, связи контекст/.li
   assert.ok(off.every((r) => r.data.active === false));
   assert.deepEqual(await db.Услуга({ name: 'Нет такой' }).set({ active: true }).rows(), []);
 
-  // 2 формы связей: контекст-шаги до операции / .link() — значение без участия в фильтре целей
-  const [viaCtx] = await db.Сотрудник(S.petya).Услуга(S.strizh).навык().set({}).rows();
+  // 2 формы связей: владелец из пути + конец слотом / без пути — все концы слотами (.Класс.set())
+  const [viaCtx] = await db.Сотрудник(S.petya).навык().set({}).Услуга.set(S.strizh).rows();
   assert.deepEqual([viaCtx.links.Staff, viaCtx.links.Service], [S.petya.id, S.strizh.id]);
-  const [viaLink] = await db.занятость().link('Сотрудник', S.petya).link('Окно', S.slot2).set({ kind: 'off' }).rows();
+  const [viaLink] = await db.занятость().set({ kind: 'off' }).Сотрудник.set(S.petya).Окно.set(S.slot2).rows();
   assert.deepEqual([viaLink.links.Staff, viaLink.links.Slot], [S.petya.id, S.slot2.id]);
 
   // цепочка переиспользуема: каждый терминал исполняет план ЗАНОВО (INSERT-форма — новая
@@ -391,7 +391,7 @@ test('✔ batch: копление/size/discard, multi-VALUES, атомарный
 
   // связи контекст-шагами работают и в батче
   const b2 = hooked.batch('связи');
-  b2.Сотрудник(S.petya).Услуга(S.strizh).навык().set({});
+  b2.Сотрудник(S.petya).навык().set({}).Услуга.set(S.strizh);
   const [linked] = (await b2.run())[0];
   assert.deepEqual([linked.links.Staff, linked.links.Service], [S.petya.id, S.strizh.id]);
 

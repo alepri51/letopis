@@ -37,14 +37,14 @@ test('1. настройка: организация, мастера, катал�
   [S.комплекс] = await db.Организация(S.org).Папка(S.fld).Комплекс().set({
     name: 'Стрижка+борода', duration: 90, discount: 10, price: { RUB: 2500 },
   }).rows();
-  await db.Комплекс(S.комплекс).Услуга(S.стрижка).состав().set({ qty: 1 }).rows();
-  await db.Комплекс(S.комплекс).Услуга(S.борода).состав().set({ qty: 1 }).rows();
+  await db.Комплекс(S.комплекс).состав().set({ qty: 1 }).Услуга.set(S.стрижка).rows();
+  await db.Комплекс(S.комплекс).состав().set({ qty: 1 }).Услуга.set(S.борода).rows();
 
   // навыки: Иван всё, Олег только стрижку
-  await db.Сотрудник(S.ivan).Услуга(S.стрижка).навык().set({}).rows();
-  await db.Сотрудник(S.ivan).Услуга(S.борода).навык().set({}).rows();
-  await db.Сотрудник(S.ivan).Комплекс(S.комплекс).навык().set({}).rows();
-  await db.Сотрудник(S.oleg).Услуга(S.стрижка).навык().set({}).rows();
+  await db.Сотрудник(S.ivan).навык().set({}).Услуга.set(S.стрижка).rows();
+  await db.Сотрудник(S.ivan).навык().set({}).Услуга.set(S.борода).rows();
+  await db.Сотрудник(S.ivan).навык().set({}).Комплекс.set(S.комплекс).rows();
+  await db.Сотрудник(S.oleg).навык().set({}).Услуга.set(S.стрижка).rows();
 
   [S.петя] = await db.Организация(S.org).Клиент().set({ name: 'Пётр', contact: '+79001234567' }).rows();
 
@@ -70,11 +70,11 @@ test('2. календарь: расписание, окна батчем в ко
   assert.ok(окна.every((r) => r[0].links.Schedule === S.sch.id));
 
   // ростер: оба мастера в расписании ⇒ по умолчанию во всех окнах
-  await db.Расписание(S.sch).Сотрудник(S.ivan).смена().set({}).rows();
-  await db.Расписание(S.sch).Сотрудник(S.oleg).смена().set({}).rows();
+  await db.Расписание(S.sch).смена().set({}).Сотрудник.set(S.ivan).rows();
+  await db.Расписание(S.sch).смена().set({}).Сотрудник.set(S.oleg).rows();
 
   // правка: Олег недоступен в 12:00 (негативная доступность)
-  await db.Сотрудник(S.oleg).Окно(S.win3).занятость(`off-${S.oleg.id}-${S.win3.id}`).set({ kind: 'off', reason: 'личное' }).rows();
+  await db.Сотрудник(S.oleg).занятость(`off-${S.oleg.id}-${S.win3.id}`).set({ kind: 'off', reason: 'личное' }).Окно.set(S.win3).rows();
 
   const ростер = await db.Расписание(S.sch.id).смена().Сотрудник().rows();
   assert.deepEqual(ростер.map((r) => r.data.name).sort(), ['Иван', 'Олег']);
@@ -107,8 +107,8 @@ test('3. бронь №1: Пётр → Иван, стрижка 60м в 10:00 (�
     assert.equal(занято, null);
 
     [S.bkg1] = await tr.Клиент(S.петя).Запись().set({ status: 'created', source: 'online', total: { RUB: 1500 } }).rows();
-    await tr.Запись(S.bkg1).Услуга(S.стрижка).Сотрудник(S.ivan).позиция().set({ qty: 1, price: { RUB: 1500 } }).rows();
-    await tr.Сотрудник(S.ivan).Окно(S.win1).Запись(S.bkg1).занятость(busyId).set({ kind: 'booking' }).rows();
+    await tr.Запись(S.bkg1).позиция().set({ qty: 1, price: { RUB: 1500 } }).Услуга.set(S.стрижка).Сотрудник.set(S.ivan).rows();
+    await tr.Сотрудник(S.ivan).занятость(busyId).set({ kind: 'booking' }).Окно.set(S.win1).Запись.set(S.bkg1).rows();
     await db.commit(tr);
   } catch (e) {
     await db.rollback(tr);
@@ -125,9 +125,9 @@ test('3. бронь №1: Пётр → Иван, стрижка 60м в 10:00 (�
 
 test('4. бронь №2: МУЛЬТИ-СЛОТ — комплекс 90м у Ивана занимает 11:00 и 12:00', async () => {
   [S.bkg2] = await db.Клиент(S.петя).Запись().set({ status: 'created', source: 'admin', total: { RUB: 2500 } }).rows();
-  await db.Запись(S.bkg2).Комплекс(S.комплекс).Сотрудник(S.ivan).позиция().set({ qty: 1, price: { RUB: 2500 } }).rows();
-  await db.Сотрудник(S.ivan).Окно(S.win2).Запись(S.bkg2).занятость(`busy-${S.ivan.id}-${S.win2.id}`).set({ kind: 'booking' }).rows();
-  await db.Сотрудник(S.ivan).Окно(S.win3).Запись(S.bkg2).занятость(`busy-${S.ivan.id}-${S.win3.id}`).set({ kind: 'booking' }).rows();
+  await db.Запись(S.bkg2).позиция().set({ qty: 1, price: { RUB: 2500 } }).Комплекс.set(S.комплекс).Сотрудник.set(S.ivan).rows();
+  await db.Сотрудник(S.ivan).занятость(`busy-${S.ivan.id}-${S.win2.id}`).set({ kind: 'booking' }).Окно.set(S.win2).Запись.set(S.bkg2).rows();
+  await db.Сотрудник(S.ivan).занятость(`busy-${S.ivan.id}-${S.win3.id}`).set({ kind: 'booking' }).Окно.set(S.win3).Запись.set(S.bkg2).rows();
 
   const окнаБрони = await db.Запись(S.bkg2.id).занятость().Окно().sort('data.start').rows();
   assert.deepEqual(окнаБрони.map((r) => r.id), [S.win2.id, S.win3.id]);
@@ -140,8 +140,8 @@ test('4. бронь №2: МУЛЬТИ-СЛОТ — комплекс 90м у И�
 
 test('5. бронь №3: МУЛЬТИ-МАСТЕР — Олег стрижёт Пётра в 11:00 параллельно с Иваном', async () => {
   [S.bkg3] = await db.Клиент(S.петя).Запись().set({ status: 'created', source: 'web', total: { RUB: 1500 } }).rows();
-  await db.Запись(S.bkg3).Услуга(S.стрижка).Сотрудник(S.oleg).позиция().set({ qty: 1, price: { RUB: 1500 } }).rows();
-  await db.Сотрудник(S.oleg).Окно(S.win2).Запись(S.bkg3).занятость(`busy-${S.oleg.id}-${S.win2.id}`).set({ kind: 'booking' }).rows();
+  await db.Запись(S.bkg3).позиция().set({ qty: 1, price: { RUB: 1500 } }).Услуга.set(S.стрижка).Сотрудник.set(S.oleg).rows();
+  await db.Сотрудник(S.oleg).занятость(`busy-${S.oleg.id}-${S.win2.id}`).set({ kind: 'booking' }).Окно.set(S.win2).Запись.set(S.bkg3).rows();
 
   const мастераОкна = await db.Окно(S.win2.id).занятость({ kind: 'booking' }).Сотрудник().rows();
   assert.deepEqual(мастераОкна.map((r) => r.data.name).sort(), ['Иван', 'Олег']);

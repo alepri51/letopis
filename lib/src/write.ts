@@ -218,39 +218,73 @@ function tagsValue(step: Step): string[] | undefined {
   throw new Error('letopis: .tags() before set() accepts string | string[]');
 }
 
+/** Конец target, принимающий класс cls (legacy: 'Entity'-конец берёт любой HUB). */
+function endFor(target: ClassDef, cls: ClassDef): { classes: string[] } | undefined {
+  return target.links.find(
+    (e) => e.classes.includes(cls.id) || (!target.strictEnds && e.classes.includes('Entity') && cls.category === 'HUB'),
+  );
+}
+
 /**
- * Контекст-шаги (все, кроме последнего) → {КлассId: id}.
- * id-фильтр берётся как есть (без запроса); иной фильтр обязан дать ровно одну сущность.
+ * Связи создаваемой сущности из ПУТИ: каждый реальный шаг-предок, чей класс — конец
+ * target, обязан дать ровно одну сущность (id-фильтр — как есть; иначе чтение путём
+ * от начала до него: контекст честно учитывается).
  */
-async function resolveContext(ctx: Ctx, steps: Step[]): Promise<Record<string, string>> {
+async function resolvePathEnds(ctx: Ctx, steps: Step[]): Promise<Record<string, string>> {
+  const target = steps[steps.length - 1].cls;
   const links: Record<string, string> = {};
-  for (const step of steps) {
+  for (let k = 0; k < steps.length - 1; k++) {
+    const step = steps[k];
+    if (step.pivotKey !== undefined || step.op) continue;
+    if (!endFor(target, step.cls)) continue;
     let id: string;
     if (typeof step.filter === 'string') {
       id = step.filter;
-    } else if (!noFilter(step.filter) || step.tagsFilter !== undefined || step.accountFilter || step.ownerFilter) {
-      const rows = await readRows(ctx, [step], { limit: 2 });
+    } else {
+      const rows = await readRows(ctx, steps.slice(0, k + 1), { limit: 2 });
       if (rows.length !== 1) {
         throw new Error(
           `letopis: context step "${step.name}" must resolve to exactly one entity (got ${rows.length})`,
         );
       }
       id = rows[0].id;
-    } else {
-      throw new Error(`letopis: context step "${step.name}" needs an id or a unique filter`);
     }
     links[step.cls.id] = id;
   }
   return links;
 }
 
-/** Шаг поиска целей: фильтр последнего шага + containment контекст-связей. */
-function targetStep(target: Step, contextLinks: Record<string, string>, explicitId?: string): Step {
-  return {
-    ...target,
-    filter: explicitId ?? target.filter,
-    linksFilter: Object.keys(contextLinks).length ? contextLinks : undefined,
-  };
+/** Резолв слот-значений: строки как есть; вложенные планы — в той же транзакции, ровно одна сущность. */
+async function resolveSlots(
+  ctx: Ctx,
+  target: ClassDef,
+  extra: Step['extraLinks'],
+): Promise<{ vals: Record<string, string>; drops: Set<string> }> {
+  const vals: Record<string, string> = {};
+  const drops = new Set<string>();
+  for (const [clsId, v] of Object.entries(extra ?? {})) {
+    // союз-замещение: слот занимает КОНЕЦ целиком — соседние классы союза снимаются
+    const end = endFor(target, ctx.registry.resolve(clsId));
+    for (const c of end?.classes ?? [clsId]) drops.add(c);
+    if (v === null) continue; // .delete() — только снятие
+    let id: string;
+    if (typeof v === 'string') {
+      id = v;
+    } else {
+      const rows = v.plan.some((s) => s.op)
+        ? ((await runPlan(ctx, v.plan, v.mods ?? {}, 'rows')) as Row[])
+        : await readRows(ctx, v.plan, { ...(v.mods ?? {}), limit: 2 });
+      if (rows.length !== 1) {
+        throw new Error(`letopis: slot "${clsId}" value plan must resolve to exactly one entity (got ${rows.length})`);
+      }
+      if (rows[0].class !== clsId) {
+        throw new Error(`letopis: slot "${clsId}" value plan resolved to class "${rows[0].class}"`);
+      }
+      id = rows[0].id;
+    }
+    vals[clsId] = id;
+  }
+  return { vals, drops };
 }
 
 /**
@@ -268,25 +302,27 @@ export async function setOp(
   const target = steps[steps.length - 1];
   const cls = target.cls;
   aclWrite(ctx, target, 'WRITE');
-  // контекст-шаги: и фильтр целей, и значения; .link() — ТОЛЬКО значения (фильтр не трогает)
-  const contextLinks = await resolveContext(ctx, steps.slice(0, -1));
-  const writeLinks = { ...contextLinks, ...(target.extraLinks ?? {}) };
+  // слоты (.Класс.set/.delete): значения/снятия концов; союз-конец замещается целиком
+  const slots = await resolveSlots(ctx, cls, target.extraLinks);
 
   const dataId = typeof data.id === 'string' ? (data.id as string) : undefined;
   const filterId = typeof target.filter === 'string' ? target.filter : undefined;
   const explicitId = filterId ?? dataId;
-  const insertMode = noFilter(target.filter); // Класс() без аргумента
+  // INSERT только для НОВОГО узла Класс() без фильтра; pivot-возврат — всегда UPDATE найденных
+  const insertMode = noFilter(target.filter) && target.pivotKey === undefined;
 
-  const found =
-    insertMode && !explicitId
-      ? []
-      : await readRows(ctx, [targetStep(target, contextLinks, explicitId)], mods);
+  // цели UPDATE — честный ПУТЬ (шаги фильтруют по правилам переходов, pivot работает)
+  const pathSteps: Step[] =
+    explicitId !== undefined ? [...steps.slice(0, -1), { ...target, filter: explicitId }] : steps;
+  const found = insertMode && !explicitId ? [] : await readRows(ctx, pathSteps, mods);
 
   if (found.length) {
     const out: Row[] = [];
     for (const row of found) {
-      const mergedData = deepMerge(row.data, data);        // только указанные листья
-      const mergedLinks = { ...row.links, ...writeLinks }; // контекст + .link()
+      const mergedData = deepMerge(row.data, data);   // только указанные листья
+      const mergedLinks = { ...row.links };
+      for (const c of slots.drops) delete mergedLinks[c];
+      Object.assign(mergedLinks, slots.vals);
       const full = validate(cls, row.id, mergedData, mergedLinks);
       out.push(
         await insertOne(ctx, {
@@ -308,7 +344,8 @@ export async function setOp(
   if (explicitId && target.aclFilter) {
     const bare = { ...ctx, aclDecide: undefined };
     const probe: Step = {
-      ...targetStep(target, contextLinks, explicitId),
+      ...target,
+      filter: explicitId,
       aclFilter: undefined,
       ownerFilter: undefined,
       accountFilter: undefined,
@@ -318,6 +355,9 @@ export async function setOp(
     if (taken.length) return [];
   }
 
+  // связи создаваемого: концы из пути + слоты (слоты выигрывают)
+  const pathEnds = await resolvePathEnds(ctx, steps);
+  const writeLinks = { ...pathEnds, ...slots.vals };
   const id = explicitId ?? randomUUID();
   const account = resolveAccount(ctx, target);
   const owner = target.ownerFilter ?? ctx.owner ?? account;
@@ -343,8 +383,7 @@ export async function anonymizeOp(ctx: Ctx, steps: Step[], mods: ChainMods, fiel
       throw new Error(`letopis: anonymize() erases string fields only; "${f}" is ${cls.fieldTypes.get(f)?.kind ?? 'unknown'}`);
     }
   }
-  const contextLinks = await resolveContext(ctx, steps.slice(0, -1));
-  const found = await readRows(ctx, [targetStep(target, contextLinks)], mods);
+  const found = await readRows(ctx, steps, mods); // цели — честный путь
   const out: Row[] = [];
   for (const row of found) {
     const patch = Object.fromEntries(fields.filter((f) => f in row.data).map((f) => [f, '[erased]']));
@@ -387,8 +426,7 @@ async function inTransaction<T>(ctx: Ctx, fn: (c: Ctx) => Promise<T>): Promise<T
 export async function delOp(ctx: Ctx, steps: Step[], mods: ChainMods, confirm: boolean): Promise<Row[]> {
   const target = steps[steps.length - 1];
   aclWrite(ctx, target, 'DELETE');
-  const contextLinks = await resolveContext(ctx, steps.slice(0, -1));
-  const targets = await readRows(ctx, [targetStep(target, contextLinks)], mods);
+  const targets = await readRows(ctx, steps, mods); // цели — честный путь
   if (!targets.length) return [];
 
   const params = [ctx.partition, target.cls.id, ...targets.map((r) => r.id)];
