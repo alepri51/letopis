@@ -675,19 +675,20 @@ await u.запись(чужаяId).update({ notes: '…' }).rows()     // → []
 // create той же v5-пары (id чужой записи) тоже НЕ перехватывает: → [] вместо новой версии
 ```
 
-Оверхед (article-полигон ~900k, booking 250k×2; p50 из 20; `bench/acl.bench.mjs`):
+Оверхед (полигон `v1.salondemo` ~982k, booking 440k×2; p50 из 20; `bench/acl.bench.mjs`):
 
 | Сцена | без ACL | allow (класс целиком) | allow с предикатом* |
 |---|---|---|---|
-| точечный `first(id)` | 3.7 ms | 3.7 ms | 4.6 ms |
-| фильтр `rows` limit 100 | 120.7 ms | 125.3 ms | 121.2 ms |
-| keyset-страница всего класса 250k | 1747 ms | 1687 ms | 2099 ms |
-| `count()` класса 250k | 333 ms | 323 ms | 595 ms |
-| цепочка `запись(id).Услуга()` | 5.6 ms | 4.3 ms | 5.8 ms |
+| точечный `first(id)` | 2.8 ms | 3.5 ms | 5.2 ms |
+| фильтр `rows` limit 100 | 1439 ms | 1545 ms | 1471 ms |
+| keyset-страница всего класса 440k | 5771 ms | 5684 ms | 5532 ms |
+| `count()` класса 440k | 3231 ms | 3086 ms | 3041 ms |
+| цепочка `запись(id).Услуга()` | 4.4 ms | 4.6 ms | 5.9 ms |
 
-Безусловное правило — бесплатно (решение из кэша, SQL тот же). *Предикат замерен в
-worst-case (пропускает 100% строк — чистый оверхед доп. условия на full-scan);
-в реальности предикат СУЖАЕТ выборку, и тяжёлые сцены становятся ДЕШЕВЛЕ, чем без ACL.
+Безусловное правило — бесплатно (решение из кэша, SQL тот же). *Предикат здесь на
+селективности 100% (все строки booking — System-аккаунт, предикат никого не отсекает) —
+на тяжёлых сценах ACL в пределах шума с базой; в реальности предикат СУЖАЕТ выборку,
+и такие сцены становятся ДЕШЕВЛЕ, чем без ACL.
 `db.acl.checkData` — справочный (1.2 ms: SQL за категориями аккаунта на каждый вызов);
 горячий путь цепочек использует резолвер, скомпилированный на connect (микросекунды, memo).
 
@@ -927,9 +928,10 @@ deadlock detected — letopis: transaction is aborted, retry the whole db.begin(
 
 Каждый метод описан по одной схеме: **сигнатура → параметры → назначение и алгоритм →
 примеры (под каждым вызовом реальный ответ и время) → полный кейс**. Все ответы и тайминги —
-**живой прогон** на article-полигоне 612 980 строк Entity (год окон-смен и записей: ~250k
-записей-наследников окон, каталог из 402 услуг, 302 мастера, клиенты, навыки); воспроизводитель —
-`bench/api-reference-demo.mjs` (мутирует только свои сущности, полигон не пересоздаёт).
+**живой прогон** на едином полигоне `v1.salondemo` ~982 000 строк Entity (год окон-смен и
+записей: 440 000 записей-наследников окон ×2 версии, каталог из 603 услуг, ~360 мастеров,
+40 000 клиентов, 1026 цен, навыки); воспроизводитель — `bench/api-reference-demo.mjs` (только
+читает полигон salon-seed, мутирует лишь свои сущности). Тот же полигон — под статьёй SALON.md.
 id сокращены: `…0911` = `00000000-0000-4000-8000-000000000911`; повторяющиеся
 `account`/`owner`/`partition` в ответах опущены.
 
@@ -969,13 +971,13 @@ NOT NULL `Entity.account`. При `enforceAcl: true` дополнительно 
 **Примеры**
 
 ```ts
-const db = await connect({ dsn, schema: 'v1.article', onQuery: (e) => log(e) })   // [38.6 ms]
+const db = await connect({ dsn, schema: 'v1.salondemo', onQuery: (e) => log(e) })   // [37.3 ms]
 await db.Услуга().first()
-// первое событие onQuery: {"mode":"rows","classes":["Service"],"ms":21.5,"rows":1,"slow":false}
+// первое событие onQuery: {"mode":"rows","classes":["Service"],"ms":14.6,"rows":1,"slow":false}
 
-const dbSlow = await connect({ dsn, schema: 'v1.article', slowMs: 200, onQuery: … })  // [34.3 ms]
-await dbSlow.запись().count()   // ~250k сущностей — дольше порога:
-// {"mode":"count","classes":["booking"],"ms":340.9,"rows":1,"slow":true}
+const dbSlow = await connect({ dsn, schema: 'v1.salondemo', slowMs: 200, onQuery: … })  // [34.5 ms]
+await dbSlow.запись().count()   // ~440k сущностей — дольше порога:
+// {"mode":"count","classes":["booking"],"ms":3397.9,"rows":1,"slow":true}
 ```
 
 **Кейс: три подключения — обычное, изолированное, под ACL**
@@ -984,7 +986,7 @@ await dbSlow.запись().count()   // ~250k сущностей — дольш
 const db  = await connect({ dsn, schema })                                        // [38.6 ms]
 const iso = await connect({ dsn, schema, account: acc.id, enforceAccount: true }) // [41.7 ms]
 const uc  = await connect({ dsn, schema, account: acc.id, enforceAcl: true })     // [66.9 ms]
-await db.Организация().count()    // → 21   — видит всех
+await db.Организация().count()    // → 30   — видит всех
 await iso.Организация().count()   // [4.9 ms] → 1 — только свой арендатор
 await uc.Организация().rows()
 // Error: letopis: acl denies READ on Org — no matching rule (deny by default)
@@ -1248,8 +1250,8 @@ db.registry.resolve('запись')   // [103 µs] → ClassDef {id: 'booking', 
 Ответственность за SQL — на вызывающем (движок цепочек его не проверяет).
 
 ```ts
-await db.sql.unsafe('SELECT count(*)::int AS n FROM "v1.article"."Entity"')
-// [27.5 ms] → [{ n: 612980 }]
+await db.sql.unsafe('SELECT count(*)::int AS n FROM "v1.salondemo"."Entity"')
+// [31.5 ms] → [{ n: 982004 }]
 ```
 
 **Кейс** — снятие плана тяжёлого запроса: `db.sql.unsafe('EXPLAIN (ANALYZE) …')` для
@@ -2062,7 +2064,7 @@ await db.lock('x')
 ```ts
 // два администратора жмут «забронировать» на одно время одновременно;
 // id записи детерминирован (v5, § 3.2) — известен ДО создания:
-const bId = uuidv5(`v1.article:entity:booking:${мастер.id}:${start}`)
+const bId = uuidv5(`v1.salondemo:entity:booking:${мастер.id}:${start}`)
 const trA = await db.begin(), trB = await db.begin()
 await trA.lock('booking', мастер.id, start)          // [3.1 ms] A первый
 const гонкаB = (async () => {
@@ -2956,26 +2958,27 @@ AclDecision = { allow, rule?, filter?, code?, message? }         // filter — �
 
 ## 14. Производительность
 
-Тайминги — живые прогоны демо на двух полигонах: салон (`bench/salon-article-demo.mjs`
-поверх `bench/salon-seed.mjs`, схема `v1.salondemo`, 980 900 строк: 440 002 записи, 603 услуги)
-и api-reference (`bench/api-reference-demo.mjs`, `v1.article`, 612 980 строк, ~250k записей):
+Тайминги — живые прогоны демо на ЕДИНОМ полигоне `v1.salondemo` (`bench/salon-seed.mjs`,
+~982 000 строк: 440 000 записей ×2 версии, 603 услуги, 1026 цен). Статья
+(`bench/salon-article-demo.mjs`), API Reference (`bench/api-reference-demo.mjs`) и бенчи
+читают один и тот же полигон, мутируя лишь свои демо-сущности:
 
-| Операция | Полигон | Время |
-|---|---|---|
-| фильтр/`count()` по каталогу (`ne`/`gt`/`between`/`like`) | article | ≈4 ms |
-| агрегация каталога `sum`/`avg`/`min`/`max` | article | 5–6 ms |
-| `sum('data.amounts.RUB')` (класс цена) / `countBy('data.duration')` | salon | ≈8 ms |
-| `count()` уникальных услуг (603) | salon | 7.3 ms |
-| поиск по цене `цена({amounts:{RUB:lte(…)}}).Услуга()` + keyset | salon | 13–17 ms |
-| цепочка `навык→Услуга`, `count()` путей (1002) | article | 52 ms |
-| `countBy('data.notes')` по ~250k записям | article | 438 ms |
-| `sort('updated','desc').limit` по всему классу записей БЕЗ фильтра | article | 1.6 s |
-| `count()` всех 440 002 записей БЕЗ фильтра | salon | 5.6 s |
-| обход `запись→Мастер` по всему классу записей | salon | 6.1 s |
-| запись новой версии (`create`/`update`), в т.ч. со слотами | — | 8–21 ms |
+| Операция | Время |
+|---|---|
+| фильтр/`count()` по каталогу (`ne`/`gt`/`between`/`like`) | 5–8 ms |
+| агрегация каталога `avg`/`min`/`max` | 5–15 ms |
+| `sum('data.amounts.RUB')` (класс цена, 1026 вариантов) | ≈23 ms |
+| `count()`/`rows()` каталога услуг (603) | 7–13 ms |
+| цена `sort('data.amounts.RUB')` + keyset-страница `after(cursor)` | 19–24 ms |
+| цепочка `навык→Услуга`, `count()` путей | ≈169 ms |
+| `countBy('data.notes')` по 440k записям | ≈3.3 s |
+| `sort('updated','desc').limit` по всему классу записей БЕЗ фильтра | ≈5.7 s |
+| `count()` всех 440 000 записей БЕЗ фильтра | ≈3.4 s |
+| обход `запись→Мастер` по всему классу записей | ≈6 s |
+| запись новой версии (`create`/`update`), в т.ч. со слотами | 8–21 ms |
 
 Слабое место — выборка/обход **всего класса записей без фильтра** (`DISTINCT ON` по всем
-~250k–440k сущностям: секунды); лечится селективным фильтром, контекст-шагом или курсором
+440 000 сущностям: секунды); лечится селективным фильтром, контекст-шагом или курсором
 (keyset — миллисекунды даже на 440k). Каталог, агрегации и цепочки с фильтром — единицы—десятки ms.
 TOAST-порог (data > 2KB): 0 строк.
 
