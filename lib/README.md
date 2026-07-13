@@ -1113,7 +1113,7 @@ import type {
 await db.Услуга('…bdba').first()             // [3.9 ms] по id  → Row {name: 'Стрижка', …}
 await db.Услуга(['…0142', '…bdba']).rows()   // [3.7 ms] по списку → ['Королевское бритьё', 'Стрижка']
 await db.Организация(org).first()            // [2.9 ms] Row-объект ≡ его id → 'BarberPro'
-await db.Услуга({ price: gte(1300) }).count()   // [3.9 ms] → 301  (price — число)
+await db.цена({ amounts: { RUB: gte(1300) } }).Услуга().count()   // [12.7 ms] → 202  (фильтр по цене)
 await db.НетТакогоКласса().rows()
 // Error: letopis: unknown class "НетТакогоКласса". Known: Entity·Сущность, Org·Организация, …
 ```
@@ -1124,7 +1124,7 @@ await db.НетТакогоКласса().rows()
 const поId      = await db.Услуга('…bdba').first()            // [3.9 ms] → data.name = 'Стрижка'
 const поПолю    = await db.Услуга({ name: 'Стрижка' }).first() // тот же Row
 const поОбъекту = await db.Услуга(поId).first()               // Row как фильтр ≡ его id
-// все три → id '…bdba', цена 1800 (price — число, не {RUB})
+// все три → id '…bdba', data.name = 'Стрижка' (цена — отдельным LINK «цена», § 11.9)
 ```
 
 #### `db.begin(): Promise<EntityTx>`
@@ -1143,19 +1143,20 @@ deadlock/serialization ошибка приходит сразу с подска�
 
 ```ts
 const tr = await db.begin()                                   // [1.1 ms]
-await tr.Организация('…0901').Услуга().create({ name: 'Укладка', duration: 15, price: 700 }).rows()
-// [8.1 ms] → [Row] — id вычислен схемой: uuidv5(Org, "Укладка") (§ 3.2); видно ТОЛЬКО внутри tr
+await tr.Организация('…0901').Услуга().create({ name: 'Укладка', duration: 15 }).rows()
+// [10.3 ms] → [Row] — id вычислен схемой: uuidv5(Org, "Укладка") (§ 3.2); видно ТОЛЬКО внутри tr
 await tr.commit()                                             // [3.9 ms] — теперь видно всем
 ```
 
 **Кейс: атомарный перенос с откатом при провале** — § 11.6 (`tr.lock`), плюс rollback:
 
 ```ts
+const [цУкл] = await db.Услуга({ name: 'Укладка' }).цена().create({ amounts: { RUB: 700 } }).rows()  // базовая цена
 const tr = await db.begin()
-await tr.Услуга({ name: 'Укладка' }).update({ price: 9900 }).rows()
-await tr.Услуга({ name: 'Укладка' }).first()   // внутри tx → price = 9900
-await tr.rollback()                // [1.4 ms]
-await db.Услуга({ name: 'Укладка' }).first()   // снаружи → price = 700 — изменение исчезло
+await tr.цена(цУкл).update({ amounts: { RUB: 9900 } }).rows()
+await tr.цена(цУкл).first()        // внутри tx → amounts.RUB = 9900
+await tr.rollback()                // [0.8 ms]
+await db.цена(цУкл).first()        // снаружи → amounts.RUB = 700 — изменение исчезло
 ```
 
 #### `db.commit(tr): Promise<void>` / `db.rollback(tr): Promise<void>`
@@ -1303,7 +1304,7 @@ await db.Мастер({ name: 'Вася' }).навык().Услуга().run()   
 // [{
 //   Мастер: { id: '…0011', class: 'Staff',   data: { name: 'Вася', phone: '+7 901 000-00-11', specialization: 'барбер' }, links: { Org: '…0001' }, … },
 //   навык:  { id: '…fe27', class: 'skill', data: { level: 'intermediate' }, links: { Staff: '…0011', Service: '…0142' }, … },
-//   Услуга: { id: '…0142', class: 'Service', data: { name: 'Королевское бритьё', price: 800, duration: 30 }, links: { Org: '…0001' }, … }
+//   Услуга: { id: '…0142', class: 'Service', data: { name: 'Королевское бритьё', duration: 30 }, links: { Org: '…0001' }, … }
 // }, …] — по объекту на путь, полные узлы каждого шага
 ```
 
@@ -1327,9 +1328,9 @@ const пути = await db.Мастер({ name: 'Вася' }).навык().Усл
 ```ts
 const услуги = await db.Услуга().rows()   // [10.4 ms] → 402 Row
 // [0] = { id: '00000004-0000-4000-8000-000000000000', class: 'Service',
-//         data: { name: 'Услуга 0', price: 1200, duration: 30, description: 'популярная' },
+//         data: { name: 'Услуга 0', duration: 30, description: 'популярная' },
 //         links: { Org: '00000001-0000-4000-8000-000000000000' }, tags: [],
-//         updated: '2026-01-07T17:26:48.67+00:00' }
+//         updated: '2026-01-06T00:07:28.855+00:00' }
 ```
 
 **Кейс: пути vs уникальные сущности**
@@ -1375,7 +1376,7 @@ await db.Мастер().ids()   // [5.1 ms] → 302 id
 
 ```ts
 await db.Организация('0001').Мастер().count()   // [7.1 ms] → 2
-await db.Услуга({ price: gte(1300) }).count()   // [3.9 ms] → 301
+await db.цена({ amounts: { RUB: gte(1300) } }).Услуга().count()   // [12.7 ms] → 202
 await db.Организация({ settings: { booking: { deposit: { amount: gte(700) } } } }).count()
 // [3.4 ms] → 6 — оператор на листе глубины 4, каст numeric по Schema
 ```
@@ -1384,7 +1385,7 @@ await db.Организация({ settings: { booking: { deposit: { amount: gte(
 
 ```ts
 await db.Услуга({ duration: lte(45) }).count()   // [4.0 ms] → 201  «быстрые»
-await db.Услуга({ price: gte(1300) }).count()    // [3.9 ms] → 301  «премиум»
+await db.цена({ amounts: { RUB: gte(1300) } }).Услуга().count()    // [12.7 ms] → 202  «премиум»
 ```
 
 #### `.limit(n): Chain` / `.offset(n): Chain`
@@ -1400,10 +1401,10 @@ await db.Услуга({ price: gte(1300) }).count()    // [3.9 ms] → 301  «п
 **Примеры**
 
 ```ts
-await db.Услуга().sort('data.price', 'desc').limit(3).rows()            // [7.5 ms]
-// → [{ name: 'Стрижка', price: 1800 }, { name: 'Услуга 399', price: 1599 }, { name: 'Услуга 398', price: 1598 }]
-await db.Услуга().sort('data.price', 'desc').limit(3).offset(3).rows()  // [7.6 ms]
-// → [{ price: 1597 }, { price: 1596 }, { price: 1595 }] — вторая страница
+await db.цена().sort('data.amounts.RUB', 'desc').limit(3).rows()            // [9.2 ms]
+// → [{ note: 'базовая', RUB: 2500 }, { note: 'с дизайном', RUB: 2000 }, { note: 'базовая', RUB: 1800 }]
+await db.цена().sort('data.amounts.RUB', 'desc').limit(3).offset(3).rows()  // [5.5 ms]
+// → [{ RUB: 1499 }, { RUB: 1498 }, { RUB: 1497 }] — вторая страница
 ```
 
 **Кейс: классическая пагинация страницы каталога** — `limit(3)` + `offset(3·N)`; при выходе
@@ -1423,7 +1424,7 @@ await db.Услуга().sort('data.price', 'desc').limit(3).offset(3).rows()  //
 **Примеры**
 
 ```ts
-await db.Услуга().sort('data.price', 'desc').limit(3).rows()   // [7.5 ms] → 1800, 1599, 1598
+await db.цена().sort('data.amounts.RUB', 'desc').limit(3).rows()   // [9.2 ms] → 2500, 2000, 1800
 await db.Услуга().sort('data.duration').limit(2).rows()        // [6.9 ms] asc по умолчанию
 // → [{ name: 'Услуга 0', duration: 30 }, { name: 'Услуга 4', duration: 30 }]
 await db.запись().sort('updated', 'desc').limit(2).rows()      // [1613.0 ms]
@@ -1447,15 +1448,15 @@ await db.запись().sort('updated', 'desc').limit(2).rows()      // [1613.0 
 **Примеры**
 
 ```ts
-const истор = await db.Услуга('…0007').versions()        // [6.2 ms] (для t1 ниже)
-await db.Услуга('…0007').asOf(истор[0].updated).first()  // [4.7 ms]
-// → data.price = 1007  — цена ТОГДА
-await db.Услуга('…0007').first()
-// → data.price = 1207  — цена сейчас
+const истор = await db.цена('…0007').versions()          // [6.0 ms] (для t1 ниже)
+await db.цена('…0007').asOf(истор[0].updated).first()    // [4.8 ms]
+// → data.amounts.RUB = 1007  — цена ТОГДА
+await db.цена('…0007').first()
+// → data.amounts.RUB = 1107  — цена сейчас
 ```
 
 **Кейс: спор по чеку** — «сколько стоила стрижка в момент оформления записи»:
-`db.Услуга(id).asOf(запись.updated).first()` → исторический прайс без отдельных таблиц аудита.
+`db.цена(id).asOf(запись.updated).first()` → исторический прайс без отдельных таблиц аудита.
 
 #### `.versions(): Promise<Row[]>`
 
@@ -1469,9 +1470,8 @@ await db.Услуга('…0007').first()
 **Примеры**
 
 ```ts
-await db.Услуга('…0007').versions()   // [6.2 ms]
-// → [{ price: 1007, updated: '2026-04-25T…' }, { price: 1107, updated: '2026-04-26T…' },
-//    { price: 1207, updated: '2026-04-27T…' }]
+await db.цена('…0007').versions()   // [6.0 ms]
+// → [{ RUB: 1007, updated: '2026-06-25T…' }, { RUB: 1107, updated: '2026-06-26T…' }]
 await db.Клиент('…0931').versions()   // жизнь с удалением и воскрешением:
 // → [{ name: 'Злата', updated: '…41.144824' },
 //    { name: 'Злата', updated: '…41.360317', $deleted: true },   ← tombstone
@@ -1503,9 +1503,9 @@ const кур = cursorOf(p1.at(-1))                                        // [10
 const p2 = await db.запись().sort('updated', 'desc').after(кур).limit(3).rows()  // [1599.0 ms]
 // p2 — следующие 3, пересечение страниц: 0
 
-const курЦены = cursorOf(топ3.at(-1), 'data.price')   // [44 µs] → { v: 1598, id: '…0398' }
-await db.Услуга().sort('data.price', 'desc').after(курЦены).limit(3).rows()  // [6.8 ms]
-// → 1597, 1596, 1595
+const курЦены = cursorOf(топ3.at(-1), 'data.amounts.RUB')   // [55 µs] → { v: 1800, id: '…c0d1' }
+await db.цена().sort('data.amounts.RUB', 'desc').after(курЦены).limit(3).rows()  // [6.2 ms]
+// → 1499, 1498, 1497
 
 await db.запись().after(кур).rows()
 // Error: letopis: .after(cursor) requires .sort(field)   [0.2 ms]
@@ -1567,14 +1567,14 @@ const дерево = await db.Папка(корень).Папка().deep().rows(
 **Примеры**
 
 ```ts
-await db.Услуга().sum('data.price')          // [5.9 ms] → 562400
+await db.цена().sum('data.amounts.RUB')      // [3.9 ms] → 527500
 await db.Услуга().avg('data.duration')       // [5.4 ms] → 52.46268656716418
 await db.Организация({}).sum('data.settings.booking.deposit.amount')   // [3.3 ms] лист глубины 4 → 9000
 await db.Услуга({ name: 'НетТакой' }).sum('data.duration')   // [4.9 ms] → null (пусто)
 ```
 
-**Кейс: итог по каталогу без выгрузки строк** — `sum('data.price')` по 402 услугам за 6 ms;
-на полигоне salondemo — 603 услуги на 1 218 200 за 8.5 ms (§ 14). Строки в приложение не едут.
+**Кейс: итог по каталогу без выгрузки строк** — `sum('data.amounts.RUB')` по 405 ценам за 4 ms;
+на полигоне salondemo — 1026 цен на 2 111 600 за ≈8 ms (§ 14). Строки в приложение не едут.
 
 #### `.min(field)` / `.max(field): Promise<unknown>`
 
@@ -1582,8 +1582,8 @@ await db.Услуга({ name: 'НетТакой' }).sum('data.duration')   // [4
 **числом**, string — строкой.
 
 ```ts
-await db.Услуга().min('data.price')   // [5.0 ms] → 800  (число, не '800')
-await db.Услуга().max('data.price')   // [6.3 ms] → 1800
+await db.цена().min('data.amounts.RUB')   // [3.4 ms] → 600  (число, не '600')
+await db.цена().max('data.amounts.RUB')   // [3.4 ms] → 2500
 ```
 
 **Кейс: границы ценового слайдера** — `min` + `max` двумя запросами по 3–4 ms.
@@ -1838,14 +1838,14 @@ await db.Организация().create({ id: '…0901', name: 'Демо-сал
 await db.Организация('…0901').Мастер().create({ id: '…0911', name: 'Мия', phone: '+7 909 000-09-11', specialization: 'массажист' }).rows()
 // [15.2 ms] контекст → links: { Org: '…0901' }
 
-await db.Организация('…0901').Услуга().create({ name: 'Массаж головы', duration: 30, price: 1200, description: 'релакс' }).rows()
+await db.Организация('…0901').Услуга().create({ name: 'Массаж головы', duration: 30, description: 'релакс' }).rows()
 // [16.2 ms] Услуга — v5-класс: id вычислен схемой из (Org, name) — § 3.2;
 // повторный create той же пары (салон, имя) → новая ВЕРСИЯ (deep-merge листьев), не дубль
 
 db.Услуга({ name: 'Массаж головы' }).create({ duration: 20 })   // [0.1 ms] — синхронно, до БД:
 // Error: letopis: create() takes no filter — Услуга(id).create(…) fixes the id, searching is update()
 
-await db.Организация('…0901').Услуга().create({ name: 'X', price: 1, чепуха: 1 }).rows()   // [8.6 ms] — ошибка НА ТЕРМИНАЛЕ:
+await db.Организация('…0901').Услуга().create({ name: 'X', чепуха: 1 }).rows()   // [9.9 ms] — ошибка НА ТЕРМИНАЛЕ:
 // ValidationError: letopis: validation failed for "Service":
 //   The object '' contains forbidden keys: 'чепуха'.
 
@@ -2028,10 +2028,10 @@ await db.Клиент().tags('anonymized').count()                       // вс
 
 ```ts
 const tr = await db.begin()                    // [1.1 ms]
-await tr.Услуга({ name: 'Укладка' }).update({ price: 9900 }).rows()
-await tr.Услуга({ name: 'Укладка' }).first()   // внутри → 9900
-await tr.rollback()                            // [1.4 ms]
-await db.Услуга({ name: 'Укладка' }).first()   // снаружи → 700, изменения нет
+await tr.цена(цУкл).update({ amounts: { RUB: 9900 } }).rows()   // цУкл — базовая цена «Укладки»
+await tr.цена(цУкл).first()                    // внутри → amounts.RUB = 9900
+await tr.rollback()                            // [0.8 ms]
+await db.цена(цУкл).first()                    // снаружи → amounts.RUB = 700, изменения нет
 ```
 
 **Кейс: commit** — § 11.2 `db.begin()`; ниже — главный сценарий `lock`.
@@ -2849,7 +2849,7 @@ db.registry.resolve('Дракон')
 db.registry.has('booking')    // → true
 db.registry.has('Дракон')     // → false
 db.registry.find('Дракон')    // → undefined
-db.registry.all.length        // → 19
+db.registry.all.length        // → 20  (+1: LINK-класс price·«цена»)
 ```
 
 **Кейс:** роутер `GET /:класс` — `has()` до цепочки, чтобы отвечать 404, а не 500.
@@ -2867,12 +2867,12 @@ db.registry.all.length        // → 19
 конец LINK) — обычный `Error` там же.
 
 ```ts
-try { await db.Организация('…0901').Услуга().create({ name: 'X', price: 1, чепуха: 1 }).rows() }   // [8.6 ms]
+try { await db.Организация('…0901').Услуга().create({ name: 'X', чепуха: 1 }).rows() }   // [9.9 ms]
 catch (e) {
   e instanceof ValidationError   // → true
   e.issues
   // → [{ type: 'objectStrict', message: "The object '' contains forbidden keys: 'чепуха'.",
-  //     expected: 'id, name, price, description, duration', actual: 'чепуха' }]
+  //     expected: 'id, name, description, duration', actual: 'чепуха' }]
 }
 ```
 
