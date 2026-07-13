@@ -7,6 +7,27 @@
  *  - скомпилированный fastest-validator per class;
  *  - карта типов полей (для SQL-кастов фильтров).
  */
+//
+// FILE: lib/src/schema.ts
+// VERSION: 1.0.0
+// START_MODULE_CONTRACT
+//   PURPOSE: Строит реестр классов из таблицы Schema — резолв наследования/link-ends, типы полей, компиляция валидаторов.
+//   SCOPE: Registry (add/find/resolve/has), loadRegistry, fieldTypeOf; локальные parseEnd/parseIdGen/buildDef.
+//   DEPENDS: M-TYPES
+//   LINKS: M-SCHEMA, V-M-SCHEMA
+//   ROLE: RUNTIME
+//   MAP_MODE: EXPORTS
+// END_MODULE_CONTRACT
+//
+// START_MODULE_MAP
+//   Registry - реестр классов (add/find/resolve/has, all)
+//   fieldTypeOf - attribute-спека fastest-validator → FieldType (для SQL-кастов)
+//   loadRegistry - загрузка Schema-строк партиции → Registry со скомпилированными check
+// END_MODULE_MAP
+//
+// START_CHANGE_SUMMARY
+//   LAST_CHANGE: [v1.0.0 - Documented existing module: reverse-engineered contract + markup]
+// END_CHANGE_SUMMARY
 import { createRequire } from 'node:module';
 import type { Sql } from 'postgres';
 import type { ClassDef, FieldType, IdGen, LinkEnd } from './types.js';
@@ -36,6 +57,13 @@ export class Registry {
     return this.byName.get(name);
   }
 
+  // START_CONTRACT: Registry.resolve
+  //   PURPOSE: Вернуть класс по id или alias, иначе бросить ошибку со списком известных.
+  //   INPUTS: { name: string - id или alias класса }
+  //   OUTPUTS: { ClassDef - найденный класс }
+  //   SIDE_EFFECTS: none
+  //   LINKS: M-SCHEMA, V-M-SCHEMA
+  // END_CONTRACT: Registry.resolve
   /** Класс по id или alias; иначе понятная ошибка со списком. */
   resolve(name: string): ClassDef {
     const def = this.byName.get(name);
@@ -51,6 +79,13 @@ export class Registry {
   }
 }
 
+// START_CONTRACT: fieldTypeOf
+//   PURPOSE: Свести attribute-спеку fastest-validator (строка/массив/объект) к FieldType.
+//   INPUTS: { attr: unknown - правило поля из attributes }
+//   OUTPUTS: { FieldType - вид поля (number/date/boolean/string/array/record/object/any) }
+//   SIDE_EFFECTS: none (рекурсивно по вложенным props/value)
+//   LINKS: M-SCHEMA, V-M-SCHEMA, type-FieldType
+// END_CONTRACT: fieldTypeOf
 /** Тип поля из fastest-validator DSL — для каста в SQL. */
 export function fieldTypeOf(attr: unknown): FieldType {
   if (typeof attr === 'string') {
@@ -118,6 +153,14 @@ interface SchemaRow {
  * Элемент Schema.links: объект-конец v2 (jsonb) либо legacy-строка 'Org'
  * (включая JSON-текст в text[] у старых схем). Возвращает [конец, isV2].
  */
+// START_CONTRACT: parseEnd
+//   PURPOSE: Разобрать один элемент Schema.links в LinkEnd (объект-конец v2 или legacy-строка).
+//   INPUTS: { cls: string - id класса; raw: string|object - сырой конец из jsonb/text[] }
+//   OUTPUTS: { [LinkEnd, boolean] - конец и признак v2-формы (для strictEnds) }
+//   SIDE_EFFECTS: none
+//   ERRORS: malformed link end (bad JSON); link end without classes
+//   LINKS: M-SCHEMA, V-M-SCHEMA
+// END_CONTRACT: parseEnd
 function parseEnd(cls: string, raw: string | Record<string, unknown>): [LinkEnd, boolean] {
   let o: { class?: string; classes?: string[]; optional?: boolean; cardinality?: number };
   if (typeof raw === 'string') {
@@ -141,6 +184,14 @@ function parseEnd(cls: string, raw: string | Record<string, unknown>): [LinkEnd,
  * attributes.id: правило валидации + (объектом) спецификация генерации.
  * generate/from — ключи letopis, вырезаются из правила перед компиляцией валидатора.
  */
+// START_CONTRACT: parseIdGen
+//   PURPOSE: Отделить спецификацию генерации id (generate/from) от правила валидации attributes.id.
+//   INPUTS: { cls: string - id класса; attributes: object - слитые attributes класса }
+//   OUTPUTS: { { idGen: IdGen; attrs: object } - версия генерации id и очищенное правило }
+//   SIDE_EFFECTS: none
+//   ERRORS: generate must be 4|5|7; generate:5 needs "from"; from is for generate:5 only
+//   LINKS: M-SCHEMA, V-M-SCHEMA
+// END_CONTRACT: parseIdGen
 function parseIdGen(cls: string, attributes: Record<string, unknown>): { idGen: IdGen; attrs: Record<string, unknown> } {
   const raw = attributes.id;
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -164,7 +215,16 @@ function parseIdGen(cls: string, attributes: Record<string, unknown>): { idGen: 
   return { idGen: { version: generate }, attrs };
 }
 
+// START_CONTRACT: buildDef
+//   PURPOSE: Собрать ClassDef из строки Schema — цепочка ancestors, наследование attributes, id-gen, компиляция check, типы полей, link-ends.
+//   INPUTS: { row: SchemaRow - строка класса; byId: Map<string,SchemaRow> - все классы партиции }
+//   OUTPUTS: { ClassDef - полностью разрешённое определение класса }
+//   SIDE_EFFECTS: none (компилирует fastest-validator)
+//   ERRORS: id v5 can't depend on optional end; id "from" source is neither end nor field
+//   LINKS: M-SCHEMA, V-M-SCHEMA, type-ClassDef
+// END_CONTRACT: buildDef
 function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
+  // START_BLOCK_INHERIT_ANCESTORS
   // цепочка наследования: из БД или walk по ancestor
   let ancestors = row.ancestors ?? [];
   if (!ancestors.length) {
@@ -185,6 +245,7 @@ function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
     Object.assign(merged, byId.get(ancestors[i])?.attributes ?? {});
   }
 
+  // END_BLOCK_INHERIT_ANCESTORS
   // attributes.id: спецификация генерации (generate/from) отделяется от правила валидации
   const { idGen, attrs } = parseIdGen(row.id, merged);
 
@@ -212,6 +273,7 @@ function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
     return end;
   });
 
+  // START_BLOCK_ID_V5_VALIDATE
   // id v5: каждый источник from — обязательный конец links (класс или полное имя союза
   // 'Service|Complex') ЛИБО поле data
   if (idGen.version === 5) {
@@ -228,6 +290,7 @@ function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
     }
   }
 
+  // END_BLOCK_ID_V5_VALIDATE
   return {
     id: row.id,
     alias: row.alias,
@@ -247,7 +310,16 @@ function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
   };
 }
 
+// START_CONTRACT: loadRegistry
+//   PURPOSE: Прочитать классы партиции из таблицы Schema и построить Registry со скомпилированными check.
+//   INPUTS: { sql: postgres.Sql; pgSchema: string; partition: string }
+//   OUTPUTS: { Promise<Registry> - реестр всех классов партиции }
+//   SIDE_EFFECTS: SELECT из "<pgSchema>"."Schema"
+//   ERRORS: schema has no classes for partition
+//   LINKS: M-SCHEMA, V-M-SCHEMA, M-DDL
+// END_CONTRACT: loadRegistry
 export async function loadRegistry(sql: Sql, pgSchema: string, partition: string): Promise<Registry> {
+  // START_BLOCK_LOAD_QUERY
   const ident = `"${pgSchema.replace(/"/g, '""')}"`;
   const rows = (await sql.unsafe(
     `SELECT id, alias, category, ancestor, attributes, links, meta, "order", ancestors, descendants
@@ -259,6 +331,7 @@ export async function loadRegistry(sql: Sql, pgSchema: string, partition: string
     throw new Error(`letopis: schema "${pgSchema}" has no classes for partition "${partition}"`);
   }
 
+  // END_BLOCK_LOAD_QUERY
   const byId = new Map(rows.map((r) => [r.id, r]));
   const registry = new Registry();
   for (const row of rows) registry.add(buildDef(row, byId));

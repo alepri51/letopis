@@ -1,6 +1,48 @@
 /**
  * letopis: типы.
  */
+//
+// FILE: lib/src/types.ts
+// VERSION: 1.0.0
+// START_MODULE_CONTRACT
+//   PURPOSE: Общий словарь типов всей библиотеки letopis.
+//   SCOPE: сущности, пути, определения классов, типы полей, фильтры и операторы, курсоры/план записи/модификаторы цепочки, записи auth/ACL, событие запроса и опции connect + символ OP.
+//   DEPENDS: none
+//   LINKS: M-TYPES, V-M-TYPES
+//   ROLE: TYPES
+//   MAP_MODE: EXPORTS
+// END_MODULE_CONTRACT
+//
+// START_MODULE_MAP
+//   Row - строка Entity (актуальная версия): id/class/data/links/tags/account/owner/updated + служебные $deleted/$depth.
+//   Path - вариант пути run(): по одному узлу Row на каждый шаг цепочки.
+//   LinkEnd - конец связи класса (Schema.links v2): допустимые классы, optional, cardinality.
+//   IdGen - способ генерации id класса (версия 4/5/7) + источники from для v5.
+//   ClassDef - класс из таблицы Schema: категория, наследование, атрибуты, концы связей, idGen, валидатор, fieldTypes.
+//   FieldType - тип поля attributes для SQL-кастов (number/date/boolean/string/array/record/object/any).
+//   OP - символьная метка операторов фильтра (Symbol — не конфликтует с данными).
+//   Op - узел оператора фильтра: { [OP]: имя, args }.
+//   Scalar - скалярное значение фильтра: string | number | boolean | null.
+//   FieldFilter - значение фильтра по полю: скаляр (eq) / массив / оператор Op / вложенный record.
+//   Filter - фильтр шага: id-строка/массив, Op (or) или объект полей data.
+//   Cursor - курсор keyset-пагинации: значение поля сортировки + id последней строки.
+//   PlanOp - операция записи шага (create/update/delete/anonymize) + снапшот модификаторов.
+//   ChainMods - модификаторы выборки цепочки (limit/offset/order/desc/asOf/after + внутренняя агрегация).
+//   Account - запись аккаунта служебной таблицы auth.
+//   Credential - учётные данные аккаунта (identifier/category/confirmed/…).
+//   Resource - ресурс ACL: alias/category/pattern/meta.
+//   Rule - правило ACL: account/resource/permission/weight/enabled.
+//   AclOp - операция над данными = категория Resource: 'READ' | 'WRITE' | 'DELETE'.
+//   AclDecision - решение ACL: allow + победившее правило + остаточный filter + code/message.
+//   QueryEvent - событие хука onQuery: режим, классы, ms, rows, slow.
+//   ConnectOpts - опции connect(): dsn/schema/partition/account/owner/max/enforceAccount/enforceAcl/onQuery/slowMs.
+// END_MODULE_MAP
+//
+// START_CHANGE_SUMMARY
+//   LAST_CHANGE: [v1.0.0 - Documented existing module: reverse-engineered contract + markup]
+// END_CHANGE_SUMMARY
+//
+// START_BLOCK_ENTITY_TYPES
 
 /** Строка Entity (актуальная версия), как отдаёт либа. account/owner — NOT NULL. */
 export interface Row {
@@ -87,6 +129,9 @@ export type FieldType =
   | { kind: 'record'; value: FieldType }
   | { kind: 'object'; props: Map<string, FieldType> }
   | { kind: 'any' };
+// END_BLOCK_ENTITY_TYPES
+//
+// START_BLOCK_FILTER_TYPES
 
 /** Метка операторов фильтра (Symbol — не конфликтует с данными). */
 export const OP: unique symbol = Symbol('letopis.op');
@@ -153,6 +198,9 @@ export interface ChainMods {
   aggFn?: 'sum' | 'avg' | 'min' | 'max' | 'countBy';
   aggField?: string;
 }
+// END_BLOCK_FILTER_TYPES
+//
+// START_BLOCK_AUTH_TYPES
 
 // --- служебные таблицы (auth/ACL) --------------------------------------------
 
@@ -215,6 +263,9 @@ export interface AclDecision {
   code?: number;
   message?: string;
 }
+// END_BLOCK_AUTH_TYPES
+//
+// START_BLOCK_CONNECT_TYPES
 
 /** Событие хука onQuery: один SQL-запрос цепочки (чтение или запись). */
 export interface QueryEvent {
@@ -258,3 +309,4 @@ export interface ConnectOpts {
   /** Порог «медленного» запроса, мс: событие получает slow: true; без onQuery — console.warn. */
   slowMs?: number;
 }
+// END_BLOCK_CONNECT_TYPES

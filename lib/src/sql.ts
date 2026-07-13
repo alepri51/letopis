@@ -17,6 +17,32 @@
  * Кандидатное сужение — оптимизация (GIN); истина — перепроверка условий на latest.
  * Цепочка шагов соединяется JOIN LATERAL — комбинации путей сохраняются.
  */
+//
+// FILE: lib/src/sql.ts
+// VERSION: 1.0.1
+// START_MODULE_CONTRACT
+//   PURPOSE: Read-side SQL-движок: Ctx, компиляция фильтров/операторов в параметризованный SQL, обход путей, исполнение с телеметрией и ретраем transient, билдеры insert/delete/closure.
+//   SCOPE: Ctx, runQuery, buildRead, Step, компиляторы фильтров/операторов/tags, resolveHop/leafType/linksTo, insert/multiInsert/delete/closure SQL, isTransient/hintTxRetry/retryDelay.
+//   DEPENDS: M-TYPES, M-OPS, M-ACL, M-SCHEMA
+//   LINKS: M-SQL, V-M-SQL
+//   ROLE: RUNTIME
+//   MAP_MODE: EXPORTS
+// END_MODULE_CONTRACT
+//
+// START_MODULE_MAP
+//   Ctx - runtime-контекст (sql/registry/pgSchema/partition/account/enforce*/aclDecide/onQuery/slowMs)
+//   isTransient/hintTxRetry/RETRIES/retryDelay - классификация и ретрай transient-ошибок PG
+//   runQuery - единая точка исполнения запросов цепочек (+onQuery/slow-warn/ретрай)
+//   Step/SlotValue/nextNodeKey - модель шага цепочки и слотов связей
+//   buildRead - компиляция шагов+модов в параметризованный read-запрос
+//   leafType/linksTo/resolveHop - навигация по Schema.links и типам полей
+//   insertSql/multiInsertSql/deleteSql/closureSql - билдеры записи/удаления
+//   entityTable/BuiltQuery/ReadMode - хелпер имени таблицы и типы результата
+// END_MODULE_MAP
+//
+// START_CHANGE_SUMMARY
+//   LAST_CHANGE: [v1.0.1 - orderExpr: id как tiebreaker тем же направлением — keyset без пересечения страниц при неуникальном sort-поле (согласовано с afterExpr-кортежом)]
+// END_CHANGE_SUMMARY
 import type { Sql } from 'postgres';
 import type { AclOp, AclDecision, ClassDef, ChainMods, FieldType, Filter, Op, QueryEvent } from './types.js';
 import { OP } from './types.js';
@@ -47,6 +73,13 @@ export interface Ctx {
   slowMs?: number;
 }
 
+// START_CONTRACT: isTransient
+//   PURPOSE: Признак транзиентной ошибки PG (deadlock 40P01 / serialization failure 40001) — снимается повтором.
+//   INPUTS: { e: unknown - пойманная ошибка }
+//   OUTPUTS: { boolean }
+//   SIDE_EFFECTS: none
+//   LINKS: M-SQL, V-M-SQL
+// END_CONTRACT: isTransient
 /** Транзиентные ошибки PG — гонка, снимаемая повтором: deadlock / serialization failure. */
 export function isTransient(e: unknown): boolean {
   const code = (e as { code?: string }).code;
@@ -75,6 +108,13 @@ const READ_MODES: ReadonlySet<QueryEvent['mode']> = new Set([
  * повтор запрещён семантикой PG — ошибка уходит наружу с подсказкой.
  * Служебные запросы (loadRegistry, tables, listen) через неё не идут.
  */
+// START_CONTRACT: runQuery
+//   PURPOSE: Единая точка исполнения запросов цепочек: sql.unsafe + событие onQuery/slow-warn + ретрай transient в автокоммите.
+//   INPUTS: { ctx: Ctx; text: string; params: unknown[]; mode: QueryEvent['mode']; classes: string[] }
+//   OUTPUTS: { Promise<T[]> - строки результата }
+//   SIDE_EFFECTS: выполняет SQL; вызывает onQuery-хук; console.warn при slowMs; ретрай до RETRIES вне транзакции
+//   LINKS: M-SQL, V-M-SQL
+// END_CONTRACT: runQuery
 export async function runQuery<T>(
   ctx: Ctx,
   text: string,
@@ -82,6 +122,7 @@ export async function runQuery<T>(
   mode: QueryEvent['mode'],
   classes: string[],
 ): Promise<T[]> {
+  // START_BLOCK_RUN_QUERY_RETRY
   for (let attempt = 1; ; attempt++) {
     const t0 = performance.now();
     try {
@@ -105,6 +146,7 @@ export async function runQuery<T>(
       throw e;
     }
   }
+  // END_BLOCK_RUN_QUERY_RETRY
 }
 
 /** Значение слота связи: id | вложенный план | null (снять конец). */
@@ -231,6 +273,13 @@ function accessor(path: string[]): Frag {
 }
 
 /** Тип листа data-пути по Schema: спуск через record (значение) и object (props). */
+// START_CONTRACT: leafType
+//   PURPOSE: Тип листа data-пути по Schema (спуск через record/object) — для SQL-каста.
+//   INPUTS: { cls: ClassDef; path: string[] - сегменты data-пути }
+//   OUTPUTS: { FieldType | undefined }
+//   SIDE_EFFECTS: none
+//   LINKS: M-SQL, V-M-SQL, type-FieldType
+// END_CONTRACT: leafType
 export function leafType(cls: ClassDef, path: string[]): FieldType | undefined {
   let ft = cls.fieldTypes.get(path[0]);
   for (let i = 1; i < path.length && ft; i++) {
@@ -239,7 +288,16 @@ export function leafType(cls: ClassDef, path: string[]): FieldType | undefined {
   return ft;
 }
 
+// START_CONTRACT: compileOp
+//   PURPOSE: Скомпилировать оператор фильтра (ne/gt/between/in/like/has*/exists/isNull/not) в SQL-фраг с кастом по типу листа.
+//   INPUTS: { path: string[]; ft?: FieldType; o: Op; p: Params }
+//   OUTPUTS: { Frag - (alias) => SQL-предикат }
+//   SIDE_EFFECTS: пушит значения в Params
+//   ERRORS: unknown operator "<name>"
+//   LINKS: M-SQL, V-M-SQL, M-OPS
+// END_CONTRACT: compileOp
 function compileOp(path: string[], ft: FieldType | undefined, o: Op, p: Params): Frag {
+  // START_BLOCK_COMPILE_OP
   const lhs = accessor(path);
   const cast = castOf(ft);
   // скобки обязательны: '::' сильнее '->>' (data->>'f'::ts кастил бы литерал 'f')
@@ -301,6 +359,7 @@ function compileOp(path: string[], ft: FieldType | undefined, o: Op, p: Params):
     default:
       throw new Error(`letopis: unknown operator "${name}"`);
   }
+  // END_BLOCK_COMPILE_OP
 }
 
 /** Операторы на колонку tags (text[]): строка | string[] (все) | has/hasAny/hasAll. */
@@ -326,6 +385,14 @@ function compileTags(v: unknown, p: Params): Frag {
   throw new Error('letopis: $tags accepts a string or has/hasAny/hasAll');
 }
 
+// START_CONTRACT: compileFilter
+//   PURPOSE: Разобрать фильтр (id | string[] | or(...) | объект любой глубины) в idConds / candFrags(GIN) / finalFrags(перепроверка на latest).
+//   INPUTS: { cls: ClassDef; filter?: Filter; p: Params }
+//   OUTPUTS: { CompiledFilter }
+//   SIDE_EFFECTS: пушит значения в Params
+//   ERRORS: filter.id accepts string | string[]
+//   LINKS: M-SQL, V-M-SQL
+// END_CONTRACT: compileFilter
 function compileFilter(cls: ClassDef, filter: Filter | undefined, p: Params): CompiledFilter {
   const out: CompiledFilter = { idConds: [], candFrags: [], finalFrags: [] };
   if (filter === undefined) return out;
@@ -351,6 +418,7 @@ function compileFilter(cls: ClassDef, filter: Filter | undefined, p: Params): Co
     return out;
   }
 
+  // START_BLOCK_COMPILE_FILTER_WALK
   const eqData: Record<string, unknown> = {};
   const isPlain = (v: unknown): v is Record<string, unknown> =>
     typeof v === 'object' && v !== null && !Array.isArray(v) && !isOp(v);
@@ -415,6 +483,7 @@ function compileFilter(cls: ClassDef, filter: Filter | undefined, p: Params): Co
     out.finalFrags.push(frag);
   }
 
+  // END_BLOCK_COMPILE_FILTER_WALK
   return out;
 }
 
@@ -425,6 +494,14 @@ export function linksTo(def: ClassDef, target: string): boolean {
   return def.links.some((end) => end.classes.includes(target));
 }
 
+// START_CONTRACT: resolveHop
+//   PURPOSE: Определить направление обхода между классами (forward/reverse) по Schema.links.
+//   INPUTS: { prev: ClassDef; next: ClassDef }
+//   OUTPUTS: { HopMode - 'forward' | 'reverse' }
+//   SIDE_EFFECTS: none
+//   ERRORS: no path A→B (neither embeds the other); LINK → LINK traversal is not supported
+//   LINKS: M-SQL, V-M-SQL
+// END_CONTRACT: resolveHop
 /** Правило обхода между шагами (по реестру Schema). */
 export function resolveHop(prev: ClassDef, next: ClassDef): HopMode {
   if (prev.category === 'HUB' && next.category === 'LINK') return 'reverse';
@@ -462,7 +539,10 @@ function sortField(alias: string, cls: ClassDef, order: string): string {
 
 function orderExpr(alias: string, cls: ClassDef, mods: ChainMods): string {
   if (!mods.order) return '';
-  return ` ORDER BY ${sortField(alias, cls, mods.order)}${mods.desc ? ' DESC' : ''}`;
+  const dir = mods.desc ? ' DESC' : '';
+  // id — стабильный tiebreaker ТЕМ ЖЕ направлением: ORDER BY совпадает с кортежом afterExpr
+  // (sortExpr, id), поэтому keyset не даёт пересечения страниц при неуникальном sort-поле.
+  return ` ORDER BY ${sortField(alias, cls, mods.order)}${dir}, ${alias}.id${dir}`;
 }
 
 /** Keyset-пагинация: (поле сортировки, id) строго после курсора. Требует .sort(). Выражение без WHERE. */
@@ -481,6 +561,14 @@ const whereOf = (conds: (string | undefined)[]): string => {
   return list.length ? ` WHERE ${list.join(' AND ')}` : '';
 };
 
+// START_CONTRACT: buildRead
+//   PURPOSE: Скомпилировать цепочку шагов+модов в один параметризованный read-запрос (латеральный обход путей, latest-версии, asOf/versions/agg, keyset).
+//   INPUTS: { ctx: Ctx; steps: Step[]; mods: ChainMods; mode: ReadMode }
+//   OUTPUTS: { BuiltQuery - { text, params, keys } }
+//   SIDE_EFFECTS: none (строит SQL; ACL-проверка READ может бросить)
+//   ERRORS: pivot node not in path; enforceAccount pin; acl denies READ; deep on non-self hop; agg needs data.<path>
+//   LINKS: M-SQL, V-M-SQL, M-ACL, M-DDL
+// END_CONTRACT: buildRead
 /** Построить читающий запрос по цепочке. */
 export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMode): BuiltQuery {
   const p = new Params();
@@ -489,6 +577,7 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
 
   // pivot: карта эффективных блоков. real[i] — индекс блока-узла шага i
   // (pivot-шаг блока не строит, ссылается на узел по pivotKey).
+  // START_BLOCK_BUILD_PIVOT_MAP
   const real: number[] = [];
   const byNodeKey = new Map<number, number>();
   const tailConds: string[] = []; // дофильтры pivot-шагов (alias подставлен) — в хвостовой WHERE
@@ -504,6 +593,8 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
     }
   }
 
+  // END_BLOCK_BUILD_PIVOT_MAP
+  // START_BLOCK_BUILD_STEP_LOOP
   const blocks: string[] = [];
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
@@ -632,6 +723,7 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
     blocks.push(i === 0 ? `FROM ${block}` : `JOIN LATERAL ${block} ON true`);
   }
 
+  // END_BLOCK_BUILD_STEP_LOOP
   const fromClause = blocks.join('\n');
   const last = real[steps.length - 1]; // pivot в конце → терминал на его узле
   const lastCls = steps[steps.length - 1].cls;
@@ -653,6 +745,7 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
     (mods.limit !== undefined ? ` LIMIT ${p.push(mods.limit)}` : '') +
     (mods.offset !== undefined ? ` OFFSET ${p.push(mods.offset)}` : '');
 
+  // START_BLOCK_BUILD_MODE_SQL
   let text: string;
   switch (mode) {
     case 'paths': {
@@ -708,9 +801,17 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
     }
   }
 
+  // END_BLOCK_BUILD_MODE_SQL
   return { text, params: p.list, keys };
 }
 
+// START_CONTRACT: insertSql
+//   PURPOSE: SQL одиночного INSERT новой версии/tombstone ($9 = updated прошлой версии, $10 = deleted).
+//   INPUTS: { pgSchema: string }
+//   OUTPUTS: { string - INSERT ... RETURNING * }
+//   SIDE_EFFECTS: none
+//   LINKS: M-SQL, V-M-SQL, M-DDL
+// END_CONTRACT: insertSql
 /** INSERT новой версии/tombstone. $9 = updated прошлой версии (или null), $10 = deleted. */
 export function insertSql(pgSchema: string): string {
   return (
@@ -742,6 +843,13 @@ export function multiInsertSql(pgSchema: string, n: number): string {
  * tombstone актуальной живой версии + рекурсивный каскад по links, всё в БД.
  * $1 partition, $2 class, дальше — id-шники.
  */
+// START_CONTRACT: deleteSql
+//   PURPOSE: SQL серверного удаления n сущностей — триггер entity_delete делает tombstone + рекурсивный каскад.
+//   INPUTS: { pgSchema: string; n: number }
+//   OUTPUTS: { string - DELETE ... WHERE id IN (...) }
+//   SIDE_EFFECTS: none
+//   LINKS: M-SQL, V-M-SQL, M-DDL
+// END_CONTRACT: deleteSql
 export function deleteSql(pgSchema: string, n: number): string {
   const ids = Array.from({ length: n }, (_, i) => `$${i + 3}`).join(', ');
   return `DELETE FROM ${entityTable(pgSchema)} WHERE partition = $1 AND class = $2 AND id IN (${ids})`;
@@ -751,6 +859,13 @@ export function deleteSql(pgSchema: string, n: number): string {
  * Замыкание удаления: цели + все живые зависимые рекурсивно (то, что каскад затомбстоунит).
  * Рекурсивный CTE; каждый узел — актуальная живая версия. $1 partition, $2 class, $3+ — ids.
  */
+// START_CONTRACT: closureSql
+//   PURPOSE: Рекурсивный CTE: цели + все живые зависимые (то, что затомбстоунит каскад entity_delete).
+//   INPUTS: { pgSchema: string; n: number }
+//   OUTPUTS: { string - WITH RECURSIVE ... }
+//   SIDE_EFFECTS: none
+//   LINKS: M-SQL, V-M-SQL, M-DDL
+// END_CONTRACT: closureSql
 export function closureSql(pgSchema: string, n: number): string {
   const ent = entityTable(pgSchema);
   const ids = Array.from({ length: n }, (_, i) => `$${i + 3}`).join(', ');

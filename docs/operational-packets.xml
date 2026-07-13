@@ -1,0 +1,49 @@
+<OperationalPackets VERSION="0.1.0">
+  <!-- Canonical controller<->worker packet contract. Project-agnostic: the same shape for every codescribe project. -->
+
+  <ExecutionPacketTemplate>
+    <module-id>M-* the worker is assigned</module-id>
+    <write-scope>Exact file paths the worker may modify (its own module source; disjoint from other workers)</write-scope>
+    <contract-excerpt><![CDATA[
+      The MODULE_CONTRACT (PURPOSE / SCOPE / DEPENDS / LINKS) copied from the shared artifacts,
+      so the worker authors markup consistent with the graph without re-deriving boundaries.
+    ]]></contract-excerpt>
+    <assumptions>Preconditions the worker may rely on (dependencies already documented, ID conventions, comment syntax for the file language)</assumptions>
+    <stop-conditions>When the worker must halt and report instead of proceeding (contract mismatch with code, unexpected public symbol, marker imbalance)</stop-conditions>
+    <retry-budget>How many self-correction passes before escalating to the controller</retry-budget>
+    <expected-graph-delta-fields>Which knowledge-graph fields the controller expects to reconcile after the worker returns (annotations, depends, CrossLinks)</expected-graph-delta-fields>
+    <expected-verification-delta-fields>Which verification-plan fields may change (test-files, module-checks, coverage-gap, required-log-markers)</expected-verification-delta-fields>
+  </ExecutionPacketTemplate>
+
+  <GraphDeltaTemplate>
+    <module-id>M-* affected</module-id>
+    <added-annotations>New public fn-*/type-*/class-*/export-*/const-* nodes discovered</added-annotations>
+    <removed-annotations>Public symbols that no longer exist</removed-annotations>
+    <changed-depends>Updated &lt;depends&gt; set (imports that changed)</changed-depends>
+    <changed-crosslinks>CrossLinks added/removed to stay bidirectionally consistent</changed-crosslinks>
+  </GraphDeltaTemplate>
+
+  <VerificationDeltaTemplate>
+    <module-id>M-* affected</module-id>
+    <changed-test-files>Test files added/removed for the module</changed-test-files>
+    <changed-module-checks>Updated deterministic check commands</changed-module-checks>
+    <changed-required-log-markers>Log markers added/removed</changed-required-log-markers>
+    <changed-coverage-gap>New/updated coverage-gap description, or NONE</changed-coverage-gap>
+  </VerificationDeltaTemplate>
+
+  <FailurePacketTemplate>
+    <module-id>M-* where the worker stopped</module-id>
+    <stage>Which step failed (inventory / markup / reconcile)</stage>
+    <observed>What the code showed that did not match the packet</observed>
+    <hypothesis>Best guess at the cause</hypothesis>
+    <needs-decision>The controller/user decision required to proceed</needs-decision>
+  </FailurePacketTemplate>
+
+  <CheckpointReportTemplate>
+    <modules-done>Count and IDs of modules whose markup is complete</modules-done>
+    <files-marked>Count of governed files that received markup</files-marked>
+    <integrity>Result of the §9 checks (block pairing, graph<->code, verification coverage, CrossLink consistency)</integrity>
+    <coverage-gaps>Modules with an explicit coverage-gap</coverage-gaps>
+    <open-issues>Any unresolved inconsistency to escalate</open-issues>
+  </CheckpointReportTemplate>
+</OperationalPackets>

@@ -5,6 +5,34 @@
  *
  *   const db = await up({ schema: 'booking', version: 1 });   // → PG-схема "v1.booking"
  */
+// FILE: lib/src/up.ts
+// VERSION: 1.0.0
+// START_MODULE_CONTRACT
+//   PURPOSE: Dev-bootstrap — поднять Docker-контейнер Postgres (TimescaleDB) + Redis, обеспечить базу, накатить DDL-схему и сиды, дождаться готовности и подключиться.
+//   SCOPE: валидация схемы/версии; проба postgres; docker build/run/start контейнера; создание базы; ожидание готовности PG и Redis; применение схемы + сиды; connect
+//   DEPENDS: M-CONNECT, M-CHAIN, M-TYPES
+//   LINKS: M-UP, V-M-UP
+//   ROLE: RUNTIME
+//   MAP_MODE: EXPORTS
+// END_MODULE_CONTRACT
+//
+// START_MODULE_MAP
+//   UpOpts - опции up(): dsn, schema, version, контейнер/образ, dataDir, seeds, fresh, quiet, таймаут
+//   dockerRunArgs - чистая сборка argv для `docker run` (bind/volume, trust/пароль)
+//   RunCfg - конфиг запуска контейнера (порты, креды, база, dataDir)
+//   up - точка входа: контейнер -> база -> схема -> готовность -> connect (возвращает EntityDb)
+//   docker - (local) обёртка execFile над docker CLI (ENOENT -> понятная ошибка)
+//   ensureContainer - (local) reuse/start/build+run dev-контейнера
+//   pgPing - (local) проба postgres: ok | no-server | no-database | starting | fatal
+//   ensureDatabase - (local) создать базу, если её нет (гонка 42P04 глушится)
+//   tcpAlive - (local) TCP-проба хоста:порта (для redis)
+//   applySchema - (local) drop (fresh) -> накат ddl+сидов с подстановкой <SCHEMA-NAME>
+// END_MODULE_MAP
+//
+// START_CHANGE_SUMMARY
+//   LAST_CHANGE: [v1.0.0 - Documented existing module: reverse-engineered contract + markup]
+// END_CHANGE_SUMMARY
+//
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -69,6 +97,13 @@ export interface RunCfg {
 }
 
 /** argv для docker run (чистая функция — покрыта юнитом). dataDir: путь → bind, имя → volume. */
+// START_CONTRACT: dockerRunArgs
+//   PURPOSE: Чистая функция — собирает argv для `docker run` dev-контейнера (порты PG/Redis, том данных, режим trust либо пароль).
+//   INPUTS: { cfg: RunCfg - контейнер/образ, порты, креды, база, dataDir (путь -> bind, имя -> volume) }
+//   OUTPUTS: { string[] - аргументы командной строки docker run }
+//   SIDE_EFFECTS: none
+//   LINKS: M-UP, V-M-UP
+// END_CONTRACT: dockerRunArgs
 export function dockerRunArgs(cfg: RunCfg): string[] {
   const args = ['run', '-d', '--name', cfg.container,
     '-p', `${cfg.pgPort}:5432`, '-p', `${cfg.redisPort}:6379`,
@@ -92,6 +127,13 @@ async function docker(args: string[]): Promise<{ ok: boolean; out: string; err: 
   }
 }
 
+// START_CONTRACT: ensureContainer
+//   PURPOSE: Гарантирует запущенный dev-контейнер — reuse запущенного, start остановленного, иначе build образа (если нет) и run.
+//   INPUTS: { cfg: RunCfg - параметры контейнера/образа/портов; log: (m: string) => void - прогресс }
+//   OUTPUTS: { Promise<void> }
+//   SIDE_EFFECTS: вызывает docker inspect/start/build/run через execFile; бросает при неудаче start/build/run
+//   LINKS: M-UP, V-M-UP
+// END_CONTRACT: ensureContainer
 async function ensureContainer(cfg: RunCfg, log: (m: string) => void): Promise<void> {
   const st = await docker(['container', 'inspect', '--format', '{{.State.Running}}', cfg.container]);
   if (st.ok && st.out === 'true') {
@@ -118,6 +160,13 @@ async function ensureContainer(cfg: RunCfg, log: (m: string) => void): Promise<v
 
 type Ping = { ok: true } | { ok: false; kind: 'no-server' | 'no-database' | 'starting' | 'fatal'; err: unknown };
 
+// START_CONTRACT: pgPing
+//   PURPOSE: Одноразовая проба postgres по dsn — классифицирует ответ: ok, no-database (3D000), starting (57P03), fatal (28P01/28000), no-server.
+//   INPUTS: { dsn: string - строка подключения }
+//   OUTPUTS: { Promise<Ping> - { ok: true } | { ok: false, kind, err } }
+//   SIDE_EFFECTS: открывает и закрывает разовое соединение postgres (max 1, connect_timeout 3)
+//   LINKS: M-UP, V-M-UP
+// END_CONTRACT: pgPing
 async function pgPing(dsn: string): Promise<Ping> {
   const sql = postgres(dsn, { max: 1, connect_timeout: 3, onnotice: () => {} });
   try {
@@ -134,6 +183,13 @@ async function pgPing(dsn: string): Promise<Ping> {
   }
 }
 
+// START_CONTRACT: ensureDatabase
+//   PURPOSE: Создаёт целевую базу, если её ещё нет — подключаясь к служебной базе postgres (гонку параллельных up() 42P04 глушит).
+//   INPUTS: { url: URL - разобранный dsn (имя базы из pathname/username); log: (m: string) => void }
+//   OUTPUTS: { Promise<void> }
+//   SIDE_EFFECTS: подключается к базе postgres, выполняет CREATE DATABASE; закрывает соединение
+//   LINKS: M-UP, V-M-UP
+// END_CONTRACT: ensureDatabase
 async function ensureDatabase(url: URL, log: (m: string) => void): Promise<void> {
   const dbName = decodeURIComponent(url.pathname.slice(1)) || url.username || 'postgres';
   const admin = new URL(url);
@@ -152,6 +208,13 @@ async function ensureDatabase(url: URL, log: (m: string) => void): Promise<void>
   }
 }
 
+// START_CONTRACT: tcpAlive
+//   PURPOSE: TCP-проба доступности хоста:порта (готовность Redis) с таймаутом 2 с.
+//   INPUTS: { host: string; port: number }
+//   OUTPUTS: { Promise<boolean> - true если соединение установилось }
+//   SIDE_EFFECTS: открывает и сразу закрывает TCP-сокет
+//   LINKS: M-UP, V-M-UP
+// END_CONTRACT: tcpAlive
 function tcpAlive(host: string, port: number): Promise<boolean> {
   return new Promise((res) => {
     const s = net.connect({ host, port });
@@ -162,6 +225,13 @@ function tcpAlive(host: string, port: number): Promise<boolean> {
   });
 }
 
+// START_CONTRACT: applySchema
+//   PURPOSE: Применяет DDL-схему и сиды — при fresh дропает схему; если схемы нет, накатывает ddl.sql (+ дефолтные booking/auth или свои сиды), подставляя <SCHEMA-NAME>.
+//   INPUTS: { dsn: string; full: string - полное имя схемы v<N>.<schema>; seeds: string[] | false | undefined - свои пути / false (без сидов) / undefined (дефолт); fresh: boolean; log: (m: string) => void }
+//   OUTPUTS: { Promise<void> }
+//   SIDE_EFFECTS: читает sql-файлы; выполняет DROP/накат схемы в postgres; закрывает соединение
+//   LINKS: M-UP, V-M-UP
+// END_CONTRACT: applySchema
 async function applySchema(
   dsn: string, full: string, seeds: string[] | false | undefined, fresh: boolean, log: (m: string) => void,
 ): Promise<void> {
@@ -189,6 +259,13 @@ async function applySchema(
   }
 }
 
+// START_CONTRACT: up
+//   PURPOSE: Единая точка входа dev-bootstrap — валидирует схему/версию, при живом postgres пропускает docker (иначе поднимает контейнер и ждёт готовности PG+Redis), применяет схему и подключается.
+//   INPUTS: { opts: UpOpts - dsn, schema, version, контейнер/образ, dataDir, redisPort, seeds, fresh, quiet, waitTimeoutMs + прочие ConnectOpts }
+//   OUTPUTS: { Promise<EntityDb> - подключённый фасад на схеме "v<version>.<schema>" }
+//   SIDE_EFFECTS: shell docker через M-UP.ensureContainer; TCP-пинги; чтение sql и накат схемы; console.log с префиксом [letopis.up]; connect (M-CONNECT); бросает при плохом имени схемы/версии и таймауте готовности
+//   LINKS: M-UP, V-M-UP
+// END_CONTRACT: up
 export async function up(opts: UpOpts): Promise<EntityDb> {
   const {
     dsn = DEFAULT_DSN, schema, version, container = 'letopis-timescale', image = 'letopis-db',
@@ -213,6 +290,7 @@ export async function up(opts: UpOpts): Promise<EntityDb> {
   } else if (ping.kind === 'fatal') {
     throw ping.err;
   } else {
+    // START_BLOCK_ENSURE_CONTAINER
     if (local) {
       await ensureContainer({
         container, image, pgPort: url.port || '5432', redisPort,
@@ -222,6 +300,8 @@ export async function up(opts: UpOpts): Promise<EntityDb> {
     } else {
       log(`waiting for remote postgres at ${host} (no docker for non-local dsn)…`);
     }
+    // END_BLOCK_ENSURE_CONTAINER
+    // START_BLOCK_WAIT_READY
     const t0 = Date.now();
     for (;;) {
       ping = await pgPing(dsn);
@@ -245,10 +325,13 @@ export async function up(opts: UpOpts): Promise<EntityDb> {
       }
       log(`redis ready on ${redisPort}`);
     }
+    // END_BLOCK_WAIT_READY
   }
 
+  // START_BLOCK_APPLY_SCHEMA
   await applySchema(dsn, full, seeds, fresh ?? false, log);
   const db = await connect({ ...connectRest, dsn, schema: full });
   log(`connected (schema "${full}")`);
+  // END_BLOCK_APPLY_SCHEMA
   return db;
 }

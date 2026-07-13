@@ -16,32 +16,34 @@ after(async () => db.close());
 
 test('asOf: чтение «как было»; versions: вся история с $deleted', async () => {
   const [org] = await db.Организация().create({ name: 'Хронос' }).rows();
-  const [svc] = await db.Организация(org).Услуга().create({ name: 'Стрижка', duration: 30, price: { RUB: 1000 } }).rows();
-  const t1 = svc.updated; // серверное время версии (clock skew клиент/БД не влияет)
-  await db.Услуга(svc.id).update({ price: { RUB: 2000 } }).rows();
+  const [svc] = await db.Организация(org).Услуга().create({ name: 'Стрижка', duration: 30 }).rows();
+  // история цены — на отдельном LINK «цена» (amounts.RUB), не на самой услуге
+  const [ц] = await db.Услуга(svc.id).цена().create({ amounts: { RUB: 1000 } }).rows();
+  const t1 = ц.updated; // серверное время версии (clock skew клиент/БД не влияет)
+  await db.цена(ц.id).update({ amounts: { RUB: 2000 } }).rows();
 
   // сейчас 2000, на момент t1 — 1000
-  assert.deepEqual((await db.Услуга(svc.id).first())!.data.price, { RUB: 2000 });
-  const тогда = await db.Услуга(svc.id).asOf(t1).first();
-  assert.deepEqual(тогда!.data.price, { RUB: 1000 });
+  assert.equal(((await db.цена(ц.id).first())!.data.amounts as Record<string, number>).RUB, 2000);
+  const тогда = await db.цена(ц.id).asOf(t1).first();
+  assert.equal((тогда!.data.amounts as Record<string, number>).RUB, 1000);
 
   // до создания — не существует; после delete на «сейчас» — нет, на t1 — есть
-  assert.equal(await db.Услуга(svc.id).asOf('2020-01-01').count(), 0);
-  await db.Услуга(svc.id).delete({ confirm: true }).rows();
-  assert.equal(await db.Услуга(svc.id).count(), 0);
-  assert.equal((await db.Услуга(svc.id).asOf(t1).first())!.id, svc.id);
+  assert.equal(await db.цена(ц.id).asOf('2020-01-01').count(), 0);
+  await db.цена(ц.id).delete({ confirm: true }).rows();
+  assert.equal(await db.цена(ц.id).count(), 0);
+  assert.equal((await db.цена(ц.id).asOf(t1).first())!.id, ц.id);
 
   // versions: 3 версии (1000, 2000, tombstone) по возрастанию
-  const вс = await db.Услуга(svc.id).versions();
+  const вс = await db.цена(ц.id).versions();
   assert.equal(вс.length, 3);
   assert.deepEqual(вс.map((v) => v.$deleted ?? false), [false, false, true]);
-  assert.deepEqual(вс[0].data.price, { RUB: 1000 });
+  assert.equal((вс[0].data.amounts as Record<string, number>).RUB, 1000);
 });
 
 test('after: keyset-пагинация стабильна и совпадает с полной выборкой', async () => {
   const [org] = await db.Организация({ name: 'Хронос' }).rows();
   for (let i = 0; i < 7; i++) {
-    await db.Организация(org).Клиент().create({ name: `К${i}`, contact: `+7900000000${i}` }).rows();
+    await db.Организация(org).Клиент().create({ name: `К${i}`, phone: `+7900000000${i}` }).rows();
   }
   const все = await db.Клиент().sort('data.name').rows();
   assert.equal(все.length, 7);
@@ -83,15 +85,15 @@ test('enforceAccount: чужое невидимо, запись пришпиле
 
 test('anonymize: string-поля затёрты, тег anonymized, история хранит оригинал', async () => {
   const [org] = await db.Организация({ name: 'Хронос' }).rows();
-  const [cli] = await db.Организация(org).Клиент().create({ name: 'Персональный', contact: '+79219876543' }).rows();
-  const [anon] = await db.Клиент(cli.id).anonymize(['name', 'contact']).rows();
+  const [cli] = await db.Организация(org).Клиент().create({ name: 'Персональный', phone: '+79219876543' }).rows();
+  const [anon] = await db.Клиент(cli.id).anonymize(['name', 'phone']).rows();
   assert.equal(anon.data.name, '[erased]');
-  assert.equal(anon.data.contact, '[erased]');
+  assert.equal(anon.data.phone, '[erased]');
   assert.ok(anon.tags.includes('anonymized'));
   const история = await db.Клиент(cli.id).versions();
   assert.equal(история[0].data.name, 'Персональный'); // старая версия жива (документированное ограничение)
-  // не-строковое поле — отказ
-  await assert.rejects(db.Клиент(cli.id).anonymize(['active' as never]).rows(), /string fields only/);
+  // не-строковое поле — отказ (у Клиента все поля строковые — берём boolean active Организации)
+  await assert.rejects(db.Организация(org.id).anonymize(['active' as never]).rows(), /string fields only/);
 });
 
 test('gen-types: генерирует интерфейсы классов и TypedDb', async () => {
@@ -103,9 +105,10 @@ test('gen-types: генерирует интерфейсы классов и Typ
   const path = new URL('../entity-types.gen.d.ts', import.meta.url);
   const text = await readFile(path, 'utf8');
   assert.match(text, /export interface StaffData \{/);
-  assert.match(text, /roles: \("owner" \| "administrator" \| "manager" \| "master"\)\[\]/);
-  assert.match(text, /price: Partial<Record<"RUB" \| "USD" \| "EUR" \| "AED", number>>/);
+  assert.match(text, /specialization\?: string/);
+  assert.match(text, /preferred_contact: "phone" \| "email" \| "messenger"/);
+  assert.match(text, /deposit\?: \{ amount: number; currency: "RUB" \| "USD" \| "EUR" \| "AED" \}/);
   assert.match(text, /export interface TypedDb \{/);
-  assert.match(text, /"Сотрудник": \(filter\?\: Filter\) => TypedChain<StaffData>/);
+  assert.match(text, /"Мастер": \(filter\?\: Filter\) => TypedChain<StaffData>/);
   await rm(path);
 });
