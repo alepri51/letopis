@@ -19,7 +19,7 @@
  */
 //
 // FILE: lib/src/sql.ts
-// VERSION: 1.0.0
+// VERSION: 1.0.1
 // START_MODULE_CONTRACT
 //   PURPOSE: Read-side SQL-движок: Ctx, компиляция фильтров/операторов в параметризованный SQL, обход путей, исполнение с телеметрией и ретраем transient, билдеры insert/delete/closure.
 //   SCOPE: Ctx, runQuery, buildRead, Step, компиляторы фильтров/операторов/tags, resolveHop/leafType/linksTo, insert/multiInsert/delete/closure SQL, isTransient/hintTxRetry/retryDelay.
@@ -41,7 +41,7 @@
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.0.0 - Documented existing module: reverse-engineered contract + markup]
+//   LAST_CHANGE: [v1.0.1 - orderExpr: id как tiebreaker тем же направлением — keyset без пересечения страниц при неуникальном sort-поле (согласовано с afterExpr-кортежом)]
 // END_CHANGE_SUMMARY
 import type { Sql } from 'postgres';
 import type { AclOp, AclDecision, ClassDef, ChainMods, FieldType, Filter, Op, QueryEvent } from './types.js';
@@ -539,7 +539,10 @@ function sortField(alias: string, cls: ClassDef, order: string): string {
 
 function orderExpr(alias: string, cls: ClassDef, mods: ChainMods): string {
   if (!mods.order) return '';
-  return ` ORDER BY ${sortField(alias, cls, mods.order)}${mods.desc ? ' DESC' : ''}`;
+  const dir = mods.desc ? ' DESC' : '';
+  // id — стабильный tiebreaker ТЕМ ЖЕ направлением: ORDER BY совпадает с кортежом afterExpr
+  // (sortExpr, id), поэтому keyset не даёт пересечения страниц при неуникальном sort-поле.
+  return ` ORDER BY ${sortField(alias, cls, mods.order)}${dir}, ${alias}.id${dir}`;
 }
 
 /** Keyset-пагинация: (поле сортировки, id) строго после курсора. Требует .sort(). Выражение без WHERE. */

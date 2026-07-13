@@ -9,7 +9,7 @@
 Воспроизвести целиком:
 
 ```bash
-node lib/bench/salon-seed.mjs          # засеять полигон v1.salondemo (~982k строк, ~8 мин)
+node lib/bench/salon-seed.mjs          # засеять полигон v1.salondemo (~980k строк, ~8 мин)
 node lib/bench/salon-article-demo.mjs  # снять все ответы этой статьи
 ```
 
@@ -30,13 +30,13 @@ node lib/bench/salon-article-demo.mjs  # снять все ответы этой
 
 | Класс | Строк | | Класс | Строк |
 |---|--:|---|---|--:|
-| `booking` (запись) | 880 011 | | `price` (цена) | 1 627 |
-| `slot` (окно) | 54 002 | | `Service` (Услуга) | 603 |
-| `Customer` (Клиент) | 40 003 | | `content` (содержимое) | 753 |
-| `skill` (навык) | 3 004 | | `compo` (состав) | 363 |
-| `Staff`/`address` | 362 + 362 | | `Location` (Локация) | 61 |
+| `booking` (запись) | 880 000 | | `price` (цена) | 1 620 |
+| `slot` (окно) | 54 000 | | `Service` (Услуга) | 600 |
+| `Customer` (Клиент) | 40 000 | | `content` (содержимое) | 750 |
+| `skill` (навык) | 1 260 | | `compo` (состав) | 360 |
+| `Staff`/`address` | 360 + 360 | | `Location` (Локация) | 60 |
 
-**Итого 981 968 строк.** `booking` — половина полигона: у каждой записи две версии
+**Итого 980 180 строк.** `booking` — половина полигона: у каждой записи две версии
 (создана → подтверждена накануне), append-only хранит их обе, актуальная — с
 максимальным `updated`.
 
@@ -381,28 +381,28 @@ await db.entity(текАни).Услуга().first()   // [8.2 ms] → "Стри
 **Операторы фильтра** (`count()` на классе `Услуга`, ~600 уникальных):
 
 ```ts
-db.Услуга({ duration: ne(60) }).count()               // [10.2 ms] → 452
-db.Услуга({ duration: between(30, 45) }).count()                 // → 302
+db.Услуга({ duration: ne(60) }).count()               // [10.2 ms] → 454
+db.Услуга({ duration: between(30, 45) }).count()                 // → 303
 db.Услуга({ name: ilike('массаж 7') }).count()                  // → 30
 db.Локация({ coordinates: { lat: gte(55.5) } }).count()         // [5.4 ms] → 27  (вложенный путь)
 db.цена({ amounts: { RUB: gte(2000) } }).Услуга().count()       // [38.9 ms] → 391  (поиск по цене через класс)
 db.Услуга({ description: isNull() }).count()                    // → 392
-db.Услуга(or({ name: 'Стрижка 0' }, { duration: lt(40) })).count()   // → 152
+db.Услуга(or({ name: 'Стрижка 0' }, { duration: lt(40) })).count()   // → 153
 ```
 
-Полный список отработал: `ne` 452, `gt(45)` 301, `gte(45)` 451, `lt(45)` 152,
-`between` 302, `inList` 60, `like` 60, `starts('Спа')` 60, `not(ilike)` 542,
-`exists(description)` 211. Массивов в данных новой схемы нет — `has/hasAny/hasAll` живут
-на колонке `tags` (`db.Клиент().tags(has('vip')).count()` → 1). GIN-индексы по `data`/
+Полный список отработал: `ne` 454, `gt(45)` 301, `gte(45)` 452, `lt(45)` 152,
+`between` 303, `inList` 60, `like` 61, `starts('Спа')` 60, `not(ilike)` 544,
+`exists(description)` 393. Массивов в данных новой схемы нет — `has/hasAny/hasAll` живут
+на колонке `tags` (`db.Клиент().tags(has('vip')).count()` → 401). GIN-индексы по `data`/
 `tags` держат это в единицах миллисекунд.
 
 **Агрегации** — считает БД, не приложение:
 
 ```ts
-db.Услуга().count()                    // [2.5 ms] → 603   (уникальные сущности)
-db.цена().sum('data.amounts.RUB')      // [13.9 ms] → 2 111 400  (сумма всех вариантов, record-лист)
+db.Услуга().count()                    // [2.5 ms] → 605   (уникальные сущности)
+db.цена().sum('data.amounts.RUB')      // [13.9 ms] → 2 286 100  (сумма всех вариантов, record-лист)
 db.Услуга().avg('data.duration')       //         → 52.4
-db.Услуга().min('data.duration')       // → 30    max → 75
+db.Услуга().min('data.duration')       // → 20    max → 75
 db.Услуга().countBy('data.duration')   // [7.7 ms] → { "30": 152, "45": 150, "60": 151, "75": 150 }
 ```
 
