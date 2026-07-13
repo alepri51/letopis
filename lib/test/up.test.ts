@@ -43,7 +43,7 @@ test('dockerRunArgs: volume по умолчанию, dataDir → bind, порт�
 
 test('up(): живой postgres → docker skipped, схема применяется, db работает', async () => {
   const db = await up({ dsn: DSN, schema: 'uptest', version: 1, quiet: true });
-  const [аня] = await db.Клиент().create({ name: 'Уп-Аня', contact: '+7 900' }).rows();
+  const [аня] = await db.Клиент().create({ name: 'Уп-Аня', phone: '+7 900' }).rows();
   assert.equal(аня.data.name, 'Уп-Аня');
   await db.close();
 });

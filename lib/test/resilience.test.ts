@@ -99,7 +99,7 @@ test('watch: переживает обрыв LISTEN-соединения — onR
 
   // id Услуги — uuid v5 из (Org, name): создаём без Org нельзя, нужен контекст организации
   const [org] = await db.Организация().create({ name: `watch-орг-${Date.now()}` }).rows();
-  await db.Организация(org).Услуга().create({ name: 'до обрыва', price: { RUB: 100 }, duration: 30 }).rows();
+  await db.Организация(org).Услуга().create({ name: 'до обрыва', price: 100, duration: 30 }).rows();
   await waitFor(() => events.length >= 1, 5000);
 
   // убиваем выделенное LISTEN-соединение на сервере
@@ -111,7 +111,7 @@ test('watch: переживает обрыв LISTEN-соединения — onR
 
   await waitFor(() => reconnects >= 1); // postgres.js: reconnect c backoff + повторный LISTEN
   const seen = events.length;
-  await db.Организация(org).Услуга().create({ name: 'после обрыва', price: { RUB: 200 }, duration: 30 }).rows();
+  await db.Организация(org).Услуга().create({ name: 'после обрыва', price: 200, duration: 30 }).rows();
   await waitFor(() => events.length > seen, 5000);
 
   await stop();

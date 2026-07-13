@@ -12,7 +12,7 @@ CREATE SCHEMA IF NOT EXISTS "<SCHEMA-NAME>";
 
 -- -----------------------------------------------------------------------------
 -- Schema: классы предметной области (HUB — сущности, LINK — связи).
--- Сидится из schema.booking.v2.json (lib/sql/seed.booking.sql).
+-- Сидится демо-доменом booking: lib/sql/seed.booking.sql (источник правды).
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS "<SCHEMA-NAME>"."Schema" (
     partition  text   NOT NULL DEFAULT 'entity',

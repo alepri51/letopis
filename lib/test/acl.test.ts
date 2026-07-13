@@ -13,7 +13,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import postgres from 'postgres';
 import { connect } from '../src/index.js';
-import type { EntityDb, WatchEvent } from '../src/chain.js';
+import type { Chain, EntityDb, WatchEvent } from '../src/chain.js';
 import type { Account } from '../src/index.js';
 
 const DSN = process.env.ENTITY_DSN ?? 'postgres://postgres:test@localhost:15432/clockz';
@@ -25,6 +25,12 @@ let anon: Account;
 let user: Account;
 let other: Account;
 let banned: Account;
+
+/** запись (LINK): обязательные концы фиктивными id + интервал; id = v5(Staff, start).
+ *  Цепочка-старт параметром: модификаторы .account()/.owner() ставятся ДО create(). */
+const мкЗапись = (c: Chain, staff: string, start: string, extra: object = {}) =>
+  c.create({ start_datetime: start, end_datetime: start.replace('T10:', 'T11:'), ...extra })
+    .Мастер.set(staff).Локация.set('loc-acl').Расписание.set('sch-acl').Услуга.set('svc-acl');
 
 before(async () => {
   const admin = postgres(DSN, { max: 1, onnotice: () => {} });
@@ -48,16 +54,16 @@ before(async () => {
   banned = await sys.accounts.set({ categories: ['User', 'Blocked'], data: { name: 'бан' } });
 
   // словарь ресурсов-объектов: pattern = шаблон строки Entity
-  await sys.resources.set({ alias: 'svc.active:READ', category: 'READ', pattern: { class: 'Service', data: { active: true } } });
-  await sys.resources.set({ alias: 'booking.own:READ', category: 'READ', pattern: { class: 'Booking', owner: '$account' } });
-  await sys.resources.set({ alias: 'booking.own:WRITE', category: 'WRITE', pattern: { class: 'Booking', owner: '$account' } });
+  await sys.resources.set({ alias: 'svc.express:READ', category: 'READ', pattern: { class: 'Service', data: { duration: 30 } } });
+  await sys.resources.set({ alias: 'booking.own:READ', category: 'READ', pattern: { class: 'booking', owner: '$account' } });
+  await sys.resources.set({ alias: 'booking.own:WRITE', category: 'WRITE', pattern: { class: 'booking', owner: '$account' } });
   await sys.resources.set({ alias: 'customer.tenant:READ', category: 'READ', pattern: { class: 'Customer', account: '$account' } });
   await sys.resources.set({ alias: 'vehicle:READ', category: 'READ', pattern: { class: 'Vehicle' } });
   await sys.resources.set({ alias: 'vehicle:WRITE', category: 'WRITE', pattern: { class: 'Vehicle' } });
   await sys.resources.set({ alias: 'vehicle:DELETE', category: 'DELETE', pattern: { class: 'Vehicle' } });
 
   for (const [resource, weight] of [
-    ['svc.active:READ', 50], ['booking.own:READ', 60], ['booking.own:WRITE', 60],
+    ['svc.express:READ', 50], ['booking.own:READ', 60], ['booking.own:WRITE', 60],
     ['customer.tenant:READ', 60], ['vehicle:READ', 90], ['vehicle:WRITE', 90], ['vehicle:DELETE', 90],
   ] as const) {
     await sys.rules.set({ account: 'authenticated:ACCOUNT', resource, permission: 'allow', weight });
@@ -97,28 +103,30 @@ test('checkData: lineage, deny-by-default, filter с подставленным 
   assert.equal(v.filter, undefined);
 
   // own-правило: allow + остаточный шаблон с подставленным uuid
-  const b = await sys.acl.checkData(user, 'Booking', 'READ');
+  const b = await sys.acl.checkData(user, 'booking', 'READ');
   assert.equal(b.allow, true);
   assert.deepEqual(b.filter, { owner: user.id });
 
-  assert.equal((await sys.acl.checkData(user, 'Booking', 'DELETE')).allow, false); // DELETE не выдан
+  assert.equal((await sys.acl.checkData(user, 'booking', 'DELETE')).allow, false); // DELETE не выдан
   assert.equal((await sys.acl.checkData(user, 'Org', 'READ')).allow, false); // правил нет — deny
-  assert.equal((await sys.acl.checkData(anon, 'Booking', 'READ')).allow, false); // не authenticated
+  assert.equal((await sys.acl.checkData(anon, 'booking', 'READ')).allow, false); // не authenticated
 });
 
 test('enforceAcl: предикат owner=$account сужает чтение ЗАРАНЕЕ — пагинация и count честные', async () => {
-  // 3 свои + 2 чужие записи
+  // 3 свои + 2 чужие записи (v5-id: свой мастер на каждую пару)
   for (const [who, n] of [[user, 3], [other, 2]] as const) {
-    for (let i = 0; i < n; i++) await sys.Запись().account(who.id).owner(who.id).create().rows();
+    for (let i = 0; i < n; i++) {
+      await мкЗапись(sys.запись().account(who.id).owner(who.id), `st-${who.id}-${i}`, '2026-08-01T10:00:00+03:00').rows();
+    }
   }
   const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true });
   try {
-    assert.equal(await u.Запись().count(), 3); // чужие не посчитаны
-    const все = await u.Запись().rows();
+    assert.equal(await u.запись().count(), 3); // чужие не посчитаны
+    const все = await u.запись().rows();
     assert.ok(все.every((r) => r.owner === user.id));
     // пагинация по суженному множеству: 2 + 1, без дыр
-    const p1 = await u.Запись().sort('updated', 'desc').limit(2).rows();
-    const p2 = await u.Запись().sort('updated', 'desc').offset(2).limit(2).rows();
+    const p1 = await u.запись().sort('updated', 'desc').limit(2).rows();
+    const p2 = await u.запись().sort('updated', 'desc').offset(2).limit(2).rows();
     assert.equal(p1.length, 2);
     assert.equal(p2.length, 1);
     // deny-класс — ошибка на компиляции запроса
@@ -130,15 +138,15 @@ test('enforceAcl: предикат owner=$account сужает чтение ЗА
 
 test('enforceAcl: статический data-шаблон — виден только срез', async () => {
   const [салон] = await sys.Организация().create({ name: 'Салон ACL' }).rows();
-  await sys.Организация(салон.id).Услуга().create({ name: 'Активная', price: { RUB: 100 }, duration: 30 }).rows();
-  await sys.Организация(салон.id).Услуга().create({ name: 'Выключенная', price: { RUB: 100 }, duration: 30, active: false }).rows();
+  await sys.Организация(салон.id).Услуга().create({ name: 'Экспресс', price: 100, duration: 30 }).rows();
+  await sys.Организация(салон.id).Услуга().create({ name: 'Обстоятельная', price: 100, duration: 60 }).rows();
 
   const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true });
   try {
     const услуги = await u.Услуга().rows();
     assert.ok(услуги.length >= 1);
-    assert.ok(услуги.every((r) => r.data.active === true)); // {"data":{"active":true}} из правила
-    assert.ok(!услуги.some((r) => r.data.name === 'Выключенная'));
+    assert.ok(услуги.every((r) => r.data.duration === 30)); // {"data":{"duration":30}} из правила
+    assert.ok(!услуги.some((r) => r.data.name === 'Обстоятельная'));
   } finally {
     await u.close();
   }
@@ -147,28 +155,32 @@ test('enforceAcl: статический data-шаблон — виден тол
 test('enforceAcl запись: INSERT пришпилен к owner=$account, чужие цели не находятся', async () => {
   const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true });
   try {
-    const [своя] = await u.Запись().create().rows();
+    const [своя] = await мкЗапись(u.запись(), 'st-мой', '2026-08-02T10:00:00+03:00').rows();
     assert.equal(своя.owner, user.id); // пришпилено правилом
     // явный чужой owner — ошибка (летит из терминала)
-    await assert.rejects(u.Запись().owner(other.id).create().rows(), /acl pins Booking writes to owner/);
+    await assert.rejects(
+      мкЗапись(u.запись().owner(other.id), 'st-мой', '2026-08-03T10:00:00+03:00').rows(),
+      /acl pins booking writes to owner/,
+    );
     // UPDATE чужой записи: цель не найдена (предикат в поиске целей) — тихий []
-    const [чужая] = await sys.Запись().account(other.id).owner(other.id).create().rows();
-    assert.deepEqual(await u.Запись(чужая.id).update({ status: 'confirmed' }).rows(), []);
-    // create с id чужой записи: probe без предиката видит занятость — тихий [] (не перехват версией)
-    assert.deepEqual(await u.Запись(чужая.id).create({ status: 'confirmed' }).rows(), []);
+    const [чужая] = await мкЗапись(sys.запись().account(other.id).owner(other.id), 'st-чужой', '2026-08-04T10:00:00+03:00').rows();
+    assert.deepEqual(await u.запись(чужая.id).update({ notes: 'моё' }).rows(), []);
+    // create той же пары (мастер, старт): v5-id совпадает с чужой записью —
+    // probe без предиката видит занятость — тихий [] (не перехват версией)
+    assert.deepEqual(await мкЗапись(u.запись(), 'st-чужой', '2026-08-04T10:00:00+03:00', { notes: 'перехват' }).rows(), []);
     // а своей — работает
-    const [après] = await u.Запись(своя.id).update({ status: 'confirmed' }).rows();
-    assert.equal(après.data.status, 'confirmed');
+    const [après] = await u.запись(своя.id).update({ notes: 'подтверждена' }).rows();
+    assert.equal(après.data.notes, 'подтверждена');
     // WRITE без правила — deny (на терминале)
-    await assert.rejects(u.Клиент().create({ name: 'х' }).rows(), /acl denies WRITE on Customer/);
+    await assert.rejects(u.Клиент().create({ name: 'х', phone: '+7' }).rows(), /acl denies WRITE on Customer/);
   } finally {
     await u.close();
   }
 });
 
 test('enforceAcl: tenant-шаблон account=$account', async () => {
-  await sys.Клиент().account(user.id).create({ name: 'Мой клиент' }).rows();
-  await sys.Клиент().account(other.id).create({ name: 'Чужой клиент' }).rows();
+  await sys.Клиент().account(user.id).create({ name: 'Мой клиент', phone: '+7 905 000-00-01' }).rows();
+  await sys.Клиент().account(other.id).create({ name: 'Чужой клиент', phone: '+7 905 000-00-02' }).rows();
   const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true });
   try {
     const мои = await u.Клиент().rows();
@@ -210,11 +222,11 @@ test('watch: события отдаются только при БЕЗУСЛО�
   const stop = await u.watch((e) => seen.push(e));
   try {
     await sys.SportsCar().create({ name: 'Виден' }).rows(); // vehicle:READ без предиката
-    await sys.Запись().account(user.id).owner(user.id).create().rows(); // own-предикат → скрыто (payload не проверить)
+    await мкЗапись(sys.запись().account(user.id).owner(user.id), 'st-watch', '2026-08-05T10:00:00+03:00').rows(); // own-предикат → скрыто (payload не проверить)
     await sys.Организация().create({ name: 'Скрыта' }).rows(); // deny → скрыто
     await new Promise((r) => setTimeout(r, 500));
     assert.ok(seen.some((e) => e.class === 'SportsCar'));
-    assert.ok(!seen.some((e) => e.class === 'Booking'));
+    assert.ok(!seen.some((e) => e.class === 'booking'));
     assert.ok(!seen.some((e) => e.class === 'Org'));
   } finally {
     await stop();

@@ -6,38 +6,41 @@ import type { EntityDb } from '../src/chain.js';
 
 const DSN = process.env.ENTITY_DSN ?? 'postgres://postgres:test@localhost:15432/clockz';
 let db: EntityDb;
+const S: Record<string, unknown> = {};
 
 before(async () => {
   db = await connect({ dsn: DSN, schema: 'v1.booking' });
   await db.sql.unsafe('TRUNCATE "v1.booking"."Entity"');
   const [org] = await db.Организация().create({ name: 'W3' }).rows();
-  const [cli] = await db.Организация(org).Клиент().create({ name: 'Клиент3' }).rows();
-  for (const [status, rub] of [['created', 100], ['confirmed', 200], ['confirmed', 300], ['completed', 400], ['cancelled', 500]] as const) {
-    await db.Клиент(cli).Запись().create({ status, total: { RUB: rub } }).rows();
+  // каталог товаров: price — число (от Элемента), unit — категория для countBy
+  for (const [name, price, unit] of [
+    ['Т-шампунь', 100, 'шт'], ['Т-воск', 200, 'мл'], ['Т-масло', 300, 'мл'],
+    ['Т-лосьон', 400, 'уп'], ['Т-бальзам', 500, 'бут'],
+  ] as const) {
+    await db.Организация(org).Товар().create({ name, price, unit }).rows();
   }
-  Object.assign(S, { org, cli });
+  Object.assign(S, { org });
 });
 after(async () => db.close());
-const S: Record<string, unknown> = {};
 
 test('or/not: дизъюнкция под-фильтров и отрицание', async () => {
-  assert.equal(await db.Запись(or({ status: 'created' }, { status: 'confirmed' })).count(), 3);
-  assert.equal(await db.Запись(or({ status: 'created', total: { RUB: 100 } }, { status: 'completed' })).count(), 2);
-  assert.equal(await db.Запись({ status: not('cancelled') }).count(), 4);          // not(скаляр) = ne
-  assert.equal(await db.Запись({ status: not(ilike('c%')) }).count(), 0);          // все статусы на c
-  assert.equal(await db.Запись(or({ total: { RUB: gte(400) } }, { status: 'created' })).count(), 3);
+  assert.equal(await db.Товар(or({ unit: 'шт' }, { unit: 'мл' })).count(), 3);
+  assert.equal(await db.Товар(or({ unit: 'мл', price: 200 }, { unit: 'уп' })).count(), 2);
+  assert.equal(await db.Товар({ unit: not('бут') }).count(), 4);                    // not(скаляр) = ne
+  assert.equal(await db.Товар({ name: not(ilike('т-%')) }).count(), 0);             // все имена на «Т-»
+  assert.equal(await db.Товар(or({ price: gte(400) }, { unit: 'шт' })).count(), 3);
 });
 
 test('агрегации: sum/avg/min/max/countBy считает БД', async () => {
-  assert.equal(await db.Запись({}).sum('data.total.RUB'), 1500);
-  assert.equal(await db.Запись({ status: 'confirmed' }).sum('data.total.RUB'), 500);
-  assert.equal(await db.Запись({}).avg('data.total.RUB'), 300);
-  assert.equal(Number(await db.Запись({}).min('data.total.RUB')), 100);
-  assert.equal(Number(await db.Запись({}).max('data.total.RUB')), 500);
-  assert.deepEqual(await db.Запись({}).countBy('data.status'), {
-    confirmed: 2, created: 1, completed: 1, cancelled: 1,
+  assert.equal(await db.Товар({}).sum('data.price'), 1500);
+  assert.equal(await db.Товар({ unit: 'мл' }).sum('data.price'), 500);
+  assert.equal(await db.Товар({}).avg('data.price'), 300);
+  assert.equal(Number(await db.Товар({}).min('data.price')), 100);
+  assert.equal(Number(await db.Товар({}).max('data.price')), 500);
+  assert.deepEqual(await db.Товар({}).countBy('data.unit'), {
+    мл: 2, шт: 1, уп: 1, бут: 1,
   });
-  assert.equal(await db.Запись({ status: 'нет-таких' }).sum('data.total.RUB'), null);
+  assert.equal(await db.Товар({ unit: 'нет-таких' }).sum('data.price'), null);
 });
 
 test('deep: дерево папок любой глубины одним запросом, $depth', async () => {
@@ -62,7 +65,7 @@ test('deep: дерево папок любой глубины одним зап�
 test('watch: событие приходит на insert и tombstone', async () => {
   const events: { class: string; deleted: boolean }[] = [];
   const stop = await db.watch('Клиент', (e) => events.push({ class: e.class, deleted: e.deleted }));
-  const [cli] = await db.Организация(S.org as never).Клиент().create({ name: 'Живой' }).rows();
+  const [cli] = await db.Организация(S.org as never).Клиент().create({ name: 'Живой', phone: '+7 930 000-00-01' }).rows();
   await db.Клиент(cli.id).delete({ confirm: true }).rows();
   await new Promise((r) => setTimeout(r, 300)); // notify асинхронен
   await stop();
@@ -71,7 +74,7 @@ test('watch: событие приходит на insert и tombstone', async ()
   assert.ok(events.some((e) => e.deleted === true));
   // после stop — тишина
   const n = events.length;
-  await db.Организация(S.org as never).Клиент().create({ name: 'После' }).rows();
+  await db.Организация(S.org as never).Клиент().create({ name: 'После', phone: '+7 930 000-00-02' }).rows();
   await new Promise((r) => setTimeout(r, 200));
   assert.equal(events.length, n);
 });
