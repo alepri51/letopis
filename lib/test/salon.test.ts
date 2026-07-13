@@ -41,6 +41,8 @@ let redis: Redis;
 const iso = (h: number) => `2026-08-01T${String(h).padStart(2, '0')}:00:00+03:00`;
 /** Schema: запись id = uuidv5(Мастер, старт) — формула открыта, id знаем ДО создания. */
 const bookingId = (staff: Row, start: string) => uuidv5(`${SCHEMA}:entity:booking:${staff.id}:${start}`);
+/** Сумма варианта цены в рублях (data.amounts — record RUB|USD|EUR|AED). */
+const rub = (r: Row) => (r.data.amounts as Record<string, number>).RUB;
 
 before(async () => {
   const admin = postgres(DSN, { max: 1, onnotice: () => {} });
@@ -114,10 +116,15 @@ test('Акт 3. Каталог: папки-дерево, услуги, комп�
   const [корень] = await db.Организация(org).Папка().create({ name: 'Каталог' }).rows();
   const [волосы] = await db.Организация(org).Папка(корень).Папка().create({ name: 'Волосы' }).rows(); // Папка→Папка (self)
 
-  const [стрижка] = await db.Организация(org).Услуга().create({ name: 'Стрижка', duration: 60, price: 1500 }).rows();
-  const [укладка] = await db.Организация(org).Услуга().create({ name: 'Укладка', duration: 30, price: 900 }).rows();
-  const [борода] = await db.Организация(org).Услуга().create({ name: 'Борода', duration: 30, price: 800, description: 'моделирование' }).rows();
-  const [шампунь] = await db.Организация(org).Товар().create({ name: 'Шампунь', price: 700, sku: 'SH-01' }).rows();
+  const [стрижка] = await db.Организация(org).Услуга().create({ name: 'Стрижка', duration: 60 }).rows();
+  const [укладка] = await db.Организация(org).Услуга().create({ name: 'Укладка', duration: 30 }).rows();
+  const [борода] = await db.Организация(org).Услуга().create({ name: 'Борода', duration: 30, description: 'моделирование' }).rows();
+  const [шампунь] = await db.Организация(org).Товар().create({ name: 'Шампунь', sku: 'SH-01' }).rows();
+
+  // цена — отдельный LINK «цена» (вариант «базовая», мультивалюта amounts); конец союза берётся из пути (Услуга)
+  await db.Услуга(стрижка).цена().create({ amounts: { RUB: 1500 } }).rows();  // варианты нужны аналитике (А13) и истории (А14)
+  await db.Услуга(укладка).цена().create({ amounts: { RUB: 900 } }).rows();
+  const [ценаБорода] = await db.Услуга(борода).цена().create({ amounts: { RUB: 800 } }).rows();
 
   // комплекс + его состав (LINK «состав» = [Комплекс, Услуга|Товар]) — предмет слотом
   const [набор] = await db.Организация(org).Комплекс().create({ name: 'Образ', duration: 90, cost: 2200 }).rows();
@@ -142,7 +149,7 @@ test('Акт 3. Каталог: папки-дерево, услуги, комп�
   const вПапке = await db.Папка(волосы).содержимое().Услуга().rows();
   assert.deepEqual(вПапке.map((r) => r.data.name).sort(), ['Стрижка', 'Укладка']);
 
-  Object.assign(S, { корень, волосы, стрижка, укладка, борода, шампунь, набор });
+  Object.assign(S, { корень, волосы, стрижка, укладка, борода, шампунь, набор, ценаБорода });
 });
 
 // ===========================================================================
@@ -386,8 +393,8 @@ test('Акт 12. Отчёты: операторы фильтра на катал
   assert.equal(await c({ description: isNull() }), 2);       // [75] isNull
   assert.equal(await c({ name: not(ilike('стр%')) }), 2);    // [76] not
   assert.equal(await db.Услуга(or({ name: 'Стрижка' }, { duration: lt(40) })).count(), 3); // [77] or
-  // цены теперь скаляр: сравнение прямо по data.price
-  assert.equal(await c({ price: gte(1000) }), 1);
+  // цена — LINK «цена»: фильтр по листу record amounts.RUB через класс цены (услуги дороже 1000)
+  assert.equal(await db.цена({ amounts: { RUB: gte(1000) } }).Услуга().count(), 1);
 });
 
 // ===========================================================================
@@ -396,9 +403,9 @@ test('Акт 12. Отчёты: операторы фильтра на катал
 //            [41 after][3 cursorOf][48 alias][49 tags][34 ids][31 run]
 // ===========================================================================
 test('Акт 13. Аналитика: агрегации, keyset, alias, tags', async () => {
-  // агрегации по цене услуг (data.price — число)
-  assert.equal(await db.Услуга().sum('data.price'), 1500 + 900 + 800);            // [43]
-  assert.ok(Math.abs((await db.Услуга().avg('data.price'))! - 1066.67) < 1);      // [44]
+  // агрегации по ценам каталога — класс «цена», числовой лист record data.amounts.RUB
+  assert.equal(await db.цена().sum('data.amounts.RUB'), 1500 + 900 + 800);        // [43]
+  assert.ok(Math.abs((await db.цена().avg('data.amounts.RUB'))! - 1066.67) < 1);  // [44]
   assert.equal(await db.Услуга().min('data.duration'), 30);                       // [45]
   assert.equal(await db.Услуга().max('data.duration'), 60);                       // [46]
   const byDur = await db.Услуга().countBy('data.duration');                       // [47]
@@ -420,7 +427,7 @@ test('Акт 13. Аналитика: агрегации, keyset, alias, tags', a
   assert.ok(пути[0]['Исполнитель'] && пути[0]['Исполнитель'].data.name === 'Ольга');
 
   // tags: значение при создании (модификатор tags в записи = метки строки) + поиск по тегу
-  const [хит] = await db.Организация(S.org).Услуга().tags('топ').create({ name: 'Хит сезона', duration: 45, price: 2500 }).rows(); // [49]
+  const [хит] = await db.Организация(S.org).Услуга().tags('топ').create({ name: 'Хит сезона', duration: 45 }).rows(); // [49]
   const поТегу = await db.Услуга().tags('топ').rows();
   assert.equal(поТегу.length, 1);
   assert.equal(поТегу[0].id, хит.id);
@@ -432,19 +439,19 @@ test('Акт 13. Аналитика: агрегации, keyset, alias, tags', a
 // покрывает: [40 asOf][36 versions]
 // ===========================================================================
 test('Акт 14. История: asOf и versions по изменению цены', async () => {
-  const { борода } = S;
+  const { ценаБорода } = S;
   const before = new Date().toISOString();
   await new Promise((r) => setTimeout(r, 30));   // > гранулярности таймера Windows (~15 мс) — before строго до новой версии
-  await db.Услуга(борода).update({ price: 1000 }).rows();  // подорожание
+  await db.цена(ценаБорода.id).update({ amounts: { RUB: 1000 } }).rows();  // подорожание (record мержится точечно)
 
-  const сейчас = await db.Услуга(борода).first();
-  assert.equal(сейчас!.data.price, 1000);
-  const тогда = await db.Услуга(борода).asOf(before).first();       // [40]
-  assert.equal(тогда!.data.price, 800);
+  const сейчас = await db.цена(ценаБорода.id).first();
+  assert.equal(rub(сейчас!), 1000);
+  const тогда = await db.цена(ценаБорода.id).asOf(before).first();  // [40]
+  assert.equal(rub(тогда!), 800);
 
-  const версии = await db.Услуга(борода).versions();                // [36]
+  const версии = await db.цена(ценаБорода.id).versions();           // [36]
   assert.ok(версии.length >= 2);
-  assert.deepEqual(версии.map((v) => v.data.price), [800, 1000]);
+  assert.deepEqual(версии.map(rub), [800, 1000]);
 });
 
 // ===========================================================================
@@ -611,7 +618,7 @@ test('Акт 20. Аренда и наблюдаемость: enforceAccount, onQ
   assert.equal(события[0].slow, true);                                             // slowMs:0 → всё slow
 
   // tags/owner как значения при INSERT (create-контекст)
-  const [svc] = await db.Организация(S.org).Услуга().tags(['акция', 'сезон']).create({ name: 'Спец', duration: 20, price: 500 }).rows(); // [138]
+  const [svc] = await db.Организация(S.org).Услуга().tags(['акция', 'сезон']).create({ name: 'Спец', duration: 20 }).rows(); // [138]
   assert.deepEqual(svc.tags.sort(), ['акция', 'сезон']);
   await db.Услуга(svc.id).delete({ confirm: true }).rows();
 });
@@ -623,8 +630,8 @@ test('Акт 20. Аренда и наблюдаемость: enforceAccount, onQ
 // ===========================================================================
 test('Акт 21. Гарды: валидация, снесённые set()/.link/.delete-слот, execute→run, пути', async () => {
   // строгая валидация данных
-  await assert.rejects(db.Организация(S.org).Услуга().create({ name: 'Плохая', duration: -1, price: 1 }).rows(), ValidationError); // [5]
-  await assert.rejects(db.Организация(S.org).Услуга().create({ name: 'Лишнее', duration: 10, price: 1, xx: 1 }).rows(), ValidationError);
+  await assert.rejects(db.Организация(S.org).Услуга().create({ name: 'Плохая', duration: -1 }).rows(), ValidationError); // [5]
+  await assert.rejects(db.Организация(S.org).Услуга().create({ name: 'Лишнее', duration: 10, xx: 1 }).rows(), ValidationError);
 
   // невалидные пути — синхронно при построении
   assert.throws(() => db.Локация(S.зал).Клиент(), /no path/);                      // [58] Location→Customer

@@ -12,12 +12,13 @@ before(async () => {
   db = await connect({ dsn: DSN, schema: 'v1.booking' });
   await db.sql.unsafe('TRUNCATE "v1.booking"."Entity"');
   const [org] = await db.Организация().create({ name: 'W3' }).rows();
-  // каталог товаров: price — число (от Элемента), unit — категория для countBy
-  for (const [name, price, unit] of [
+  // каталог товаров: цена — отдельный LINK «цена» (amounts.RUB), unit — категория для countBy
+  for (const [name, rub, unit] of [
     ['Т-шампунь', 100, 'шт'], ['Т-воск', 200, 'мл'], ['Т-масло', 300, 'мл'],
     ['Т-лосьон', 400, 'уп'], ['Т-бальзам', 500, 'бут'],
   ] as const) {
-    await db.Организация(org).Товар().create({ name, price, unit }).rows();
+    const [t] = await db.Организация(org).Товар().create({ name, unit }).rows();
+    await db.Товар(t).цена().create({ amounts: { RUB: rub } }).rows();
   }
   Object.assign(S, { org });
 });
@@ -25,22 +26,25 @@ after(async () => db.close());
 
 test('or/not: дизъюнкция под-фильтров и отрицание', async () => {
   assert.equal(await db.Товар(or({ unit: 'шт' }, { unit: 'мл' })).count(), 3);
-  assert.equal(await db.Товар(or({ unit: 'мл', price: 200 }, { unit: 'уп' })).count(), 2);
+  assert.equal(await db.Товар(or({ unit: 'мл', name: 'Т-воск' }, { unit: 'уп' })).count(), 2); // AND внутри дизъюнкта
   assert.equal(await db.Товар({ unit: not('бут') }).count(), 4);                    // not(скаляр) = ne
   assert.equal(await db.Товар({ name: not(ilike('т-%')) }).count(), 0);             // все имена на «Т-»
-  assert.equal(await db.Товар(or({ price: gte(400) }, { unit: 'шт' })).count(), 3);
+  // дизъюнкция по цене — через LINK «цена» (лист record amounts.RUB): (>=400) или (=100) → 3
+  assert.equal(await db.цена(or({ amounts: { RUB: gte(400) } }, { amounts: { RUB: 100 } })).count(), 3);
 });
 
 test('агрегации: sum/avg/min/max/countBy считает БД', async () => {
-  assert.equal(await db.Товар({}).sum('data.price'), 1500);
-  assert.equal(await db.Товар({ unit: 'мл' }).sum('data.price'), 500);
-  assert.equal(await db.Товар({}).avg('data.price'), 300);
-  assert.equal(Number(await db.Товар({}).min('data.price')), 100);
-  assert.equal(Number(await db.Товар({}).max('data.price')), 500);
+  // суммы/средние/мин/макс по цене — на LINK «цена» (лист record amounts.RUB)
+  assert.equal(await db.цена({}).sum('data.amounts.RUB'), 1500);
+  assert.equal(await db.Товар({ unit: 'мл' }).цена().sum('data.amounts.RUB'), 500);
+  assert.equal(await db.цена({}).avg('data.amounts.RUB'), 300);
+  assert.equal(Number(await db.цена({}).min('data.amounts.RUB')), 100);
+  assert.equal(Number(await db.цена({}).max('data.amounts.RUB')), 500);
+  // countBy — по единице измерения самого Товара
   assert.deepEqual(await db.Товар({}).countBy('data.unit'), {
     мл: 2, шт: 1, уп: 1, бут: 1,
   });
-  assert.equal(await db.Товар({ unit: 'нет-таких' }).sum('data.price'), null);
+  assert.equal(await db.Товар({ unit: 'нет-таких' }).цена().sum('data.amounts.RUB'), null);
 });
 
 test('deep: дерево папок любой глубины одним запросом, $depth', async () => {

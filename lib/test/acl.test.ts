@@ -138,8 +138,8 @@ test('enforceAcl: предикат owner=$account сужает чтение ЗА
 
 test('enforceAcl: статический data-шаблон — виден только срез', async () => {
   const [салон] = await sys.Организация().create({ name: 'Салон ACL' }).rows();
-  await sys.Организация(салон.id).Услуга().create({ name: 'Экспресс', price: 100, duration: 30 }).rows();
-  await sys.Организация(салон.id).Услуга().create({ name: 'Обстоятельная', price: 100, duration: 60 }).rows();
+  await sys.Организация(салон.id).Услуга().create({ name: 'Экспресс', duration: 30 }).rows();
+  await sys.Организация(салон.id).Услуга().create({ name: 'Обстоятельная', duration: 60 }).rows();
 
   const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true });
   try {

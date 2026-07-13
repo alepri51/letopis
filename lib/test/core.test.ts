@@ -99,7 +99,7 @@ test('триггеры БД: UPDATE = новая версия, DELETE = tombston
 
 test('Schema lineage: ancestors и descendants считает триггер', async () => {
   const link = db.registry.resolve('связь');
-  assert.deepEqual(link.descendants.sort(), ['address', 'booking', 'compo', 'content', 'skill', 'slot']);
+  assert.deepEqual(link.descendants.sort(), ['address', 'booking', 'compo', 'content', 'price', 'skill', 'slot']);
   const booking = db.registry.resolve('запись');
   assert.deepEqual(booking.ancestors, ['booking', 'slot', 'link']); // трёхзвенная цепочка LINK
   const person = db.registry.resolve('Контрагент');
@@ -117,9 +117,13 @@ test('пример ТЗ: услуги Васи через навык, форма
   const [org] = await db.Организация().create({ name: 'TestOrg' }).rows();
   const [вася] = await db.Организация(org).Мастер().create({ name: 'Вася', phone: '+7 900 111-11-11' }).rows();
   const [петя] = await db.Организация(org).Мастер().create({ name: 'Петя', phone: '+7 900 222-22-22' }).rows();
-  const [стрижка] = await db.Организация(org).Услуга().create({ name: 'Стрижка', duration: 60, price: 1500 }).rows();
-  const [борода] = await db.Организация(org).Услуга().create({ name: 'Борода', duration: 30, price: 1000 }).rows();
-  const [массаж] = await db.Организация(org).Услуга().create({ name: 'Массаж', duration: 90, price: 3000 }).rows();
+  const [стрижка] = await db.Организация(org).Услуга().create({ name: 'Стрижка', duration: 60 }).rows();
+  const [борода] = await db.Организация(org).Услуга().create({ name: 'Борода', duration: 30 }).rows();
+  const [массаж] = await db.Организация(org).Услуга().create({ name: 'Массаж', duration: 90 }).rows();
+  // цена — отдельный LINK «цена» (вариант по умолчанию «базовая», мультивалюта в amounts)
+  await db.Услуга(стрижка).цена().create({ amounts: { RUB: 1500 } }).rows();
+  await db.Услуга(борода).цена().create({ amounts: { RUB: 1000 } }).rows();
+  await db.Услуга(массаж).цена().create({ amounts: { RUB: 3000 } }).rows();
 
   // связь навык: владелец (Мастер) — из пути, предмет — слотом
   await db.Мастер(вася).навык().create().Услуга.set(стрижка).rows();
@@ -217,7 +221,8 @@ test('фильтры: date between (календарь), число gte/lte, ili
   const длинные = await db.Услуга({ duration: gte(60) }).rows();
   assert.deepEqual(длинные.map((r) => r.data.name).sort(), ['Массаж', 'Стрижка']);
 
-  const дешёвые = await db.Услуга({ price: lte(1200) }).rows();
+  // поиск по цене — через LINK «цена» (фильтр по листу record amounts.RUB, каст в число)
+  const дешёвые = await db.цена({ amounts: { RUB: lte(1200) } }).Услуга().rows();
   assert.deepEqual(дешёвые.map((r) => r.data.name), ['Борода']);
 
   assert.equal(await db.Услуга({ name: ne('Стрижка') }).count(), 2);
@@ -392,15 +397,15 @@ test('update: без совпадений → [] — НИКОГДА не соз�
 test('валидация СТРОГАЯ: мусор, лишние поля, abstract, концы LINK', async () => {
   const [org] = await db.Организация({ name: 'TestOrg' }).rows();
   await assert.rejects(
-    db.Организация(org).Услуга().create({ name: 'Кривая', duration: -5, price: 100 }).rows(),
+    db.Организация(org).Услуга().create({ name: 'Кривая', duration: -5 }).rows(),
     ValidationError,
   );
   await assert.rejects(
-    db.Организация(org).Услуга().create({ name: 'Лишняя', duration: 10, price: 1, hacker_field: 1 }).rows(),
+    db.Организация(org).Услуга().create({ name: 'Лишняя', duration: 10, hacker_field: 1 }).rows(),
     ValidationError,
   );
   // Услуга без Org: v5-id считается из (Org, name) — конца нет, и id не из чего
-  await assert.rejects(db.Услуга().create({ name: 'Бесхозная', duration: 10, price: 1 }).rows(), /needs end "Org"/);
+  await assert.rejects(db.Услуга().create({ name: 'Бесхозная', duration: 10 }).rows(), /needs end "Org"/);
   await assert.rejects(db.Сущность().create({ x: 1 }).rows(), /is abstract/);
   await assert.rejects(db.Контрагент().create({ name: 'Ничей', phone: '+7' }).rows(), /is abstract/);
   await assert.rejects(
@@ -540,7 +545,7 @@ test('батч: копит, run() атомарно, контекст в батч
 
   // атомарность: невалидная операция в середине → откат всего
   db.batch('b2').Клиент().create({ name: 'БатчОк', phone: '+7 907 000-00-08' });
-  db.batch('b2').Организация(org).Услуга().create({ name: 'Сломанная', duration: -1, price: 1 });
+  db.batch('b2').Организация(org).Услуга().create({ name: 'Сломанная', duration: -1 });
   await assert.rejects(db.batch('b2').run(), ValidationError);
   assert.equal(await db.Клиент({ name: 'БатчОк' }).count(), 0);
 

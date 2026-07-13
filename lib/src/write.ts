@@ -287,9 +287,26 @@ async function resolveSlots(
 const genId = (cls: ClassDef): string => (cls.idGen.version === 7 ? uuidv7() : randomUUID());
 
 /**
+ * default поля из правила Schema.attributes: объект-правило `{default: …}` или
+ * DSL-строка `'string|default:базовая'`. Нужен v5Id: id считается ДО валидации (та
+ * подставляет defaults позже), поэтому необязательное from-поле берёт дефолт здесь.
+ */
+function defaultOf(rule: unknown): unknown {
+  if (rule && typeof rule === 'object' && !Array.isArray(rule) && 'default' in rule) {
+    return (rule as { default: unknown }).default;
+  }
+  if (typeof rule === 'string') {
+    const seg = rule.split('|').map((s) => s.trim()).find((s) => s.startsWith('default:'));
+    if (seg) return seg.slice('default:'.length);
+  }
+  return undefined;
+}
+
+/**
  * Детерминированный id (uuid v5): имя = «схема:партиция:класс:значения from».
  * from-источник — конец Schema.links (класс или полное имя союза 'Service|Complex';
- * значение — id присутствующего класса конца) или скалярное поле data.
+ * значение — id присутствующего класса конца) или скалярное поле data (если не задано —
+ * его default из Schema.attributes: id стабилен и без явного ввода необязательного поля).
  */
 function v5Id(ctx: Ctx, cls: ClassDef, links: Record<string, string>, data: Record<string, unknown>): string {
   const parts: string[] = [];
@@ -304,7 +321,7 @@ function v5Id(ctx: Ctx, cls: ClassDef, links: Record<string, string>, data: Reco
       }
       parts.push(links[hit]);
     } else {
-      const v = data[f];
+      const v = data[f] === undefined ? defaultOf(cls.attributes[f]) : data[f];
       if (v === undefined || v === null || typeof v === 'object') {
         throw new Error(`letopis: id (uuid v5) of "${cls.id}" needs scalar data field "${f}"`);
       }

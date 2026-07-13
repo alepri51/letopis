@@ -16,26 +16,28 @@ after(async () => db.close());
 
 test('asOf: чтение «как было»; versions: вся история с $deleted', async () => {
   const [org] = await db.Организация().create({ name: 'Хронос' }).rows();
-  const [svc] = await db.Организация(org).Услуга().create({ name: 'Стрижка', duration: 30, price: 1000 }).rows();
-  const t1 = svc.updated; // серверное время версии (clock skew клиент/БД не влияет)
-  await db.Услуга(svc.id).update({ price: 2000 }).rows();
+  const [svc] = await db.Организация(org).Услуга().create({ name: 'Стрижка', duration: 30 }).rows();
+  // история цены — на отдельном LINK «цена» (amounts.RUB), не на самой услуге
+  const [ц] = await db.Услуга(svc.id).цена().create({ amounts: { RUB: 1000 } }).rows();
+  const t1 = ц.updated; // серверное время версии (clock skew клиент/БД не влияет)
+  await db.цена(ц.id).update({ amounts: { RUB: 2000 } }).rows();
 
   // сейчас 2000, на момент t1 — 1000
-  assert.equal((await db.Услуга(svc.id).first())!.data.price, 2000);
-  const тогда = await db.Услуга(svc.id).asOf(t1).first();
-  assert.equal(тогда!.data.price, 1000);
+  assert.equal(((await db.цена(ц.id).first())!.data.amounts as Record<string, number>).RUB, 2000);
+  const тогда = await db.цена(ц.id).asOf(t1).first();
+  assert.equal((тогда!.data.amounts as Record<string, number>).RUB, 1000);
 
   // до создания — не существует; после delete на «сейчас» — нет, на t1 — есть
-  assert.equal(await db.Услуга(svc.id).asOf('2020-01-01').count(), 0);
-  await db.Услуга(svc.id).delete({ confirm: true }).rows();
-  assert.equal(await db.Услуга(svc.id).count(), 0);
-  assert.equal((await db.Услуга(svc.id).asOf(t1).first())!.id, svc.id);
+  assert.equal(await db.цена(ц.id).asOf('2020-01-01').count(), 0);
+  await db.цена(ц.id).delete({ confirm: true }).rows();
+  assert.equal(await db.цена(ц.id).count(), 0);
+  assert.equal((await db.цена(ц.id).asOf(t1).first())!.id, ц.id);
 
   // versions: 3 версии (1000, 2000, tombstone) по возрастанию
-  const вс = await db.Услуга(svc.id).versions();
+  const вс = await db.цена(ц.id).versions();
   assert.equal(вс.length, 3);
   assert.deepEqual(вс.map((v) => v.$deleted ?? false), [false, false, true]);
-  assert.equal(вс[0].data.price, 1000);
+  assert.equal((вс[0].data.amounts as Record<string, number>).RUB, 1000);
 });
 
 test('after: keyset-пагинация стабильна и совпадает с полной выборкой', async () => {

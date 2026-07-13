@@ -9,7 +9,7 @@
 Воспроизвести целиком:
 
 ```bash
-node lib/bench/salon-seed.mjs          # засеять полигон v1.salondemo (~980k строк, ~8 мин)
+node lib/bench/salon-seed.mjs          # засеять полигон v1.salondemo (~982k строк, ~8 мин)
 node lib/bench/salon-article-demo.mjs  # снять все ответы этой статьи
 ```
 
@@ -30,13 +30,13 @@ node lib/bench/salon-article-demo.mjs  # снять все ответы этой
 
 | Класс | Строк | | Класс | Строк |
 |---|--:|---|---|--:|
-| `booking` (запись) | 880 011 | | `content` (содержимое) | 753 |
-| `slot` (окно) | 54 002 | | `compo` (состав) | 363 |
-| `Customer` (Клиент) | 40 003 | | `Staff` (Мастер) | 362 |
-| `skill` (навык) | 3 004 | | `address` (адрес) | 362 |
-| `Service` (Услуга) | 1 204 | | `Location` (Локация) | 61 |
+| `booking` (запись) | 880 011 | | `price` (цена) | 1 627 |
+| `slot` (окно) | 54 002 | | `Service` (Услуга) | 603 |
+| `Customer` (Клиент) | 40 003 | | `content` (содержимое) | 753 |
+| `skill` (навык) | 3 004 | | `compo` (состав) | 363 |
+| `Staff`/`address` | 362 + 362 | | `Location` (Локация) | 61 |
 
-**Итого 980 900 строк.** `booking` — половина полигона: у каждой записи две версии
+**Итого 981 968 строк.** `booking` — половина полигона: у каждой записи две версии
 (создана → подтверждена накануне), append-only хранит их обе, актуальная — с
 максимальным `updated`.
 
@@ -51,6 +51,7 @@ node lib/bench/salon-article-demo.mjs  # снять все ответы этой
 содержимое  [Folder, Service|Product|Complex]              ← наполнение папки-каталога
 состав      [Complex, Service|Product]                     ← состав комплекса
 навык       [Staff, Service]                               ← мастер умеет услугу
+цена        [Service|Product|Complex]                      ← вариант цены: note + amounts (мультивалюта)
 ```
 
 `Service|Product|Complex` — «ровно один из»: предмет записи — либо услуга, либо товар,
@@ -86,6 +87,7 @@ attributes, **наследуется по иерархии классов** (п�
 | | `skill` | `uuidv5(Staff, Service)` |
 | | `compo` | `uuidv5(Complex, Service\|Product)` |
 | | `content` | `uuidv5(Folder, Service\|Product\|Complex)` |
+| | `цена (price)` | `uuidv5(элемент, note)` — `note` не задан ⇒ дефолт `'базовая'` (генератор берёт default из Schema) |
 
 v5-формула открыта: `uuidv5("схема:партиция:класс:значения from")` — функция
 экспортируется пакетом (`import { uuidv5 } from 'letopis'`). Это даёт два свойства,
@@ -166,19 +168,40 @@ await db.Организация().count()                              // → 31
 
 ```ts
 const [стрижка] = await db.Организация(org).Услуга()
-  .create({ name: 'Стрижка', duration: 60, price: 1500 }).rows()
+  .create({ name: 'Стрижка', duration: 60 }).rows()
 ```
 ```jsonc
-// [18.6 ms] — конец Org из пути; id вычислен схемой: uuidv5(Org, "Стрижка")
+// [17.2 ms] — конец Org из пути; id вычислен схемой: uuidv5(Org, "Стрижка")
 { "id": "…65ae", "class": "Service",
-  "data": { "name": "Стрижка", "price": 1500, "duration": 60 },
+  "data": { "name": "Стрижка", "duration": 60 },
   "links": { "Org": "…0010" } }
 // проверка формулы: стрижка.id === uuidv5(`v1.salondemo:entity:Service:${org.id}:Стрижка`)  → true
 ```
 
 Никакого id в вызове нет — «Стрижка» в этом салоне может существовать только одна,
 и её id вытекает из этого факта. Повторный `create` той же пары (салон, имя) не создаст
-дубль — добавит версию. Цена теперь — просто число: валюта осталась за приложением.
+дубль — добавит версию.
+
+**Цена — отдельная связь `цена`** (вариант по пожеланиям + мультивалюта). У услуги может
+быть несколько вариантов (`note` их различает); `note` не задан → дефолт «базовая», и id
+варианта считается стабильно из (услуга, note):
+
+```ts
+const [цена] = await db.Услуга(стрижка).цена().create({ amounts: { RUB: 1500, USD: 18 } }).rows()
+```
+```jsonc
+// [14.9 ms] — note подставлен дефолтом, id = uuidv5(услуга, "базовая")
+{ "id": "…", "class": "price", "note": "базовая", "amounts": { "RUB": 1500, "USD": 18 },
+  "links": { "Service": "…65ae" } }
+// цена.id === uuidv5(`v1.salondemo:entity:price:${стрижка.id}:базовая`)  → true
+await db.Услуга(стрижка).цена().create({ note: 'с дизайном', amounts: { RUB: 2000 } }).rows()  // второй вариант
+await db.Услуга(стрижка).цена().rows()   // [6.7 ms] → [{note:'базовая',…}, {note:'с дизайном',…}]
+```
+
+Почему цена не поле-число и не массив: варианты правят по одному (`db.цена(id).update({amounts:{RUB:…}})`
+меняет лишь одну валюту — record мержится по ключам), по цене ищут
+(`db.цена({amounts:{RUB:lte(2000)}}).Услуга()`) и ведут историю каждого варианта. Массив в
+`data` при update заменялся бы целиком — точечно не поправить, гонки теряют правки.
 
 Комплекс «Образ» и его состав. Владелец состава (`Комплекс`) — из пути, предмет
 (`Услуга`/`Товар` — союзный конец) — **слотом**; в состав входят и услуги, и товар:
@@ -362,7 +385,7 @@ db.Услуга({ duration: ne(60) }).count()               // [10.2 ms] → 452
 db.Услуга({ duration: between(30, 45) }).count()                 // → 302
 db.Услуга({ name: ilike('массаж 7') }).count()                  // → 30
 db.Локация({ coordinates: { lat: gte(55.5) } }).count()         // [5.4 ms] → 27  (вложенный путь)
-db.Услуга({ price: gte(2000) }).count()                         // → 300
+db.цена({ amounts: { RUB: gte(2000) } }).Услуга().count()       // [38.9 ms] → 391  (поиск по цене через класс)
 db.Услуга({ description: isNull() }).count()                    // → 392
 db.Услуга(or({ name: 'Стрижка 0' }, { duration: lt(40) })).count()   // → 152
 ```
@@ -376,10 +399,10 @@ db.Услуга(or({ name: 'Стрижка 0' }, { duration: lt(40) })).count() 
 **Агрегации** — считает БД, не приложение:
 
 ```ts
-db.Услуга().count()                 // [7.3 ms] → 603   (уникальные сущности)
-db.Услуга().sum('data.price')       // [8.5 ms] → 1 218 200
-db.Услуга().avg('data.duration')    //         → 52.4
-db.Услуга().min('data.duration')    // → 30    max → 75
+db.Услуга().count()                    // [2.5 ms] → 603   (уникальные сущности)
+db.цена().sum('data.amounts.RUB')      // [13.9 ms] → 2 111 400  (сумма всех вариантов, record-лист)
+db.Услуга().avg('data.duration')       //         → 52.4
+db.Услуга().min('data.duration')       // → 30    max → 75
 db.Услуга().countBy('data.duration')   // [7.7 ms] → { "30": 152, "45": 150, "60": 151, "75": 150 }
 ```
 
@@ -395,26 +418,27 @@ db.запись().count()   // [5589.4 ms] → 440 002
 Пять с половиной секунд на 880 000 версий-строк — честный full-scan класса с вычислением
 актуальной версии каждой из 440 000 записей. Дорого стоит только «посчитать вообще всё».
 
-**Keyset-пагинация** — страница за страницей по возрастанию цены, без `OFFSET`:
+**Keyset-пагинация** — страница за страницей по возрастанию цены (класс `цена`), без `OFFSET`:
 
 ```ts
-const p1 = await db.Услуга().sort('data.price').limit(3).rows()   // [17.2 ms]
-// → Борода 800, Стрижка 10 → 900, Стрижка 0 → 900
-const cur = cursorOf(p1[p1.length - 1], 'data.price')
-const p2 = await db.Услуга().sort('data.price').after(cur).limit(3).rows()   // [13.0 ms]
+const p1 = await db.цена().sort('data.amounts.RUB').limit(3).rows()   // [22.6 ms]
+// → base 300, base 300, base 300 (варианты цены по возрастанию RUB)
+const cur = cursorOf(p1[p1.length - 1], 'data.amounts.RUB')
+const p2 = await db.цена().sort('data.amounts.RUB').after(cur).limit(3).rows()   // [26.1 ms]
 // следующая тройка — строго после курсора, без пропусков и дублей на границе
 ```
 
 ## Акт 14. Машина времени
 
-Услуга «Борода» дорожает с 800 до 1000 ₽. Обе цены остаются в истории:
+Вариант цены «Бороды» дорожает с 800 до 1000 ₽ — правим одну валюту, обе версии в истории:
 
 ```ts
-await db.Услуга(борода).update({ price: 1000 }).rows()
-db.Услуга(борода).first()                     // цена сейчас → 1000
-db.Услуга(борода).asOf(доПодорожания).first() // цена тогда → 800
-db.Услуга(борода).versions()                  // [7.7 ms]
-// → [ { price: 800, updated: "…20:43:23" }, { price: 1000, updated: "…20:43:37" } ]
+const [цБорода] = await db.Услуга(борода).цена().rows()      // вариант «базовая»
+await db.цена(цБорода.id).update({ amounts: { RUB: 1000 } }).rows()   // record-merge: меняется лишь RUB
+db.цена(цБорода.id).first()                     // сейчас → { RUB: 1000 }
+db.цена(цБорода.id).asOf(доПодорожания).first() // тогда → { RUB: 800 }
+db.цена(цБорода.id).versions()                  // [6.1 ms]
+// → [ { RUB: 800, updated: "…20:43:23" }, { RUB: 1000, updated: "…20:43:37" } ]
 ```
 
 ## Акт 16. Приватность (GDPR)
@@ -503,13 +527,13 @@ await iso.Организация().count()   // → 1   (только своя, 
 цепочки**, до похода в БД:
 
 ```ts
-db.Организация(org).Услуга().create({ name: 'X', duration: -1, price: 1 }).rows()
+db.Организация(org).Услуга().create({ name: 'X', duration: -1 }).rows()
 // → validation failed for "Service": duration — …  (на терминале)
 
 db.Мастер(ольга).запись().create({ start_datetime, end_datetime }).Локация.set(зал).Расписание.set(расп).rows()
 // → link "booking" requires end "Service|Product|Complex"   (нет предмета — союз обязателен)
 db.Мастер(ольга).навык().create().rows()   // → id (uuid v5) of "skill" needs end "Service"
-db.Услуга('…').create({ name: 'Y', price: 1 })  // → class "Service" computes id (uuid v5 from Org, name)
+db.Услуга('…').create({ name: 'Y' })  // → class "Service" computes id (uuid v5 from Org, name)
 
 db.Локация(зал).Клиент()             // → no path Location → Customer  (СИНХРОННО, до БД)
 db.запись().навык()                  // → LINK → LINK traversal is not supported (booking → skill)

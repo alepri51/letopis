@@ -15,7 +15,8 @@ const DSN = process.env.ENTITY_DSN ?? 'postgres://postgres:test@localhost:15432/
 const SCHEMA = 'v1.wave4'; // своя PG-схема: compression не должна трогать тестовую "v1.booking"
 const here = dirname(fileURLToPath(import.meta.url));
 const SYS = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
-const price = (r: unknown) => (r as { data: { price: number } }).data.price;
+// price убран из каталожных классов — версионируем по числовому полю duration
+const dur = (r: unknown) => (r as { data: { duration: number } }).data.duration;
 
 let db: EntityDb;
 
@@ -34,9 +35,9 @@ test('policies: сжатый чанк читается (first/versions/asOf), з
   await db.sql.unsafe(
     `INSERT INTO "${SCHEMA}"."Entity" (partition, id, class, data, account, owner, updated)
      VALUES ('entity', $1, 'Service', $2, '${SYS}', '${SYS}', now() - interval '70 days')`,
-    [id, { name: 'Стрижка', duration: 30, price: 1000 }] as never[],
+    [id, { name: 'Стрижка', duration: 30 }] as never[],
   );
-  await db.Услуга(id).update({ price: 1500 }).rows();
+  await db.Услуга(id).update({ duration: 45 }).rows();
 
   const out = execFileSync(
     'node',
@@ -54,16 +55,16 @@ test('policies: сжатый чанк читается (first/versions/asOf), з
 
   // чтение сжатого прозрачно: latest, вся история, asOf внутрь сжатого периода
   const svc = await db.Услуга(id).first();
-  assert.equal(price(svc), 1500);
+  assert.equal(dur(svc), 45);
   const hist = await db.Услуга(id).versions();
   assert.equal(hist.length, 2);
-  assert.equal(price(hist[0]), 1000);
+  assert.equal(dur(hist[0]), 30);
   const old = await db.Услуга(id).asOf(new Date(Date.now() - 45 * 24 * 3600e3)).first();
-  assert.equal(price(old), 1000);
+  assert.equal(dur(old), 30);
 
   // новые версии идут в свежие чанки — сжатие модели не мешает
-  const [v3] = await db.Услуга(id).update({ price: 2000 }).rows();
-  assert.equal(price(v3), 2000);
+  const [v3] = await db.Услуга(id).update({ duration: 60 }).rows();
+  assert.equal(dur(v3), 60);
   assert.equal((await db.Услуга(id).versions()).length, 3);
 });
 

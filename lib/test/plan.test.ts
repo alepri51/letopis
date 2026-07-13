@@ -70,12 +70,12 @@ test('fan-out: сегмент исполняется для каждой стр�
   // эталон: обновить одну организацию → вставить услугу ЕЙ (v5-id услуги — из Org пути)
   const подарки = await db.Организация({ name: 'Сеть-1' })
     .update({ phone: '+7 495 000-00-01' })
-    .Услуга().create({ name: 'Акция', duration: 15, price: 1 })
+    .Услуга().create({ name: 'Акция', duration: 15 })
     .rows();
   assert.equal(подарки.length, 1);
 
   const все = await db.Организация({}).tags('сеть').update({ active: true }) // Класс({}) = UPDATE всех сетевых
-    .Услуга().create({ name: 'Праздничная', duration: 15, price: 2 })        // INSERT каждой
+    .Услуга().create({ name: 'Праздничная', duration: 15 })        // INSERT каждой
     .rows();
   assert.equal(все.length, 2);
   const классы = new Set(все.map((r) => r.class));
@@ -90,7 +90,7 @@ test('fan-out: сегмент исполняется для каждой стр�
 
 test('delete без confirm — превью: кандидаты (цель + каскад), БД не тронута', async () => {
   const [орг] = await db.Организация().create({ name: 'План-орг' }).rows();
-  const [усл] = await db.Организация(орг.id).Услуга().create({ name: 'Тест', duration: 30, price: 100 }).rows();
+  const [усл] = await db.Организация(орг.id).Услуга().create({ name: 'Тест', duration: 30 }).rows();
   const [зап] = await db.Клиент({ name: 'Аня' }).запись()
     .create({ start_datetime: '2026-07-05T10:00:00+03:00', end_datetime: '2026-07-05T11:00:00+03:00' })
     .Мастер.set('st-превью').Локация.set('loc-превью').Расписание.set('sch-превью').Услуга.set(усл.id).rows();
@@ -164,8 +164,8 @@ test('run() — бывший execute: пути; старое имя бросае
 test('батч: план копится до batch.run(); терминал на плане в батче — ошибка', async () => {
   const [орг] = await db.Организация().create({ name: 'Батч-орг' }).rows();
   const b = db.batch('план');
-  b.Организация(орг.id).Услуга().create({ name: 'Б1', duration: 15, price: 1 });
-  b.Организация(орг.id).Услуга().create({ name: 'Б2', duration: 15, price: 2 });
+  b.Организация(орг.id).Услуга().create({ name: 'Б1', duration: 15 });
+  b.Организация(орг.id).Услуга().create({ name: 'Б2', duration: 15 });
   const план = b.Клиент().create({ name: 'Батчевый', phone: '+7 904' })
     .запись().create({ start_datetime: '2026-07-08T10:00:00+03:00', end_datetime: '2026-07-08T11:00:00+03:00' })
     .Мастер.set('st-батч').Локация.set('loc-батч').Расписание.set('sch-батч').Услуга.set('svc-батч');

@@ -38,9 +38,12 @@ before(async () => {
   [S.марина] = await db.Организация(S.салон).Мастер().create({ name: 'Марина', phone: '+7 921 001' }).rows();
   [S.света] = await db.Организация(S.салон).Мастер().create({ name: 'Света', phone: '+7 921 002' }).rows();
 
-  [S.маникюр] = await db.Организация(S.салон).Услуга().create({ name: 'Маникюр', duration: 60, price: 2000 }).rows();
-  [S.педикюр] = await db.Организация(S.салон).Услуга().create({ name: 'Педикюр', duration: 90, price: 3000 }).rows();
+  [S.маникюр] = await db.Организация(S.салон).Услуга().create({ name: 'Маникюр', duration: 60 }).rows();
+  [S.педикюр] = await db.Организация(S.салон).Услуга().create({ name: 'Педикюр', duration: 90 }).rows();
   [S.комплекс] = await db.Организация(S.салон).Комплекс().create({ name: 'М+П', duration: 150, cost: 4500 }).rows();
+  // цены услуг — отдельный LINK «цена» (вариант «базовая», сумма в amounts.RUB); у комплекса — свой cost
+  await db.Услуга(S.маникюр).цена().create({ amounts: { RUB: 2000 } }).rows();
+  await db.Услуга(S.педикюр).цена().create({ amounts: { RUB: 3000 } }).rows();
   await db.Комплекс(S.комплекс).состав().create({ quantity: 1, order: 1 }).Услуга.set(S.маникюр).rows();
   await db.Комплекс(S.комплекс).состав().create({ quantity: 1, order: 2 }).Услуга.set(S.педикюр).rows();
 
@@ -383,11 +386,16 @@ test('С16. Конец дня: отчёты и сквозные инвариан
   const пути = await db.запись().Мастер().run();
   for (const p of пути) assert.ok(['Марина', 'Света'].includes(String(p.Мастер.data.name)));
 
-  // выручка дня = Σ цен предметов живых записей (услуги price + комплексы cost)
+  // выручка дня = Σ цен предметов живых записей (услуги — цена RUB из LINK «цена», комплексы — cost)
+  const прайс = new Map<string, number>();
+  for (const s of [S.маникюр, S.педикюр]) {
+    const [ц] = await db.Услуга(s.id).цена().rows();
+    прайс.set(s.id, (ц.data.amounts as Record<string, number>).RUB);
+  }
   const поУслугам = await db.запись().Услуга().run();
   const поКомплексам = await db.запись().Комплекс().run();
   const выручка =
-    поУслугам.reduce((s, p) => s + (p.Услуга.data.price as number), 0) +
+    поУслугам.reduce((s, p) => s + (прайс.get(p.Услуга.id) ?? 0), 0) +
     поКомплексам.reduce((s, p) => s + (p.Комплекс.data.cost as number), 0);
   assert.ok(выручка >= 2000 + 3000 + 2000 + 2000); // минимум: Катя (М+П раздельно) + Оля 13 + Надя
 

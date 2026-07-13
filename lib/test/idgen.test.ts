@@ -90,27 +90,43 @@ test('v7 в батче: id создаваемых папок тоже time-order
 });
 
 test('v5 из поля data: Услуга уникальна по имени — повторный create = версия, не дубль', async () => {
-  const [s1] = await db.Организация(S.org).Услуга().create({ name: 'Стрижка', duration: 60, price: 1500 }).rows();
+  const [s1] = await db.Организация(S.org).Услуга().create({ name: 'Стрижка', duration: 60 }).rows();
   assert.equal(s1.id, uuidv5(`${SCHEMA}:entity:Service:Стрижка`)); // формула открыта
   assert.equal(s1.id.charAt(14), '5');
 
   // повторный create того же имени: НЕ дубль — новая версия той же услуги (deep-merge)
-  const [s2] = await db.Организация(S.org).Услуга().create({ name: 'Стрижка', duration: 60, price: 1700 }).rows();
+  const [s2] = await db.Организация(S.org).Услуга().create({ name: 'Стрижка', duration: 90 }).rows();
   assert.equal(s2.id, s1.id);
-  assert.equal(s2.data.price, 1700);
+  assert.equal(s2.data.duration, 90);
   assert.equal(await db.Услуга({ name: 'Стрижка' }).count(), 1);
   assert.equal((await db.Услуга(s1.id).versions()).length, 2);
 
   // другое имя — другая сущность
-  const [s3] = await db.Организация(S.org).Услуга().create({ name: 'Борода', duration: 30, price: 800 }).rows();
+  const [s3] = await db.Организация(S.org).Услуга().create({ name: 'Борода', duration: 30 }).rows();
   assert.notEqual(s3.id, s1.id);
   Object.assign(S, { стрижка: s1 });
+});
+
+test('v5 берёт default из Schema: цена без note → id из note="базовая" (генератор подставляет дефолт)', async () => {
+  // «цена» (LINK): id = v5(Service|Product|Complex, note); note имеет default 'базовая'.
+  // note не передан — v5-id всё равно считается, взяв дефолт из Schema.attributes.
+  const [ц] = await db.Услуга(S.стрижка).цена().create({ amounts: { RUB: 1500 } }).rows();
+  assert.equal(ц.data.note, 'базовая');                                           // default подставлен валидатором
+  assert.equal(ц.id, uuidv5(`${SCHEMA}:entity:price:${S.стрижка.id}:базовая`));    // id взял тот же дефолт
+  // повтор без note → ТОТ ЖE id (идемпотентно); amounts мержится точечно (record)
+  const [ц2] = await db.Услуга(S.стрижка).цена().create({ amounts: { USD: 20 } }).rows();
+  assert.equal(ц2.id, ц.id);
+  assert.deepEqual(ц2.data.amounts, { RUB: 1500, USD: 20 });                       // RUB цел, USD добавлен
+  // явный note → другой вариант той же услуги
+  const [ц3] = await db.Услуга(S.стрижка).цена().create({ note: 'с дизайном', amounts: { RUB: 2500 } }).rows();
+  assert.notEqual(ц3.id, ц.id);
+  assert.equal(await db.Услуга(S.стрижка).цена().count(), 2);
 });
 
 test('v5: без источника имени — ошибка; явный id у v5-класса — ошибка', async () => {
   await assert.rejects(db.Услуга().create({} as never).rows(), /validation failed|needs scalar data field/);
   await assert.rejects(
-    db.Услуга('11111111-1111-4111-8111-111111111111').create({ name: 'Х', duration: 5, price: 1 }).rows(),
+    db.Услуга('11111111-1111-4111-8111-111111111111').create({ name: 'Х', duration: 5 }).rows(),
     /computes id/,
   );
 });

@@ -33,8 +33,11 @@ before(async () => {
   const [root] = await db.Организация(org).Папка().create({ name: 'Каталог' }).rows();
   const [nails] = await db.Организация(org).Папка(root).Папка().create({ name: 'Ногти' }).rows();
   const [spa] = await db.Организация(org).Папка(nails).Папка().create({ name: 'Спа' }).rows();
-  const [manik] = await db.Организация(org).Услуга().create({ name: 'Маникюр', duration: 60, price: 2000 }).rows();
-  const [strizh] = await db.Организация(org).Услуга().create({ name: 'Стрижка', duration: 30, price: 1500, description: 'классика' }).rows();
+  const [manik] = await db.Организация(org).Услуга().create({ name: 'Маникюр', duration: 60 }).rows();
+  const [strizh] = await db.Организация(org).Услуга().create({ name: 'Стрижка', duration: 30, description: 'классика' }).rows();
+  // цены услуг — отдельный LINK «цена» (вариант «базовая», сумма в amounts.RUB)
+  await db.Услуга(manik).цена().create({ amounts: { RUB: 2000 } }).rows();
+  await db.Услуга(strizh).цена().create({ amounts: { RUB: 1500 } }).rows();
   const [cont] = await db.Папка(nails).содержимое().create({ order: 1 }).Услуга.set(manik).rows();
   const [cli] = await db.Организация(org).Клиент().create({ name: 'Анна', phone: '+7-911-111-11-11' }).rows();
   const [sched] = await db.Организация(org).Расписание().create({ name: 'Июль-26', year: 2026, month: 7 }).rows();
@@ -130,11 +133,12 @@ test('✔ модификаторы: limit/offset/sort/asOf/after/alias/tags/acco
   assert.equal((await db.Услуга().sort('updated').limit(1).rows()).length, 1);
   assert.equal((await db.Услуга().sort('updated').offset(1).rows()).length, 1);
 
-  // asOf: до правки цена старая; count тоже видит asOf
-  const t0 = S.manik.updated;
-  await db.Услуга(S.manik.id).update({ price: 2500 }).rows();
-  const old = await db.Услуга(S.manik.id).asOf(t0).first();
-  assert.equal(old?.data.price, 2000);
+  // asOf: до правки цена старая; count тоже видит asOf (цена — LINK «цена»)
+  const [ц0] = await db.Услуга(S.manik.id).цена().rows();      // базовая цена маникюра: RUB 2000
+  const t0 = ц0.updated;
+  await db.цена(ц0.id).update({ amounts: { RUB: 2500 } }).rows();
+  const old = await db.цена(ц0.id).asOf(t0).first();
+  assert.equal((old!.data.amounts as Record<string, number>).RUB, 2000);
   const [orgNew] = await db.Организация().create({ name: 'Позже' }).rows();
   assert.equal(await db.Организация().asOf(t0).count(), 1);
   await db.Организация(orgNew.id).delete({ confirm: true }).rows();
@@ -166,11 +170,11 @@ test('✔ модификаторы: limit/offset/sort/asOf/after/alias/tags/acco
   assert.equal(await db.Услуга().owner({ id: SYS }).count(), 2);
   assert.equal(await db.Услуга().account('00000000-0000-4000-8000-00000000dead').count(), 0);
 
-  // sort по цене-скаляру + keyset-курсор по нему (каст по типу листа)
-  const поЦене = await db.Услуга().sort('data.price', 'desc').rows();
-  assert.deepEqual(поЦене.map((r) => r.data.price), [2500, 1500]);
-  const дороже = await db.Услуга().sort('data.price').after(cursorOf(поЦене[1], 'data.price')).rows();
-  assert.deepEqual(дороже.map((r) => r.data.price), [2500]);
+  // sort по data-скаляру + keyset-курсор по нему (каст по типу листа)
+  const поДлит = await db.Услуга().sort('data.duration', 'desc').rows();
+  assert.deepEqual(поДлит.map((r) => r.data.duration), [60, 30]);
+  const дольше = await db.Услуга().sort('data.duration').after(cursorOf(поДлит[1], 'data.duration')).rows();
+  assert.deepEqual(дольше.map((r) => r.data.duration), [60]);
 
   // deep: default и max, ошибка на не-self
   const all = await db.Папка(S.root.id).Папка().deep().rows();
@@ -205,8 +209,8 @@ test('✔ терминалы: run/rows/first/ids/count/versions/sum/avg/min/max/
   assert.equal(await db.Услуга().avg('data.duration'), 45);
   assert.equal(await db.Услуга().min('data.duration'), 30);          // number-поле → number (не строка)
   assert.equal(await db.Услуга().max('data.duration'), 60);
-  assert.equal(await db.Услуга().min('data.price'), 1500);           // цена-скаляр
-  assert.equal(await db.Услуга().max('data.price'), 2500);
+  assert.equal(await db.цена().min('data.amounts.RUB'), 1500);       // цена — LINK «цена», лист record
+  assert.equal(await db.цена().max('data.amounts.RUB'), 2500);
   assert.deepEqual(await db.Услуга().countBy('data.name'), { Маникюр: 1, Стрижка: 1 });
   assert.equal(await db.Услуга({ name: 'Пусто' }).sum('data.duration'), null);
   assert.deepEqual(await db.Услуга({ name: 'Пусто' }).countBy('data.name'), {});
@@ -274,11 +278,11 @@ test('✔ create/update: INSERT, идемпотентный create по id, upda
   assert.throws(() => sc.alias('x'), /step modifier after create/);
 
   // строгая валидация: неверный тип и лишнее поле; abstract-классы — ошибки на терминале
-  await assert.rejects(db.Организация(S.org).Услуга().create({ name: 'Х', duration: 'час' as never, price: 1 }).rows(), /validation failed/);
-  await assert.rejects(db.Организация(S.org).Услуга().create({ name: 'Х', duration: 5, price: 1, лишнее: 1 }).rows(), /validation failed/);
+  await assert.rejects(db.Организация(S.org).Услуга().create({ name: 'Х', duration: 'час' as never }).rows(), /validation failed/);
+  await assert.rejects(db.Организация(S.org).Услуга().create({ name: 'Х', duration: 5, лишнее: 1 }).rows(), /validation failed/);
   await assert.rejects(db.Сущность().create().rows(), /abstract/);
   // v5-ошибка «needs end» летит раньше abstract-гарда — контекст Org даёт дойти до валидации
-  await assert.rejects(db.Организация(S.org).Элемент().create({ name: 'Ничей', price: 1 }).rows(), /abstract/);
+  await assert.rejects(db.Организация(S.org).Элемент().create({ name: 'Ничей' }).rows(), /abstract/);
 
   // LINK-концы v2: у записи не хватает союза-предмета; v5-id навыка: «needs end» летит раньше валидации
   await assert.rejects(
@@ -402,7 +406,7 @@ test('✔ batch: копление/size/discard, multi-VALUES, атомарный
   // атомарность: невалидная операция в конце откатывает ВСЮ пачку
   const bad = hooked.batch('сломанная');
   bad.Организация(S.org).Клиент().create({ name: 'НеЗапишется', phone: '+7-918-000-00-05' });
-  bad.Организация(S.org).Услуга().create({ name: 'Х', duration: 'плохо' as never, price: 1 });
+  bad.Организация(S.org).Услуга().create({ name: 'Х', duration: 'плохо' as never });
   await assert.rejects(bad.run(), /validation failed/);
   assert.equal(await hooked.Клиент({ name: 'НеЗапишется' }).count(), 0);
 

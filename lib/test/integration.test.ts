@@ -46,10 +46,10 @@ test('1. настройка: организация, мастера, локац�
 
   // каталог: услуги и комплекс — под организацией; в папку кладёт LINK «содержимое»
   [S.fld] = await db.Организация(S.org).Папка().create({ name: 'Услуги' }).rows();
-  [S.стрижка] = await db.Организация(S.org).Услуга().create({ name: 'Стрижка', duration: 60, price: 1500 }).rows();
-  [S.борода] = await db.Организация(S.org).Услуга().create({ name: 'Борода', duration: 30, price: 1000 }).rows();
+  [S.стрижка] = await db.Организация(S.org).Услуга().create({ name: 'Стрижка', duration: 60 }).rows();
+  [S.борода] = await db.Организация(S.org).Услуга().create({ name: 'Борода', duration: 30 }).rows();
   [S.комплекс] = await db.Организация(S.org).Комплекс().create({
-    name: 'Стрижка+борода', duration: 90, cost: 2200, price: 2500,
+    name: 'Стрижка+борода', duration: 90, cost: 2200,
   }).rows();
   await db.Папка(S.fld).содержимое().create({ order: 1 }).Услуга.set(S.стрижка).rows();
   await db.Папка(S.fld).содержимое().create({ order: 2 }).Услуга.set(S.борода).rows();
