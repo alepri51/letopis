@@ -1,0 +1,406 @@
+<DevelopmentPlan VERSION="1.0.0">
+  <ArchitectureNotes>
+    <objective>One append-only, versioned Entity hypertable plus a DB-driven Schema registry: every write inserts a new version, graph edges live as embedded jsonb links, and PostgreSQL/TimescaleDB triggers enforce validation, versioning, cascade-delete and change-notify so the TypeScript client stays a thin query/plan compiler.</objective>
+    <non-goal>Not a code-first ORM: class definitions live in the DB Schema table (seeded/synced), not as TS classes; there are no code migrations. No arbitrary-SQL builder — only the chain DSL and the fixed auth/authz table APIs.</non-goal>
+    <risk-1>Type-level import cycle M-SQL &#8596; M-ACL &#8596; M-TABLES: sql imports aclDenied (value) from acl; acl imports Tables (type) from tables; tables imports Ctx (type) from sql. Only the sql&#8594;acl edge is a runtime value import, so there is no runtime cycle, but the coupling constrains refactors.</risk-1>
+    <risk-2>Runtime ESM cycle M-CONNECT &#8596; M-UP: index re-exports up, up imports connect. Safe today via ESM live bindings (no top-level use), but fragile.</risk-2>
+    <risk-3>Logic concentration: chain.ts (~746 LOC), sql.ts (~779), write.ts (~759) hold most of the engine; large surfaces for regressions.</risk-3>
+    <risk-4>Invariant duplication: entity validation and link-end rules exist both in M-DDL triggers (entity_check) and in M-WRITE.validate — they must stay in sync.</risk-4>
+  </ArchitectureNotes>
+
+  <Modules>
+
+    <M-TYPES NAME="Types" TYPE="UTILITY" LAYER="0" ORDER="1" STATUS="done">
+      <contract>
+        <purpose>Define the shared type vocabulary consumed by every other module</purpose>
+        <inputs><param name="none" type="—" /></inputs>
+        <outputs><param name="types" type="Row, Path, ClassDef, FieldType, Filter, Op, Account, Credential, Resource, Rule, AclDecision, QueryEvent, ConnectOpts, Cursor, ChainMods, PlanOp, …" /><param name="OP" type="unique symbol" /></outputs>
+        <errors><error code="none" /></errors>
+      </contract>
+      <interface><type-Row PURPOSE="Versioned entity row" /><type-ClassDef PURPOSE="Resolved schema class" /><type-Filter PURPOSE="Read filter DSL" /><const-OP PURPOSE="operator tag symbol" /><type-ConnectOpts PURPOSE="connect() options" /></interface>
+      <depends>none</depends>
+      <target><source>lib/src/types.ts</source><tests>none (pure types)</tests></target>
+      <observability><log-prefix>none</log-prefix></observability>
+      <verification-ref>V-M-TYPES</verification-ref>
+    </M-TYPES>
+
+    <M-UUID NAME="Uuid" TYPE="UTILITY" LAYER="0" ORDER="2" STATUS="done">
+      <contract>
+        <purpose>Generate deterministic v5 and time-ordered v7 UUIDs for entity ids</purpose>
+        <inputs><param name="name" type="string" /><param name="ns" type="string (default LETOPIS_NS)" /></inputs>
+        <outputs><param name="uuid" type="string" /></outputs>
+        <errors><error code="none" /></errors>
+      </contract>
+      <interface><fn-uuidv5 PURPOSE="name-based UUID" /><fn-uuidv7 PURPOSE="time-ordered UUID" /><const-LETOPIS_NS PURPOSE="default namespace" /></interface>
+      <depends>none</depends>
+      <target><source>lib/src/uuid.ts</source><tests>none</tests></target>
+      <observability><log-prefix>none</log-prefix></observability>
+      <verification-ref>V-M-UUID</verification-ref>
+    </M-UUID>
+
+    <M-SESSIONS NAME="Sessions" TYPE="CORE_LOGIC" LAYER="0" ORDER="3" STATUS="done">
+      <contract>
+        <purpose>Manage session tokens over an injected Redis-shaped store</purpose>
+        <inputs><param name="store" type="SessionStore" /><param name="account" type="string|{id}" /><param name="token" type="string" /></inputs>
+        <outputs><param name="token" type="string (start)" /><param name="session" type="Session|null (check)" /><param name="revoked" type="boolean|number" /></outputs>
+        <errors><error code="none (returns null on miss)" /></errors>
+      </contract>
+      <interface><fn-makeSessions PURPOSE="build Sessions over a store" /><type-Sessions PURPOSE="start/check/revoke/revokeAll" /><type-SessionStore PURPOSE="store contract" /></interface>
+      <depends>none</depends>
+      <target><source>lib/src/sessions.ts</source><tests>lib/test/auth.test.ts (exercised via M-AUTH; not analyzed)</tests></target>
+      <observability><log-prefix>none</log-prefix><note>token stored as sha256 under keys sess:* / sess:acc:*</note></observability>
+      <verification-ref>V-M-SESSIONS</verification-ref>
+    </M-SESSIONS>
+
+    <M-OPS NAME="Ops" TYPE="UTILITY" LAYER="1" ORDER="1" STATUS="done">
+      <contract>
+        <purpose>Build Op filter nodes (comparison, membership, text, array/jsonb, logical)</purpose>
+        <inputs><param name="args" type="Scalar | Scalar[] | Op | filter objects" /></inputs>
+        <outputs><param name="op" type="Op { [OP]: name, args }" /></outputs>
+        <errors><error code="none" /></errors>
+      </contract>
+      <interface><fn-isOp PURPOSE="Op type guard" /><fn-or PURPOSE="disjunction" /><fn-between PURPOSE="range" /><fn-has PURPOSE="contains" /></interface>
+      <depends>M-TYPES</depends>
+      <target><source>lib/src/ops.ts</source><tests>none (covered indirectly by read tests)</tests></target>
+      <observability><log-prefix>none</log-prefix></observability>
+      <verification-ref>V-M-OPS</verification-ref>
+    </M-OPS>
+
+    <M-SCHEMA NAME="Schema" TYPE="CORE_LOGIC" LAYER="1" ORDER="2" STATUS="done">
+      <contract>
+        <purpose>Build the class registry from the DB Schema table: resolve inheritance and link ends, derive field types, compile validators</purpose>
+        <inputs><param name="sql" type="postgres.Sql" /><param name="pgSchema" type="string" /><param name="partition" type="string" /></inputs>
+        <outputs><param name="registry" type="Registry (all: ClassDef[], resolve/find/has)" /></outputs>
+        <errors><error code="unknown class" /><error code="malformed link end (bad JSON)" /><error code="bad id generate (must be 4|5|7)" /><error code="generate:5 needs 'from'" /><error code="no classes for partition" /></errors>
+      </contract>
+      <interface><class-Registry PURPOSE="class registry" /><fn-loadRegistry PURPOSE="load + build from DB" /><fn-fieldTypeOf PURPOSE="attr spec → FieldType" /></interface>
+      <depends>M-TYPES</depends>
+      <target><source>lib/src/schema.ts</source><tests>lib/test/salon.test.ts (integration; not analyzed)</tests></target>
+      <observability><log-prefix>none</log-prefix></observability>
+      <verification-ref>V-M-SCHEMA</verification-ref>
+    </M-SCHEMA>
+
+    <M-TABLES NAME="Tables" TYPE="DATA_LAYER" LAYER="2" ORDER="1" STATUS="done">
+      <contract>
+        <purpose>Typed CRUD over Account/Credential/Resource/Rule tables</purpose>
+        <inputs><param name="ctx" type="Ctx" /><param name="filter/record" type="per-table shapes" /></inputs>
+        <outputs><param name="rows" type="Account[]|Credential[]|Resource[]|Rule[]" /><param name="record" type="single upserted row" /></outputs>
+        <errors><error code="account not found (on set/update miss)" /></errors>
+      </contract>
+      <interface><fn-makeTables PURPOSE="build Tables facade" /><type-Tables PURPOSE="accounts/credentials/resources/rules" /></interface>
+      <depends>M-SQL, M-TYPES</depends>
+      <target><source>lib/src/tables.ts</source><tests>lib/test/tables.test.ts (not analyzed)</tests></target>
+      <observability><log-prefix>none</log-prefix></observability>
+      <verification-ref>V-M-TABLES</verification-ref>
+    </M-TABLES>
+
+    <M-ACL NAME="Acl" TYPE="CORE_LOGIC" LAYER="2" ORDER="2" STATUS="done">
+      <contract>
+        <purpose>Decide allow/deny for API endpoints and data-class operations from Resource/Rule sets; produce row filters</purpose>
+        <inputs><param name="account" type="string|{id}" /><param name="endpoint|className+op" type="string / (string, AclOp)" /><param name="registry" type="Registry" /><param name="tables" type="Tables" /></inputs>
+        <outputs><param name="decision" type="AclDecision { allow, rule?, filter?, code?, message? }" /><param name="enforcer" type="(ClassDef, AclOp) => AclDecision" /></outputs>
+        <errors><error code="acl denies &lt;op&gt; on &lt;class&gt; (Error, via aclDenied — thrown by callers)" /></errors>
+      </contract>
+      <interface><fn-makeAcl PURPOSE="runtime AclApi" /><fn-compileEnforcer PURPOSE="precompiled enforcer" /><fn-aclDenied PURPOSE="denied Error" /></interface>
+      <depends>M-TYPES, M-SCHEMA, M-TABLES</depends>
+      <target><source>lib/src/acl.ts</source><tests>lib/bench/acl.bench.mjs (out of scope; no unit test)</tests></target>
+      <observability><log-prefix>none</log-prefix><default-decision>deny by default (no matching rule)</default-decision></observability>
+      <verification-ref>V-M-ACL</verification-ref>
+    </M-ACL>
+
+    <M-AUTH NAME="Auth" TYPE="CORE_LOGIC" LAYER="2" ORDER="3" STATUS="done">
+      <contract>
+        <purpose>Issue and verify credentials (password/apikey/key+secret/TOTP/OTP/link) and issue sessions</purpose>
+        <inputs><param name="account/identifier/password/key/secret/code" type="various" /><param name="opts" type="VerifyOpts { requireConfirmed? }" /></inputs>
+        <outputs><param name="result" type="AuthResult|null | Credential | { key/secret/uri, credential }" /></outputs>
+        <errors><error code="invalid base32 TOTP secret" /></errors>
+      </contract>
+      <interface><fn-makeAuth PURPOSE="build AuthApi" /><type-AuthApi PURPOSE="credential + session ops" /><fn-totpCode PURPOSE="current TOTP code" /></interface>
+      <depends>M-TYPES, M-TABLES, M-SESSIONS</depends>
+      <target><source>lib/src/auth.ts</source><tests>lib/test/auth.test.ts (not analyzed)</tests></target>
+      <observability><log-prefix>none</log-prefix><note>scrypt password hashing; constant-time compares; dummy-verify on miss</note></observability>
+      <verification-ref>V-M-AUTH</verification-ref>
+    </M-AUTH>
+
+    <M-SQL NAME="Sql" TYPE="DATA_LAYER" LAYER="3" ORDER="1" STATUS="done">
+      <contract>
+        <purpose>Compile chain steps + filters into parameterized read SQL, execute with telemetry and transient-retry, and provide insert/delete/closure SQL builders</purpose>
+        <inputs><param name="ctx" type="Ctx" /><param name="steps" type="Step[]" /><param name="mods" type="ChainMods" /><param name="mode" type="ReadMode" /></inputs>
+        <outputs><param name="query" type="BuiltQuery { text, params, keys }" /><param name="rows" type="T[] (runQuery)" /></outputs>
+        <errors><error code="unknown operator" /><error code="no path A→B (Schema.links)" /><error code="LINK→LINK not supported" /><error code="enforceAccount pin violation" /><error code="acl denies READ" /><error code="order must be updated or data.&lt;path&gt;" /></errors>
+      </contract>
+      <interface><type-Ctx PURPOSE="runtime context" /><fn-buildRead PURPOSE="compile read query" /><fn-runQuery PURPOSE="execute + retry + telemetry" /><fn-insertSql PURPOSE="insert SQL" /><fn-resolveHop PURPOSE="traversal direction" /></interface>
+      <depends>M-TYPES, M-OPS, M-ACL, M-SCHEMA</depends>
+      <target><source>lib/src/sql.ts</source><tests>lib/test/depth.test.ts (traversal; not analyzed)</tests></target>
+      <observability><log-prefix>console.warn "letopis: slow query &lt;ms&gt;ms — &lt;mode&gt; &lt;classes&gt;"</log-prefix><hook>onQuery(QueryEvent)</hook><critical-block>BLOCK_RUN_QUERY_RETRY</critical-block></observability>
+      <verification-ref>V-M-SQL</verification-ref>
+    </M-SQL>
+
+    <M-WRITE NAME="Write" TYPE="DATA_LAYER" LAYER="4" ORDER="1" STATUS="done">
+      <contract>
+        <purpose>Execute write plans: validate, resolve link ends/slots, compute ids, insert new versions, cascade delete, anonymize; run batches inside transactions with retry</purpose>
+        <inputs><param name="ctx" type="Ctx" /><param name="steps" type="Step[]" /><param name="mods" type="ChainMods" /><param name="data/fields/confirm" type="per-op" /></inputs>
+        <outputs><param name="rows" type="Row[] | Row[][] (batch) | mode-shaped result" /></outputs>
+        <errors><error code="ValidationError (per-field)" /><error code="class is abstract" /><error code="link requires end" /><error code="v5 id needs end/field" /><error code="create() on a pivot / with filter / two ids" /><error code="acl denies WRITE|DELETE" /><error code="enforceAccount pin violation" /></errors>
+      </contract>
+      <interface><fn-runPlan PURPOSE="execute plan → mode result" /><fn-executeBatch PURPOSE="run queued plans" /><class-ValidationError PURPOSE="validation issues" /><fn-createOp PURPOSE="insert" /><fn-updateOp PURPOSE="version patch" /><fn-delOp PURPOSE="cascade delete" /></interface>
+      <depends>M-UUID, M-TYPES, M-SQL, M-ACL</depends>
+      <target><source>lib/src/write.ts</source><tests>lib/test/salon.test.ts (integration; not analyzed)</tests></target>
+      <observability><log-prefix>none (uses M-SQL runQuery)</log-prefix><critical-block>BLOCK_IN_TRANSACTION_RETRY</critical-block></observability>
+      <verification-ref>V-M-WRITE</verification-ref>
+    </M-WRITE>
+
+    <M-TX NAME="Tx" TYPE="DATA_LAYER" LAYER="4" ORDER="2" STATUS="done">
+      <contract>
+        <purpose>Reserve a connection to run a manual transaction and take advisory locks</purpose>
+        <inputs><param name="ctx" type="Ctx" /><param name="keys" type="(string|number)[]" /></inputs>
+        <outputs><param name="tx" type="TxCtx (commit/rollback)" /></outputs>
+        <errors><error code="lock() only inside db.begin() transaction" /><error code="transient → hintTxRetry then rethrow" /></errors>
+      </contract>
+      <interface><fn-beginTx PURPOSE="reserve + BEGIN" /><fn-lock PURPOSE="advisory xact lock" /><type-TxCtx PURPOSE="tx context" /></interface>
+      <depends>M-SQL</depends>
+      <target><source>lib/src/tx.ts</source><tests>lib/test/salon.test.ts (integration; not analyzed)</tests></target>
+      <observability><log-prefix>none</log-prefix></observability>
+      <verification-ref>V-M-TX</verification-ref>
+    </M-TX>
+
+    <M-CHAIN NAME="Chain" TYPE="CORE_LOGIC" LAYER="5" ORDER="1" STATUS="done">
+      <contract>
+        <purpose>Turn fluent class/link/pivot calls into read or write plans and expose terminals, modifiers, link slots, batches, transactions and change watching</purpose>
+        <inputs><param name="ctx" type="Ctx" /><param name="className/filter" type="string / Filter" /><param name="data" type="Record for create/update" /></inputs>
+        <outputs><param name="db" type="EntityDb" /><param name="chain" type="Chain" /><param name="results" type="Path[]|Row[]|Row|string[]|number|aggregates" /></outputs>
+        <errors><error code="slot needs an owner step" /><error code="not a link end of &lt;owner&gt;" /><error code="create()/update()/set() misuse (versioned messages)" /><error code="commit/rollback needs a transaction" /></errors>
+      </contract>
+      <interface><fn-makeDb PURPOSE="build EntityDb" /><type-EntityDb PURPOSE="root db handle" /><type-Chain PURPOSE="fluent chain" /><type-Batch PURPOSE="deferred batch" /><type-WatchEvent PURPOSE="change event" /></interface>
+      <depends>M-TYPES, M-SQL, M-WRITE, M-TX, M-TABLES, M-AUTH, M-ACL, M-SCHEMA</depends>
+      <target><source>lib/src/chain.ts</source><tests>lib/test/depth.test.ts, lib/test/salon.test.ts (not analyzed)</tests></target>
+      <observability><log-prefix>none</log-prefix><watch>LISTEN on pg_notify channel = schema name; reconnect via onReconnect</watch></observability>
+      <verification-ref>V-M-CHAIN</verification-ref>
+    </M-CHAIN>
+
+    <M-CONNECT NAME="Connect" TYPE="ENTRY_POINT" LAYER="6" ORDER="1" STATUS="done">
+      <contract>
+        <purpose>Open a connection, load the registry, optionally compile ACL enforcement, and return an EntityDb; re-export the public API</purpose>
+        <inputs><param name="opts" type="ConnectOpts { dsn, schema, partition?, account?, enforceAccount?, enforceAcl?, onQuery?, slowMs? }" /></inputs>
+        <outputs><param name="db" type="EntityDb" /><param name="cursor" type="Cursor (cursorOf)" /></outputs>
+        <errors><error code="enforceAcl requires connect({ account })" /><error code="enforceAcl — account not found" /></errors>
+      </contract>
+      <interface><fn-connect PURPOSE="open EntityDb" /><fn-cursorOf PURPOSE="keyset cursor" /></interface>
+      <depends>M-SCHEMA, M-CHAIN, M-TABLES, M-ACL, M-SQL, M-TYPES, M-UP</depends>
+      <target><source>lib/src/index.ts</source><tests>all lib/test/*.test.ts enter through connect()/up() (not analyzed)</tests></target>
+      <observability><log-prefix>none</log-prefix></observability>
+      <verification-ref>V-M-CONNECT</verification-ref>
+    </M-CONNECT>
+
+    <M-UP NAME="Up" TYPE="INTEGRATION" LAYER="7" ORDER="1" STATUS="done">
+      <contract>
+        <purpose>Provision a dev Postgres+Redis container, ensure the database, apply DDL + seeds, wait for readiness, then connect</purpose>
+        <inputs><param name="opts" type="UpOpts { dsn?, schema, version, container?, image?, dataDir?, redisPort?, seeds?, fresh?, quiet?, waitTimeoutMs? }" /></inputs>
+        <outputs><param name="db" type="EntityDb" /></outputs>
+        <errors><error code="docker CLI not found" /><error code="docker start/build/run failed" /><error code="postgres/redis not ready in timeout" /><error code="bad schema name / bad version" /></errors>
+      </contract>
+      <interface><fn-up PURPOSE="provision + apply + connect" /><fn-dockerRunArgs PURPOSE="docker run argv" /><type-UpOpts PURPOSE="up options" /></interface>
+      <depends>M-CONNECT, M-CHAIN, M-TYPES</depends>
+      <target><source>lib/src/up.ts</source><tests>all integration tests bootstrap via up() (not analyzed)</tests></target>
+      <observability><log-prefix>console.log "[letopis.up] &lt;message&gt;"</log-prefix><critical-block>BLOCK_ENSURE_CONTAINER, BLOCK_APPLY_SCHEMA, BLOCK_WAIT_READY</critical-block></observability>
+      <verification-ref>V-M-UP</verification-ref>
+    </M-UP>
+
+    <M-DDL NAME="Ddl" TYPE="DATA_LAYER" LAYER="0" ORDER="4" STATUS="done">
+      <contract>
+        <purpose>Define the storage engine: tables, the Entity hypertable, indexes, and the plpgsql triggers enforcing validation, versioning, cascade-delete, lineage and notify</purpose>
+        <inputs><param name="&lt;SCHEMA-NAME&gt;" type="placeholder substituted by up()/apply" /></inputs>
+        <outputs><param name="schema" type="tables Schema/Entity/Account/Credential/Resource/Rule + triggers" /></outputs>
+        <errors><error code="raised by triggers: class not found / abstract, bad link end, missing FK" /></errors>
+      </contract>
+      <interface><table-Entity PURPOSE="versioned hypertable" /><table-Schema PURPOSE="class defs" /><fn-entity_update PURPOSE="update→new version" /><fn-entity_delete PURPOSE="tombstone + cascade" /><fn-entity_check PURPOSE="insert validation" /></interface>
+      <depends>none</depends>
+      <target><source>lib/sql/ddl.sql</source><tests>applied+exercised by all integration tests (not analyzed)</tests></target>
+      <observability><log-prefix>pg_notify(channel = schema name)</log-prefix></observability>
+      <verification-ref>V-M-DDL</verification-ref>
+    </M-DDL>
+
+    <M-SEED-AUTH NAME="SeedAuth" TYPE="DATA_LAYER" LAYER="1" ORDER="3" STATUS="done">
+      <contract>
+        <purpose>Idempotently seed the System account and default ACL Resource/Rule set</purpose>
+        <inputs><param name="&lt;SCHEMA-NAME&gt;" type="placeholder" /></inputs>
+        <outputs><param name="rows" type="1 Account, 16 Resource, 12 Rule (ON CONFLICT upsert)" /></outputs>
+        <errors><error code="none (idempotent)" /></errors>
+      </contract>
+      <interface><seed-Account PURPOSE="System account" /><seed-Resource PURPOSE="auth resources" /><seed-Rule PURPOSE="allow/deny rules" /></interface>
+      <depends>none</depends>
+      <target><source>lib/sql/seed.auth.sql</source><tests>applied by up() when seeds include auth (not analyzed)</tests></target>
+      <observability><log-prefix>none</log-prefix></observability>
+      <verification-ref>V-M-SEED-AUTH</verification-ref>
+    </M-SEED-AUTH>
+
+    <M-SEED-BOOKING NAME="SeedBooking" TYPE="DATA_LAYER" LAYER="1" ORDER="4" STATUS="done">
+      <contract>
+        <purpose>Idempotently seed the Schema table for the demo booking domain (source of truth for its classes)</purpose>
+        <inputs><param name="&lt;SCHEMA-NAME&gt;" type="placeholder" /></inputs>
+        <outputs><param name="rows" type="~19 Schema classes (12 HUB + LINK), ON CONFLICT upsert" /></outputs>
+        <errors><error code="none (idempotent)" /></errors>
+      </contract>
+      <interface><seed-Schema PURPOSE="booking domain classes" /></interface>
+      <depends>none</depends>
+      <target><source>lib/sql/seed.booking.sql</source><tests>demo/bench + salon.test.ts domain (not analyzed)</tests></target>
+      <observability><log-prefix>none</log-prefix></observability>
+      <verification-ref>V-M-SEED-BOOKING</verification-ref>
+    </M-SEED-BOOKING>
+
+    <M-GEN-TYPES NAME="GenTypes" TYPE="UTILITY" LAYER="1" ORDER="5" STATUS="done">
+      <contract>
+        <purpose>Generate a typed .d.ts facade from the DB Schema table</purpose>
+        <inputs><param name="--dsn / ENTITY_DSN" type="string" /><param name="--schema" type="string" /><param name="--out" type="string (default entity-types.d.ts)" /></inputs>
+        <outputs><param name="file" type=".d.ts with per-class Data + TypedRow/TypedChain/TypedDb" /></outputs>
+        <errors><error code="pg/connection errors surface directly" /></errors>
+      </contract>
+      <interface><cli-gen-types PURPOSE="codegen CLI" /><fn-ts PURPOSE="validator DSL → TS type" /></interface>
+      <depends>none</depends>
+      <target><source>lib/scripts/gen-types.mjs</source><tests>none</tests></target>
+      <observability><log-prefix>console.log "written &lt;out&gt;: &lt;n&gt; classes"</log-prefix></observability>
+      <verification-ref>V-M-GEN-TYPES</verification-ref>
+    </M-GEN-TYPES>
+
+    <M-SCHEMA-SYNC NAME="SchemaSync" TYPE="UTILITY" LAYER="1" ORDER="6" STATUS="done">
+      <contract>
+        <purpose>Diff a schema JSON against the DB, re-validate a sample of live rows, and (with --apply) upsert class definitions</purpose>
+        <inputs><param name="--file" type="json path" /><param name="--dsn / ENTITY_DSN" type="string" /><param name="--schema/--partition/--sample" type="string/int" /><param name="--apply" type="flag" /></inputs>
+        <outputs><param name="report" type="added/changed/removed + breaking-row report; upsert when --apply" /></outputs>
+        <errors><error code="exit 1 if breaking rows without --apply" /><error code="exit 1 if required args missing" /></errors>
+      </contract>
+      <interface><cli-schema-sync PURPOSE="schema migration CLI" /><check-breaking PURPOSE="live-row revalidation" /></interface>
+      <depends>none</depends>
+      <target><source>lib/scripts/schema-sync.mjs</source><tests>none</tests></target>
+      <observability><log-prefix>console.log (per-class diff lines)</log-prefix></observability>
+      <verification-ref>V-M-SCHEMA-SYNC</verification-ref>
+    </M-SCHEMA-SYNC>
+
+    <M-DOCKER NAME="Docker" TYPE="INTEGRATION" LAYER="0" ORDER="5" STATUS="done">
+      <contract>
+        <purpose>Build the dev DB image (TimescaleDB pg17 + background Redis) consumed by up()</purpose>
+        <inputs><param name="build context" type="lib/docker" /></inputs>
+        <outputs><param name="image" type="letopis-db exposing 5432/6379" /></outputs>
+        <errors><error code="build/run errors surfaced by M-UP" /></errors>
+      </contract>
+      <interface><image-letopis-db PURPOSE="dev container" /><script-start PURPOSE="redis + postgres entrypoint" /></interface>
+      <depends>none</depends>
+      <target><source>lib/docker/Dockerfile</source><extra>lib/docker/start.sh</extra><tests>exercised by up() in integration runs (not analyzed)</tests></target>
+      <observability><log-prefix>docker logs</log-prefix></observability>
+      <verification-ref>V-M-DOCKER</verification-ref>
+    </M-DOCKER>
+
+  </Modules>
+
+  <DataFlow>
+    <DF-001 NAME="Connect" TRIGGER="connect(opts) / up(opts)">
+      <step-1>Open postgres pool; if enforceAcl, look up the account</step-1>
+      <step-2>loadRegistry(sql, pgSchema, partition) → Registry</step-2>
+      <step-3>compileEnforcer (if enforceAcl) → aclDecide on Ctx</step-3>
+      <step-4>makeDb(ctx) → EntityDb</step-4>
+      <evidence>[letopis.up] connected (schema "&lt;full&gt;") — only when via up()</evidence>
+    </DF-001>
+    <DF-002 NAME="ReadTraversal" TRIGGER="db.Class(filter).link(...).run()/rows()/first()/ids()/count()">
+      <step-1>makeChain builds Step[] (class/link/pivot, filters, tags/account/owner)</step-1>
+      <step-2>buildRead(ctx, steps, mods, mode) → parameterized CTE query</step-2>
+      <step-3>runQuery executes; onQuery(QueryEvent); slow-query warn if over slowMs</step-3>
+      <step-4>rows normalized to Row/Path</step-4>
+      <evidence>onQuery QueryEvent { mode, classes, ms, rows, slow }; console.warn slow query</evidence>
+    </DF-002>
+    <DF-003 NAME="Write" TRIGGER="db.Class(...).create(data)/.update(data).run()">
+      <step-1>splitPlan → write segments + read tail</step-1>
+      <step-2>createOp/updateOp: validate(class), resolve slots/ends, compute v5/v7 id</step-2>
+      <step-3>inTransaction: insertOne (new version) with transient retry</step-3>
+      <step-4>read tail returns the resulting Row(s)</step-4>
+      <evidence>ValidationError on invalid data; entity_check trigger enforces at DB level</evidence>
+    </DF-003>
+    <DF-004 NAME="DeleteCascade" TRIGGER="db.Class(filter).delete({confirm:true}).run()">
+      <step-1>delOp: ACL DELETE check per class in cascade</step-1>
+      <step-2>deleteSql → entity_delete trigger tombstones + recursively deletes dependents (advisory-locked)</step-2>
+      <evidence>acl denies DELETE Error when unauthorized; pg_notify on tombstone insert</evidence>
+    </DF-004>
+    <DF-005 NAME="AuthVerify" TRIGGER="db.auth.verifyPassword/verifyApiKey/verifyOtp/verifyTotp(...)">
+      <step-1>tables.credentials.find by identity</step-1>
+      <step-2>constant-time hash/secret compare (dummy-verify on miss)</step-2>
+      <step-3>return AuthResult { account, credential } or null</step-3>
+      <evidence>null on failure; no secret logged</evidence>
+    </DF-005>
+    <DF-006 NAME="AclEnforce" TRIGGER="connect({ account, enforceAcl:true }) then any read/write">
+      <step-1>compileEnforcer builds (ClassDef,op)→AclDecision for the account+categories</step-1>
+      <step-2>buildRead injects row filter / denies READ; aclWrite denies WRITE/DELETE</step-2>
+      <evidence>acl denies &lt;op&gt; on &lt;class&gt; Error; deny-by-default</evidence>
+    </DF-006>
+    <DF-007 NAME="Session" TRIGGER="db.auth.sessions(store).start/check/revoke">
+      <step-1>start: sha256(token) stored under sess:&lt;h&gt; with TTL; account set sess:acc:&lt;id&gt;</step-1>
+      <step-2>check: read+parse session; revoke/revokeAll: del keys</step-2>
+      <evidence>Session|null; token never stored in plaintext</evidence>
+    </DF-007>
+    <DF-008 NAME="Bootstrap" TRIGGER="up(opts)">
+      <step-1>ensureContainer: docker build/run timescaledb+redis (or skip for remote dsn)</step-1>
+      <step-2>ensureDatabase: create db if missing (ignore race 42P04)</step-2>
+      <step-3>applySchema: apply ddl.sql + seeds into "&lt;schema&gt;.v&lt;version&gt;" (fresh drops first)</step-3>
+      <step-4>wait for pg + redis ready, then connect()</step-4>
+      <evidence>[letopis.up] container/image/schema/ready/connected messages</evidence>
+    </DF-008>
+    <DF-009 NAME="Watch" TRIGGER="db.watch(cb) / db.watch(class, cb)">
+      <step-1>LISTEN on channel = schema name</step-1>
+      <step-2>entity_notify AFTER INSERT → pg_notify payload → WatchEvent to cb</step-2>
+      <step-3>reconnect invokes onReconnect</step-3>
+      <evidence>WatchEvent { partition, class, id, updated, deleted }</evidence>
+    </DF-009>
+    <DF-010 NAME="Batch" TRIGGER="const b = db.batch(name); b.Class()…; await b.run()">
+      <step-1>queue BatchPlans without executing</step-1>
+      <step-2>executeBatch: pure-insert plans fast-pathed into one multi-insert; else per-plan</step-2>
+      <evidence>Row[][] results, one per queued plan</evidence>
+    </DF-010>
+  </DataFlow>
+
+  <ImplementationOrder>
+    <Phase-1 name="Foundation &amp; storage substrate" status="done">
+      <goal>Shared types, pure helpers, and the DB storage engine + dev container</goal>
+      <step-1 module="M-TYPES" status="done" verification="V-M-TYPES">Type vocabulary</step-1>
+      <step-2 module="M-UUID" status="done" verification="V-M-UUID">UUID v5/v7</step-2>
+      <step-3 module="M-SESSIONS" status="done" verification="V-M-SESSIONS">Session store logic</step-3>
+      <step-4 module="M-DDL" status="done" verification="V-M-DDL">PostgreSQL/TimescaleDB engine + triggers</step-4>
+      <step-5 module="M-DOCKER" status="done" verification="V-M-DOCKER">Dev DB container image</step-5>
+    </Phase-1>
+    <Phase-2 name="Registry, operators &amp; seeds" status="done">
+      <goal>Filter DSL, the class registry, and seed data</goal>
+      <step-1 module="M-OPS" status="done" verification="V-M-OPS">Operator builders</step-1>
+      <step-2 module="M-SCHEMA" status="done" verification="V-M-SCHEMA">Registry loader</step-2>
+      <step-3 module="M-SEED-AUTH" status="done" verification="V-M-SEED-AUTH">Auth/ACL seed</step-3>
+      <step-4 module="M-SEED-BOOKING" status="done" verification="V-M-SEED-BOOKING">Booking domain seed</step-4>
+      <step-5 module="M-GEN-TYPES" status="done" verification="V-M-GEN-TYPES">Type codegen</step-5>
+      <step-6 module="M-SCHEMA-SYNC" status="done" verification="V-M-SCHEMA-SYNC">Schema sync tool</step-6>
+    </Phase-2>
+    <Phase-3 name="Data access" status="done">
+      <goal>Read SQL engine and auth-table CRUD</goal>
+      <step-1 module="M-SQL" status="done" verification="V-M-SQL">Read builder + executor</step-1>
+      <step-2 module="M-TABLES" status="done" verification="V-M-TABLES">Auth-table CRUD</step-2>
+    </Phase-3>
+    <Phase-4 name="Authz &amp; auth" status="done">
+      <goal>ACL decisions and credential lifecycle</goal>
+      <step-1 module="M-ACL" status="done" verification="V-M-ACL">Authorization engine</step-1>
+      <step-2 module="M-AUTH" status="done" verification="V-M-AUTH">Credential + session issuance</step-2>
+    </Phase-4>
+    <Phase-5 name="Write &amp; transactions" status="done">
+      <goal>Versioned writes, cascade delete, batches, transactions</goal>
+      <step-1 module="M-WRITE" status="done" verification="V-M-WRITE">Write engine</step-1>
+      <step-2 module="M-TX" status="done" verification="V-M-TX">Transactions + locks</step-2>
+    </Phase-5>
+    <Phase-6 name="Chain API" status="done">
+      <goal>The fluent entity API tying reads/writes/tx/auth/acl together</goal>
+      <step-1 module="M-CHAIN" status="done" verification="V-M-CHAIN">Chain / EntityDb</step-1>
+    </Phase-6>
+    <Phase-7 name="Entry &amp; bootstrap" status="done">
+      <goal>Public connect() surface and the dev up() orchestrator</goal>
+      <step-1 module="M-CONNECT" status="done" verification="V-M-CONNECT">connect() + barrel</step-1>
+      <step-2 module="M-UP" status="done" verification="V-M-UP">up() bootstrap</step-2>
+    </Phase-7>
+  </ImplementationOrder>
+
+  <ExecutionPolicy>
+    <controller-owns>docs/development-plan.xml, docs/knowledge-graph.xml, docs/verification-plan.xml, docs/requirements.xml, docs/technology.xml, docs/operational-packets.xml, AGENTS.md</controller-owns>
+    <worker-owns>Only the module source files inside the approved write scope (lib/src/*.ts, lib/sql/*.sql, lib/scripts/*.mjs, lib/docker/*). lib/test/** is out of scope and must not be modified.</worker-owns>
+  </ExecutionPolicy>
+</DevelopmentPlan>

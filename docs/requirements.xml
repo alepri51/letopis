@@ -1,0 +1,171 @@
+<RequirementsAnalysis VERSION="1.0.0">
+  <Project>
+    <name>letopis</name>
+    <annotation>A temporal, versioned entity store over PostgreSQL/TimescaleDB with a chainable graph-query API, a DB-driven schema registry, and built-in authentication, ACL, and sessions.</annotation>
+    <keywords>temporal database, versioned entities, event history, graph traversal, chainable query, schema registry, acl, authentication, sessions, postgres, timescaledb, redis</keywords>
+  </Project>
+
+  <Actors>
+    <actor-Developer>Library consumer building an application: models the domain, opens connections, and reads/writes/traverses entities through the chain API.</actor-Developer>
+    <actor-Operator>Administers accounts, credentials, and ACL resources/rules, and manages the domain schema (seed / schema-sync).</actor-Operator>
+    <actor-EndUser>An authenticated account whose credentials, sessions, and permissions letopis manages — interacts indirectly, through an app built on the library.</actor-EndUser>
+    <actor-System>Automated actor: dev bootstrap (up), codegen/schema tooling, and change-watch consumers.</actor-System>
+  </Actors>
+
+  <UseCases>
+    <UC-001>
+      <Actor>Developer</Actor>
+      <Action>Open a store connection with connect()/up()</Action>
+      <Goal>Obtain a working EntityDb bound to a schema + partition</Goal>
+      <Preconditions>A reachable PostgreSQL with the schema applied (or Docker available for up())</Preconditions>
+      <AcceptanceCriteria>connect() returns an EntityDb; enforceAcl without an account throws; unknown account throws</AcceptanceCriteria>
+      <Priority>high</Priority>
+      <RelatedFlows>DF-001, DF-008</RelatedFlows>
+    </UC-001>
+    <UC-002>
+      <Actor>Operator</Actor>
+      <Action>Define or synchronize the domain schema (Schema table)</Action>
+      <Goal>Have the class registry reflect the intended domain model safely</Goal>
+      <Preconditions>A schema JSON (for sync) or a seed; DB access</Preconditions>
+      <AcceptanceCriteria>loadRegistry resolves classes/ancestors/link ends; schema-sync reports diffs and blocks breaking changes without --apply</AcceptanceCriteria>
+      <Priority>high</Priority>
+      <RelatedFlows>DF-001</RelatedFlows>
+    </UC-002>
+    <UC-003>
+      <Actor>Developer</Actor>
+      <Action>Create an entity of a class</Action>
+      <Goal>Persist a validated, versioned entity with a proper id</Goal>
+      <Preconditions>Class exists and is non-abstract; an account is set</Preconditions>
+      <AcceptanceCriteria>A new Entity version row exists; ValidationError on invalid data; v5 ids computed from declared ends/fields, else v7/v4</AcceptanceCriteria>
+      <Priority>high</Priority>
+      <RelatedFlows>DF-003</RelatedFlows>
+    </UC-003>
+    <UC-004>
+      <Actor>Developer</Actor>
+      <Action>Read and traverse the graph (class + link ends / pivots)</Action>
+      <Goal>Retrieve paths/rows/ids/counts across related entities</Goal>
+      <Preconditions>Registry loaded; links declared in Schema</Preconditions>
+      <AcceptanceCriteria>Correct forward/reverse traversal; latest-version reads by default; unknown paths throw a clear error</AcceptanceCriteria>
+      <Priority>high</Priority>
+      <RelatedFlows>DF-002</RelatedFlows>
+    </UC-004>
+    <UC-005>
+      <Actor>Developer</Actor>
+      <Action>Update (version) an entity</Action>
+      <Goal>Apply a change while preserving full history</Goal>
+      <Preconditions>Target entity exists</Preconditions>
+      <AcceptanceCriteria>A new version is inserted (deep-merged patch); prior versions remain queryable</AcceptanceCriteria>
+      <Priority>high</Priority>
+      <RelatedFlows>DF-003</RelatedFlows>
+    </UC-005>
+    <UC-006>
+      <Actor>Developer</Actor>
+      <Action>Delete an entity with cascade</Action>
+      <Goal>Tombstone the target and its dependents consistently</Goal>
+      <Preconditions>Authorized for DELETE; confirm for filterless deletes</Preconditions>
+      <AcceptanceCriteria>Target + dependents tombstoned via the entity_delete trigger; "acl denies DELETE" when unauthorized</AcceptanceCriteria>
+      <Priority>high</Priority>
+      <RelatedFlows>DF-004</RelatedFlows>
+    </UC-006>
+    <UC-007>
+      <Actor>Developer</Actor>
+      <Action>Run a temporal query (asOf, versions, history, after cursor)</Action>
+      <Goal>Reconstruct point-in-time state and paginate history deterministically</Goal>
+      <Preconditions>Versioned data present</Preconditions>
+      <AcceptanceCriteria>asOf(t) returns the state as of t; versions() lists history; after(cursor) does stable keyset pagination</AcceptanceCriteria>
+      <Priority>high</Priority>
+      <RelatedFlows>DF-002</RelatedFlows>
+    </UC-007>
+    <UC-008>
+      <Actor>EndUser</Actor>
+      <Action>Authenticate via password / API key / key+secret / TOTP / OTP / identity link</Action>
+      <Goal>Prove identity without leaking secrets or timing</Goal>
+      <Preconditions>A credential exists for the identity</Preconditions>
+      <AcceptanceCriteria>AuthResult on success, null on failure; constant-time compares; dummy-verify on unknown identifier; invalid base32 TOTP secret throws</AcceptanceCriteria>
+      <Priority>high</Priority>
+      <RelatedFlows>DF-005</RelatedFlows>
+    </UC-008>
+    <UC-009>
+      <Actor>System</Actor>
+      <Action>Manage sessions (start / check / revoke / revokeAll)</Action>
+      <Goal>Track authenticated sessions with TTL over Redis</Goal>
+      <Preconditions>A SessionStore (Redis-shaped) is provided</Preconditions>
+      <AcceptanceCriteria>Token stored hashed (sha256) with TTL; check returns Session or null; revokeAll clears an account's sessions</AcceptanceCriteria>
+      <Priority>high</Priority>
+      <RelatedFlows>DF-007</RelatedFlows>
+    </UC-009>
+    <UC-010>
+      <Actor>Operator</Actor>
+      <Action>Enforce ACL on reads and writes</Action>
+      <Goal>Restrict access per account by Resource/Rule with weighted precedence</Goal>
+      <Preconditions>connect({ account, enforceAcl:true }); resources/rules seeded</Preconditions>
+      <AcceptanceCriteria>Deny-by-default; highest-weight matching rule wins; row filters injected into reads; denied writes throw</AcceptanceCriteria>
+      <Priority>high</Priority>
+      <RelatedFlows>DF-006</RelatedFlows>
+    </UC-010>
+    <UC-011>
+      <Actor>System</Actor>
+      <Action>Watch entity changes</Action>
+      <Goal>React to inserts/versions/tombstones in near real time</Goal>
+      <Preconditions>DB LISTEN/NOTIFY available; watch() subscribed</Preconditions>
+      <AcceptanceCriteria>WatchEvent delivered on change; reconnect invokes onReconnect</AcceptanceCriteria>
+      <Priority>medium</Priority>
+      <RelatedFlows>DF-009</RelatedFlows>
+    </UC-011>
+    <UC-012>
+      <Actor>Developer</Actor>
+      <Action>Batch multiple writes</Action>
+      <Goal>Queue several plans and execute them efficiently in one round</Goal>
+      <Preconditions>A batch created via db.batch(name)</Preconditions>
+      <AcceptanceCriteria>Pure-insert plans fast-pathed into one multi-insert; results returned per queued plan; discard() clears the queue</AcceptanceCriteria>
+      <Priority>medium</Priority>
+      <RelatedFlows>DF-010</RelatedFlows>
+    </UC-012>
+    <UC-013>
+      <Actor>Developer</Actor>
+      <Action>Bootstrap a dev environment with up()</Action>
+      <Goal>Get a ready Postgres+Redis with schema and seeds applied</Goal>
+      <Preconditions>Docker installed (unless dsn points at a running Postgres)</Preconditions>
+      <AcceptanceCriteria>Container provisioned, schema+seeds applied, readiness awaited, connected; actionable errors on docker missing / timeout / bad schema|version</AcceptanceCriteria>
+      <Priority>high</Priority>
+      <RelatedFlows>DF-008</RelatedFlows>
+    </UC-013>
+    <UC-014>
+      <Actor>Developer</Actor>
+      <Action>Generate types / synchronize schema via the CLIs</Action>
+      <Goal>Keep TypeScript types and the DB schema aligned safely</Goal>
+      <Preconditions>DSN + schema; a schema JSON for sync</Preconditions>
+      <AcceptanceCriteria>gen-types emits a typed .d.ts facade; schema-sync applies only non-breaking changes (or with explicit --apply)</AcceptanceCriteria>
+      <Priority>low</Priority>
+      <RelatedFlows>DF-001</RelatedFlows>
+    </UC-014>
+  </UseCases>
+
+  <NonGoals>
+    <item-1>Not a code-first ORM: class definitions live in the DB Schema table, not as TS classes; there are no code migrations.</item-1>
+    <item-2>No arbitrary-SQL query builder beyond the chain DSL and the fixed auth/authz table APIs.</item-2>
+    <item-3>No admin UI for ACL — authorization is rule/weight based and configured as data.</item-3>
+    <item-4>Dev Redis sessions are ephemeral (no persistence/password in the dev container).</item-4>
+  </NonGoals>
+
+  <Constraints>
+    <constraint-1>Requires PostgreSQL 17 with the TimescaleDB extension (Entity is a hypertable); Redis for sessions.</constraint-1>
+    <constraint-2>ESM-only; Node 20+ with NodeNext resolution and explicit .js import specifiers.</constraint-2>
+    <constraint-3>Entity.account is NOT NULL — every write needs an account (connect({account}) or the seeded System account).</constraint-3>
+    <constraint-4>up() requires Docker unless the dsn targets an already-running Postgres.</constraint-4>
+  </Constraints>
+
+  <Risks>
+    <risk-1>Invariant duplication: entity validation and link-end rules live both in M-DDL triggers and in M-WRITE.validate — they can drift.</risk-1>
+    <risk-2>ACL (M-ACL) has no dedicated unit test (only a bench) despite being high-risk authorization logic.</risk-2>
+    <risk-3>Type-level import cycle M-SQL↔M-ACL↔M-TABLES and runtime ESM cycle M-CONNECT↔M-UP constrain refactoring.</risk-3>
+    <risk-4>Logic concentration in chain.ts / sql.ts / write.ts (~750 LOC each) raises regression surface.</risk-4>
+    <risk-5>seed.booking.sql header says "19 классов" but 20 INSERT statements were counted — a possible seed inconsistency.</risk-5>
+  </Risks>
+
+  <OpenQuestions>
+    <question-1>Are gen-types/schema-sync intended as supported product surface (UC-014) or purely internal dev tooling?</question-1>
+    <question-2>Is the demo booking domain (seed.booking.sql) part of the shipped product or only a demo/bench fixture?</question-2>
+    <question-3>What is the intended security posture for enforceAcl/enforceAccount in production (default on/off)?</question-3>
+  </OpenQuestions>
+</RequirementsAnalysis>

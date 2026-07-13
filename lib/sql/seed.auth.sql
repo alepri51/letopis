@@ -4,11 +4,35 @@
 -- Идемпотентен (ON CONFLICT).
 -- =============================================================================
 
+-- FILE: lib/sql/seed.auth.sql
+-- VERSION: 1.0.0
+-- START_MODULE_CONTRACT
+--   PURPOSE: Идемпотентный сид System-аккаунта и дефолтного набора ACL Resource/Rule для auth-эндпоинтов.
+--   SCOPE: 1 Account (System), 16 Resource (subjects+API), 12 Rule (allow/deny с весами).
+--   DEPENDS: none
+--   LINKS: M-SEED-AUTH, V-M-SEED-AUTH
+--   ROLE: CONFIG
+--   MAP_MODE: SUMMARY
+-- END_MODULE_CONTRACT
+--
+-- START_MODULE_MAP
+--   Account - один System-аккаунт (фикс. id 2eba6d0a-…)
+--   Resource - 16 ресурсов ACL (anonymous/authenticated/any, auth.*, payment/shop/billing/geo)
+--   Rule - 12 правил allow/deny, вес 0..105
+-- END_MODULE_MAP
+--
+-- START_CHANGE_SUMMARY
+--   LAST_CHANGE: [v1.0.0 - Documented existing module: reverse-engineered contract + markup]
+-- END_CHANGE_SUMMARY
+
+-- START_BLOCK_SEED_ACCOUNT
 -- Системный аккаунт (фиксированный id из дампа)
 INSERT INTO "<SCHEMA-NAME>"."Account" (id, categories, data, meta, avatar, enabled) VALUES
   ('2eba6d0a-1edd-4bb6-a85a-a703dab49035', '{System}', '{"id": "System", "name": "System"}', '{}', 'https://i.pravatar.cc/128?img=28', true)
   ON CONFLICT (id) DO NOTHING;
 
+-- END_BLOCK_SEED_ACCOUNT
+-- START_BLOCK_SEED_RESOURCES
 -- Ресурсы: субъекты (категории аккаунтов) и объекты (API-эндпоинты)
 INSERT INTO "<SCHEMA-NAME>"."Resource" (alias, category, pattern, meta) VALUES
   ('anonymous:ACCOUNT',      'ACCOUNT', '{"categories": "{Anonymous,Shadow}"}',  '{"description": "Unauthenticated users (includes Anonymous and Shadow categories)"}'),
@@ -29,6 +53,8 @@ INSERT INTO "<SCHEMA-NAME>"."Resource" (alias, category, pattern, meta) VALUES
   ('geo:API',                'API', '{"endpoint": "v2.geo.*"}',                  NULL)
   ON CONFLICT (alias) DO UPDATE SET category = EXCLUDED.category, pattern = EXCLUDED.pattern, meta = EXCLUDED.meta;
 
+-- END_BLOCK_SEED_RESOURCES
+-- START_BLOCK_SEED_RULES
 -- Правила: субъект → объект → allow|deny (weight — приоритет)
 INSERT INTO "<SCHEMA-NAME>"."Rule" (account, resource, permission, weight, meta, enabled) VALUES
   ('authenticated:ACCOUNT', 'auth.user.password:API', 'allow',  90, '{"description": "Users can change their own password"}', true),
@@ -44,3 +70,4 @@ INSERT INTO "<SCHEMA-NAME>"."Rule" (account, resource, permission, weight, meta,
   ('authenticated:ACCOUNT', 'billing:API',            'allow',  90, '{"description": "Users can access billing (uses ctx.meta.$account.id)"}', true),
   ('authenticated:ACCOUNT', 'geo:API',                'allow',  90, '{"description": "Users can access geo (uses ctx.meta.$account.id)"}', true)
   ON CONFLICT (account, resource) DO UPDATE SET permission = EXCLUDED.permission, weight = EXCLUDED.weight, meta = EXCLUDED.meta, enabled = EXCLUDED.enabled;
+-- END_BLOCK_SEED_RULES
