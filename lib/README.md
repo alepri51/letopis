@@ -16,6 +16,50 @@ const пути = await db.Мастер({ name: 'Вася' }).навык().Усл
 await db.Организация(org).Мастер().create({ name: 'Вася', phone: '+7 900 …' }).rows()
 ```
 
+## Возможности
+
+**Хранилище — темпоральное, append-only**
+- Каждое изменение — новая версия-строка; история — first-class (§2, §10).
+- Единая `Entity`-hypertable на TimescaleDB, партиции по времени `updated` (§2.1).
+- Весь CRUD на уровне БД триггерами: `UPDATE` = новая версия, `DELETE` = tombstone + рекурсивный каскад (§2.2).
+- FK-целостность с RESTRICT на append-only (§2.3); срез актуального через `DISTINCT ON` (§2.4).
+
+**Схема и классы**
+- Реестр классов из таблицы `Schema`: `HUB` / `LINK`, наследование `attributes` по иерархии (§3, §3.3).
+- Строгая валидация данных — fastest-validator DSL, вложенные объекты любой глубины (§3, §6).
+- Связи v2: союзы ролей (`{A|B|C}`), optional-концы, жадный матчинг (§3.1).
+- Правило id в схеме: uuid v4 / v7 (time-ordered) / v5 (детерминированный → идемпотентный create) (§3.2).
+
+**Чтение — dot-цепочки (graph-query)**
+- Пути по графу HUB↔LINK, pivot-возврат, узел-переменная `entity()` (§4).
+- Терминалы `run` / `rows` / `first` / `ids` / `count` — ленивый план, SQL уходит на терминале (§4).
+- 18 операторов фильтров (`ne` `gt` `between` `inList` `like` `has` `exists` `not` `or`…), вложенные пути, касты по схеме (§5).
+- Модификаторы: `limit` / `offset` / `sort`, `asOf`, `after` (keyset), `deep`, `tags` / `account` / `owner`, `alias` (§5).
+
+**Запись**
+- `create` / `update` / `delete` / `anonymize` — звенья плана; весь план одной транзакцией с откатом (§6).
+- Слоты связей `.Класс.set()` / `.unset()`, вложенная цепочка как значение слота (§6.1).
+- Deep-merge при `update`; идемпотентный `create` по вычисленному v5-id (§6).
+- Транзакции `db.begin()` + advisory-lock (рецепт двойной брони, §7); батчи с multi-VALUES-склейкой (§8).
+
+**История и время**
+- `asOf()` («как было на T») + `versions()` (§10.1); keyset-пагинация `after()` / `cursorOf()` (§10.2).
+- Агрегации в БД `sum` / `avg` / `min` / `max` / `countBy` (§10.3); деревья `deep()` recursive-CTE (§10.4).
+- Realtime `watch()` через `pg_notify` + `onReconnect` (§10.5).
+- Анонимизация (GDPR) `anonymize()` (§10.7); политики сжатия / retention Timescale (§10.8).
+
+**Auth · ACL · сессии — встроенные**
+- Пароли (scrypt), api-ключи, key-secret, external identity (oauth/sso/telegram), TOTP, одноразовые коды (§9.1).
+- Сессии во внешнем Redis (клиент инжектируется, §9.1).
+- ACL: `Resource` / `Rule`, `enforceAcl` — предикаты строк вливаются в SQL до сортировки/лимита; наследование прав по классам (§9.2).
+- Изоляция арендатора `enforceAccount` (§10.6).
+
+**Эксплуатация**
+- `up()` — dev-bootstrap одной функцией: Docker (TimescaleDB pg17 + Redis) + схема + сиды + connect (§1, §1.1).
+- Миграции классов `schema-sync` с отчётом совместимости (§10.9); TS-типы из схемы `gen-types` (§10.11).
+- Наблюдаемость `onQuery` / `slowMs` (§10.10); ретраи deadlock/serialization, самопереподключение LISTEN (§10.12).
+- Лёгкие зависимости: только `postgres` + `fastest-validator` (Redis-клиент внешний, `ioredis` опционален).
+
 Содержание:
 [1. Быстрый старт](#1-быстрый-старт) ·
 [2. Хранилище](#2-хранилище) ·
@@ -61,7 +105,7 @@ await db.close()
 Данные PG живут в named volume `letopis-pgdata` (кроссплатформенно, переживает пересоздание
 контейнера); `dataDir: '/path'` — bind mount папки хоста. Полный контракт — [§11.1a](#111a-upopts).
 
-Вручную (то же самое по шагам):
+Вручную (то же самое по шагам) — **из клона репозитория** (`db/apply.mjs` — корневой скрипт репо, в npm-пакет не входит; в установленном пакете накат делает `up()` выше, а Docker-образ он собирает из вложенного `docker/`):
 
 ```bash
 docker build -t letopis-db lib/docker
@@ -75,6 +119,88 @@ node db/apply.mjs --dsn=postgres://postgres:test@localhost:15432/clockz --schema
 ```ts
 const db = await connect({ dsn: 'postgres://postgres:test@localhost:15432/clockz', schema: 'v1.booking' })
 ```
+
+### 1.1 Своя схема с нуля + всё в контейнере одной командой
+
+Три шага: **(1)** сид своей схемы → **(2)** `up()` поднимает контейнер и накатывает → **(3)** пишешь данные. Таблицы (`Schema`, `Account`, `Entity`, …) создаёт `ddl.sql` — своему сиду нужны только INSERT-ы; маркер `<SCHEMA-NAME>` подставит `up()`.
+
+**1. Сид `myapp.sql`** — классы в таблицу `Schema` + System-аккаунт:
+
+```sql
+-- myapp.sql — своя схема letopis
+
+-- System-аккаунт: Entity.account/owner — NOT NULL, дефолт либа берёт ОТСЮДА
+-- (connect ищет Account с категорией 'System'; без него первый create бросит ошибку)
+INSERT INTO "<SCHEMA-NAME>"."Account" (id, categories, data)
+VALUES ('00000000-0000-4000-8000-000000000001', '{System}', '{"name":"System"}')
+ON CONFLICT (id) DO NOTHING;
+
+-- Классы домена (нужен ≥1, иначе connect: "has no classes")
+INSERT INTO "<SCHEMA-NAME>"."Schema"
+  (partition, id, alias, category, ancestor, attributes, meta, links, "order", ancestors)
+VALUES
+  -- корень: дефолт id v7 наследуется; abstract — напрямую не создаётся
+  ('entity','Entity','Сущность','HUB', NULL,
+   '{"id":{"type":"uuid","generate":7}}','{"abstract":true}','[]',100,'{Entity}'),
+  -- HUB: заметка
+  ('entity','Note','Заметка','HUB','Entity',
+   '{"title":"string","body":"string|optional","done":{"type":"boolean","default":false}}',
+   '{}','[]',200,'{Note,Entity}'),
+  -- HUB: тег
+  ('entity','Tag','Тег','HUB','Entity',
+   '{"name":"string"}','{}','[]',300,'{Tag,Entity}'),
+  -- LINK: заметка ↔ тег
+  ('entity','tagged','помечена','LINK', NULL,
+   '{"id":{"type":"uuid","generate":7}}','{}',
+   '[{"class":"Note","cardinality":1},{"class":"Tag","cardinality":1}]',400,'{tagged}')
+ON CONFLICT (partition, id) DO UPDATE SET
+  alias=EXCLUDED.alias, ancestor=EXCLUDED.ancestor, attributes=EXCLUDED.attributes,
+  meta=EXCLUDED.meta, links=EXCLUDED.links, "order"=EXCLUDED."order";
+```
+
+**2. `up()` — контейнер + база + схема + connect одной командой:**
+
+```ts
+import { up } from 'letopis'
+
+const db = await up({ schema: 'myapp', version: 1, seeds: ['./myapp.sql'] })
+// [letopis.up] building image letopis-db … (первый раз тянет TimescaleDB-базу — минуты)
+// [letopis.up] container letopis-timescale created (data: volume letopis-pgdata)
+// [letopis.up] postgres ready in 5.0 s / redis ready on 16379
+// [letopis.up] schema "v1.myapp" applied (2 files)     ← ddl.sql + myapp.sql
+// [letopis.up] connected (schema "v1.myapp")
+```
+
+Изолированное окружение (если на хосте уже крутится дефолтный контейнер или нужен отдельный):
+
+```ts
+const db = await up({
+  schema: 'myapp', version: 1, seeds: ['./myapp.sql'],
+  container: 'myapp-db',                 // иначе дефолтный 'letopis-timescale'
+  image:     'myapp-timescale',          // соберётся из пакетного docker/ (TimescaleDB pg17 + Redis)
+  dsn:       'postgres://postgres:secret@localhost:25432/myapp',
+  dataDir:   'myapp-pgdata',             // named volume (или путь хоста = bind mount)
+  redisPort: 26379,
+})
+```
+
+**3. Данные — работают сразу** (System-аккаунт из сида закрывает `account`/`owner`):
+
+```ts
+const [n] = await db.Заметка().create({ title: 'Купить хлеб' }).rows()
+const [t] = await db.Тег().create({ name: 'дом' }).rows()
+await db.Заметка(n).помечена().create().Тег.set(t).rows()   // связь Note ↔ Tag (§6.1)
+const активные = await db.Заметка({ done: false }).rows()
+await db.close()
+```
+
+**Гейты и рецепты**
+- **≥1 класс** в `Schema` обязателен — иначе `up()` падает на connect: `has no classes` (§3).
+- **System-аккаунт обязателен** (или передать `up({ …, account: '<uuid существующей Account>' })`) — иначе первый `create` бросит `Entity.account is NOT NULL …`.
+- **Готовый auth из коробки** (пароли/ACL): добавь пакетный сид вторым — `seeds: ['./myapp.sql', 'node_modules/letopis/sql/seed.auth.sql']` (System + 16 Resource + 12 Rule); тогда свою `Account`-строку не пиши.
+- **Идемпотентно**: контейнер жив → reuse; схема есть → накат пропущен. **Заново с нуля**: `fresh: true` (дроп схемы — данные теряются) либо снести контейнер: `docker rm -f myapp-db && docker volume rm myapp-pgdata`.
+- **Prod / managed PG**: `dsn` на живой postgres → docker пропускается целиком (только база + схема + connect); либо накатить `sql/ddl.sql` + свой сид своим мигратором и `connect({ dsn, schema: 'v1.myapp' })`. Пакетный `docker/`-образ (Redis без пароля/персиста) — dev-удобство, не для прода.
+- Локальный путь требует установленного и запущенного **Docker**; managed PG — без него.
 
 ---
 
@@ -231,6 +357,194 @@ v7-классы (Org/Staff/Customer/Location/Schedule/Folder) наследуют
 предка**, переопределение поля — замена правила ЦЕЛИКОМ (не слияние). Правило `id` (§ 3.2)
 наследуется так же — дефолт объявляется один раз на корне иерархии; `links` НЕ наследуются:
 концы объявляет каждый класс сам. Валидатор и типы полей компилируются из слитых attributes.
+
+### 3.4 Примеры схем из таблицы `Schema`
+
+Демо-домен booking — **20 классов** в `lib/sql/seed.booking.sql` (**источник правды**:
+правится руками, идемпотентен — по строке-INSERT на класс). Файл входит в npm-пакет;
+`up({ schema: 'booking' })` накатывает его дефолтом. Свой домен — тем же форматом:
+
+```ts
+await up({ schema: 'salon', version: 1, seeds: ['./salon.sql'] })   // свой сид вместо демо
+// seed.auth.sql грузится отдельно и в Schema НЕ пишет — только Account/Resource/Rule (§9)
+```
+
+Таблица `Schema` (`lib/sql/ddl.sql`) — по строке на класс:
+
+```sql
+CREATE TABLE IF NOT EXISTS "<SCHEMA-NAME>"."Schema" (
+    partition  text   NOT NULL DEFAULT 'entity',
+    id         text   NOT NULL,                  -- англ. id класса: 'Staff', 'skill'
+    alias      text   NOT NULL,                  -- рус. алиас: 'Мастер', 'навык'
+    category   text   NOT NULL CHECK (category IN ('HUB', 'LINK')),
+    ancestor   text,                             -- прямой родитель (наследование)
+    attributes jsonb  NOT NULL DEFAULT '{}',     -- fastest-validator DSL (валидирует либа)
+    links      jsonb  NOT NULL DEFAULT '[]',     -- массив объектов-концов (§3.1)
+    meta       jsonb  NOT NULL DEFAULT '{}',     -- {abstract?, description?, appearance?}
+    "order"    int    NOT NULL DEFAULT 0,
+    ancestors   text[] NOT NULL DEFAULT '{}',    -- [self, parent, …, root] — считает триггер schema_lineage
+    descendants text[] NOT NULL DEFAULT '{}',    -- все потомки (транзитивно)   — считает триггер schema_lineage
+    PRIMARY KEY (partition, id)
+);
+```
+
+Формат строки (один на все 20; `<SCHEMA-NAME>` подставляет `up()` реальным именем PG-схемы):
+
+```sql
+INSERT INTO "<SCHEMA-NAME>"."Schema"
+  (partition, id, alias, category, ancestor, attributes, meta, links, "order", ancestors)
+VALUES ('entity', 'Service', 'Услуга', 'HUB', 'Element',
+  '{"duration":"number|min:0|optional"}',        -- attributes: DSL fastest-validator (§3)
+  '{"abstract":false,"description":"…"}',         -- meta
+  '[{"class":"Org","cardinality":1}]',            -- links: концы (§3.1); НЕ наследуются
+  800, '{Service,Element,Entity}')                -- order + ancestors
+ON CONFLICT (partition, id) DO UPDATE SET …;      -- повторный накат = правка класса
+```
+
+- `id` + `alias` — англ. и рус. имя, **равноправны** в API: `db.Service(…)` ≡ `db.Услуга(…)`.
+- `descendants` не пишем — считает триггер `schema_lineage`; `ancestors` он тоже пересчитает.
+- `attributes.id` — правило рождения id (§3.2), наследуется по `ancestor` (§3.3).
+
+Ниже — 4 характерные строки verbatim из сида и **как ими пользоваться**.
+
+#### HUB · вложенный object — `Org` (Организация)
+
+```jsonc
+// attributes:
+{
+  "name": "string",
+  "timezone": { "type": "string", "default": "Europe/Moscow" },
+  "address": "string|optional",
+  "phone": "string|optional",
+  "active": { "type": "boolean", "default": true },
+  "settings": { "type": "object", "optional": true, "strict": true, "props": {
+    "booking": { "type": "object", "optional": true, "strict": true, "props": {
+      "deposit": { "type": "object", "optional": true, "strict": true, "props": {
+        "amount": "number|integer|min:0|default:0",
+        "currency": { "type": "enum", "values": ["RUB","USD","EUR","AED"], "default": "RUB" }
+      }},
+      "autoconfirm": "boolean|default:false"
+    }}
+  }}
+}
+// links: []   ← корневой HUB, арендатор сам себе владелец (концов нет)
+```
+
+```ts
+// create: defaults подставит схема (timezone, active); вложенный object любой глубины
+const [org] = await db.Организация().create({
+  name: 'BarberPro',
+  settings: { booking: { deposit: { amount: 500, currency: 'RUB' }, autoconfirm: true } },
+}).rows()
+
+// правка одного листа — deep-merge, соседи целы (§6): autoconfirm и currency сохранятся
+await db.Организация(org).update({ settings: { booking: { deposit: { amount: 1000 } } } }).rows()
+
+// фильтр по вложенному пути любой глубины (§5):
+await db.Организация({ settings: { booking: { autoconfirm: true } } }).rows()
+```
+
+Поле вне `attributes` → `ValidationError` (валидация строгая, `$$strict`).
+
+#### HUB · наследуемый v5-id — `Element → Service` (Услуга)
+
+`Element` объявляет правило id **один раз**; `Service`/`Product`/`Complex` наследуют (§3.3):
+
+```jsonc
+// Element (abstract): attributes
+{ "id": { "type": "uuid", "generate": 5, "from": ["Org", "name"] },   // id = uuidv5(Org, name)
+  "name": "string", "description": "string|optional" }
+// links: [{ "class": "Org", "cardinality": 1 }]
+
+// Service (ancestor: Element): attributes — добавляет только своё поле
+{ "duration": "number|min:0|optional" }   // name и правило id унаследованы от Element
+// links: [{ "class": "Org", "cardinality": 1 }]   ← links НЕ наследуются, объявлены заново
+```
+
+```ts
+// create: id НЕ передаём — схема считает uuidv5(Org, name); повтор той же пары = та же услуга
+const [svc] = await db.Организация(org).Услуга().create({ name: 'Стрижка', duration: 60 }).rows()
+svc.id === uuidv5(`v1.booking:entity:Service:${org.id}:Стрижка`)   // → true (§3.2)
+// имя уникально в организации; classId в формуле различает Услугу и Товар с тем же именем
+```
+
+#### LINK · наследование + союз ролей + optional — `slot → booking` (запись)
+
+`booking` наследует `slot` (интервал + правило id), добавляет предмет записи и клиента:
+
+```jsonc
+// slot (окно): attributes
+{ "id": { "type": "uuid", "generate": 5, "from": ["Staff", "start_datetime"] },
+  "start_datetime": { "type": "date", "convert": true },
+  "end_datetime":   { "type": "date", "convert": true } }
+// links: [{class:"Staff"}, {class:"Location"}, {class:"Schedule"}]   (все cardinality:1)
+
+// booking (ancestor: slot): attributes — только своё; start/end и правило id унаследованы
+{ "notes": "string|optional" }
+// links:
+[ { "class": "Staff",    "cardinality": 1 },
+  { "class": "Location", "cardinality": 1 },
+  { "class": "Schedule", "cardinality": 1 },
+  { "classes": ["Service","Product","Complex"], "cardinality": 1 },   // союз: РОВНО один из
+  { "class": "Customer", "optional": true, "cardinality": 1 } ]       // конец может отсутствовать
+```
+
+```ts
+// владелец (Мастер) — из пути; прочие концы — слотами (§6.1); id считает схема из (Staff, start)
+await db.Мастер(m).запись().create({ start_datetime: t, end_datetime: e })
+  .Локация.set(л).Расписание.set(р).Услуга.set(у).Клиент.set(к).rows()
+// союз занимает ОДИН ключ: услуга ИЛИ товар ИЛИ комплекс; лишняя связь → ошибка
+// Клиент optional → ручная бронь без него, имя в notes:
+await db.Мастер(m).запись().create({ start_datetime: t, end_datetime: e, notes: 'по телефону: Аня' })
+  .Локация.set(л).Расписание.set(р).Товар.set(тов).rows()   // Клиент опущен — ok
+```
+
+#### LINK · record / мультивалюта — `price` (цена)
+
+```jsonc
+// attributes:
+{ "id": { "type": "uuid", "generate": 5, "from": ["Service|Product|Complex", "note"] },
+  "note": { "type": "string", "default": "базовая" },        // необязателен → дефолт входит в id (§3.2)
+  "amounts": { "type": "record",
+               "key":   { "type": "enum", "values": ["RUB","USD","EUR","AED"] },
+               "value": "number|integer|min:0" } }
+// links: [{ "classes": ["Service","Product","Complex"], "cardinality": 1 }]   ← владелец — элемент
+```
+
+```ts
+// у элемента несколько вариантов цены; note различает (id = uuidv5(элемент, note))
+await db.Услуга(svc).цена().create({ amounts: { RUB: 1500, AED: 60 } }).rows()          // note → 'базовая'
+await db.Услуга(svc).цена().create({ note: 'с дизайном', amounts: { RUB: 2500 } }).rows()
+await db.Услуга(svc).цена().sum('data.amounts.RUB')   // агрегат по record-листу (§10.3): 4000
+```
+
+#### Все 20 классов и типовой вызов
+
+| Класс (id · alias) | cat | Что это | Типовой вызов |
+|---|---|---|---|
+| `Entity` · Сущность | HUB | abstract-корень, дефолт id v7 | — не создаётся |
+| `Org` · Организация | HUB | арендатор, владелец каталога | `db.Организация().create({ name })` |
+| `Person` · Контрагент | HUB | abstract: name + phone | — |
+| `Staff` · Мастер | HUB | бронируемый исполнитель | `db.Организация(o).Мастер().create({ name, phone })` |
+| `Customer` · Клиент | HUB | клиент | `db.Организация(o).Клиент().create({ name, phone })` |
+| `Location` · Локация | HUB | точка обслуживания | `db.Организация(o).Локация().create({ address })` |
+| `Element` · Элемент | HUB | abstract каталог, id v5(Org, name) | — |
+| `Service` · Услуга | HUB | услуга (+ duration) | `db.Организация(o).Услуга().create({ name, duration })` |
+| `Product` · Товар | HUB | товар (+ sku, unit) | `db.Организация(o).Товар().create({ name, sku })` |
+| `Complex` · Комплекс | HUB | комплекс (+ cost, duration) | `db.Организация(o).Комплекс().create({ name, cost, duration })` |
+| `Schedule` · Расписание | HUB | месячное расписание | `db.Организация(o).Расписание().create({ name, year, month })` |
+| `Folder` · Папка | HUB | категория (вложенная) | `db.Организация(o).Папка().create({ name })` · дети: `db.Папка(f).Папка().create({ name })` |
+| `link` · связь | LINK | abstract-корень связей, id v7 | — |
+| `address` · адрес | LINK | Мастер работает в Локации | `db.Мастер(m).адрес().create({ default: true }).Локация.set(l)` |
+| `slot` · окно | LINK | доступность Мастер × Локация × Расписание | `db.Мастер(m).окно().create({ start_datetime, end_datetime }).Локация.set(l).Расписание.set(s)` |
+| `booking` · запись | LINK | бронь (наследник окна) | `db.Мастер(m).запись().create({…}).Локация.set(l).Расписание.set(s).Услуга.set(u).Клиент.set(c)` |
+| `content` · содержимое | LINK | элемент в папке | `db.Папка(f).содержимое().create({ order: 1 }).Услуга.set(u)` |
+| `compo` · состав | LINK | элемент в комплексе | `db.Комплекс(k).состав().create({ quantity: 2 }).Услуга.set(u)` |
+| `skill` · навык | LINK | Мастер умеет Услугу | `db.Мастер(m).навык().create({ level: 'expert' }).Услуга.set(u)` |
+| `price` · цена | LINK | вариант цены элемента | `db.Услуга(u).цена().create({ amounts: { RUB: 1500 } })` |
+
+Полные `attributes` / `links` / `meta` каждого класса — в `lib/sql/seed.booking.sql`
+(по одному INSERT-у на класс, в порядке `order`).
 
 ---
 
@@ -836,6 +1150,8 @@ await db.Клиент(id).anonymize(['name', 'phone']).rows()
 
 ### 10.8 Политики хранения: `db/policies.mjs`
 
+> `db/policies.mjs` живёт в репозитории (корневой `db/`), **в npm-пакет НЕ входит** — запускать из клона. Логика — чистый Timescale SQL (`add_compression_policy` / `add_retention_policy`), при желании вызывается напрямую тем же DSN.
+
 ```bash
 node db/policies.mjs --dsn=… --schema=v1.booking --compress-after=30d   # сжатие (история цела)
 node db/policies.mjs --dsn=… --schema=v1.booking --retain=2y            # + retention (drop навсегда!)
@@ -851,6 +1167,8 @@ node db/policies.mjs --dsn=… --schema=v1.booking                     # тек�
   переустанавливает политику.
 
 ### 10.9 Миграции классов: `scripts/schema-sync.mjs`
+
+> Входит в npm-пакет (`files: ["scripts"]`); в установке путь — `node_modules/letopis/scripts/schema-sync.mjs`. Зависимости — `postgres` и `fastest-validator` (обе — deps пакета), `tsx` не нужен.
 
 ```bash
 node scripts/schema-sync.mjs --file=my-schema.json --dsn=… --schema=v1.booking
@@ -883,6 +1201,8 @@ const db = await connect({
 (`insert/delete`). Служебные запросы (реестр, auth-таблицы, listen) не шумят.
 
 ### 10.11 TS-типы из Schema: `scripts/gen-types.mjs`
+
+> Входит в npm-пакет; чистый Node-ESM (только `postgres`), `tsx` не нужен — в установке `node node_modules/letopis/scripts/gen-types.mjs …`.
 
 ```bash
 npx tsx scripts/gen-types.mjs --dsn=… --schema=v1.booking --out=entity-types.d.ts
