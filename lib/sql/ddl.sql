@@ -321,7 +321,8 @@ CREATE TRIGGER entity_update
 --   * бьёт только актуальную ЖИВУЮ строку (история и tombstone неприкосновенны);
 --   * advisory-lock сериализует параллельные удаления сущности;
 --   * каскад: DELETE живых зависимых (links ⊃ {класс: id}) → рекурсия этого же триггера;
---   * физического удаления не происходит никогда (очистка истории — retention-политики).
+--   * физического удаления не происходит никогда — КРОМЕ явного purge (см. ниже):
+--     при SET LOCAL letopis.purge='on' триггер целиком пропускается (WHEN) → физический DELETE.
 -- Работает и для голого SQL: DELETE FROM "<SCHEMA-NAME>"."Entity" WHERE partition=… AND class=… AND id=…
 -- -----------------------------------------------------------------------------
 -- START_CONTRACT: entity_delete
@@ -363,7 +364,94 @@ END $$;
 DROP TRIGGER IF EXISTS entity_delete ON "<SCHEMA-NAME>"."Entity";
 CREATE TRIGGER entity_delete
     BEFORE DELETE ON "<SCHEMA-NAME>"."Entity"
-    FOR EACH ROW EXECUTE FUNCTION "<SCHEMA-NAME>".entity_delete();
+    FOR EACH ROW
+    -- purge-режим: при SET LOCAL letopis.purge='on' триггер НЕ срабатывает → физический DELETE.
+    -- Обычный путь (флаг не выставлен) видит NULL → IS DISTINCT FROM 'on' = true → триггер работает (tombstone).
+    WHEN (current_setting('letopis.purge', true) IS DISTINCT FROM 'on')
+    EXECUTE FUNCTION "<SCHEMA-NAME>".entity_delete();
+
+-- -----------------------------------------------------------------------------
+-- Физический hard-erase (purge). Вся логика — в БД (две функции); либа лишь зовёт purge():
+--   * purge_closure(partition,class,ids[]) — (class,id) всего поддерева по links (вкл. tombstone);
+--     единый источник замыкания (UNION отсекает циклы/диаманты).
+--   * purge(partition,class,id[,dry]) RETURNS SETOF Entity — двухфазный снос корня + поддерева:
+--       - ДВУХФАЗНОСТЬ: только если сущность уже логически удалена (актуальная версия — tombstone);
+--         живую не трогает (0 строк);
+--       - dry=true  → превью (актуальные версии замыкания), БД не трогается;
+--       - dry=false → SET LOCAL letopis.purge='on' отключает entity_delete (см. WHEN выше) → плоский DELETE
+--         замыкания без вложенного DML (без TM_SelfModified, детерминированно), возвращает снесённое;
+--       - флаг транзакционный (is_local) + явный сброс → дальше в той же tx снова tombstone; привилегий не требует.
+-- Голый SQL:  SELECT * FROM "<SCHEMA-NAME>".purge('entity','Order','X');          -- снос
+--             SELECT * FROM "<SCHEMA-NAME>".purge('entity','Order','X', true);    -- превью
+-- -----------------------------------------------------------------------------
+-- START_CONTRACT: purge_closure
+--   PURPOSE: (class,id)-замыкание поддерева по links (вкл. tombstone) — что снесёт purge(); переиспользуется самой purge() (снос и dry-превью).
+--   INPUTS: { p_partition text; p_class text; p_ids text[] }
+--   OUTPUTS: { SETOF (class text, id text) - узлы замыкания }
+--   SIDE_EFFECTS: none (STABLE)
+--   LINKS: M-DDL, V-M-DDL, M-WRITE, M-SQL
+-- END_CONTRACT: purge_closure
+CREATE OR REPLACE FUNCTION "<SCHEMA-NAME>".purge_closure(p_partition text, p_class text, p_ids text[])
+RETURNS TABLE(class text, id text) LANGUAGE sql STABLE AS $$
+    WITH RECURSIVE closure(cls, cid) AS (
+        SELECT p_class, x FROM unnest(p_ids) AS x
+        UNION                                          -- не ALL → отсекает циклы/диаманты links
+        SELECT e.class, e.id
+          FROM "<SCHEMA-NAME>"."Entity" e
+          JOIN closure c ON e.links @> jsonb_build_object(c.cls, c.cid)
+         WHERE e.partition = p_partition
+    )
+    SELECT cls, cid FROM closure;
+$$;
+
+-- START_CONTRACT: purge
+--   PURPOSE: Двухфазно физически стереть логически удалённый корень и всё поддерево (по links, все версии); dry=превью.
+--   INPUTS: { p_partition text; p_class text; p_id text; p_dry boolean = false }
+--   OUTPUTS: { SETOF Entity - снесённые (по одному на сущность, latest) либо превью (dry); пусто если не tombstone }
+--   SIDE_EFFECTS: при dry=false — SET LOCAL letopis.purge (отключает entity_delete на tx) + физический DELETE; advisory-lock
+--   LINKS: M-DDL, V-M-DDL, M-WRITE, M-TABLES
+-- END_CONTRACT: purge
+CREATE OR REPLACE FUNCTION "<SCHEMA-NAME>".purge(
+    p_partition text, p_class text, p_id text, p_dry boolean DEFAULT false)
+RETURNS SETOF "<SCHEMA-NAME>"."Entity" LANGUAGE plpgsql AS $$
+BEGIN
+    PERFORM pg_advisory_xact_lock(
+        hashtextextended(p_partition || '|' || p_class || '|' || p_id, 0));
+
+    -- двухфазность: hard-purge только ПОСЛЕ логического удаления — актуальная версия обязана быть tombstone.
+    -- Живую (не удалённую) сущность purge НЕ трогает (возвращает 0 строк).
+    IF NOT EXISTS (
+        SELECT 1 FROM "<SCHEMA-NAME>"."Entity" e
+         WHERE e.partition = p_partition AND e.class = p_class AND e.id = p_id AND e.deleted IS NOT NULL
+           AND e.updated = (SELECT max(updated) FROM "<SCHEMA-NAME>"."Entity"
+                             WHERE partition = p_partition AND class = p_class AND id = p_id)
+    ) THEN
+        RETURN;
+    END IF;
+
+    IF p_dry THEN
+        -- превью: актуальная версия каждого члена замыкания, БД не трогаем
+        RETURN QUERY
+          SELECT DISTINCT ON (e.class, e.id) e.* FROM "<SCHEMA-NAME>"."Entity" e
+            JOIN "<SCHEMA-NAME>".purge_closure(p_partition, p_class, ARRAY[p_id]) c
+              ON e.class = c.class AND e.id = c.id
+           WHERE e.partition = p_partition
+           ORDER BY e.class, e.id, e.updated DESC;
+        RETURN;
+    END IF;
+
+    PERFORM set_config('letopis.purge', 'on', true);   -- SET LOCAL: entity_delete отключён на эту tx
+    RETURN QUERY
+      WITH del AS (
+        DELETE FROM "<SCHEMA-NAME>"."Entity" e
+         USING "<SCHEMA-NAME>".purge_closure(p_partition, p_class, ARRAY[p_id]) c
+         WHERE e.partition = p_partition AND e.class = c.class AND e.id = c.id  -- триггер пропущен (WHEN)
+        RETURNING e.*
+      )
+      SELECT DISTINCT ON (class, id) * FROM del ORDER BY class, id, updated DESC;
+    PERFORM set_config('letopis.purge', '', true);     -- сброс: дальше в той же tx снова tombstone
+    RETURN;
+END $$;
 
 -- =============================================================================
 -- Служебные таблицы (auth/ACL) — перенесены из legacy-дампа 1:1.
@@ -430,6 +518,30 @@ CREATE TABLE IF NOT EXISTS "<SCHEMA-NAME>"."Rule" (
     PRIMARY KEY (account, resource)
 );
 -- END_BLOCK_AUTH_TABLES
+
+-- -----------------------------------------------------------------------------
+-- purge_account(): полный физический офбординг тенанта — все Entity (account|owner) + сам Account.
+--   Credential уходит FK-каскадом (ON DELETE CASCADE). Флаг letopis.purge отключает entity_delete на
+--   снос Entity (см. WHEN). Права/предохранители (Owner-only, последний Owner, не-себя) — в либе
+--   (accounts.purge, им нужен ctx/ACL). Возвращает id снесённого Account либо NULL.
+-- -----------------------------------------------------------------------------
+-- START_CONTRACT: purge_account
+--   PURPOSE: Физически стереть тенанта: все Entity с account|owner = id + сам Account (Credential — FK-каскад).
+--   INPUTS: { p_id uuid }
+--   OUTPUTS: { uuid - id снесённого Account, либо NULL если не найден }
+--   SIDE_EFFECTS: SET LOCAL letopis.purge (отключает entity_delete); физический DELETE Entity + Account
+--   LINKS: M-DDL, V-M-DDL, M-TABLES
+-- END_CONTRACT: purge_account
+CREATE OR REPLACE FUNCTION "<SCHEMA-NAME>".purge_account(p_id uuid)
+RETURNS uuid LANGUAGE plpgsql AS $$
+DECLARE gone uuid;
+BEGIN
+    PERFORM set_config('letopis.purge', 'on', true);   -- SET LOCAL: entity_delete отключён (см. WHEN)
+    DELETE FROM "<SCHEMA-NAME>"."Entity" WHERE account = p_id OR owner = p_id;  -- обе оси (иначе entity_owner_fk RESTRICT)
+    PERFORM set_config('letopis.purge', '', true);
+    DELETE FROM "<SCHEMA-NAME>"."Account" WHERE id = p_id RETURNING id INTO gone;  -- Credential — FK-каскад
+    RETURN gone;
+END $$;
 
 -- -----------------------------------------------------------------------------
 -- Триггер 4: realtime — факт каждой новой версии в pg_notify (канал = имя схемы).

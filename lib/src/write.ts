@@ -43,6 +43,7 @@ import { uuidv5, uuidv7 } from './uuid.js';
 import type { Row, Path, ChainMods, Filter, ClassDef, PlanOp } from './types.js';
 import {
   buildRead, runQuery, insertSql, multiInsertSql, deleteSql, closureSql,
+  purgeCallSql,
   isTransient, retryDelay, RETRIES, type Ctx, type Step,
 } from './sql.js';
 import { aclDenied } from './acl.js';
@@ -652,6 +653,41 @@ export async function delOp(ctx: Ctx, steps: Step[], mods: ChainMods, confirm: b
   // END_BLOCK_DELETE_CASCADE
 }
 
+/**
+ * .purge({confirm}): ФИЗИЧЕСКИЙ hard-erase — сносит логически удалённые цели + всё поддерево (все версии).
+ * Вся логика — в серверной purge() (двухфазность: живую цель не трогает; замыкание по links; SET LOCAL
+ * отключает entity_delete → плоский снос без TM_SelfModified). JS лишь резолвит цели и зовёт функцию.
+ * confirm: false → dry-превью (что сотрётся, БД цела); true → снос, возвращает снесённое ($deleted).
+ * gate: DELETE-право на класс цели (aclWrite) — поддерево уже было DELETE-авторизовано при мягком удалении.
+ * В отличие от .delete() (tombstone, обратимо) — необратимо, историю НЕ сохраняет.
+ */
+// START_CONTRACT: purgeOp
+//   PURPOSE: .purge({confirm}) — резолв целей (вкл. tombstone) + вызов серверной purge() (снос при confirm, иначе dry-превью).
+//   INPUTS: { ctx: Ctx; steps: Step[]; mods: ChainMods; confirm: boolean }
+//   OUTPUTS: { Promise<Row[]> - снесённое с $deleted, либо dry-превью; [] если цели не tombstone/не найдены }
+//   SIDE_EFFECTS: физический DELETE в Entity через purge() (SET LOCAL letopis.purge отключает триггер)
+//   ERRORS: acl denies DELETE (класс цели)
+//   LINKS: M-WRITE, V-M-WRITE, M-ACL, M-DDL, M-SQL
+// END_CONTRACT: purgeOp
+export async function purgeOp(ctx: Ctx, steps: Step[], mods: ChainMods, confirm: boolean): Promise<Row[]> {
+  const target = steps[steps.length - 1];
+  aclWrite(ctx, target, 'DELETE');
+  // цели ищем ВКЛЮЧАЯ tombstone — .purge() работает по уже логически удалённым (двухфазность в purge())
+  const targets = await readRows(ctx, steps, { ...mods, withDeleted: true });
+  if (!targets.length) return [];
+
+  return inTransaction(ctx, async (c) => {
+    const out: Row[] = [];
+    // вся логика (двухфазность, замыкание, отключение триггера) — в серверной purge(); dry = !confirm
+    for (const t of targets) {
+      const rows = await runQuery<RawRow>(
+        c, purgeCallSql(c.pgSchema), [c.partition, target.cls.id, t.id, !confirm], 'delete', [target.cls.id]);
+      for (const r of rows) out.push(confirm ? { ...toRow(r), $deleted: true as const } : toRow(r));
+    }
+    return out;
+  });
+}
+
 // ---------------------------------------------------------------------------
 // План: цепочка с операциями на шагах. Терминал зовёт runPlan — сегменты
 // исполняются по порядку одной транзакцией, продолжение идёт от результата
@@ -688,6 +724,8 @@ function opCall(c: Ctx, steps: Step[], op: PlanOp): Promise<Row[]> {
       return anonymizeOp(c, steps, op.mods, op.fields ?? []);
     case 'delete':
       return delOp(c, steps, op.mods, op.confirm === true);
+    case 'purge':
+      return purgeOp(c, steps, op.mods, op.confirm === true);
   }
 }
 
@@ -742,7 +780,8 @@ export async function runPlan(ctx: Ctx, steps: Step[], mods: ChainMods, mode: Pl
           last.push(...await opCall(c, rowSteps, seg.op));
         }
       }
-      start = seg.op.kind === 'delete' ? last.filter((r) => r.class === targetCls.id) : last;
+      start = (seg.op.kind === 'delete' || seg.op.kind === 'purge')
+        ? last.filter((r) => r.class === targetCls.id) : last;
     }
 
     // END_BLOCK_RUNPLAN_SEGMENTS

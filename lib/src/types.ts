@@ -172,12 +172,12 @@ export interface Cursor {
  * Терминал исполняет план (все операции + финальное чтение) одной транзакцией.
  */
 export interface PlanOp {
-  kind: 'create' | 'update' | 'delete' | 'anonymize';
+  kind: 'create' | 'update' | 'delete' | 'anonymize' | 'purge';
   /** create/update: данные новой версии (deep-merge листьев). */
   data?: Record<string, unknown>;
   /** anonymize: string-поля под '[erased]'. */
   fields?: string[];
-  /** delete: true — удалить; без confirm — превью (вернуть кандидатов, БД не трогать). */
+  /** delete/purge: true — выполнить; без confirm — превью (вернуть кандидатов/замыкание, БД не трогать). */
   confirm?: boolean;
   /** Снапшот модификаторов на момент вызова операции (limit/sort для поиска целей). */
   mods: ChainMods;
@@ -197,6 +197,8 @@ export interface ChainMods {
   /** Внутреннее: агрегация терминалов .sum/.avg/.min/.max/.countBy. */
   aggFn?: 'sum' | 'avg' | 'min' | 'max' | 'countBy';
   aggField?: string;
+  /** .withDeleted(): последний шаг включает удалённые (tombstone). Снимает ТОЛЬКО фильтр deleted; enforceAccount/enforceAcl действуют. */
+  withDeleted?: boolean;
 }
 // END_BLOCK_FILTER_TYPES
 //

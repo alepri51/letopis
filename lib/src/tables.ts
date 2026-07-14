@@ -60,6 +60,12 @@ export interface AccountsApi {
   set(a: Partial<Account>): Promise<Account>;
   /** Физический DELETE; Credential снесётся FK-каскадом. */
   delete(id: string): Promise<boolean>;
+  /**
+   * Полный физический офбординг тенанта (необратимо): все Entity (account|owner=id) + сам Account
+   * (Credential — FK-каскад), через серверную purge_account(). Предохранители: только Owner/System-вызов;
+   * нельзя снести последний enabled Owner (лок-аут) и свой аккаунт. → true если Account снесён.
+   */
+  purge(id: string): Promise<boolean>;
 }
 
 export interface CredentialsApi {
@@ -94,11 +100,30 @@ export interface RulesApi {
   delete(account: string, resource: string): Promise<boolean>;
 }
 
+export interface SchemaApi {
+  /**
+   * Upsert определения класса в таблицу Schema (ON CONFLICT (partition,id) DO UPDATE) + reloadSchema().
+   * Правка «простым SQL», подхватывается сразу без реконнекта. attributes — DSL fastest-validator
+   * (валидирует либа при чтении реестра); ancestors/descendants считает триггер schema_lineage.
+   */
+  define(def: {
+    id: string;
+    alias: string;
+    category: 'HUB' | 'LINK';
+    ancestor?: string | null;
+    attributes?: Record<string, unknown>;
+    meta?: Record<string, unknown>;
+    links?: unknown[];
+    order?: number;
+  }): Promise<void>;
+}
+
 export interface Tables {
   accounts: AccountsApi;
   credentials: CredentialsApi;
   resources: ResourcesApi;
   rules: RulesApi;
+  schema: SchemaApi;
 }
 
 // ---------------------------------------------------------------------------
@@ -174,6 +199,46 @@ export function makeTables(ctx: Ctx): Tables {
     async delete(id) {
       const rows = await run<{ id: string }>(`DELETE FROM ${T(ctx, 'Account')} WHERE id = $1 RETURNING id`, [id]);
       return rows.length > 0;
+    },
+    // START_CONTRACT: accounts.purge
+    //   PURPOSE: Физический офбординг тенанта через purge_account(); гарды Owner/System, последний Owner, не-себя — до сноса, в одной tx.
+    //   INPUTS: { id: string - целевой аккаунт }
+    //   OUTPUTS: { Promise<boolean> - true если Account физически снесён }
+    //   SIDE_EFFECTS: физ. DELETE всех Entity аккаунта + Account (Credential FK-каскад) через SQL purge_account()
+    //   ERRORS: нет caller/ACL; вызов не Owner/System; снос последнего Owner; снос своего аккаунта
+    //   LINKS: M-TABLES, V-M-TABLES, M-DDL
+    // END_CONTRACT: accounts.purge
+    async purge(id) {
+      if (!ctx.account) {
+        throw new Error('letopis: accounts.purge requires an authenticated caller — connect({ account })');
+      }
+      if (id === ctx.account) {
+        throw new Error('letopis: accounts.purge cannot purge the calling account itself');
+      }
+      const schema = `"${ctx.pgSchema.replace(/"/g, '""')}"`;
+      return (ctx.sql as unknown as { begin<T>(fn: (s: Ctx['sql']) => Promise<T>): Promise<T> }).begin(async (tsql) => {
+        const q = <R>(t: string, p: unknown[]) => tsql.unsafe(t, p as never[]) as unknown as Promise<R[]>;
+        // вызывающий обязан быть Owner/System
+        const caller = await q<{ categories: string[] }>(
+          `SELECT categories FROM ${T(ctx, 'Account')} WHERE id = $1`, [ctx.account]);
+        const cats = caller[0]?.categories ?? [];
+        if (!cats.includes('Owner') && !cats.includes('System')) {
+          throw new Error('letopis: accounts.purge is restricted to Owner/System accounts');
+        }
+        const tgt = await q<{ categories: string[] }>(
+          `SELECT categories FROM ${T(ctx, 'Account')} WHERE id = $1`, [id]);
+        if (!tgt.length) return false;
+        // нельзя снести последний enabled Owner → тенант без владельца (лок-аут)
+        if ((tgt[0].categories ?? []).includes('Owner')) {
+          const cnt = await q<{ n: string }>(
+            `SELECT count(*)::text AS n FROM ${T(ctx, 'Account')} WHERE 'Owner' = ANY(categories) AND enabled`, []);
+          if (Number(cnt[0]?.n ?? 0) <= 1) {
+            throw new Error('letopis: refusing to purge the last enabled Owner (tenant lock-out)');
+          }
+        }
+        const res = await q<{ id: string | null }>(`SELECT ${schema}.purge_account($1::uuid) AS id`, [id]);
+        return res[0]?.id != null;
+      });
     },
   };
 
@@ -285,5 +350,27 @@ export function makeTables(ctx: Ctx): Tables {
   };
 
   // END_BLOCK_RULES_API
-  return { accounts, credentials, resources, rules };
+
+  // START_BLOCK_SCHEMA_API
+  const schema: SchemaApi = {
+    async define(def) {
+      // jsonb-значения через sql.json() — postgres.js кладёт как jsonb (не PG-массив/строку)
+      const j = (v: unknown) => (ctx.sql as unknown as { json(x: unknown): unknown }).json(v);
+      await run(
+        `INSERT INTO ${T(ctx, 'Schema')} (partition, id, alias, category, ancestor, attributes, meta, links, "order")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (partition, id) DO UPDATE SET
+           alias = EXCLUDED.alias, category = EXCLUDED.category, ancestor = EXCLUDED.ancestor,
+           attributes = EXCLUDED.attributes, meta = EXCLUDED.meta, links = EXCLUDED.links, "order" = EXCLUDED."order"`,
+        [
+          ctx.partition, def.id, def.alias, def.category, def.ancestor ?? null,
+          j(def.attributes ?? {}), j(def.meta ?? {}), j(def.links ?? []), def.order ?? 0,
+        ],
+      );
+      await ctx.reload?.(); // подхватить новое определение сразу (registry + enforcer)
+    },
+  };
+  // END_BLOCK_SCHEMA_API
+
+  return { accounts, credentials, resources, rules, schema };
 }

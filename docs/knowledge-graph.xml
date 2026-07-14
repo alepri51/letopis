@@ -106,11 +106,12 @@
       <depends>M-SQL, M-TYPES</depends>
       <verification-ref>V-M-TABLES</verification-ref>
       <annotations>
-        <type-Tables PURPOSE="Facade: accounts, credentials, resources, rules" />
-        <type-AccountsApi PURPOSE="find/get/set/delete accounts" />
+        <type-Tables PURPOSE="Facade: accounts, credentials, resources, rules, schema" />
+        <type-AccountsApi PURPOSE="find/get/set/delete + purge (tenant offboarding: physical wipe of all Entity account|owner + Account; Owner/System-gated, refuses last Owner/self)" />
         <type-CredentialsApi PURPOSE="find/set/delete credentials (soft-delete aware)" />
         <type-ResourcesApi PURPOSE="find/get/set/delete ACL resources" />
         <type-RulesApi PURPOSE="find/set/delete ACL rules" />
+        <type-SchemaApi PURPOSE="define(def) — upsert a class definition into Schema (ON CONFLICT) + reloadSchema (live pickup, no reconnect)" />
         <fn-makeTables PURPOSE="Build the Tables facade bound to a Ctx" />
       </annotations>
     </M-TABLES>
@@ -189,6 +190,7 @@
         <fn-createOp PURPOSE="Insert a new entity (id fixing, v5 computation, slot resolution)" />
         <fn-updateOp PURPOSE="Version an existing entity with a deep-merged patch" />
         <fn-delOp PURPOSE="Tombstone + cascade delete with ACL checks" />
+        <fn-purgeOp PURPOSE="Physical hard-erase: resolve targets incl. tombstone (withDeleted) then call server purge() (dry-preview without confirm); DELETE-gated on target class" />
         <fn-anonymizeOp PURPOSE="Erase string fields in place, tag 'anonymized'" />
         <fn-deepMerge PURPOSE="Recursive object merge for update patches" />
         <type-BatchPlan PURPOSE="A queued plan: { steps }" />
@@ -216,10 +218,10 @@
       <depends>M-TYPES, M-SQL, M-WRITE, M-TX, M-TABLES, M-AUTH, M-ACL, M-SCHEMA</depends>
       <verification-ref>V-M-CHAIN</verification-ref>
       <annotations>
-        <type-EntityDb PURPOSE="Root db handle: class callables + begin/commit/rollback/batch/watch/close + auth/acl/tables/registry/sql" />
+        <type-EntityDb PURPOSE="Root db handle: class callables + begin/commit/rollback/batch/watch/close + reloadSchema + auth/acl/tables/schema/registry/sql" />
         <type-EntityTx PURPOSE="EntityDb inside a transaction: commit/rollback/lock" />
         <type-Chain PURPOSE="ChainCore + per-class step properties" />
-        <type-ChainCore PURPOSE="Terminal + modifier methods on a chain (run/rows/first/ids/count/sort/limit/asOf/deep/agg/create/update/delete/…)" />
+        <type-ChainCore PURPOSE="Terminal + modifier methods on a chain (run/rows/first/ids/count/sort/limit/asOf/withDeleted/deep/agg/create/update/delete/purge/anonymize/…)" />
         <type-StepProp PURPOSE="A class step property: callable navigation + set()/unset() link-slot ops" />
         <type-Batch PURPOSE="Deferred multi-plan builder: run/discard/size + class callables" />
         <type-WatchEvent PURPOSE="Change event { partition, class, id, updated, deleted }" />
@@ -274,7 +276,10 @@
         <fn-schema_lineage PURPOSE="Trigger: maintain ancestors/descendants closure on Schema changes" />
         <fn-entity_check PURPOSE="BEFORE INSERT trigger: validate class exists/non-abstract and link ends" />
         <fn-entity_update PURPOSE="BEFORE UPDATE trigger: convert update into a new-version insert" />
-        <fn-entity_delete PURPOSE="BEFORE DELETE trigger: tombstone + recursive cascade of dependents (advisory-locked)" />
+        <fn-entity_delete PURPOSE="BEFORE DELETE trigger: tombstone + recursive cascade (advisory-locked); WHEN current_setting('letopis.purge')&lt;&gt;'on' — bypassed during purge for physical delete" />
+        <fn-purge_closure PURPOSE="STABLE fn: (class,id) links-closure of a subtree incl. tombstone — single source of closure for purge()" />
+        <fn-purge PURPOSE="Two-phase physical purge of a logically-deleted root + subtree (all versions) via SET LOCAL letopis.purge; dry=preview; RETURNS SETOF Entity" />
+        <fn-purge_account PURPOSE="Tenant offboarding: physically delete all Entity (account|owner) + Account (Credential FK-cascade)" />
         <fn-entity_notify PURPOSE="AFTER INSERT trigger: pg_notify change payload for watch()" />
       </annotations>
     </M-DDL>

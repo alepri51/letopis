@@ -2,6 +2,34 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/), версии — semver.
 
+## [0.19.0] — 2026-07-14
+
+### Added — физический purge (hard-erase) + живой подхват правок схемы
+
+- **`.purge({ confirm })`** — необратимый физический снос уже логически удалённой (tombstone)
+  сущности + всего поддерева по `links` (все версии). Двухфазно: живую не трогает (сначала
+  `.delete()`); без `confirm` — dry-превью замыкания. Внутри — серверная `purge()`:
+  `SET LOCAL letopis.purge='on'` отключает append-only-триггер через `WHEN`-условие → плоский
+  `DELETE` (детерминированно, без `TM_SelfModified`).
+- **`.withDeleted()`** — включить удалённые (tombstone) в выдачу последнего шага; снимает ТОЛЬКО
+  фильтр `deleted`, изоляция арендатора (`enforceAccount`) и ACL (`enforceAcl`) действуют.
+- **`db.accounts.purge(id)`** — полный офбординг тенанта: физ. снос всех Entity (`account|owner`)
+  + сам Account (Credential — FK-каскад). Гарды: только Owner/System, не последний Owner, не свой аккаунт.
+- **`db.reloadSchema()` / `db.schema.define(def)`** — правка определений классов простым SQL в
+  таблице `Schema` подхватывается без реконнекта (пересборка registry + ACL-резолвера).
+
+### Changed — DDL (требует наката `ddl.sql` на существующие схемы)
+
+- `entity_delete` получил `WHEN (current_setting('letopis.purge', true) IS DISTINCT FROM 'on')` —
+  обычный путь (tombstone + каскад) неизменен; под флагом триггер пропускается для физ-сноса.
+- Новые серверные функции: `purge_closure(partition,class,ids[])`,
+  `purge(partition,class,id[,dry]) RETURNS SETOF Entity`, `purge_account(id)`.
+
+### Notes
+
+- Голый повторный `DELETE` надгробия БЕЗ флага остаётся no-op (safety-инвариант жив).
+- Тесты: новый `test/wave5.test.ts` (13 кейсов P1/P2) — весь набор 181/181 зелёный.
+
 ## [0.18.1] — 2026-07-13
 
 ### Fixed — упаковка: CLI-скрипты в npm-пакете

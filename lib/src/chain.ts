@@ -71,6 +71,11 @@ export interface ChainCore {
   asOf(t: string | Date): Chain;
   /** Keyset-пагинация: строго после курсора (см. cursorOf). Требует .sort(). */
   after(cursor: import('./types.js').Cursor): Chain;
+  /**
+   * Включить в выдачу последнего шага удалённые (tombstone). Снимает ТОЛЬКО фильтр deleted —
+   * изоляция арендатора (enforceAccount) и ACL (enforceAcl) остаются в силе.
+   */
+  withDeleted(): Chain;
   /** ВСЕ версии сущностей последнего шага (включая tombstone → $deleted), по возрастанию updated. */
   versions(): Promise<Row[]>;
   /** Рекурсивный self-обход: дети любой глубины (тот же класс), $depth в Row. */
@@ -121,6 +126,13 @@ export interface ChainCore {
    * (цели + каскад), БД не тронута.
    */
   delete(opts?: { confirm?: boolean }): Chain;
+  /**
+   * ФИЗИЧЕСКИЙ hard-erase (необратимо): сносит УЖЕ логически удалённые (tombstone) цели + всё
+   * поддерево по links (все версии). Живую сущность не трогает — сначала .delete(). { confirm: true }
+   * — стирает; без confirm — превью замыкания (что сотрётся), БД не тронута. Историю НЕ сохраняет
+   * (в отличие от .delete()). Реализуется серверной purge() (SET LOCAL letopis.purge отключает триггер).
+   */
+  purge(opts?: { confirm?: boolean }): Chain;
 }
 
 /**
@@ -159,6 +171,11 @@ export interface DbCore {
   watch(cb: (e: WatchEvent) => void, opts?: WatchOpts): Promise<() => void>;
   watch(cls: string, cb: (e: WatchEvent) => void, opts?: WatchOpts): Promise<() => void>;
   close(): Promise<void>;
+  /**
+   * Перечитать определения классов из таблицы Schema (после правки её простым SQL / db.schema.define):
+   * пересобирает registry и, при enforceAcl, ACL-резолвер — без реконнекта. Подхват «сразу».
+   */
+  reloadSchema(): Promise<void>;
   registry: Registry;
   /** Голый postgres-клиент (тесты, EXPLAIN). */
   sql: Ctx['sql'];
@@ -167,6 +184,8 @@ export interface DbCore {
   credentials: Tables['credentials'];
   resources: Tables['resources'];
   rules: Tables['rules'];
+  /** Определения классов: db.schema.define(def) — upsert в таблицу Schema + reloadSchema(). */
+  schema: Tables['schema'];
   /** Вход по кредам (пароль/api-key/key-secret/внешние identity) + сессии в Redis. */
   auth: AuthApi;
   /** ACL по Resource/Rule: check(эндпоинт) / checkData(класс, READ|WRITE|DELETE) / reload. */
@@ -607,6 +626,8 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef, n
             withMods({ order: field, desc: dir === true || dir === 'desc' });
         case 'asOf':
           return (t: string | Date) => withMods({ asOf: t instanceof Date ? t.toISOString() : t });
+        case 'withDeleted':
+          return () => withMods({ withDeleted: true });
         case 'deep':
           return (max = 32) => withLast({ deepMax: max });
         // END_BLOCK_READ_MODIFIERS
@@ -686,6 +707,9 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef, n
             withOp({ kind: 'delete', confirm: opts?.confirm === true, mods });
         case 'anonymize':
           return (fields: string[]) => withOp({ kind: 'anonymize', fields, mods });
+        case 'purge':
+          return (opts?: { confirm?: boolean }) =>
+            withOp({ kind: 'purge', confirm: opts?.confirm === true, mods });
         // END_BLOCK_WRITE_TERMINALS
         // START_BLOCK_COLUMN_MODS
         case 'alias':
@@ -769,7 +793,7 @@ export function makeDb(ctx: Ctx, root?: RootState): EntityDb {
       if (typeof prop === 'symbol' || prop === 'then') return undefined;
 
       // START_BLOCK_TABLES_AUTH_ACL
-      if (prop === 'accounts' || prop === 'credentials' || prop === 'resources' || prop === 'rules') {
+      if (prop === 'accounts' || prop === 'credentials' || prop === 'resources' || prop === 'rules' || prop === 'schema') {
         tables ??= makeTables(ctx);
         return tables[prop];
       }
@@ -863,6 +887,11 @@ export function makeDb(ctx: Ctx, root?: RootState): EntityDb {
         // START_BLOCK_CLOSE_META
         case 'close':
           return () => (ctx.sql as unknown as { end(): Promise<void> }).end();
+        case 'reloadSchema':
+          return async () => {
+            await ctx.reload?.();
+            acl = undefined; // db.acl-фасад перестроится на свежем registry при следующем доступе
+          };
         case 'registry':
           return ctx.registry;
         case 'sql':
