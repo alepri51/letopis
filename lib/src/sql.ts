@@ -71,6 +71,8 @@ export interface Ctx {
   onQuery?: (e: QueryEvent) => void;
   /** Порог «медленного» запроса, мс (без onQuery — console.warn). */
   slowMs?: number;
+  /** Перечитать определения классов из таблицы Schema: пересобрать registry (+ enforcer при enforceAcl). Ставит connect(). */
+  reload?: () => Promise<void>;
 }
 
 // START_CONTRACT: isTransient
@@ -661,8 +663,10 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
 
     const innerWhere = [`e.partition = ${pPart}`, `e.class = ${pCls}`];
     if (mods.asOf !== undefined) innerWhere.push(`e.updated <= ${p.push(mods.asOf)}::timestamptz`); // «как было на T»
-    // versions: последний шаг включает и удалённые сущности (история существует после delete)
-    const outerWhere = [mode === 'versions' && i === steps.length - 1 ? 'TRUE' : 't.deleted IS NULL'];
+    // versions/.withDeleted(): последний шаг включает и удалённые (история/tombstone видны после delete).
+    // Снимается ТОЛЬКО фильтр deleted — enforceAccount/enforceAcl/контекст-фраги ниже действуют (изоляция цела).
+    const keepDeleted = i === steps.length - 1 && (mode === 'versions' || mods.withDeleted === true);
+    const outerWhere = [keepDeleted ? 'TRUE' : 't.deleted IS NULL'];
     const candWhere: string[] = f.candFrags.map((fr) => fr('c'));
 
     for (const c of f.idConds) innerWhere.push(c('e'));
@@ -891,4 +895,20 @@ export function closureSql(pgSchema: string, n: number): string {
      )
      SELECT DISTINCT ON (class, id) * FROM node ORDER BY class, id, updated DESC`
   );
+}
+
+/**
+ * Вызов серверной purge(): $4 dry → превью (актуальные версии замыкания, БД цела), иначе двухфазный
+ * физический снос корня+поддерева. RETURNS SETOF Entity (по строке на сущность). Вся логика
+ * (замыкание, двухфазность, отключение триггера через SET LOCAL) — в БД. $1 partition, $2 class, $3 id, $4 dry.
+ */
+// START_CONTRACT: purgeCallSql
+//   PURPOSE: SQL-обёртка вызова серверной purge() (снос/превью) — вся логика в БД, JS лишь зовёт.
+//   INPUTS: { pgSchema: string }
+//   OUTPUTS: { string - SELECT * FROM "<schema>".purge($1,$2,$3,$4) }
+//   SIDE_EFFECTS: none
+//   LINKS: M-SQL, V-M-SQL, M-DDL, M-WRITE
+// END_CONTRACT: purgeCallSql
+export function purgeCallSql(pgSchema: string): string {
+  return `SELECT * FROM ${escId(pgSchema)}.purge($1, $2, $3, $4)`;
 }

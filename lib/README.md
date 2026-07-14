@@ -781,6 +781,29 @@ await db.Мастер(m).окно().delete({ confirm: true }).rows()  // кон�
 (+advisory-lock). История неприкосновенна; повторный delete → `[]`; `create()` с тем же
 id — воскрешение.
 
+### `.purge({ confirm })` — ФИЗИЧЕСКИЙ hard-erase (необратимо)
+
+```ts
+await db.Клиент(cid).delete({ confirm: true }).rows()  // 1) мягко: tombstone (обратимо)
+await db.Клиент(cid).purge().rows()                    // превью замыкания (что сотрётся), БД цела
+await db.Клиент(cid).purge({ confirm: true }).rows()   // 2) физически: tombstone + всё поддерево (все версии)
+```
+
+**Двухфазно:** `.purge()` работает ТОЛЬКО по уже логически удалённому (tombstone) — живую сущность
+не трогает (сначала `.delete()`). Историю, в отличие от `.delete()`, НЕ сохраняет. Внутри — серверная
+`purge(partition,class,id)`: `SET LOCAL letopis.purge='on'` отключает append-only-триггер (через `WHEN`)
+→ плоский физический `DELETE` замыкания (детерминированно, без вложенного DML). Голый SQL:
+`SELECT * FROM "v1.notify".purge('entity','Клиент','…')` (или `…,true)` — dry-превью).
+
+### `.withDeleted()` — включить удалённые (tombstone) в выдачу
+
+```ts
+await db.Клиент(cid).rows()                 // только живые
+await db.Клиент(cid).withDeleted().rows()   // + tombstone (последний шаг)
+```
+
+Снимает **только** фильтр `deleted IS NULL`; изоляция арендатора (`enforceAccount`) и ACL (`enforceAcl`) действуют.
+
 ### Откат плана
 
 ```ts
@@ -1144,9 +1167,11 @@ await db.Клиент(id).anonymize(['name', 'phone']).rows()
 // новая версия: string-поля = '[erased]', тег 'anonymized'; остальные поля целы
 ```
 
-Физического стирания НЕТ — история священна: старые версии хранят PII до retention-политики
-(§ 10.8). Полное «право на забвение» = `anonymize()` сейчас + настроенный retention потом.
-Не-string поле в списке — ошибка (типы сверяются по Schema).
+Физического стирания `anonymize()` НЕ делает — история священна: старые версии хранят PII до
+retention-политики (§ 10.8). Три уровня «права на забвение»: `anonymize()` (затереть PII, запись
+живёт) → retention (снос по времени) → **`.purge({ confirm })`** — немедленный физический hard-erase
+удалённого (tombstone) + всего поддерева, а `db.accounts.purge(id)` — целого тенанта (см. § 11).
+Не-string поле в списке `anonymize` — ошибка (типы сверяются по Schema).
 
 ### 10.8 Политики хранения: `db/policies.mjs`
 
@@ -2542,7 +2567,41 @@ await db.accounts.delete(SYS)      // [6.0 ms]
 ```
 
 **Кейс:** чистка мусорной регистрации — удалять можно только то, что не оставило следов;
-след есть → `enabled: false` вместо удаления.
+след есть → `enabled: false` вместо удаления, либо `db.accounts.purge(id)` — полный офбординг ниже.
+
+#### `db.accounts.purge(id): Promise<boolean>`
+
+Полный физический **офбординг тенанта** (необратимо): все `Entity` с `account = id` ИЛИ `owner = id`
++ сам `Account` (`Credential` — FK-каскад). Освобождает `entity_account_fk`/`entity_owner_fk` (RESTRICT),
+которые блокируют обычный `delete`. Внутри — серверная `purge_account()` (флаг отключает append-only-триггер).
+Предохранители (до сноса): вызывать может лишь **Owner/System**; нельзя снести **последний enabled Owner**
+(лок-аут тенанта) и **свой** аккаунт сессии.
+
+```ts
+const dbSys = await connect({ dsn, schema: 'v1.notify', account: SYS })
+await dbSys.accounts.purge(tenantId)   // → true: Entity + Account + Credential снесены, место освобождено
+```
+
+#### `db.schema.define(def)` / `db.reloadSchema()` — живой подхват правок схемы
+
+Определения классов живут в таблице `Schema`. Меняешь их **простым SQL** (или `db.schema.define(...)`)
+→ `db.reloadSchema()` пересобирает реестр (и ACL-резолвер) **без реконнекта**.
+
+```ts
+// правка простым SQL + перечитывание (напр. новое значение enum)
+await db.sql.unsafe(`UPDATE "v1.notify"."Schema"
+  SET attributes = jsonb_set(attributes, '{status,values}', '["queued","sent","paused"]')
+  WHERE id = 'Delivery'`)
+await db.reloadSchema()               // запись со status:'paused' теперь проходит валидацию
+
+// или спец-метод (сам перечитывает)
+await db.schema.define({ id: 'Coupon', alias: 'Купон', category: 'HUB',
+  attributes: { id: { type: 'uuid', generate: 7 }, code: { type: 'string' } } })
+```
+
+`up()` при существующей схеме seed **не** перезаливает → правка в `Schema` переживает рестарт (клоббер только
+при явном re-run старого seed через `db/apply.mjs`/`fresh`). Бамп версии (`vN.*`) — **новый пустой** namespace
+с переливом данных, НЕ инструмент для аддитивной правки определения (новое значение enum/поле/класс).
 
 #### `db.credentials.find(f?): Promise<Credential[]>`
 

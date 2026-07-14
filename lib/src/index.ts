@@ -70,8 +70,9 @@ export async function connect(opts: ConnectOpts): Promise<EntityDb> {
   };
 
   // START_BLOCK_ENFORCE_ACL
-  // enforceAcl: правила и категории субъекта фиксируются на connect (перечитка — новый connect)
-  if (opts.enforceAcl) {
+  // enforceAcl: правила и категории субъекта компилятся в резолвер (перечитываются reloadSchema/reload)
+  const compileAcl = async (): Promise<void> => {
+    if (!opts.enforceAcl) return;
     if (!opts.account) throw new Error('letopis: enforceAcl requires connect({ account })');
     const tables = makeTables(ctx);
     const [account, resources, rules] = await Promise.all([
@@ -80,8 +81,14 @@ export async function connect(opts: ConnectOpts): Promise<EntityDb> {
       tables.rules.find({ enabled: true }),
     ]);
     if (!account) throw new Error(`letopis: enforceAcl — account "${opts.account}" not found`);
-    ctx.aclDecide = compileEnforcer({ resources, rules }, account.id, account.categories, registry);
-  }
+    ctx.aclDecide = compileEnforcer({ resources, rules }, account.id, account.categories, ctx.registry);
+  };
+  await compileAcl();
+  // db.reloadSchema(): перечитать определения классов из таблицы Schema (registry + enforcer) без реконнекта
+  ctx.reload = async () => {
+    ctx.registry = await loadRegistry(sql, opts.schema, partition);
+    await compileAcl();
+  };
   // END_BLOCK_ENFORCE_ACL
   return makeDb(ctx);
 }
@@ -121,7 +128,7 @@ export type {
   Account, Credential, Resource, Rule, AclOp, AclDecision,
 } from './types.js';
 export type { EntityDb, EntityTx, Chain, Batch, WatchEvent, WatchOpts } from './chain.js';
-export type { Tables, AccountsApi, CredentialsApi, ResourcesApi, RulesApi } from './tables.js';
+export type { Tables, AccountsApi, CredentialsApi, ResourcesApi, RulesApi, SchemaApi } from './tables.js';
 export { totpCode } from './auth.js';
 export type { AuthApi, AuthResult } from './auth.js';
 export type { AclApi } from './acl.js';
