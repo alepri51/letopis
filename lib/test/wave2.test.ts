@@ -2,10 +2,13 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { connect, cursorOf } from '../src/index.js';
 import type { EntityDb } from '../src/chain.js';
 
 const DSN = process.env.ENTITY_DSN ?? 'postgres://postgres:test@localhost:15432/clockz';
+/** Корень пакета (lib/) — cwd для scripts/* и база для paths/typeRoots в tsc-фикстурах. */
+const LIB_DIR = fileURLToPath(new URL('..', import.meta.url));
 let db: EntityDb;
 
 before(async () => {
@@ -96,19 +99,132 @@ test('anonymize: string-поля затёрты, тег anonymized, истори
   await assert.rejects(db.Организация(org.id).anonymize(['active' as never]).rows(), /string fields only/);
 });
 
-test('gen-types: генерирует интерфейсы классов и TypedDb', async () => {
+test('gen-types: генерирует интерфейсы классов, слоты и фасады', async () => {
   execFileSync('npx', ['tsx', 'scripts/gen-types.mjs', `--dsn=${DSN}`, '--schema=v1.booking', '--out=entity-types.gen.d.ts'], {
-    cwd: new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'),
+    cwd: LIB_DIR,
     shell: true,
   });
   const { readFile, rm } = await import('node:fs/promises');
   const path = new URL('../entity-types.gen.d.ts', import.meta.url);
   const text = await readFile(path, 'utf8');
+
+  // data-интерфейсы: свои поля + УНАСЛЕДОВАННЫЕ по ancestors (Staff ← Person ← Entity)
   assert.match(text, /export interface StaffData \{/);
   assert.match(text, /specialization\?: string/);
+  assert.match(text, /name: string/, 'name наследуется от Person');
+  assert.match(text, /phone: string/, 'phone наследуется от Person');
   assert.match(text, /preferred_contact: "phone" \| "email" \| "messenger"/);
   assert.match(text, /deposit\?: \{ amount: number; currency: "RUB" \| "USD" \| "EUR" \| "AED" \}/);
-  assert.match(text, /export interface TypedDb \{/);
-  assert.match(text, /"Мастер": \(filter\?\: Filter\) => TypedChain<StaffData>/);
+
+  // шаги по классам типизированы (id и alias), фасады на месте
+  assert.match(text, /"Мастер"\(filter\?: Filter\): StaffChain;/);
+  assert.match(text, /Staff\(filter\?: Filter\): StaffChain;/);
+  assert.match(text, /export type TypedDb = Steps;/);
+  assert.match(text, /export type TypedFullDb = Steps & EntityDb;/);
+
+  // слоты из Schema.links: обязательный конец — только set(), optional — set()+unset()
+  assert.match(text, /"Услуга": \{ set\(target: SlotTarget\): bookingChain \};/);
+  assert.match(text, /"Клиент": \{ set\(target: SlotTarget\): bookingChain; unset\(\): bookingChain \};/);
+
   await rm(path);
+});
+
+test('gen-types: фасад не содержит снесённых имён и покрывает текущие терминалы', async () => {
+  execFileSync('npx', ['tsx', 'scripts/gen-types.mjs', `--dsn=${DSN}`, '--schema=v1.booking', '--out=entity-types.gen2.d.ts'], {
+    cwd: LIB_DIR,
+    shell: true,
+  });
+  const { readFile, rm } = await import('node:fs/promises');
+  const path = new URL('../entity-types.gen2.d.ts', import.meta.url);
+  const text = await readFile(path, 'utf8');
+
+  // снесённые глаголы НЕ должны появляться как методы цепочки (иначе типы обещают то, что бросает)
+  assert.doesNotMatch(text, /^\s*execute\(/m, 'execute() снесён в 0.11.0 — см. chain.ts case "execute"');
+  assert.doesNotMatch(text, /^\s*set\(data/m, 'глагол set(data) снесён в 0.16.0 — create()/update()');
+  // индекс-сигнатура глушила бы любую опечатку
+  assert.doesNotMatch(text, /\[className: string\]/, 'индекс-сигнатура возвращает дыру в типизации');
+
+  // текущая поверхность ChainCore должна быть покрыта
+  for (const m of ['run', 'rows', 'first', 'ids', 'count', 'versions', 'sum', 'avg', 'min', 'max',
+    'countBy', 'limit', 'offset', 'sort', 'asOf', 'after', 'withDeleted', 'deep', 'alias', 'tags',
+    'account', 'owner', 'entity', 'create', 'update', 'delete', 'purge', 'anonymize']) {
+    assert.match(text, new RegExp(`^\\s*${m}\\(`, 'm'), `ChainOps не покрывает ${m}()`);
+  }
+
+  // класс, чьё имя перехватывает Proxy, не должен выдаваться как типизированный шаг
+  const steps = text.slice(text.indexOf('export interface Steps {'));
+  for (const reserved of ['count', 'sort', 'account', 'owner', 'link', 'set', 'update']) {
+    assert.doesNotMatch(steps, new RegExp(`^\\s*${reserved}\\(filter`, 'm'),
+      `"${reserved}" зарезервировано цепочкой — шаг под этим именем недостижим`);
+  }
+
+  await rm(path);
+});
+
+test('gen-types: сгенерированный .d.ts компилируется, снесённый API — ошибка компиляции', async () => {
+  const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = await mkdtemp(join(tmpdir(), 'letopis-gentypes-'));
+  try {
+    execFileSync('npx', ['tsx', 'scripts/gen-types.mjs', `--dsn=${DSN}`, '--schema=v1.booking',
+      `--out=${join(dir, 'entity-types.d.ts')}`], { cwd: LIB_DIR, shell: true });
+
+    const tsconfig = (files: string[]) => JSON.stringify({
+      compilerOptions: {
+        target: 'ES2022', module: 'NodeNext', moduleResolution: 'NodeNext',
+        strict: true, noEmit: true, skipLibCheck: true, baseUrl: '.',
+        typeRoots: [join(LIB_DIR, 'node_modules', '@types')], types: ['node'],
+        paths: { letopis: [join(LIB_DIR, 'src', 'index.ts')] },
+      },
+      files: ['entity-types.d.ts', ...files],
+    });
+
+    // ПОЗИТИВ: реальное использование текущего API типизируется
+    await writeFile(join(dir, 'ok.ts'), `
+import type { TypedDb, StaffData } from './entity-types.js';
+declare const t: TypedDb;
+export async function ok() {
+  const м = await t.Мастер({ specialization: 'барбер' }).rows();
+  const s: StaffData = м[0].data;
+  const _name: string = s.name;                       // унаследовано от Person
+  await t.Мастер().навык().Услуга().run();
+  await t.цена().sum('data.amounts.RUB');
+  await t.Мастер().sort('updated', 'desc').limit(5).withDeleted().first();
+  await t.Мастер().create({ name: 'Вася', phone: '+7 900' }).rows();
+  await t.запись().delete({ confirm: true }).rows();
+  await t.запись().purge({ confirm: true }).rows();
+  await t.Клиент().anonymize(['name']).rows();
+  await t.Мастер().запись().create({}).Услуга.set('id').Клиент.unset().rows();
+}
+`, 'utf8');
+    await writeFile(join(dir, 'tsconfig.json'), tsconfig(['ok.ts']), 'utf8');
+    execFileSync('npx', ['tsc', '-p', join(dir, 'tsconfig.json')], { cwd: LIB_DIR, shell: true });
+
+    // НЕГАТИВ: снесённые глаголы и опечатки обязаны падать НА КОМПИЛЯЦИИ, не в рантайме
+    await writeFile(join(dir, 'bad.ts'), `
+import type { TypedDb } from './entity-types.js';
+declare const t: TypedDb;
+export async function bad() {
+  await t.Мастер().set({ name: 'x' });      // снесён 0.16.0
+  await t.Мастер().execute();               // снесён 0.11.0
+  await t.Мастеp().rows();                  // опечатка в классе (латинская p)
+  await t.Мастер().create({ nam: 'x' }).rows();          // опечатка в поле
+  await t.Мастер().запись().create({}).Услуга.unset();   // unset() обязательного конца
+}
+`, 'utf8');
+    await writeFile(join(dir, 'tsconfig.bad.json'), tsconfig(['bad.ts']), 'utf8');
+    let out = '';
+    assert.throws(
+      () => execFileSync('npx', ['tsc', '-p', join(dir, 'tsconfig.bad.json')],
+        { cwd: LIB_DIR, shell: true, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }),
+      (e: unknown) => { out = String((e as { stdout?: string }).stdout ?? ''); return true; },
+      'снесённый API обязан не компилироваться',
+    );
+    for (const frag of ['set', 'execute', 'Мастеp', 'nam', 'unset']) {
+      assert.ok(out.includes(frag), `tsc не отверг "${frag}":\n${out}`);
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });

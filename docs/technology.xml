@@ -45,6 +45,9 @@
     <payload>WatchEvent { partition, class, id, updated, deleted }</payload>
   </ChangeEvents>
   <DeliveryShape>
-    <shape>npm package "letopis" v0.18.0 (MIT, ESM). Published files: dist/ (tsc output), sql/, docker/, README.md, CHANGELOG.md. Public entry: dist/index.js (types dist/index.d.ts). Dev/CI via tsx; no bundler.</shape>
+    <shape>npm package "letopis" (MIT, ESM). Published files: dist/ (tsc output), scripts/, sql/, docker/, README.md, CHANGELOG.md. Public entry: dist/index.js (types dist/index.d.ts). Dev/CI via tsx; no bundler.</shape>
+    <!-- semver НЕ дублируется здесь: источник истины — lib/package.json + верхняя запись lib/CHANGELOG.md
+         (сверяется scripts/check-docs.mjs). DOC_LAYER_VERSION ниже — версия слоя документации, не пакета. -->
+    <package-version-source>lib/package.json</package-version-source>
   </DeliveryShape>
 </TechnologyStack>

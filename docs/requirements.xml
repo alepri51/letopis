@@ -157,10 +157,10 @@
 
   <Risks>
     <risk-1>Invariant duplication: entity validation and link-end rules live both in M-DDL triggers and in M-WRITE.validate — they can drift.</risk-1>
-    <risk-2>ACL (M-ACL) has no dedicated unit test (only a bench) despite being high-risk authorization logic.</risk-2>
+    <risk-2>ACL (M-ACL) concentrates authorization logic and is compiled into a memoized per-connection enforcer, so a wrong rule/weight silently widens access; covered by lib/test/acl.test.ts plus enforcement paths in lib/test/salon.test.ts.</risk-2>
     <risk-3>Type-level import cycle M-SQL↔M-ACL↔M-TABLES and runtime ESM cycle M-CONNECT↔M-UP constrain refactoring.</risk-3>
-    <risk-4>Logic concentration in chain.ts / sql.ts / write.ts (~750 LOC each) raises regression surface.</risk-4>
-    <risk-5>seed.booking.sql header says "19 классов" but 20 INSERT statements were counted — a possible seed inconsistency.</risk-5>
+    <risk-4>Logic concentration in chain.ts / sql.ts / write.ts — most of the engine lives in three files, raising regression surface.</risk-4>
+    <risk-5>The demo booking schema is seeded by hand (lib/sql/seed.booking.sql) and is the source of truth for its classes, so a hand edit can silently diverge from the docs; the class count in the file header is checked by lib/scripts/check-docs.mjs.</risk-5>
   </Risks>
 
   <OpenQuestions>

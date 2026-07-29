@@ -37,7 +37,7 @@
     </VF-004>
     <VF-005 NAME="Bootstrap" USE_CASES="UC-013" DATA_FLOW="DF-008" PRIORITY="high">
       <scenario>up() provisions the container, applies DDL+seeds, waits for readiness and connects.</scenario>
-      <expected-outcome>EntityDb connected to "&lt;schema&gt;.v&lt;version&gt;"; clear [letopis.up] progress; explicit error if docker missing or timeout.</expected-outcome>
+      <expected-outcome>EntityDb connected to "v&lt;version&gt;.&lt;schema&gt;" (e.g. up({schema:'booking',version:1}) → "v1.booking"); clear [letopis.up] progress; explicit error if docker missing or timeout.</expected-outcome>
       <required-signals>
         <log-marker>[letopis.up] connected (schema "&lt;full&gt;")</log-marker>
         <log-marker>[letopis.up] postgres ready in &lt;n&gt; s</log-marker>
@@ -117,14 +117,14 @@
     </V-M-TABLES>
 
     <V-M-ACL MODULE="M-ACL" PRIORITY="high">
-      <test-files><file>none (only lib/bench/acl.bench.mjs, out of scope)</file></test-files>
-      <module-checks><check-1>cd lib &amp;&amp; npx tsx --test --test-force-exit test/salon.test.ts</check-1></module-checks>
+      <test-files><file>lib/test/acl.test.ts</file><file>lib/test/salon.test.ts</file></test-files>
+      <module-checks><check-1>cd lib &amp;&amp; npx tsx --test --test-force-exit test/acl.test.ts</check-1></module-checks>
       <scenarios>
         <scenario-1 kind="success">Highest-weight matching allow rule grants; row filter applied.</scenario-1>
         <scenario-2 kind="failure">No matching rule → deny by default; aclDenied Error on enforcement.</scenario-2>
       </scenarios>
       <required-log-markers><marker-1>none</marker-1></required-log-markers>
-      <coverage-gap>No dedicated unit test; a bench exists (acl.bench.mjs) but benches are out of scope. ACL is high-risk and under-tested — recommend a focused acl.test.ts.</coverage-gap>
+      <coverage-gap>None outstanding: lib/test/acl.test.ts is the dedicated suite (masks/weight/deny-by-default, row templates with $account, enforceAcl predicates in SQL, cascade, watch); lib/bench/acl.bench.mjs additionally measures enforcement overhead. Test bodies are out of documented scope, so scenarios above are stated from public behavior.</coverage-gap>
     </V-M-ACL>
 
     <V-M-AUTH MODULE="M-AUTH" PRIORITY="high">
@@ -139,11 +139,13 @@
     </V-M-AUTH>
 
     <V-M-SQL MODULE="M-SQL" PRIORITY="high">
-      <test-files><file>lib/test/depth.test.ts</file></test-files>
+      <test-files><file>lib/test/depth.test.ts</file><file>lib/test/acl.test.ts</file></test-files>
       <module-checks><check-1>cd lib &amp;&amp; npx tsx --test --test-force-exit test/depth.test.ts</check-1></module-checks>
       <scenarios>
         <scenario-1 kind="success">buildRead compiles forward/reverse hops and filters to correct parameterized SQL; runQuery returns rows.</scenario-1>
         <scenario-2 kind="failure">Unknown operator / no path A→B / LINK→LINK throw; transient errors retried up to RETRIES.</scenario-2>
+        <scenario-3 kind="success">Polymorphic read: a step on a parent class returns the parent plus every descendant (any depth); identity is (class, id); .exact() narrows back to the single class; a class without descendants keeps the single-equality fast path.</scenario-3>
+        <scenario-4 kind="failure">Under enforceAcl a denied descendant is excluded from the parent step instead of leaking (acl.test.ts asserts no SportsCar row surfaces through Vehicle); when the whole family is denied the step throws "acl denies READ".</scenario-4>
       </scenarios>
       <required-log-markers><marker-1>letopis: slow query &lt;ms&gt;ms — &lt;mode&gt; &lt;classes&gt;</marker-1></required-log-markers>
       <coverage-gap>Test content not analyzed; retry/slow-query paths likely not directly asserted — recommend explicit transient-retry and slowMs tests.</coverage-gap>
@@ -235,7 +237,7 @@
         <scenario-1 kind="success">Applying the seed yields the ~19 booking classes; loadRegistry resolves them.</scenario-1>
       </scenarios>
       <required-log-markers><marker-1>none</marker-1></required-log-markers>
-      <coverage-gap>No dedicated test; header comment says "19 классов" but 20 INSERT statements were counted — reconcile the seed. Validated indirectly via the demo domain.</coverage-gap>
+      <coverage-gap>No dedicated test; validated indirectly via the demo domain. The class count in the file header is asserted against the actual INSERT count by lib/scripts/check-docs.mjs.</coverage-gap>
     </V-M-SEED-BOOKING>
 
     <V-M-GEN-TYPES MODULE="M-GEN-TYPES" PRIORITY="low">
@@ -257,6 +259,38 @@
       <required-log-markers><marker-1>per-class diff lines (added/changed/removed)</marker-1></required-log-markers>
       <coverage-gap>No automated test; the breaking-row guard is safety-critical for migrations but only manually verified.</coverage-gap>
     </V-M-SCHEMA-SYNC>
+
+    <V-M-GEN-API-CONTRACT MODULE="M-GEN-API-CONTRACT" PRIORITY="medium">
+      <test-files><file>none (verified through V-M-CHECK-DOCS)</file></test-files>
+      <module-checks>
+        <check-1>cd lib &amp;&amp; npm run api:contract</check-1>
+        <check-2>cd lib &amp;&amp; node scripts/gen-api-contract.mjs --check</check-2>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">Regeneration is byte-identical to the committed docs/api-contract.json; --check exits 0.</scenario-1>
+        <scenario-2 kind="failure">A renamed export or a new Proxy case label makes --check exit 1 naming the stale file.</scenario-2>
+        <scenario-3 kind="failure">RESERVED_CLASS_NAMES missing from src/types.ts throws instead of emitting an empty list.</scenario-3>
+      </scenarios>
+      <required-log-markers><marker-1>written &lt;out&gt;: N values, N types, N chain methods, N removed, N errors</marker-1></required-log-markers>
+      <coverage-gap>Parses sources as text (regex), so a large refactor of the barrel or of the chain Proxy could silently narrow the output; the reserved-name cross-check in check-docs is what catches that.</coverage-gap>
+    </V-M-GEN-API-CONTRACT>
+
+    <V-M-CHECK-DOCS MODULE="M-CHECK-DOCS" PRIORITY="high">
+      <test-files><file>none (self-verifying: it is its own check)</file></test-files>
+      <module-checks><check-1>cd lib &amp;&amp; npm run check:docs</check-1></module-checks>
+      <scenarios>
+        <scenario-1 kind="success">All seven checks pass on a clean tree; prints one "ok" line per check and exits 0.</scenario-1>
+        <scenario-2 kind="failure">Bumping lib/package.json without a CHANGELOG entry exits 1 on the version check.</scenario-2>
+        <scenario-3 kind="failure">Deleting a doc still referenced from a *.md exits 1 on the link check.</scenario-3>
+        <scenario-4 kind="failure">Adding test/&lt;new&gt;.test.ts without listing it in README §16 exits 1 on the test-list check.</scenario-4>
+        <scenario-5 kind="failure">Adding a Proxy case label without updating RESERVED_CLASS_NAMES exits 1 on the reserved check.</scenario-5>
+      </scenarios>
+      <required-log-markers>
+        <marker-1>check-docs: чисто (N проверок)</marker-1>
+        <marker-2>check-docs: N расхождений документации с кодом</marker-2>
+      </required-log-markers>
+      <coverage-gap>Checks structural facts (numbers, names, links, freshness), not prose correctness — a wrong explanation still passes. Wired into ci.yml after typecheck and into prepublishOnly.</coverage-gap>
+    </V-M-CHECK-DOCS>
 
     <V-M-DOCKER MODULE="M-DOCKER" PRIORITY="low">
       <test-files><file>none</file></test-files>

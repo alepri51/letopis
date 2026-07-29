@@ -9,7 +9,7 @@
  * одной транзакцией.
  */
 // FILE: lib/src/chain.ts
-// VERSION: 1.0.0
+// VERSION: 1.1.0
 // START_MODULE_CONTRACT
 //   PURPOSE: Чейнящийся фасад сущностей — из шагов класс/связь/pivot собирает планы чтения и записи и даёт run/rows/first/ids/count/агрегации, versions/asOf/after, create/update/delete/anonymize, слоты связей, батчи, транзакции и watch изменений.
 //   SCOPE: сборка Proxy-цепочек; read-терминалы и агрегации; планы записи; слоты связей; entity()-вклейка; батчи; begin/commit/rollback/lock; watch через LISTEN
@@ -34,7 +34,9 @@
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.0.0 - Documented existing module: reverse-engineered contract + markup]
+//   LAST_CHANGE: [v1.1.0 - Добавлен модификатор шага .exact(): снять полиморфизм чтения
+//     (только свой класс, без потомков) — нужен там, где наследование в домене есть
+//     переиспользование attributes, а не «is-a» (демо: запись наследует окно)]
 // END_CHANGE_SUMMARY
 //
 import type { Row, Path, Filter, ChainMods, PlanOp, ClassDef, LinkEnd } from './types.js';
@@ -80,6 +82,14 @@ export interface ChainCore {
   versions(): Promise<Row[]>;
   /** Рекурсивный self-обход: дети любой глубины (тот же класс), $depth в Row. */
   deep(max?: number): Chain;
+  /**
+   * Только ЭТОТ класс, без классов-потомков. По умолчанию шаг полиморфен: родитель отдаёт
+   * объединение с потомками (`db.Контрагент()` → Мастера + Клиенты). `.exact()` нужен, когда
+   * наследование в домене — переиспользование attributes, а не «is-a» для выборки:
+   * в демо `запись` наследует `окно`, но смена ≠ бронь, поэтому «смены мастера» —
+   * `db.Мастер(id).окно().exact()`.
+   */
+  exact(): Chain;
   /** Агрегации по полю последнего шага ('data.<путь>'), считает БД. */
   sum(field: string): Promise<number | null>;
   avg(field: string): Promise<number | null>;
@@ -630,6 +640,9 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef, n
           return () => withMods({ withDeleted: true });
         case 'deep':
           return (max = 32) => withLast({ deepMax: max });
+        case 'exact':
+          // снять полиморфизм ТЕКУЩЕГО шага: только свой класс, без потомков
+          return () => withLast({ exactClass: true });
         // END_BLOCK_READ_MODIFIERS
         // START_BLOCK_AGGREGATIONS
         case 'sum':

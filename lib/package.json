@@ -33,20 +33,26 @@
       "import": "./dist/index.js"
     }
   },
+  "engines": {
+    "node": ">=20"
+  },
   "files": [
     "dist",
     "scripts",
     "sql",
     "docker",
     "README.md",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test --test-concurrency=1 --test-force-exit test/*.test.ts",
+    "check:docs": "node scripts/check-docs.mjs",
+    "api:contract": "node scripts/gen-api-contract.mjs",
     "bench": "tsx bench/history.bench.mjs",
-    "prepublishOnly": "npm run typecheck && npm run build"
+    "prepublishOnly": "npm run typecheck && npm run check:docs && npm run build"
   },
   "dependencies": {
     "fastest-validator": "^1.19.0",

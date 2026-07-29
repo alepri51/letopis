@@ -233,3 +233,70 @@ test('watch: события отдаются только при БЕЗУСЛО�
     await u.close();
   }
 });
+
+test('полиморфное чтение: шаг по родителю = объединение с потомками, .exact() снимает', async () => {
+  // иерархия Vehicle → Car → SportsCar (см. before). Полигон уже не пуст, поэтому
+  // свои сущности метим тегом и считаем И дельту, и точное множество по тегу.
+  const T = 'polyread';
+  const base = {
+    v: await sys.Vehicle().count(), c: await sys.Car().count(), s: await sys.SportsCar().count(),
+    vEx: await sys.Vehicle().exact().count(), cEx: await sys.Car().exact().count(),
+  };
+  await sys.Vehicle().tags(T).create({ name: 'просто транспорт' }).rows();
+  await sys.Car().tags(T).create({ name: 'седан' }).rows();
+  await sys.Car().tags(T).create({ name: 'хэтчбек' }).rows();
+  await sys.SportsCar().tags(T).create({ name: 'болид' }).rows();
+
+  // родитель отдаёт себя + потомков ЛЮБОЙ глубины (Vehicle видит и SportsCar через Car)
+  assert.equal(await sys.Vehicle().count(), base.v + 4);
+  assert.equal(await sys.Car().count(), base.c + 3);        // 2 Car + 1 SportsCar
+  assert.equal(await sys.SportsCar().count(), base.s + 1);
+  assert.deepEqual(
+    (await sys.Vehicle().tags(T).rows()).map((r) => r.class).sort(),
+    ['Car', 'Car', 'SportsCar', 'Vehicle'],
+  );
+
+  // .exact() — только свой класс
+  assert.equal(await sys.Vehicle().exact().count(), base.vEx + 1);
+  assert.equal(await sys.Car().exact().count(), base.cEx + 2);
+  assert.deepEqual((await sys.Vehicle().exact().tags(T).rows()).map((r) => r.class), ['Vehicle']);
+
+  // алиас ведёт себя так же, как id
+  assert.equal(await sys.Транспорт().tags(T).count(), 4);
+  assert.equal(await sys.Транспорт().exact().tags(T).count(), 1);
+
+  // фильтр, ids и versions работают поверх семейства
+  assert.equal((await sys.Vehicle({ name: 'болид' }).rows())[0].class, 'SportsCar');
+  assert.equal((await sys.Vehicle().tags(T).ids()).length, 4);
+  assert.equal((await sys.Vehicle().tags(T).versions()).length, 4); // по 1 версии на каждую
+});
+
+test('полиморфное чтение + ACL: deny на потомке НЕ обходится шагом по родителю', async () => {
+  const T = 'polyacl';
+  // строки трёх классов от имени user (предикат правил — owner/account = $account)
+  for (const [cls, name] of [['Vehicle', 'вэн'], ['Car', 'купе'], ['SportsCar', 'ракета']] as const) {
+    await sys[cls]().tags(T).account(user.id).owner(user.id).create({ name }).rows();
+  }
+  // allow READ на Vehicle (weight 90 из before) + адресный deny на SportsCar весом выше
+  await sys.resources.set({ alias: 'sportscar:READ', category: 'READ', pattern: { class: 'SportsCar' } });
+  await sys.rules.set({ account: 'authenticated:ACCOUNT', resource: 'sportscar:READ', permission: 'deny', weight: 200 });
+
+  const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true });
+  try {
+    // Vehicle разрешён, SportsCar запрещён → его строк в выборке по родителю НЕТ
+    const rows = await u.Vehicle().tags(T).rows();
+    assert.deepEqual(rows.map((r) => r.class).sort(), ['Car', 'Vehicle']);
+    assert.ok(!rows.some((r) => r.class === 'SportsCar'), 'deny на потомке обойдён — утечка');
+    assert.equal(await u.Vehicle().tags(T).count(), 2);
+
+    // шаг ПО САМОМУ запрещённому классу — отказ целиком (как и было для одиночного класса)
+    await assert.rejects(u.SportsCar().rows(), /acl denies READ on SportsCar/);
+
+    // Car разрешён по lineage от Vehicle, но его потомок SportsCar отфильтрован
+    assert.deepEqual((await u.Car().tags(T).rows()).map((r) => r.class), ['Car']);
+  } finally {
+    await u.close();
+    await sys.rules.delete('authenticated:ACCOUNT', 'sportscar:READ');
+    sys.acl.reload();
+  }
+});

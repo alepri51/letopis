@@ -154,11 +154,11 @@
       <verification-ref>V-M-SQL</verification-ref>
       <annotations>
         <type-Ctx PURPOSE="Runtime context: sql, registry, pgSchema, partition, account/owner, enforce flags, aclDecide, onQuery, slowMs" />
-        <type-Step PURPOSE="One compiled chain step: class, filter, node/pivot/alias keys, tag/account/owner/links filters, op" />
+        <type-Step PURPOSE="One compiled chain step: class, filter, node/pivot/alias keys, tag/account/owner/links filters, exactClass (drop polymorphism), op" />
         <type-SlotValue PURPOSE="Link-slot value: id | nested plan | null" />
         <type-BuiltQuery PURPOSE="{ text, params, keys } produced by buildRead" />
         <type-ReadMode PURPOSE="paths|rows|ids|count|versions|agg" />
-        <fn-buildRead PURPOSE="Compile steps+mods into a parameterized read query (CTE path traversal)" />
+        <fn-buildRead PURPOSE="Compile steps+mods into a parameterized read query (CTE path traversal). Reads are POLYMORPHIC: a step matches its class plus all descendants (class = ANY), entity identity becomes (class, id), and ACL is decided per concrete class so a deny on a descendant cannot be bypassed through the parent; .exact() restores the single-class filter" />
         <fn-runQuery PURPOSE="Execute a query, emit QueryEvent/slow-warn, classify+retry transient errors" />
         <fn-insertSql PURPOSE="Single-row Entity insert SQL" />
         <fn-multiInsertSql PURPOSE="Multi-row Entity insert SQL" />
@@ -221,7 +221,8 @@
         <type-EntityDb PURPOSE="Root db handle: class callables + begin/commit/rollback/batch/watch/close + reloadSchema + auth/acl/tables/schema/registry/sql" />
         <type-EntityTx PURPOSE="EntityDb inside a transaction: commit/rollback/lock" />
         <type-Chain PURPOSE="ChainCore + per-class step properties" />
-        <type-ChainCore PURPOSE="Terminal + modifier methods on a chain (run/rows/first/ids/count/sort/limit/asOf/withDeleted/deep/agg/create/update/delete/purge/anonymize/…)" />
+        <type-ChainCore PURPOSE="Terminal + modifier methods on a chain (run/rows/first/ids/count/sort/limit/asOf/withDeleted/deep/exact/agg/create/update/delete/purge/anonymize/…)" />
+        <fn-exact PURPOSE="Drop the step's polymorphism: read only its own class, no descendants (inheritance used for attribute reuse rather than is-a)" />
         <type-StepProp PURPOSE="A class step property: callable navigation + set()/unset() link-slot ops" />
         <type-Batch PURPOSE="Deferred multi-plan builder: run/discard/size + class callables" />
         <type-WatchEvent PURPOSE="Change event { partition, class, id, updated, deleted }" />
@@ -302,7 +303,7 @@
       <depends>none</depends>
       <verification-ref>V-M-SEED-BOOKING</verification-ref>
       <annotations>
-        <seed-Schema PURPOSE="~19 booking classes: 12 HUB (Entity/Org/Person/Staff/Customer/Location/Element/Service/Product/Complex/Schedule/Folder) + LINK (link/address/slot/booking/content/compo/skill/price)" />
+        <seed-Schema PURPOSE="20 booking classes — 12 HUB (Entity/Org/Person/Staff/Customer/Location/Element/Service/Product/Complex/Schedule/Folder) + 8 LINK (link/address/slot/booking/content/compo/skill/price). NB: listed by class id; a chain step accepts the id OR the alias (db.Org ≡ db.Организация), and README examples use the Russian aliases" />
       </annotations>
     </M-SEED-BOOKING>
 
@@ -329,6 +330,43 @@
         <check-breaking PURPOSE="Compile new strict validators and report live rows that would break before apply" />
       </annotations>
     </M-SCHEMA-SYNC>
+
+    <M-GEN-API-CONTRACT NAME="GenApiContract" TYPE="UTILITY" STATUS="implemented">
+      <purpose>CLI codegen: derive the machine-readable public-API contract from the sources and write docs/api-contract.json (agent-facing; --check fails when stale)</purpose>
+      <path>lib/scripts/gen-api-contract.mjs</path>
+      <depends>none</depends>
+      <verification-ref>V-M-GEN-API-CONTRACT</verification-ref>
+      <annotations>
+        <fn-exportsOf PURPOSE="Public values and types parsed out of the barrel src/index.ts" />
+        <fn-chainSurface PURPOSE="ChainCore signatures + the case labels each of the three Proxy handlers (chain/batch/db) intercepts before class resolution" />
+        <fn-removedNames PURPOSE="Removed/renamed API names with the version and replacement, read from the migration guards" />
+        <fn-errorCatalog PURPOSE="All letopis: throw messages per module, interpolations masked" />
+        <cli-gen-api-contract PURPOSE="node scripts/gen-api-contract.mjs [--out=…] [--check]" />
+      </annotations>
+      <notes>
+        <note-1>Generated, never hand-edited — a hand-maintained contract would become another drift source. CI regenerates and diffs it via check-docs.</note-1>
+      </notes>
+    </M-GEN-API-CONTRACT>
+
+    <M-CHECK-DOCS NAME="CheckDocs" TYPE="UTILITY" STATUS="implemented">
+      <purpose>CI guard against documentation drift: seven checks comparing docs to code, exit 1 with a report on any mismatch</purpose>
+      <path>lib/scripts/check-docs.mjs</path>
+      <depends>none</depends>
+      <verification-ref>V-M-CHECK-DOCS</verification-ref>
+      <annotations>
+        <fn-checkVersion PURPOSE="package.json version == top CHANGELOG entry; semver must not be duplicated into docs/*.xml" />
+        <fn-checkLinks PURPOSE="Every *.md link and bare FILE.md mention resolves to a file that exists" />
+        <fn-checkTestList PURPOSE="test/*.test.ts on disk == the list documented in README §16" />
+        <fn-checkSeedCounts PURPOSE="Class count in a SQL seed header == actual INSERT count" />
+        <fn-checkCodescribe PURPOSE="Marker pairing per governed file; M-* ↔ file both ways; every M-* has a V-M-*" />
+        <fn-checkApiContract PURPOSE="docs/api-contract.json equals a fresh regeneration" />
+        <fn-checkReserved PURPOSE="RESERVED_CLASS_NAMES == Proxy case labels in chain.ts == the table in README §3" />
+        <cli-check-docs PURPOSE="cd lib &amp;&amp; npm run check:docs" />
+      </annotations>
+      <notes>
+        <note-1>Marker names are assembled from parts at runtime, otherwise the checker's own string literals would count as markup and it would fail on itself.</note-1>
+      </notes>
+    </M-CHECK-DOCS>
 
     <M-DOCKER NAME="Docker" TYPE="INTEGRATION" STATUS="implemented">
       <purpose>Dev database container image: TimescaleDB pg17 plus a background Redis, used by letopis.up()</purpose>
@@ -395,6 +433,14 @@
     <CrossLink from="M-SEED-BOOKING" to="M-DDL" relation="seeds-schema-table" />
     <CrossLink from="M-GEN-TYPES" to="M-DDL" relation="reads-schema-table" />
     <CrossLink from="M-SCHEMA-SYNC" to="M-DDL" relation="syncs-schema-table" />
+
+    <!-- doc-layer tooling: читают исходники как данные (без импорта) -->
+    <CrossLink from="M-GEN-API-CONTRACT" to="M-CONNECT" relation="parses-exports" />
+    <CrossLink from="M-GEN-API-CONTRACT" to="M-CHAIN" relation="parses-chain-surface" />
+    <CrossLink from="M-GEN-API-CONTRACT" to="M-TYPES" relation="parses-reserved-names" />
+    <CrossLink from="M-CHECK-DOCS" to="M-GEN-API-CONTRACT" relation="verifies-freshness" />
+    <CrossLink from="M-CHECK-DOCS" to="M-CHAIN" relation="verifies-reserved-names" />
+    <CrossLink from="M-CHECK-DOCS" to="M-SEED-BOOKING" relation="verifies-class-count" />
 
   </Project>
 </KnowledgeGraph>

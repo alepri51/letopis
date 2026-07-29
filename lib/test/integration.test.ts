@@ -104,9 +104,9 @@ test('2. календарь: месячное расписание, окна б�
   const окнаДня = await db.окно({ start_datetime: between(T10, T13) }).sort('data.start_datetime').rows();
   assert.equal(окнаДня.length, 5);
 
-  assert.equal(await db.Мастер(S.ivan.id).окно().count(), 3);
-  assert.equal(await db.Мастер(S.oleg.id).окно().count(), 2);
-  assert.equal(await db.Расписание(S.sch.id).окно().count(), 5); // reverse: всё наполнение месяца
+  assert.equal(await db.Мастер(S.ivan.id).окно().exact().count(), 3);
+  assert.equal(await db.Мастер(S.oleg.id).окно().exact().count(), 2);
+  assert.equal(await db.Расписание(S.sch.id).окно().exact().count(), 5); // reverse: всё наполнение месяца
 
   // «свободен ли Олег в 12:00?» — id окна детерминирован, выборка не нужна
   assert.equal(await db.окно(slotId(S.oleg.id, T12)).count(), 0);
@@ -160,7 +160,7 @@ test('4. бронь №2: МУЛЬТИ-СЛОТ — комплекс 90м у И�
   assert.equal(слотыКомплекса.length, 2);
 
   // Иван занят полностью: старт каждого его окна закрыт записью
-  const окнаИвана = await db.Мастер(S.ivan.id).окно().rows();
+  const окнаИвана = await db.Мастер(S.ivan.id).окно().exact().rows();
   const стартыЗаписей = new Set((await db.Мастер(S.ivan.id).запись().rows()).map((r) => String(r.data.start_datetime)));
   assert.equal(окнаИвана.length, 3);
   assert.ok(окнаИвана.every((w) => стартыЗаписей.has(String(w.data.start_datetime))));
@@ -207,7 +207,7 @@ test('7. отмена: delete обеих записей комплекса ос�
   // время Ивана свободно (детерминированные id пусты), окна целы — окно ≠ запись
   assert.equal(await db.запись(bookingId(S.ivan.id, T11)).count(), 0);
   assert.equal(await db.запись(bookingId(S.ivan.id, T12)).count(), 0);
-  assert.equal(await db.Мастер(S.ivan.id).окно().count(), 3);
+  assert.equal(await db.Мастер(S.ivan.id).окно().exact().count(), 3);
 
   const мастераВ11 = await db.запись({ start_datetime: between(T11, T11) }).Мастер().rows();
   assert.deepEqual(мастераВ11.map((r) => r.data.name), ['Олег']); // бронь Олега не задета
@@ -244,7 +244,7 @@ test('9. закрытие месяца: delete Расписания — серв
   assert.ok(снесено.every((r) => r.$deleted === true));
 
   // календарь пуст, каталог и люди целы
-  assert.equal(await db.окно().count(), 0);
+  assert.equal(await db.окно().exact().count(), 0);
   assert.equal(await db.запись().count(), 0);
   assert.equal(await db.Мастер().count(), 2);
   assert.equal(await db.Клиент().count(), 1);

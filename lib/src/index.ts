@@ -1,12 +1,16 @@
 /**
  * letopis: dot-цепочки над append-only Entity-хранилищем (TimescaleDB).
  *
- *   const db = await connect({ dsn, schema: 'booking' })
- *   await db.Сотрудник({ name: 'Вася' }).навык().Услуга().run()
+ * schema — ПОЛНОЕ имя PG-схемы С версией движка ("v1.booking"); префикс либа НЕ достраивает
+ * (создаёт up({ schema: 'booking', version: 1 }) либо db/apply.mjs). Шаг цепочки — id ИЛИ
+ * alias класса из таблицы Schema (db.Staff ≡ db.Мастер).
+ *
+ *   const db = await connect({ dsn, schema: 'v1.booking' })
+ *   await db.Мастер({ name: 'Вася' }).навык().Услуга().run()
  */
 
 // FILE: lib/src/index.ts
-// VERSION: 1.0.0
+// VERSION: 1.0.1
 // START_MODULE_CONTRACT
 //   PURPOSE: Публичная точка входа пакета — открыть соединение (реестр, опциональный ACL, сборка db) и ре-экспорт публичной поверхности; хелпер курсора.
 //   SCOPE: connect, cursorOf + barrel-реэкспорты
@@ -23,7 +27,8 @@
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.0.0 - Documented existing module: reverse-engineered contract + markup]
+//   LAST_CHANGE: [v1.0.1 - Docs-only: пример в шапке исправлен (schema — ПОЛНОЕ имя "v1.booking";
+//     алиас Мастер вместо несуществующего Сотрудник) + оговорка id≡alias. Код не менялся]
 // END_CHANGE_SUMMARY
 
 import postgres from 'postgres';

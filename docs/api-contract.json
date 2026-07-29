@@ -1,0 +1,694 @@
+{
+  "$comment": "СГЕНЕРИРОВАНО lib/scripts/gen-api-contract.mjs из исходников — не редактировать руками. Регенерация: cd lib && npm run api:contract. CI сверяет через npm run check:docs.",
+  "package": {
+    "name": "letopis",
+    "type": "module",
+    "engines": {
+      "node": ">=20"
+    },
+    "entry": "dist/index.js",
+    "types": "dist/index.d.ts"
+  },
+  "note": {
+    "versionSource": "lib/package.json + верхняя запись lib/CHANGELOG.md",
+    "schemaOption": "connect({schema}) требует ПОЛНОГО имени PG-схемы С версией движка (\"v1.booking\"); up({schema,version}) берёт БАЗОВОЕ имя без точек и строит \"v<version>.<schema>\"",
+    "classStep": "шаг цепочки принимает id ИЛИ alias класса из таблицы Schema (db.Org ≡ db.Организация)",
+    "writeVerbs": "create/update/delete/purge/anonymize возвращают ЦЕПОЧКУ (звено плана); исполняет терминал"
+  },
+  "exports": {
+    "values": [
+      "LETOPIS_NS",
+      "Registry",
+      "ValidationError",
+      "between",
+      "connect",
+      "cursorOf",
+      "ends",
+      "exists",
+      "gt",
+      "gte",
+      "has",
+      "hasAll",
+      "hasAny",
+      "ilike",
+      "inList",
+      "isNull",
+      "like",
+      "lt",
+      "lte",
+      "ne",
+      "not",
+      "or",
+      "starts",
+      "totpCode",
+      "up",
+      "uuidv5",
+      "uuidv7"
+    ],
+    "types": [
+      "Account",
+      "AccountsApi",
+      "AclApi",
+      "AclDecision",
+      "AclOp",
+      "AuthApi",
+      "AuthResult",
+      "Batch",
+      "Chain",
+      "ChainMods",
+      "ConnectOpts",
+      "Credential",
+      "CredentialsApi",
+      "Cursor",
+      "EntityDb",
+      "EntityTx",
+      "Filter",
+      "Path",
+      "QueryEvent",
+      "Resource",
+      "ResourcesApi",
+      "Row",
+      "Rule",
+      "RulesApi",
+      "SchemaApi",
+      "Session",
+      "SessionStore",
+      "Sessions",
+      "Tables",
+      "UpOpts",
+      "WatchEvent",
+      "WatchOpts"
+    ]
+  },
+  "chain": {
+    "core": [
+      {
+        "name": "run",
+        "signature": "run(): Promise<Path[]>"
+      },
+      {
+        "name": "rows",
+        "signature": "rows(): Promise<Row[]>"
+      },
+      {
+        "name": "first",
+        "signature": "first(): Promise<Row | null>"
+      },
+      {
+        "name": "ids",
+        "signature": "ids(): Promise<string[]>"
+      },
+      {
+        "name": "count",
+        "signature": "count(): Promise<number>"
+      },
+      {
+        "name": "limit",
+        "signature": "limit(n: number): Chain"
+      },
+      {
+        "name": "offset",
+        "signature": "offset(n: number): Chain"
+      },
+      {
+        "name": "sort",
+        "signature": "sort(field: string, dir?: 'asc' | 'desc' | boolean): Chain"
+      },
+      {
+        "name": "asOf",
+        "signature": "asOf(t: string | Date): Chain"
+      },
+      {
+        "name": "after",
+        "signature": "after(cursor: import('./types.js').Cursor): Chain"
+      },
+      {
+        "name": "withDeleted",
+        "signature": "withDeleted(): Chain"
+      },
+      {
+        "name": "versions",
+        "signature": "versions(): Promise<Row[]>"
+      },
+      {
+        "name": "deep",
+        "signature": "deep(max?: number): Chain"
+      },
+      {
+        "name": "exact",
+        "signature": "exact(): Chain"
+      },
+      {
+        "name": "sum",
+        "signature": "sum(field: string): Promise<number | null>"
+      },
+      {
+        "name": "avg",
+        "signature": "avg(field: string): Promise<number | null>"
+      },
+      {
+        "name": "min",
+        "signature": "min(field: string): Promise<unknown>"
+      },
+      {
+        "name": "max",
+        "signature": "max(field: string): Promise<unknown>"
+      },
+      {
+        "name": "countBy",
+        "signature": "countBy(field: string): Promise<Record<string, number>>"
+      },
+      {
+        "name": "anonymize",
+        "signature": "anonymize(fields: string[]): Chain"
+      },
+      {
+        "name": "alias",
+        "signature": "alias(name: string): Chain"
+      },
+      {
+        "name": "tags",
+        "signature": "tags(v: string | string[] | object): Chain"
+      },
+      {
+        "name": "account",
+        "signature": "account(v: string | { id: string }): Chain"
+      },
+      {
+        "name": "owner",
+        "signature": "owner(v: string | { id: string }): Chain"
+      },
+      {
+        "name": "entity",
+        "signature": "entity(x: Chain | Row): Chain"
+      },
+      {
+        "name": "create",
+        "signature": "create(data?: Record<string, unknown>): Chain"
+      },
+      {
+        "name": "update",
+        "signature": "update(data?: Record<string, unknown>): Chain"
+      },
+      {
+        "name": "delete",
+        "signature": "delete(opts?: { confirm?: boolean }): Chain"
+      },
+      {
+        "name": "purge",
+        "signature": "purge(opts?: { confirm?: boolean }): Chain"
+      }
+    ],
+    "interceptedByChainProxy": [
+      "account",
+      "after",
+      "alias",
+      "anonymize",
+      "asOf",
+      "avg",
+      "count",
+      "countBy",
+      "create",
+      "deep",
+      "delete",
+      "entity",
+      "exact",
+      "execute",
+      "first",
+      "ids",
+      "limit",
+      "link",
+      "max",
+      "min",
+      "offset",
+      "owner",
+      "purge",
+      "rows",
+      "run",
+      "set",
+      "sort",
+      "sum",
+      "tags",
+      "then",
+      "update",
+      "versions",
+      "withDeleted"
+    ],
+    "interceptedByBatchProxy": [
+      "discard",
+      "size"
+    ],
+    "interceptedByDbProxy": [
+      "accounts",
+      "acl",
+      "auth",
+      "batch",
+      "begin",
+      "close",
+      "commit",
+      "credentials",
+      "lock",
+      "registry",
+      "reloadSchema",
+      "resources",
+      "rollback",
+      "rules",
+      "schema",
+      "sql",
+      "watch"
+    ],
+    "reservedClassNames": [
+      "then",
+      "entity",
+      "run",
+      "execute",
+      "rows",
+      "first",
+      "ids",
+      "count",
+      "limit",
+      "offset",
+      "sort",
+      "asOf",
+      "withDeleted",
+      "deep",
+      "exact",
+      "sum",
+      "avg",
+      "min",
+      "max",
+      "countBy",
+      "after",
+      "versions",
+      "create",
+      "update",
+      "set",
+      "delete",
+      "anonymize",
+      "purge",
+      "alias",
+      "tags",
+      "account",
+      "owner",
+      "link",
+      "begin",
+      "commit",
+      "rollback",
+      "lock",
+      "batch",
+      "watch",
+      "close",
+      "reloadSchema",
+      "registry",
+      "sql",
+      "accounts",
+      "credentials",
+      "resources",
+      "rules",
+      "schema",
+      "auth",
+      "acl",
+      "discard",
+      "size"
+    ],
+    "reservedClassNamesNote": "класс с таким id/alias недостижим как шаг ПОД ЭТИМ именем; schema.define() отказывает, loadRegistry предупреждает"
+  },
+  "removed": [
+    {
+      "removed": ".link()",
+      "removedIn": "0.15.0",
+      "replacement": "use the link slot: .Класс.set(target)",
+      "message": "letopis: .link() removed (0.15.0) — use the link slot: .Класс.set(target)"
+    },
+    {
+      "removed": "batch.execute()",
+      "removedIn": "0.11.0",
+      "replacement": null,
+      "message": "letopis: batch.execute() renamed to batch.run() (0.11.0)"
+    },
+    {
+      "removed": "execute()",
+      "removedIn": "0.11.0",
+      "replacement": null,
+      "message": "letopis: execute() renamed to run() (0.11.0)"
+    },
+    {
+      "removed": "set()",
+      "removedIn": "0.16.0",
+      "replacement": "create() inserts, update() versions what the path finds",
+      "message": "letopis: set() split into create()/update() (0.16.0) — create() inserts, update() versions what the path finds"
+    },
+    {
+      "removed": "slot .delete()",
+      "removedIn": "0.16.0",
+      "replacement": ".<…>.unset() removes the link end",
+      "message": "letopis: slot .delete() renamed to .unset() (0.16.0) — .<…>.unset() removes the link end"
+    }
+  ],
+  "errors": [
+    {
+      "module": "sql",
+      "message": "letopis: .after(cursor) requires .sort(field)"
+    },
+    {
+      "module": "sql",
+      "message": "letopis: .deep() works on a self hop (same class as previous step)"
+    },
+    {
+      "module": "chain",
+      "message": "letopis: .link() removed (0.15.0) — use the link slot: .Класс.set(target)"
+    },
+    {
+      "module": "write",
+      "message": "letopis: .tags() before set() accepts string | string[]"
+    },
+    {
+      "module": "chain",
+      "message": "letopis: \"<…>\" is not a link end of \"<…>\" (Schema.links: ${owner.cls.links.map((e) => e.classes.join("
+    },
+    {
+      "module": "chain",
+      "message": "letopis: \"<…>\" without call is a link slot (set/unset); for navigation call <…>(…)"
+    },
+    {
+      "module": "sql",
+      "message": "letopis: $tags accepts a string or has/hasAny/hasAll"
+    },
+    {
+      "module": "tables",
+      "message": "letopis: account \"<…>\" not found"
+    },
+    {
+      "module": "tables",
+      "message": "letopis: accounts.purge cannot purge the calling account itself"
+    },
+    {
+      "module": "tables",
+      "message": "letopis: accounts.purge is restricted to Owner/System accounts"
+    },
+    {
+      "module": "tables",
+      "message": "letopis: accounts.purge requires an authenticated caller — connect({ account })"
+    },
+    {
+      "module": "acl",
+      "message": "letopis: acl denies <…> on <…>${d.message ?"
+    },
+    {
+      "module": "sql",
+      "message": "letopis: acl pattern key \"<…>\" is not an Entity column"
+    },
+    {
+      "module": "write",
+      "message": "letopis: acl pins <…> writes to <…> <…>"
+    },
+    {
+      "module": "sql",
+      "message": "letopis: aggregation needs field"
+    },
+    {
+      "module": "write",
+      "message": "letopis: anonymize() erases string fields only; \"<…>\" is ${cls.fieldTypes.get(f)?.kind ??"
+    },
+    {
+      "module": "chain",
+      "message": "letopis: batch.execute() renamed to batch.run() (0.11.0)"
+    },
+    {
+      "module": "schema",
+      "message": "letopis: class \"<…>\" — attributes.id.from is for generate:5 only"
+    },
+    {
+      "module": "schema",
+      "message": "letopis: class \"<…>\" — attributes.id.generate must be 4 | 5 | 7, got <…>"
+    },
+    {
+      "module": "schema",
+      "message": "letopis: class \"<…>\" — id \"from\" source \"<…>\" is neither a link end nor a data field"
+    },
+    {
+      "module": "schema",
+      "message": "letopis: class \"<…>\" — id (uuid v5) can"
+    },
+    {
+      "module": "schema",
+      "message": "letopis: class \"<…>\" — id generate:5 needs \"from\": non-empty string[] (link ends / data fields)"
+    },
+    {
+      "module": "write",
+      "message": "letopis: class \"<…>\" computes id (uuid v5 from ${cls.idGen.from!.join("
+    },
+    {
+      "module": "schema",
+      "message": "letopis: class \"<…>\" has link end without classes: <…>"
+    },
+    {
+      "module": "schema",
+      "message": "letopis: class \"<…>\" has malformed link end (bad JSON): <…>"
+    },
+    {
+      "module": "write",
+      "message": "letopis: class \"<…>\" is abstract"
+    },
+    {
+      "module": "schema",
+      "message": "letopis: class name ${clash.map((n) =>"
+    },
+    {
+      "module": "chain",
+      "message": "letopis: commit() needs a transaction: db.commit(tr) or tr.commit()"
+    },
+    {
+      "module": "write",
+      "message": "letopis: context step \"<…>\" must resolve to exactly one entity (got <…>)"
+    },
+    {
+      "module": "write",
+      "message": "letopis: create() got two ids — step \"<…>\" vs data.id \"<…>\""
+    },
+    {
+      "module": "chain",
+      "message": "letopis: create() on a pivot step — pivot returns to an existing node, use update()"
+    },
+    {
+      "module": "chain",
+      "message": "letopis: create() takes no filter — <…>(id).create(…) fixes the id, searching is update()"
+    },
+    {
+      "module": "index",
+      "message": "letopis: dot-цепочки над append-only Entity-хранилищем (TimescaleDB)."
+    },
+    {
+      "module": "chain",
+      "message": "letopis: duplicate link slot \"<…>\" in one write"
+    },
+    {
+      "module": "sql",
+      "message": "letopis: enforceAccount is on — reads are pinned to account <…>"
+    },
+    {
+      "module": "write",
+      "message": "letopis: enforceAccount is on — writes are pinned to account <…>"
+    },
+    {
+      "module": "index",
+      "message": "letopis: enforceAcl — account \"…\" not found"
+    },
+    {
+      "module": "index",
+      "message": "letopis: enforceAcl — account \"<…>\" not found"
+    },
+    {
+      "module": "index",
+      "message": "letopis: enforceAcl requires connect({ account })"
+    },
+    {
+      "module": "write",
+      "message": "letopis: Entity.account is NOT NULL — set .account(…) / connect({account}) or seed a System account (lib/sql/seed.auth.sql)"
+    },
+    {
+      "module": "chain",
+      "message": "letopis: entity() accepts a lazy chain or a Row"
+    },
+    {
+      "module": "chain",
+      "message": "letopis: entity() takes a read pattern — a chain with operations cannot be embedded"
+    },
+    {
+      "module": "chain",
+      "message": "letopis: execute() renamed to run() (0.11.0)"
+    },
+    {
+      "module": "sql",
+      "message": "letopis: filter.id accepts string | string[]"
+    },
+    {
+      "module": "write",
+      "message": "letopis: id (uuid v5) of \"<…>\" needs end \"${end.classes.join("
+    },
+    {
+      "module": "write",
+      "message": "letopis: id (uuid v5) of \"<…>\" needs scalar data field \"<…>\""
+    },
+    {
+      "module": "auth",
+      "message": "letopis: invalid base32 TOTP secret"
+    },
+    {
+      "module": "write",
+      "message": "letopis: link \"<…>\" has stray link(s) ${[...present].map((k) =>"
+    },
+    {
+      "module": "write",
+      "message": "letopis: link \"<…>\" requires <…> polymorphic end(s) (any class), got <…>"
+    },
+    {
+      "module": "write",
+      "message": "letopis: link \"<…>\" requires end \"<…>\""
+    },
+    {
+      "module": "write",
+      "message": "letopis: link \"<…>\" requires end \"${end.classes.join("
+    },
+    {
+      "module": "sql",
+      "message": "letopis: LINK → LINK traversal is not supported (<…> → <…>)"
+    },
+    {
+      "module": "chain",
+      "message": "letopis: link end \"<…>\" of \"<…>\" is required — cannot unset"
+    },
+    {
+      "module": "chain",
+      "message": "letopis: link slot \"<…>\" needs a write — add .create(…)/.update(…) before .<…>.${value === null ?"
+    },
+    {
+      "module": "chain",
+      "message": "letopis: link slot after <…>() — slots apply to create()/update()"
+    },
+    {
+      "module": "tx",
+      "message": "letopis: lock() works only inside db.begin() transaction"
+    },
+    {
+      "module": "tx",
+      "message": "letopis: lock() works only inside db.begin() transaction (pg_advisory_xact_lock)"
+    },
+    {
+      "module": "sql",
+      "message": "letopis: no path <…> → <…>: neither embeds the other (Schema.links)"
+    },
+    {
+      "module": "sql",
+      "message": "letopis: order must be"
+    },
+    {
+      "module": "sql",
+      "message": "letopis: pivot \"<…>\" — node is not in this path"
+    },
+    {
+      "module": "chain",
+      "message": "letopis: plan is queued in the batch — call batch.run()"
+    },
+    {
+      "module": "tables",
+      "message": "letopis: refusing to purge the last enabled Owner (tenant lock-out)"
+    },
+    {
+      "module": "chain",
+      "message": "letopis: rollback() needs a transaction: db.rollback(tr) or tr.rollback()"
+    },
+    {
+      "module": "schema",
+      "message": "letopis: schema \"<…>\" has no \"Schema\" table — connect({ schema }) takes the FULL"
+    },
+    {
+      "module": "schema",
+      "message": "letopis: schema \"<…>\" has no classes for partition \"<…>\""
+    },
+    {
+      "module": "chain",
+      "message": "letopis: set() split into create()/update() (0.16.0) — create() inserts, update() versions what the path finds"
+    },
+    {
+      "module": "chain",
+      "message": "letopis: slot .delete() renamed to .unset() (0.16.0) — .<…>.unset() removes the link end"
+    },
+    {
+      "module": "chain",
+      "message": "letopis: slot \"<…>\" accepts an id, a Row or a chain"
+    },
+    {
+      "module": "chain",
+      "message": "letopis: slot \"<…>\" got a chain of class \"<…>\""
+    },
+    {
+      "module": "chain",
+      "message": "letopis: slot \"<…>\" needs an owner step — start with a class call: db.Класс(…).<…>.set(…)"
+    },
+    {
+      "module": "write",
+      "message": "letopis: slot \"<…>\" value plan must resolve to exactly one entity (got <…>)"
+    },
+    {
+      "module": "write",
+      "message": "letopis: slot \"<…>\" value plan resolved to class \"<…>\""
+    },
+    {
+      "module": "sql",
+      "message": "letopis: slow query <…>ms — <…> ${classes.join("
+    },
+    {
+      "module": "chain",
+      "message": "letopis: step modifier after <…>() — add a class step first"
+    },
+    {
+      "module": "sql",
+      "message": "letopis: transaction is aborted, retry the whole db.begin() block"
+    },
+    {
+      "module": "schema",
+      "message": "letopis: unknown class \"<…>\". Known: <…>"
+    },
+    {
+      "module": "sql",
+      "message": "letopis: unknown operator \"<…>\""
+    },
+    {
+      "module": "write",
+      "message": "letopis: validation failed for \"<…>\": ${issues.map((i) =>"
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: bad schema name \"<…>\" (базовое имя без версии и точек; версию задаёт version)"
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: bad version <…> (целое ≥ 1)"
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: docker build <…> failed: <…>"
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: docker CLI not found — install Docker or point dsn at an already running postgres"
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: docker run <…> failed: <…>"
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: docker start <…> failed: <…>"
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: postgres not ready in <…> s${local ?"
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: redis not ready on <…> — check: docker logs <…>"
+    }
+  ]
+}

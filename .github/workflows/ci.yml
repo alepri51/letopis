@@ -43,6 +43,13 @@ jobs:
         working-directory: lib
         run: npx tsc --noEmit
 
+      # гвард против дрейфа документации: версии, мёртвые ссылки, список тестов,
+      # счётчики сидов, codescribe-целостность, актуальность docs/api-contract.json,
+      # зарезервированные имена классов, импорты bench-демо. БД не нужна.
+      - name: Check docs vs code
+        working-directory: lib
+        run: npm run check:docs
+
       - name: Tests
         working-directory: lib
         env:

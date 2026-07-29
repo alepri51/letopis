@@ -26,6 +26,7 @@
 // END_CHANGE_SUMMARY
 import type { Ctx } from './sql.js';
 import type { Account, Credential, Resource, Rule } from './types.js';
+import { reservedNamesOf } from './types.js';
 
 const T = (ctx: Ctx, name: string) => `"${ctx.pgSchema.replace(/"/g, '""')}"."${name}"`;
 
@@ -354,6 +355,16 @@ export function makeTables(ctx: Ctx): Tables {
   // START_BLOCK_SCHEMA_API
   const schema: SchemaApi = {
     async define(def) {
+      // класс с именем, которое Proxy разбирает до резолва класса, был бы недостижим как шаг
+      const clash = reservedNamesOf(def);
+      if (clash.length) {
+        throw new Error(
+          `letopis: class name ${clash.map((n) => `"${n}"`).join(' / ')} is reserved by the chain API ` +
+            `(a step under that name resolves to the method, not the class) — rename the ${
+              clash.includes(def.id) ? 'id' : 'alias'
+            }`,
+        );
+      }
       // jsonb-значения через sql.json() — postgres.js кладёт как jsonb (не PG-массив/строку)
       const j = (v: unknown) => (ctx.sql as unknown as { json(x: unknown): unknown }).json(v);
       await run(
