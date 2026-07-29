@@ -10,7 +10,7 @@
  */
 
 // FILE: lib/src/index.ts
-// VERSION: 1.0.1
+// VERSION: 1.1.0
 // START_MODULE_CONTRACT
 //   PURPOSE: Публичная точка входа пакета — открыть соединение (реестр, опциональный ACL, сборка db) и ре-экспорт публичной поверхности; хелпер курсора.
 //   SCOPE: connect, cursorOf + barrel-реэкспорты
@@ -27,8 +27,9 @@
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.0.1 - Docs-only: пример в шапке исправлен (schema — ПОЛНОЕ имя "v1.booking";
-//     алиас Мастер вместо несуществующего Сотрудник) + оговорка id≡alias. Код не менялся]
+//   LAST_CHANGE: [v1.1.0 - enforceAccount по умолчанию true (изоляция арендатора; действует лишь
+//     при заданном account); enforceAcl остаётся opt-in, но его отсутствие теперь печатает
+//     предупреждение один раз на процесс. Ранее: пример в шапке исправлен на "v1.booking"/Мастер]
 // END_CHANGE_SUMMARY
 
 import postgres from 'postgres';
@@ -46,6 +47,9 @@ import type { ConnectOpts } from './types.js';
 //   SIDE_EFFECTS: открывает пул postgres (timestamptz строкой), читает реестр и System-аккаунт; при enforceAcl без account бросает 'letopis: enforceAcl requires connect({ account })', при ненайденном — 'letopis: enforceAcl — account "…" not found', иначе читает resources/rules и компилит aclDecide; NB: ESM-цикл M-CONNECT↔M-UP (up ре-экспортится здесь)
 //   LINKS: M-CONNECT, V-M-CONNECT, M-SCHEMA, M-CHAIN, M-TABLES, M-ACL, M-SQL
 // END_CONTRACT: connect
+/** Предупреждение об отключённом enforceAcl печатается один раз на процесс. */
+let warnedNoAcl = false;
+
 export async function connect(opts: ConnectOpts): Promise<EntityDb> {
   // timestamptz — строкой (JS Date режет микросекунды → ломал бы asOf/cursorOf по updated)
   const sql = postgres(opts.dsn, {
@@ -69,7 +73,10 @@ export async function connect(opts: ConnectOpts): Promise<EntityDb> {
     account: opts.account,
     owner: opts.owner,
     systemAccount: sys[0]?.id,
-    enforceAccount: opts.enforceAccount,
+    // Изоляция арендатора ВКЛЮЧЕНА по умолчанию (0.20.0): забыть её было слишком легко,
+    // а цена забывчивости — чужие строки в выдаче. Действует только когда задан account:
+    // без него фильтровать нечем и поведение прежнее.
+    enforceAccount: opts.enforceAccount ?? true,
     onQuery: opts.onQuery,
     slowMs: opts.slowMs,
   };
@@ -89,6 +96,17 @@ export async function connect(opts: ConnectOpts): Promise<EntityDb> {
     ctx.aclDecide = compileEnforcer({ resources, rules }, account.id, account.categories, ctx.registry);
   };
   await compileAcl();
+  // enforceAcl остаётся OPT-IN: включить его по умолчанию нельзя (он требует account и
+  // работает deny-by-default, т.е. без настроенных Resource/Rule выдача стала бы пустой).
+  // Поэтому — предупреждение: молчаливое отсутствие авторизации хуже шумного.
+  // Один раз на процесс, иначе утонет в логах приложения с пулом подключений.
+  if (!opts.enforceAcl && !warnedNoAcl) {
+    warnedNoAcl = true;
+    console.warn(
+      'letopis: enforceAcl is off — Resource/Rule are NOT checked, reads and writes pass ' +
+        'authorization unconditionally. For production use connect({ account, enforceAcl: true }).',
+    );
+  }
   // db.reloadSchema(): перечитать определения классов из таблицы Schema (registry + enforcer) без реконнекта
   ctx.reload = async () => {
     ctx.registry = await loadRegistry(sql, opts.schema, partition);

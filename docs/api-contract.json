@@ -217,7 +217,6 @@
       "first",
       "ids",
       "limit",
-      "link",
       "max",
       "min",
       "offset",
@@ -290,7 +289,6 @@
       "tags",
       "account",
       "owner",
-      "link",
       "begin",
       "commit",
       "rollback",
@@ -314,12 +312,6 @@
     "reservedClassNamesNote": "класс с таким id/alias недостижим как шаг ПОД ЭТИМ именем; schema.define() отказывает, loadRegistry предупреждает"
   },
   "removed": [
-    {
-      "removed": ".link()",
-      "removedIn": "0.15.0",
-      "replacement": "use the link slot: .Класс.set(target)",
-      "message": "letopis: .link() removed (0.15.0) — use the link slot: .Класс.set(target)"
-    },
     {
       "removed": "batch.execute()",
       "removedIn": "0.11.0",
@@ -353,10 +345,6 @@
     {
       "module": "sql",
       "message": "letopis: .deep() works on a self hop (same class as previous step)"
-    },
-    {
-      "module": "chain",
-      "message": "letopis: .link() removed (0.15.0) — use the link slot: .Класс.set(target)"
     },
     {
       "module": "write",
@@ -497,6 +485,10 @@
     {
       "module": "index",
       "message": "letopis: enforceAcl — account \"<…>\" not found"
+    },
+    {
+      "module": "index",
+      "message": "letopis: enforceAcl is off — Resource/Rule are NOT checked, reads and writes pass"
     },
     {
       "module": "index",

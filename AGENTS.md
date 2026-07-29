@@ -58,8 +58,11 @@
 | `docs/api-contract.json` | active, **генерируемый** | машиночитаемый контракт API (`scripts/gen-api-contract.mjs`) |
 | `BACKLOG.md` | active | идея порта на Python |
 | `COMPARISON.md` | active | сравнение с ORM/темпоральными БД |
-| `schema.booking.md` / `.json` | **superseded** | исторический дизайн домена; истина — `lib/sql/seed.booking.sql` |
 | `RESEARCH.md` | **historical** | написано под старым именем проекта `entity-chain` |
+
+Единственный источник истины по демо-домену — сид `lib/sql/seed.booking.sql`. Ранние
+дизайн-файлы `schema.booking.md` / `.json` удалены в 0.20.0, чтобы их нельзя было принять
+за схему проекта.
 
 ## Module index (`M-*` → файл)
 

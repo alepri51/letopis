@@ -3,7 +3,7 @@
  */
 //
 // FILE: lib/src/types.ts
-// VERSION: 1.1.0
+// VERSION: 1.2.0
 // START_MODULE_CONTRACT
 //   PURPOSE: Общий словарь типов всей библиотеки letopis.
 //   SCOPE: сущности, пути, определения классов, типы полей, фильтры и операторы, курсоры/план записи/модификаторы цепочки, записи auth/ACL, событие запроса и опции connect + символ OP.
@@ -41,7 +41,9 @@
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.1.0 - Добавлены RESERVED_CLASS_NAMES/reservedNamesOf (гвард имён классов,
+//   LAST_CHANGE: [v1.2.0 - 'link' убран из RESERVED_CLASS_NAMES (охранник цепочки снят, имя
+//     снова резолвится как класс) → 51 имя; enforceAccount задокументирован как Default true.
+//     Ранее: добавлены RESERVED_CLASS_NAMES/reservedNamesOf (гвард имён классов,
 //     шадоуемых Proxy); JSDoc enforceAcl разведён с db.reloadSchema()]
 // END_CHANGE_SUMMARY
 //
@@ -299,13 +301,22 @@ export interface ConnectOpts {
   owner?: string;
   /** Размер пула соединений. Default 10. */
   max?: number;
-  /** Жёсткая изоляция арендатора: чтения фильтруются по account, записи пришпилены к нему. */
+  /**
+   * Жёсткая изоляция арендатора: чтения фильтруются по account, записи пришпилены к нему.
+   * **Default true** (с 0.20.0). Действует только при заданном `account` — без него
+   * фильтровать нечем. Явный `.account(чужой)` при включённой изоляции — ошибка.
+   * Выключать (`false`) осмысленно лишь для админских/сервисных подключений,
+   * которым нужен доступ ко всем арендаторам.
+   */
   enforceAccount?: boolean;
   /**
    * ACL по Resource/Rule: категории READ/WRITE/DELETE, pattern — шаблон строки Entity
    * (колонки + "$account"). Каждый шаг цепочки проверяется на READ, записи — WRITE,
    * delete — DELETE (включая классы каскада); предикат победившего правила вливается
    * в SQL до сортировки/лимита. Требует account. Deny-by-default.
+   * **Default false** — остаётся opt-in: включённый по умолчанию deny-by-default без
+   * настроенных Resource/Rule давал бы пустые выборки. Пока выключен, connect() один раз
+   * на процесс печатает предупреждение.
    * Правила снимаются на connect и компилятся в memo-энфорсер; перечитать без
    * реконнекта — db.reloadSchema() (пересобирает и реестр, и ACL-резолвер).
    */
@@ -334,7 +345,7 @@ export const RESERVED_CLASS_NAMES: readonly string[] = [
   'entity', 'run', 'execute', 'rows', 'first', 'ids', 'count', 'limit', 'offset', 'sort',
   'asOf', 'withDeleted', 'deep', 'exact', 'sum', 'avg', 'min', 'max', 'countBy', 'after', 'versions',
   'create', 'update', 'set', 'delete', 'anonymize', 'purge', 'alias', 'tags', 'account',
-  'owner', 'link',
+  'owner',
   // db-уровень (makeDb handler): switch …
   'begin', 'commit', 'rollback', 'lock', 'batch', 'watch', 'close', 'reloadSchema',
   'registry', 'sql',

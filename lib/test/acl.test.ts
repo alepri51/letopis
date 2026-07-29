@@ -119,7 +119,9 @@ test('enforceAcl: предикат owner=$account сужает чтение ЗА
       await мкЗапись(sys.запись().account(who.id).owner(who.id), `st-${who.id}-${i}`, '2026-08-01T10:00:00+03:00').rows();
     }
   }
-  const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true });
+  // enforceAccount: false — здесь под тестом ACL-предикаты, а не изоляция арендатора
+  // (с 0.20.0 изоляция включена по умолчанию и скрыла бы строки System-аккаунта)
+  const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true, enforceAccount: false });
   try {
     assert.equal(await u.запись().count(), 3); // чужие не посчитаны
     const все = await u.запись().rows();
@@ -141,7 +143,9 @@ test('enforceAcl: статический data-шаблон — виден тол
   await sys.Организация(салон.id).Услуга().create({ name: 'Экспресс', duration: 30 }).rows();
   await sys.Организация(салон.id).Услуга().create({ name: 'Обстоятельная', duration: 60 }).rows();
 
-  const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true });
+  // enforceAccount: false — здесь под тестом ACL-предикаты, а не изоляция арендатора
+  // (с 0.20.0 изоляция включена по умолчанию и скрыла бы строки System-аккаунта)
+  const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true, enforceAccount: false });
   try {
     const услуги = await u.Услуга().rows();
     assert.ok(услуги.length >= 1);
@@ -153,7 +157,9 @@ test('enforceAcl: статический data-шаблон — виден тол
 });
 
 test('enforceAcl запись: INSERT пришпилен к owner=$account, чужие цели не находятся', async () => {
-  const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true });
+  // enforceAccount: false — здесь под тестом ACL-предикаты, а не изоляция арендатора
+  // (с 0.20.0 изоляция включена по умолчанию и скрыла бы строки System-аккаунта)
+  const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true, enforceAccount: false });
   try {
     const [своя] = await мкЗапись(u.запись(), 'st-мой', '2026-08-02T10:00:00+03:00').rows();
     assert.equal(своя.owner, user.id); // пришпилено правилом
@@ -181,7 +187,9 @@ test('enforceAcl запись: INSERT пришпилен к owner=$account, чу
 test('enforceAcl: tenant-шаблон account=$account', async () => {
   await sys.Клиент().account(user.id).create({ name: 'Мой клиент', phone: '+7 905 000-00-01' }).rows();
   await sys.Клиент().account(other.id).create({ name: 'Чужой клиент', phone: '+7 905 000-00-02' }).rows();
-  const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true });
+  // enforceAccount: false — здесь под тестом ACL-предикаты, а не изоляция арендатора
+  // (с 0.20.0 изоляция включена по умолчанию и скрыла бы строки System-аккаунта)
+  const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true, enforceAccount: false });
   try {
     const мои = await u.Клиент().rows();
     assert.deepEqual(мои.map((r) => r.data.name), ['Мой клиент']);
@@ -198,7 +206,9 @@ test('delete-каскад: замыкание проверяется по все
     [{ SportsCar: car.id }, user.id],
   );
 
-  const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true });
+  // enforceAccount: false — здесь под тестом ACL-предикаты, а не изоляция арендатора
+  // (с 0.20.0 изоляция включена по умолчанию и скрыла бы строки System-аккаунта)
+  const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true, enforceAccount: false });
   try {
     // Org: DELETE-правила нет → deny-by-default внутри каскада; нужен confirm —
     // превью БД не трогает и каскадные права не проверяет, а тут проверяем откат
@@ -217,7 +227,9 @@ test('delete-каскад: замыкание проверяется по все
 });
 
 test('watch: события отдаются только при БЕЗУСЛОВНОМ allow', async () => {
-  const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true });
+  // enforceAccount: false — здесь под тестом ACL-предикаты, а не изоляция арендатора
+  // (с 0.20.0 изоляция включена по умолчанию и скрыла бы строки System-аккаунта)
+  const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true, enforceAccount: false });
   const seen: WatchEvent[] = [];
   const stop = await u.watch((e) => seen.push(e));
   try {
@@ -281,7 +293,9 @@ test('полиморфное чтение + ACL: deny на потомке НЕ �
   await sys.resources.set({ alias: 'sportscar:READ', category: 'READ', pattern: { class: 'SportsCar' } });
   await sys.rules.set({ account: 'authenticated:ACCOUNT', resource: 'sportscar:READ', permission: 'deny', weight: 200 });
 
-  const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true });
+  // enforceAccount: false — здесь под тестом ACL-предикаты, а не изоляция арендатора
+  // (с 0.20.0 изоляция включена по умолчанию и скрыла бы строки System-аккаунта)
+  const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true, enforceAccount: false });
   try {
     // Vehicle разрешён, SportsCar запрещён → его строк в выборке по родителю НЕТ
     const rows = await u.Vehicle().tags(T).rows();

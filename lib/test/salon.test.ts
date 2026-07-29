@@ -625,7 +625,7 @@ test('Акт 20. Аренда и наблюдаемость: enforceAccount, onQ
 
 // ===========================================================================
 // АКТ 21. Гарды и ошибки — валидация, снесённые/переименованные методы, пути
-// покрывает: [5 ValidationError][143 .link removed][144 .execute][145 batch.execute]
+// покрывает: [5 ValidationError][143 link как класс][144 .execute][145 batch.execute]
 //            [58 no-path/LINK→LINK][59 слот-гард][12 commit-гард]
 // ===========================================================================
 test('Акт 21. Гарды: валидация, снесённые set()/.link/.delete-слот, execute→run, пути', async () => {
@@ -650,8 +650,14 @@ test('Акт 21. Гарды: валидация, снесённые set()/.link/
     /renamed to \.unset\(\)/,                                                      // [57] слот .delete снесён
   );
 
+  // [143] охранник .link() СНЯТ в 0.20.0: link — реальный абстрактный класс-корень связок,
+  // и он затенялся охранником. Теперь шаг под id `link` работает и равен шагу под алиасом «связь»
+  assert.deepEqual(
+    (await db.Услуга().link().ids()).sort(),
+    (await db.Услуга().связь().ids()).sort(),
+  );
+
   // снесённые/переименованные
-  assert.throws(() => (db.Услуга() as unknown as { link: (a: string, b: string) => void }).link('X', 'y'), /\.link\(\) removed/); // [143]
   assert.throws(() => (db.Услуга() as unknown as { execute: () => void }).execute(), /renamed to run/); // [144]
   assert.throws(() => (db.batch('g') as unknown as { execute: () => void }).execute(), /renamed to batch\.run/); // [145]
 

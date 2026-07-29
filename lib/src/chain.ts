@@ -9,7 +9,7 @@
  * одной транзакцией.
  */
 // FILE: lib/src/chain.ts
-// VERSION: 1.1.0
+// VERSION: 1.2.0
 // START_MODULE_CONTRACT
 //   PURPOSE: Чейнящийся фасад сущностей — из шагов класс/связь/pivot собирает планы чтения и записи и даёт run/rows/first/ids/count/агрегации, versions/asOf/after, create/update/delete/anonymize, слоты связей, батчи, транзакции и watch изменений.
 //   SCOPE: сборка Proxy-цепочек; read-терминалы и агрегации; планы записи; слоты связей; entity()-вклейка; батчи; begin/commit/rollback/lock; watch через LISTEN
@@ -34,7 +34,9 @@
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.1.0 - Добавлен модификатор шага .exact(): снять полиморфизм чтения
+//   LAST_CHANGE: [v1.2.0 - Снят охранник case 'link' — он затенял реальный класс схемы
+//     (в демо `link` это абстрактный корень связок), теперь имя резолвится как класс везде.
+//     Ранее: добавлен модификатор шага .exact(): снять полиморфизм чтения
 //     (только свой класс, без потомков) — нужен там, где наследование в домене есть
 //     переиспользование attributes, а не «is-a» (демо: запись наследует окно)]
 // END_CHANGE_SUMMARY
@@ -735,8 +737,10 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef, n
         case 'owner':
           return (v: string | { id: string }) =>
             withLast({ ownerFilter: typeof v === 'object' ? v.id : v });
-        case 'link':
-          throw new Error('letopis: .link() removed (0.15.0) — use the link slot: .Класс.set(target)');
+        // NB: охранника `case 'link'` здесь больше нет (снят в 0.20.0). Он затенял РЕАЛЬНЫЙ
+        // класс схемы: в демо-домене `link` — абстрактный корень всех связок, и шаг
+        // db.Клиент(c).link() падал migration-ошибкой вместо обхода. Обратная совместимость
+        // со снесённым в 0.15.0 методом .link() принесена в жертву достижимости класса.
         // END_BLOCK_COLUMN_MODS
       }
 

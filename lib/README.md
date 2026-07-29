@@ -301,13 +301,13 @@ GIN-кандидатам, затем перепроверка условий н�
 #### Зарезервированные имена классов
 
 Шаг цепочки — это свойство Proxy, а терминалы/модификаторы/глаголы записи разбираются
-**до** резолва класса. Значит класс, чей `id` или `alias` совпал с таким именем,
-как шаг под этим именем **недостижим**: `db.Клиент(c).link()` уйдёт в
-`.link() removed (0.15.0)`, а не в класс `link`.
+**до** резолва класса. Значит класс, чей `id` или `alias` совпал с таким именем, как шаг
+под этим именем **недостижим**: например класс с id `count` не получится пройти как
+`db.X(id).count()` — вызовется терминал подсчёта.
 
 | Уровень | Занятые имена |
 |---|---|
-| цепочка | `account` `after` `alias` `anonymize` `asOf` `avg` `count` `countBy` `create` `deep` `delete` `entity` `exact` `execute` `first` `ids` `limit` `link` `max` `min` `offset` `owner` `purge` `rows` `run` `set` `sort` `sum` `tags` `then` `update` `versions` `withDeleted` |
+| цепочка | `account` `after` `alias` `anonymize` `asOf` `avg` `count` `countBy` `create` `deep` `delete` `entity` `exact` `execute` `first` `ids` `limit` `max` `min` `offset` `owner` `purge` `rows` `run` `set` `sort` `sum` `tags` `then` `update` `versions` `withDeleted` |
 | батч `db.batch(n)` | `discard` `size` (+ `run` / `execute` из строки выше) |
 | корень `db` | `accounts` `acl` `auth` `batch` `begin` `close` `commit` `credentials` `lock` `registry` `reloadSchema` `resources` `rollback` `rules` `schema` `sql` `watch` |
 
@@ -316,11 +316,16 @@ GIN-кандидатам, затем перепроверка условий н�
 разбираются на корне `db` до резолва класса.
 
 - Гварды: `db.schema.define()` **отказывает** на таком имени; `connect()`/`up()` печатают
-  `letopis: class name "link" is reserved by the chain API — use "связь" for chain steps`.
-- Хватает **одного** свободного имени из пары `id`/`alias` — демо-класс `link`/`связь`
-  ходится как `связь` (и как `db.link(…)` с корня, где `link` не занят — но не в цепочке).
-- Список — константа `RESERVED_CLASS_NAMES`; её совпадение с реальными `case` цепочки
-  проверяет `scripts/check-docs.mjs`, а `gen-types` не выдаёт таких шагов в типы.
+  предупреждение (один раз на процесс) вида
+  `letopis: class name "count" is reserved by the chain API — use "Счётчик" for chain steps`.
+- Хватает **одного** свободного имени из пары `id`/`alias`: если занят `id`, класс ходится
+  по алиасу, и наоборот. Если заняты оба — класс недостижим как шаг, `gen-types` его в типы
+  не выдаст, а предупреждение скажет «rename it».
+- В демо-домене конфликтов нет: охранник на `.link()` снят в 0.20.0, поэтому класс
+  `link`/`связь` (абстрактный корень связок) ходится под любым из двух имён.
+- Список — константа `RESERVED_CLASS_NAMES`; её совпадение с реальными точками перехвата
+  в `chain.ts` (и `case`-метки, и ранние `if (prop === …)`) проверяет
+  `scripts/check-docs.mjs`, а `gen-types` не выдаёт таких шагов в типы.
 
 ### 3.1 Концы связей — Schema.links v2
 
@@ -3467,7 +3472,6 @@ AclDecision = { allow, rule?, filter?, code?, message? }         // filter — �
 | `duplicate link slot "X"` | один конец задан слотом дважды в одной записи |
 | `set() split into create()/update() (0.16.0)` | старый глагол записи — create() вставляет, update() версионирует найденное |
 | `slot .delete() renamed to .unset() (0.16.0)` | старое имя слот-снятия |
-| `.link() removed (0.15.0)` | снесённый `.link()` — теперь слот `.Класс.set()` |
 | `execute() renamed to run() (0.11.0)` | старое имя терминала путей (и `batch.execute()`) |
 | `plan is queued in the batch — call batch.run()` | терминал на батч-цепочке с операциями |
 | `no path X → Y` / `LINK → LINK …` | недопустимый переход (синхронно при построении цепочки) |
@@ -3603,6 +3607,11 @@ cd lib && npm test    # весь набор против живого docker (ti
             # api-full      — сквозной чек-лист ВСЕХ публичных методов API (15 групп)
             # auth          — db.auth: пароль/api-key/key-secret/TOTP/OTP/link+lookup,
             #                 глобальная идентичность, сессии на живом Redis (expire/revoke)
+            # parity        — паритет клиент ↔ триггер БД: один и тот же кейс исполняется
+            #                 через либу и голым INSERT, оба обязаны решить одинаково
+            #                 (abstract, неизвестный класс, обязательные/optional/союзные
+            #                 концы, посторонняя связь) + закреплена известная асимметрия:
+            #                 валидацию data делает только либа
             # plan          — план-модель: несколько операций, fan-out, self-update,
             #                 превью/confirm delete, ОТКАТ плана, слот-перевес, батч-гард
             # resilience    — ретраи 40P01/40001, реальный deadlock двух транзакций,
