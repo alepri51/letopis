@@ -620,6 +620,9 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
       for (const c of f.idConds) tailConds.push(c(a));
       for (const fr of f.finalFrags) tailConds.push(fr(a));
       if (step.tagsFilter !== undefined) tailConds.push(compileTags(step.tagsFilter, p)(a));
+      // .exact() на pivot: узел уже материализован полиморфно, поэтому сужаем его
+      // дофильтром по классу — иначе модификатор молча ничего не делал бы
+      if (step.exactClass) tailConds.push(`${a}.class = ${p.push(step.cls.id)}`);
       continue;
     }
 
@@ -700,7 +703,9 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
         })
         .join(' OR ');
     const classCond: Frag = poly || aclFrags.size ? (a) => `(${classFrag(a)})` : classFrag;
-    f.candFrags.push(classCond);
+    // ТОЛЬКО в finalFrags: в candFrags нельзя — иначе кандидатный подзапрос появлялся бы
+    // на КАЖДОМ запросе (условие по классу непустое всегда), а он нужен лишь когда есть
+    // GIN-предикаты. В основной скан условие попадает через innerWhere ниже.
     f.finalFrags.push(classCond);
 
     const innerWhere = [`e.partition = ${pPart}`, classCond('e')];
@@ -738,12 +743,13 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
     }
 
     if (candWhere.length) {
-      // класс уже внутри candWhere (classCond); при семействе id не уникален между
-      // классами, поэтому сопоставляем пару (class, id)
+      // подзапрос кандидатов нужен только при GIN-предикатах; класс добавляем здесь, а не
+      // через candFrags. При семействе id не уникален между классами → сопоставляем (class, id)
+      const cand = [classCond('c'), ...candWhere].join(' AND ');
       innerWhere.push(
         poly
-          ? `(e.class, e.id) IN (SELECT c.class, c.id FROM ${ent} c WHERE c.partition = ${pPart} AND ${candWhere.join(' AND ')})`
-          : `e.id IN (SELECT c.id FROM ${ent} c WHERE c.partition = ${pPart} AND ${candWhere.join(' AND ')})`,
+          ? `(e.class, e.id) IN (SELECT c.class, c.id FROM ${ent} c WHERE c.partition = ${pPart} AND ${cand})`
+          : `e.id IN (SELECT c.id FROM ${ent} c WHERE c.partition = ${pPart} AND ${cand})`,
       );
     }
 

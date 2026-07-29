@@ -714,7 +714,7 @@ import { ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends,
 ### Модификаторы цепочки
 
 ```ts
-db.окно().sort('data.start_datetime').limit(10).offset(20).rows()   // выборка
+db.окно().exact().sort('data.start_datetime').limit(10).offset(20).rows()   // выборка (exact: смены без броней)
 db.запись().sort('updated', 'desc').limit(50).rows()
 
 db.Клиент().tags('vip')                     // фильтр: tags ⊇ ['vip']
@@ -1156,7 +1156,7 @@ const стр2 = await db.запись().sort('updated', 'desc') //  можно �
   .after(кур).limit(50).rows()
 
 // по data-пути ЛЮБОЙ глубины — field тот же, что в sort
-const дальше = await db.окно().sort('data.start_datetime')
+const дальше = await db.окно().exact().sort('data.start_datetime')
   .after(cursorOf(окно, 'data.start_datetime')).limit(20).rows()
 
 // бесконечная лента: .after(undefined) не добавляет условия — один код для всех страниц
@@ -1182,7 +1182,7 @@ do {
 await db.цена().sum('data.amounts.RUB')      // сумма всех прайсов (record-лист): number | null
 await db.Услуга().avg('data.duration')       // среднее
 await db.Услуга().countBy('data.duration')   // { '30': 2, '60': 1 } ({} на пустом)
-await db.окно().min('data.start_datetime')   // min/max — каст по типу поля из Schema
+await db.окно().exact().min('data.start_datetime')   // min/max — каст по типу поля из Schema
 ```
 
 Один проход в БД вместо перекачки строк в JS. Путь — `'data.<поле>'` или вложенный лист
@@ -3520,6 +3520,11 @@ AclDecision = { allow, rule?, filter?, code?, message? }         // filter — �
 (keyset — миллисекунды даже на 440k). Каталог, агрегации и цепочки с фильтром — единицы—десятки ms.
 TOAST-порог (data > 2KB): 0 строк.
 
+- **Цена полиморфизма.** Шаг по родителю сканирует всё семейство, поэтому дороже листа:
+  на том же полигоне `db.окно().exact().count()` ≈ 0.4 с (54 005), `db.окно().count()` ≈ 1 с
+  (494 008), `db.Контрагент().count()` ≈ 0.13 с (40 367). Класс без потомков идёт быстрым
+  путём (равенство вместо `ANY`) и не дорожает вовсе: `db.Услуга().count()` ≈ 4 мс.
+  Тайминги в таблице выше сняты на классах-листьях и полиморфизмом не затронуты.
 - Containment и обход графа — GIN; операторы — на уже суженном наборе.
 - Начинайте цепочку с самого селективного шага (Организация/Мастер/Клиент, не `запись()`).
 - `count()` считает пути; число сущностей дешевле берётся `ids().length`.
@@ -3592,7 +3597,9 @@ await db.запись(bId).delete({ confirm: true }).rows()           // отм�
 cd lib && npm test    # весь набор против живого docker (timescale + redis); счёт кейсов — в CHANGELOG
             #                 актуального релиза. По файлам:
             # acl           — Resource/Rule: маски/weight/deny-by-default, шаблоны строк
-            #                 с $account, enforceAcl (предикаты в SQL, каскад, watch)
+            #                 с $account, enforceAcl (предикаты в SQL, каскад, watch);
+            #                 полиморфное чтение по иерархии + .exact(); deny на потомке
+            #                 не обходится шагом по родителю (проверка на утечку)
             # api-full      — сквозной чек-лист ВСЕХ публичных методов API (15 групп)
             # auth          — db.auth: пароль/api-key/key-secret/TOTP/OTP/link+lookup,
             #                 глобальная идентичность, сессии на живом Redis (expire/revoke)

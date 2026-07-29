@@ -163,9 +163,12 @@
     <risk-5>The demo booking schema is seeded by hand (lib/sql/seed.booking.sql) and is the source of truth for its classes, so a hand edit can silently diverge from the docs; the class count in the file header is checked by lib/scripts/check-docs.mjs.</risk-5>
   </Risks>
 
+  <ResolvedQuestions>
+    <answer-1 was="Are gen-types/schema-sync supported product surface or internal tooling?">Supported product surface. Both ship in the npm tarball (package.json "files" includes "scripts", added in 0.18.1), are documented in README §10.9/§10.11 and §11, are self-contained plain Node (no tsx needed), and gen-types output is guarded by a drift test in lib/test/wave2.test.ts that compiles the generated .d.ts. They are not installed as bin — invoke with node node_modules/letopis/scripts/&lt;name&gt;.mjs.</answer-1>
+    <answer-2 was="Is the demo booking domain part of the shipped product or a fixture?">Shipped, as the default fixture. seed.booking.sql is inside "files" (sql/) and up() applies it when the seeds option is omitted, so a consumer who forgets seeds gets the booking classes in their own schema — called out as a warning in README §1.1. It is the source of truth for its own classes, hand-edited, and its class count is asserted by lib/scripts/check-docs.mjs.</answer-2>
+  </ResolvedQuestions>
+
   <OpenQuestions>
-    <question-1>Are gen-types/schema-sync intended as supported product surface (UC-014) or purely internal dev tooling?</question-1>
-    <question-2>Is the demo booking domain (seed.booking.sql) part of the shipped product or only a demo/bench fixture?</question-2>
-    <question-3>What is the intended security posture for enforceAcl/enforceAccount in production (default on/off)?</question-3>
+    <question-1>What is the intended security posture for enforceAcl/enforceAccount in production? Both default to false today (opt-in), i.e. an app that forgets them gets no tenant isolation and no authorization on reads; deciding whether that default should invert is an owner policy call, not a fact derivable from the code.</question-1>
   </OpenQuestions>
 </RequirementsAnalysis>

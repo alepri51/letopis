@@ -144,11 +144,15 @@ test('gen-types: фасад не содержит снесённых имён и
   // индекс-сигнатура глушила бы любую опечатку
   assert.doesNotMatch(text, /\[className: string\]/, 'индекс-сигнатура возвращает дыру в типизации');
 
-  // текущая поверхность ChainCore должна быть покрыта
-  for (const m of ['run', 'rows', 'first', 'ids', 'count', 'versions', 'sum', 'avg', 'min', 'max',
-    'countBy', 'limit', 'offset', 'sort', 'asOf', 'after', 'withDeleted', 'deep', 'alias', 'tags',
-    'account', 'owner', 'entity', 'create', 'update', 'delete', 'purge', 'anonymize']) {
-    assert.match(text, new RegExp(`^\\s*${m}\\(`, 'm'), `ChainOps не покрывает ${m}()`);
+  // Поверхность ChainCore берётся из docs/api-contract.json (он генерируется из chain.ts),
+  // а НЕ из захардкоженного списка: иначе новый метод цепочки молча не попадёт в кодоген —
+  // именно так .exact() однажды и уехал.
+  const { readFile: rf } = await import('node:fs/promises');
+  const contract = JSON.parse(await rf(new URL('../../docs/api-contract.json', import.meta.url), 'utf8'));
+  const core: string[] = contract.chain.core.map((m: { name: string }) => m.name);
+  assert.ok(core.length >= 28, `в контракте подозрительно мало методов: ${core.length}`);
+  for (const m of core) {
+    assert.match(text, new RegExp(`^\\s*${m}\\(`, 'm'), `ChainOps не покрывает ${m}() из ChainCore`);
   }
 
   // класс, чьё имя перехватывает Proxy, не должен выдаваться как типизированный шаг

@@ -2,7 +2,7 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/), версии — semver.
 
-## [Unreleased]
+## [0.20.0] — 2026-07-29
 
 ### BREAKING — чтение стало полиморфным по иерархии классов
 
