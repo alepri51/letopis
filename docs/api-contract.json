@@ -341,16 +341,36 @@
   ],
   "errors": [
     {
-      "module": "sql",
-      "message": "letopis: .after(cursor) requires .sort(field)"
+      "module": "up",
+      "message": "letopis.up: bad schema name \"<…>\" (базовое имя без версии и точек; версию задаёт version)"
     },
     {
-      "module": "sql",
-      "message": "letopis: .deep() works on a self hop (same class as previous step)"
+      "module": "up",
+      "message": "letopis.up: bad version <…> (целое ≥ 1)"
     },
     {
-      "module": "write",
-      "message": "letopis: .tags() before set() accepts string | string[]"
+      "module": "up",
+      "message": "letopis.up: docker CLI not found — install Docker or point dsn at an already running postgres"
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: docker build <…> failed: <…>"
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: docker run <…> failed: <…>"
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: docker start <…> failed: <…>"
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: postgres not ready in <…> s${local ?"
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: redis not ready on <…> — check: docker logs <…>"
     },
     {
       "module": "chain",
@@ -363,6 +383,26 @@
     {
       "module": "sql",
       "message": "letopis: $tags accepts a string or has/hasAny/hasAll"
+    },
+    {
+      "module": "sql",
+      "message": "letopis: .after(cursor) requires .sort(field)"
+    },
+    {
+      "module": "sql",
+      "message": "letopis: .deep() works on a self hop (same class as previous step)"
+    },
+    {
+      "module": "write",
+      "message": "letopis: .tags() before set() accepts string | string[]"
+    },
+    {
+      "module": "write",
+      "message": "letopis: Entity.account is NOT NULL — set .account(…) / db.as(account) or seed a System account (lib/sql/seed.auth.sql)"
+    },
+    {
+      "module": "sql",
+      "message": "letopis: LINK → LINK traversal is not supported (<…> → <…>)"
     },
     {
       "module": "tables",
@@ -405,6 +445,22 @@
       "message": "letopis: batch.execute() renamed to batch.run() (0.11.0)"
     },
     {
+      "module": "write",
+      "message": "letopis: class \"<…>\" computes id (uuid v5 from ${cls.idGen.from!.join("
+    },
+    {
+      "module": "schema",
+      "message": "letopis: class \"<…>\" has link end without classes: <…>"
+    },
+    {
+      "module": "schema",
+      "message": "letopis: class \"<…>\" has malformed link end (bad JSON): <…>"
+    },
+    {
+      "module": "write",
+      "message": "letopis: class \"<…>\" is abstract"
+    },
+    {
       "module": "schema",
       "message": "letopis: class \"<…>\" — attributes.id.from is for generate:5 only"
     },
@@ -423,22 +479,6 @@
     {
       "module": "schema",
       "message": "letopis: class \"<…>\" — id generate:5 needs \"from\": non-empty string[] (link ends / data fields)"
-    },
-    {
-      "module": "write",
-      "message": "letopis: class \"<…>\" computes id (uuid v5 from ${cls.idGen.from!.join("
-    },
-    {
-      "module": "schema",
-      "message": "letopis: class \"<…>\" has link end without classes: <…>"
-    },
-    {
-      "module": "schema",
-      "message": "letopis: class \"<…>\" has malformed link end (bad JSON): <…>"
-    },
-    {
-      "module": "write",
-      "message": "letopis: class \"<…>\" is abstract"
     },
     {
       "module": "schema",
@@ -494,14 +534,6 @@
     },
     {
       "module": "index",
-      "message": "letopis: enforceAcl — account \"…\" not found"
-    },
-    {
-      "module": "index",
-      "message": "letopis: enforceAcl — account \"<…>\" not found"
-    },
-    {
-      "module": "index",
       "message": "letopis: enforceAcl is off — Resource/Rule are NOT checked, reads and writes pass"
     },
     {
@@ -509,8 +541,12 @@
       "message": "letopis: enforceAcl is on — call db.as(account) to name the subject"
     },
     {
-      "module": "write",
-      "message": "letopis: Entity.account is NOT NULL — set .account(…) / db.as(account) or seed a System account (lib/sql/seed.auth.sql)"
+      "module": "index",
+      "message": "letopis: enforceAcl — account \"<…>\" not found"
+    },
+    {
+      "module": "index",
+      "message": "letopis: enforceAcl — account \"…\" not found"
     },
     {
       "module": "chain",
@@ -550,15 +586,11 @@
     },
     {
       "module": "write",
-      "message": "letopis: link \"<…>\" requires end \"<…>\""
-    },
-    {
-      "module": "write",
       "message": "letopis: link \"<…>\" requires end \"${end.classes.join("
     },
     {
-      "module": "sql",
-      "message": "letopis: LINK → LINK traversal is not supported (<…> → <…>)"
+      "module": "write",
+      "message": "letopis: link \"<…>\" requires end \"<…>\""
     },
     {
       "module": "chain",
@@ -618,10 +650,6 @@
     },
     {
       "module": "chain",
-      "message": "letopis: slot .delete() renamed to .unset() (0.16.0) — .<…>.unset() removes the link end"
-    },
-    {
-      "module": "chain",
       "message": "letopis: slot \"<…>\" accepts an id, a Row or a chain"
     },
     {
@@ -639,6 +667,10 @@
     {
       "module": "write",
       "message": "letopis: slot \"<…>\" value plan resolved to class \"<…>\""
+    },
+    {
+      "module": "chain",
+      "message": "letopis: slot .delete() renamed to .unset() (0.16.0) — .<…>.unset() removes the link end"
     },
     {
       "module": "sql",
@@ -665,36 +697,8 @@
       "message": "letopis: validation failed for \"<…>\": ${issues.map((i) =>"
     },
     {
-      "module": "up",
-      "message": "letopis.up: bad schema name \"<…>\" (базовое имя без версии и точек; версию задаёт version)"
-    },
-    {
-      "module": "up",
-      "message": "letopis.up: bad version <…> (целое ≥ 1)"
-    },
-    {
-      "module": "up",
-      "message": "letopis.up: docker build <…> failed: <…>"
-    },
-    {
-      "module": "up",
-      "message": "letopis.up: docker CLI not found — install Docker or point dsn at an already running postgres"
-    },
-    {
-      "module": "up",
-      "message": "letopis.up: docker run <…> failed: <…>"
-    },
-    {
-      "module": "up",
-      "message": "letopis.up: docker start <…> failed: <…>"
-    },
-    {
-      "module": "up",
-      "message": "letopis.up: postgres not ready in <…> s${local ?"
-    },
-    {
-      "module": "up",
-      "message": "letopis.up: redis not ready on <…> — check: docker logs <…>"
+      "module": "index",
+      "message": "letopis: движок схемы \"<…>\" отстал — <…>. Схема продолжит работать, но новых"
     }
   ]
 }

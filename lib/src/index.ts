@@ -11,7 +11,7 @@
  */
 
 // FILE: lib/src/index.ts
-// VERSION: 1.2.0
+// VERSION: 1.3.0
 // START_MODULE_CONTRACT
 //   PURPOSE: Публичная точка входа пакета — открыть соединение (реестр, опциональный ACL, сборка db) и ре-экспорт публичной поверхности; хелпер курсора.
 //   SCOPE: connect, cursorOf + barrel-реэкспорты
@@ -22,16 +22,17 @@
 // END_MODULE_CONTRACT
 //
 // START_MODULE_MAP
-//   connect - открывает pg-соединение, грузит реестр, опц. включает ACL, собирает EntityDb
+//   connect - открывает pg-соединение, грузит реестр, опц. включает ACL (снимок Resource/Rule на подключение), собирает EntityDb
 //   cursorOf - курсор keyset-пагинации из последней строки страницы
 //   NOTE (re-exports) - up/UpOpts←M-UP; uuidv5/uuidv7/LETOPIS_NS←M-UUID; ops←M-OPS; totpCode/AuthApi/AuthResult←M-AUTH; AclApi←M-ACL; ValidationError←M-WRITE; Registry←M-SCHEMA; Session-типы←M-SESSIONS; базовые типы←M-TYPES; типы chain/tables
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.2.0 - BREAKING: opts.account/opts.owner сняты — подключение безличное,
-//     арендатора и субъекта ACL называет db.as(account, { owner }). Компиляция энфорсера
-//     вынесена в ctx.compileAcl(ctx-scope), ctx.reload обновляет только реестр.
-//     Ранее: enforceAccount по умолчанию true; предупреждение при выключенном enforceAcl]
+//   LAST_CHANGE: [v1.3.0 - Словарь Resource/Rule снимается ОДИН раз на подключение и
+//     переиспользуется всеми db.as(): scope-per-request под enforceAcl платил два лишних
+//     SELECT на каждый HTTP-запрос. Per-scope остались чтение своего аккаунта и компиляция
+//     энфорсера (один энфорсер = один субъект). Снимок сбрасывает reloadSchema().
+//     Ранее: BREAKING — opts.account/opts.owner сняты, арендатора называет db.as()]
 // END_CHANGE_SUMMARY
 
 import postgres from 'postgres';
@@ -40,7 +41,8 @@ import { makeDb, type EntityDb } from './chain.js';
 import { makeTables } from './tables.js';
 import { compileEnforcer } from './acl.js';
 import type { Ctx } from './sql.js';
-import type { ConnectOpts } from './types.js';
+import { DDL_REVISION, parseDdlRevision } from './types.js';
+import type { ConnectOpts, Resource, Rule } from './types.js';
 
 // START_CONTRACT: connect
 //   PURPOSE: Открыть БЕЗЛИЧНОЕ соединение: postgres-пул, реестр схемы, System-аккаунт, хук компиляции ACL — и собрать EntityDb (арендатора вызова называет db.as()).
@@ -51,6 +53,37 @@ import type { ConnectOpts } from './types.js';
 // END_CONTRACT: connect
 /** Предупреждение об отключённом enforceAcl печатается один раз на процесс. */
 let warnedNoAcl = false;
+/** Схемы, про чью ревизию движка уже предупредили (один раз на схему за процесс). */
+const warnedDdl = new Set<string>();
+
+// START_CONTRACT: checkDdlRevision
+//   PURPOSE: Сверить ревизию движка схемы (COMMENT ON SCHEMA) с ожидаемой либой; при отставании предупредить с командой апгрейда.
+//   INPUTS: { sql: Ctx['sql'] - открытый пул; schema: string - полное имя PG-схемы }
+//   OUTPUTS: { Promise<void> }
+//   SIDE_EFFECTS: один SELECT из obj_description; console.warn один раз на схему за процесс (никогда не бросает: правки ddl аддитивны)
+//   LINKS: M-CONNECT, V-M-CONNECT, M-DDL, M-TYPES
+// END_CONTRACT: checkDdlRevision
+async function checkDdlRevision(sql: Ctx['sql'], schema: string): Promise<void> {
+  // NB: ::regnamespace тут нельзя — имена схем letopis содержат точку ("v1.booking"),
+  // и приведение разберёт их как «схема v1, объект booking» → invalid name syntax.
+  const rows = (await sql`
+    SELECT obj_description(n.oid, 'pg_namespace') AS c FROM pg_namespace n WHERE n.nspname = ${schema}
+  `) as unknown as { c: string | null }[];
+  const have = parseDdlRevision(rows[0]?.c);
+  if (have === DDL_REVISION) return;
+  if (warnedDdl.has(schema)) return;
+  warnedDdl.add(schema);
+  const чего = have === null
+    ? 'ревизия не помечена (схема накатана либой до появления метки)'
+    : `ревизия схемы ${have}, либа ожидает ${DDL_REVISION}`;
+  console.warn(
+    `letopis: движок схемы "${schema}" отстал — ${чего}. Схема продолжит работать, но новых ` +
+      'функций/триггеров в ней нет (например purge/purge_account из 0.19.0) — вызов упадёт ' +
+      'ошибкой PostgreSQL "function … does not exist". ddl.sql идемпотентен, накат повторный ' +
+      'и данные целы: up({ …, upgrade: true }) либо node db/apply.mjs --dsn=… --schema=<имя> ' +
+      '--version=<N> --upgrade',
+  );
+}
 
 export async function connect(opts: ConnectOpts): Promise<EntityDb> {
   // timestamptz — строкой (JS Date режет микросекунды → ломал бы asOf/cursorOf по updated)
@@ -66,6 +99,14 @@ export async function connect(opts: ConnectOpts): Promise<EntityDb> {
   const sys = (await sql.unsafe(
     `SELECT id FROM ${ident}."Account" WHERE 'System' = ANY(categories) LIMIT 1`,
   )) as unknown as { id: string }[];
+
+  // START_BLOCK_CHECK_DDL_REVISION
+  // Схема, накатанная более старой либой, не получает аддитивных правок ddl.sql (в 0.19.0
+  // так появились purge/purge_closure/purge_account). Без этой проверки приложение узнаёт
+  // о расхождении из сырого `PostgresError: function … does not exist`.
+  // Предупреждение, а не отказ: правки аддитивны — то, что уже работало, работает.
+  await checkDdlRevision(sql, opts.schema);
+  // END_BLOCK_CHECK_DDL_REVISION
 
   const ctx: Ctx = {
     sql,
@@ -86,17 +127,32 @@ export async function connect(opts: ConnectOpts): Promise<EntityDb> {
   // enforceAcl: правила и категории субъекта компилятся в резолвер ПОД КОНКРЕТНЫЙ scope.
   // Функция живёт на ctx, потому что зовут её двое: db.as() (новый субъект) и reload
   // (тот же субъект на свежем реестре). Субъект берётся из c.account, т.е. из scope.
+  //
+  // Словарь Resource/Rule ОДИН для всех субъектов — снимается один раз на подключение и
+  // переиспользуется каждым db.as(). Иначе scope-per-request (штатный режим в вебе) платил
+  // бы два лишних SELECT на КАЖДЫЙ HTTP-запрос. Per-scope остаётся только чтение своего
+  // аккаунта (категории субъекта) и сама компиляция: один энфорсер = один субъект, иначе
+  // memo в acl.ts (ключ «класс + операция», без аккаунта) отдал бы чужое решение.
+  // Снимок сбрасывает reloadSchema() — как и обещано в README §9.2/§11.10.
+  let aclDict: Promise<{ resources: Resource[]; rules: Rule[] }> | null = null;
+  const aclSource = (c: Ctx) => {
+    aclDict ??= (async () => {
+      const tables = makeTables(c);
+      const [resources, rules] = await Promise.all([tables.resources.find(), tables.rules.find({ enabled: true })]);
+      return { resources, rules };
+    })().catch((e: unknown) => {
+      aclDict = null; // не кэшируем провал: следующий db.as() попробует снова
+      throw e;
+    });
+    return aclDict;
+  };
+
   ctx.compileAcl = async (c: Ctx): Promise<void> => {
     if (!opts.enforceAcl) return;
     if (!c.account) throw new Error('letopis: enforceAcl is on — call db.as(account) to name the subject');
-    const tables = makeTables(c);
-    const [account, resources, rules] = await Promise.all([
-      tables.accounts.get(c.account),
-      tables.resources.find(),
-      tables.rules.find({ enabled: true }),
-    ]);
+    const [account, dict] = await Promise.all([makeTables(c).accounts.get(c.account), aclSource(c)]);
     if (!account) throw new Error(`letopis: enforceAcl — account "${c.account}" not found`);
-    c.aclDecide = compileEnforcer({ resources, rules }, account.id, account.categories, c.registry);
+    c.aclDecide = compileEnforcer(dict, account.id, account.categories, c.registry);
   };
   // enforceAcl остаётся OPT-IN: включить его по умолчанию нельзя (он работает
   // deny-by-default, т.е. без настроенных Resource/Rule выдача стала бы пустой).
@@ -110,9 +166,11 @@ export async function connect(opts: ConnectOpts): Promise<EntityDb> {
     );
   }
   // db.reloadSchema(): перечитать определения классов из таблицы Schema без реконнекта.
+  // Заодно сбрасывается снимок Resource/Rule: правки словаря ACL подхватываются здесь.
   // На корневом хендле обновляется только реестр (субъекта тут нет); scoped-хендлы
   // подхватывают его и перекомпилируют свой энфорсер сами (chain.ts, case 'as').
   ctx.reload = async () => {
+    aclDict = null;
     ctx.registry = await loadRegistry(sql, opts.schema, partition);
   };
   // END_BLOCK_ENFORCE_ACL

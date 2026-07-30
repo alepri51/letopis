@@ -987,41 +987,41 @@ const acc = await db.accounts.set({ categories: ['User'], data: { name: 'Вас�
 
 // ПАРОЛЬ (почта/пароль и логин/пароль — одна механика, различает category)
 await db.auth.setPassword({ account: acc, identifier: 'vasya@salon.io', password: 'корень-огня-77' })
-// → Credential; в БД НЕ пароль, а слоёный хэш:                          [64.8 ms]
+// → Credential; в БД НЕ пароль, а слоёный хэш:                          [105 ms]
 //   meta.password = "scrypt$32768$8$1$EmyOQlletdEahwgoXendhw==$vGQB9LrwcDSIB0+…"
 await db.auth.verifyPassword({ identifier: 'vasya@salon.io', password: 'корень-огня-77' })
 // → { account: {id: '7277…', data: {name: 'Вася'}, enabled: true, …},
 //     credential: {category: 'PASSWORD', identifier: 'vasya@salon.io', …} }   [71.8 ms]
-await db.auth.verifyPassword({ identifier: 'vasya@salon.io', password: 'хм' })   // → null [82.8 ms]
+await db.auth.verifyPassword({ identifier: 'vasya@salon.io', password: 'хм' })   // → null [109 ms]
 // цена задана scrypt-ом (~70 ms) и выровнена: «нет такого identifier» не быстрее «пароль неверен»
 
 // API-КЛЮЧ: показывается ОДИН раз, в БД — только sha256
 const { key } = await db.auth.issueApiKey({ account: acc, name: 'CI' })
-// key = "lts_a61118c4af31868640529131927eb578211730bcd092856c"            [6.3 ms]
+// key = "lts_a61118c4af31868640529131927eb578211730bcd092856c"            [9.0 ms]
 // в БД: identifier = "ae9002e2cd4c…" (sha256), meta = {name: 'CI', prefix: 'lts_a61118c4'}
-await db.auth.verifyApiKey(key)                    // → { account, credential } [5.6 ms]
+await db.auth.verifyApiKey(key)                    // → { account, credential } [6.9 ms]
 
 // КЛЮЧ-СЕКРЕТ: key — открытый id пары, secret — только sha256
 const { key: k, secret } = await db.auth.issueKeySecret({ account: acc, name: 'integration' })
 // k = "96d327b741421f74", secret = "38f69922c9748aa8…" (48 hex)            [4.7 ms]
-await db.auth.verifyKeySecret(k, secret)           // → { account, credential } [3.4 ms]
+await db.auth.verifyKeySecret(k, secret)           // → { account, credential } [4.4 ms]
 
 // ВНЕШНЯЯ IDENTITY (oauth/sso/telegram): токен проверяет приложение, тут — связка
 await db.auth.link({ account: acc, category: 'TELEGRAM', identifier: '1635246915', meta: { username: 'roboteza' } })
 await db.auth.lookup({ category: 'TELEGRAM', identifier: '1635246915' })
-// → { account, credential }                                                [2.6 ms]
+// → { account, credential }                                                [5.3 ms]
 
 // TOTP (authenticator, RFC 6238): секрет в QR, активен после первой проверки
 const { secret, uri } = await db.auth.enrollTotp({ account: acc, issuer: 'clockz', label: 'anna@salon.io' })
 // secret = "RWVB3WWQ62LEED55AMU6L425C6KIT5EJ" (base32, 20 байт)            [5.6 ms]
 // uri = "otpauth://totp/anna%40salon.io?secret=…&issuer=clockz&algorithm=SHA1&digits=6&period=30"
-await db.auth.verifyTotp({ account: acc, code: '139999' })   // → true      [4.9 ms]
+await db.auth.verifyTotp({ account: acc, code: '139999' })   // → true      [7.2 ms]
 await db.auth.verifyTotp({ account: acc, code: '139999' })   // → false — replay того же шага отбит
 await db.auth.totpEnabled(acc)                               // → true (после первой проверки)
 
 // ОДНОРАЗОВЫЙ КОД (email/SMS/reset — доставка на приложении)
 const { code } = await db.auth.issueOtp({ account: acc, identifier: 'anna@salon.io', ttlSec: 600 })
-// code = "273746"; в БД sha256 + expires + attempts           [3.3 ms]
+// code = "273746"; в БД sha256 + expires + attempts           [4.8 ms]
 await db.auth.verifyOtp({ identifier: 'anna@salon.io', code })
 // → { account, credential }; код СОЖЖЁН (одноразовость)       [6.0 ms]; повторно → null
 // 5 неверных попыток тоже сжигают; повторный issue перезаписывает код (валиден последний)
@@ -1090,9 +1090,10 @@ db.acl.reload()                                     // сброс кэша Resou
 **`connect({ enforceAcl: true })` + `db.as(субъект)`** — те же решения в цепочках: каждый шаг —
 `READ`, `create()`/`update()`/anonymize/батчи — `WRITE`, `delete()` — `DELETE` **по всем классам каскада**
 (deny в замыкании откатывает транзакцию); `watch()` отдаёт события только безусловных
-allow-классов (payload нечем проверить предикат). Субъекта даёт `db.as()`: правила снимаются
-и компилятся в memo-резолвер **на каждый scope** (у своего аккаунта — свой резолвер, ключ memo
-субъекта не содержит); правки `Resource`/`Rule` подхватывает `db.reloadSchema()` (§ 11.10).
+allow-классов (payload нечем проверить предикат). Субъекта даёт `db.as()`: у каждого scope
+**свой** memo-резолвер (ключ memo субъекта не содержит, поэтому один энфорсер = один субъект),
+а сам словарь `Resource`/`Rule` — общий снимок на подключение; правки словаря подхватывает
+`db.reloadSchema()` (§ 11.10).
 
 ```ts
 const u = await (await connect({ dsn, schema, enforceAcl: true })).as(user.id)
@@ -1123,9 +1124,10 @@ await u.запись(чужаяId).update({ notes: '…' }).rows()     // → []
 не отсекает); в реальности он СУЖАЕТ выборку, и такие сцены становятся ДЕШЕВЛЕ, чем без ACL.
 `db.acl.checkData` — справочный (1.7 ms: SQL за категориями аккаунта на каждый вызов);
 горячий путь цепочек использует резолвер, скомпилированный при `db.as()` (микросекунды, memo).
-Цена самого `db.as()` под `enforceAcl` — один параллельный запрос за аккаунт + Resource/Rule
-(≈ те же 50 ms, что раньше платил `connect`), поэтому scope стоит держать на запрос, а не на
-цепочку. Без `enforceAcl` `db.as()` бесплатен: клон контекста, без SQL и без нового соединения.
+Цена самого `db.as()` под `enforceAcl` — **один** SELECT за свой аккаунт: словарь
+`Resource`/`Rule` снимается один раз на подключение и переиспользуется всеми scope (сбрасывает
+`db.reloadSchema()`), поэтому scope-per-request не платит за словарь на каждый HTTP-запрос.
+Без `enforceAcl` `db.as()` бесплатен вовсе: клон контекста, без SQL и без нового соединения.
 
 `enforceAccount` (§ 10.6) остаётся простым флагом-изоляцией без таблиц правил.
 
@@ -1274,21 +1276,23 @@ await db.запись().rows()                 // ошибка: enforceAccount i
 
 **Цена изоляции — отрицательная в реальной многоарендаторной базе.** Предикат `account`
 попадает не только в перепроверку, но и в подзапрос кандидатов, то есть **сужает выборку по
-индексу до основного скана**. Замерено на полигоне из 10 арендаторов (1 млн версий, класс
-`Customer`, `count()` — с сужением против без него):
+индексу до основного скана**: изоляция не добавляет фильтр к полному проходу по классу, а
+заменяет его. Замерено на полигоне из 10 арендаторов (1 млн версий класса `Customer`, `count()`,
+p50 из 5; воспроизводится `node bench/tenants-seed.mjs && npx tsx bench/isolation.bench.mjs`):
 
-| Доля арендатора в классе | с сужением | без сужения |
-|---|---|---|
-| 50 % | 936 ms | 800 ms |
-| 10 % | 314 ms | 785 ms |
-| 1 % | 87 ms | 800 ms |
-| 0.3 % | 28 ms | 773 ms |
+| Доля арендатора в классе | `db.as(арендатор)` | явный `.account()` | против всего класса (835 ms) |
+|---|---|---|---|
+| 50 % (250 000 сущн.) | 954 ms | 945 ms | равно |
+| 10 % (50 000) | 316 ms | 314 ms | быстрее ×2.6 |
+| 1 % (5 000) | 96 ms | 95 ms | быстрее ×8.7 |
+| 0.3 % (1 500) | 32 ms | 27 ms | **быстрее ×26.5** |
 
-Чем мельче арендатор, тем больше выигрыш: на 0.3 % класса изоляция ускоряет чтение в **27 раз**.
-Проигрывает она только в вырожденном случае, когда один арендатор владеет почти всем классом
-(на `v1.salondemo` System владеет 100 %, и там `count()` под изоляцией — 2.6 с против 1.3 с).
+Чем мельче арендатор, тем дешевле чтение. Колонки `db.as()` и `.account()` совпадают: SQL у них
+один — изоляция не берёт ничего сверх явного фильтра, она лишь ставит его на каждый шаг сама.
+Расплата только в вырожденном случае, когда один арендатор владеет почти всем классом: на
+`v1.salondemo` System владеет 100 %, и там `count()` под изоляцией — 2.6 с против 1.3 с.
 Вывод практический: чем больше у вас арендаторов, тем выгоднее держать изоляцию включённой.
-Оба замера сняты на проанализированной базе — без `ANALYZE` эта же сцена давала 54 с (§ 14.1).
+Все замеры — на проанализированной базе; без `ANALYZE` эта же сцена давала 54 с (§ 14.1).
 
 Административный доступ (миграции, дев-скрипты, отчёты по всем арендаторам) — явным
 `connect({ …, enforceAccount: false })`: там `db` читает и пишет без scope, а колонку
@@ -1324,6 +1328,49 @@ node db/policies.mjs --dsn=… --schema=v1.booking                     # тек�
   «забвение» из § 10.7). По умолчанию ВЫКЛ.
 - Интервалы: `30d`, `2y`, `12h`, `6mon` или сырой PG (`'90 days'`). Повторный запуск
   переустанавливает политику.
+
+### 10.8a Обновление движка: ревизия DDL и `upgrade`
+
+Классы живут в таблице `Schema` и правятся на ходу (§ 10.9), а **движок** — это `ddl.sql`:
+таблицы, индексы, триггеры и серверные функции. Он тоже растёт: в 0.19.0, например, появились
+`purge`/`purge_closure`/`purge_account`. Схема, накатанная более старой версией либы, этих
+функций **не получает** — приложение обновляет пакет и падает сырым
+
+```
+PostgresError: function "v1.booking".purge(unknown, unknown, unknown, boolean) does not exist
+```
+
+Поэтому последняя строка `ddl.sql` штампует в схему метку ревизии
+(`COMMENT ON SCHEMA … IS 'letopis ddl_revision=N'`), а `connect()` сверяет её с константой
+`DDL_REVISION` либы и **один раз на схему за процесс** предупреждает:
+
+```
+letopis: движок схемы "v1.booking" отстал — ревизия не помечена (схема накатана либой до
+появления метки). Схема продолжит работать, но новых функций/триггеров в ней нет
+(например purge/purge_account из 0.19.0) … up({ …, upgrade: true }) либо
+node db/apply.mjs --dsn=… --schema=<имя> --version=<N> --upgrade
+```
+
+Предупреждение, а не отказ: правки аддитивны — то, что работало, продолжает работать.
+
+**Апгрейд** перекатывает **только** `ddl.sql`, сиды не трогает:
+
+```ts
+await up({ dsn, schema: 'booking', version: 1, upgrade: true })   // данные целы
+```
+```bash
+node db/apply.mjs --dsn=… --schema=booking --version=1 --upgrade
+```
+
+Это безопасно, потому что `ddl.sql` идемпотентен: функции — `CREATE OR REPLACE`, триггеры —
+`DROP IF EXISTS` + `CREATE`, таблицы и индексы — `IF NOT EXISTS`. Данные append-only не
+перезаписываются.
+
+**Ревизия ≠ версия схемы.** Ревизия — про аддитивные правки внутри одной версии движка, они
+доезжают апгрейдом. Несовместимая правка структуры таблиц — это смена `version` в имени схемы
+(`v1.booking` → `v2.booking`), то есть новая схема и перенос данных силами приложения.
+Совпадение маркера в `ddl.sql`, штампа `COMMENT` и константы `DDL_REVISION` проверяет
+`npm run check:docs`.
 
 ### 10.9 Миграции классов: `scripts/schema-sync.mjs`
 
@@ -1414,6 +1461,13 @@ deadlock detected — letopis: transaction is aborted, retry the whole db.begin(
 id сокращены: `…0911` = `00000000-0000-4000-8000-000000000911`; повторяющиеся
 `account`/`owner`/`partition` в ответах опущены.
 
+> **Как читать тайминги.** Значения перенесены из прогона демо **точным сопоставлением по
+> коду вызова**, полигон при этом проанализирован (`ANALYZE`, § 14.1 — без него те же запросы
+> медленнее на порядок). Часть примеров иллюстративна и в демо в такой форме не исполняется
+> (плейсхолдеры вроде `connect({ dsn, schema })`, переименованные переменные, разбитые на
+> строки цепочки) — у них цифра осталась от более раннего прогона и может быть пессимистичной.
+> Сводные, всегда свежие цифры — таблицы § 9.2 (ACL), § 10.6 (изоляция) и § 14 (перф).
+
 Разделы: [11.1 Модуль](#111-модуль-connect-и-экспорты) · [11.1a up](#111a-upopts) ·
 [11.2 EntityDb](#112-entitydb--корень) · [11.3 Chain: чтение](#113-chain--чтение) ·
 [11.4 Операторы](#114-операторы-фильтров) · [11.5 Запись](#115-запись-create--update--delete--anonymize) ·
@@ -1468,7 +1522,7 @@ const db  = await connect({ dsn, schema, enforceAccount: false })               
 const iso = await (await connect({ dsn, schema })).as(acc.id)                        // [55.3 ms]
 const uc  = await (await connect({ dsn, schema, enforceAcl: true })).as(acc.id)      // [58.1 ms]
 await db.Организация().count()    // → 30   — админский видит всех
-await iso.Организация().count()   // [5.1 ms] → 1 — только свой арендатор
+await iso.Организация().count()   // [9.0 ms] → 1 — только свой арендатор
 await uc.Организация().rows()
 // Error: letopis: acl denies READ on Org — no matching rule (deny by default)
 await iso.close(); await uc.close()
@@ -1624,8 +1678,9 @@ import type {
 **Назначение и алгоритм.** Возвращает хендл **того же пула**, работающий от имени `account`:
 арендатор — свойство вызова, не подключения (в `connect()` опции `account` нет). Клонирует
 контекст (как `db.begin()`), нового соединения не открывает; под `enforceAcl` дополнительно
-читает аккаунт + Resource/Rule и компилирует резолвер **под этого субъекта** — у каждого scope
-свой, решения между арендаторами не переиспользуются. Батчи со корня не наследуются: очередь
+читает **свой аккаунт** (один SELECT) и компилирует резолвер **под этого субъекта** — у каждого
+scope свой, решения между арендаторами не переиспользуются. Словарь `Resource`/`Rule` при этом
+общий: снимается один раз на подключение, сбрасывается `db.reloadSchema()`. Батчи с корня не наследуются: очередь
 планов, общая для разных арендаторов, была бы утечкой записи. `close()` закрывает пул, поэтому
 зовётся один раз — и с корня, и с любого scope (это одно и то же соединение).
 
@@ -1660,10 +1715,10 @@ await db.close()               // один раз на пул
 **Примеры**
 
 ```ts
-await db.Услуга('…0000').first()             // [3.5 ms] по id  → Row {name: 'Стрижка 0', …}
+await db.Услуга('…0000').first()             // [4.8 ms] по id  → Row {name: 'Стрижка 0', …}
 await db.Услуга(['…0000', '…0006']).rows()   // [2.6 ms] по списку → ['Стрижка 0', 'Бритьё 6']
-await db.Организация(org).first()            // [2.2 ms] Row-объект ≡ его id → 'Салон «Стрижка» №0'
-await db.цена({ amounts: { RUB: gte(1300) } }).Услуга().count()   // [36.0 ms] → 630  (фильтр по цене)
+await db.Организация(org).first()            // [3.9 ms] Row-объект ≡ его id → 'Салон «Стрижка» №0'
+await db.цена({ amounts: { RUB: gte(1300) } }).Услуга().count()   // [56 ms] → 630  (фильтр по цене)
 await db.НетТакогоКласса().rows()
 // Error: letopis: unknown class "НетТакогоКласса". Known: Entity·Сущность, Org·Организация, …
 ```
@@ -1671,7 +1726,7 @@ await db.НетТакогоКласса().rows()
 **Кейс: одна сущность тремя формами фильтра**
 
 ```ts
-const поId      = await db.Услуга('…0000').first()            // [3.5 ms] → data.name = 'Стрижка 0'
+const поId      = await db.Услуга('…0000').first()            // [4.8 ms] → data.name = 'Стрижка 0'
 const поПолю    = await db.Услуга({ name: 'Стрижка 0' }).first() // тот же Row
 const поОбъекту = await db.Услуга(поId).first()               // Row как фильтр ≡ его id
 // все три → id '…0000', data.name = 'Стрижка 0' (цена — отдельным LINK «цена», § 11.9)
@@ -1692,10 +1747,10 @@ deadlock/serialization ошибка приходит сразу с подска�
 **Примеры**
 
 ```ts
-const tr = await db.begin()                                   // [0.8 ms]
+const tr = await db.begin()                                   // [1.0 ms]
 await tr.Организация('…0901').Услуга().create({ name: 'Укладка', duration: 15 }).rows()
-// [9.0 ms] → [Row] — id вычислен схемой: uuidv5(Org, "Укладка") (§ 3.2); видно ТОЛЬКО внутри tr
-await tr.commit()                                             // [3.7 ms] — теперь видно всем
+// [10 ms] → [Row] — id вычислен схемой: uuidv5(Org, "Укладка") (§ 3.2); видно ТОЛЬКО внутри tr
+await tr.commit()                                             // [3.2 ms] — теперь видно всем
 ```
 
 **Кейс: атомарный перенос с откатом при провале** — § 11.6 (`tr.lock`), плюс rollback:
@@ -1721,7 +1776,7 @@ await db.цена(цУкл).first()        // снаружи → amounts.RUB = 7
 **Примеры**
 
 ```ts
-await db.commit(tr3)   // [4.0 ms] — то же, что tr3.commit()
+await db.commit(tr3)   // [3.4 ms] — то же, что tr3.commit()
 await db.commit()
 // Error: letopis: commit() needs a transaction: db.commit(tr) or tr.commit()   [0.1 ms]
 ```
@@ -1777,7 +1832,7 @@ await stop()
 падают ошибкой postgres.js.
 
 ```ts
-await db.close()   // [1.3 ms]
+await db.close()   // [2.0 ms]
 ```
 
 **Кейс** — завершение процесса: `close()` в `finally`/`SIGTERM`-хендлере после `stop()`
@@ -1799,7 +1854,7 @@ db.registry.resolve('запись')   // [99 µs] → ClassDef {id: 'booking', a
 
 ```ts
 await db.sql.unsafe('SELECT count(*)::int AS n FROM "v1.salondemo"."Entity"')
-// [37.3 ms] → [{ n: 980216 }]
+// [51 ms] → [{ n: 980216 }]
 ```
 
 **Кейс** — снятие плана тяжёлого запроса: `db.sql.unsafe('EXPLAIN (ANALYZE) …')` для
@@ -1831,8 +1886,8 @@ prev.links->>'Класс'`) кладётся точным равенством, 
 **Примеры**
 
 ```ts
-await db.Организация('…0000').Мастер().count()   // [5.4 ms] → 12 (обратный hop)
-await db.навык().Услуга().count()                // [65.2 ms] → 1260 (LINK → HUB, прямой)
+await db.Организация('…0000').Мастер().count()   // [12 ms] → 12 (обратный hop)
+await db.навык().Услуга().count()                // [93 ms] → 1260 (LINK → HUB, прямой)
 ```
 
 **Кейс: маршрут «мастер → его навыки → услуги»** — см. `.run()` ниже (тот же прогон).
@@ -1849,7 +1904,7 @@ await db.навык().Услуга().count()                // [65.2 ms] → 126
 **Примеры**
 
 ```ts
-await db.Мастер({ name: 'Ольга 0.0' }).навык().Услуга().run()   // [18.8 ms]
+await db.Мастер({ name: 'Ольга 0.0' }).навык().Услуга().run()   // [23 ms]
 // → 2 пути (у Ольги 0.0 два навыка на разные услуги); первый:
 // [{
 //   Мастер: { id: '00000003-…-000', class: 'Staff', data: { name: 'Ольга 0.0', phone: '+7 921 0000000', specialization: 'парикмахер' }, links: { Org: '00000001-…-000' }, … },
@@ -1861,7 +1916,7 @@ await db.Мастер({ name: 'Ольга 0.0' }).навык().Услуга().ru
 **Кейс: отчёт «кто что умеет» одним запросом**
 
 ```ts
-const пути = await db.Мастер({ name: 'Ольга 0.0' }).навык().Услуга().run()  // [18.8 ms]
+const пути = await db.Мастер({ name: 'Ольга 0.0' }).навык().Услуга().run()  // [23 ms]
 пути.map((p) => `${p.Мастер.data.name} → ${p.Услуга.data.name}`)
 // → ['Ольга 0.0 → Стрижка 0', 'Ольга 0.0 → Массаж 7']
 ```
@@ -1876,7 +1931,7 @@ const пути = await db.Мастер({ name: 'Ольга 0.0' }).навык().
 **Примеры**
 
 ```ts
-const услуги = await db.Услуга().rows()   // [11.1 ms] → 600 Row
+const услуги = await db.Услуга().rows()   // [21 ms] → 600 Row
 // [0] = { id: '00000004-0000-4000-8000-000000000000', class: 'Service',
 //         data: { name: 'Стрижка 0', duration: 30, description: 'популярное' },
 //         links: { Org: '00000001-0000-4000-8000-000000000000' }, tags: [],
@@ -1886,7 +1941,7 @@ const услуги = await db.Услуга().rows()   // [11.1 ms] → 600 Row
 **Кейс: пути vs уникальные сущности**
 
 ```ts
-await db.навык().Услуга().count()          // [65.2 ms] → 1260 путей (навык → услуга)
+await db.навык().Услуга().count()          // [93 ms] → 1260 путей (навык → услуга)
 (await db.навык().Услуга().rows()).length  // [83.6 ms] → 600 уникальных услуг
 ```
 
@@ -1895,10 +1950,10 @@ await db.навык().Услуга().count()          // [65.2 ms] → 1260 пу
 Параметров нет. То же, что `rows()` с `LIMIT 1`: первая строка или `null`.
 
 ```ts
-await db.Мастер({ name: 'Олег 0.7' }).first()      // [5.6 ms]
+await db.Мастер({ name: 'Олег 0.7' }).first()      // [8.6 ms]
 // → { id: '…0007', class: 'Staff', data: { name: 'Олег 0.7', phone: '+7 921 0000007', specialization: 'колорист' },
 //     links: { Org: '…0000' }, tags: [], updated: '2025-08-01T00:00:00+00:00' }
-await db.Мастер({ name: 'Гэндальф' }).first()  // [5.7 ms] → null
+await db.Мастер({ name: 'Гэндальф' }).first()  // [7.2 ms] → null
 ```
 
 **Кейс: проверка «занято ли окно» перед бронью** — § 11.6 (перечитка под локом).
@@ -1909,7 +1964,7 @@ await db.Мастер({ name: 'Гэндальф' }).first()  // [5.7 ms] → nul
 (дешевле по трафику).
 
 ```ts
-await db.Мастер().ids()   // [4.3 ms] → 360 id
+await db.Мастер().ids()   // [6.7 ms] → 360 id
 // ['00000003-0000-4000-8000-000000000000', '…0001', '00000003-0000-4000-8000-000000000002', …]
 ```
 
@@ -1925,17 +1980,17 @@ await db.Мастер().ids()   // [4.3 ms] → 360 id
 для многошаговой — нет (см. кейс `.rows()`).
 
 ```ts
-await db.Организация('…0000').Мастер().count()   // [5.4 ms] → 12
-await db.цена({ amounts: { RUB: gte(1300) } }).Услуга().count()   // [37.4 ms] → 630
+await db.Организация('…0000').Мастер().count()   // [12 ms] → 12
+await db.цена({ amounts: { RUB: gte(1300) } }).Услуга().count()   // [56 ms] → 630
 await db.Локация({ coordinates: { lat: gte(55.5) } }).count()
-// [4.4 ms] → 26 — оператор на листе record-пути (глубина 2), каст numeric по Schema
+// [5.7 ms] → 26 — оператор на листе record-пути (глубина 2), каст numeric по Schema
 ```
 
 **Кейс: витрина каталога** — счётчики к фильтрам без выборки строк:
 
 ```ts
-await db.Услуга({ duration: lte(45) }).count()   // [3.3 ms] → 300  «быстрые»
-await db.цена({ amounts: { RUB: gte(1300) } }).Услуга().count()    // [37.4 ms] → 630  «премиум»
+await db.Услуга({ duration: lte(45) }).count()   // [4.6 ms] → 300  «быстрые»
+await db.цена({ amounts: { RUB: gte(1300) } }).Услуга().count()    // [56 ms] → 630  «премиум»
 ```
 
 #### `.limit(n): Chain` / `.offset(n): Chain`
@@ -1951,9 +2006,9 @@ await db.цена({ amounts: { RUB: gte(1300) } }).Услуга().count()    // 
 **Примеры**
 
 ```ts
-await db.цена().sort('data.amounts.RUB', 'desc').limit(3).rows()            // [31.1 ms]
+await db.цена().sort('data.amounts.RUB', 'desc').limit(3).rows()            // [17 ms]
 // → [{ note: 'базовая', RUB: 8100 }, { note: 'базовая', RUB: 8000 }, { note: 'базовая', RUB: 7900 }]
-await db.цена().sort('data.amounts.RUB', 'desc').limit(3).offset(3).rows()  // [19.5 ms]
+await db.цена().sort('data.amounts.RUB', 'desc').limit(3).offset(3).rows()  // [19 ms]
 // → [{ RUB: 7800 }, { RUB: 7700 }, { RUB: 7600 }] — вторая страница
 ```
 
@@ -1974,10 +2029,10 @@ await db.цена().sort('data.amounts.RUB', 'desc').limit(3).offset(3).rows()  
 **Примеры**
 
 ```ts
-await db.цена().sort('data.amounts.RUB', 'desc').limit(3).rows()   // [31.1 ms] → 8100, 8000, 7900
-await db.Услуга().sort('data.duration').limit(2).rows()        // [7.5 ms] asc по умолчанию
+await db.цена().sort('data.amounts.RUB', 'desc').limit(3).rows()   // [17 ms] → 8100, 8000, 7900
+await db.Услуга().sort('data.duration').limit(2).rows()        // [11 ms] asc по умолчанию
 // → [{ name: 'Стрижка 0', duration: 30 }, { name: 'Педикюр 4', duration: 30 }]
-await db.запись().sort('updated', 'desc').limit(2).rows()      // [6232.3 ms]
+await db.запись().sort('updated', 'desc').limit(2).rows()      // [5726 ms]
 // ЧЕСТНО: DISTINCT ON всех ~440k сущностей класса без фильтра — см. § 14
 ```
 
@@ -1998,7 +2053,7 @@ await db.запись().sort('updated', 'desc').limit(2).rows()      // [6232.3 
 **Примеры**
 
 ```ts
-const истор = await db.цена('…0009').versions()          // [7.7 ms] (для t1 ниже)
+const истор = await db.цена('…0009').versions()          // [9.1 ms] (для t1 ниже)
 await db.цена('…0009').asOf(истор[0].updated).first()    // [3.0 ms]
 // → data.amounts.RUB = 2550  — цена ТОГДА
 await db.цена('…0009').first()
@@ -2020,7 +2075,7 @@ await db.цена('…0009').first()
 **Примеры**
 
 ```ts
-await db.цена('…0009').versions()   // [7.7 ms]
+await db.цена('…0009').versions()   // [9.1 ms]
 // → [{ RUB: 2550, updated: '2025-08-23T…' }, { RUB: 2650, updated: '2025-11-21T…' }]
 await db.Клиент('…0931').versions()   // жизнь с удалением и воскрешением:
 // → [{ name: 'Злата', updated: '…54.159646' },
@@ -2117,10 +2172,10 @@ const брони = await db.Мастер(и).запись().rows()         // ч
 **Примеры**
 
 ```ts
-await db.Папка('…0000').Папка().deep().rows()    // [9.2 ms]
+await db.Папка('…0000').Папка().deep().rows()    // [22 ms]
 // → [{ name: 'Мужской зал', $depth: 1 }, { name: 'Женский зал', $depth: 1 },
 //    { name: 'Борода и усы', $depth: 2 }, { name: 'Уход', $depth: 3 }]
-await db.Папка('…0000').Папка().deep(1).rows()   // [7.4 ms] только прямые дети
+await db.Папка('…0000').Папка().deep(1).rows()   // [15 ms] только прямые дети
 // → [{ name: 'Мужской зал', $depth: 1 }, { name: 'Женский зал', $depth: 1 }]
 ```
 
@@ -2148,10 +2203,10 @@ const дерево = await db.Папка(корень).Папка().deep().rows(
 **Примеры**
 
 ```ts
-await db.цена().sum('data.amounts.RUB')      // [13.2 ms] → 2277000
-await db.Услуга().avg('data.duration')       // [3.0 ms] → 52.5
-await db.Локация({}).sum('data.coordinates.lat')   // [3.9 ms] лист record-пути (глубина 2) → 3327.925547539955
-await db.Услуга({ name: 'НетТакой' }).sum('data.duration')   // [5.0 ms] → null (пусто)
+await db.цена().sum('data.amounts.RUB')      // [9.0 ms] → 2277000
+await db.Услуга().avg('data.duration')       // [7.4 ms] → 52.5
+await db.Локация({}).sum('data.coordinates.lat')   // [4.0 ms] лист record-пути (глубина 2) → 3327.925547539955
+await db.Услуга({ name: 'НетТакой' }).sum('data.duration')   // [6.6 ms] → null (пусто)
 ```
 
 **Кейс: итог по каталогу без выгрузки строк** — `sum('data.amounts.RUB')` по 405 ценам за 4 ms;
@@ -2163,8 +2218,8 @@ await db.Услуга({ name: 'НетТакой' }).sum('data.duration')   // [5
 **числом**, string — строкой.
 
 ```ts
-await db.цена().min('data.amounts.RUB')   // [15.0 ms] → 300  (число, не '300')
-await db.цена().max('data.amounts.RUB')   // [14.8 ms] → 8100
+await db.цена().min('data.amounts.RUB')   // [7.1 ms] → 300  (число, не '300')
+await db.цена().max('data.amounts.RUB')   // [6.2 ms] → 8100
 ```
 
 **Кейс: границы ценового слайдера** — `min` + `max` двумя запросами по 3–4 ms.
@@ -2179,7 +2234,7 @@ await db.цена().max('data.amounts.RUB')   // [14.8 ms] → 8100
 объекта = значения поля, значения = счётчики (по путям).
 
 ```ts
-await db.запись().countBy('data.notes')   // [3266.3 ms] — ~440k сущностей
+await db.запись().countBy('data.notes')   // [1853 ms] — ~440k сущностей
 // → { 'подтверждена': 400000, 'по телефону: Вера': 3334, 'по телефону: Ольга': 3334, …,
 //     'по телефону: Марина': 3333 }  — 12 имён «по телефону» по ~3333 (ручные брони ~9%)
 ```
@@ -2197,7 +2252,7 @@ await db.запись().countBy('data.notes')   // [3266.3 ms] — ~440k сущ�
 
 ```ts
 await db.Организация(org).alias('салон').Мастер({ name: 'Ольга 0.0' }).alias('мастер').run()
-// [6.7 ms] → ключи пути: ['салон', 'мастер']
+// [13 ms] → ключи пути: ['салон', 'мастер']
 ```
 
 **Кейс: self-join читаемо** — `db.Папка(a).alias('родитель').Папка().alias('дочка').run()`.
@@ -2212,8 +2267,8 @@ await db.Организация(org).alias('салон').Мастер({ name: '�
 кандидаты + перепроверка). В записи — модификатор значения.
 
 ```ts
-await db.Клиент().tags('vip').count()                        // [24.7 ms] → 400 (vip-клиенты)
-await db.Клиент().tags(hasAny(['vip', 'telegram'])).count()  // [48.4 ms] → 800
+await db.Клиент().tags('vip').count()                        // [52 ms] → 400 (vip-клиенты)
+await db.Клиент().tags(hasAny(['vip', 'telegram'])).count()  // [78 ms] → 800
 ```
 
 **Кейс: пометить и найти** — § 5 (вставка с `.tags(['vip','telegram'])`, поиск `tags('vip')`);
@@ -2233,7 +2288,7 @@ await db.Клиент().tags(hasAny(['vip', 'telegram'])).count()  // [48.4 ms] 
 
 ```ts
 await db.Организация().account(SYS).count()   // [5.1 ms] → 30
-await db.Организация().owner(SYS).count()      // [3.9 ms] → 30
+await db.Организация().owner(SYS).count()      // [5.5 ms] → 30
 ```
 
 **Кейс: чей это салон** — профиль владельца строки: `db.accounts.get(row.owner)`; выборка
@@ -2252,7 +2307,7 @@ await db.Организация().owner(SYS).count()      // [3.9 ms] → 30
 `v: string | number | boolean | null` — «не равно» (`IS DISTINCT FROM` — null-безопасно).
 
 ```ts
-await db.Услуга({ name: ne('Стрижка 0') }).count()   // [4.9 ms] → 570
+await db.Услуга({ name: ne('Стрижка 0') }).count()   // [4.3 ms] → 570
 ```
 
 **Кейс:** всё, кроме выбранного, — «другие услуги» под карточкой текущей.
@@ -2262,7 +2317,7 @@ await db.Услуга({ name: ne('Стрижка 0') }).count()   // [4.9 ms] �
 `v: number | string` — строго больше / больше-или-равно (числа и сравнимые строки-даты).
 
 ```ts
-await db.Услуга({ duration: gt(60) }).count()    // [6.4 ms] → 150
+await db.Услуга({ duration: gt(60) }).count()    // [4.4 ms] → 150
 await db.Услуга({ duration: gte(60) }).count()   // [4.3 ms] → 300
 ```
 
@@ -2274,8 +2329,8 @@ await db.Услуга({ duration: gte(60) }).count()   // [4.3 ms] → 300
 `v: number | string` — строго меньше / меньше-или-равно.
 
 ```ts
-await db.Услуга({ duration: lt(45) }).count()    // [5.1 ms] → 150
-await db.Услуга({ duration: lte(45) }).count()   // [3.3 ms] → 300
+await db.Услуга({ duration: lt(45) }).count()    // [6.5 ms] → 150
+await db.Услуга({ duration: lte(45) }).count()   // [4.6 ms] → 300
 ```
 
 **Кейс:** «экспресс до 45 минут включительно» = `lte(45)` → 300 услуг.
@@ -2285,7 +2340,7 @@ await db.Услуга({ duration: lte(45) }).count()   // [3.3 ms] → 300
 `a, b: number | string` — диапазон включительно (`a ≤ x ≤ b`).
 
 ```ts
-await db.Услуга({ duration: between(40, 65) }).count()   // [8.1 ms] → 300
+await db.Услуга({ duration: between(40, 65) }).count()   // [4.7 ms] → 300
 ```
 
 **Кейс:** слайдер длительности «40–65 минут» одной функцией вместо пары gte+lte.
@@ -2295,7 +2350,7 @@ await db.Услуга({ duration: between(40, 65) }).count()   // [8.1 ms] → 3
 `vs: (string | number)[]` — значение из списка (`IN`).
 
 ```ts
-await db.Услуга({ name: inList(['Стрижка 0', 'Массаж 7']) }).count()   // [4.4 ms] → 60
+await db.Услуга({ name: inList(['Стрижка 0', 'Массаж 7']) }).count()   // [5.3 ms] → 60
 ```
 
 **Кейс:** сравнение выбранных чекбоксами услуг: имена из UI → один запрос.
@@ -2305,8 +2360,8 @@ await db.Услуга({ name: inList(['Стрижка 0', 'Массаж 7']) }).
 `s: string` — SQL-шаблон (`%` — любое, `_` — один символ); `ilike` — без учёта регистра.
 
 ```ts
-await db.Услуга({ name: like('Стри%') }).count()          // [4.3 ms] → 60
-await db.Услуга({ name: ilike('%массаж%') }).count()       // [4.3 ms] → 60
+await db.Услуга({ name: like('Стри%') }).count()          // [6.6 ms] → 60
+await db.Услуга({ name: ilike('%массаж%') }).count()       // [4.8 ms] → 60
 ```
 
 **Кейс:** живой поиск в админке — `ilike('%' + ввод + '%')` прощает регистр
@@ -2317,8 +2372,8 @@ await db.Услуга({ name: ilike('%массаж%') }).count()       // [4.3 m
 `s: string` — начинается с / заканчивается на (сахар над `like(s+'%')` / `like('%'+s)`).
 
 ```ts
-await db.Услуга({ name: starts('Массаж') }).count()   // [3.7 ms] → 60
-await db.Услуга({ name: ends('7') }).count()          // [2.9 ms] → 60
+await db.Услуга({ name: starts('Массаж') }).count()   // [5.7 ms] → 60
+await db.Услуга({ name: ends('7') }).count()          // [5.0 ms] → 60
 ```
 
 **Кейс:** префиксная навигация по названию: `starts('Массаж')` → все «Массаж N» (60 в каталоге).
@@ -2329,9 +2384,9 @@ await db.Услуга({ name: ends('7') }).count()          // [2.9 ms] → 60
 идёт и в GIN-кандидаты). В демо-схеме массивов в `data` нет — операторы показаны на колонке `tags`.
 
 ```ts
-await db.Клиент().tags(has('vip')).count()                     // [54.5 ms] → 400
-await db.Клиент().tags(hasAny(['vip', 'telegram'])).count()    // [48.4 ms] → 800
-await db.Клиент().tags(hasAll(['vip', 'telegram'])).count()    // [11.0 ms] → 100
+await db.Клиент().tags(has('vip')).count()                     // [85 ms] → 400
+await db.Клиент().tags(hasAny(['vip', 'telegram'])).count()    // [78 ms] → 800
+await db.Клиент().tags(hasAll(['vip', 'telegram'])).count()    // [19 ms] → 100
 ```
 
 **Кейс:** сегменты по меткам: «vip ИЛИ из телеграма» = `tags(hasAny(['vip','telegram']))` → 800;
@@ -2342,8 +2397,8 @@ await db.Клиент().tags(hasAll(['vip', 'telegram'])).count()    // [11.0 ms
 `yes: boolean?` — поле присутствует (`true`, default) / отсутствует (`false`) в `data`.
 
 ```ts
-await db.Услуга({ description: exists() }).count()        // [3.7 ms] → 390
-await db.Услуга({ description: exists(false) }).count()   // [3.2 ms] → 210
+await db.Услуга({ description: exists() }).count()        // [7.9 ms] → 390
+await db.Услуга({ description: exists(false) }).count()   // [6.2 ms] → 210
 ```
 
 **Кейс:** контроль заполненности каталога — «услуги без ключа `description`» = `exists(false)` → 210
@@ -2354,7 +2409,7 @@ await db.Услуга({ description: exists(false) }).count()   // [3.2 ms] → 
 Без параметров — поле `NULL` **или** отсутствует.
 
 ```ts
-await db.Услуга({ description: isNull() }).count()   // [3.1 ms] → 390
+await db.Услуга({ description: isNull() }).count()   // [6.1 ms] → 390
 ```
 
 **Кейс:** отличие от `exists(false)` — на полигоне видно числом: `isNull()` → 390 (ловит и явный
@@ -2366,8 +2421,8 @@ await db.Услуга({ description: isNull() }).count()   // [3.1 ms] → 390
 `v: скаляр | Op` — отрицание; скаляр ≡ «не равно» (как `ne`).
 
 ```ts
-await db.Услуга({ name: not(starts('Стрижка')) }).count()   // [3.7 ms] → 540
-await db.Услуга({ name: not('Стрижка 0') }).count()          // [3.5 ms] → 570
+await db.Услуга({ name: not(starts('Стрижка')) }).count()   // [5.2 ms] → 540
+await db.Услуга({ name: not('Стрижка 0') }).count()          // [4.3 ms] → 570
 ```
 
 **Кейс:** инверсия готового условия без переписывания: «всё, что НЕ стрижки» =
@@ -2379,7 +2434,7 @@ await db.Услуга({ name: not('Стрижка 0') }).count()          // [3.
 обычное И).
 
 ```ts
-await db.Услуга(or({ name: 'Стрижка 0' }, { duration: lt(45) })).count()   // [4.0 ms] → 150
+await db.Услуга(or({ name: 'Стрижка 0' }, { duration: lt(45) })).count()   // [5.7 ms] → 150
 ```
 
 **Кейс:** «Стрижка 0 или что-нибудь быстрое» — один запрос: Стрижка 0 (duration 30) уже среди
@@ -2414,11 +2469,11 @@ INSERT** с `updated = GREATEST(clock_timestamp(), prev + 1 µs)`; (5) конф�
 **Примеры**
 
 ```ts
-await db.Организация().create({ name: 'Пилигрим' }).rows()   // [11.1 ms] INSERT + defaults из Schema
+await db.Организация().create({ name: 'Пилигрим' }).rows()   // [45 ms] INSERT + defaults из Schema
 // → [{ id: '019f5a53-…', class: 'Org', data: { name: 'Пилигрим', active: true, timezone: 'Europe/Moscow' }, links: {}, … }]
 
 await db.Организация().create({ id: '…0901', name: 'Демо-салон §11' }).rows()
-// [11.4 ms] явный id — можно: Org наследует v7 (§ 3.2); повторный create того же id → новая версия
+// [14 ms] явный id — можно: Org наследует v7 (§ 3.2); повторный create того же id → новая версия
 
 await db.Организация('…0901').Мастер().create({ id: '…0911', name: 'Мия', phone: '+7 909 000-09-11', specialization: 'массажист' }).rows()
 // [15.2 ms] контекст → links: { Org: '…0901' }
@@ -2430,7 +2485,7 @@ await db.Организация('…0901').Услуга().create({ name: 'Мас
 db.Услуга({ name: 'Массаж головы' }).create({ duration: 20 })   // [0.1 ms] — синхронно, до БД:
 // Error: letopis: create() takes no filter — Услуга(id).create(…) fixes the id, searching is update()
 
-await db.Организация('…0901').Услуга().create({ name: 'X', чепуха: 1 }).rows()   // [9.9 ms] — ошибка НА ТЕРМИНАЛЕ:
+await db.Организация('…0901').Услуга().create({ name: 'X', чепуха: 1 }).rows()   // [11 ms] — ошибка НА ТЕРМИНАЛЕ:
 // ValidationError: letopis: validation failed for "Service":
 //   The object '' contains forbidden keys: 'чепуха'.
 
@@ -2455,12 +2510,12 @@ db.Локация('…0921').Клиент()   // [0.1 ms] недопустимы
 **Примеры**
 
 ```ts
-await db.Клиент('…0931').запись({ start_datetime: between(t, t) }).update({ notes: 'подтверждена' }).rows()   // [645.4 ms]
+await db.Клиент('…0931').запись({ start_datetime: between(t, t) }).update({ notes: 'подтверждена' }).rows()   // [22 ms]
 // → [{ id: '4907d8cd-…', notes: 'подтверждена' }]
 // момент фильтруется between(t, t): скаляр-eq по date-полю = строковый containment, потому диапазон
 // (сотни мс: поиск целей идёт по всему классу записей ~440k без btree по data->>'start_datetime' — § 14)
 
-await db.Клиент('…0931').запись({}).update({ notes: 'день закрыт' }).rows()   // [600.4 ms] — ВСЕ записи в контексте
+await db.Клиент('…0931').запись({}).update({ notes: 'день закрыт' }).rows()   // [25 ms] — ВСЕ записи в контексте
 // → [{ id: '4907d8cd-…', notes: 'день закрыт' }, { id: 'e7f16a08-…', notes: 'день закрыт' }]
 
 await db.запись({ notes: 'нет-такого' }).update({ notes: 'x' }).rows()   // → [] — update НИКОГДА не создаёт
@@ -2481,7 +2536,7 @@ await db.запись('…d091').update({ notes: 'подтверждена' }).u
 // → ['выполнена']; versions: [null, 'подтверждена', 'выполнена']
 
 // хвост-чтение после операции — в той же транзакции
-await db.Клиент('…0931').update({ preferred_contact: 'phone' }).запись().count()   // [16.7 ms] → 1
+await db.Клиент('…0931').update({ preferred_contact: 'phone' }).запись().count()   // [23 ms] → 1
 
 // ОТКАТ: валидный update + невалидный create — весь план назад
 await db.Клиент('…0931').update({ notes: 'аудит 2026' }).запись().create({ чепуха: 1 }).rows()
@@ -2489,7 +2544,7 @@ await db.Клиент('…0931').update({ notes: 'аудит 2026' }).запис
 
 // fan-out: обновить клиента → снести ВСЕ его записи
 await db.Клиент('…0931').update({ notes: 'аудит 2026' }).запись().delete({ confirm: true }).rows()
-// [29.0 ms] → снесено 1 запись, с $deleted: true
+// [40 ms] → снесено 1 запись, с $deleted: true
 ```
 
 #### Слоты связей: `.Класс.set(target): Chain` / `.Класс.unset(): Chain`
@@ -2550,13 +2605,13 @@ tombstone-версия → рекурсивное удаление зависи�
 **Примеры**
 
 ```ts
-await db.Клиент('…0931').delete().rows()   // [14.7 ms] ПРЕВЬЮ — кандидаты живы:
+await db.Клиент('…0931').delete().rows()   // [23 ms] ПРЕВЬЮ — кандидаты живы:
 // → [{ id: '…0931', class: 'Customer' }, { class: 'booking' }, { class: 'booking' }] — клиент + его записи (каскад)
 // после превью клиент жив: true
 
-await db.Клиент('…0931').delete({ confirm: true }).rows()   // [35.8 ms] — сервер нашёл зависимых:
+await db.Клиент('…0931').delete({ confirm: true }).rows()   // [49 ms] — сервер нашёл зависимых:
 // → те же три, каждый с $deleted: true
-await db.Клиент('…0931').delete({ confirm: true }).rows()   // [6.8 ms] повторно → []
+await db.Клиент('…0931').delete({ confirm: true }).rows()   // [49 ms] повторно → []
 ```
 
 **Кейс: отмена и воскрешение**
@@ -2584,7 +2639,7 @@ await db.Организация('…0901').Клиент().create({ id: cid, name
 **Примеры**
 
 ```ts
-await db.Клиент('…0931').anonymize(['name', 'phone']).rows()   // [12.7 ms]
+await db.Клиент('…0931').anonymize(['name', 'phone']).rows()   // [13 ms]
 // → [{ data: { name: '[erased]', phone: '[erased]', preferred_contact: 'phone' },
 //      tags: ['anonymized'] }]
 ```
@@ -2592,7 +2647,7 @@ await db.Клиент('…0931').anonymize(['name', 'phone']).rows()   // [12.7 
 **Кейс: запрос на забвение**
 
 ```ts
-await db.Клиент('…0931').anonymize(['name', 'phone']).rows()      // [12.7 ms]
+await db.Клиент('…0931').anonymize(['name', 'phone']).rows()      // [13 ms]
 ;(await db.Клиент('…0931').versions()).map((r) => r.data.name)    // → ['Злата', 'Злата', 'Злата', '[erased]']
 await db.Клиент().tags('anonymized').count()                       // все стёртые — под контролем
 ```
@@ -2613,10 +2668,10 @@ await db.Клиент().tags('anonymized').count()                       // вс
 **Примеры**
 
 ```ts
-const tr = await db.begin()                    // [1.1 ms]
+const tr = await db.begin()                    // [1.0 ms]
 await tr.цена(цУкл).update({ amounts: { RUB: 9900 } }).rows()   // цУкл — базовая цена «Укладки»
 await tr.цена(цУкл).first()                    // внутри → amounts.RUB = 9900
-await tr.rollback()                            // [0.8 ms]
+await tr.rollback()                            // [1.1 ms]
 await db.цена(цУкл).first()                    // снаружи → amounts.RUB = 700, изменения нет
 ```
 
@@ -2638,7 +2693,7 @@ await db.цена(цУкл).first()                    // снаружи → amo
 **Примеры**
 
 ```ts
-await trA.lock('booking', staffId, start)   // [3.1 ms]
+await trA.lock('booking', staffId, start)   // [1.7 ms]
 await db.lock('x')
 // Error: letopis: lock() works only inside db.begin() transaction (pg_advisory_xact_lock)  [0.2 ms]
 ```
@@ -2650,7 +2705,7 @@ await db.lock('x')
 // id записи детерминирован (v5, § 3.2) — известен ДО создания:
 const bId = uuidv5(`v1.salondemo:entity:booking:${мастер.id}:${start}`)
 const trA = await db.begin(), trB = await db.begin()
-await trA.lock('booking', мастер.id, start)          // [3.1 ms] A первый
+await trA.lock('booking', мастер.id, start)          // [1.7 ms] A первый
 const гонкаB = (async () => {
   await trB.lock('booking', мастер.id, start)        // B ВИСИТ до конца trA
   const занято = await trB.запись(bId).first()       // перечитка под локом
@@ -2706,7 +2761,7 @@ b.Мастер(m).окно().create({ start_datetime: '2026-08-05T07:00:00Z', en
 b.Мастер(m).окно().create({ start_datetime: '2026-08-05T09:00:00Z', end_datetime: '…11:00Z' }).Локация.set(loc).Расписание.set(sch)
 b.Мастер(m).окно().create({ start_datetime: '2026-08-05T11:00:00Z', end_datetime: '…13:00Z' }).Локация.set(loc).Расписание.set(sch)
 b.size()             // [35 µs] → 3
-await b.run()        // [43.8 ms] — одна транзакция; окно — v5-класс → 3 честных INSERT, не склейка
+await b.run()        // [63 ms] — одна транзакция; окно — v5-класс → 3 честных INSERT, не склейка
 // → [[{ id: '06f67c88-…', start_datetime: '2026-08-05T07:00:00.000Z' }], [{ …09:00 }], [{ …11:00 }]]
 //   id каждого окна вычислен схемой: uuidv5(Staff, start_datetime) — § 3.2
 b.size()             // → 0
@@ -2749,7 +2804,7 @@ await db.Мастер(m).окно({ start_datetime: between('2026-08-06T11:00:00
 `category` → `= ANY(categories)`.
 
 ```ts
-await db.accounts.find({ category: 'Client', enabled: true })   // [2.4 ms] → 1 аккаунт
+await db.accounts.find({ category: 'Client', enabled: true })   // [4.1 ms] → 1 аккаунт
 ```
 
 **Кейс:** список арендаторов для биллинга: `find({ enabled: true })`, отключённые не в счёте.
@@ -2759,7 +2814,7 @@ await db.accounts.find({ category: 'Client', enabled: true })   // [2.4 ms] → 
 `id: string` — точечный SELECT по PK.
 
 ```ts
-await db.accounts.get(acc.id)   // [1.9 ms] → Account | null
+await db.accounts.get(acc.id)   // [3.2 ms] → Account | null
 ```
 
 **Кейс:** профиль владельца строки Entity: `db.accounts.get(row.owner)`.
@@ -2779,7 +2834,7 @@ await db.accounts.get(acc.id)   // [1.9 ms] → Account | null
 
 ```ts
 const acc = await db.accounts.set({ categories: ['Client'], data: { название: 'ИП Ромашка' } })
-// [5.4 ms] → { id: '06d3bbfe-…', categories: ['Client'], data: { название: 'ИП Ромашка' },
+// [9.7 ms] → { id: '06d3bbfe-…', categories: ['Client'], data: { название: 'ИП Ромашка' },
 //               meta: {}, avatar: 'https://i.pravatar.cc/128?img=33', enabled: true, created: …, updated: … }
 await db.accounts.set({ id: acc.id, avatar: 'https://cdn.example/i.png' })   // [5.7 ms] update
 ```
@@ -2794,7 +2849,7 @@ await db.accounts.set({ id: acc.id, avatar: 'https://cdn.example/i.png' })   // 
 
 ```ts
 await db.accounts.delete(времId)   // [16.4 ms] → true (пустой аккаунт)
-await db.accounts.delete(SYS)      // [6.0 ms]
+await db.accounts.delete(SYS)      // [5.5 ms]
 // Error: update or delete on table "Account" violates foreign key constraint "entity_account_fk"
 ```
 
@@ -2848,7 +2903,7 @@ await db.schema.define({ id: 'Coupon', alias: 'Купон', category: 'HUB',
 | `f.withDeleted` | `boolean?` | включить мягко-удалённые (default — только живые `deleted IS NULL`) |
 
 ```ts
-await db.credentials.find({ account: acc.id })                      // [3.2 ms] → 1 живой
+await db.credentials.find({ account: acc.id })                      // [2.9 ms] → 1 живой
 await db.credentials.find({ account: acc.id, withDeleted: true })   // → 1 (после delete: 0 и 1)
 ```
 
@@ -2884,7 +2939,7 @@ await db.credentials.set({ account: acc.id, category: 'phone', identifier: '+7 9
 освобождается для других аккаунтов (§ 11.9).
 
 ```ts
-await db.credentials.delete(кред.id)   // [4.6 ms] → true; find() больше не видит
+await db.credentials.delete(кред.id)   // [4.0 ms] → true; find() больше не видит
 ```
 
 **Кейс:** отзыв api-ключа: `delete(credential.id)` → `verifyApiKey` мгновенно null
@@ -2905,10 +2960,10 @@ await db.credentials.delete(кред.id)   // [4.6 ms] → true; find() боль
 
 ```ts
 await db.resources.set({ alias: 'apiref.demo:API', category: 'API', pattern: { endpoint: 'demo.*' } })
-// [4.8 ms] → { alias: 'apiref.demo:API', category: 'API', pattern: { endpoint: 'demo.*' }, meta: null }
-await db.resources.get('apiref.demo:API')      // [2.6 ms] → тот же Resource
-await db.resources.find({ category: 'API' })   // [1.1 ms] → 14 ресурсов
-await db.resources.delete('apiref.demo:API')   // [5.2 ms] → true
+// [5.1 ms] → { alias: 'apiref.demo:API', category: 'API', pattern: { endpoint: 'demo.*' }, meta: null }
+await db.resources.get('apiref.demo:API')      // [2.5 ms] → тот же Resource
+await db.resources.find({ category: 'API' })   // [2.5 ms] → 14 ресурсов
+await db.resources.delete('apiref.demo:API')   // [4.9 ms] → true
 ```
 
 **Кейс:** полный словарь для нового тарифа — § 11.10 (6 ресурсов + 5 правил одним блоком).
@@ -2927,9 +2982,9 @@ await db.resources.delete('apiref.demo:API')   // [5.2 ms] → true
 
 ```ts
 await db.rules.set({ account: 'apiref.demo:API', resource: 'apiref.demo:API', permission: 'allow', weight: 90 })
-// [5.3 ms] → { account: …, resource: …, permission: 'allow', weight: 90, meta: null, enabled: true }
-await db.rules.find({ resource: 'apiref.demo:API' })              // [2.7 ms] → 1
-await db.rules.delete('apiref.demo:API', 'apiref.demo:API')       // [4.3 ms] → true
+// [5.9 ms] → { account: …, resource: …, permission: 'allow', weight: 90, meta: null, enabled: true }
+await db.rules.find({ resource: 'apiref.demo:API' })              // [2.8 ms] → 1
+await db.rules.delete('apiref.demo:API', 'apiref.demo:API')       // [3.7 ms] → true
 ```
 
 **Кейс:** временный бан группы: `set({ account: группа, resource: цель, permission: 'deny',
@@ -2961,7 +3016,7 @@ uuid-строку или объект с `.id`.
 
 ```ts
 await db.auth.setPassword({ account: acc, identifier: 'romashka@salon.io', password: 'лето-2026!' })
-// [87.5 ms] → Credential; в БД вместо пароля:
+// [105 ms] → Credential; в БД вместо пароля:
 //   meta.password = "scrypt$32768$8$1$+yEMcUTJIO7xEu/oDUAMXA==$b6…"
 ```
 
@@ -2984,11 +3039,11 @@ await db.auth.setPassword({ account: acc, identifier: 'romashka@salon.io', passw
 **Примеры**
 
 ```ts
-await db.auth.verifyPassword({ identifier: 'romashka@salon.io', password: 'лето-2026!' })  // [78.8 ms]
+await db.auth.verifyPassword({ identifier: 'romashka@salon.io', password: 'лето-2026!' })  // [109 ms]
 // → { account: { id: '06d3bbfe-…', categories: ['Client'], enabled: true, … },
 //     credential: { category: 'PASSWORD', identifier: 'romashka@salon.io', … } }
-await db.auth.verifyPassword({ identifier: 'romashka@salon.io', password: 'зима' })   // [71.1 ms] → null
-await db.auth.verifyPassword({ identifier: 'ghost@nowhere.io', password: 'x' })       // [64.4 ms] → null
+await db.auth.verifyPassword({ identifier: 'romashka@salon.io', password: 'зима' })   // [109 ms] → null
+await db.auth.verifyPassword({ identifier: 'ghost@nowhere.io', password: 'x' })       // [109 ms] → null
 // незнакомый identifier — то же время (dummy-verify)
 ```
 
@@ -2998,11 +3053,11 @@ await db.auth.verifyPassword({ identifier: 'ghost@nowhere.io', password: 'x' }) 
 await db.auth.setPassword({ account: acc, identifier: 'noconfirm@salon.io', password: 'пароль-77',
   category: 'EMAIL', confirmed: false })
 await db.auth.verifyPassword({ identifier: 'noconfirm@salon.io', password: 'пароль-77', category: 'EMAIL' })
-// [71.1 ms] → null — кред не подтверждён
-await db.auth.verifyPassword({ …то же…, requireConfirmed: false })   // [72.2 ms] → { account, credential }
+// [109 ms] → null — кред не подтверждён
+await db.auth.verifyPassword({ …то же…, requireConfirmed: false })   // [109 ms] → { account, credential }
 await db.accounts.set({ id: acc.id, enabled: false })
 await db.auth.verifyPassword({ identifier: 'romashka@salon.io', password: 'лето-2026!' })
-// [59.5 ms] → null — аккаунт выключен, пароль уже не важен
+// [109 ms] → null — аккаунт выключен, пароль уже не важен
 ```
 
 #### `db.auth.issueApiKey(a): Promise<{ key, credential }>`
@@ -3017,7 +3072,7 @@ await db.auth.verifyPassword({ identifier: 'romashka@salon.io', password: 'ле�
 Сам ключ возвращается **один раз**; утечка БД ключи не раскрывает.
 
 ```ts
-const { key, credential } = await db.auth.issueApiKey({ account: acc, name: 'касса-1' })   // [5.5 ms]
+const { key, credential } = await db.auth.issueApiKey({ account: acc, name: 'касса-1' })   // [9.0 ms]
 // key = 'lts_ca41bf2a3614c3f228be2551a2ba998db5285f1a2bc3b859'  ← показать и забыть
 // в БД: identifier = '624b00355aba026f…' (sha256), meta = { name: 'касса-1', prefix: 'lts_ca41bf2a' }
 ```
@@ -3035,16 +3090,16 @@ const { key, credential } = await db.auth.issueApiKey({ account: acc, name: 'к�
 Быстрый (без scrypt): ключ высокоэнтропийный, подбор бессмыслен.
 
 ```ts
-await db.auth.verifyApiKey(key)   // [4.5 ms] → { account: 06d3bbfe…, credential }
+await db.auth.verifyApiKey(key)   // [6.9 ms] → { account: 06d3bbfe…, credential }
 ```
 
 **Кейс: полный жизненный цикл ключа**
 
 ```ts
-const { key, credential } = await db.auth.issueApiKey({ account: acc, name: 'касса-1' })  // [5.5 ms]
-await db.auth.verifyApiKey(key)          // [4.5 ms] → { account, credential } — касса работает
+const { key, credential } = await db.auth.issueApiKey({ account: acc, name: 'касса-1' })  // [9.0 ms]
+await db.auth.verifyApiKey(key)          // [6.9 ms] → { account, credential } — касса работает
 await db.credentials.delete(credential.id)   // отзыв (мягкий)
-await db.auth.verifyApiKey(key)          // [2.1 ms] → null — мгновенно недействителен
+await db.auth.verifyApiKey(key)          // [6.9 ms] → null — мгновенно недействителен
 ```
 
 #### `db.auth.issueKeySecret(a): Promise<{ key, secret, credential }>`
@@ -3056,7 +3111,7 @@ await db.auth.verifyApiKey(key)          // [2.1 ms] → null — мгновен
 возвращается один раз.
 
 ```ts
-const { key, secret } = await db.auth.issueKeySecret({ account: acc, name: 'интеграция-1С' })  // [4.8 ms]
+const { key, secret } = await db.auth.issueKeySecret({ account: acc, name: 'интеграция-1С' })  // [4.5 ms]
 // key = 'f8ab4007e4570809'; secret = 'c25b8b906f69…' (48 hex, показан один раз)
 ```
 
@@ -3071,8 +3126,8 @@ const { key, secret } = await db.auth.issueKeySecret({ account: acc, name: 'ин
 **Алгоритм.** Кред по identifier = key, `timingSafeEqual(sha256(secret), meta.secret)`, ворота.
 
 ```ts
-await db.auth.verifyKeySecret(key, secret)          // [4.6 ms] → { account, credential }
-await db.auth.verifyKeySecret(key, 'f'.repeat(48))  // [2.2 ms] → null
+await db.auth.verifyKeySecret(key, secret)          // [4.4 ms] → { account, credential }
+await db.auth.verifyKeySecret(key, 'f'.repeat(48))  // [4.4 ms] → null
 ```
 
 **Кейс:** серверная интеграция (1С, платёжка): key хранится в конфиге открыто и светится
@@ -3114,8 +3169,8 @@ const { secret, uri } = await db.auth.enrollTotp({ account: acc, issuer: 'clockz
 
 ```ts
 const код = totpCode(secret)                                //  [659 µs] → '564517' (как в приложении)
-await db.auth.verifyTotp({ account: acc, code: код })       // [8.1 ms] → true — фактор активирован
-await db.auth.verifyTotp({ account: acc, code: код })       // [2.6 ms] → false — replay отбит
+await db.auth.verifyTotp({ account: acc, code: код })       // [7.2 ms] → true — фактор активирован
+await db.auth.verifyTotp({ account: acc, code: код })       // [7.2 ms] → false — replay отбит
 const прошлый = totpCode(secret, Date.now() - 30_000)       // код прошлого шага (окно ±1)
 await db.auth.verifyTotp({ account: acc, code: прошлый })   // → false — шаг ≤ lastStep
 ```
@@ -3125,8 +3180,8 @@ await db.auth.verifyTotp({ account: acc, code: прошлый })   // → false 
 ```ts
 const { secret, uri } = await db.auth.enrollTotp({ account: acc, issuer: 'clockz' })  // [4.8 ms]
 await db.auth.totpEnabled(acc)                    // → false — QR показан, ждём подтверждения
-await db.auth.verifyTotp({ account: acc, code: изПриложения })   // [8.1 ms] → true
-await db.auth.totpEnabled(acc)                    // [2.2 ms] → true — теперь требуем код при входе
+await db.auth.verifyTotp({ account: acc, code: изПриложения })   // [7.2 ms] → true
+await db.auth.totpEnabled(acc)                    // [2.0 ms] → true — теперь требуем код при входе
 ```
 
 #### `db.auth.totpEnabled(account): Promise<boolean>`
@@ -3135,7 +3190,7 @@ await db.auth.totpEnabled(acc)                    // [2.2 ms] → true — те�
 проверкой (`confirmed`). Приложение по нему решает, спрашивать ли второй фактор.
 
 ```ts
-await db.auth.totpEnabled(acc)   // [2.2 ms] → true
+await db.auth.totpEnabled(acc)   // [2.0 ms] → true
 ```
 
 #### `totpCode(secretBase32, atMs = Date.now()): string` — экспорт модуля
@@ -3172,7 +3227,7 @@ totpCode('G3RLJFOF4J4W7U2EC4GBBNNNYUIEGNWS')   // [659 µs] → '564517'
 
 ```ts
 const { code } = await db.auth.issueOtp({ account: acc, identifier: 'romashka@salon.io', ttlSec: 600 })
-// [6.1 ms] code = '255243'; в БД: meta = { code: '7566c91d8a5e…' (sha256), expires: '2026-07-13T07:24:44.435Z', attempts: 0 }
+// [4.8 ms] code = '255243'; в БД: meta = { code: '7566c91d8a5e…' (sha256), expires: '2026-07-13T07:24:44.435Z', attempts: 0 }
 ```
 
 #### `db.auth.verifyOtp(a): Promise<AuthResult | null>`
@@ -3191,17 +3246,17 @@ const { code } = await db.auth.issueOtp({ account: acc, identifier: 'romashka@sa
 **Примеры**
 
 ```ts
-await db.auth.verifyOtp({ identifier: 'romashka@salon.io', code: '000000' })   // [8.4 ms] → null (+1 попытка)
-await db.auth.verifyOtp({ identifier: 'romashka@salon.io', code })             // [11.0 ms] → { account, credential }
-await db.auth.verifyOtp({ identifier: 'romashka@salon.io', code })             // [2.4 ms] → null — сожжён
+await db.auth.verifyOtp({ identifier: 'romashka@salon.io', code: '000000' })   // [11 ms] → null (+1 попытка)
+await db.auth.verifyOtp({ identifier: 'romashka@salon.io', code })             // [11 ms] → { account, credential }
+await db.auth.verifyOtp({ identifier: 'romashka@salon.io', code })             // [11 ms] → null — сожжён
 ```
 
 **Кейс: сброс пароля**
 
 ```ts
-const { code } = await db.auth.issueOtp({ account: acc, identifier: почта, ttlSec: 600 })  // [6.1 ms]
+const { code } = await db.auth.issueOtp({ account: acc, identifier: почта, ttlSec: 600 })  // [4.8 ms]
 отправитьПисьмо(почта, code)                       // доставка — на приложении
-const кто = await db.auth.verifyOtp({ identifier: почта, code: изФормы })   // [11.0 ms]
+const кто = await db.auth.verifyOtp({ identifier: почта, code: изФормы })   // [11 ms]
 if (кто) await db.auth.setPassword({ account: кто.account, identifier: почта, password: новый })
 // протухший код (ttl 1 s в прогоне): verifyOtp → null   [9.3 ms]
 ```
@@ -3224,7 +3279,7 @@ if (кто) await db.auth.setPassword({ account: кто.account, identifier: п�
 
 ```ts
 await db.auth.link({ account: acc, category: 'TELEGRAM', identifier: '777000111', meta: { username: 'romashka' } })
-// [4.9 ms] → { category: 'TELEGRAM', identifier: '777000111', meta: { username: 'romashka' }, confirmed: true }
+// [12 ms] → { category: 'TELEGRAM', identifier: '777000111', meta: { username: 'romashka' }, confirmed: true }
 await db.auth.link({ account: acc, category: 'TELEGRAM', identifier: '1635246915' })   // id занят ДРУГИМ аккаунтом:
 // Error: duplicate key value violates unique constraint "credential_identity_udx"   [3.9 ms]
 ```
@@ -3245,14 +3300,14 @@ await db.auth.link({ account: acc, category: 'TELEGRAM', identifier: '1635246915
 
 ```ts
 await db.auth.lookup({ category: 'TELEGRAM', identifier: '777000111' })
-// [5.2 ms] → { account: 06d3bbfe…, credential }
+// [5.3 ms] → { account: 06d3bbfe…, credential }
 ```
 
 **Кейс: вход через telegram-бота**
 
 ```ts
 // платформа подтвердила пользователя 777000111 (initData бота проверило приложение)
-const кто = await db.auth.lookup({ category: 'TELEGRAM', identifier: '777000111' })   // [5.2 ms]
+const кто = await db.auth.lookup({ category: 'TELEGRAM', identifier: '777000111' })   // [5.3 ms]
 if (!кто) { /* первая встреча: создать аккаунт + db.auth.link(…) */ }
 const token = await sess.start(кто.account)   // дальше обычная сессия
 ```
@@ -3284,7 +3339,7 @@ const sess = db.auth.sessions(new Redis('redis://localhost:16379'))   // [148 µ
 `sess:acc:<accountId>` для `revokeAll`. Дамп Redis действующих токенов не раскрывает.
 
 ```ts
-const token = await sess.start(acc, { ttlSec: 3600, meta: { device: 'iphone' } })   // [8.0 ms]
+const token = await sess.start(acc, { ttlSec: 3600, meta: { device: 'iphone' } })   // [18 ms]
 // token = 'fe0a7e83db6fcd1aa2c5002988da2b353602837db3bc0a813eddac863b9a1944'
 // в Redis: 'sess:8198bf2cd8d2ef2376d…' и 'sess:acc:06d3bbfe-d9a2-4…'
 ```
@@ -3295,7 +3350,7 @@ const token = await sess.start(acc, { ttlSec: 3600, meta: { device: 'iphone' } }
 (нет / истекла / отозвана). Суб-миллисекундный — на каждый HTTP-запрос.
 
 ```ts
-await sess.check(token)   // [0.7 ms]
+await sess.check(token)   // [1.7 ms]
 // → { account: '06d3bbfe-…', meta: { device: 'iphone' }, created: '2026-07-13T07:14:45.810Z' }
 await sess.check(протухший)   // [0.8 ms] → null (ttl 1 s истёк — Redis сам удалил)
 ```
@@ -3305,8 +3360,8 @@ await sess.check(протухший)   // [0.8 ms] → null (ttl 1 s истёк 
 `token: string` — `DEL` ключа + `SREM` из индекса; `false`, если сессии уже нет.
 
 ```ts
-await sess.revoke(token)   // [1.9 ms] → true
-await sess.revoke(token)   // [0.7 ms] → false — повторно
+await sess.revoke(token)   // [3.9 ms] → true
+await sess.revoke(token)   // [3.9 ms] → false — повторно
 ```
 
 #### `sessions.revokeAll(account): Promise<number>`
@@ -3315,19 +3370,19 @@ await sess.revoke(token)   // [0.7 ms] → false — повторно
 сколько погашено.
 
 ```ts
-await sess.revokeAll(acc)   // [1.2 ms] → 2 — обе сессии (ipad + macbook) погасли
+await sess.revokeAll(acc)   // [2.5 ms] → 2 — обе сессии (ipad + macbook) погасли
 ```
 
 **Кейс: полный вход — пароль → сессия → запрос → выход (реальный прогон)**
 
 ```ts
 const визит = await db.auth.verifyPassword({ identifier: 'romashka@salon.io', password: 'лето-2026!' })
-// [71.3 ms] → { account, credential }
+// [109 ms] → { account, credential }
 const token = await sess.start(визит.account, { ttlSec: 86400, meta: { ip: '10.0.0.7' } })  // [1.2 ms]
 // … каждый запрос в middleware:
-const кто = await sess.check(token)   // [0.7 ms] → { account: '06d3bbfe…', meta: { ip: '10.0.0.7' }, … }
+const кто = await sess.check(token)   // [1.7 ms] → { account: '06d3bbfe…', meta: { ip: '10.0.0.7' }, … }
 // logout:
-await sess.revoke(token)              // [1.3 ms] → true
+await sess.revoke(token)              // [3.9 ms] → true
 // «выйти со всех устройств» после смены пароля: await sess.revokeAll(визит.account)
 ```
 
@@ -3356,10 +3411,10 @@ NULL — все); объекты — `API`-ресурсы, чья маска п�
 **Примеры**
 
 ```ts
-await db.acl.check(acc, 'v2.booking.create')   // [5.0 ms]
+await db.acl.check(acc, 'v2.booking.create')   // [6.1 ms]
 // → { allow: true, rule: { account: 'apiref.client:ACCOUNT', resource: 'apiref.api.booking:API',
 //                          permission: 'allow', weight: 60, enabled: true } }
-await db.acl.check(acc, 'v2.admin.stats')      // [1.8 ms] — покрыло только дно-правило сида:
+await db.acl.check(acc, 'v2.admin.stats')      // [2.5 ms] — покрыло только дно-правило сида:
 // → { allow: false, rule: { account: 'any:ACCOUNT', resource: 'any:API', permission: 'deny', weight: 0, … },
 //     code: 403, message: 'Access denied - default for any ACCOUNT to any API' }
 ```
@@ -3393,12 +3448,12 @@ app.use(async (req, res, next) => {
 **Примеры**
 
 ```ts
-await db.acl.checkData(acc, 'booking', 'READ')   // [2.7 ms]
+await db.acl.checkData(acc, 'booking', 'READ')   // [2.3 ms]
 // → { allow: true, rule: { resource: 'apiref.booking.own:READ', weight: 60, … },
 //     filter: { owner: '06d3bbfe-d9a2-4c1d-be44-04c40cb01108' } }   ← $account подставлен
-await db.acl.checkData(acc, 'Service', 'READ')   // [1.9 ms]
+await db.acl.checkData(acc, 'Service', 'READ')   // [2.1 ms]
 // → { allow: true, rule: { resource: 'apiref.service:READ', … } }   ← безусловный (без filter)
-await db.acl.checkData(acc, 'Org', 'READ')       // [2.0 ms]
+await db.acl.checkData(acc, 'Org', 'READ')       // [1.9 ms]
 // → { allow: false, message: 'no matching rule (deny by default)' }
 await db.acl.checkData(acc, 'VipBooking', 'READ')   // [23.4 ms — свежий connect]
 // → { allow: true, rule: { resource: 'apiref.booking.own:READ', … }, filter: { owner: '06d3bbfe-…' } }
@@ -3411,9 +3466,9 @@ await db.acl.checkData(acc, 'VipBooking', 'READ')   // [23.4 ms — свежий
 // enforceAccount: false — показаны ACL-предикаты, а не изоляция арендатора (§ 10.6)
 const uc = await (await connect({ dsn, schema, enforceAcl: true, enforceAccount: false })).as(acc.id)
 // [58.1 ms] снимок правил под ЭТОГО субъекта (обновить — reloadSchema)
-await uc.запись().rows()    // [12.6 ms] → 3 Row — предикат owner=$account в WHERE ДО сортировки/лимита
-await uc.запись().count()   // [12.5 ms] → 3 — честный count по суженному множеству
-await uc.Услуга().count()   // [11.4 ms] → 605 — безусловный allow, класс целиком
+await uc.запись().rows()    // [26 ms] → 3 Row — предикат owner=$account в WHERE ДО сортировки/лимита
+await uc.запись().count()   // [26 ms] → 3 — честный count по суженному множеству
+await uc.Услуга().count()   // [30 ms] → 605 — безусловный allow, класс целиком
 await uc.Организация().rows()
 // Error: letopis: acl denies READ on Org — no matching rule (deny by default)   [0.3 ms]
 const [z] = await uc.запись().create({ start_datetime: t, end_datetime: e })
@@ -3438,7 +3493,7 @@ await uc.запись(свойId).delete({ confirm: true }).rows()   // [27.8 ms
 | Вызов | Что пересобирает | На что НЕ влияет |
 |---|---|---|
 | `db.acl.reload()` | кэш Resource/Rule фасада `db.acl` (`check`/`checkData`) | энфорсер `enforceAcl`-цепочек, реестр классов |
-| `await db.reloadSchema()` | реестр классов из `Schema`; со scope-хендла (`db.as`) — **и** его энфорсер `enforceAcl` (§ 11.2) | кэш фасада `db.acl` (сбрасывать отдельно); энфорсеры ДРУГИХ scope |
+| `await db.reloadSchema()` | реестр классов из `Schema` **и** снимок `Resource`/`Rule` подключения (следующий `db.as()` получит свежий словарь); со scope-хендла — **и** его энфорсер `enforceAcl` (§ 11.2) | кэш фасада `db.acl` (сбрасывать отдельно); уже созданные энфорсеры ДРУГИХ scope |
 
 Реконнект нужен только для смены `dsn`/`schema`/`partition` и самих флагов `enforce*`
 (сменить арендатора реконнект НЕ требует — это новый `db.as()`).
@@ -3663,7 +3718,10 @@ AclDecision = { allow, rule?, filter?, code?, message? }         // filter — �
 - Микро-бенч `npm run bench` (105k строк) + EXPLAIN-тесты (индексы обязаны быть в плане; ноль
   seq scan); партиционирование — `bench/dimensions.bench.mjs`, масштаб —
   `node bench/history.bench.mjs --entities=10000 --versions=100`, оверхед ACL —
-  `npx tsx bench/acl.bench.mjs` (таблица в § 9.2).
+  `npx tsx bench/acl.bench.mjs` (таблица в § 9.2), цена изоляции арендатора —
+  `node bench/tenants-seed.mjs && npx tsx bench/isolation.bench.mjs` (таблица в § 10.6;
+  свой полигон `v1.tenants` — 10 арендаторов с перекосом 50 %…0.3 %, единый `v1.salondemo`
+  этот вопрос не измеряет, там System владеет всем классом).
 
 ### 14.1 `ANALYZE` обязателен после массовой заливки
 

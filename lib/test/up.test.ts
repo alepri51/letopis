@@ -10,7 +10,7 @@ import { writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import postgres from 'postgres';
-import { up } from '../src/index.js';
+import { up, connect } from '../src/index.js';
 import { dockerRunArgs } from '../src/up.js';
 
 const DSN = process.env.ENTITY_DSN ?? 'postgres://postgres:test@localhost:15432/clockz';
@@ -58,6 +58,85 @@ test('fresh: true — дроп и накат заново', async () => {
   const db = await up({ enforceAccount: false, dsn: DSN, schema: 'uptest', version: 1, fresh: true, quiet: true });
   assert.equal(await db.Клиент({ name: 'Уп-Аня' }).count(), 0);
   await db.close();
+});
+
+test('up(): статистика планировщика собрана — ANALYZE прошёл при накате', async () => {
+  // Без статистики родителя гипертаблицы планировщик берёт дефолт «200 уникальных id» и на
+  // подзапросе кандидатов (его строит КАЖДОЕ чтение либы) выбирает Nested Loop вместо
+  // Merge Semi Join: замерено 57 с против 3 с на 980k строк (README §14.1). Проверяем не
+  // тайминг, а факт — что pg_stats по Entity заполнен (схему только что пересоздал тест выше).
+  // NB: pg_stats у пустой таблицы пуст по определению — статистике не по чему собираться,
+  // поэтому проверяем ФАКТ запуска (last_analyze), а заодно что на непустых данных
+  // статистика действительно появляется.
+  const db = await up({ enforceAccount: false, dsn: DSN, schema: 'uptest', version: 1, quiet: true });
+  try {
+    const [{ last_analyze }] = (await db.sql.unsafe(
+      `SELECT last_analyze FROM pg_stat_all_tables WHERE schemaname = $1 AND relname = 'Entity'`,
+      ['v1.uptest'],
+    )) as unknown as { last_analyze: string | null }[];
+    assert.ok(last_analyze, 'ANALYZE по "v1.uptest"."Entity" не выполнялся при накате схемы');
+
+    // и на данных: после ANALYZE у ключевых колонок есть n_distinct — то, без чего
+    // планировщик берёт дефолт «200 уникальных id» и рушит подзапрос кандидатов
+    await db.Клиент().create({ name: 'Стат-Аня', phone: '+7 901' }).rows();
+    await db.sql.unsafe('ANALYZE "v1.uptest"."Entity"');
+    const строки = (await db.sql.unsafe(
+      `SELECT attname FROM pg_stats WHERE schemaname = $1 AND tablename = 'Entity'`,
+      ['v1.uptest'],
+    )) as unknown as { attname: string }[];
+    const колонки = строки.map((r) => r.attname);
+    for (const c of ['id', 'class', 'partition']) {
+      assert.ok(колонки.includes(c), `нет статистики по колонке ${c}: ${колонки.join(', ') || 'пусто'}`);
+    }
+  } finally {
+    await db.close();
+  }
+});
+
+test('отставший движок: connect предупреждает, upgrade перекатывает ddl без потери данных', async () => {
+  // Схема, накатанная более старой либой, не получает аддитивных правок ddl.sql — так в 0.19.0
+  // появились purge/purge_closure/purge_account, и приложение узнавало об этом из сырого
+  // PostgresError. Имитируем «старую» схему: сносим новые функции и метку ревизии.
+  const db0 = await up({ enforceAccount: false, dsn: DSN, schema: 'uptest', version: 1, quiet: true });
+  const [клиент] = await db0.Клиент().create({ name: 'До-апгрейда', phone: '+7 902' }).rows();
+  await db0.sql.unsafe(`
+    DROP FUNCTION IF EXISTS "v1.uptest".purge(text, text, text, boolean);
+    DROP FUNCTION IF EXISTS "v1.uptest".purge_closure(text, text, text[]);
+    DROP FUNCTION IF EXISTS "v1.uptest".purge_account(uuid);
+    COMMENT ON SCHEMA "v1.uptest" IS NULL`);
+  await db0.close();
+
+  const было = console.warn;
+  const предупреждения: string[] = [];
+  console.warn = (...a: unknown[]) => void предупреждения.push(a.join(' '));
+  try {
+    const db1 = await connect({ enforceAccount: false, dsn: DSN, schema: 'v1.uptest' });
+    await db1.close();
+  } finally {
+    console.warn = было;
+  }
+  const про = предупреждения.filter((m) => m.includes('движок схемы'));
+  assert.equal(про.length, 1, `ожидалось одно предупреждение о ревизии, получено: ${предупреждения.length}`);
+  assert.match(про[0], /отстал/);
+  assert.match(про[0], /upgrade: true/);
+
+  // апгрейд: ddl перекатывается, функции возвращаются, метка встаёт, данные целы
+  const db2 = await up({ enforceAccount: false, dsn: DSN, schema: 'uptest', version: 1, upgrade: true, quiet: true });
+  try {
+    const фн = (await db2.sql.unsafe(
+      `SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+       WHERE n.nspname = 'v1.uptest' AND p.proname LIKE 'purge%' ORDER BY 1`,
+    )) as unknown as { proname: string }[];
+    assert.deepEqual(фн.map((r) => r.proname), ['purge', 'purge_account', 'purge_closure']);
+    const [{ c }] = (await db2.sql.unsafe(
+      `SELECT obj_description(n.oid, 'pg_namespace') AS c FROM pg_namespace n WHERE n.nspname = 'v1.uptest'`,
+    )) as unknown as { c: string | null }[];
+    assert.equal(c, 'letopis ddl_revision=1');
+    assert.equal(await db2.Клиент({ name: 'До-апгрейда' }).count(), 1); // данные не пострадали
+    await db2.Клиент(клиент.id).delete({ confirm: true }).rows();
+  } finally {
+    await db2.close();
+  }
 });
 
 test('seeds: false — голая структура без классов; connect честно падает', async () => {

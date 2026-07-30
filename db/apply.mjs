@@ -28,7 +28,7 @@ const dsn = args.dsn ?? process.env.ENTITY_DSN;
 const schema = args.schema;
 const version = args.version;
 if (!dsn || !schema || typeof schema !== 'string' || !version || version === true) {
-  console.error('usage: node db/apply.mjs --dsn=postgres://… --schema=<имя> --version=<N> [--no-seed]');
+  console.error('usage: node db/apply.mjs --dsn=postgres://… --schema=<имя> --version=<N> [--no-seed] [--upgrade]');
   process.exit(1);
 }
 if (!/^[a-zA-Z_][a-zA-Z0-9_$]*$/.test(schema)) {
@@ -43,7 +43,14 @@ const full = `v${version}.${schema}`;
 
 const here = dirname(fileURLToPath(import.meta.url));
 const sqlDir = join(here, '../lib/sql'); // шаблоны пакуются в npm-пакет letopis
-const files = ['ddl.sql', ...(args['no-seed'] ? [] : ['seed.booking.sql', 'seed.auth.sql'])];
+// --upgrade: перекатить ТОЛЬКО движок на существующую схему. Сиды не трогаем — они вставляют
+// данные. ddl.sql идемпотентен (CREATE OR REPLACE у функций, DROP IF EXISTS + CREATE у
+// триггеров, IF NOT EXISTS у таблиц/индексов), поэтому данные целы, а аддитивные правки движка
+// доезжают: схема, накатанная старой либой, иначе остаётся без новых функций
+// (purge/purge_account из 0.19.0) и падает сырым «function … does not exist».
+const files = args.upgrade
+  ? ['ddl.sql']
+  : ['ddl.sql', ...(args['no-seed'] ? [] : ['seed.booking.sql', 'seed.auth.sql'])];
 
 const sql = postgres(dsn, { max: 1 });
 try {

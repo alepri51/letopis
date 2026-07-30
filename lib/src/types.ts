@@ -362,3 +362,30 @@ export function reservedNamesOf(def: { id: string; alias?: string }): string[] {
   return [def.id, def.alias].filter((n): n is string => !!n && set.has(n));
 }
 // END_BLOCK_RESERVED_NAMES
+
+// START_BLOCK_DDL_REVISION
+/**
+ * Ревизия движка (`lib/sql/ddl.sql`), которую ожидает ЭТА версия либы.
+ *
+ * Зачем: `ddl.sql` растёт аддитивно внутри одной версии движка (в 0.19.0, например,
+ * добавились функции purge/purge_closure/purge_account). Схема, накатанная раньше, их
+ * НЕ получает — приложение обновляет пакет и падает сырым `PostgresError: function
+ * "v1.x".purge(...) does not exist` вместо внятного объяснения. `connect()` сравнивает
+ * ожидаемую ревизию с меткой в схеме (`COMMENT ON SCHEMA` — её ставит последняя строка
+ * ddl.sql) и один раз на процесс предупреждает, что и как обновить.
+ *
+ * Файл идемпотентен, поэтому аддитивные правки доезжают повторным накатом:
+ * `up({ upgrade: true })` либо `node db/apply.mjs --upgrade` — данные целы.
+ * Несовместимая правка СТРУКТУРЫ таблиц — это смена version в имени схемы (v1 → v2).
+ *
+ * Совпадение константы с маркером `-- DDL_REVISION:` в ddl.sql проверяет
+ * `scripts/check-docs.mjs` — иначе одно уедет без другого.
+ */
+export const DDL_REVISION = 1;
+
+/** Метка ревизии в комментарии схемы: 'letopis ddl_revision=N' → N; иначе null. */
+export function parseDdlRevision(comment: string | null | undefined): number | null {
+  const m = /letopis ddl_revision=(\d+)/.exec(comment ?? '');
+  return m ? Number(m[1]) : null;
+}
+// END_BLOCK_DDL_REVISION

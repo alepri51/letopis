@@ -1,4 +1,10 @@
-# Прод-публикация: на publish GitHub Release → npm publish пакета lib/.
+# Прод-публикация — ОТДЕЛЬНЫЙ ШАГ, только по команде (как в VP): тег ставит tag.yml на push
+# в main, а релиз публикуется вручную — Releases → «Draft a new release» → выбрать тег →
+# Publish. На publish этот workflow перезаписывает тело релиза сгенерированным changelog
+# (git-cliff, кумулятивно от предыдущего ОПУБЛИКОВАННОГО релиза) и публикует пакет lib/ в npm.
+#
+# Логика та же, что в VP: тег → заметки git-cliff → прод. Прод у библиотеки — npm.
+#
 # Требует секрет NPM_TOKEN (granular automation token npm с правом publish на letopis).
 # prepublishOnly сам гоняет typecheck + build.
 name: release
@@ -7,11 +13,56 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: write
+
 jobs:
   npm-publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Диапазон = от предыдущего опубликованного релиза до текущего тега: черновики и
+      # pre-release не считаются, поэтому заметки не теряют коммиты между публикациями.
+      - name: Compute changelog range
+        id: prev
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          CURRENT="${{ github.event.release.tag_name }}"
+          PREV=$(gh release list \
+            --limit 50 \
+            --exclude-drafts \
+            --exclude-pre-releases \
+            --json tagName \
+            --jq '.[].tagName' \
+            | grep -v "^${CURRENT}$" \
+            | head -n 1 || true)
+          if [ -n "$PREV" ]; then
+            echo "Changelog range: ${PREV}..${CURRENT}"
+            echo "args=${PREV}..${CURRENT} --strip all" >> "$GITHUB_OUTPUT"
+          else
+            echo "No previous published release — using --latest"
+            echo "args=--latest --strip all" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate release notes
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: ${{ steps.prev.outputs.args }}
+        env:
+          OUTPUT: RELEASE_NOTES.md
+
+      - name: Apply grouped notes to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "${{ github.event.release.tag_name }}" --notes-file RELEASE_NOTES.md
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -26,3 +77,36 @@ jobs:
         run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Проверка АРТЕФАКТА, а не исходников: тесты гоняются по lib/src, а в npm уезжает
+      # собранный dist + files из package.json. Сломанные exports/types/files тут ловятся
+      # сразу, а не от первого пользователя. Ставим пакет из реестра в чистую папку.
+      - name: Smoke-test the published package
+        run: |
+          set -euo pipefail
+          V="$(node -p "require('./lib/package.json').version")"
+          echo "ждём появления letopis@$V в реестре…"
+          for i in $(seq 1 30); do
+            npm view "letopis@$V" version >/dev/null 2>&1 && break
+            sleep 5
+          done
+          npm view "letopis@$V" version
+          mkdir -p /tmp/letopis-smoke && cd /tmp/letopis-smoke
+          echo '{"name":"smoke","private":true,"type":"module"}' > package.json
+          npm install "letopis@$V" --no-audit --no-fund
+          cat > smoke.mjs <<'JS'
+          import { connect, up, cursorOf, uuidv5, uuidv7, LETOPIS_NS, totpCode,
+                   ValidationError, Registry, ne, gt, between, inList, like, has, exists, or } from 'letopis';
+          const need = { connect, up, cursorOf, uuidv5, uuidv7, LETOPIS_NS, totpCode, ValidationError, Registry };
+          for (const [k, v] of Object.entries(need)) if (v === undefined) throw new Error(`экспорт ${k} отсутствует`);
+          if (typeof connect !== 'function' || typeof up !== 'function') throw new Error('connect/up не функции');
+          if (uuidv5('a:b:c') !== uuidv5('a:b:c')) throw new Error('uuidv5 недетерминирован');
+          if (!/^[0-9a-f-]{36}$/.test(uuidv7())) throw new Error('uuidv7 не uuid');
+          console.log('ok: пакет ставится из npm, ESM-импорт и 17 экспортов на месте');
+          JS
+          node smoke.mjs
+          node -e "const p=require('/tmp/letopis-smoke/node_modules/letopis/package.json');
+            const fs=require('node:fs');
+            for (const f of ['dist/index.js','dist/index.d.ts','sql/ddl.sql','scripts/gen-types.mjs','README.md','LICENSE'])
+              if (!fs.existsSync('/tmp/letopis-smoke/node_modules/letopis/'+f)) throw new Error('в тарболе нет '+f);
+            console.log('ok: тарбол содержит dist, sql, scripts, README, LICENSE');"

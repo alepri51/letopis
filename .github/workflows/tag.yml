@@ -1,6 +1,18 @@
-# Авто-тег при merge в main: версия из lib/package.json → тег vX.Y.Z (если ещё нет).
-# Дальше по контуру: publish GitHub Release руками → release.yml публикует в npm.
 name: tag
+
+# Авто-тег на каждый push в main. Аннотация тега несёт changelog коммитов между предыдущим
+# тегом и HEAD (git-cliff по Conventional Commits) — то есть `git show <tag>` и GitHub UI →
+# Tags показывают, что вошло в версию, без GitHub Release.
+#
+# Тег НЕ создаёт релиз и НЕ публикует пакет. Когда готов: Releases → «Draft a new release»
+# → выбрать тег → Publish. release.yml перезапишет тело релиза (кумулятивно от предыдущего
+# *опубликованного* релиза) и опубликует пакет в npm.
+#
+# Отличие от VP (там деплоится приложение, публикуемого артефакта нет): letopis — npm-пакет,
+# поэтому источник версии здесь lib/package.json, а не расчёт git-cliff. Тег обязан равняться
+# тому, что реально уедет в npm, иначе тег и пакет разъедутся. Версию package.json сверяет с
+# последней записью lib/CHANGELOG.md scripts/check-docs.mjs (CI на каждый push).
+# Расчёт git-cliff печатается как подсказка: расхождение — сигнал, что bump забыли.
 
 on:
   push:
@@ -14,18 +26,68 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Read version
-        id: v
-        run: echo "version=$(node -p "require('./lib/package.json').version")" >> "$GITHUB_OUTPUT"
-      - name: Create tag if missing
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Read package version
+        id: ver
         run: |
-          V="v${{ steps.v.outputs.version }}"
-          if git ls-remote --tags origin "refs/tags/$V" | grep -q "refs/tags/$V"; then
-            echo "tag $V already exists — skip"
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git tag "$V"
-            git push origin "$V"
-            echo "tagged $V"
+          set -euo pipefail
+          V="v$(node -p "require('./lib/package.json').version")"
+          CUR="$(git describe --tags --abbrev=0 2>/dev/null || echo '')"
+          echo "package=$V  latest tag=$CUR"
+          if git rev-parse -q --verify "refs/tags/$V" >/dev/null; then
+            echo "Tag $V already exists — skipping."
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          echo "skipped=false" >> "$GITHUB_OUTPUT"
+          echo "next=$V"       >> "$GITHUB_OUTPUT"
+
+      # Подсказка, а не гард: git-cliff считает bump по типам коммитов. Расхождение с
+      # package.json обычно значит забытый бамп версии (или коммиты не по конвенции).
+      - name: Suggest bump from Conventional Commits
+        if: steps.ver.outputs.skipped == 'false'
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --bumped-version
+        env:
+          OUTPUT: NEXT_VERSION.txt
+
+      - name: Compare with the suggestion
+        if: steps.ver.outputs.skipped == 'false'
+        run: |
+          set -euo pipefail
+          SUG="$(tr -d '[:space:]' < NEXT_VERSION.txt || echo '')"
+          NEXT="${{ steps.ver.outputs.next }}"
+          if [ -n "$SUG" ] && [ "$SUG" != "$NEXT" ]; then
+            echo "::warning::lib/package.json даёт $NEXT, а по типам коммитов git-cliff ожидает $SUG — проверьте, не забыт ли бамп версии (и запись в lib/CHANGELOG.md)."
+          else
+            echo "версия согласована с расчётом по коммитам: $NEXT"
+          fi
+
+      - name: Generate tag notes
+        if: steps.ver.outputs.skipped == 'false'
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --unreleased --tag ${{ steps.ver.outputs.next }} --strip all
+        env:
+          OUTPUT: TAG_NOTES.md
+
+      - name: Create annotated tag
+        if: steps.ver.outputs.skipped == 'false'
+        run: |
+          set -euo pipefail
+          NEXT="${{ steps.ver.outputs.next }}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          {
+            printf '%s\n\n' "$NEXT"
+            cat TAG_NOTES.md
+          } > tag-msg.txt
+          git tag -a "$NEXT" -F tag-msg.txt
+          git push origin "$NEXT"
+          echo "::notice::tagged $NEXT with changelog annotation"
