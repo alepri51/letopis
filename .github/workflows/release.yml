@@ -15,10 +15,7 @@ on:
     types: [published]
 
 permissions:
-  contents: write        # gh release edit
-  pull-requests: read    # gh pr list/view — заметки берутся из описания PR.
-                         # NB: блок permissions ОГРАНИЧИВАЕТ токен: без этой строки
-                         # gh падает 'Resource not accessible by integration'.
+  contents: write   # gh release edit — больше ничего не нужно
 
 jobs:
   npm-publish:
@@ -28,31 +25,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Тело релиза = описание релизного PR dev→main. Оно писалось осмысленно (что и почему,
-      # с замерами), в отличие от списка заголовков коммитов. PR ищем по коммиту, на который
-      # указывает тег: у merge-коммита PR ровно один. Сводка по Conventional Commits и так
-      # лежит в аннотации тега (tag.yml), содержательный changelog — в lib/CHANGELOG.md.
-      - name: Take release notes from the merged PR
+      # Тело релиза = секция CHANGELOG этой версии — тем же скриптом, которым собиралось
+      # описание релизного PR. Раньше здесь читалось описание PR через gh pr list/view, но это
+      # требует прав pull-requests и упиралось в «Resource not accessible by integration»
+      # (GITHUB_TOKEN на release-событии не получает доступ к PR-API этого репозитория).
+      # Чекаут стоит на теге, значит package.json и CHANGELOG — ровно той версии, что публикуем.
+      - name: Release notes from CHANGELOG
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          TAG="${{ github.event.release.tag_name }}"
-          SHA="$(git rev-list -n 1 "$TAG")"
-          PR="$(gh pr list --state merged --base main --limit 30 \
-                  --json number,mergeCommit \
-                  --jq ".[] | select(.mergeCommit.oid == \"$SHA\") | .number" | head -n 1)"
-          if [ -z "$PR" ]; then
-            echo "::warning::для тега $TAG ($SHA) не нашёлся merged PR в main — тело релиза оставлено как есть"
-            exit 0
-          fi
-          gh pr view "$PR" --json body --jq .body > RELEASE_NOTES.md
-          if [ ! -s RELEASE_NOTES.md ]; then
-            echo "::warning::описание PR #$PR пустое — тело релиза оставлено как есть"
-            exit 0
-          fi
-          gh release edit "$TAG" --notes-file RELEASE_NOTES.md
-          echo "::notice::тело релиза $TAG взято из PR #$PR"
+          node lib/scripts/release-notes.mjs > RELEASE_NOTES.md
+          gh release edit "${{ github.event.release.tag_name }}" --notes-file RELEASE_NOTES.md
+          echo "::notice::тело релиза взято из lib/CHANGELOG.md"
 
       - uses: actions/setup-node@v4
         with:
