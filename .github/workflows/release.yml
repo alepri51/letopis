@@ -15,7 +15,10 @@ on:
     types: [published]
 
 permissions:
-  contents: write
+  contents: write        # gh release edit
+  pull-requests: read    # gh pr list/view — заметки берутся из описания PR.
+                         # NB: блок permissions ОГРАНИЧИВАЕТ токен: без этой строки
+                         # gh падает 'Resource not accessible by integration'.
 
 jobs:
   npm-publish:
