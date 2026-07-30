@@ -13,10 +13,16 @@ npm install letopis
 import { up } from 'letopis'
 
 const db = await up({ schema: 'booking', version: 1 })   // Docker: TimescaleDB + Redis → PG-схема "v1.booking"
-const [org] = await db.Организация().create({ name: 'BarberPro' }).rows()
-await db.Организация(org).Мастер().create({ name: 'Вася', phone: '+7 900 …' }).rows()
-await db.Мастер({ name: 'Вася' }).навык().Услуга().run()  // пути по графу
-await db.close()
+
+// db — безличный пул: изоляция арендатора включена по умолчанию, цепочки идут ОТ ИМЕНИ
+// аккаунта. В вебе scope живёт на запрос: await db.as(req.accountId)
+const [sys] = await db.accounts.find({ category: 'System' })
+const t = await db.as(sys.id)
+
+const [org] = await t.Организация().create({ name: 'BarberPro' }).rows()
+await t.Организация(org).Мастер().create({ name: 'Вася', phone: '+7 900 …' }).rows()
+await t.Мастер({ name: 'Вася' }).навык().Услуга().run()   // пути по графу
+await db.close()                                          // один раз на пул
 ```
 
 ESM-only, Node 20+. Рантайм-зависимости: `postgres`, `fastest-validator`

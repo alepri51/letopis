@@ -151,7 +151,7 @@
   <Constraints>
     <constraint-1>Requires PostgreSQL 17 with the TimescaleDB extension (Entity is a hypertable); Redis for sessions.</constraint-1>
     <constraint-2>ESM-only; Node 20+ with NodeNext resolution and explicit .js import specifiers.</constraint-2>
-    <constraint-3>Entity.account is NOT NULL — every write needs an account (connect({account}) or the seeded System account).</constraint-3>
+    <constraint-3>Entity.account is NOT NULL — every write needs an account: the scoped handle db.as(account), an explicit .account() step modifier, or the seeded System account as a fallback.</constraint-3>
     <constraint-4>up() requires Docker unless the dsn targets an already-running Postgres.</constraint-4>
   </Constraints>
 
@@ -169,6 +169,6 @@
   </ResolvedQuestions>
 
   <OpenQuestions>
-    <question-1>What is the intended security posture for enforceAcl/enforceAccount in production? Both default to false today (opt-in), i.e. an app that forgets them gets no tenant isolation and no authorization on reads; deciding whether that default should invert is an owner policy call, not a fact derivable from the code.</question-1>
+    <question-1>What is the intended security posture for enforceAcl in production? Tenant isolation was settled in 0.20.0: enforceAccount now defaults to true and demands an identity — reads/writes from the impersonal root handle throw and point at db.as(account), so forgetting it is loud rather than silent. enforceAcl is still opt-in (false), because deny-by-default without seeded Resource/Rule would return empty result sets; connect() warns once per process instead. Whether that default should invert too — and what a safe bootstrap for the rule dictionary looks like — is an owner policy call, not a fact derivable from the code.</question-1>
   </OpenQuestions>
 </RequirementsAnalysis>

@@ -187,8 +187,8 @@ ilike starts ends has hasAny hasAll exists isNull not or`.
    **`.exact()`**: `db.Мастер(id).окно().exact()` = именно смены. Запись полиморфной не
    бывает: `create()` пишет строго в свой класс, в abstract — ошибка. ACL решает по
    конкретному классу строки: deny на потомке шагом по родителю НЕ обходится.
-10. **Зарезервированные имена классов**: 51 имя (`count`, `sort`, `account`, `set`,
-   `size`, `then`, `schema`, `auth`, `acl`, `accounts`, …) Proxy разбирает ДО резолва класса —
+10. **Зарезервированные имена классов**: 52 имени (`count`, `sort`, `account`, `set`,
+   `size`, `then`, `as`, `schema`, `auth`, `acl`, `accounts`, …) Proxy разбирает ДО резолва класса —
    класс под таким именем как шаг недостижим. `db.schema.define()` откажет, `connect()`
    предупредит. Полный список — `lib/README.md` §3 или `docs/api-contract.json` →
    `chain.reservedClassNames`.
