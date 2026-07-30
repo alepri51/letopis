@@ -26,7 +26,7 @@ let db: EntityDb;
 const S: Record<string, Row> = {}; // сцена
 
 before(async () => {
-  db = await connect({ dsn: DSN, schema: 'v1.booking' });
+  db = await connect({ enforceAccount: false, dsn: DSN, schema: 'v1.booking' });
   await db.sql.unsafe('TRUNCATE "v1.booking"."Entity"');
 });
 

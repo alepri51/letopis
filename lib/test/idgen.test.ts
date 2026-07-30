@@ -50,13 +50,13 @@ before(async () => {
 
   // генерация id — атрибутами БОЕВЫХ классов Schema (свои правила поверх сида:
   // Org — явный дефолт v4, Service — v5 из ПОЛЯ data, slot — v7 вместо сидового v5)
-  const boot = await connect({ dsn: DSN, schema: SCHEMA });
+  const boot = await connect({ enforceAccount: false, dsn: DSN, schema: SCHEMA });
   await setIdRule(boot.sql, 'Org', { type: 'uuid' });
   await setIdRule(boot.sql, 'Folder', { type: 'uuid', generate: 7 });
   await setIdRule(boot.sql, 'Service', { type: 'uuid', generate: 5, from: ['name'] });
   await boot.close();
 
-  db = await connect({ dsn: DSN, schema: SCHEMA }); // свежий реестр с новыми правилами
+  db = await connect({ enforceAccount: false, dsn: DSN, schema: SCHEMA }); // свежий реестр с новыми правилами
 
   // сцена: салон, две мастерицы, локация, месячное расписание
   const [org] = await db.Организация().create({ name: 'IdGen-салон' }).rows();
@@ -197,7 +197,7 @@ test('наследование attributes: потомок получает по�
       ('entity', 'VipCustomer', 'ВипКлиент', 'HUB', 'Customer', '{}', '[{"class":"Org"}]', '{}', 960),
       ('entity', 'DeluxeBooking', 'вип-запись', 'LINK', 'booking', '{}',
        '[{"class":"Staff"},{"class":"Location"},{"class":"Schedule"},{"classes":["Service","Product","Complex"]},{"class":"Customer","optional":true}]', '{}', 961)`);
-  const t = await connect({ dsn: DSN, schema: SCHEMA }); // свежий реестр
+  const t = await connect({ enforceAccount: false, dsn: DSN, schema: SCHEMA }); // свежий реестр
 
   // поля предков видны на потомке: phone — от Контрагента через ДВА уровня (Person → Customer)
   assert.ok('phone' in t.registry.resolve('VipCustomer').attributes);

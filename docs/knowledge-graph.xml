@@ -218,7 +218,8 @@
       <depends>M-TYPES, M-SQL, M-WRITE, M-TX, M-TABLES, M-AUTH, M-ACL, M-SCHEMA</depends>
       <verification-ref>V-M-CHAIN</verification-ref>
       <annotations>
-        <type-EntityDb PURPOSE="Root db handle: class callables + begin/commit/rollback/batch/watch/close + reloadSchema + auth/acl/tables/schema/registry/sql" />
+        <type-EntityDb PURPOSE="Root db handle: class callables + as/begin/commit/rollback/batch/watch/close + reloadSchema + auth/acl/tables/schema/registry/sql" />
+        <fn-as PURPOSE="db.as(account, { owner? }): scoped handle on the SAME pool acting as that account — the tenant is a property of the CALL, not of the connection; under enforceAcl compiles an enforcer for THAT subject (one enforcer = one subject; the acl memo key has no subject)" />
         <type-EntityTx PURPOSE="EntityDb inside a transaction: commit/rollback/lock" />
         <type-Chain PURPOSE="ChainCore + per-class step properties" />
         <type-ChainCore PURPOSE="Terminal + modifier methods on a chain (run/rows/first/ids/count/sort/limit/asOf/withDeleted/deep/exact/agg/create/update/delete/purge/anonymize/…)" />
@@ -238,7 +239,7 @@
       <depends>M-SCHEMA, M-CHAIN, M-TABLES, M-ACL, M-SQL, M-TYPES, M-UP</depends>
       <verification-ref>V-M-CONNECT</verification-ref>
       <annotations>
-        <fn-connect PURPOSE="Connect to Postgres, load the schema registry for a partition, optionally enable enforceAcl, and return an EntityDb" />
+        <fn-connect PURPOSE="Connect to Postgres, load the schema registry for a partition, and return an IMPERSONAL EntityDb (no account/owner opts — identity comes from db.as); installs ctx.compileAcl used by db.as when enforceAcl is on" />
         <fn-cursorOf PURPOSE="Build a keyset Cursor from a row + field" />
       </annotations>
       <notes>

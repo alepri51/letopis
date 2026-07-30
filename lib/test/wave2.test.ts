@@ -12,7 +12,7 @@ const LIB_DIR = fileURLToPath(new URL('..', import.meta.url));
 let db: EntityDb;
 
 before(async () => {
-  db = await connect({ dsn: DSN, schema: 'v1.booking' });
+  db = await connect({ enforceAccount: false, dsn: DSN, schema: 'v1.booking' });
   await db.sql.unsafe('TRUNCATE "v1.booking"."Entity"');
 });
 after(async () => db.close());
@@ -72,7 +72,7 @@ test('enforceAccount: чужое невидимо, запись пришпиле
   await db.Организация().account(a1.id).create({ name: 'Org-A1' }).rows();
   await db.Организация().account(a2.id).create({ name: 'Org-A2' }).rows();
 
-  const t1 = await connect({ dsn: DSN, schema: 'v1.booking', account: a1.id, enforceAccount: true });
+  const t1 = await (await connect({ dsn: DSN, schema: 'v1.booking', enforceAccount: true })).as(a1.id);
   try {
     const мои = await t1.Организация().rows();
     assert.deepEqual(мои.map((r) => r.data.name), ['Org-A1']);           // чужого не видно
@@ -83,6 +83,34 @@ test('enforceAccount: чужое невидимо, запись пришпиле
     assert.equal(своё.account, a1.id);                                   // запись всегда своя
   } finally {
     await t1.close();
+  }
+});
+
+test('db.as: арендатор — свойство ВЫЗОВА (корень безличен, два scope одного пула изолированы)', async () => {
+  const a1 = await db.accounts.set({ categories: ['User'], data: { name: 'Скоуп1' } });
+  const a2 = await db.accounts.set({ categories: ['User'], data: { name: 'Скоуп2' } });
+
+  const pool = await connect({ dsn: DSN, schema: 'v1.booking' }); // enforceAccount по умолчанию true
+  try {
+    // корневой хендл безличен: фильтровать нечем, значит изоляция не гарантирована — отказ с подсказкой
+    await assert.rejects(pool.Организация().rows(), /enforceAccount is on — call db\.as\(account\)/);
+    await assert.rejects(pool.Организация().create({ name: 'X' }).rows(), /call db\.as\(account\)/);
+    await assert.rejects(pool.as(''), /db\.as\(account\) requires an account id/);
+
+    // два арендатора на ОДНОМ пуле: каждый видит и пишет только своё
+    const t1 = await pool.as(a1.id);
+    const t2 = await pool.as({ id: a2.id }, { owner: a2.id }); // account можно дать объектом
+    const [o1] = await t1.Организация().create({ name: 'Scope-1' }).rows();
+    const [o2] = await t2.Организация().create({ name: 'Scope-2' }).rows();
+    assert.equal(o1.account, a1.id);
+    assert.equal(o1.owner, a1.id);                                   // owner по умолчанию = account
+    assert.equal(o2.account, a2.id);
+    assert.equal(o2.owner, a2.id);
+    assert.deepEqual((await t1.Организация().rows()).map((r) => r.data.name), ['Scope-1']);
+    assert.deepEqual((await t2.Организация().rows()).map((r) => r.data.name), ['Scope-2']);
+    assert.equal(await t1.Организация({ name: 'Scope-2' }).count(), 0);
+  } finally {
+    await pool.close(); // scope'ы делят пул с корнем — закрывается один раз
   }
 });
 

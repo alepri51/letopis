@@ -75,7 +75,7 @@ before(async () => {
   execFileSync('node', [join(here, '../../db/apply.mjs'), `--dsn=${DSN}`, '--schema=parity', '--version=1'], {
     stdio: 'ignore',
   });
-  db = await connect({ dsn: DSN, schema: SCHEMA });
+  db = await connect({ enforceAccount: false, dsn: DSN, schema: SCHEMA });
   const rows = (await db.sql.unsafe(
     `SELECT id FROM "${SCHEMA}"."Account" WHERE 'System' = ANY(categories) LIMIT 1`,
   )) as unknown as { id: string }[];

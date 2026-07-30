@@ -19,7 +19,7 @@
  */
 //
 // FILE: lib/src/sql.ts
-// VERSION: 1.1.0
+// VERSION: 1.2.0
 // START_MODULE_CONTRACT
 //   PURPOSE: Read-side SQL-движок: Ctx, компиляция фильтров/операторов в параметризованный SQL, обход путей, исполнение с телеметрией и ретраем transient, билдеры insert/delete/closure.
 //   SCOPE: Ctx, runQuery, buildRead, Step, компиляторы фильтров/операторов/tags, resolveHop/leafType/linksTo, insert/multiInsert/delete/closure SQL, isTransient/hintTxRetry/retryDelay.
@@ -30,10 +30,11 @@
 // END_MODULE_CONTRACT
 //
 // START_MODULE_MAP
-//   Ctx - runtime-контекст (sql/registry/pgSchema/partition/account/enforce*/aclDecide/onQuery/slowMs)
+//   Ctx - runtime-контекст (sql/registry/pgSchema/partition/account+owner СКОУПА/enforce*/aclDecide/compileAcl/onQuery/slowMs)
 //   isTransient/hintTxRetry/RETRIES/retryDelay - классификация и ретрай transient-ошибок PG
 //   runQuery - единая точка исполнения запросов цепочек (+onQuery/slow-warn/ретрай)
 //   Step/SlotValue/nextNodeKey - модель шага цепочки и слотов связей
+//   guardScoped - гард enforceAccount: без идентичности вызова (db.as) читать/писать нельзя
 //   buildRead - компиляция шагов+модов в параметризованный read-запрос
 //   leafType/linksTo/resolveHop - навигация по Schema.links и типам полей
 //   insertSql/multiInsertSql/deleteSql/closureSql - билдеры записи/удаления
@@ -41,7 +42,10 @@
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.1.0 - ПОЛИМОРФНОЕ чтение: шаг матчит свой класс + всех потомков
+//   LAST_CHANGE: [v1.2.0 - Добавлен guardScoped: при enforceAccount без идентичности вызова
+//     (безличный корень — арендатора называет db.as) чтение и запись бросают ошибку с подсказкой;
+//     Ctx получил compileAcl (энфорсер компилится под субъекта скоупа, не на connect).
+//     Ранее: ПОЛИМОРФНОЕ чтение: шаг матчит свой класс + всех потомков
 //     (class = ANY вместо равенства), идентичность сущности стала парой (class, id) —
 //     DISTINCT ON/(class,id) IN/versions-join; ключи links берутся из колонки class строки,
 //     а не из литерала (forward/reverse/deep); ACL решается ПОКЛАССНО (deny на потомке не
@@ -60,14 +64,22 @@ export interface Ctx {
   registry: Registry;
   pgSchema: string;
   partition: string;
+  /** Арендатор ВЫЗОВА: заполнен у scoped-хендла db.as(account), пуст у корневого. */
   account?: string;
+  /** Дефолтный owner записей этого scope (db.as(account, { owner })). Default = account. */
   owner?: string;
   /** System-аккаунт — fallback для NOT NULL Entity.account (загружается при connect). */
   systemAccount?: string;
   /** Жёсткая изоляция арендатора: все чтения фильтруются, записи пришпилены к account. */
   enforceAccount?: boolean;
-  /** enforceAcl: скомпилированный на connect резолвер Rule/Resource (READ/WRITE/DELETE). */
+  /** enforceAcl: скомпилированный резолвер Rule/Resource (READ/WRITE/DELETE) для account ЭТОГО ctx. */
   aclDecide?: (cls: ClassDef, op: AclOp) => AclDecision;
+  /**
+   * enforceAcl: скомпилировать энфорсер под субъекта переданного ctx (пишет в c.aclDecide).
+   * Ставит connect(); зовут db.as() и reload. Один энфорсер = один субъект: memo в acl.ts
+   * ключуется классом+операцией БЕЗ аккаунта, переиспользование между scope — утечка решения.
+   */
+  compileAcl?: (c: Ctx) => Promise<void>;
   /** true внутри db.begin()-транзакции (write не оборачивает в begin повторно). */
   inTx?: boolean;
   /** true только у db.begin()-транзакций (не у внутренних): управляет подсказкой при 40P01/40001. */
@@ -575,16 +587,34 @@ const whereOf = (conds: (string | undefined)[]): string => {
   return list.length ? ` WHERE ${list.join(' AND ')}` : '';
 };
 
+// START_CONTRACT: guardScoped
+//   PURPOSE: enforceAccount без идентичности вызова — фильтровать нечем, значит изоляция не гарантирована: ошибка с подсказкой на db.as().
+//   INPUTS: { ctx: Ctx }
+//   OUTPUTS: { void }
+//   SIDE_EFFECTS: бросает 'letopis: enforceAccount is on — call db.as(account)…' на безличном (корневом) хендле
+//   LINKS: M-SQL, V-M-SQL, M-CHAIN, M-WRITE
+// END_CONTRACT: guardScoped
+/** Корневой хендл при enforceAccount читать/писать не может: арендатора называет db.as(). */
+export function guardScoped(ctx: Ctx): void {
+  if (ctx.enforceAccount && !ctx.account) {
+    throw new Error(
+      'letopis: enforceAccount is on — call db.as(account) to name the tenant of this call, ' +
+        'or connect({ enforceAccount: false }) for admin access',
+    );
+  }
+}
+
 // START_CONTRACT: buildRead
 //   PURPOSE: Скомпилировать цепочку шагов+модов в один параметризованный read-запрос (латеральный обход путей, latest-версии, asOf/versions/agg, keyset).
 //   INPUTS: { ctx: Ctx; steps: Step[]; mods: ChainMods; mode: ReadMode }
 //   OUTPUTS: { BuiltQuery - { text, params, keys } }
-//   SIDE_EFFECTS: none (строит SQL; ACL-проверка READ может бросить)
-//   ERRORS: pivot node not in path; enforceAccount pin; acl denies READ; deep on non-self hop; agg needs data.<path>
+//   SIDE_EFFECTS: none (строит SQL; guardScoped и ACL-проверка READ могут бросить)
+//   ERRORS: enforceAccount without db.as(); pivot node not in path; enforceAccount pin; acl denies READ; deep on non-self hop; agg needs data.<path>
 //   LINKS: M-SQL, V-M-SQL, M-ACL, M-DDL
 // END_CONTRACT: buildRead
 /** Построить читающий запрос по цепочке. */
 export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMode): BuiltQuery {
+  guardScoped(ctx);
   const p = new Params();
   const ent = entityTable(ctx.pgSchema);
   const pPart = p.push(ctx.partition);

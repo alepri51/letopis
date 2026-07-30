@@ -25,7 +25,7 @@ before(async () => {
   await admin.unsafe(`DROP SCHEMA IF EXISTS "${SCHEMA}" CASCADE`);
   await admin.end();
   execFileSync('node', [join(here, '../../db/apply.mjs'), `--dsn=${DSN}`, '--schema=wave4', '--version=1'], { stdio: 'ignore' });
-  db = await connect({ dsn: DSN, schema: SCHEMA });
+  db = await connect({ enforceAccount: false, dsn: DSN, schema: SCHEMA });
 });
 after(async () => db.close());
 
@@ -120,7 +120,7 @@ test('schema-sync: diff + breaking-отчёт (exit 1, БД не тронута)
 test('onQuery: событие на каждый запрос цепочки; slowMs помечает и warn-ит', async () => {
   // класс Customer: его schema-sync в тесте выше не менял (Service получил breaking-поле brand)
   const events: QueryEvent[] = [];
-  const hooked = await connect({ dsn: DSN, schema: SCHEMA, onQuery: (e) => events.push(e) });
+  const hooked = await connect({ enforceAccount: false, dsn: DSN, schema: SCHEMA, onQuery: (e) => events.push(e) });
   const [cli] = await hooked.Клиент().create({ name: 'Хук', phone: '+7 900 000-00-01' }).rows();
   await hooked.Клиент({ name: 'Хук' }).rows();
   await hooked.Клиент({}).count();
@@ -134,7 +134,7 @@ test('onQuery: событие на каждый запрос цепочки; slo
   assert.ok(events.every((e) => e.slow === false)); // slowMs не задан
 
   const slowSeen: QueryEvent[] = [];
-  const slow = await connect({ dsn: DSN, schema: SCHEMA, slowMs: 0, onQuery: (e) => slowSeen.push(e) });
+  const slow = await connect({ enforceAccount: false, dsn: DSN, schema: SCHEMA, slowMs: 0, onQuery: (e) => slowSeen.push(e) });
   await slow.Клиент({}).count();
   await slow.close();
   assert.ok(slowSeen.length >= 1 && slowSeen.every((e) => e.slow === true));
@@ -144,7 +144,7 @@ test('onQuery: событие на каждый запрос цепочки; slo
   const origWarn = console.warn;
   console.warn = (...a: unknown[]) => void warns.push(a.join(' '));
   try {
-    const warned = await connect({ dsn: DSN, schema: SCHEMA, slowMs: 0 });
+    const warned = await connect({ enforceAccount: false, dsn: DSN, schema: SCHEMA, slowMs: 0 });
     await warned.Клиент({}).count();
     await warned.close();
   } finally {

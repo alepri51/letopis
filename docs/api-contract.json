@@ -240,6 +240,7 @@
     "interceptedByDbProxy": [
       "accounts",
       "acl",
+      "as",
       "auth",
       "batch",
       "begin",
@@ -289,6 +290,7 @@
       "tags",
       "account",
       "owner",
+      "as",
       "begin",
       "commit",
       "rollback",
@@ -376,7 +378,7 @@
     },
     {
       "module": "tables",
-      "message": "letopis: accounts.purge requires an authenticated caller — connect({ account })"
+      "message": "letopis: accounts.purge requires an authenticated caller — call it from a scoped handle:"
     },
     {
       "module": "acl",
@@ -463,12 +465,24 @@
       "message": "letopis: create() takes no filter — <…>(id).create(…) fixes the id, searching is update()"
     },
     {
+      "module": "chain",
+      "message": "letopis: db.as(account) requires an account id (uuid or { id })"
+    },
+    {
       "module": "index",
       "message": "letopis: dot-цепочки над append-only Entity-хранилищем (TimescaleDB)."
     },
     {
       "module": "chain",
       "message": "letopis: duplicate link slot \"<…>\" in one write"
+    },
+    {
+      "module": "sql",
+      "message": "letopis: enforceAccount is on — call db.as(account) to name the tenant of this call,"
+    },
+    {
+      "module": "sql",
+      "message": "letopis: enforceAccount is on — call db.as(account)…"
     },
     {
       "module": "sql",
@@ -492,11 +506,11 @@
     },
     {
       "module": "index",
-      "message": "letopis: enforceAcl requires connect({ account })"
+      "message": "letopis: enforceAcl is on — call db.as(account) to name the subject"
     },
     {
       "module": "write",
-      "message": "letopis: Entity.account is NOT NULL — set .account(…) / connect({account}) or seed a System account (lib/sql/seed.auth.sql)"
+      "message": "letopis: Entity.account is NOT NULL — set .account(…) / db.as(account) or seed a System account (lib/sql/seed.auth.sql)"
     },
     {
       "module": "chain",

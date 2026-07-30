@@ -49,7 +49,7 @@ before(async () => {
   await admin.unsafe(`DROP SCHEMA IF EXISTS "${SCHEMA}" CASCADE`);
   await admin.end();
   execFileSync('node', [join(here, '../../db/apply.mjs'), `--dsn=${DSN}`, '--schema=salon', '--version=1'], { stdio: 'ignore' });
-  db = await connect({ dsn: DSN, schema: SCHEMA });
+  db = await connect({ enforceAccount: false, dsn: DSN, schema: SCHEMA });
   redis = new Redis(REDIS);
 });
 after(async () => {
@@ -102,7 +102,7 @@ test('Акт 1. Открытие: организация, локация, мас
 // покрывает: [2 up][127-137 UpOpts]
 // ===========================================================================
 test('Акт 2. up(): вход одной функцией на уже живой БД (docker пропускается)', async () => {
-  const dbUp = await up({ dsn: DSN, schema: 'salon', version: 1, quiet: true }); // [2][127-129][136]
+  const dbUp = await up({ enforceAccount: false, dsn: DSN, schema: 'salon', version: 1, quiet: true }); // [2][127-129][136]
   assert.equal(await dbUp.Организация({ name: 'Салон «Локоны»' }).count(), 1);    // та же схема v1.salon
   await dbUp.close();
 });
@@ -602,7 +602,7 @@ test('Акт 19. ACL: ресурс-субъект, ресурс-объект, п
 test('Акт 20. Аренда и наблюдаемость: enforceAccount, onQuery/slowMs, tags/owner в create', async () => {
   // отдельный арендатор: свои строки видит, чужие — нет
   const tenant = await db.accounts.set({ categories: ['Client'] });
-  const isoDb = await connect({ dsn: DSN, schema: SCHEMA, account: tenant.id, owner: tenant.id, enforceAccount: true }); // [123]
+  const isoDb = await (await connect({ dsn: DSN, schema: SCHEMA, enforceAccount: true })).as(tenant.id, { owner: tenant.id }); // [123]
   const [своя] = await isoDb.Организация().create({ name: 'Частная' }).rows();
   assert.equal(своя.account, tenant.id);                                           // [139 owner/account в create INSERT]
   assert.equal(своя.owner, tenant.id);
@@ -611,7 +611,7 @@ test('Акт 20. Аренда и наблюдаемость: enforceAccount, onQ
 
   // onQuery/slowMs — событие на каждый запрос
   const события: { mode: string; ms: number; slow: boolean }[] = [];
-  const obs = await connect({ dsn: DSN, schema: SCHEMA, onQuery: (e) => события.push(e), slowMs: 0 }); // [125][126]
+  const obs = await connect({ enforceAccount: false, dsn: DSN, schema: SCHEMA, onQuery: (e) => события.push(e), slowMs: 0 }); // [125][126]
   await obs.Услуга().count();
   await obs.close();
   assert.ok(события.length >= 1);

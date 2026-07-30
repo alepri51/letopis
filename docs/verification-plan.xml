@@ -177,7 +177,7 @@
       <test-files><file>lib/test/depth.test.ts</file><file>lib/test/salon.test.ts</file></test-files>
       <module-checks><check-1>cd lib &amp;&amp; npm test</check-1></module-checks>
       <scenarios>
-        <scenario-1 kind="success">Class/link/pivot chains read; create/update/delete write; link slots set/unset; batch; watch delivers events.</scenario-1>
+        <scenario-1 kind="success">Class/link/pivot chains read; create/update/delete write; link slots set/unset; batch; watch delivers events; db.as(account) yields a scoped handle on the same pool (two scopes are mutually invisible; the ACL enforcer is per-scope).</scenario-1>
         <scenario-2 kind="failure">Misuse of slots/set/create/commit throws the versioned guidance errors.</scenario-2>
       </scenarios>
       <required-log-markers><marker-1>none</marker-1></required-log-markers>
@@ -189,7 +189,7 @@
       <module-checks><check-1>cd lib &amp;&amp; npm test</check-1></module-checks>
       <scenarios>
         <scenario-1 kind="success">connect() returns a working EntityDb; cursorOf builds a keyset cursor.</scenario-1>
-        <scenario-2 kind="failure">enforceAcl without account throws; unknown account throws.</scenario-2>
+        <scenario-2 kind="failure">Reads/writes from the impersonal root handle under enforceAccount throw with the db.as() hint; db.as("") throws; enforceAcl with an unknown account throws.</scenario-2>
       </scenarios>
       <required-log-markers><marker-1>none</marker-1></required-log-markers>
       <coverage-gap>Test content not analyzed; enforceAcl error branches likely only indirectly covered.</coverage-gap>

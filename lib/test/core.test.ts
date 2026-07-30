@@ -17,7 +17,7 @@ const bookingId = (staff: string, start: string) => uuidv5(`v1.booking:entity:bo
 let db: EntityDb;
 
 before(async () => {
-  db = await connect({ dsn: DSN, schema: 'v1.booking' });
+  db = await connect({ enforceAccount: false, dsn: DSN, schema: 'v1.booking' });
   await db.sql.unsafe('TRUNCATE "v1.booking"."Entity"');
 });
 

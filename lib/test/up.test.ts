@@ -42,20 +42,20 @@ test('dockerRunArgs: volume по умолчанию, dataDir → bind, порт�
 });
 
 test('up(): живой postgres → docker skipped, схема применяется, db работает', async () => {
-  const db = await up({ dsn: DSN, schema: 'uptest', version: 1, quiet: true });
+  const db = await up({ enforceAccount: false, dsn: DSN, schema: 'uptest', version: 1, quiet: true });
   const [аня] = await db.Клиент().create({ name: 'Уп-Аня', phone: '+7 900' }).rows();
   assert.equal(аня.data.name, 'Уп-Аня');
   await db.close();
 });
 
 test('up() идемпотентен: повторный вызов не пересоздаёт схему', async () => {
-  const db = await up({ dsn: DSN, schema: 'uptest', version: 1, quiet: true });
+  const db = await up({ enforceAccount: false, dsn: DSN, schema: 'uptest', version: 1, quiet: true });
   assert.equal(await db.Клиент({ name: 'Уп-Аня' }).count(), 1); // данные первого вызова живы
   await db.close();
 });
 
 test('fresh: true — дроп и накат заново', async () => {
-  const db = await up({ dsn: DSN, schema: 'uptest', version: 1, fresh: true, quiet: true });
+  const db = await up({ enforceAccount: false, dsn: DSN, schema: 'uptest', version: 1, fresh: true, quiet: true });
   assert.equal(await db.Клиент({ name: 'Уп-Аня' }).count(), 0);
   await db.close();
 });
@@ -82,7 +82,7 @@ test('seeds: свои файлы с маркером "<SCHEMA-NAME>" вмест�
      INSERT INTO "<SCHEMA-NAME>"."Account" (categories, data) VALUES ('{System}', '{"name":"UpSeed"}');`,
     'utf8',
   );
-  const db = await up({ dsn: DSN, schema: 'uptest_seeded', version: 1, seeds: [seedFile], quiet: true });
+  const db = await up({ enforceAccount: false, dsn: DSN, schema: 'uptest_seeded', version: 1, seeds: [seedFile], quiet: true });
   assert.equal(await db.Штука().count(), 0); // свой класс виден реестру
   const [шт] = await db.Штука().create({ name: 'первая' }).rows(); // System-аккаунт из сида позволяет писать
   assert.equal(шт.data.name, 'первая');
@@ -96,7 +96,7 @@ test('seeds: свои файлы с маркером "<SCHEMA-NAME>" вмест�
 test('несуществующая база на живом сервере создаётся автоматически', async () => {
   const url = new URL(DSN);
   url.pathname = '/uptest_db';
-  const db = await up({ dsn: url.toString(), schema: 'uptest', version: 1, quiet: true });
+  const db = await up({ enforceAccount: false, dsn: url.toString(), schema: 'uptest', version: 1, quiet: true });
   assert.ok(await db.Клиент().count() >= 0); // схема в свежей базе работает
   await db.close();
 });

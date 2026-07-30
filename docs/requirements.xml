@@ -98,7 +98,7 @@
       <Actor>Operator</Actor>
       <Action>Enforce ACL on reads and writes</Action>
       <Goal>Restrict access per account by Resource/Rule with weighted precedence</Goal>
-      <Preconditions>connect({ account, enforceAcl:true }); resources/rules seeded</Preconditions>
+      <Preconditions>(await connect({ enforceAcl:true })).as(account); resources/rules seeded</Preconditions>
       <AcceptanceCriteria>Deny-by-default; highest-weight matching rule wins; row filters injected into reads; denied writes throw</AcceptanceCriteria>
       <Priority>high</Priority>
       <RelatedFlows>DF-006</RelatedFlows>

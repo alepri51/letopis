@@ -38,7 +38,7 @@ before(async () => {
   await admin.end();
   execFileSync('node', [join(here, '../../db/apply.mjs'), `--dsn=${DSN}`, '--schema=acl', '--version=1'], { stdio: 'ignore' });
 
-  sys = await connect({ dsn: DSN, schema: SCHEMA });
+  sys = await connect({ enforceAccount: false, dsn: DSN, schema: SCHEMA });
   // наследование для lineage-прав: Vehicle → Car → SportsCar
   await sys.sql.unsafe(`
     INSERT INTO "${SCHEMA}"."Schema" (partition, id, alias, category, ancestor, attributes, meta, "order") VALUES
@@ -46,7 +46,7 @@ before(async () => {
       ('entity', 'Car',       'Машина',    'HUB', 'Vehicle', '{"id":"any","name":"string"}', '{"abstract":false}', 901),
       ('entity', 'SportsCar', 'Спорткар',  'HUB', 'Car',     '{"id":"any","name":"string"}', '{"abstract":false}', 902)`);
   await sys.close();
-  sys = await connect({ dsn: DSN, schema: SCHEMA }); // свежий реестр
+  sys = await connect({ enforceAccount: false, dsn: DSN, schema: SCHEMA }); // свежий реестр
 
   anon = await sys.accounts.set({ categories: ['Anonymous'], data: { name: 'гость' } });
   user = await sys.accounts.set({ categories: ['User'], data: { name: 'юзер' } });
@@ -121,7 +121,7 @@ test('enforceAcl: предикат owner=$account сужает чтение ЗА
   }
   // enforceAccount: false — здесь под тестом ACL-предикаты, а не изоляция арендатора
   // (с 0.20.0 изоляция включена по умолчанию и скрыла бы строки System-аккаунта)
-  const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true, enforceAccount: false });
+  const u = await (await connect({ dsn: DSN, schema: SCHEMA, enforceAcl: true, enforceAccount: false })).as(user.id);
   try {
     assert.equal(await u.запись().count(), 3); // чужие не посчитаны
     const все = await u.запись().rows();
@@ -138,6 +138,29 @@ test('enforceAcl: предикат owner=$account сужает чтение ЗА
   }
 });
 
+test('enforceAcl: memo энфорсера не течёт между scope одного пула', async () => {
+  // Ключ memo в acl.ts — «класс + операция», БЕЗ субъекта: один энфорсер обязан иметь один
+  // фиксированный субъект. Проверяем, что db.as() компилит его на scope, а не переиспользует
+  // решение первого арендатора (иначе — межтенантная утечка авторизации).
+  const pool = await connect({ dsn: DSN, schema: SCHEMA, enforceAcl: true, enforceAccount: false });
+  try {
+    const u = await pool.as(user.id);
+    const o = await pool.as(other.id);
+    // booking.own:READ → предикат owner=$account, т.е. у каждого scope он СВОЙ
+    await мкЗапись(u.запись(), 'st-memo-u', '2026-09-01T10:00:00+03:00').rows();
+    await мкЗапись(o.запись(), 'st-memo-o', '2026-09-02T10:00:00+03:00').rows();
+    const свои = await u.запись().rows();
+    const чужие = await o.запись().rows();
+    assert.ok(свои.length > 0 && чужие.length > 0);
+    assert.ok(свои.every((r) => r.owner === user.id));
+    assert.ok(чужие.every((r) => r.owner === other.id));
+    // и в обратном порядке (второй scope не «переучивает» первый)
+    assert.ok((await u.запись().rows()).every((r) => r.owner === user.id));
+  } finally {
+    await pool.close();
+  }
+});
+
 test('enforceAcl: статический data-шаблон — виден только срез', async () => {
   const [салон] = await sys.Организация().create({ name: 'Салон ACL' }).rows();
   await sys.Организация(салон.id).Услуга().create({ name: 'Экспресс', duration: 30 }).rows();
@@ -145,7 +168,7 @@ test('enforceAcl: статический data-шаблон — виден тол
 
   // enforceAccount: false — здесь под тестом ACL-предикаты, а не изоляция арендатора
   // (с 0.20.0 изоляция включена по умолчанию и скрыла бы строки System-аккаунта)
-  const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true, enforceAccount: false });
+  const u = await (await connect({ dsn: DSN, schema: SCHEMA, enforceAcl: true, enforceAccount: false })).as(user.id);
   try {
     const услуги = await u.Услуга().rows();
     assert.ok(услуги.length >= 1);
@@ -159,7 +182,7 @@ test('enforceAcl: статический data-шаблон — виден тол
 test('enforceAcl запись: INSERT пришпилен к owner=$account, чужие цели не находятся', async () => {
   // enforceAccount: false — здесь под тестом ACL-предикаты, а не изоляция арендатора
   // (с 0.20.0 изоляция включена по умолчанию и скрыла бы строки System-аккаунта)
-  const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true, enforceAccount: false });
+  const u = await (await connect({ dsn: DSN, schema: SCHEMA, enforceAcl: true, enforceAccount: false })).as(user.id);
   try {
     const [своя] = await мкЗапись(u.запись(), 'st-мой', '2026-08-02T10:00:00+03:00').rows();
     assert.equal(своя.owner, user.id); // пришпилено правилом
@@ -189,7 +212,7 @@ test('enforceAcl: tenant-шаблон account=$account', async () => {
   await sys.Клиент().account(other.id).create({ name: 'Чужой клиент', phone: '+7 905 000-00-02' }).rows();
   // enforceAccount: false — здесь под тестом ACL-предикаты, а не изоляция арендатора
   // (с 0.20.0 изоляция включена по умолчанию и скрыла бы строки System-аккаунта)
-  const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true, enforceAccount: false });
+  const u = await (await connect({ dsn: DSN, schema: SCHEMA, enforceAcl: true, enforceAccount: false })).as(user.id);
   try {
     const мои = await u.Клиент().rows();
     assert.deepEqual(мои.map((r) => r.data.name), ['Мой клиент']);
@@ -208,7 +231,7 @@ test('delete-каскад: замыкание проверяется по все
 
   // enforceAccount: false — здесь под тестом ACL-предикаты, а не изоляция арендатора
   // (с 0.20.0 изоляция включена по умолчанию и скрыла бы строки System-аккаунта)
-  const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true, enforceAccount: false });
+  const u = await (await connect({ dsn: DSN, schema: SCHEMA, enforceAcl: true, enforceAccount: false })).as(user.id);
   try {
     // Org: DELETE-правила нет → deny-by-default внутри каскада; нужен confirm —
     // превью БД не трогает и каскадные права не проверяет, а тут проверяем откат
@@ -229,7 +252,7 @@ test('delete-каскад: замыкание проверяется по все
 test('watch: события отдаются только при БЕЗУСЛОВНОМ allow', async () => {
   // enforceAccount: false — здесь под тестом ACL-предикаты, а не изоляция арендатора
   // (с 0.20.0 изоляция включена по умолчанию и скрыла бы строки System-аккаунта)
-  const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true, enforceAccount: false });
+  const u = await (await connect({ dsn: DSN, schema: SCHEMA, enforceAcl: true, enforceAccount: false })).as(user.id);
   const seen: WatchEvent[] = [];
   const stop = await u.watch((e) => seen.push(e));
   try {
@@ -295,7 +318,7 @@ test('полиморфное чтение + ACL: deny на потомке НЕ �
 
   // enforceAccount: false — здесь под тестом ACL-предикаты, а не изоляция арендатора
   // (с 0.20.0 изоляция включена по умолчанию и скрыла бы строки System-аккаунта)
-  const u = await connect({ dsn: DSN, schema: SCHEMA, account: user.id, enforceAcl: true, enforceAccount: false });
+  const u = await (await connect({ dsn: DSN, schema: SCHEMA, enforceAcl: true, enforceAccount: false })).as(user.id);
   try {
     // Vehicle разрешён, SportsCar запрещён → его строк в выборке по родителю НЕТ
     const rows = await u.Vehicle().tags(T).rows();

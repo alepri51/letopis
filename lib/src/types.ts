@@ -3,7 +3,7 @@
  */
 //
 // FILE: lib/src/types.ts
-// VERSION: 1.2.0
+// VERSION: 1.3.0
 // START_MODULE_CONTRACT
 //   PURPOSE: Общий словарь типов всей библиотеки letopis.
 //   SCOPE: сущности, пути, определения классов, типы полей, фильтры и операторы, курсоры/план записи/модификаторы цепочки, записи auth/ACL, событие запроса и опции connect + символ OP.
@@ -35,16 +35,16 @@
 //   AclOp - операция над данными = категория Resource: 'READ' | 'WRITE' | 'DELETE'.
 //   AclDecision - решение ACL: allow + победившее правило + остаточный filter + code/message.
 //   QueryEvent - событие хука onQuery: режим, классы, ms, rows, slow.
-//   ConnectOpts - опции connect(): dsn/schema/partition/account/owner/max/enforceAccount/enforceAcl/onQuery/slowMs.
+//   ConnectOpts - опции connect(): dsn/schema/partition/max/enforceAccount/enforceAcl/onQuery/slowMs (account/owner — не здесь, их даёт db.as()).
 //   RESERVED_CLASS_NAMES - имена, перехватываемые Proxy до резолва класса (шаг недостижим под этим именем).
 //   reservedNamesOf - зарезервированные имена среди {id, alias} определения класса.
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.2.0 - 'link' убран из RESERVED_CLASS_NAMES (охранник цепочки снят, имя
-//     снова резолвится как класс) → 51 имя; enforceAccount задокументирован как Default true.
-//     Ранее: добавлены RESERVED_CLASS_NAMES/reservedNamesOf (гвард имён классов,
-//     шадоуемых Proxy); JSDoc enforceAcl разведён с db.reloadSchema()]
+//   LAST_CHANGE: [v1.3.0 - BREAKING: из ConnectOpts удалены account/owner (арендатор — свойство
+//     ВЫЗОВА: db.as(account, { owner })); 'as' добавлен в RESERVED_CLASS_NAMES → 52 имени.
+//     Ранее: 'link' убран из RESERVED_CLASS_NAMES (охранник цепочки снят, имя снова
+//     резолвится как класс); enforceAccount задокументирован как Default true]
 // END_CHANGE_SUMMARY
 //
 // START_BLOCK_ENTITY_TYPES
@@ -295,16 +295,16 @@ export interface ConnectOpts {
   schema: string;
   /** Партиция данных. Default 'entity'. */
   partition?: string;
-  /** Дефолтный account для записей. */
-  account?: string;
-  /** Дефолтный owner для записей. Default = account. */
-  owner?: string;
+  // NB: опций account/owner здесь БОЛЬШЕ НЕТ (сняты в 0.20.0). Арендатор — свойство ВЫЗОВА,
+  // а не подключения: один пул обслуживает разных арендаторов. Идентичность даёт db.as():
+  //   const db = await connect({ dsn, schema }); const t = await db.as(accountId)
   /** Размер пула соединений. Default 10. */
   max?: number;
   /**
    * Жёсткая изоляция арендатора: чтения фильтруются по account, записи пришпилены к нему.
-   * **Default true** (с 0.20.0). Действует только при заданном `account` — без него
-   * фильтровать нечем. Явный `.account(чужой)` при включённой изоляции — ошибка.
+   * **Default true** (с 0.20.0). Идентичность берётся у хендла `db.as(account)`; на
+   * безличном (корневом) хендле чтение/запись при включённой изоляции — ошибка с подсказкой.
+   * Явный `.account(чужой)` на scoped-хендле — тоже ошибка.
    * Выключать (`false`) осмысленно лишь для админских/сервисных подключений,
    * которым нужен доступ ко всем арендаторам.
    */
@@ -313,7 +313,8 @@ export interface ConnectOpts {
    * ACL по Resource/Rule: категории READ/WRITE/DELETE, pattern — шаблон строки Entity
    * (колонки + "$account"). Каждый шаг цепочки проверяется на READ, записи — WRITE,
    * delete — DELETE (включая классы каскада); предикат победившего правила вливается
-   * в SQL до сортировки/лимита. Требует account. Deny-by-default.
+   * в SQL до сортировки/лимита. Субъект даёт db.as() (энфорсер компилится на scope).
+   * Deny-by-default.
    * **Default false** — остаётся opt-in: включённый по умолчанию deny-by-default без
    * настроенных Resource/Rule давал бы пустые выборки. Пока выключен, connect() один раз
    * на процесс печатает предупреждение.
@@ -347,7 +348,7 @@ export const RESERVED_CLASS_NAMES: readonly string[] = [
   'create', 'update', 'set', 'delete', 'anonymize', 'purge', 'alias', 'tags', 'account',
   'owner',
   // db-уровень (makeDb handler): switch …
-  'begin', 'commit', 'rollback', 'lock', 'batch', 'watch', 'close', 'reloadSchema',
+  'as', 'begin', 'commit', 'rollback', 'lock', 'batch', 'watch', 'close', 'reloadSchema',
   'registry', 'sql',
   // … и фасады, которые разбираются if'ами ДО switch (служебные таблицы, auth, acl)
   'accounts', 'credentials', 'resources', 'rules', 'schema', 'auth', 'acl',

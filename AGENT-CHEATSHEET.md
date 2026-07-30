@@ -64,8 +64,9 @@ import { up, connect, uuidv5 } from 'letopis'
 // 1) Поднять всё. seeds ОБЯЗАТЕЛЕН для своего домена — иначе зальётся демо-booking!
 const db = await up({ schema: 'myapp', version: 1, seeds: ['/abs/path/myapp.sql'] })
 //   up():      schema — БАЗОВОЕ имя без точек + version → PG-схема "v1.myapp"
-//   connect(): schema — ПОЛНОЕ имя с версией, 'v1.myapp'; ещё dsn, account, partition,
-//              enforceAccount, enforceAcl, onQuery, slowMs, max
+//   connect(): schema — ПОЛНОЕ имя с версией, 'v1.myapp'; ещё dsn, partition,
+//              enforceAccount, enforceAcl, onQuery, slowMs, max (account/owner — НЕ здесь:
+//              арендатора вызова даёт db.as(account, { owner? }), см. граблю 6)
 //   up() принимает всё то же + dsn, container, image, dataDir, redisPort, seeds,
 //              fresh, quiet, waitTimeoutMs
 
@@ -84,26 +85,31 @@ await db.schema.define({ id: 'ProjectTask', alias: 'ЗадачаПроекта',
   ] })
 await db.reloadSchema()          // define() зовёт его сам; нужен после правки Schema голым SQL
 
-// 3) Писать: глагол — ЗВЕНО, исполняет ТЕРМИНАЛ
-const [n] = await db.Заметка().create({ text: 'привет' }).rows()
-await db.Заметка(n.id).update({ done: true }).rows()      // новая версия, deep-merge
+// 3) Назвать арендатора ВЫЗОВА: цепочки идут с этого хендла (грабля 6).
+//    В вебе — на запрос: const t = await db.as(req.accountId)
+const [sys] = await db.accounts.find({ category: 'System' })   // на старте он один
+const t = await db.as(sys.id)
 
-// 4) Читать. АТРИБУТЫ ЛЕЖАТ В row.data, НЕ в корне row:
+// 4) Писать: глагол — ЗВЕНО, исполняет ТЕРМИНАЛ
+const [n] = await t.Заметка().create({ text: 'привет' }).rows()
+await t.Заметка(n.id).update({ done: true }).rows()      // новая версия, deep-merge
+
+// 5) Читать. АТРИБУТЫ ЛЕЖАТ В row.data, НЕ в корне row:
 //    Row = { id, class, data, links, tags, account, owner, updated, $deleted?, $depth? }
-const [r] = await db.Заметка({ done: true }).rows()
+const [r] = await t.Заметка({ done: true }).rows()
 r.data.text          // ← так
 // r.text            // ← undefined, БЕЗ ошибки
-await db.Заметка({ done: true }).rows()                   // сущности последнего шага
-await db.Заметка().sort('updated', 'desc').limit(10).rows()
-await db.Заметка(n.id).versions()                         // вся история
-await db.Заметка(n.id).asOf('2026-07-01T00:00:00Z').first()   // как было
+await t.Заметка({ done: true }).rows()                   // сущности последнего шага
+await t.Заметка().sort('updated', 'desc').limit(10).rows()
+await t.Заметка(n.id).versions()                         // вся история
+await t.Заметка(n.id).asOf('2026-07-01T00:00:00Z').first()   // как было
 
-// 5) Удалять — две ступени
-await db.Заметка(n.id).delete().rows()                    // ПРЕВЬЮ: что удалится, БД цела
-await db.Заметка(n.id).delete({ confirm: true }).rows()    // tombstone + каскад (обратимо)
-await db.Заметка(n.id).purge({ confirm: true }).rows()     // физически, необратимо, ТОЛЬКО по tombstone
+// 6) Удалять — две ступени
+await t.Заметка(n.id).delete().rows()                    // ПРЕВЬЮ: что удалится, БД цела
+await t.Заметка(n.id).delete({ confirm: true }).rows()    // tombstone + каскад (обратимо)
+await t.Заметка(n.id).purge({ confirm: true }).rows()     // физически, необратимо, ТОЛЬКО по tombstone
 
-await db.close()
+await db.close()     // один раз на пул: scope'ы делят с корнем одно соединение
 ```
 
 ## Хочу X → зову Y
@@ -143,6 +149,7 @@ ilike starts ends has hasAny hasAll exists isNull not or`.
 | `db.acl` | `check(endpoint)` · `checkData(class, READ\|WRITE\|DELETE)` · `reload()` |
 | `db.registry` | интроспекция схемы без SQL: `all` — массив `ClassDef`, `find(name)` → `ClassDef \| undefined`, `resolve(name)` → `ClassDef` либо ошибка со списком известных, `has(name)` → boolean. `ClassDef = { id, alias, category, ancestor, ancestors, descendants, attributes, links, strictEnds, meta, abstract, order, idGen, check, fieldTypes }`; `find`/`resolve`/`has` принимают id ИЛИ alias |
 | `db.sql` | голый postgres-клиент (EXPLAIN, ручной SQL) |
+| `db.as(account, { owner? })` | **хендл того же пула от имени аккаунта** — арендатор ВЫЗОВА и субъект ACL; под `enforceAccount` (default) цепочки идут только с него (грабля 6) |
 | `db.begin/commit/rollback` · `db.batch(n)` · `db.watch(cb)` · `db.close()` · `db.entity(x)` | транзакции, батчи, realtime, старт пути с готового узла |
 
 ## Грабли — читать до первого запуска
@@ -156,13 +163,18 @@ ilike starts ends has hasAny hasAll exists isNull not or`.
 4. **`.purge()` на живой сущности вернёт `[]` БЕЗ ошибки** — это «нечего стирать»,
    а не «стёрто». Сначала `.delete({confirm:true})`.
 5. **`.delete()` без `confirm` ничего не удаляет** — это превью.
-6. **Изоляция арендатора ВКЛЮЧЕНА по умолчанию** (`enforceAccount: true` с 0.20.0):
-   если передал `account`, все чтения фильтруются по нему, а записи к нему пришпилены —
-   чужие строки просто не видны. Без `account` фильтровать нечем, поведение прежнее.
-   Нужен доступ ко всем арендаторам (админка, миграция) — передай `enforceAccount: false`
-   явно. **Авторизация (`enforceAcl`) по умолчанию ВЫКЛЮЧЕНА**: права `Resource`/`Rule`
-   не проверяются вообще, и `connect()` об этом предупреждает в консоль. Для прода —
-   `connect({ account, enforceAcl: true })`.
+6. **Арендатор — свойство ВЫЗОВА, а не подключения.** В `connect()` опций `account`/`owner
+   НЕТ` (сняты в 0.20.0). Идентичность даёт `db.as(account, { owner? })` — хендл того же
+   пула: `const db = await connect({dsn, schema}); const t = await db.as(accountId)`.
+   Изоляция (`enforceAccount`) **ВКЛЮЧЕНА по умолчанию**: с `t` все чтения фильтруются по
+   его account, записи пришпилены, чужой `.account()` — ошибка. С безличного корня чтение
+   и запись — **ошибка** `enforceAccount is on — call db.as(account)…`, а не тихая выдача
+   всего. Админский доступ ко всем арендаторам (миграция, дев-скрипт) — явным
+   `connect({ …, enforceAccount: false })`. `close()` — один раз на пул, с любого хендла.
+   **Авторизация (`enforceAcl`) по умолчанию ВЫКЛЮЧЕНА**: права `Resource`/`Rule` не
+   проверяются вообще, и `connect()` об этом предупреждает в консоль. Для прода —
+   `connect({ enforceAcl: true })` + `db.as(account)` (субъект правил — аккаунт scope,
+   у каждого scope свой скомпилированный энфорсер).
 7. **Нужен `account`.** `Entity.account` NOT NULL; дефолт — Account, у которого в
    **`categories text[]`** есть `'System'`. Колонка называется `categories` и это массив,
    **не `category`**. Нет такого аккаунта → первый `create()` бросит ошибку.

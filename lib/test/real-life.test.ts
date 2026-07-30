@@ -29,7 +29,7 @@ const час = (r: Row) => new Date(String(r.data.start_datetime)).getUTCHours()
 const bookingId = (master: Row, startIso: string) => uuidv5(`v1.booking:entity:booking:${master.id}:${startIso}`);
 
 before(async () => {
-  db = await connect({ dsn: DSN, schema: 'v1.booking' });
+  db = await connect({ enforceAccount: false, dsn: DSN, schema: 'v1.booking' });
   await db.sql.unsafe('TRUNCATE "v1.booking"."Entity"');
 
   // Салон, зал, мастера, каталог, навыки — связи dot-цепочками

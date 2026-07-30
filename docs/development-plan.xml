@@ -181,9 +181,9 @@
     <M-CONNECT NAME="Connect" TYPE="ENTRY_POINT" LAYER="6" ORDER="1" STATUS="done">
       <contract>
         <purpose>Open a connection, load the registry, optionally compile ACL enforcement, and return an EntityDb; re-export the public API</purpose>
-        <inputs><param name="opts" type="ConnectOpts { dsn, schema, partition?, account?, enforceAccount?, enforceAcl?, onQuery?, slowMs? }" /></inputs>
+        <inputs><param name="opts" type="ConnectOpts { dsn, schema, partition?, max?, enforceAccount?=true, enforceAcl?, onQuery?, slowMs? }" /></inputs>
         <outputs><param name="db" type="EntityDb" /><param name="cursor" type="Cursor (cursorOf)" /></outputs>
-        <errors><error code="enforceAcl requires connect({ account })" /><error code="enforceAcl — account not found" /></errors>
+        <errors><error code="enforceAcl is on — call db.as(account) to name the subject" /><error code="enforceAcl — account not found" /></errors>
       </contract>
       <interface><fn-connect PURPOSE="open EntityDb" /><fn-cursorOf PURPOSE="keyset cursor" /></interface>
       <depends>M-SCHEMA, M-CHAIN, M-TABLES, M-ACL, M-SQL, M-TYPES, M-UP</depends>
@@ -353,7 +353,7 @@
       <step-3>return AuthResult { account, credential } or null</step-3>
       <evidence>null on failure; no secret logged</evidence>
     </DF-005>
-    <DF-006 NAME="AclEnforce" TRIGGER="connect({ account, enforceAcl:true }) then any read/write">
+    <DF-006 NAME="AclEnforce" TRIGGER="connect({ enforceAcl:true }).as(account) then any read/write">
       <step-1>compileEnforcer builds (ClassDef,op)→AclDecision for the account+categories</step-1>
       <step-2>buildRead injects row filter / denies READ; aclWrite denies WRITE/DELETE</step-2>
       <evidence>acl denies &lt;op&gt; on &lt;class&gt; Error; deny-by-default</evidence>

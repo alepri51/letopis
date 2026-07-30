@@ -6,14 +6,15 @@ Dot-цепочки над append-only Entity-хранилищем (TimescaleDB).
 ```ts
 import { connect } from 'letopis'
 
-const db = await connect({ dsn: 'postgres://…', schema: 'v1.booking' })
+const db = await connect({ dsn: 'postgres://…', schema: 'v1.booking' })  // пул, безличный
+const t  = await db.as(accountId)   // арендатор ВЫЗОВА: кто именно делает эти запросы (§10.6)
 
 // чтение: пути по графу
-const пути = await db.Мастер({ name: 'Вася' }).навык().Услуга().run()
+const пути = await t.Мастер({ name: 'Вася' }).навык().Услуга().run()
 // [ { Мастер: Row, навык: Row, Услуга: Row }, … ]
 
 // запись: операции — звенья, исполняет терминал
-await db.Организация(org).Мастер().create({ name: 'Вася', phone: '+7 900 …' }).rows()
+await t.Организация(org).Мастер().create({ name: 'Вася', phone: '+7 900 …' }).rows()
 ```
 
 ## Возможности
@@ -52,7 +53,7 @@ await db.Организация(org).Мастер().create({ name: 'Вася', p
 - Пароли (scrypt), api-ключи, key-secret, external identity (oauth/sso/telegram), TOTP, одноразовые коды (§9.1).
 - Сессии во внешнем Redis (клиент инжектируется, §9.1).
 - ACL: `Resource` / `Rule`, `enforceAcl` — предикаты строк вливаются в SQL до сортировки/лимита; наследование прав по классам (§9.2).
-- Изоляция арендатора `enforceAccount` (§10.6).
+- Изоляция арендатора `enforceAccount` **включена по умолчанию**; арендатора называет `db.as(account)` — свойство ВЫЗОВА, не подключения (§10.6).
 
 **Эксплуатация**
 - `up()` — dev-bootstrap одной функцией: Docker (TimescaleDB pg17 + Redis) + схема + сиды + connect (§1, §1.1).
@@ -109,9 +110,14 @@ const db = await up({ schema: 'booking', version: 1 })   // → PG-схема "v
 // [letopis.up] schema "v1.booking" applied (3 files)
 // [letopis.up] connected (schema "v1.booking")
 
-const [org]  = await db.Организация().create({ name: 'BarberPro' }).rows()
-const [вася] = await db.Организация(org).Мастер().create({ name: 'Вася', phone: '+7 900 …' }).rows()
-await db.close()
+// db — безличный пул: изоляция арендатора включена по умолчанию, поэтому цепочки идут
+// от ИМЕНИ аккаунта (§10.6). На старте единственный аккаунт — System из сида.
+const [sys] = await db.accounts.find({ category: 'System' })
+const t = await db.as(sys.id)
+
+const [org]  = await t.Организация().create({ name: 'BarberPro' }).rows()
+const [вася] = await t.Организация(org).Мастер().create({ name: 'Вася', phone: '+7 900 …' }).rows()
+await db.close()   // scope'ы делят пул с корнем — закрывать один раз
 ```
 
 Идемпотентно: живой postgres на `dsn` → docker пропускается; существующая схема не трогается.
@@ -204,13 +210,17 @@ const db = await up({
 })
 ```
 
-**3. Данные — работают сразу** (System-аккаунт из сида закрывает `account`/`owner`):
+**3. Данные — работают сразу.** Цепочки идут от имени аккаунта (`db.as`, §10.6); System-аккаунт
+из сида — валидное «имя» для дев-скриптов и он же дефолт колонок `account`/`owner`:
 
 ```ts
-const [n] = await db.Заметка().create({ title: 'Купить хлеб' }).rows()
-const [t] = await db.Тег().create({ name: 'дом' }).rows()
-await db.Заметка(n).помечена().create().Тег.set(t).rows()   // связь Note ↔ Tag (§6.1)
-const активные = await db.Заметка({ done: false }).rows()
+const [sys] = await db.accounts.find({ category: 'System' })
+const s = await db.as(sys.id)
+
+const [n] = await s.Заметка().create({ title: 'Купить хлеб' }).rows()
+const [t] = await s.Тег().create({ name: 'дом' }).rows()
+await s.Заметка(n).помечена().create().Тег.set(t).rows()   // связь Note ↔ Tag (§6.1)
+const активные = await s.Заметка({ done: false }).rows()
 await db.close()
 ```
 
@@ -309,9 +319,9 @@ GIN-кандидатам, затем перепроверка условий н�
 |---|---|
 | цепочка | `account` `after` `alias` `anonymize` `asOf` `avg` `count` `countBy` `create` `deep` `delete` `entity` `exact` `execute` `first` `ids` `limit` `max` `min` `offset` `owner` `purge` `rows` `run` `set` `sort` `sum` `tags` `then` `update` `versions` `withDeleted` |
 | батч `db.batch(n)` | `discard` `size` (+ `run` / `execute` из строки выше) |
-| корень `db` | `accounts` `acl` `auth` `batch` `begin` `close` `commit` `credentials` `lock` `registry` `reloadSchema` `resources` `rollback` `rules` `schema` `sql` `watch` |
+| корень `db` | `accounts` `acl` `as` `auth` `batch` `begin` `close` `commit` `credentials` `lock` `registry` `reloadSchema` `resources` `rollback` `rules` `schema` `sql` `watch` |
 
-Всего 51 имя. `then` занят во всех трёх Proxy — иначе цепочка выглядела бы thenable и
+Всего 52 имени. `then` занят во всех трёх Proxy — иначе цепочка выглядела бы thenable и
 ломала `await`. Фасады `accounts`/`credentials`/`resources`/`rules`/`schema`/`auth`/`acl`
 разбираются на корне `db` до резолва класса.
 
@@ -738,7 +748,7 @@ db.Мастер({…}).alias('Исполнитель')         // ключ ша�
 | `deep(max?)` | текущий шаг (self-hop) | рекурсивные дети, `$depth` (§ 10.4) | — |
 | `exact()` | текущий шаг | снять полиморфизм: только свой класс, без потомков (§ 3.3) | — (запись и так строго по своему классу) |
 | `tags(v)` | текущий шаг | фильтр по колонке | **значение** тегов при `create()` (string \| string[]) |
-| `account(v)` / `owner(v)` | текущий шаг | фильтр по колонке | **значение** при `create()` |
+| `account(v)` / `owner(v)` | текущий шаг | фильтр по колонке | **значение** при `create()`; арендатор всей цепочки — не здесь, а `db.as()` (§ 10.6) |
 | `.Класс.set(x)` / `.Класс.unset()` | слот связи — после глагола записи | — | записать / снять конец связи БЕЗ участия в фильтре целей (§ 6.1) |
 | `alias(name)` | текущий шаг | ключ в путях | — |
 
@@ -958,7 +968,8 @@ await db.rules.set({ account: 'authenticated:ACCOUNT', resource: 'shop:API', per
 ```
 
 Связка с Entity: `account`/`owner` NOT NULL, default — System-аккаунт; фильтры и значения —
-модификаторы `.account()/.owner()`; профиль владельца — `db.accounts.get(row.owner)`.
+хендл `db.as(account, { owner })` (§ 10.6) либо точечные модификаторы `.account()/.owner()`;
+профиль владельца — `db.accounts.get(row.owner)`.
 Сид `lib/sql/seed.auth.sql`: System + 16 Resource + 12 Rule.
 
 ### 9.1 Вход: `db.auth` — много кредов на аккаунт
@@ -1076,14 +1087,15 @@ await db.acl.checkData(user, 'Org', 'READ')
 db.acl.reload()                                     // сброс кэша Resource/Rule фасада
 ```
 
-**`connect({ account, enforceAcl: true })`** — те же решения в цепочках: каждый шаг —
+**`connect({ enforceAcl: true })` + `db.as(субъект)`** — те же решения в цепочках: каждый шаг —
 `READ`, `create()`/`update()`/anonymize/батчи — `WRITE`, `delete()` — `DELETE` **по всем классам каскада**
 (deny в замыкании откатывает транзакцию); `watch()` отдаёт события только безусловных
-allow-классов (payload нечем проверить предикат). Правила снимаются на connect и компилятся
-в memo-резолвер; правки `Resource`/`Rule` подхватывает `db.reloadSchema()` (§ 11.10).
+allow-классов (payload нечем проверить предикат). Субъекта даёт `db.as()`: правила снимаются
+и компилятся в memo-резолвер **на каждый scope** (у своего аккаунта — свой резолвер, ключ memo
+субъекта не содержит); правки `Resource`/`Rule` подхватывает `db.reloadSchema()` (§ 11.10).
 
 ```ts
-const u = await connect({ dsn, schema, account: user.id, enforceAcl: true })
+const u = await (await connect({ dsn, schema, enforceAcl: true })).as(user.id)
 await u.запись().rows()      // [7.6 ms] только owner = user.id — предикат в WHERE заранее
 await u.запись().count()     // честный count по суженному множеству
 await u.Организация().rows() // Error: letopis: acl denies READ on Org — no matching rule
@@ -1108,7 +1120,10 @@ await u.запись(чужаяId).update({ notes: '…' }).rows()     // → []
 на тяжёлых сценах ACL в пределах шума с базой; в реальности предикат СУЖАЕТ выборку,
 и такие сцены становятся ДЕШЕВЛЕ, чем без ACL.
 `db.acl.checkData` — справочный (1.0 ms: SQL за категориями аккаунта на каждый вызов);
-горячий путь цепочек использует резолвер, скомпилированный на connect (микросекунды, memo).
+горячий путь цепочек использует резолвер, скомпилированный при `db.as()` (микросекунды, memo).
+Цена самого `db.as()` под `enforceAcl` — один параллельный запрос за аккаунт + Resource/Rule
+(≈ те же 50 ms, что раньше платил `connect`), поэтому scope стоит держать на запрос, а не на
+цепочку. Без `enforceAcl` `db.as()` бесплатен: клон контекста, без SQL и без нового соединения.
 
 `enforceAccount` (§ 10.6) остаётся простым флагом-изоляцией без таблиц правил.
 
@@ -1228,18 +1243,36 @@ const stop = await db.watch('запись', onEvent, {
 })
 ```
 
-### 10.6 Изоляция арендатора: `enforceAccount`
+### 10.6 Изоляция арендатора: `db.as()` + `enforceAccount`
+
+**Арендатор — свойство ВЫЗОВА, а не подключения.** Один пул обслуживает разных арендаторов,
+поэтому в `connect()` опции `account` нет: подключение безличное, а имя даёт `db.as(account)` —
+хендл того же пула, работающий от имени этого аккаунта.
 
 ```ts
-const db = await connect({ dsn, schema, account: tenantId, enforceAccount: true })
-await db.запись().rows()                 // ТОЛЬКО строки этого account (фильтр на каждом шаге)
-await db.Клиент().create({ name: 'X', phone: '+7…' })  // запись пришпилена к account
-db.запись().account(чужой).rows()        // ошибка: reads are pinned to account …
+const db = await connect({ dsn, schema })          // пул; enforceAccount по умолчанию TRUE
+const t  = await db.as(tenantId)                   // идентичность вызова (в вебе — на запрос)
+
+await t.запись().rows()                  // ТОЛЬКО строки этого account (фильтр на каждом шаге)
+await t.Клиент().create({ name: 'X', phone: '+7…' })  // запись пришпилена к account
+await t.запись().account(чужой).rows()   // ошибка: reads are pinned to account …
+
+await db.запись().rows()                 // ошибка: enforceAccount is on — call db.as(account) …
 ```
 
 Изоляцию гарантирует либа, а не дисциплина: забытый `.account()` в одном запросе
-больше не утечка данных соседнего салона. Это простой флаг «всё по одному арендатору»;
-гранулярные права (по классам, операциям, со срезами строк правилами) — ACL § 9.2.
+больше не утечка данных соседнего салона, а забытый `db.as()` — не тихая выдача всего, а
+внятная ошибка. Это простой флаг «всё по одному арендатору»; гранулярные права (по классам,
+операциям, со срезами строк правилами) — ACL § 9.2 (субъекта ему даёт тот же `db.as()`).
+
+`db.as()` дешёв: клон контекста на том же пуле, без нового соединения и без SQL (под
+`enforceAcl` — плюс компиляция правил под этого субъекта, § 9.2). Хендлы можно держать
+сколько нужно, `close()` зовётся один раз на пул. Второй аргумент задаёт `owner` новых
+строк: `db.as(account, { owner })` (по умолчанию `owner` = `account`).
+
+Административный доступ (миграции, дев-скрипты, отчёты по всем арендаторам) — явным
+`connect({ …, enforceAccount: false })`: там `db` читает и пишет без scope, а колонку
+`account` закрывает System-аккаунт схемы.
 
 ### 10.7 Анонимизация (GDPR): `.anonymize()`
 
@@ -1378,24 +1411,23 @@ id сокращены: `…0911` = `00000000-0000-4000-8000-000000000911`; по�
 | `opts.dsn` | `string` | — | строка подключения `postgres://user:pass@host:port/db` |
 | `opts.schema` | `string` | — | ПОЛНОЕ имя PG-схемы с версией движка: `'v1.booking'` (создаёт `up({schema: 'booking', version: 1})` либо `db/apply.mjs --schema=booking --version=1`; либа префикс не достраивает) |
 | `opts.partition` | `string?` | `'entity'` | партиция данных: все чтения/записи этого подключения живут в ней |
-| `opts.account` | `uuid?` | System-аккаунт схемы | default-`account` (арендатор) новых строк |
-| `opts.owner` | `uuid?` | = `account` | default-`owner` (владелец) новых строк |
 | `opts.max` | `number?` | `10` | размер пула соединений postgres.js |
-| `opts.enforceAccount` | `boolean?` | `false` | жёсткая изоляция арендатора (§ 10.6): каждый шаг чтения фильтруется `account = opts.account`, записи пришпилены; явный чужой `.account()` — ошибка |
-| `opts.enforceAcl` | `boolean?` | `false` | ACL по Resource/Rule (§ 9.2): READ на каждый шаг, WRITE/DELETE на записи, предикаты строк в SQL заранее; **требует `account`**; deny-by-default |
+| `opts.enforceAccount` | `boolean?` | **`true`** | жёсткая изоляция арендатора (§ 10.6): каждый шаг чтения фильтруется по `account` scope-хендла, записи пришпилены; явный чужой `.account()` — ошибка; чтение/запись **с безличного корня — ошибка** с подсказкой на `db.as()` |
+| `opts.enforceAcl` | `boolean?` | `false` | ACL по Resource/Rule (§ 9.2): READ на каждый шаг, WRITE/DELETE на записи, предикаты строк в SQL заранее; субъект — аккаунт `db.as()`; deny-by-default. Выключенный печатает предупреждение один раз на процесс |
 | `opts.onQuery` | `((e: QueryEvent) => void)?` | — | хук на каждый запрос цепочки: `{mode, classes, ms, rows, slow}` (§ 10.10) |
 | `opts.slowMs` | `number?` | — | порог медленного запроса: `ms > slowMs` → `e.slow = true`; если `onQuery` не задан — `console.warn` |
 
 **Назначение и алгоритм.** Открывает пул postgres.js (timestamptz парсится **строкой**,
 чтобы не терять микросекунды в `asOf`/курсорах), одним SELECT загружает реестр классов из
 `Schema` (компилируя fastest-validator на класс), резолвит System-аккаунт как fallback для
-NOT NULL `Entity.account`. При `enforceAcl: true` дополнительно параллельно читает аккаунт,
-все Resource и включённые Rule и **компилирует синхронный резолвер решений** (класс,
-операция) → `AclDecision` с memo. Реестр классов и ACL-резолвер снимаются один раз на
-`connect()` — но НЕ до конца жизни подключения: правки в `Schema` / `Resource` / `Rule`
-подхватываются `db.reloadSchema()` без реконнекта (пересобирает и реестр, и
-ACL-резолвер — [§11.2](#112-entitydb--корень)). Реконнект нужен только для смены
-`dsn`/`schema`/`partition`/`account` и флагов `enforce*`.
+NOT NULL `Entity.account`. Подключение **безличное**: арендатора и субъекта ACL называет
+`db.as(account)` (§ 10.6) — опций `account`/`owner` в `ConnectOpts` нет. При `enforceAcl: true`
+каждый `db.as()` параллельно читает свой аккаунт, все Resource и включённые Rule и
+**компилирует синхронный резолвер решений** (класс, операция) → `AclDecision` с memo.
+Реестр классов снимается один раз на `connect()` — но НЕ до конца жизни подключения: правки
+в `Schema` / `Resource` / `Rule` подхватываются `db.reloadSchema()` без реконнекта (со
+scope-хендла пересобирает и реестр, и его ACL-резолвер — [§11.2](#112-entitydb--корень)).
+Реконнект нужен только для смены `dsn`/`schema`/`partition` и флагов `enforce*`.
 
 **Примеры**
 
@@ -1409,13 +1441,13 @@ await dbSlow.запись().count()   // ~440k сущностей — дольш
 // {"mode":"count","classes":["booking"],"ms":3191.0,"rows":1,"slow":true}
 ```
 
-**Кейс: три подключения — обычное, изолированное, под ACL**
+**Кейс: три хендла — админский, изолированный, под ACL**
 
 ```ts
-const db  = await connect({ dsn, schema })                                        // [33.6 ms]
-const iso = await connect({ dsn, schema, account: acc.id, enforceAccount: true }) // [40.2 ms]
-const uc  = await connect({ dsn, schema, account: acc.id, enforceAcl: true })     // [54.7 ms]
-await db.Организация().count()    // → 30   — видит всех
+const db  = await connect({ dsn, schema, enforceAccount: false })                    // [32.6 ms]
+const iso = await (await connect({ dsn, schema })).as(acc.id)                        // [55.3 ms]
+const uc  = await (await connect({ dsn, schema, enforceAcl: true })).as(acc.id)      // [58.1 ms]
+await db.Организация().count()    // → 30   — админский видит всех
 await iso.Организация().count()   // [5.1 ms] → 1 — только свой арендатор
 await uc.Организация().rows()
 // Error: letopis: acl denies READ on Org — no matching rule (deny by default)
@@ -1475,7 +1507,7 @@ uuidv7()                                   // → '0199f3c1-…' — сорти�
 | `opts.fresh` | `boolean?` | `false` | дропнуть схему и накатить заново — **данные схемы теряются** |
 | `opts.quiet` | `boolean?` | `false` | без `[letopis.up]`-прогресса в консоли |
 | `opts.waitTimeoutMs` | `number?` | `120 000` | максимум ожидания готовности (первый запуск: pull образа + initdb) |
-| …остальные | `ConnectOpts` | — | `partition`/`account`/`enforceAcl`/`onQuery` и все опции `connect()` прокидываются насквозь |
+| …остальные | `ConnectOpts` | — | `partition`/`enforceAccount`/`enforceAcl`/`onQuery` и все опции `connect()` прокидываются насквозь; возвращённый `db` — такой же безличный корень (арендатора даёт `db.as()`, § 10.6) |
 
 **Назначение и алгоритм.** Одна точка входа: от пустой машины до готового `db`.
 (1) **Probe**: одна попытка `SELECT 1` по `dsn` — живой postgres (свой контейнер, CI-сервис,
@@ -1559,8 +1591,39 @@ import type {
 ### 11.2 EntityDb — корень
 
 `EntityDb` — Proxy: любое имя класса из `Schema` (id или алиас) — метод старта цепочки;
-плюс фиксированные члены `begin/commit/rollback/batch/watch/close/registry/sql` и фасады
+плюс фиксированные члены `as/begin/commit/rollback/batch/watch/close/registry/sql` и фасады
 `accounts/credentials/resources/rules` (§ 11.8), `auth` (§ 11.9), `acl` (§ 11.10).
+
+#### `db.as(account: uuid | { id }, opts?: { owner? }): Promise<EntityDb>`
+
+| Параметр | Тип | Default | Описание |
+|---|---|---|---|
+| `account` | `uuid \| { id }` | — | арендатор/субъект ЭТОГО вызова; пустое значение — ошибка `db.as(account) requires an account id` |
+| `opts.owner` | `uuid?` | = `account` | значение колонки `owner` для новых строк этого scope |
+
+**Назначение и алгоритм.** Возвращает хендл **того же пула**, работающий от имени `account`:
+арендатор — свойство вызова, не подключения (в `connect()` опции `account` нет). Клонирует
+контекст (как `db.begin()`), нового соединения не открывает; под `enforceAcl` дополнительно
+читает аккаунт + Resource/Rule и компилирует резолвер **под этого субъекта** — у каждого scope
+свой, решения между арендаторами не переиспользуются. Батчи со корня не наследуются: очередь
+планов, общая для разных арендаторов, была бы утечкой записи. `close()` закрывает пул, поэтому
+зовётся один раз — и с корня, и с любого scope (это одно и то же соединение).
+
+Под `enforceAccount` (default `true`) чтение/запись возможны **только** с такого хендла:
+с безличного корня — ошибка с подсказкой (§ 10.6). В вебе scope живёт на запрос:
+`const t = await db.as(req.accountId)`.
+
+**Примеры**
+
+```ts
+const db = await connect({ dsn, schema })
+const t1 = await db.as(salon1)
+const t2 = await db.as(salon2, { owner: managerId })
+await t1.Клиент().count()      // только клиенты salon1
+await t2.Клиент().create({ name: 'X', phone: '+7…' }).rows()  // account = salon2, owner = managerId
+await db.Клиент().count()      // Error: enforceAccount is on — call db.as(account) …
+await db.close()               // один раз на пул
+```
 
 #### `db.<Класс>(filter?: Filter): Chain`
 
@@ -2142,9 +2205,11 @@ await db.Клиент().tags(hasAny(['vip', 'telegram'])).count()  // [48.4 ms] 
 |---|---|---|
 | `v` | `uuid \| { id }` | чтение: фильтр колонки `account`/`owner`; при `create()` — значение колонки |
 
-**Назначение и алгоритм.** Прямое равенство по uuid-колонке (btree). Под `enforceAccount`
-чужой `.account()` — ошибка; под `enforceAcl` конфликт с пришпиленной правилом колонкой —
-ошибка `acl pins` (§ 11.10).
+**Назначение и алгоритм.** Прямое равенство по uuid-колонке (btree). Модификатор патчит
+**только свой шаг** — арендатор всей цепочки задаётся не им, а хендлом `db.as()` (§ 10.6):
+под `enforceAccount` он фильтрует каждый шаг сам, а чужой `.account()` — ошибка `pinned`.
+Под `enforceAcl` конфликт с пришпиленной правилом колонкой — ошибка `acl pins` (§ 11.10).
+Смысл `.account()` остаётся прежним: точечный фильтр/значение на админском хендле.
 
 ```ts
 await db.Организация().account(SYS).count()   // [5.1 ms] → 30
@@ -2724,9 +2789,13 @@ await db.accounts.delete(SYS)      // [6.0 ms]
 Предохранители (до сноса): вызывать может лишь **Owner/System**; нельзя снести **последний enabled Owner**
 (лок-аут тенанта) и **свой** аккаунт сессии.
 
+Вызывать нужно **со scoped-хендла** — предохранители смотрят, кто именно зовёт:
+
 ```ts
-const dbSys = await connect({ dsn, schema: 'v1.notify', account: SYS })
+const dbSys = await (await connect({ dsn, schema: 'v1.notify' })).as(SYS)
 await dbSys.accounts.purge(tenantId)   // → true: Entity + Account + Credential снесены, место освобождено
+// с безличного корня: Error: accounts.purge requires an authenticated caller — call it from
+//                     a scoped handle: (await db.as(caller)).accounts.purge(id)
 ```
 
 #### `db.schema.define(def)` / `db.reloadSchema()` — живой подхват правок схемы
@@ -3298,7 +3367,7 @@ app.use(async (req, res, next) => {
 `booking` действует на `VipBooking`). Победа — как в `check`. У победившего allow остальные
 ключи pattern (реальные колонки Entity, `"$account"` → id субъекта) возвращаются как
 `filter` — готовый предикат строк. Справочный метод (SQL за категориями аккаунта на каждый
-вызов ~1–2 ms); горячий путь цепочек использует резолвер, скомпилированный на connect
+вызов ~1–2 ms); горячий путь цепочек использует резолвер, скомпилированный при `db.as()`
 (микросекунды, memo).
 
 **Примеры**
@@ -3319,20 +3388,22 @@ await db.acl.checkData(acc, 'VipBooking', 'READ')   // [23.4 ms — свежий
 **Кейс: enforceAcl — те же решения в SQL цепочек (реальный прогон)**
 
 ```ts
-const uc = await connect({ dsn, schema, account: acc.id, enforceAcl: true })   // [66.9 ms] снимок правил (обновить — reloadSchema)
-await uc.запись().rows()    // [17.2 ms] → 3 Row — предикат owner=$account в WHERE ДО сортировки/лимита
-await uc.запись().count()   // [17.6 ms] → 3 — честный count по суженному множеству
-await uc.Услуга().count()   // [15.1 ms] → 602 — безусловный allow, класс целиком
+// enforceAccount: false — показаны ACL-предикаты, а не изоляция арендатора (§ 10.6)
+const uc = await (await connect({ dsn, schema, enforceAcl: true, enforceAccount: false })).as(acc.id)
+// [58.1 ms] снимок правил под ЭТОГО субъекта (обновить — reloadSchema)
+await uc.запись().rows()    // [12.6 ms] → 3 Row — предикат owner=$account в WHERE ДО сортировки/лимита
+await uc.запись().count()   // [12.5 ms] → 3 — честный count по суженному множеству
+await uc.Услуга().count()   // [11.4 ms] → 605 — безусловный allow, класс целиком
 await uc.Организация().rows()
 // Error: letopis: acl denies READ on Org — no matching rule (deny by default)   [0.3 ms]
 const [z] = await uc.запись().create({ start_datetime: t, end_datetime: e })
-  .Мастер.set(м).Локация.set(л).Расписание.set(р).Услуга.set(у).rows()   // [20.9 ms]
+  .Мастер.set(м).Локация.set(л).Расписание.set(р).Услуга.set(у).rows()   // [16.2 ms]
 z.owner === acc.id   // → true — owner пришпилен правилом
 await uc.запись().owner(SYS).create({ … }).rows()
-// Error: letopis: acl pins booking writes to owner 06d3bbfe-… — на терминале   [2.6 ms]
-await uc.запись('чужой-id').create({ … }).rows()   // [2.0 ms] — перехват чужого id мёртв: v5-класс id не принимает
+// Error: letopis: acl pins booking writes to owner 06d3bbfe-… — на терминале   [1.8 ms]
+await uc.запись('чужой-id').create({ … }).rows()   // [1.6 ms] — перехват чужого id мёртв: v5-класс id не принимает
 // Error: letopis: class "booking" computes id (uuid v5 from Staff, start_datetime) — remove the explicit id
-await uc.запись(свойId).delete({ confirm: true }).rows()   // [30.3 ms] → [{ id: 'ee65244b-…', $deleted: true }]
+await uc.запись(свойId).delete({ confirm: true }).rows()   // [27.8 ms] → [{ id: 'ee65244b-…', $deleted: true }]
 // watch: события только безусловных allow-классов —
 // uc.watch(cb) поймал ['Service']; booking скрыт (предикат не проверить по payload)
 ```
@@ -3347,9 +3418,10 @@ await uc.запись(свойId).delete({ confirm: true }).rows()   // [30.3 ms
 | Вызов | Что пересобирает | На что НЕ влияет |
 |---|---|---|
 | `db.acl.reload()` | кэш Resource/Rule фасада `db.acl` (`check`/`checkData`) | энфорсер `enforceAcl`-цепочек, реестр классов |
-| `await db.reloadSchema()` | реестр классов из `Schema` **и** энфорсер `enforceAcl` (§ 11.2) | кэш фасада `db.acl` (сбрасывать отдельно) |
+| `await db.reloadSchema()` | реестр классов из `Schema`; со scope-хендла (`db.as`) — **и** его энфорсер `enforceAcl` (§ 11.2) | кэш фасада `db.acl` (сбрасывать отдельно); энфорсеры ДРУГИХ scope |
 
-Реконнект нужен только для смены `dsn`/`schema`/`partition`/`account` и самих флагов `enforce*`.
+Реконнект нужен только для смены `dsn`/`schema`/`partition` и самих флагов `enforce*`
+(сменить арендатора реконнект НЕ требует — это новый `db.as()`).
 
 ```ts
 db.acl.reload()          // [187 µs] — словарь фасада
@@ -3475,7 +3547,11 @@ AclDecision = { allow, rule?, filter?, code?, message? }         // filter — �
 | `execute() renamed to run() (0.11.0)` | старое имя терминала путей (и `batch.execute()`) |
 | `plan is queued in the batch — call batch.run()` | терминал на батч-цепочке с операциями |
 | `no path X → Y` / `LINK → LINK …` | недопустимый переход (синхронно при построении цепочки) |
-| `Entity.account is NOT NULL…` | нет account и System-аккаунта |
+| `enforceAccount is on — call db.as(account) to name the tenant of this call…` | чтение/запись с безличного корня при включённой изоляции: назвать арендатора вызова `db.as()` либо взять админский `connect({ enforceAccount: false })` (§ 10.6) |
+| `enforceAccount is on — reads are pinned to account X` / `writes are pinned to…` | `.account(чужой)` на scope-хендле — подменить арендатора нельзя (§ 10.6) |
+| `db.as(account) requires an account id (uuid or { id })` | `db.as()` без аккаунта (пустая строка / объект без `id`) |
+| `enforceAcl is on — call db.as(account) to name the subject` | цепочка под `enforceAcl` без субъекта (§ 9.2) |
+| `Entity.account is NOT NULL…` | нет ни `.account()`, ни scope `db.as()`, ни System-аккаунта в схеме |
 | `violates foreign key constraint "entity_*_fk"` | несуществующий класс/аккаунт; удаление класса с данными |
 | `lock() works only inside db.begin()` | лок вне транзакции |
 | `commit() needs a transaction` | commit на корневом db |
