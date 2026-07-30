@@ -365,6 +365,10 @@
       "message": "letopis: $tags accepts a string or has/hasAny/hasAll"
     },
     {
+      "module": "index",
+      "message": "letopis: движок схемы \"<…>\" отстал — <…>. Схема продолжит работать, но новых"
+    },
+    {
       "module": "tables",
       "message": "letopis: account \"<…>\" not found"
     },

@@ -7,7 +7,8 @@
 -- =============================================================================
 
 -- FILE: lib/sql/ddl.sql
--- VERSION: 1.0.0
+-- VERSION: 1.1.0
+-- DDL_REVISION: 1   (последняя строка файла штампует её в COMMENT ON SCHEMA; см. там же)
 -- START_MODULE_CONTRACT
 --   PURPOSE: Движок-хранилище PostgreSQL/TimescaleDB — таблицы, Entity-hypertable, индексы и триггеры целостности (валидация, версионирование, каскад-tombstone, lineage, notify).
 --   SCOPE: таблицы Schema/Entity/Account/Credential/Resource/Rule + триггеры schema_lineage/entity_check/entity_update/entity_delete/entity_notify.
@@ -569,6 +570,19 @@ DROP TRIGGER IF EXISTS entity_notify ON "<SCHEMA-NAME>"."Entity";
 CREATE TRIGGER entity_notify
     AFTER INSERT ON "<SCHEMA-NAME>"."Entity"
     FOR EACH ROW EXECUTE FUNCTION "<SCHEMA-NAME>".entity_notify();
+
+-- -----------------------------------------------------------------------------
+-- Метка ревизии движка — ПОСЛЕДНЕЙ строкой: комментарий появляется только если весь
+-- файл применился. Её читает connect() и предупреждает, если схема отстала от либы
+-- (DDL_REVISION в lib/src/types.ts; совпадение сверяет scripts/check-docs.mjs).
+--
+-- Ревизия — про АДДИТИВНЫЕ правки внутри одной версии движка (новые функции/триггеры/
+-- индексы): файл идемпотентен, поэтому такие правки доезжают повторным накатом
+-- (up({ upgrade: true }) / node db/apply.mjs --upgrade), данные при этом целы.
+-- Несовместимая правка СТРУКТУРЫ таблиц — это смена version в имени схемы (v1 → v2),
+-- а не ревизия.
+-- -----------------------------------------------------------------------------
+COMMENT ON SCHEMA "<SCHEMA-NAME>" IS 'letopis ddl_revision=1';
 
 -- -----------------------------------------------------------------------------
 -- Опционально (включать по мере роста данных):

@@ -17,7 +17,7 @@
 // END_MODULE_CONTRACT
 //
 // START_MODULE_MAP
-//   UpOpts - опции up(): dsn, schema, version, контейнер/образ, dataDir, seeds, fresh, quiet, таймаут
+//   UpOpts - опции up(): dsn, schema, version, контейнер/образ, dataDir, seeds, fresh, upgrade, quiet, таймаут
 //   dockerRunArgs - чистая сборка argv для `docker run` (bind/volume, trust/пароль)
 //   RunCfg - конфиг запуска контейнера (порты, креды, база, dataDir)
 //   up - точка входа: контейнер -> база -> схема -> готовность -> connect (возвращает EntityDb)
@@ -26,7 +26,7 @@
 //   pgPing - (local) проба postgres: ok | no-server | no-database | starting | fatal
 //   ensureDatabase - (local) создать базу, если её нет (гонка 42P04 глушится)
 //   tcpAlive - (local) TCP-проба хоста:порта (для redis)
-//   applySchema - (local) drop (fresh) -> накат ddl+сидов с подстановкой <SCHEMA-NAME> -> ANALYZE Entity
+//   applySchema - (local) drop (fresh) | перекат ddl (upgrade) -> накат ddl+сидов с подстановкой <SCHEMA-NAME> -> ANALYZE Entity
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
@@ -78,6 +78,14 @@ export interface UpOpts extends Omit<ConnectOpts, 'dsn' | 'schema'> {
   seeds?: string[] | false;
   /** Дропнуть схему и накатить заново. ДАННЫЕ СХЕМЫ ТЕРЯЮТСЯ. */
   fresh?: boolean;
+  /**
+   * Перекатить `ddl.sql` на СУЩЕСТВУЮЩУЮ схему (сиды не трогаются, данные целы).
+   * Так доезжают аддитивные правки движка: схема, накатанная старой либой, не имеет новых
+   * функций/триггеров (например `purge`/`purge_account` из 0.19.0) и падает сырым
+   * «function … does not exist». О расхождении предупреждает `connect()` (см. `DDL_REVISION`).
+   * Идемпотентно; на несуществующей схеме — обычный первый накат.
+   */
+  upgrade?: boolean;
   /** Без console.log-прогресса. */
   quiet?: boolean;
   /** Максимум ожидания готовности, мс. Default 120 000 (первый запуск: pull образа + initdb). */
@@ -230,13 +238,14 @@ function tcpAlive(host: string, port: number): Promise<boolean> {
 
 // START_CONTRACT: applySchema
 //   PURPOSE: Применяет DDL-схему и сиды — при fresh дропает схему; если схемы нет, накатывает ddl.sql (+ дефолтные booking/auth или свои сиды), подставляя <SCHEMA-NAME>.
-//   INPUTS: { dsn: string; full: string - полное имя схемы v<N>.<schema>; seeds: string[] | false | undefined - свои пути / false (без сидов) / undefined (дефолт); fresh: boolean; log: (m: string) => void }
+//   INPUTS: { dsn: string; full: string - полное имя схемы v<N>.<schema>; seeds: string[] | false | undefined - свои пути / false (без сидов) / undefined (дефолт); fresh: boolean; upgrade: boolean - перекатить ddl на существующую схему; log: (m: string) => void }
 //   OUTPUTS: { Promise<void> }
 //   SIDE_EFFECTS: читает sql-файлы; выполняет DROP/накат схемы в postgres; закрывает соединение
 //   LINKS: M-UP, V-M-UP
 // END_CONTRACT: applySchema
 async function applySchema(
-  dsn: string, full: string, seeds: string[] | false | undefined, fresh: boolean, log: (m: string) => void,
+  dsn: string, full: string, seeds: string[] | false | undefined, fresh: boolean, upgrade: boolean,
+  log: (m: string) => void,
 ): Promise<void> {
   const sql = postgres(dsn, { max: 1, onnotice: () => {} });
   try {
@@ -246,6 +255,21 @@ async function applySchema(
     }
     const have = await sql`SELECT 1 FROM information_schema.schemata WHERE schema_name = ${full}`;
     if (have.length > 0) {
+      // START_BLOCK_UPGRADE_DDL
+      // upgrade: перекатить ТОЛЬКО ddl.sql на существующую схему. Сиды не трогаем — они
+      // вставляют данные, повторный прогон дал бы дубли смысла. Файл идемпотентен
+      // (CREATE OR REPLACE у функций, DROP IF EXISTS + CREATE у триггеров, IF NOT EXISTS
+      // у таблиц/индексов), поэтому данные целы, а аддитивные правки движка доезжают.
+      // Так закрывается разрыв: схема, накатанная старой либой, не имела новых функций
+      // (purge/purge_account из 0.19.0) и падала сырым «function … does not exist».
+      if (upgrade) {
+        const text = (await readFile(pkgPath('../sql/ddl.sql'), 'utf8')).replaceAll('<SCHEMA-NAME>', full);
+        await sql.unsafe(text);
+        await sql.unsafe(`ANALYZE ${qi(full)}."Entity"`);
+        log(`schema "${full}" upgraded (ddl re-applied, data intact)`);
+        return;
+      }
+      // END_BLOCK_UPGRADE_DDL
       log(`schema "${full}" already exists — apply skipped`);
       return;
     }
@@ -272,7 +296,7 @@ async function applySchema(
 
 // START_CONTRACT: up
 //   PURPOSE: Единая точка входа dev-bootstrap — валидирует схему/версию, при живом postgres пропускает docker (иначе поднимает контейнер и ждёт готовности PG+Redis), применяет схему и подключается.
-//   INPUTS: { opts: UpOpts - dsn, schema, version, контейнер/образ, dataDir, redisPort, seeds, fresh, quiet, waitTimeoutMs + прочие ConnectOpts }
+//   INPUTS: { opts: UpOpts - dsn, schema, version, контейнер/образ, dataDir, redisPort, seeds, fresh, upgrade, quiet, waitTimeoutMs + прочие ConnectOpts }
 //   OUTPUTS: { Promise<EntityDb> - подключённый фасад на схеме "v<version>.<schema>" }
 //   SIDE_EFFECTS: shell docker через M-UP.ensureContainer; TCP-пинги; чтение sql и накат схемы; console.log с префиксом [letopis.up]; connect (M-CONNECT); бросает при плохом имени схемы/версии и таймауте готовности
 //   LINKS: M-UP, V-M-UP
@@ -280,7 +304,7 @@ async function applySchema(
 export async function up(opts: UpOpts): Promise<EntityDb> {
   const {
     dsn = DEFAULT_DSN, schema, version, container = 'letopis-timescale', image = 'letopis-db',
-    dataDir, redisPort = 16379, seeds, fresh, quiet, waitTimeoutMs = 120_000, ...connectRest
+    dataDir, redisPort = 16379, seeds, fresh, upgrade, quiet, waitTimeoutMs = 120_000, ...connectRest
   } = opts;
   if (!/^[a-zA-Z_][a-zA-Z0-9_$]*$/.test(schema))
     throw new Error(`letopis.up: bad schema name "${schema}" (базовое имя без версии и точек; версию задаёт version)`);
@@ -340,7 +364,7 @@ export async function up(opts: UpOpts): Promise<EntityDb> {
   }
 
   // START_BLOCK_APPLY_SCHEMA
-  await applySchema(dsn, full, seeds, fresh ?? false, log);
+  await applySchema(dsn, full, seeds, fresh ?? false, upgrade ?? false, log);
   const db = await connect({ ...connectRest, dsn, schema: full });
   log(`connected (schema "${full}")`);
   // END_BLOCK_APPLY_SCHEMA

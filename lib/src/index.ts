@@ -41,6 +41,7 @@ import { makeDb, type EntityDb } from './chain.js';
 import { makeTables } from './tables.js';
 import { compileEnforcer } from './acl.js';
 import type { Ctx } from './sql.js';
+import { DDL_REVISION, parseDdlRevision } from './types.js';
 import type { ConnectOpts, Resource, Rule } from './types.js';
 
 // START_CONTRACT: connect
@@ -52,6 +53,37 @@ import type { ConnectOpts, Resource, Rule } from './types.js';
 // END_CONTRACT: connect
 /** Предупреждение об отключённом enforceAcl печатается один раз на процесс. */
 let warnedNoAcl = false;
+/** Схемы, про чью ревизию движка уже предупредили (один раз на схему за процесс). */
+const warnedDdl = new Set<string>();
+
+// START_CONTRACT: checkDdlRevision
+//   PURPOSE: Сверить ревизию движка схемы (COMMENT ON SCHEMA) с ожидаемой либой; при отставании предупредить с командой апгрейда.
+//   INPUTS: { sql: Ctx['sql'] - открытый пул; schema: string - полное имя PG-схемы }
+//   OUTPUTS: { Promise<void> }
+//   SIDE_EFFECTS: один SELECT из obj_description; console.warn один раз на схему за процесс (никогда не бросает: правки ddl аддитивны)
+//   LINKS: M-CONNECT, V-M-CONNECT, M-DDL, M-TYPES
+// END_CONTRACT: checkDdlRevision
+async function checkDdlRevision(sql: Ctx['sql'], schema: string): Promise<void> {
+  // NB: ::regnamespace тут нельзя — имена схем letopis содержат точку ("v1.booking"),
+  // и приведение разберёт их как «схема v1, объект booking» → invalid name syntax.
+  const rows = (await sql`
+    SELECT obj_description(n.oid, 'pg_namespace') AS c FROM pg_namespace n WHERE n.nspname = ${schema}
+  `) as unknown as { c: string | null }[];
+  const have = parseDdlRevision(rows[0]?.c);
+  if (have === DDL_REVISION) return;
+  if (warnedDdl.has(schema)) return;
+  warnedDdl.add(schema);
+  const чего = have === null
+    ? 'ревизия не помечена (схема накатана либой до появления метки)'
+    : `ревизия схемы ${have}, либа ожидает ${DDL_REVISION}`;
+  console.warn(
+    `letopis: движок схемы "${schema}" отстал — ${чего}. Схема продолжит работать, но новых ` +
+      'функций/триггеров в ней нет (например purge/purge_account из 0.19.0) — вызов упадёт ' +
+      'ошибкой PostgreSQL "function … does not exist". ddl.sql идемпотентен, накат повторный ' +
+      'и данные целы: up({ …, upgrade: true }) либо node db/apply.mjs --dsn=… --schema=<имя> ' +
+      '--version=<N> --upgrade',
+  );
+}
 
 export async function connect(opts: ConnectOpts): Promise<EntityDb> {
   // timestamptz — строкой (JS Date режет микросекунды → ломал бы asOf/cursorOf по updated)
@@ -67,6 +99,14 @@ export async function connect(opts: ConnectOpts): Promise<EntityDb> {
   const sys = (await sql.unsafe(
     `SELECT id FROM ${ident}."Account" WHERE 'System' = ANY(categories) LIMIT 1`,
   )) as unknown as { id: string }[];
+
+  // START_BLOCK_CHECK_DDL_REVISION
+  // Схема, накатанная более старой либой, не получает аддитивных правок ddl.sql (в 0.19.0
+  // так появились purge/purge_closure/purge_account). Без этой проверки приложение узнаёт
+  // о расхождении из сырого `PostgresError: function … does not exist`.
+  // Предупреждение, а не отказ: правки аддитивны — то, что уже работало, работает.
+  await checkDdlRevision(sql, opts.schema);
+  // END_BLOCK_CHECK_DDL_REVISION
 
   const ctx: Ctx = {
     sql,

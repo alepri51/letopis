@@ -1329,6 +1329,49 @@ node db/policies.mjs --dsn=… --schema=v1.booking                     # тек�
 - Интервалы: `30d`, `2y`, `12h`, `6mon` или сырой PG (`'90 days'`). Повторный запуск
   переустанавливает политику.
 
+### 10.8a Обновление движка: ревизия DDL и `upgrade`
+
+Классы живут в таблице `Schema` и правятся на ходу (§ 10.9), а **движок** — это `ddl.sql`:
+таблицы, индексы, триггеры и серверные функции. Он тоже растёт: в 0.19.0, например, появились
+`purge`/`purge_closure`/`purge_account`. Схема, накатанная более старой версией либы, этих
+функций **не получает** — приложение обновляет пакет и падает сырым
+
+```
+PostgresError: function "v1.booking".purge(unknown, unknown, unknown, boolean) does not exist
+```
+
+Поэтому последняя строка `ddl.sql` штампует в схему метку ревизии
+(`COMMENT ON SCHEMA … IS 'letopis ddl_revision=N'`), а `connect()` сверяет её с константой
+`DDL_REVISION` либы и **один раз на схему за процесс** предупреждает:
+
+```
+letopis: движок схемы "v1.booking" отстал — ревизия не помечена (схема накатана либой до
+появления метки). Схема продолжит работать, но новых функций/триггеров в ней нет
+(например purge/purge_account из 0.19.0) … up({ …, upgrade: true }) либо
+node db/apply.mjs --dsn=… --schema=<имя> --version=<N> --upgrade
+```
+
+Предупреждение, а не отказ: правки аддитивны — то, что работало, продолжает работать.
+
+**Апгрейд** перекатывает **только** `ddl.sql`, сиды не трогает:
+
+```ts
+await up({ dsn, schema: 'booking', version: 1, upgrade: true })   // данные целы
+```
+```bash
+node db/apply.mjs --dsn=… --schema=booking --version=1 --upgrade
+```
+
+Это безопасно, потому что `ddl.sql` идемпотентен: функции — `CREATE OR REPLACE`, триггеры —
+`DROP IF EXISTS` + `CREATE`, таблицы и индексы — `IF NOT EXISTS`. Данные append-only не
+перезаписываются.
+
+**Ревизия ≠ версия схемы.** Ревизия — про аддитивные правки внутри одной версии движка, они
+доезжают апгрейдом. Несовместимая правка структуры таблиц — это смена `version` в имени схемы
+(`v1.booking` → `v2.booking`), то есть новая схема и перенос данных силами приложения.
+Совпадение маркера в `ddl.sql`, штампа `COMMENT` и константы `DDL_REVISION` проверяет
+`npm run check:docs`.
+
 ### 10.9 Миграции классов: `scripts/schema-sync.mjs`
 
 > Входит в npm-пакет (`files: ["scripts"]`); в установке путь — `node_modules/letopis/scripts/schema-sync.mjs`. Зависимости — `postgres` и `fastest-validator` (обе — deps пакета), `tsx` не нужен.
