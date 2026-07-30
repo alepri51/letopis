@@ -26,9 +26,12 @@ lib/CHANGELOG.md (руками) → описание PR → тело релиз�
   Побочно: в job, который делает `npm publish`, больше нет стороннего экшена; из workflow
   осталось только first-party (`actions/checkout`, `actions/setup-node`).
 
-- `release.yml` получил `pull-requests: read`: блок `permissions` ОГРАНИЧИВАЕТ токен, и с
-  одним `contents: write` шаг заметок падал `Resource not accessible by integration`, а за ним
-  пропускался `npm publish`. Поймано первым же прогоном на 0.20.2.
+- `release.yml` берёт тело релиза **тем же скриптом из CHANGELOG**, а не через PR-API. Первая
+  попытка читала описание PR (`gh pr list/view`) и падала `Resource not accessible by
+  integration` — GITHUB_TOKEN на release-событии не получает доступ к PR-API этого репозитория,
+  и `pull-requests: read` не помог. Из-за `set -e` падал весь job, то есть `npm publish`
+  пропускался. Теперь зависимости от PR нет: чекаут стоит на теге, значит CHANGELOG и
+  package.json — ровно той версии, что публикуется; из прав нужен только `contents: write`.
 
 Тег остался **аннотированным** — в сообщении список коммитов от предыдущего тега
 (`git log --no-merges --pretty='- %s'`), так что `git show <tag>` показывает состав версии.
