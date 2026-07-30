@@ -275,6 +275,15 @@
       <coverage-gap>Parses sources as text (regex), so a large refactor of the barrel or of the chain Proxy could silently narrow the output; the reserved-name cross-check in check-docs is what catches that.</coverage-gap>
     </V-M-GEN-API-CONTRACT>
 
+    <V-M-RELEASE-NOTES MODULE="M-RELEASE-NOTES" PRIORITY="medium">
+      <test-files><file>none (checked by running the script; the CHANGELOG-vs-package.json invariant is covered by V-M-CHECK-DOCS)</file></test-files>
+      <module-checks><check-1>cd lib &amp;&amp; node scripts/release-notes.mjs</check-1></module-checks>
+      <scenarios>
+        <scenario-1 kind="success">Prints the section of the current package version plus a link to the full changelog.</scenario-1>
+        <scenario-2 kind="failure">No "## [x.y.z]" entry for the package version — exit 1 with an actionable message.</scenario-2>
+      </scenarios>
+    </V-M-RELEASE-NOTES>
+
     <V-M-CHECK-DOCS MODULE="M-CHECK-DOCS" PRIORITY="high">
       <test-files><file>none (self-verifying: it is its own check)</file></test-files>
       <module-checks><check-1>cd lib &amp;&amp; npm run check:docs</check-1></module-checks>
