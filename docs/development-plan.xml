@@ -4,7 +4,7 @@
     <non-goal>Not a code-first ORM: class definitions live in the DB Schema table (seeded/synced), not as TS classes; there are no code migrations. No arbitrary-SQL builder — only the chain DSL and the fixed auth/authz table APIs.</non-goal>
     <risk-1>Type-level import cycle M-SQL &#8596; M-ACL &#8596; M-TABLES: sql imports aclDenied (value) from acl; acl imports Tables (type) from tables; tables imports Ctx (type) from sql. Only the sql&#8594;acl edge is a runtime value import, so there is no runtime cycle, but the coupling constrains refactors.</risk-1>
     <risk-2>Runtime ESM cycle M-CONNECT &#8596; M-UP: index re-exports up, up imports connect. Safe today via ESM live bindings (no top-level use), but fragile.</risk-2>
-    <risk-3>Logic concentration: chain.ts (~746 LOC), sql.ts (~779), write.ts (~759) hold most of the engine; large surfaces for regressions.</risk-3>
+    <risk-3>Logic concentration: chain.ts, sql.ts and write.ts hold most of the engine (each an order of magnitude larger than the other modules); large surfaces for regressions. Exact sizes intentionally not quoted here — they drift; measure the files.</risk-3>
     <risk-4>Invariant duplication: entity validation and link-end rules exist both in M-DDL triggers (entity_check) and in M-WRITE.validate — they must stay in sync.</risk-4>
   </ArchitectureNotes>
 
@@ -181,9 +181,9 @@
     <M-CONNECT NAME="Connect" TYPE="ENTRY_POINT" LAYER="6" ORDER="1" STATUS="done">
       <contract>
         <purpose>Open a connection, load the registry, optionally compile ACL enforcement, and return an EntityDb; re-export the public API</purpose>
-        <inputs><param name="opts" type="ConnectOpts { dsn, schema, partition?, account?, enforceAccount?, enforceAcl?, onQuery?, slowMs? }" /></inputs>
+        <inputs><param name="opts" type="ConnectOpts { dsn, schema, partition?, max?, enforceAccount?=true, enforceAcl?, onQuery?, slowMs? }" /></inputs>
         <outputs><param name="db" type="EntityDb" /><param name="cursor" type="Cursor (cursorOf)" /></outputs>
-        <errors><error code="enforceAcl requires connect({ account })" /><error code="enforceAcl — account not found" /></errors>
+        <errors><error code="enforceAcl is on — call db.as(account) to name the subject" /><error code="enforceAcl — account not found" /></errors>
       </contract>
       <interface><fn-connect PURPOSE="open EntityDb" /><fn-cursorOf PURPOSE="keyset cursor" /></interface>
       <depends>M-SCHEMA, M-CHAIN, M-TABLES, M-ACL, M-SQL, M-TYPES, M-UP</depends>
@@ -276,6 +276,34 @@
       <verification-ref>V-M-SCHEMA-SYNC</verification-ref>
     </M-SCHEMA-SYNC>
 
+    <M-GEN-API-CONTRACT NAME="GenApiContract" TYPE="UTILITY" LAYER="1" ORDER="7" STATUS="done">
+      <contract>
+        <purpose>Derive the machine-readable public-API contract from the sources so agents get a parseable list of what exists and what was removed</purpose>
+        <inputs><param name="--out" type="path (default ../docs/api-contract.json)" /><param name="--check" type="flag — compare instead of write" /></inputs>
+        <outputs><param name="contract" type="JSON: package, notes, exports{values,types}, chain{core,intercepted*,reservedClassNames}, removed[], errors[]" /></outputs>
+        <errors><error code="exit 1 when --check and the committed file is stale" /><error code="throws if RESERVED_CLASS_NAMES cannot be parsed from src/types.ts" /></errors>
+      </contract>
+      <interface><fn-exportsOf PURPOSE="barrel exports" /><fn-chainSurface PURPOSE="ChainCore + Proxy case labels" /><fn-removedNames PURPOSE="migration guards" /><fn-errorCatalog PURPOSE="letopis: messages" /></interface>
+      <depends>none</depends>
+      <target><source>lib/scripts/gen-api-contract.mjs</source><tests>none (checked by M-CHECK-DOCS)</tests></target>
+      <observability><log-prefix>console.log (written &lt;out&gt;: counts)</log-prefix></observability>
+      <verification-ref>V-M-GEN-API-CONTRACT</verification-ref>
+    </M-GEN-API-CONTRACT>
+
+    <M-CHECK-DOCS NAME="CheckDocs" TYPE="UTILITY" LAYER="1" ORDER="8" STATUS="done">
+      <contract>
+        <purpose>Fail CI when documentation drifts from code — the root cause behind every stale fact found in this repo so far</purpose>
+        <inputs><param name="none" type="— reads the repo tree" /></inputs>
+        <outputs><param name="report" type="one ok line per passed check; list of mismatches + exit 1" /></outputs>
+        <errors><error code="exit 1 on any mismatch (version, links, test list, seed counts, codescribe, api-contract, reserved names)" /></errors>
+      </contract>
+      <interface><fn-checkVersion /><fn-checkLinks /><fn-checkTestList /><fn-checkSeedCounts /><fn-checkCodescribe /><fn-checkApiContract /><fn-checkReserved /></interface>
+      <depends>M-GEN-API-CONTRACT</depends>
+      <target><source>lib/scripts/check-docs.mjs</source><tests>self-verifying</tests></target>
+      <observability><log-prefix>check-docs: чисто (N проверок) | check-docs: N расхождений</log-prefix></observability>
+      <verification-ref>V-M-CHECK-DOCS</verification-ref>
+    </M-CHECK-DOCS>
+
     <M-DOCKER NAME="Docker" TYPE="INTEGRATION" LAYER="0" ORDER="5" STATUS="done">
       <contract>
         <purpose>Build the dev DB image (TimescaleDB pg17 + background Redis) consumed by up()</purpose>
@@ -325,7 +353,7 @@
       <step-3>return AuthResult { account, credential } or null</step-3>
       <evidence>null on failure; no secret logged</evidence>
     </DF-005>
-    <DF-006 NAME="AclEnforce" TRIGGER="connect({ account, enforceAcl:true }) then any read/write">
+    <DF-006 NAME="AclEnforce" TRIGGER="connect({ enforceAcl:true }).as(account) then any read/write">
       <step-1>compileEnforcer builds (ClassDef,op)→AclDecision for the account+categories</step-1>
       <step-2>buildRead injects row filter / denies READ; aclWrite denies WRITE/DELETE</step-2>
       <evidence>acl denies &lt;op&gt; on &lt;class&gt; Error; deny-by-default</evidence>
@@ -338,7 +366,7 @@
     <DF-008 NAME="Bootstrap" TRIGGER="up(opts)">
       <step-1>ensureContainer: docker build/run timescaledb+redis (or skip for remote dsn)</step-1>
       <step-2>ensureDatabase: create db if missing (ignore race 42P04)</step-2>
-      <step-3>applySchema: apply ddl.sql + seeds into "&lt;schema&gt;.v&lt;version&gt;" (fresh drops first)</step-3>
+      <step-3>applySchema: apply ddl.sql + seeds into "v&lt;version&gt;.&lt;schema&gt;" (fresh drops first)</step-3>
       <step-4>wait for pg + redis ready, then connect()</step-4>
       <evidence>[letopis.up] container/image/schema/ready/connected messages</evidence>
     </DF-008>

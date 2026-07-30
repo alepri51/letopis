@@ -13,6 +13,10 @@
 ### 1. Shared artifacts — `docs/*.xml`
 Публичная карта проекта. Читай их ПЕРЕД работой с кодом.
 
+> **`VERSION` в `docs/*.xml` и в шапках файлов — версия СЛОЯ ДОКУМЕНТАЦИИ, не пакета.**
+> semver библиотеки живёт ровно в двух местах: `lib/package.json` и верхняя запись
+> `lib/CHANGELOG.md` (их совпадение проверяет `lib/scripts/check-docs.mjs`).
+
 | Файл | Что внутри |
 |---|---|
 | `docs/requirements.xml` | Акторы, use cases (UC-*), non-goals, constraints, risks — **намерение** |
@@ -38,8 +42,27 @@
 ## Governed scope
 
 Документацией покрыта **только библиотека `lib/`** (по команде владельца):
-- **Governed:** `lib/src/*.ts` (14 модулей), `lib/sql/*.sql` (ddl + 2 seed), `lib/scripts/*.mjs` (gen-types, schema-sync), `lib/docker/*` (Dockerfile, start.sh).
-- **Вне scope (не трогать):** `lib/test/**` (тесты), `lib/bench/**` (демо/бенчи), корневые `db/`, `schema.booking.*`, README/CHANGELOG/SALON/TESTPLAN.
+- **Governed:** `lib/src/*.ts` (14 модулей), `lib/sql/*.sql` (ddl + 2 seed), `lib/scripts/*.mjs` (gen-types, schema-sync, check-docs, gen-api-contract), `lib/docker/*` (Dockerfile, start.sh).
+- **Вне scope (не трогать):** `lib/test/**` (тесты), `lib/bench/**` (демо/бенчи), корневые `db/`, README/CHANGELOG.
+
+## Корневые документы — статус
+
+Ничего из этого не читается кодом; статус важен, чтобы не принять устаревшее за истину.
+
+| Файл | Статус | Что это |
+|---|---|---|
+| `README.md` (корень) | active | короткая точка входа: install, куда идти дальше |
+| `AGENT-CHEATSHEET.md` | active | минимальный рабочий цикл + частые ошибки — читать ПЕРЕД `lib/README.md` |
+| `lib/README.md` | active | полное руководство: §11 API Reference, §12 каталог ошибок |
+| `lib/CHANGELOG.md` | active | Keep a Changelog; вместе с `lib/package.json` — источник истины semver |
+| `docs/api-contract.json` | active, **генерируемый** | машиночитаемый контракт API (`scripts/gen-api-contract.mjs`) |
+| `BACKLOG.md` | active | идея порта на Python |
+| `COMPARISON.md` | active | сравнение с ORM/темпоральными БД |
+| `RESEARCH.md` | **historical** | написано под старым именем проекта `entity-chain` |
+
+Единственный источник истины по демо-домену — сид `lib/sql/seed.booking.sql`. Ранние
+дизайн-файлы `schema.booking.md` / `.json` удалены в 0.20.0, чтобы их нельзя было принять
+за схему проекта.
 
 ## Module index (`M-*` → файл)
 
@@ -64,6 +87,8 @@
 | M-SEED-BOOKING | lib/sql/seed.booking.sql | DATA_LAYER |
 | M-GEN-TYPES | lib/scripts/gen-types.mjs | UTILITY |
 | M-SCHEMA-SYNC | lib/scripts/schema-sync.mjs | UTILITY |
+| M-GEN-API-CONTRACT | lib/scripts/gen-api-contract.mjs | UTILITY |
+| M-CHECK-DOCS | lib/scripts/check-docs.mjs | UTILITY |
 | M-DOCKER | lib/docker/Dockerfile (+ start.sh) | INTEGRATION |
 
 ---
@@ -90,7 +115,7 @@ cd lib && npm test               # tsx --test --test-concurrency=1 --test-force-
 
 ## Coverage gaps (см. verification-plan.xml)
 
-- **M-ACL** — нет юнит-теста (только `bench/acl.bench.mjs`), при высоком риске authz; рекомендуется `acl.test.ts`.
+- **M-ACL** — покрыт `lib/test/acl.test.ts` (+ `bench/acl.bench.mjs` мерит оверхед); риск не в покрытии, а в том, что правила компилятся в memo-энфорсер на подключение.
 - **M-DDL** — plpgsql-триггеры проверяются только косвенно через интеграционные тесты; дублируют инварианты `M-WRITE.validate` (риск дрейфа).
-- **M-SEED-BOOKING** — заголовок файла говорит «19 классов», фактически 20 INSERT-ов (12 HUB + 8 LINK) — сверить.
+- **M-SEED-BOOKING** — нет своего теста; правится руками, поэтому число классов в заголовке файла сверяет `lib/scripts/check-docs.mjs`.
 - Тесты (`lib/test/**`) исключены из scope и не анализировались — сценарии в `V-M-*` выведены из публичного поведения.

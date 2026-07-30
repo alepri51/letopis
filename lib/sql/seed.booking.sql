@@ -1,11 +1,11 @@
 -- =============================================================================
--- Сид таблицы Schema — ИСТОЧНИК ПРАВДЫ демо-домена booking (19 классов, 0.17).
+-- Сид таблицы Schema — ИСТОЧНИК ПРАВДЫ демо-домена booking (20 классов: 12 HUB + 8 LINK).
 -- Редактируется руками; накат: db/apply.mjs / up() (маркер <SCHEMA-NAME>).
 -- Идемпотентен (ON CONFLICT). Концы связей — Schema.links v2 (JSON-объекты в text[]).
 -- =============================================================================
 --
 -- FILE: lib/sql/seed.booking.sql
--- VERSION: 1.0.0
+-- VERSION: 1.0.1
 -- START_MODULE_CONTRACT
 --   PURPOSE: Идемпотентный сид таблицы Schema — источник правды демо-домена booking (классы HUB + LINK).
 --   SCOPE: 20 INSERT-ов классов (12 HUB: Entity/Org/Person/Staff/Customer/Location/Element/Service/Product/Complex/Schedule/Folder; 8 LINK: link/address/slot/booking/content/compo/skill/price).
@@ -18,11 +18,12 @@
 -- START_MODULE_MAP
 --   HUB-классы - сущности домена (наследование от Entity; id v5/v7)
 --   LINK-классы - связи (концы Schema.links v2; id v5 из концов)
---   NB: фактически 20 классов (12 HUB + 8 LINK); заголовок файла говорит «19» — расхождение
+--   NB: 20 классов (12 HUB + 8 LINK); число в заголовке файла сверяет scripts/check-docs.mjs
 -- END_MODULE_MAP
 --
 -- START_CHANGE_SUMMARY
---   LAST_CHANGE: [v1.0.0 - Documented existing module: reverse-engineered contract + markup]
+--   LAST_CHANGE: [v1.0.1 - Docs-only: заголовок файла приведён к факту (20 классов: 12 HUB + 8 LINK);
+--     число теперь проверяется автоматически. INSERT-ы не менялись]
 -- END_CHANGE_SUMMARY
 --
 -- START_BLOCK_SEED_HUB_CLASSES

@@ -9,7 +9,7 @@ let db: EntityDb;
 const S: Record<string, unknown> = {};
 
 before(async () => {
-  db = await connect({ dsn: DSN, schema: 'v1.booking' });
+  db = await connect({ enforceAccount: false, dsn: DSN, schema: 'v1.booking' });
   await db.sql.unsafe('TRUNCATE "v1.booking"."Entity"');
   const [org] = await db.Организация().create({ name: 'W3' }).rows();
   // каталог товаров: цена — отдельный LINK «цена» (amounts.RUB), unit — категория для countBy

@@ -5,7 +5,7 @@
  */
 //
 // FILE: lib/src/tables.ts
-// VERSION: 1.0.0
+// VERSION: 1.1.0
 // START_MODULE_CONTRACT
 //   PURPOSE: Типизированный CRUD над служебными таблицами auth/ACL: Account, Credential, Resource, Rule.
 //   SCOPE: makeTables (фасад) + find/get/set/delete по каждой таблице; обычные таблицы без версионирования.
@@ -22,10 +22,13 @@
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.0.0 - Documented existing module: reverse-engineered contract + markup]
+//   LAST_CHANGE: [v1.1.0 - accounts.purge: сообщение об отсутствии личности вызывающего теперь
+//     указывает на scoped-хендл ((await db.as(caller)).accounts.purge(id)) — опции connect({account})
+//     больше нет. Ранее: Documented existing module: reverse-engineered contract + markup]
 // END_CHANGE_SUMMARY
 import type { Ctx } from './sql.js';
 import type { Account, Credential, Resource, Rule } from './types.js';
+import { reservedNamesOf } from './types.js';
 
 const T = (ctx: Ctx, name: string) => `"${ctx.pgSchema.replace(/"/g, '""')}"."${name}"`;
 
@@ -210,7 +213,10 @@ export function makeTables(ctx: Ctx): Tables {
     // END_CONTRACT: accounts.purge
     async purge(id) {
       if (!ctx.account) {
-        throw new Error('letopis: accounts.purge requires an authenticated caller — connect({ account })');
+        throw new Error(
+          'letopis: accounts.purge requires an authenticated caller — call it from a scoped handle: ' +
+            '(await db.as(caller)).accounts.purge(id)',
+        );
       }
       if (id === ctx.account) {
         throw new Error('letopis: accounts.purge cannot purge the calling account itself');
@@ -354,6 +360,16 @@ export function makeTables(ctx: Ctx): Tables {
   // START_BLOCK_SCHEMA_API
   const schema: SchemaApi = {
     async define(def) {
+      // класс с именем, которое Proxy разбирает до резолва класса, был бы недостижим как шаг
+      const clash = reservedNamesOf(def);
+      if (clash.length) {
+        throw new Error(
+          `letopis: class name ${clash.map((n) => `"${n}"`).join(' / ')} is reserved by the chain API ` +
+            `(a step under that name resolves to the method, not the class) — rename the ${
+              clash.includes(def.id) ? 'id' : 'alias'
+            }`,
+        );
+      }
       // jsonb-значения через sql.json() — postgres.js кладёт как jsonb (не PG-массив/строку)
       const j = (v: unknown) => (ctx.sql as unknown as { json(x: unknown): unknown }).json(v);
       await run(

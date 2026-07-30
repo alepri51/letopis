@@ -28,7 +28,7 @@ const insStaff = (id: string, org: string, acc = SYS) =>
   );
 
 before(async () => {
-  db = await up({ dsn: DSN, schema: 'wave5', version: 1, fresh: true, quiet: true });
+  db = await up({ enforceAccount: false, dsn: DSN, schema: 'wave5', version: 1, fresh: true, quiet: true });
 });
 
 after(async () => {
@@ -118,7 +118,7 @@ test('P1 флаг самосброс: после purge обычный delete с�
 // ---------------------------------------------------------------------------
 
 test('P1 accounts.purge: сносит все Entity тенанта + Account + Credential (FK-каскад)', async () => {
-  const dbSys = await connect({ dsn: DSN, schema: S, account: SYS });
+  const dbSys = await (await connect({ dsn: DSN, schema: S })).as(SYS);
   try {
     const acc = await dbSys.accounts.set({ categories: ['User'], data: { name: 'tmp' } });
     await dbSys.credentials.set({ account: acc.id, category: 'EMAIL', identifier: `tmp-${acc.id}@x` });
@@ -133,8 +133,15 @@ test('P1 accounts.purge: сносит все Entity тенанта + Account + C
 });
 
 test('P1 accounts.purge guards: не-Owner → отказ; последний Owner → отказ; сам себя → отказ', async () => {
-  const dbSys = await connect({ dsn: DSN, schema: S, account: SYS });
+  const dbSys = await (await connect({ dsn: DSN, schema: S })).as(SYS);
   try {
+    // безличный корень: личности вызывающего нет — предохранители проверять нечем
+    const root = await connect({ dsn: DSN, schema: S, enforceAccount: false });
+    try {
+      await assert.rejects(root.accounts.purge(SYS), /scoped handle: \(await db\.as\(caller\)\)/);
+    } finally {
+      await root.close();
+    }
     // сам себя
     await assert.rejects(dbSys.accounts.purge(SYS), /itself/);
     // последний Owner
@@ -142,7 +149,7 @@ test('P1 accounts.purge guards: не-Owner → отказ; последний Ow
     await assert.rejects(dbSys.accounts.purge(owner.id), /last enabled Owner/);
     // не-Owner вызывающий
     const user = await dbSys.accounts.set({ categories: ['User'], data: { name: 'plain' } });
-    const dbUser = await connect({ dsn: DSN, schema: S, account: user.id });
+    const dbUser = await (await connect({ dsn: DSN, schema: S })).as(user.id);
     try {
       await assert.rejects(dbUser.accounts.purge(owner.id), /Owner\/System/);
     } finally {
@@ -195,7 +202,7 @@ test('P2 ACL цел: правка определений не трогает Acc
 
 test('P2 рестарт не затирает: up() на существующей схеме (seed пропущен) — определение живёт', async () => {
   await db.schema.define({ id: 'Coupon4', alias: 'Coupon4', category: 'HUB', attributes: { id: { type: 'uuid', generate: 7 } } });
-  const db2 = await up({ dsn: DSN, schema: 'wave5', version: 1, quiet: true }); // без fresh → apply skipped
+  const db2 = await up({ enforceAccount: false, dsn: DSN, schema: 'wave5', version: 1, quiet: true }); // без fresh → apply skipped
   try {
     assert.equal(db2.registry.has('Coupon4'), true); // правка пережила «рестарт»
   } finally {

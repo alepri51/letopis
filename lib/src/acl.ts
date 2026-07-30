@@ -19,7 +19,7 @@
  */
 //
 // FILE: lib/src/acl.ts
-// VERSION: 1.0.0
+// VERSION: 1.0.1
 // START_MODULE_CONTRACT
 //   PURPOSE: Движок авторизации по таблицам Resource/Rule — матчинг субъектов/ресурсов, выбор победившего правила по весу, allow/deny + row-фильтры.
 //   SCOPE: makeAcl, compileEnforcer, matchCategories, matchMask, aclDenied, ACL_OPS; локальные matchers/decide/toDecision.
@@ -40,7 +40,8 @@
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.0.0 - Documented existing module: reverse-engineered contract + markup]
+//   LAST_CHANGE: [v1.0.1 - Docs-only: JSDoc AclApi.reload() разведён с db.reloadSchema() —
+//     reload() чистит кэш ЭТОГО фасада, энфорсер цепочек пересобирает reloadSchema(). Код не менялся]
 // END_CHANGE_SUMMARY
 import type { AclOp, AclDecision, ClassDef, Resource, Rule } from './types.js';
 import type { Registry } from './schema.js';
@@ -248,7 +249,11 @@ export interface AclApi {
   check(account: string | { id: string }, endpoint: string): Promise<AclDecision>;
   /** Решение операции над классом: allow + остаточный шаблон строк (filter) | deny. */
   checkData(account: string | { id: string }, className: string, op: AclOp): Promise<AclDecision>;
-  /** Сбросить кэш Resource/Rule фасада (enforceAcl-цепочки перечитывают только новым connect). */
+  /**
+   * Сбросить кэш Resource/Rule ЭТОГО фасада (db.acl.check/checkData).
+   * NB: энфорсер цепочек под `enforceAcl` — отдельная подсистема; его пересобирает
+   * `db.reloadSchema()` (реестр + ACL-резолвер), а не этот reload().
+   */
   reload(): void;
 }
 
@@ -302,13 +307,14 @@ export function makeAcl(tables: Tables, registry: Registry): AclApi {
 // --- enforce-компилятор (connect({enforceAcl: true})) ----------------------------
 
 // START_CONTRACT: compileEnforcer
-//   PURPOSE: Скомпилировать синхронный энфорсер (ClassDef, op) → AclDecision с мемоизацией — субъект и правила зафиксированы на connect.
+//   PURPOSE: Скомпилировать синхронный энфорсер (ClassDef, op) → AclDecision с мемоизацией — субъект и правила снимаются В МОМЕНТ вызова (на connect либо на db.reloadSchema()).
 //   INPUTS: { src: AclSource; account: string; cats: string[]; registry: Registry }
 //   OUTPUTS: { (cls: ClassDef, op: AclOp) => AclDecision }
 //   SIDE_EFFECTS: none (мемо-кэш решений)
 //   LINKS: M-ACL, V-M-ACL, M-SQL, M-WRITE
 // END_CONTRACT: compileEnforcer
-/** Синхронный резолвер для цепочек: категории субъекта и правила зафиксированы на connect. */
+/** Синхронный резолвер для цепочек: категории субъекта и правила — снимок на момент
+ *  компиляции (connect либо db.reloadSchema(), который пересобирает энфорсер). */
 export function compileEnforcer(
   src: AclSource,
   account: string,

@@ -9,7 +9,7 @@
  */
 //
 // FILE: lib/src/schema.ts
-// VERSION: 1.0.0
+// VERSION: 1.1.0
 // START_MODULE_CONTRACT
 //   PURPOSE: Строит реестр классов из таблицы Schema — резолв наследования/link-ends, типы полей, компиляция валидаторов.
 //   SCOPE: Registry (add/find/resolve/has), loadRegistry, fieldTypeOf; локальные parseEnd/parseIdGen/buildDef.
@@ -26,11 +26,13 @@
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.0.0 - Documented existing module: reverse-engineered contract + markup]
+//   LAST_CHANGE: [v1.1.0 - loadRegistry: 42P01/3F000 перехватываются и заменяются адресной ошибкой
+//     (передано базовое имя вместо "vN.имя") со списком letopis-схем — паритет с валидацией up()]
 // END_CHANGE_SUMMARY
 import { createRequire } from 'node:module';
 import type { Sql } from 'postgres';
 import type { ClassDef, FieldType, IdGen, LinkEnd } from './types.js';
+import { reservedNamesOf } from './types.js';
 
 // fastest-validator — CJS с ESM-типами; берём класс из module.exports напрямую.
 interface FastestValidator {
@@ -314,18 +316,40 @@ function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
 //   PURPOSE: Прочитать классы партиции из таблицы Schema и построить Registry со скомпилированными check.
 //   INPUTS: { sql: postgres.Sql; pgSchema: string; partition: string }
 //   OUTPUTS: { Promise<Registry> - реестр всех классов партиции }
-//   SIDE_EFFECTS: SELECT из "<pgSchema>"."Schema"
-//   ERRORS: schema has no classes for partition
+//   SIDE_EFFECTS: SELECT из "<pgSchema>"."Schema"; на 42P01/3F000 — доп. SELECT списка схем для подсказки
+//   ERRORS: schema has no classes for partition; schema has no "Schema" table (передано базовое имя вместо "vN.имя")
 //   LINKS: M-SCHEMA, V-M-SCHEMA, M-DDL
 // END_CONTRACT: loadRegistry
+/** Уже предупреждённые «схема:класс» — чтобы не повторять на каждый connect/reloadSchema. */
+const warnedReserved = new Set<string>();
+
 export async function loadRegistry(sql: Sql, pgSchema: string, partition: string): Promise<Registry> {
   // START_BLOCK_LOAD_QUERY
   const ident = `"${pgSchema.replace(/"/g, '""')}"`;
-  const rows = (await sql.unsafe(
-    `SELECT id, alias, category, ancestor, attributes, links, meta, "order", ancestors, descendants
-       FROM ${ident}."Schema" WHERE partition = $1 ORDER BY category, "order"`,
-    [partition],
-  )) as unknown as SchemaRow[];
+  let rows: SchemaRow[];
+  try {
+    rows = (await sql.unsafe(
+      `SELECT id, alias, category, ancestor, attributes, links, meta, "order", ancestors, descendants
+         FROM ${ident}."Schema" WHERE partition = $1 ORDER BY category, "order"`,
+      [partition],
+    )) as unknown as SchemaRow[];
+  } catch (e) {
+    // 42P01 undefined_table / 3F000 invalid_schema_name — типовая ошибка: передали БАЗОВОЕ имя
+    // ('booking') вместо полного с версией ('v1.booking'). Подсказываем вместо сырой ошибки PG.
+    const code = (e as { code?: string }).code;
+    if (code !== '42P01' && code !== '3F000') throw e;
+    // перечисляем ТОЛЬКО схемы letopis (те, где есть таблица Schema), а не все namespace БД
+    const found = (await sql.unsafe(
+      `SELECT table_schema AS s FROM information_schema.tables
+         WHERE table_name = 'Schema' ORDER BY 1`,
+    )) as unknown as { s: string }[];
+    throw new Error(
+      `letopis: schema "${pgSchema}" has no "Schema" table — connect({ schema }) takes the FULL ` +
+        `PG-schema name WITH the engine version ("v1.booking"); the library adds no prefix. ` +
+        `letopis schemas here: ${found.map((r) => r.s).join(', ') || '(none)'}. ` +
+        `Create one with up({ schema, version }) or db/apply.mjs --schema=… --version=…`,
+    );
+  }
 
   if (!rows.length) {
     throw new Error(`letopis: schema "${pgSchema}" has no classes for partition "${partition}"`);
@@ -335,5 +359,27 @@ export async function loadRegistry(sql: Sql, pgSchema: string, partition: string
   const byId = new Map(rows.map((r) => [r.id, r]));
   const registry = new Registry();
   for (const row of rows) registry.add(buildDef(row, byId));
+
+  // START_BLOCK_RESERVED_WARN
+  // Имя, перехватываемое Proxy до резолва класса, делает шаг недостижимым ПОД ЭТИМ именем
+  // (второе имя класса, если оно свободно, работает). Предупреждаем, а НЕ бросаем: демо-сид
+  // содержит класс id "link", и throw уронил бы up() на штатной схеме.
+  // Один раз на (схема, класс) за процесс: loadRegistry зовётся на каждый connect и
+  // reloadSchema — иначе штатный прогон утонул бы в повторах.
+  for (const def of registry.all) {
+    const clash = reservedNamesOf(def);
+    if (!clash.length) continue;
+    const seen = `${pgSchema}:${def.id}`;
+    if (warnedReserved.has(seen)) continue;
+    warnedReserved.add(seen);
+    const free = [def.id, def.alias].filter((n) => !clash.includes(n));
+    console.warn(
+      `letopis: class name ${clash.map((n) => `"${n}"`).join(' / ')} is reserved by the chain API — ` +
+        (free.length
+          ? `use ${free.map((n) => `"${n}"`).join(' / ')} for chain steps`
+          : 'this class is unreachable as a chain step; rename it'),
+    );
+  }
+  // END_BLOCK_RESERVED_WARN
   return registry;
 }

@@ -27,7 +27,7 @@ before(async () => {
   await admin.unsafe(`DROP SCHEMA IF EXISTS "${SCHEMA}" CASCADE`);
   await admin.end();
   execFileSync('node', [join(here, '../../db/apply.mjs'), `--dsn=${DSN}`, '--schema=depth', '--version=1'], { stdio: 'ignore' });
-  db = await connect({ dsn: DSN, schema: SCHEMA });
+  db = await connect({ enforceAccount: false, dsn: DSN, schema: SCHEMA });
 });
 after(async () => db.close());
 
@@ -37,7 +37,7 @@ test('наследование 3+ уровней: lineage считает всю 
       ('entity', 'Vehicle',   'Транспорт', 'HUB', 'Entity',  '{"id":"any","name":"string"}', '{"abstract":false}', 900),
       ('entity', 'Car',       'Машина',    'HUB', 'Vehicle', '{"id":"any","name":"string"}', '{"abstract":false}', 901),
       ('entity', 'SportsCar', 'Спорткар',  'HUB', 'Car',     '{"id":"any","name":"string"}', '{"abstract":false}', 902)`);
-  const t = await connect({ dsn: DSN, schema: SCHEMA }); // свежий реестр
+  const t = await connect({ enforceAccount: false, dsn: DSN, schema: SCHEMA }); // свежий реестр
 
   assert.deepEqual(t.registry.resolve('SportsCar').ancestors, ['SportsCar', 'Car', 'Vehicle', 'Entity']);
   assert.deepEqual(t.registry.resolve('Спорткар').ancestors, ['SportsCar', 'Car', 'Vehicle', 'Entity']);

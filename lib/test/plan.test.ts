@@ -23,7 +23,7 @@ before(async () => {
   await admin.unsafe(`DROP SCHEMA IF EXISTS "${SCHEMA}" CASCADE`);
   await admin.end();
   execFileSync('node', [join(here, '../../db/apply.mjs'), `--dsn=${DSN}`, '--schema=plan', '--version=1'], { stdio: 'ignore' });
-  db = await connect({ dsn: DSN, schema: SCHEMA });
+  db = await connect({ enforceAccount: false, dsn: DSN, schema: SCHEMA });
 });
 after(async () => db.close());
 

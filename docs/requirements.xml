@@ -98,7 +98,7 @@
       <Actor>Operator</Actor>
       <Action>Enforce ACL on reads and writes</Action>
       <Goal>Restrict access per account by Resource/Rule with weighted precedence</Goal>
-      <Preconditions>connect({ account, enforceAcl:true }); resources/rules seeded</Preconditions>
+      <Preconditions>(await connect({ enforceAcl:true })).as(account); resources/rules seeded</Preconditions>
       <AcceptanceCriteria>Deny-by-default; highest-weight matching rule wins; row filters injected into reads; denied writes throw</AcceptanceCriteria>
       <Priority>high</Priority>
       <RelatedFlows>DF-006</RelatedFlows>
@@ -151,21 +151,21 @@
   <Constraints>
     <constraint-1>Requires PostgreSQL 17 with the TimescaleDB extension (Entity is a hypertable); Redis for sessions.</constraint-1>
     <constraint-2>ESM-only; Node 20+ with NodeNext resolution and explicit .js import specifiers.</constraint-2>
-    <constraint-3>Entity.account is NOT NULL — every write needs an account (connect({account}) or the seeded System account).</constraint-3>
+    <constraint-3>Entity.account is NOT NULL — every write needs an account: the scoped handle db.as(account), an explicit .account() step modifier, or the seeded System account as a fallback.</constraint-3>
     <constraint-4>up() requires Docker unless the dsn targets an already-running Postgres.</constraint-4>
   </Constraints>
 
   <Risks>
     <risk-1>Invariant duplication: entity validation and link-end rules live both in M-DDL triggers and in M-WRITE.validate — they can drift.</risk-1>
-    <risk-2>ACL (M-ACL) has no dedicated unit test (only a bench) despite being high-risk authorization logic.</risk-2>
+    <risk-2>ACL (M-ACL) concentrates authorization logic and is compiled into a memoized per-connection enforcer, so a wrong rule/weight silently widens access; covered by lib/test/acl.test.ts plus enforcement paths in lib/test/salon.test.ts.</risk-2>
     <risk-3>Type-level import cycle M-SQL↔M-ACL↔M-TABLES and runtime ESM cycle M-CONNECT↔M-UP constrain refactoring.</risk-3>
-    <risk-4>Logic concentration in chain.ts / sql.ts / write.ts (~750 LOC each) raises regression surface.</risk-4>
-    <risk-5>seed.booking.sql header says "19 классов" but 20 INSERT statements were counted — a possible seed inconsistency.</risk-5>
+    <risk-4>Logic concentration in chain.ts / sql.ts / write.ts — most of the engine lives in three files, raising regression surface.</risk-4>
+    <risk-5>The demo booking schema is seeded by hand (lib/sql/seed.booking.sql) and is the source of truth for its classes, so a hand edit can silently diverge from the docs; the class count in the file header is checked by lib/scripts/check-docs.mjs.</risk-5>
   </Risks>
 
-  <OpenQuestions>
-    <question-1>Are gen-types/schema-sync intended as supported product surface (UC-014) or purely internal dev tooling?</question-1>
-    <question-2>Is the demo booking domain (seed.booking.sql) part of the shipped product or only a demo/bench fixture?</question-2>
-    <question-3>What is the intended security posture for enforceAcl/enforceAccount in production (default on/off)?</question-3>
-  </OpenQuestions>
+  <ResolvedQuestions>
+    <answer-1 was="Are gen-types/schema-sync supported product surface or internal tooling?">Supported product surface. Both ship in the npm tarball (package.json "files" includes "scripts", added in 0.18.1), are documented in README §10.9/§10.11 and §11, are self-contained plain Node (no tsx needed), and gen-types output is guarded by a drift test in lib/test/wave2.test.ts that compiles the generated .d.ts. They are not installed as bin — invoke with node node_modules/letopis/scripts/&lt;name&gt;.mjs.</answer-1>
+    <answer-2 was="Is the demo booking domain part of the shipped product or a fixture?">Shipped, as the default fixture. seed.booking.sql is inside "files" (sql/) and up() applies it when the seeds option is omitted, so a consumer who forgets seeds gets the booking classes in their own schema — called out as a warning in README §1.1. It is the source of truth for its own classes, hand-edited, and its class count is asserted by lib/scripts/check-docs.mjs.</answer-2>
+    <answer-3 was="What is the intended security posture for enforceAcl/enforceAccount in production?">Decided by the owner and shipped in 0.20.0. (a) Tenant isolation is ON by default: enforceAccount defaults to true AND demands an identity — the tenant is a property of the CALL, so reads/writes from the impersonal root handle throw and point at db.as(account); admin/service access to all tenants must be requested explicitly with connect({ enforceAccount: false }). Forgetting isolation is now loud, not silent. (b) Authorization stays opt-in: enforceAcl remains false, because deny-by-default without seeded Resource/Rule would silently return empty result sets and break every consumer on upgrade. Instead of inverting the default, connect() prints one warning per process stating that Resource/Rule are not checked — a noisy absence of authorization beats a quiet one. Production is expected to pass connect({ enforceAcl: true }) plus db.as(account); the ACL enforcer is compiled per scope (one enforcer = one subject).</answer-3>
+  </ResolvedQuestions>
 </RequirementsAnalysis>

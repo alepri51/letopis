@@ -29,7 +29,7 @@ const час = (r: Row) => new Date(String(r.data.start_datetime)).getUTCHours()
 const bookingId = (master: Row, startIso: string) => uuidv5(`v1.booking:entity:booking:${master.id}:${startIso}`);
 
 before(async () => {
-  db = await connect({ dsn: DSN, schema: 'v1.booking' });
+  db = await connect({ enforceAccount: false, dsn: DSN, schema: 'v1.booking' });
   await db.sql.unsafe('TRUNCATE "v1.booking"."Entity"');
 
   // Салон, зал, мастера, каталог, навыки — связи dot-цепочками
@@ -78,7 +78,7 @@ const visitsOf = (t: EntityDb, master: Row) => t.Мастер(master.id).зап�
 
 /** Свободные ЧАСОВЫЕ старты мастера: часы внутри смен − пересечения с записями. */
 async function freeHours(master: Row): Promise<Set<number>> {
-  const смены = await db.Мастер(master.id).окно().rows();
+  const смены = await db.Мастер(master.id).окно().exact().rows();
   const записи = await visitsOf(db, master);
   const свободно = new Set<number>();
   for (const w of смены) {
@@ -111,7 +111,7 @@ async function guardVisit(tr: EntityDb, req: VisitReq, startIso: string, endIso:
       throw new Error(`нет навыка: ${String(req.master.data.name)} не делает ${String(req.item.data.name)}`);
   }
   // интервал записи внутри какой-то смены мастера (позитивная доступность)
-  const смены = await tr.Мастер(req.master.id).окно().rows();
+  const смены = await tr.Мастер(req.master.id).окно().exact().rows();
   const внутри = смены.some((w) => ms(w.data.start_datetime) <= ms(startIso) && ms(endIso) <= ms(w.data.end_datetime));
   if (!внутри) throw new Error(`вне смены: ${String(req.master.data.name)} не работает в это время`);
   // пересечения с живыми записями
@@ -208,7 +208,7 @@ test('С1. Happy path: Аня → Света, маникюр 10:00', async () =>
   assert.ok((await freeHours(S.марина)).has(10));         // Марина свободна
 
   // старт визита лежит внутри смены Светы
-  const [смена] = await db.Мастер(S.света.id).окно().rows();
+  const [смена] = await db.Мастер(S.света.id).окно().exact().rows();
   assert.ok(ms(смена.data.start_datetime) <= ms(S.зАни.data.start_datetime));
 });
 
@@ -362,7 +362,7 @@ test('С14. Отказ: бронь вне смены (16:00 при смене д
     /вне смены/,
   );
   // смены нетронуты: у Марины по-прежнему одна
-  assert.equal(await db.Мастер(S.марина.id).окно().count(), 1);
+  assert.equal(await db.Мастер(S.марина.id).окно().exact().count(), 1);
 });
 
 test('С15. Race: отмена vs перенос одной записи → ровно один исход', async () => {
@@ -418,7 +418,7 @@ test('С16. Конец дня: отчёты и сквозные инвариан
   }
   // (б) каждая запись внутри смены своего мастера
   for (const з of все) {
-    const смены = await db.Мастер(з.links.Staff).окно().rows();
+    const смены = await db.Мастер(з.links.Staff).окно().exact().rows();
     assert.ok(
       смены.some((w) => ms(w.data.start_datetime) <= ms(з.data.start_datetime) && ms(з.data.end_datetime) <= ms(w.data.end_datetime)),
       `запись ${з.id} вне смен мастера`,

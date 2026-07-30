@@ -9,7 +9,7 @@
  * одной транзакцией.
  */
 // FILE: lib/src/chain.ts
-// VERSION: 1.0.0
+// VERSION: 1.3.0
 // START_MODULE_CONTRACT
 //   PURPOSE: Чейнящийся фасад сущностей — из шагов класс/связь/pivot собирает планы чтения и записи и даёт run/rows/first/ids/count/агрегации, versions/asOf/after, create/update/delete/anonymize, слоты связей, батчи, транзакции и watch изменений.
 //   SCOPE: сборка Proxy-цепочек; read-терминалы и агрегации; планы записи; слоты связей; entity()-вклейка; батчи; begin/commit/rollback/lock; watch через LISTEN
@@ -23,7 +23,7 @@
 //   ChainCore - интерфейс терминалов/модификаторов читающей и пишущей цепочки
 //   StepProp - свойство-класс: вызов = шаг/pivot, без скобок = слот связи (set/unset)
 //   Chain - ChainCore плюс динамические свойства-классы
-//   DbCore - корневой фасад: begin/commit/rollback, batch, watch, close, auth/acl/таблицы, entity
+//   DbCore - корневой фасад: as (идентичность вызова), begin/commit/rollback, batch, watch, close, auth/acl/таблицы, entity
 //   EntityDb - DbCore плюс классы как стартовые шаги пути
 //   EntityTx - EntityDb внутри транзакции (commit/rollback/lock)
 //   WatchEvent - событие watch(): факт новой версии строки
@@ -34,7 +34,10 @@
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.0.0 - Documented existing module: reverse-engineered contract + markup]
+//   LAST_CHANGE: [v1.3.0 - Добавлен db.as(account, { owner }): идентичность ВЫЗОВА, а не
+//     подключения (в connect() опции account больше нет). Клон ctx на том же пуле; при
+//     enforceAcl компилит энфорсер под своего субъекта; батчи не наследуются.
+//     Ранее: снят охранник case 'link' — он затенял реальный класс схемы; добавлен .exact()]
 // END_CHANGE_SUMMARY
 //
 import type { Row, Path, Filter, ChainMods, PlanOp, ClassDef, LinkEnd } from './types.js';
@@ -80,6 +83,14 @@ export interface ChainCore {
   versions(): Promise<Row[]>;
   /** Рекурсивный self-обход: дети любой глубины (тот же класс), $depth в Row. */
   deep(max?: number): Chain;
+  /**
+   * Только ЭТОТ класс, без классов-потомков. По умолчанию шаг полиморфен: родитель отдаёт
+   * объединение с потомками (`db.Контрагент()` → Мастера + Клиенты). `.exact()` нужен, когда
+   * наследование в домене — переиспользование attributes, а не «is-a» для выборки:
+   * в демо `запись` наследует `окно`, но смена ≠ бронь, поэтому «смены мастера» —
+   * `db.Мастер(id).окно().exact()`.
+   */
+  exact(): Chain;
   /** Агрегации по полю последнего шага ('data.<путь>'), считает БД. */
   sum(field: string): Promise<number | null>;
   avg(field: string): Promise<number | null>;
@@ -156,6 +167,19 @@ export type Chain = ChainCore & {
 };
 
 export interface DbCore {
+  /**
+   * Идентичность ВЫЗОВА: хендл того же пула, работающий от имени account.
+   * Арендатор — свойство вызова, а не подключения (в connect() опции account нет):
+   *
+   *   const db = await connect({ dsn, schema })   // пул, безличный
+   *   const t  = await db.as(req.accountId)       // кто именно делает этот вызов
+   *   await t.Клиент().rows()                     // изолировано по account
+   *
+   * При enforceAccount (default) чтение/запись возможны только с такого хендла.
+   * При enforceAcl энфорсер компилится под ЭТОГО субъекта (у каждого scope свой).
+   * owner по умолчанию = account; переопределяется вторым аргументом.
+   */
+  as(account: string | { id: string }, opts?: { owner?: string }): Promise<EntityDb>;
   /** Открыть транзакцию: tr — тот же API + commit/rollback/lock. */
   begin(): Promise<EntityTx>;
   commit(tr: EntityTx): Promise<void>;
@@ -630,6 +654,9 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef, n
           return () => withMods({ withDeleted: true });
         case 'deep':
           return (max = 32) => withLast({ deepMax: max });
+        case 'exact':
+          // снять полиморфизм ТЕКУЩЕГО шага: только свой класс, без потомков
+          return () => withLast({ exactClass: true });
         // END_BLOCK_READ_MODIFIERS
         // START_BLOCK_AGGREGATIONS
         case 'sum':
@@ -722,8 +749,10 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef, n
         case 'owner':
           return (v: string | { id: string }) =>
             withLast({ ownerFilter: typeof v === 'object' ? v.id : v });
-        case 'link':
-          throw new Error('letopis: .link() removed (0.15.0) — use the link slot: .Класс.set(target)');
+        // NB: охранника `case 'link'` здесь больше нет (снят в 0.20.0). Он затенял РЕАЛЬНЫЙ
+        // класс схемы: в демо-домене `link` — абстрактный корень всех связок, и шаг
+        // db.Клиент(c).link() падал migration-ошибкой вместо обхода. Обратная совместимость
+        // со снесённым в 0.15.0 методом .link() принесена в жертву достижимости класса.
         // END_BLOCK_COLUMN_MODS
       }
 
@@ -810,6 +839,26 @@ export function makeDb(ctx: Ctx, root?: RootState): EntityDb {
       // END_BLOCK_TABLES_AUTH_ACL
 
       switch (prop) {
+        // START_BLOCK_SCOPE_AS
+        // db.as(account): тот же пул, но вызов от имени этого арендатора. Дешёвый клон ctx
+        // (как beginTx), НЕ новое соединение. Батчи не наследуются: очередь планов, общая
+        // для разных арендаторов, — это утечка записи между ними.
+        case 'as':
+          return async (a: string | { id: string }, o?: { owner?: string }) => {
+            const account = typeof a === 'object' ? a?.id : a;
+            if (!account) throw new Error('letopis: db.as(account) requires an account id (uuid or { id })');
+            const scoped: Ctx = { ...ctx, account, owner: o?.owner, aclDecide: undefined };
+            // reloadSchema() со scope: реестр перечитывает КОРЕНЬ (единый источник), затем
+            // scope подхватывает его и перекомпилирует свой энфорсер под своего субъекта.
+            scoped.reload = async () => {
+              await ctx.reload?.();
+              scoped.registry = ctx.registry;
+              await ctx.compileAcl?.(scoped);
+            };
+            await ctx.compileAcl?.(scoped);
+            return makeDb(scoped);
+          };
+        // END_BLOCK_SCOPE_AS
         // START_BLOCK_TX_LOCK
         case 'begin':
           return async () => makeDb(await beginTx(ctx), state) as EntityTx;

@@ -1,12 +1,17 @@
 /**
  * letopis: dot-цепочки над append-only Entity-хранилищем (TimescaleDB).
  *
- *   const db = await connect({ dsn, schema: 'booking' })
- *   await db.Сотрудник({ name: 'Вася' }).навык().Услуга().run()
+ * schema — ПОЛНОЕ имя PG-схемы С версией движка ("v1.booking"); префикс либа НЕ достраивает
+ * (создаёт up({ schema: 'booking', version: 1 }) либо db/apply.mjs). Шаг цепочки — id ИЛИ
+ * alias класса из таблицы Schema (db.Staff ≡ db.Мастер).
+ *
+ *   const db = await connect({ dsn, schema: 'v1.booking' })   // безличный пул
+ *   const t  = await db.as(accountId)                          // арендатор ВЫЗОВА
+ *   await t.Мастер({ name: 'Вася' }).навык().Услуга().run()
  */
 
 // FILE: lib/src/index.ts
-// VERSION: 1.0.0
+// VERSION: 1.2.0
 // START_MODULE_CONTRACT
 //   PURPOSE: Публичная точка входа пакета — открыть соединение (реестр, опциональный ACL, сборка db) и ре-экспорт публичной поверхности; хелпер курсора.
 //   SCOPE: connect, cursorOf + barrel-реэкспорты
@@ -23,7 +28,10 @@
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.0.0 - Documented existing module: reverse-engineered contract + markup]
+//   LAST_CHANGE: [v1.2.0 - BREAKING: opts.account/opts.owner сняты — подключение безличное,
+//     арендатора и субъекта ACL называет db.as(account, { owner }). Компиляция энфорсера
+//     вынесена в ctx.compileAcl(ctx-scope), ctx.reload обновляет только реестр.
+//     Ранее: enforceAccount по умолчанию true; предупреждение при выключенном enforceAcl]
 // END_CHANGE_SUMMARY
 
 import postgres from 'postgres';
@@ -35,12 +43,15 @@ import type { Ctx } from './sql.js';
 import type { ConnectOpts } from './types.js';
 
 // START_CONTRACT: connect
-//   PURPOSE: Открыть соединение: postgres-пул, реестр схемы, System-аккаунт, опциональный ACL — и собрать EntityDb.
-//   INPUTS: { opts: ConnectOpts { dsn, schema, partition?='entity', max?=10, account?, owner?, enforceAcl?, enforceAccount?, onQuery?, slowMs? } }
-//   OUTPUTS: { Promise<EntityDb> - dot-цепочный db }
-//   SIDE_EFFECTS: открывает пул postgres (timestamptz строкой), читает реестр и System-аккаунт; при enforceAcl без account бросает 'letopis: enforceAcl requires connect({ account })', при ненайденном — 'letopis: enforceAcl — account "…" not found', иначе читает resources/rules и компилит aclDecide; NB: ESM-цикл M-CONNECT↔M-UP (up ре-экспортится здесь)
+//   PURPOSE: Открыть БЕЗЛИЧНОЕ соединение: postgres-пул, реестр схемы, System-аккаунт, хук компиляции ACL — и собрать EntityDb (арендатора вызова называет db.as()).
+//   INPUTS: { opts: ConnectOpts { dsn, schema, partition?='entity', max?=10, enforceAcl?, enforceAccount?=true, onQuery?, slowMs? } }
+//   OUTPUTS: { Promise<EntityDb> - dot-цепочный db без идентичности; db.as(account) даёт scoped-хендл }
+//   SIDE_EFFECTS: открывает пул postgres (timestamptz строкой), читает реестр и System-аккаунт; ставит ctx.compileAcl (зовётся из db.as: читает resources/rules и компилит aclDecide под субъекта scope; при ненайденном аккаунте — 'letopis: enforceAcl — account "…" not found'); без enforceAcl печатает предупреждение один раз на процесс; NB: ESM-цикл M-CONNECT↔M-UP (up ре-экспортится здесь)
 //   LINKS: M-CONNECT, V-M-CONNECT, M-SCHEMA, M-CHAIN, M-TABLES, M-ACL, M-SQL
 // END_CONTRACT: connect
+/** Предупреждение об отключённом enforceAcl печатается один раз на процесс. */
+let warnedNoAcl = false;
+
 export async function connect(opts: ConnectOpts): Promise<EntityDb> {
   // timestamptz — строкой (JS Date режет микросекунды → ломал бы asOf/cursorOf по updated)
   const sql = postgres(opts.dsn, {
@@ -61,33 +72,48 @@ export async function connect(opts: ConnectOpts): Promise<EntityDb> {
     registry,
     pgSchema: opts.schema,
     partition,
-    account: opts.account,
-    owner: opts.owner,
+    // account/owner тут НЕ задаются: подключение безличное, арендатора называет db.as().
     systemAccount: sys[0]?.id,
-    enforceAccount: opts.enforceAccount,
+    // Изоляция арендатора ВКЛЮЧЕНА по умолчанию (0.20.0): забыть её было слишком легко,
+    // а цена забывчивости — чужие строки в выдаче. Без идентичности вызова (корневой
+    // хендл) чтение/запись при ней запрещены — см. guardScoped в sql.ts.
+    enforceAccount: opts.enforceAccount ?? true,
     onQuery: opts.onQuery,
     slowMs: opts.slowMs,
   };
 
   // START_BLOCK_ENFORCE_ACL
-  // enforceAcl: правила и категории субъекта компилятся в резолвер (перечитываются reloadSchema/reload)
-  const compileAcl = async (): Promise<void> => {
+  // enforceAcl: правила и категории субъекта компилятся в резолвер ПОД КОНКРЕТНЫЙ scope.
+  // Функция живёт на ctx, потому что зовут её двое: db.as() (новый субъект) и reload
+  // (тот же субъект на свежем реестре). Субъект берётся из c.account, т.е. из scope.
+  ctx.compileAcl = async (c: Ctx): Promise<void> => {
     if (!opts.enforceAcl) return;
-    if (!opts.account) throw new Error('letopis: enforceAcl requires connect({ account })');
-    const tables = makeTables(ctx);
+    if (!c.account) throw new Error('letopis: enforceAcl is on — call db.as(account) to name the subject');
+    const tables = makeTables(c);
     const [account, resources, rules] = await Promise.all([
-      tables.accounts.get(opts.account),
+      tables.accounts.get(c.account),
       tables.resources.find(),
       tables.rules.find({ enabled: true }),
     ]);
-    if (!account) throw new Error(`letopis: enforceAcl — account "${opts.account}" not found`);
-    ctx.aclDecide = compileEnforcer({ resources, rules }, account.id, account.categories, ctx.registry);
+    if (!account) throw new Error(`letopis: enforceAcl — account "${c.account}" not found`);
+    c.aclDecide = compileEnforcer({ resources, rules }, account.id, account.categories, c.registry);
   };
-  await compileAcl();
-  // db.reloadSchema(): перечитать определения классов из таблицы Schema (registry + enforcer) без реконнекта
+  // enforceAcl остаётся OPT-IN: включить его по умолчанию нельзя (он работает
+  // deny-by-default, т.е. без настроенных Resource/Rule выдача стала бы пустой).
+  // Поэтому — предупреждение: молчаливое отсутствие авторизации хуже шумного.
+  // Один раз на процесс, иначе утонет в логах приложения с пулом подключений.
+  if (!opts.enforceAcl && !warnedNoAcl) {
+    warnedNoAcl = true;
+    console.warn(
+      'letopis: enforceAcl is off — Resource/Rule are NOT checked, reads and writes pass ' +
+        'authorization unconditionally. For production use connect({ enforceAcl: true }) + db.as(account).',
+    );
+  }
+  // db.reloadSchema(): перечитать определения классов из таблицы Schema без реконнекта.
+  // На корневом хендле обновляется только реестр (субъекта тут нет); scoped-хендлы
+  // подхватывают его и перекомпилируют свой энфорсер сами (chain.ts, case 'as').
   ctx.reload = async () => {
     ctx.registry = await loadRegistry(sql, opts.schema, partition);
-    await compileAcl();
   };
   // END_BLOCK_ENFORCE_ACL
   return makeDb(ctx);

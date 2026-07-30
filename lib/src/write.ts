@@ -16,7 +16,7 @@
  */
 //
 // FILE: lib/src/write.ts
-// VERSION: 1.0.0
+// VERSION: 1.1.0
 // START_MODULE_CONTRACT
 //   PURPOSE: Write-side движок: валидация, резолв концов/слотов, вычисление id (v5/v7), вставка новых версий, каскадное удаление, анонимизация, исполнение планов и батчей в транзакции.
 //   SCOPE: ValidationError, runPlan, executeBatch, createOp/updateOp/delOp/anonymizeOp, toRow/readRows/deepMerge, BatchPlan.
@@ -36,13 +36,15 @@
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.0.0 - Documented existing module: reverse-engineered contract + markup]
+//   LAST_CHANGE: [v1.1.0 - resolveAccount зовёт guardScoped: при enforceAccount без scope (db.as)
+//     запись запрещена с внятной подсказкой; ctx.account теперь приходит из scope, не из connect.
+//     Ранее: Documented existing module: reverse-engineered contract + markup]
 // END_CHANGE_SUMMARY
 import { randomUUID } from 'node:crypto';
 import { uuidv5, uuidv7 } from './uuid.js';
 import type { Row, Path, ChainMods, Filter, ClassDef, PlanOp } from './types.js';
 import {
-  buildRead, runQuery, insertSql, multiInsertSql, deleteSql, closureSql,
+  buildRead, guardScoped, runQuery, insertSql, multiInsertSql, deleteSql, closureSql,
   purgeCallSql,
   isTransient, retryDelay, RETRIES, type Ctx, type Step,
 } from './sql.js';
@@ -250,15 +252,16 @@ function aclWrite(ctx: Ctx, step: Step, op: 'WRITE' | 'DELETE'): void {
 
 const noFilter = (f?: Filter): boolean => f === undefined;
 
-/** Entity.account NOT NULL: модификатор → connect() → System-аккаунт; иначе ошибка. */
+/** Entity.account NOT NULL: модификатор → scope db.as() → System-аккаунт; иначе ошибка. */
 function resolveAccount(ctx: Ctx, step: Step): string {
+  guardScoped(ctx);
   if (ctx.enforceAccount && ctx.account && step.accountFilter && step.accountFilter !== ctx.account) {
     throw new Error(`letopis: enforceAccount is on — writes are pinned to account ${ctx.account}`);
   }
   const acc = step.accountFilter ?? ctx.account ?? ctx.systemAccount;
   if (!acc) {
     throw new Error(
-      'letopis: Entity.account is NOT NULL — set .account(…) / connect({account}) or seed a System account (lib/sql/seed.auth.sql)',
+      'letopis: Entity.account is NOT NULL — set .account(…) / db.as(account) or seed a System account (lib/sql/seed.auth.sql)',
     );
   }
   return acc;

@@ -19,7 +19,7 @@
  */
 //
 // FILE: lib/src/sql.ts
-// VERSION: 1.0.1
+// VERSION: 1.2.0
 // START_MODULE_CONTRACT
 //   PURPOSE: Read-side SQL-движок: Ctx, компиляция фильтров/операторов в параметризованный SQL, обход путей, исполнение с телеметрией и ретраем transient, билдеры insert/delete/closure.
 //   SCOPE: Ctx, runQuery, buildRead, Step, компиляторы фильтров/операторов/tags, resolveHop/leafType/linksTo, insert/multiInsert/delete/closure SQL, isTransient/hintTxRetry/retryDelay.
@@ -30,10 +30,11 @@
 // END_MODULE_CONTRACT
 //
 // START_MODULE_MAP
-//   Ctx - runtime-контекст (sql/registry/pgSchema/partition/account/enforce*/aclDecide/onQuery/slowMs)
+//   Ctx - runtime-контекст (sql/registry/pgSchema/partition/account+owner СКОУПА/enforce*/aclDecide/compileAcl/onQuery/slowMs)
 //   isTransient/hintTxRetry/RETRIES/retryDelay - классификация и ретрай transient-ошибок PG
 //   runQuery - единая точка исполнения запросов цепочек (+onQuery/slow-warn/ретрай)
 //   Step/SlotValue/nextNodeKey - модель шага цепочки и слотов связей
+//   guardScoped - гард enforceAccount: без идентичности вызова (db.as) читать/писать нельзя
 //   buildRead - компиляция шагов+модов в параметризованный read-запрос
 //   leafType/linksTo/resolveHop - навигация по Schema.links и типам полей
 //   insertSql/multiInsertSql/deleteSql/closureSql - билдеры записи/удаления
@@ -41,7 +42,15 @@
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.0.1 - orderExpr: id как tiebreaker тем же направлением — keyset без пересечения страниц при неуникальном sort-поле (согласовано с afterExpr-кортежом)]
+//   LAST_CHANGE: [v1.2.0 - Добавлен guardScoped: при enforceAccount без идентичности вызова
+//     (безличный корень — арендатора называет db.as) чтение и запись бросают ошибку с подсказкой;
+//     Ctx получил compileAcl (энфорсер компилится под субъекта скоупа, не на connect).
+//     Ранее: ПОЛИМОРФНОЕ чтение: шаг матчит свой класс + всех потомков
+//     (class = ANY вместо равенства), идентичность сущности стала парой (class, id) —
+//     DISTINCT ON/(class,id) IN/versions-join; ключи links берутся из колонки class строки,
+//     а не из литерала (forward/reverse/deep); ACL решается ПОКЛАССНО (deny на потомке не
+//     обходится шагом по родителю), отказ шага — только если запрещено всё семейство;
+//     Step.exactClass возвращает одиночный класс и быстрый путь равенства]
 // END_CHANGE_SUMMARY
 import type { Sql } from 'postgres';
 import type { AclOp, AclDecision, ClassDef, ChainMods, FieldType, Filter, Op, QueryEvent } from './types.js';
@@ -55,14 +64,22 @@ export interface Ctx {
   registry: Registry;
   pgSchema: string;
   partition: string;
+  /** Арендатор ВЫЗОВА: заполнен у scoped-хендла db.as(account), пуст у корневого. */
   account?: string;
+  /** Дефолтный owner записей этого scope (db.as(account, { owner })). Default = account. */
   owner?: string;
   /** System-аккаунт — fallback для NOT NULL Entity.account (загружается при connect). */
   systemAccount?: string;
   /** Жёсткая изоляция арендатора: все чтения фильтруются, записи пришпилены к account. */
   enforceAccount?: boolean;
-  /** enforceAcl: скомпилированный на connect резолвер Rule/Resource (READ/WRITE/DELETE). */
+  /** enforceAcl: скомпилированный резолвер Rule/Resource (READ/WRITE/DELETE) для account ЭТОГО ctx. */
   aclDecide?: (cls: ClassDef, op: AclOp) => AclDecision;
+  /**
+   * enforceAcl: скомпилировать энфорсер под субъекта переданного ctx (пишет в c.aclDecide).
+   * Ставит connect(); зовут db.as() и reload. Один энфорсер = один субъект: memo в acl.ts
+   * ключуется классом+операцией БЕЗ аккаунта, переиспользование между scope — утечка решения.
+   */
+  compileAcl?: (c: Ctx) => Promise<void>;
   /** true внутри db.begin()-транзакции (write не оборачивает в begin повторно). */
   inTx?: boolean;
   /** true только у db.begin()-транзакций (не у внутренних): управляет подсказкой при 40P01/40001. */
@@ -172,6 +189,13 @@ export interface Step {
   pivotKey?: number;
   /** .alias(name) — ключ шага в путях. */
   aliasKey?: string;
+  /**
+   * .exact() — только ЭТОТ класс, без классов-потомков. По умолчанию шаг полиморфен
+   * (родитель отдаёт объединение с потомками); нужно, когда наследование в домене
+   * использовано для переиспользования attributes, а не как «is-a» для выборки
+   * (демо: `запись` наследует `окно`, но смена ≠ бронь).
+   */
+  exactClass?: boolean;
   /** .tags(…) — фильтр по колонке tags: строка | string[] (все) | has/hasAny/hasAll. */
   tagsFilter?: unknown;
   /** .account(uuid|Row) — фильтр по колонке account. */
@@ -563,16 +587,34 @@ const whereOf = (conds: (string | undefined)[]): string => {
   return list.length ? ` WHERE ${list.join(' AND ')}` : '';
 };
 
+// START_CONTRACT: guardScoped
+//   PURPOSE: enforceAccount без идентичности вызова — фильтровать нечем, значит изоляция не гарантирована: ошибка с подсказкой на db.as().
+//   INPUTS: { ctx: Ctx }
+//   OUTPUTS: { void }
+//   SIDE_EFFECTS: бросает 'letopis: enforceAccount is on — call db.as(account)…' на безличном (корневом) хендле
+//   LINKS: M-SQL, V-M-SQL, M-CHAIN, M-WRITE
+// END_CONTRACT: guardScoped
+/** Корневой хендл при enforceAccount читать/писать не может: арендатора называет db.as(). */
+export function guardScoped(ctx: Ctx): void {
+  if (ctx.enforceAccount && !ctx.account) {
+    throw new Error(
+      'letopis: enforceAccount is on — call db.as(account) to name the tenant of this call, ' +
+        'or connect({ enforceAccount: false }) for admin access',
+    );
+  }
+}
+
 // START_CONTRACT: buildRead
 //   PURPOSE: Скомпилировать цепочку шагов+модов в один параметризованный read-запрос (латеральный обход путей, latest-версии, asOf/versions/agg, keyset).
 //   INPUTS: { ctx: Ctx; steps: Step[]; mods: ChainMods; mode: ReadMode }
 //   OUTPUTS: { BuiltQuery - { text, params, keys } }
-//   SIDE_EFFECTS: none (строит SQL; ACL-проверка READ может бросить)
-//   ERRORS: pivot node not in path; enforceAccount pin; acl denies READ; deep on non-self hop; agg needs data.<path>
+//   SIDE_EFFECTS: none (строит SQL; guardScoped и ACL-проверка READ могут бросить)
+//   ERRORS: enforceAccount without db.as(); pivot node not in path; enforceAccount pin; acl denies READ; deep on non-self hop; agg needs data.<path>
 //   LINKS: M-SQL, V-M-SQL, M-ACL, M-DDL
 // END_CONTRACT: buildRead
 /** Построить читающий запрос по цепочке. */
 export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMode): BuiltQuery {
+  guardScoped(ctx);
   const p = new Params();
   const ent = entityTable(ctx.pgSchema);
   const pPart = p.push(ctx.partition);
@@ -608,10 +650,19 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
       for (const c of f.idConds) tailConds.push(c(a));
       for (const fr of f.finalFrags) tailConds.push(fr(a));
       if (step.tagsFilter !== undefined) tailConds.push(compileTags(step.tagsFilter, p)(a));
+      // .exact() на pivot: узел уже материализован полиморфно, поэтому сужаем его
+      // дофильтром по классу — иначе модификатор молча ничего не делал бы
+      if (step.exactClass) tailConds.push(`${a}.class = ${p.push(step.cls.id)}`);
       continue;
     }
 
-    const pCls = p.push(step.cls.id);
+    // ПОЛИМОРФНОЕ чтение: шаг по родителю отдаёт объединение с потомками (descendants
+    // считает триггер schema_lineage). Запись остаётся строго по точному классу — см. M-WRITE.
+    const family = step.exactClass ? [step.cls.id] : [step.cls.id, ...step.cls.descendants];
+    /** Классы, реально попадающие в выборку: family минус запрещённые ACL. */
+    let classes = family;
+    /** Классы → их row-предикаты из ACL (у каждого потомка может быть своё правило). */
+    const aclFrags = new Map<string, Frag[]>();
     const f = compileFilter(step.cls, step.filter, p);
 
     // модификаторы шага: .tags() / .account() / .owner()
@@ -642,16 +693,23 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
       f.candFrags.push(frag);
       f.finalFrags.push(frag);
     }
-    // enforceAcl: READ-право на КАЖДЫЙ шаг; предикат победившего правила — в WHERE заранее
+    // enforceAcl: READ-право на КАЖДЫЙ шаг. Шаг полиморфен, поэтому решение берётся по
+    // КОНКРЕТНОМУ классу каждой строки: запрещённые потомки выпадают из выборки, у каждого
+    // разрешённого свой row-предикат. Иначе deny на потомке обходился бы шагом по родителю.
     if (ctx.aclDecide) {
-      const d = ctx.aclDecide(step.cls, 'READ');
-      if (!d.allow) throw aclDenied('READ', step.cls.id, d);
-      if (d.filter) {
-        for (const fr of rowTemplateFrags(d.filter, p)) {
-          f.candFrags.push(fr);
-          f.finalFrags.push(fr);
-        }
+      const own = ctx.aclDecide(step.cls, 'READ');
+      const allowed: string[] = [];
+      for (const id of family) {
+        const cd = ctx.registry.find(id);
+        if (!cd) continue;
+        const d = id === step.cls.id ? own : ctx.aclDecide(cd, 'READ');
+        if (!d.allow) continue;
+        allowed.push(id);
+        if (d.filter) aclFrags.set(id, rowTemplateFrags(d.filter, p));
       }
+      // ни один класс семейства не разрешён — отказ шага (как было для одиночного класса)
+      if (!allowed.length) throw aclDenied('READ', step.cls.id, own);
+      classes = allowed;
     }
     // предикат WRITE/DELETE-правила (поиск целей записи): только свои строки
     if (step.aclFilter) {
@@ -661,7 +719,26 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
       }
     }
 
-    const innerWhere = [`e.partition = ${pPart}`, `e.class = ${pCls}`];
+    // Условие по классу: один класс → быстрое равенство (план не меняется); семейство →
+    // OR-ветви, каждая со своим ACL-предикатом. Ставится и во внутренний WHERE, и в
+    // перепроверку на актуальной версии (finalFrags) — иначе предикат обходится версиями.
+    const poly = classes.length > 1;
+    const clsPh = new Map(classes.map((id) => [id, p.push(id)]));
+    const classFrag: Frag = (a) =>
+      classes
+        .map((id) => {
+          const preds = (aclFrags.get(id) ?? []).map((fr) => fr(a));
+          const eq = `${a}.class = ${clsPh.get(id)}`;
+          return preds.length ? `(${eq} AND ${preds.join(' AND ')})` : eq;
+        })
+        .join(' OR ');
+    const classCond: Frag = poly || aclFrags.size ? (a) => `(${classFrag(a)})` : classFrag;
+    // ТОЛЬКО в finalFrags: в candFrags нельзя — иначе кандидатный подзапрос появлялся бы
+    // на КАЖДОМ запросе (условие по классу непустое всегда), а он нужен лишь когда есть
+    // GIN-предикаты. В основной скан условие попадает через innerWhere ниже.
+    f.finalFrags.push(classCond);
+
+    const innerWhere = [`e.partition = ${pPart}`, classCond('e')];
     if (mods.asOf !== undefined) innerWhere.push(`e.updated <= ${p.push(mods.asOf)}::timestamptz`); // «как было на T»
     // versions/.withDeleted(): последний шаг включает и удалённые (история/tombstone видны после delete).
     // Снимается ТОЛЬКО фильтр deleted — enforceAccount/enforceAcl/контекст-фраги ниже действуют (изоляция цела).
@@ -677,27 +754,41 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
       const prev = steps[i - 1];
       const prevAlias = `h${real[i - 1]}`; // pivot: ветвление от узла-возврата
       const hop = resolveHop(prev.cls, step.cls);
+      // ключи Entity.links — ВСЕГДА конкретные id классов, не родительские. Поэтому при
+      // полиморфном шаге ключ берётся из колонки class самой строки, а не из литерала.
+      const prevPoly = prev.cls.descendants.length > 0;
       if (hop === 'forward') {
         // id неизменен — условие сразу во внутренний WHERE, перепроверка не нужна
-        innerWhere.push(`e.id = ${prevAlias}.links->>${p.push(step.cls.id)}`);
+        innerWhere.push(
+          poly
+            ? `${prevAlias}.links @> jsonb_build_object(e.class::text, e.id)`
+            : `e.id = ${prevAlias}.links->>${p.push(step.cls.id)}`,
+        );
       } else {
         // reverse containment: кандидаты по GIN + перепроверка на latest
-        const pKey = p.push(prev.cls.id);
-        candWhere.push(`c.links @> jsonb_build_object(${pKey}::text, ${prevAlias}.id)`);
-        outerWhere.push(`t.links @> jsonb_build_object(${pKey}::text, ${prevAlias}.id)`);
+        const key = prevPoly ? `${prevAlias}.class::text` : `${p.push(prev.cls.id)}::text`;
+        candWhere.push(`c.links @> jsonb_build_object(${key}, ${prevAlias}.id)`);
+        outerWhere.push(`t.links @> jsonb_build_object(${key}, ${prevAlias}.id)`);
       }
     }
 
     if (candWhere.length) {
+      // подзапрос кандидатов нужен только при GIN-предикатах; класс добавляем здесь, а не
+      // через candFrags. При семействе id не уникален между классами → сопоставляем (class, id)
+      const cand = [classCond('c'), ...candWhere].join(' AND ');
       innerWhere.push(
-        `e.id IN (SELECT c.id FROM ${ent} c WHERE c.partition = ${pPart} AND c.class = ${pCls} AND ${candWhere.join(' AND ')})`,
+        poly
+          ? `(e.class, e.id) IN (SELECT c.class, c.id FROM ${ent} c WHERE c.partition = ${pPart} AND ${cand})`
+          : `e.id IN (SELECT c.id FROM ${ent} c WHERE c.partition = ${pPart} AND ${cand})`,
       );
     }
 
+    // «актуальная версия» — по (class, id) при семействе: один id может жить в разных классах
+    const dedupe = poly ? 'e.class, e.id' : 'e.id';
     let block =
       `(SELECT * FROM (` +
-      `SELECT DISTINCT ON (e.id) e.* FROM ${ent} e WHERE ${innerWhere.join(' AND ')} ` +
-      `ORDER BY e.id, e.updated DESC` +
+      `SELECT DISTINCT ON (${dedupe}) e.* FROM ${ent} e WHERE ${innerWhere.join(' AND ')} ` +
+      `ORDER BY ${dedupe}, e.updated DESC` +
       `) t WHERE ${outerWhere.join(' AND ')}) h${i}`;
 
     // .deep(): рекурсивный обход детей того же класса (recursive CTE поверх latest-паттерна)
@@ -707,20 +798,26 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
         throw new Error('letopis: .deep() works on a self hop (same class as previous step)');
       }
       const pMax = p.push(step.deepMax);
-      // latest живые дети узла ref (id-выражение родителя)
-      const kids = (ref: string) =>
-        `(SELECT * FROM (` +
-        `SELECT DISTINCT ON (e.id) e.* FROM ${ent} e WHERE e.partition = ${pPart} AND e.class = ${pCls}` +
-        (mods.asOf !== undefined ? ` AND e.updated <= ${p.push(mods.asOf)}::timestamptz` : '') +
-        ` AND e.id IN (SELECT c.id FROM ${ent} c WHERE c.partition = ${pPart} AND c.class = ${pCls}` +
-        ` AND c.links @> jsonb_build_object(${p.push(step.cls.id)}::text, ${ref}))` +
-        ` ORDER BY e.id, e.updated DESC) t` +
-        ` WHERE t.deleted IS NULL AND t.links @> jsonb_build_object(${p.push(step.cls.id)}::text, ${ref}))`;
+      // latest живые дети узла ref (id-выражение родителя); refCls — класс родителя:
+      // ключ links конкретен, поэтому при семействе берём его из колонки, а не из литерала
+      const kids = (ref: string, refCls: string) => {
+        const key = poly ? `${refCls}::text` : `${p.push(step.cls.id)}::text`;
+        return (
+          `(SELECT * FROM (` +
+          `SELECT DISTINCT ON (${dedupe}) e.* FROM ${ent} e WHERE e.partition = ${pPart} AND ${classCond('e')}` +
+          (mods.asOf !== undefined ? ` AND e.updated <= ${p.push(mods.asOf)}::timestamptz` : '') +
+          ` AND e.id IN (SELECT c.id FROM ${ent} c WHERE c.partition = ${pPart} AND ${classCond('c')}` +
+          ` AND c.links @> jsonb_build_object(${key}, ${ref}))` +
+          ` ORDER BY ${dedupe}, e.updated DESC) t` +
+          ` WHERE t.deleted IS NULL AND t.links @> jsonb_build_object(${key}, ${ref}))`
+        );
+      };
+      const prevA = `h${real[i - 1]}`;
       block =
         `(WITH RECURSIVE d AS (` +
-        `SELECT k.*, 1 AS depth FROM ${kids(`h${real[i - 1]}.id`)} k` +
+        `SELECT k.*, 1 AS depth FROM ${kids(`${prevA}.id`, `${prevA}.class`)} k` +
         ` UNION ALL ` +
-        `SELECT k.*, d.depth + 1 FROM d JOIN LATERAL ${kids('d.id')} k ON true WHERE d.depth < ${pMax}::int` +
+        `SELECT k.*, d.depth + 1 FROM d JOIN LATERAL ${kids('d.id', 'd.class')} k ON true WHERE d.depth < ${pMax}::int` +
         `) SELECT * FROM d) h${i}`;
     }
 
@@ -731,6 +828,8 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
   const fromClause = blocks.join('\n');
   const last = real[steps.length - 1]; // pivot в конце → терминал на его узле
   const lastCls = steps[steps.length - 1].cls;
+  /** Последний шаг полиморфен (есть потомки и не снят .exact()) — уникальность по (class, id). */
+  const lastPoly = !steps[steps.length - 1].exactClass && lastCls.descendants.length > 0;
 
   // ключи шагов в путях: alias → имя вызова; pivot узла не добавляет; дубликаты — _2, _3…
   const keyed: { key: string; block: number }[] = [];
@@ -763,9 +862,11 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
     }
     case 'rows':
     case 'ids': {
+      // при полиморфном последнем шаге уникальность сущности — пара (class, id)
+      const key = lastPoly ? `h${last}.class, h${last}.id` : `h${last}.id`;
       const inner =
-        `SELECT DISTINCT ON (h${last}.id) h${last}.* \n${fromClause}${whereOf(tailConds)}\n` +
-        `ORDER BY h${last}.id, h${last}.updated DESC`;
+        `SELECT DISTINCT ON (${key}) h${last}.* \n${fromClause}${whereOf(tailConds)}\n` +
+        `ORDER BY ${key}, h${last}.updated DESC`;
       const sel = mode === 'rows' ? 'to_jsonb(z) AS row' : 'z.id';
       text =
         `SELECT ${sel} FROM (${inner}) z` +
@@ -776,11 +877,13 @@ export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMo
     }
     case 'versions': {
       // ВСЕ версии (включая tombstone) сущностей последнего шага, по возрастанию updated
-      const inner = `SELECT DISTINCT h${last}.id \n${fromClause}${whereOf(tailConds)}`;
+      // класс берём из найденной строки (а не литералом): при полиморфном шаге история
+      // собирается по КАЖДОМУ конкретному классу-потомку
+      const inner = `SELECT DISTINCT h${last}.class, h${last}.id \n${fromClause}${whereOf(tailConds)}`;
       text =
         `SELECT to_jsonb(v) AS row FROM (${inner}) z ` +
-        `JOIN ${ent} v ON v.partition = ${pPart} AND v.class = ${p.push(lastCls.id)} AND v.id = z.id ` +
-        `ORDER BY v.id, v.updated` +
+        `JOIN ${ent} v ON v.partition = ${pPart} AND v.class = z.class AND v.id = z.id ` +
+        `ORDER BY v.class, v.id, v.updated` +
         limitOffset;
       break;
     }

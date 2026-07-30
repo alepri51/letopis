@@ -23,7 +23,7 @@ let db: EntityDb;
 const S: Record<string, Row> = {}; // общий сид
 
 before(async () => {
-  db = await connect({ dsn: DSN, schema: 'v1.booking', max: 4 });
+  db = await connect({ enforceAccount: false, dsn: DSN, schema: 'v1.booking', max: 4 });
   await db.sql.unsafe('TRUNCATE "v1.booking"."Entity"');
 
   const [org] = await db.Организация().create({ name: 'API-салон', phone: '+7-900-000-00-00' }).rows();
@@ -61,7 +61,7 @@ test('✔ connect: schema/partition/account/owner/max, System-fallback, неиз
 
   // account/owner из connect
   const acc = await db.accounts.set({ categories: ['Client'] });
-  const scoped = await connect({ dsn: DSN, schema: 'v1.booking', account: acc.id, owner: acc.id, max: 2 });
+  const scoped = await (await connect({ dsn: DSN, schema: 'v1.booking', max: 2 })).as(acc.id, { owner: acc.id });
   const [mine] = await scoped.Организация().create({ name: 'Своя орга' }).rows();
   assert.equal(mine.account, acc.id);
   assert.equal(mine.owner, acc.id);
@@ -376,7 +376,7 @@ test('✔ tx: begin/commit/rollback (обе формы), повторный no-o
 test('✔ batch: копление/size/discard, multi-VALUES, атомарный откат, контекст-связи', async () => {
   // события запросов покажут склейку multi-VALUES
   const events: QueryEvent[] = [];
-  const hooked = await connect({ dsn: DSN, schema: 'v1.booking', onQuery: (e) => events.push(e) });
+  const hooked = await connect({ enforceAccount: false, dsn: DSN, schema: 'v1.booking', onQuery: (e) => events.push(e) });
 
   // чистые INSERT (один шаг, без контекста и data.id) склеиваются в один multi-VALUES
   const b = hooked.batch('пачка');
@@ -485,7 +485,7 @@ test('✔ watch: все классы и фильтр-класс, insert/tombston
 
 test('✔ enforceAccount: чужое невидимо, чтение и запись пришпилены', async () => {
   const tenant = await db.accounts.set({ categories: ['Client'] });
-  const iso = await connect({ dsn: DSN, schema: 'v1.booking', account: tenant.id, enforceAccount: true });
+  const iso = await (await connect({ dsn: DSN, schema: 'v1.booking', enforceAccount: true })).as(tenant.id);
 
   const [own] = await iso.Организация().create({ name: 'Только моя' }).rows();
   assert.equal(own.account, tenant.id);
@@ -501,7 +501,7 @@ test('✔ enforceAccount: чужое невидимо, чтение и запи�
 
 test('✔ onQuery/slowMs: события чтения и записи с mode/classes/ms/rows', async () => {
   const events: QueryEvent[] = [];
-  const hooked = await connect({ dsn: DSN, schema: 'v1.booking', slowMs: 10_000, onQuery: (e) => events.push(e) });
+  const hooked = await connect({ enforceAccount: false, dsn: DSN, schema: 'v1.booking', slowMs: 10_000, onQuery: (e) => events.push(e) });
   await hooked.Услуга().навык().count();
   const [tmp] = await hooked.Организация(S.org).Клиент().create({ name: 'Хукнутый', phone: '+7-919-000-00-03' }).rows();
   await hooked.Клиент(tmp.id).delete({ confirm: true }).rows();

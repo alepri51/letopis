@@ -3,7 +3,7 @@
  */
 //
 // FILE: lib/src/types.ts
-// VERSION: 1.0.0
+// VERSION: 1.3.0
 // START_MODULE_CONTRACT
 //   PURPOSE: Общий словарь типов всей библиотеки letopis.
 //   SCOPE: сущности, пути, определения классов, типы полей, фильтры и операторы, курсоры/план записи/модификаторы цепочки, записи auth/ACL, событие запроса и опции connect + символ OP.
@@ -35,11 +35,16 @@
 //   AclOp - операция над данными = категория Resource: 'READ' | 'WRITE' | 'DELETE'.
 //   AclDecision - решение ACL: allow + победившее правило + остаточный filter + code/message.
 //   QueryEvent - событие хука onQuery: режим, классы, ms, rows, slow.
-//   ConnectOpts - опции connect(): dsn/schema/partition/account/owner/max/enforceAccount/enforceAcl/onQuery/slowMs.
+//   ConnectOpts - опции connect(): dsn/schema/partition/max/enforceAccount/enforceAcl/onQuery/slowMs (account/owner — не здесь, их даёт db.as()).
+//   RESERVED_CLASS_NAMES - имена, перехватываемые Proxy до резолва класса (шаг недостижим под этим именем).
+//   reservedNamesOf - зарезервированные имена среди {id, alias} определения класса.
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.0.0 - Documented existing module: reverse-engineered contract + markup]
+//   LAST_CHANGE: [v1.3.0 - BREAKING: из ConnectOpts удалены account/owner (арендатор — свойство
+//     ВЫЗОВА: db.as(account, { owner })); 'as' добавлен в RESERVED_CLASS_NAMES → 52 имени.
+//     Ранее: 'link' убран из RESERVED_CLASS_NAMES (охранник цепочки снят, имя снова
+//     резолвится как класс); enforceAccount задокументирован как Default true]
 // END_CHANGE_SUMMARY
 //
 // START_BLOCK_ENTITY_TYPES
@@ -290,20 +295,31 @@ export interface ConnectOpts {
   schema: string;
   /** Партиция данных. Default 'entity'. */
   partition?: string;
-  /** Дефолтный account для записей. */
-  account?: string;
-  /** Дефолтный owner для записей. Default = account. */
-  owner?: string;
+  // NB: опций account/owner здесь БОЛЬШЕ НЕТ (сняты в 0.20.0). Арендатор — свойство ВЫЗОВА,
+  // а не подключения: один пул обслуживает разных арендаторов. Идентичность даёт db.as():
+  //   const db = await connect({ dsn, schema }); const t = await db.as(accountId)
   /** Размер пула соединений. Default 10. */
   max?: number;
-  /** Жёсткая изоляция арендатора: чтения фильтруются по account, записи пришпилены к нему. */
+  /**
+   * Жёсткая изоляция арендатора: чтения фильтруются по account, записи пришпилены к нему.
+   * **Default true** (с 0.20.0). Идентичность берётся у хендла `db.as(account)`; на
+   * безличном (корневом) хендле чтение/запись при включённой изоляции — ошибка с подсказкой.
+   * Явный `.account(чужой)` на scoped-хендле — тоже ошибка.
+   * Выключать (`false`) осмысленно лишь для админских/сервисных подключений,
+   * которым нужен доступ ко всем арендаторам.
+   */
   enforceAccount?: boolean;
   /**
    * ACL по Resource/Rule: категории READ/WRITE/DELETE, pattern — шаблон строки Entity
    * (колонки + "$account"). Каждый шаг цепочки проверяется на READ, записи — WRITE,
    * delete — DELETE (включая классы каскада); предикат победившего правила вливается
-   * в SQL до сортировки/лимита. Требует account. Deny-by-default.
-   * Правила читаются один раз при connect (перечитка — новый connect).
+   * в SQL до сортировки/лимита. Субъект даёт db.as() (энфорсер компилится на scope).
+   * Deny-by-default.
+   * **Default false** — остаётся opt-in: включённый по умолчанию deny-by-default без
+   * настроенных Resource/Rule давал бы пустые выборки. Пока выключен, connect() один раз
+   * на процесс печатает предупреждение.
+   * Правила снимаются на connect и компилятся в memo-энфорсер; перечитать без
+   * реконнекта — db.reloadSchema() (пересобирает и реестр, и ACL-резолвер).
    */
   enforceAcl?: boolean;
   /** Хук на каждый запрос цепочки (метрики, лог). */
@@ -312,3 +328,37 @@ export interface ConnectOpts {
   slowMs?: number;
 }
 // END_BLOCK_CONNECT_TYPES
+
+// START_BLOCK_RESERVED_NAMES
+/**
+ * Имена, которые Proxy цепочки/db разбирает ДО резолва класса, поэтому класс с таким
+ * id/alias НЕДОСТИЖИМ как шаг под этим именем (`db.Клиент(c).link()` уйдёт в
+ * migration-ошибку `.link() removed`, а не в класс `link`).
+ *
+ * Источник истины — `case`-метки switch'ей в chain.ts; совпадение с этим списком
+ * проверяет scripts/check-docs.mjs. Используется как гвард: schema.define() отказывает,
+ * loadRegistry предупреждает.
+ */
+export const RESERVED_CLASS_NAMES: readonly string[] = [
+  // все три Proxy: then гасится, чтобы цепочка не выглядела thenable для await
+  'then',
+  // chain-уровень (makeChain handler)
+  'entity', 'run', 'execute', 'rows', 'first', 'ids', 'count', 'limit', 'offset', 'sort',
+  'asOf', 'withDeleted', 'deep', 'exact', 'sum', 'avg', 'min', 'max', 'countBy', 'after', 'versions',
+  'create', 'update', 'set', 'delete', 'anonymize', 'purge', 'alias', 'tags', 'account',
+  'owner',
+  // db-уровень (makeDb handler): switch …
+  'as', 'begin', 'commit', 'rollback', 'lock', 'batch', 'watch', 'close', 'reloadSchema',
+  'registry', 'sql',
+  // … и фасады, которые разбираются if'ами ДО switch (служебные таблицы, auth, acl)
+  'accounts', 'credentials', 'resources', 'rules', 'schema', 'auth', 'acl',
+  // batch-уровень (makeBatch handler)
+  'discard', 'size',
+];
+
+/** Зарезервированные имена класса среди {id, alias}; пусто — конфликта нет. */
+export function reservedNamesOf(def: { id: string; alias?: string }): string[] {
+  const set = new Set(RESERVED_CLASS_NAMES);
+  return [def.id, def.alias].filter((n): n is string => !!n && set.has(n));
+}
+// END_BLOCK_RESERVED_NAMES

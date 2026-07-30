@@ -6,7 +6,7 @@
  *   const db = await up({ schema: 'booking', version: 1 });   // → PG-схема "v1.booking"
  */
 // FILE: lib/src/up.ts
-// VERSION: 1.0.0
+// VERSION: 1.1.0
 // START_MODULE_CONTRACT
 //   PURPOSE: Dev-bootstrap — поднять Docker-контейнер Postgres (TimescaleDB) + Redis, обеспечить базу, накатить DDL-схему и сиды, дождаться готовности и подключиться.
 //   SCOPE: валидация схемы/версии; проба postgres; docker build/run/start контейнера; создание базы; ожидание готовности PG и Redis; применение схемы + сиды; connect
@@ -26,11 +26,14 @@
 //   pgPing - (local) проба postgres: ok | no-server | no-database | starting | fatal
 //   ensureDatabase - (local) создать базу, если её нет (гонка 42P04 глушится)
 //   tcpAlive - (local) TCP-проба хоста:порта (для redis)
-//   applySchema - (local) drop (fresh) -> накат ddl+сидов с подстановкой <SCHEMA-NAME>
+//   applySchema - (local) drop (fresh) -> накат ddl+сидов с подстановкой <SCHEMA-NAME> -> ANALYZE Entity
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.0.0 - Documented existing module: reverse-engineered contract + markup]
+//   LAST_CHANGE: [v1.1.0 - applySchema делает ANALYZE Entity после наката: у гипертаблицы нет
+//     статистики родителя, и планировщик оценивает подзапрос кандидатов в 200 строк — выбирался
+//     Nested Loop, чтения были медленнее до x18 (замер в README 14.1).
+//     Ранее: Documented existing module: reverse-engineered contract + markup]
 // END_CHANGE_SUMMARY
 //
 import { execFile } from 'node:child_process';
@@ -253,7 +256,15 @@ async function applySchema(
       const text = (await readFile(f, 'utf8')).replaceAll('<SCHEMA-NAME>', full);
       await sql.unsafe(text); // multi-statement simple query
     }
-    log(`schema "${full}" applied (${files.length} files)`);
+    // START_BLOCK_ANALYZE_ENTITY
+    // ANALYZE обязателен: Entity — гипертаблица, у РОДИТЕЛЯ своих строк нет, и без статистики
+    // планировщик берёт дефолт «200 уникальных id». Ядро всех чтений либы — semi-join с
+    // подзапросом кандидатов (`e.id IN (SELECT c.id …)`), и на оценке 200 вместо сотен тысяч
+    // он выбирает Nested Loop: на полигоне 980k это давало 57 с вместо 3 с (×18).
+    // Стоит копейки на свежей схеме; после МАССОВОЙ заливки данных ANALYZE нужно повторить.
+    await sql.unsafe(`ANALYZE ${qi(full)}."Entity"`);
+    // END_BLOCK_ANALYZE_ENTITY
+    log(`schema "${full}" applied (${files.length} files, statistics collected)`);
   } finally {
     await sql.end();
   }
