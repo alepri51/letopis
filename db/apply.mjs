@@ -55,6 +55,12 @@ try {
     await sql.unsafe(text); // multi-statement simple query
     console.log(`applied ${f} → schema "${full}"`);
   }
+  // Entity — гипертаблица: у родителя своих строк нет, и без статистики планировщик берёт
+  // дефолт «200 уникальных id». Ядро чтений либы — semi-join по подзапросу кандидатов, и на
+  // такой оценке выбирается Nested Loop: на полигоне 980k строк это 57 с вместо 3 с.
+  // После массовой заливки данных ANALYZE нужно повторить.
+  await sql.unsafe(`ANALYZE "${full.replaceAll('"', '""')}"."Entity"`);
+  console.log(`analyzed "${full}"."Entity" (статистика для планировщика)`);
 } finally {
   await sql.end();
 }
