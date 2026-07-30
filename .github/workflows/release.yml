@@ -1,9 +1,10 @@
 # Прод-публикация — ОТДЕЛЬНЫЙ ШАГ, только по команде (как в VP): тег ставит tag.yml на push
 # в main, а релиз публикуется вручную — Releases → «Draft a new release» → выбрать тег →
-# Publish. На publish этот workflow перезаписывает тело релиза сгенерированным changelog
-# (git-cliff, кумулятивно от предыдущего ОПУБЛИКОВАННОГО релиза) и публикует пакет lib/ в npm.
+# Publish. На publish этот workflow ставит в тело релиза описание релизного PR (dev→main)
+# и публикует пакет lib/ в npm, затем проверяет артефакт смоуком из реестра.
 #
-# Логика та же, что в VP: тег → заметки git-cliff → прод. Прод у библиотеки — npm.
+# Логика как в VP: тег → заметки → прод. Прод у библиотеки — npm. Отличие: заметки берутся
+# из описания PR, а сводка по коммитам — в аннотации тега (git log, без сторонних экшенов).
 #
 # Требует секрет NPM_TOKEN (granular automation token npm с правом publish на letopis).
 # prepublishOnly сам гоняет typecheck + build.
@@ -24,44 +25,31 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Диапазон = от предыдущего опубликованного релиза до текущего тега: черновики и
-      # pre-release не считаются, поэтому заметки не теряют коммиты между публикациями.
-      - name: Compute changelog range
-        id: prev
+      # Тело релиза = описание релизного PR dev→main. Оно писалось осмысленно (что и почему,
+      # с замерами), в отличие от списка заголовков коммитов. PR ищем по коммиту, на который
+      # указывает тег: у merge-коммита PR ровно один. Сводка по Conventional Commits и так
+      # лежит в аннотации тега (tag.yml), содержательный changelog — в lib/CHANGELOG.md.
+      - name: Take release notes from the merged PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          CURRENT="${{ github.event.release.tag_name }}"
-          PREV=$(gh release list \
-            --limit 50 \
-            --exclude-drafts \
-            --exclude-pre-releases \
-            --json tagName \
-            --jq '.[].tagName' \
-            | grep -v "^${CURRENT}$" \
-            | head -n 1 || true)
-          if [ -n "$PREV" ]; then
-            echo "Changelog range: ${PREV}..${CURRENT}"
-            echo "args=${PREV}..${CURRENT} --strip all" >> "$GITHUB_OUTPUT"
-          else
-            echo "No previous published release — using --latest"
-            echo "args=--latest --strip all" >> "$GITHUB_OUTPUT"
+          TAG="${{ github.event.release.tag_name }}"
+          SHA="$(git rev-list -n 1 "$TAG")"
+          PR="$(gh pr list --state merged --base main --limit 30 \
+                  --json number,mergeCommit \
+                  --jq ".[] | select(.mergeCommit.oid == \"$SHA\") | .number" | head -n 1)"
+          if [ -z "$PR" ]; then
+            echo "::warning::для тега $TAG ($SHA) не нашёлся merged PR в main — тело релиза оставлено как есть"
+            exit 0
           fi
-
-      - name: Generate release notes
-        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5  # v4.8.0 — пин на коммит: тег изменяем, а экшен бежит в том же job, что npm publish
-        with:
-          config: cliff.toml
-          args: ${{ steps.prev.outputs.args }}
-        env:
-          OUTPUT: RELEASE_NOTES.md
-
-      - name: Apply grouped notes to the release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release edit "${{ github.event.release.tag_name }}" --notes-file RELEASE_NOTES.md
+          gh pr view "$PR" --json body --jq .body > RELEASE_NOTES.md
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "::warning::описание PR #$PR пустое — тело релиза оставлено как есть"
+            exit 0
+          fi
+          gh release edit "$TAG" --notes-file RELEASE_NOTES.md
+          echo "::notice::тело релиза $TAG взято из PR #$PR"
 
       - uses: actions/setup-node@v4
         with:

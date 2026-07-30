@@ -1,23 +1,25 @@
 name: tag
 
-# Авто-тег на каждый push в main. Аннотация тега несёт changelog коммитов между предыдущим
-# тегом и HEAD (git-cliff по Conventional Commits) — то есть `git show <tag>` и GitHub UI →
-# Tags показывают, что вошло в версию, без GitHub Release.
+# Авто-тег на каждый push в main. Тег АННОТИРОВАННЫЙ: в сообщении — список коммитов от
+# предыдущего тега до HEAD, поэтому `git show <tag>` и GitHub UI → Tags показывают состав
+# версии без GitHub Release.
 #
 # Тег НЕ создаёт релиз и НЕ публикует пакет. Когда готов: Releases → «Draft a new release»
-# → выбрать тег → Publish. release.yml перезапишет тело релиза (кумулятивно от предыдущего
-# *опубликованного* релиза) и опубликует пакет в npm.
+# → выбрать тег → Publish. release.yml поставит в тело релиза описание релизного PR и
+# опубликует пакет в npm.
 #
-# Отличие от VP (там деплоится приложение, публикуемого артефакта нет): letopis — npm-пакет,
-# поэтому источник версии здесь lib/package.json, а не расчёт git-cliff. Тег обязан равняться
-# тому, что реально уедет в npm, иначе тег и пакет разъедутся. Версию package.json сверяет с
-# последней записью lib/CHANGELOG.md scripts/check-docs.mjs (CI на каждый push).
-# Расчёт git-cliff печатается как подсказка: расхождение — сигнал, что bump забыли.
-
 # Контур: на каждое событие РОВНО ОДНО действие, ничего параллельно.
 #   push dev → ci (тесты)   |   merge в main → tag   |   publish Release → release (npm)
-# Тесты на main НЕ гоняются намеренно: merge несёт тот же коммит, что уже проверен на dev,
-# — поэтому здесь можно тегировать сразу, ничего не дожидаясь.
+# Тесты на main НЕ гоняются намеренно: merge несёт тот же коммит, что уже проверен на dev.
+#
+# Источник версии — lib/package.json: тег обязан равняться тому, что реально уедет в npm,
+# иначе тег и пакет разъедутся. Версию сверяет с последней записью lib/CHANGELOG.md
+# scripts/check-docs.mjs (CI на каждый push в dev). Забытый бамп виден сразу: тег такой
+# версии уже существует → шаг пропускается → релиза не будет.
+#
+# Без сторонних экшенов: список коммитов берётся `git log`, тег ставится `git tag -a`.
+# git-cliff тут был, но давал ровно то же самое — держать зависимость смысла нет.
+
 on:
   push:
     branches: [main]
@@ -39,59 +41,30 @@ jobs:
         run: |
           set -euo pipefail
           V="v$(node -p "require('./lib/package.json').version")"
-          CUR="$(git describe --tags --abbrev=0 2>/dev/null || echo '')"
-          echo "package=$V  latest tag=$CUR"
+          PREV="$(git describe --tags --abbrev=0 2>/dev/null || echo '')"
+          echo "package=$V  previous tag=$PREV"
           if git rev-parse -q --verify "refs/tags/$V" >/dev/null; then
-            echo "Tag $V already exists — skipping."
+            echo "Tag $V already exists — skipping (версия не менялась?)."
             echo "skipped=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           echo "skipped=false" >> "$GITHUB_OUTPUT"
           echo "next=$V"       >> "$GITHUB_OUTPUT"
-
-      # Подсказка, а не гард: git-cliff считает bump по типам коммитов. Расхождение с
-      # package.json обычно значит забытый бамп версии (или коммиты не по конвенции).
-      - name: Suggest bump from Conventional Commits
-        if: steps.ver.outputs.skipped == 'false'
-        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5  # v4.8.0 — пин на коммит: тег изменяем, а job имеет contents: write и пушит теги
-        with:
-          config: cliff.toml
-          args: --bumped-version
-        env:
-          OUTPUT: NEXT_VERSION.txt
-
-      - name: Compare with the suggestion
-        if: steps.ver.outputs.skipped == 'false'
-        run: |
-          set -euo pipefail
-          SUG="$(tr -d '[:space:]' < NEXT_VERSION.txt || echo '')"
-          NEXT="${{ steps.ver.outputs.next }}"
-          if [ -n "$SUG" ] && [ "$SUG" != "$NEXT" ]; then
-            echo "::warning::lib/package.json даёт $NEXT, а по типам коммитов git-cliff ожидает $SUG — проверьте, не забыт ли бамп версии (и запись в lib/CHANGELOG.md)."
-          else
-            echo "версия согласована с расчётом по коммитам: $NEXT"
-          fi
-
-      - name: Generate tag notes
-        if: steps.ver.outputs.skipped == 'false'
-        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5  # v4.8.0 — пин на коммит: тег изменяем, а job имеет contents: write и пушит теги
-        with:
-          config: cliff.toml
-          args: --unreleased --tag ${{ steps.ver.outputs.next }} --strip all
-        env:
-          OUTPUT: TAG_NOTES.md
+          echo "prev=$PREV"    >> "$GITHUB_OUTPUT"
 
       - name: Create annotated tag
         if: steps.ver.outputs.skipped == 'false'
         run: |
           set -euo pipefail
           NEXT="${{ steps.ver.outputs.next }}"
+          PREV="${{ steps.ver.outputs.prev }}"
+          RANGE="${PREV:+$PREV..}HEAD"
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           {
             printf '%s\n\n' "$NEXT"
-            cat TAG_NOTES.md
+            git log --no-merges --pretty='- %s' "$RANGE"
           } > tag-msg.txt
           git tag -a "$NEXT" -F tag-msg.txt
           git push origin "$NEXT"
-          echo "::notice::tagged $NEXT with changelog annotation"
+          echo "::notice::tagged $NEXT ($RANGE)"
