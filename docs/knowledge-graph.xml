@@ -350,6 +350,20 @@
       </notes>
     </M-GEN-API-CONTRACT>
 
+    <M-RELEASE-NOTES NAME="ReleaseNotes" TYPE="UTILITY" STATUS="implemented">
+      <purpose>Print the lib/CHANGELOG.md section of the CURRENT package version — the body of the release PR, from which release.yml takes the GitHub Release notes</purpose>
+      <path>lib/scripts/release-notes.mjs</path>
+      <depends>none</depends>
+      <verification-ref>V-M-RELEASE-NOTES</verification-ref>
+      <annotations>
+        <fn-section PURPOSE="Slice the CHANGELOG entry for a version: from "## [x.y.z]" up to the next "## ["" />
+      </annotations>
+      <notes>
+        <note-1>Version is taken from package.json, never from an argument: otherwise notes of one version could ship under another version tag. Missing entry — exit 1 with the same hint check-docs gives.</note-1>
+        <note-2>Kills the last duplication in the release chain: CHANGELOG (by hand) -> PR body -> Release body -> npm.</note-2>
+      </notes>
+    </M-RELEASE-NOTES>
+
     <M-CHECK-DOCS NAME="CheckDocs" TYPE="UTILITY" STATUS="implemented">
       <purpose>CI guard against documentation drift: seven checks comparing docs to code, exit 1 with a report on any mismatch</purpose>
       <path>lib/scripts/check-docs.mjs</path>
