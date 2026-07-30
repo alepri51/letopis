@@ -26,6 +26,10 @@ lib/CHANGELOG.md (руками) → описание PR → тело релиз�
   Побочно: в job, который делает `npm publish`, больше нет стороннего экшена; из workflow
   осталось только first-party (`actions/checkout`, `actions/setup-node`).
 
+- `release.yml` получил `pull-requests: read`: блок `permissions` ОГРАНИЧИВАЕТ токен, и с
+  одним `contents: write` шаг заметок падал `Resource not accessible by integration`, а за ним
+  пропускался `npm publish`. Поймано первым же прогоном на 0.20.2.
+
 Тег остался **аннотированным** — в сообщении список коммитов от предыдущего тега
 (`git log --no-merges --pretty='- %s'`), так что `git show <tag>` показывает состав версии.
 Шагов в workflow стало меньше: `tag` 3 (было 6), `release` 6 (было 8).
