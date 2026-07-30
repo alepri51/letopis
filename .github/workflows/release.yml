@@ -24,45 +24,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Диапазон = от предыдущего опубликованного релиза до текущего тега: черновики и
-      # pre-release не считаются, поэтому заметки не теряют коммиты между публикациями.
-      - name: Compute changelog range
-        id: prev
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          CURRENT="${{ github.event.release.tag_name }}"
-          PREV=$(gh release list \
-            --limit 50 \
-            --exclude-drafts \
-            --exclude-pre-releases \
-            --json tagName \
-            --jq '.[].tagName' \
-            | grep -v "^${CURRENT}$" \
-            | head -n 1 || true)
-          if [ -n "$PREV" ]; then
-            echo "Changelog range: ${PREV}..${CURRENT}"
-            echo "args=${PREV}..${CURRENT} --strip all" >> "$GITHUB_OUTPUT"
-          else
-            echo "No previous published release — using --latest"
-            echo "args=--latest --strip all" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Generate release notes
-        uses: orhun/git-cliff-action@v4
-        with:
-          config: cliff.toml
-          args: ${{ steps.prev.outputs.args }}
-        env:
-          OUTPUT: RELEASE_NOTES.md
-
-      - name: Apply grouped notes to the release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release edit "${{ github.event.release.tag_name }}" --notes-file RELEASE_NOTES.md
-
+      # NB: тело релиза здесь НЕ трогаем. Раньше стояли шаги, которые генерировали заметки
+      # git-cliff и перезаписывали ими описание — то есть затирали текст, написанный руками.
+      # Автоматический changelog по коммитам и так лежит в аннотации тега (tag.yml),
+      # а содержательный — в lib/CHANGELOG.md.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
