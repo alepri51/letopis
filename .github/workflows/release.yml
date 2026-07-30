@@ -77,3 +77,36 @@ jobs:
         run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Проверка АРТЕФАКТА, а не исходников: тесты гоняются по lib/src, а в npm уезжает
+      # собранный dist + files из package.json. Сломанные exports/types/files тут ловятся
+      # сразу, а не от первого пользователя. Ставим пакет из реестра в чистую папку.
+      - name: Smoke-test the published package
+        run: |
+          set -euo pipefail
+          V="$(node -p "require('./lib/package.json').version")"
+          echo "ждём появления letopis@$V в реестре…"
+          for i in $(seq 1 30); do
+            npm view "letopis@$V" version >/dev/null 2>&1 && break
+            sleep 5
+          done
+          npm view "letopis@$V" version
+          mkdir -p /tmp/letopis-smoke && cd /tmp/letopis-smoke
+          echo '{"name":"smoke","private":true,"type":"module"}' > package.json
+          npm install "letopis@$V" --no-audit --no-fund
+          cat > smoke.mjs <<'JS'
+          import { connect, up, cursorOf, uuidv5, uuidv7, LETOPIS_NS, totpCode,
+                   ValidationError, Registry, ne, gt, between, inList, like, has, exists, or } from 'letopis';
+          const need = { connect, up, cursorOf, uuidv5, uuidv7, LETOPIS_NS, totpCode, ValidationError, Registry };
+          for (const [k, v] of Object.entries(need)) if (v === undefined) throw new Error(`экспорт ${k} отсутствует`);
+          if (typeof connect !== 'function' || typeof up !== 'function') throw new Error('connect/up не функции');
+          if (uuidv5('a:b:c') !== uuidv5('a:b:c')) throw new Error('uuidv5 недетерминирован');
+          if (!/^[0-9a-f-]{36}$/.test(uuidv7())) throw new Error('uuidv7 не uuid');
+          console.log('ok: пакет ставится из npm, ESM-импорт и 17 экспортов на месте');
+          JS
+          node smoke.mjs
+          node -e "const p=require('/tmp/letopis-smoke/node_modules/letopis/package.json');
+            const fs=require('node:fs');
+            for (const f of ['dist/index.js','dist/index.d.ts','sql/ddl.sql','scripts/gen-types.mjs','README.md','LICENSE'])
+              if (!fs.existsSync('/tmp/letopis-smoke/node_modules/letopis/'+f)) throw new Error('в тарболе нет '+f);
+            console.log('ok: тарбол содержит dist, sql, scripts, README, LICENSE');"
