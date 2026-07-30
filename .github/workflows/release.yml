@@ -1,4 +1,10 @@
-# Прод-публикация: на publish GitHub Release → npm publish пакета lib/.
+# Прод-публикация — ОТДЕЛЬНЫЙ ШАГ, только по команде (как в VP): тег ставит tag.yml на push
+# в main, а релиз публикуется вручную — Releases → «Draft a new release» → выбрать тег →
+# Publish. На publish этот workflow перезаписывает тело релиза сгенерированным changelog
+# (git-cliff, кумулятивно от предыдущего ОПУБЛИКОВАННОГО релиза) и публикует пакет lib/ в npm.
+#
+# Логика та же, что в VP: тег → заметки git-cliff → прод. Прод у библиотеки — npm.
+#
 # Требует секрет NPM_TOKEN (granular automation token npm с правом publish на letopis).
 # prepublishOnly сам гоняет typecheck + build.
 name: release
@@ -7,11 +13,56 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: write
+
 jobs:
   npm-publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Диапазон = от предыдущего опубликованного релиза до текущего тега: черновики и
+      # pre-release не считаются, поэтому заметки не теряют коммиты между публикациями.
+      - name: Compute changelog range
+        id: prev
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          CURRENT="${{ github.event.release.tag_name }}"
+          PREV=$(gh release list \
+            --limit 50 \
+            --exclude-drafts \
+            --exclude-pre-releases \
+            --json tagName \
+            --jq '.[].tagName' \
+            | grep -v "^${CURRENT}$" \
+            | head -n 1 || true)
+          if [ -n "$PREV" ]; then
+            echo "Changelog range: ${PREV}..${CURRENT}"
+            echo "args=${PREV}..${CURRENT} --strip all" >> "$GITHUB_OUTPUT"
+          else
+            echo "No previous published release — using --latest"
+            echo "args=--latest --strip all" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate release notes
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: ${{ steps.prev.outputs.args }}
+        env:
+          OUTPUT: RELEASE_NOTES.md
+
+      - name: Apply grouped notes to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "${{ github.event.release.tag_name }}" --notes-file RELEASE_NOTES.md
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
