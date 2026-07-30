@@ -14,8 +14,14 @@ name: tag
 # последней записью lib/CHANGELOG.md scripts/check-docs.mjs (CI на каждый push).
 # Расчёт git-cliff печатается как подсказка: расхождение — сигнал, что bump забыли.
 
+# Контур строго ПОСЛЕДОВАТЕЛЬНЫЙ: ci (тесты) → tag → publish Release руками → release (npm).
+# Раньше tag висел на `push: main` и стартовал ОДНОВРЕМЕННО с ci — тег мог встать до того, как
+# тесты закончатся, и красный прогон его не останавливал. Теперь тег ждёт успешного ci на том
+# же коммите: workflow_run + conclusion == 'success'.
 on:
-  push:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
     branches: [main]
 
 permissions:
@@ -23,10 +29,14 @@ permissions:
 
 jobs:
   tag:
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          # workflow_run по умолчанию берёт голову default-ветки — берём ИМЕННО тот коммит,
+          # который проверил ci, иначе тег может уехать на более новый непроверенный.
+          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
