@@ -1,6 +1,6 @@
 {
   "name": "letopis",
-  "version": "0.20.2",
+  "version": "0.20.3",
   "description": "Letopis (летопись): append-only versioned entity store on TimescaleDB with dot-notation chains — every change is a new row, history is first-class (asOf, versions, watch, cascade tombstones)",
   "keywords": [
     "timescaledb",
