@@ -60,6 +60,39 @@ test('fresh: true — дроп и накат заново', async () => {
   await db.close();
 });
 
+test('up(): статистика планировщика собрана — ANALYZE прошёл при накате', async () => {
+  // Без статистики родителя гипертаблицы планировщик берёт дефолт «200 уникальных id» и на
+  // подзапросе кандидатов (его строит КАЖДОЕ чтение либы) выбирает Nested Loop вместо
+  // Merge Semi Join: замерено 57 с против 3 с на 980k строк (README §14.1). Проверяем не
+  // тайминг, а факт — что pg_stats по Entity заполнен (схему только что пересоздал тест выше).
+  // NB: pg_stats у пустой таблицы пуст по определению — статистике не по чему собираться,
+  // поэтому проверяем ФАКТ запуска (last_analyze), а заодно что на непустых данных
+  // статистика действительно появляется.
+  const db = await up({ enforceAccount: false, dsn: DSN, schema: 'uptest', version: 1, quiet: true });
+  try {
+    const [{ last_analyze }] = (await db.sql.unsafe(
+      `SELECT last_analyze FROM pg_stat_all_tables WHERE schemaname = $1 AND relname = 'Entity'`,
+      ['v1.uptest'],
+    )) as unknown as { last_analyze: string | null }[];
+    assert.ok(last_analyze, 'ANALYZE по "v1.uptest"."Entity" не выполнялся при накате схемы');
+
+    // и на данных: после ANALYZE у ключевых колонок есть n_distinct — то, без чего
+    // планировщик берёт дефолт «200 уникальных id» и рушит подзапрос кандидатов
+    await db.Клиент().create({ name: 'Стат-Аня', phone: '+7 901' }).rows();
+    await db.sql.unsafe('ANALYZE "v1.uptest"."Entity"');
+    const строки = (await db.sql.unsafe(
+      `SELECT attname FROM pg_stats WHERE schemaname = $1 AND tablename = 'Entity'`,
+      ['v1.uptest'],
+    )) as unknown as { attname: string }[];
+    const колонки = строки.map((r) => r.attname);
+    for (const c of ['id', 'class', 'partition']) {
+      assert.ok(колонки.includes(c), `нет статистики по колонке ${c}: ${колонки.join(', ') || 'пусто'}`);
+    }
+  } finally {
+    await db.close();
+  }
+});
+
 test('seeds: false — голая структура без классов; connect честно падает', async () => {
   // контракт connect: реестр не пуст — up() доводит до родной ошибки, структура при этом создана
   await assert.rejects(

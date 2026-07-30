@@ -161,6 +161,36 @@ test('enforceAcl: memo энфорсера не течёт между scope од�
   }
 });
 
+test('enforceAcl: словарь Resource/Rule снимается ОДИН раз на подключение, сбрасывается reloadSchema', async () => {
+  // Цена db.as() под enforceAcl — цена HTTP-запроса в вебе (scope на запрос). Словарь
+  // одинаков для всех субъектов, поэтому снимается один раз; per-scope остаётся только
+  // свой аккаунт. Проверяем именно кэш: правило, добавленное ПОСЛЕ первого db.as(),
+  // не видно следующим scope до reloadSchema() — и становится видно после.
+  const pool = await connect({ dsn: DSN, schema: SCHEMA, enforceAcl: true, enforceAccount: false });
+  try {
+    const первый = await pool.as(user.id);
+    assert.equal((await первый.Организация().rows().then(() => true, () => false)), false); // Org запрещён
+
+    // добавляем право на Org мимо этого подключения (как это сделал бы админ рядом)
+    await sys.resources.set({ alias: 'cache.org:READ', category: 'READ', pattern: { class: 'Org' } });
+    await sys.rules.set({ account: 'authenticated:ACCOUNT', resource: 'cache.org:READ', permission: 'allow', weight: 95 });
+
+    // новый scope того же пула всё ещё работает на СНИМКЕ — правило не подхвачено
+    const второй = await pool.as(user.id);
+    await assert.rejects(второй.Организация().rows(), /acl denies READ on Org/);
+
+    // reloadSchema сбрасывает снимок → следующий scope видит новое правило
+    await pool.reloadSchema();
+    const третий = await pool.as(user.id);
+    assert.ok(Array.isArray(await третий.Организация().rows()));
+  } finally {
+    await pool.close();
+    await sys.rules.delete('authenticated:ACCOUNT', 'cache.org:READ');
+    await sys.resources.delete('cache.org:READ');
+    await sys.acl.reload();
+  }
+});
+
 test('enforceAcl: статический data-шаблон — виден только срез', async () => {
   const [салон] = await sys.Организация().create({ name: 'Салон ACL' }).rows();
   await sys.Организация(салон.id).Услуга().create({ name: 'Экспресс', duration: 30 }).rows();

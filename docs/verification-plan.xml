@@ -199,7 +199,7 @@
       <test-files><file>all integration tests bootstrap via up()</file></test-files>
       <module-checks><check-1>cd lib &amp;&amp; npm test</check-1></module-checks>
       <scenarios>
-        <scenario-1 kind="success">up() reuses/creates the container, applies schema+seeds, connects.</scenario-1>
+        <scenario-1 kind="success">up() reuses/creates the container, applies schema+seeds, ANALYZEs the Entity hypertable (pg_stats for Entity.id is populated — otherwise the candidate semi-join of every read degrades by an order of magnitude), connects.</scenario-1>
         <scenario-2 kind="failure">Missing docker / not-ready timeout / bad schema|version throw with actionable messages.</scenario-2>
       </scenarios>
       <required-log-markers>

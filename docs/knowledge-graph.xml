@@ -249,12 +249,13 @@
     </M-CONNECT>
 
     <M-UP NAME="Up" TYPE="INTEGRATION" STATUS="implemented">
-      <purpose>Dev bootstrap: ensure a Docker Postgres+Redis container, ensure the database, apply the schema DDL and seeds, wait for readiness, then connect</purpose>
+      <purpose>Dev bootstrap: ensure a Docker Postgres+Redis container, ensure the database, apply the schema DDL and seeds, ANALYZE the Entity hypertable, wait for readiness, then connect</purpose>
       <path>lib/src/up.ts</path>
       <depends>M-CONNECT, M-CHAIN, M-TYPES</depends>
       <verification-ref>V-M-UP</verification-ref>
       <annotations>
-        <fn-up PURPOSE="Provision (docker) + apply DDL/seeds + connect; returns an EntityDb" />
+        <fn-up PURPOSE="Provision (docker) + apply DDL/seeds + ANALYZE + connect; returns an EntityDb" />
+        <note-analyze PURPOSE="applySchema runs ANALYZE on the Entity hypertable: the parent table holds no rows of its own, so without statistics the planner falls back to 200 distinct ids and picks a Nested Loop for the candidate semi-join that every read of the library builds — measured 57s vs 3s on a 980k polygon. Bulk loads done by the application need their own ANALYZE (README 14.1)" />
         <fn-dockerRunArgs PURPOSE="Build the 'docker run' argument vector for the dev container" />
         <type-UpOpts PURPOSE="up() options: dsn, schema, version, container/image, dataDir, redisPort, seeds, fresh, quiet, waitTimeoutMs" />
         <type-RunCfg PURPOSE="Resolved container run config" />

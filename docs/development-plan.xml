@@ -194,7 +194,7 @@
 
     <M-UP NAME="Up" TYPE="INTEGRATION" LAYER="7" ORDER="1" STATUS="done">
       <contract>
-        <purpose>Provision a dev Postgres+Redis container, ensure the database, apply DDL + seeds, wait for readiness, then connect</purpose>
+        <purpose>Provision a dev Postgres+Redis container, ensure the database, apply DDL + seeds, ANALYZE the Entity hypertable (planner statistics: without them the candidate semi-join degrades by an order of magnitude), wait for readiness, then connect</purpose>
         <inputs><param name="opts" type="UpOpts { dsn?, schema, version, container?, image?, dataDir?, redisPort?, seeds?, fresh?, quiet?, waitTimeoutMs? }" /></inputs>
         <outputs><param name="db" type="EntityDb" /></outputs>
         <errors><error code="docker CLI not found" /><error code="docker start/build/run failed" /><error code="postgres/redis not ready in timeout" /><error code="bad schema name / bad version" /></errors>
