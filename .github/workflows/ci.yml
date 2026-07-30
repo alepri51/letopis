@@ -1,9 +1,17 @@
 name: ci
 
+# Триггер ТОЛЬКО push в dev — там и живёт разработка. Ни `pull_request`, ни `push: main` тут
+# нет намеренно: релизный PR dev→main и сам merge несут ТОТ ЖЕ коммит, который уже проверен
+# на dev (ветка всегда пушится до PR). Любой из этих триггеров означал бы повторный прогон
+# одних и тех же тестов на одном и том же SHA.
 on:
   push:
-    branches: [dev, main]
-  pull_request:
+    branches: [dev]
+
+# Быстрые последовательные пуши в dev: держим только последний прогон.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -57,12 +65,7 @@ jobs:
           ENTITY_REDIS: redis://localhost:16379
         run: npm test
 
-      - name: Build package artifact
-        working-directory: lib
-        run: |
-          npm run build
-          npm pack
-      - uses: actions/upload-artifact@v4
-        with:
-          name: letopis-package
-          path: lib/letopis-*.tgz
+# Сборку тарбола здесь НЕ делаем. Раньше стояли `npm run build` + `npm pack` с выгрузкой
+# артефакта — его никто не забирал: release.yml публикует сам (свой npm ci, а prepublishOnly
+# гоняет typecheck + build перед публикацией), а сам артефакт проверяется смоуком уже ИЗ
+# реестра. Компиляция при этом дублировала шаг Typecheck. Итого — минус два шага на каждый пуш.

@@ -14,6 +14,10 @@ name: tag
 # последней записью lib/CHANGELOG.md scripts/check-docs.mjs (CI на каждый push).
 # Расчёт git-cliff печатается как подсказка: расхождение — сигнал, что bump забыли.
 
+# Контур: на каждое событие РОВНО ОДНО действие, ничего параллельно.
+#   push dev → ci (тесты)   |   merge в main → tag   |   publish Release → release (npm)
+# Тесты на main НЕ гоняются намеренно: merge несёт тот же коммит, что уже проверен на dev,
+# — поэтому здесь можно тегировать сразу, ничего не дожидаясь.
 on:
   push:
     branches: [main]
@@ -49,7 +53,7 @@ jobs:
       # package.json обычно значит забытый бамп версии (или коммиты не по конвенции).
       - name: Suggest bump from Conventional Commits
         if: steps.ver.outputs.skipped == 'false'
-        uses: orhun/git-cliff-action@v4
+        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5  # v4.8.0 — пин на коммит: тег изменяем, а job имеет contents: write и пушит теги
         with:
           config: cliff.toml
           args: --bumped-version
@@ -70,7 +74,7 @@ jobs:
 
       - name: Generate tag notes
         if: steps.ver.outputs.skipped == 'false'
-        uses: orhun/git-cliff-action@v4
+        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5  # v4.8.0 — пин на коммит: тег изменяем, а job имеет contents: write и пушит теги
         with:
           config: cliff.toml
           args: --unreleased --tag ${{ steps.ver.outputs.next }} --strip all
