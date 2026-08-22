@@ -385,6 +385,10 @@
       "message": "letopis: $tags accepts a string or has/hasAny/hasAll"
     },
     {
+      "module": "chain",
+      "message": "letopis: .<…>() on no-history class \"<…>\" (meta.history=false) —"
+    },
+    {
       "module": "sql",
       "message": "letopis: .after(cursor) requires .sort(field)"
     },
