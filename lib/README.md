@@ -3838,6 +3838,9 @@ cd lib && npm test    # весь набор против живого docker (ti
             # idgen         — генерация id по Schema (§ 3.2): v4/v7/v5 из концов и полей,
             #                 гонка без локов, наследование attributes и правила id, гарды
             # integration   — E2E-барбершоп (8 сцен)
+            # no-history    — meta.history=false: одна строка на id (entity_collapse),
+            #                 NOTIFY один на вставку, tombstone цел, compact() идемпотентна,
+            #                 warning на .versions()/.asOf()
             # real-life     — 16 сцен «дня салона»: 4 руки, гонки ×3, переносы, no-show
             # tables        — auth/ACL-таблицы
             # up            — up(): docker-argv, probe-ветка, идемпотентность, fresh,

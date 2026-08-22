@@ -8,10 +8,10 @@
 
 -- FILE: lib/sql/ddl.sql
 -- VERSION: 1.1.0
--- DDL_REVISION: 1   (последняя строка файла штампует её в COMMENT ON SCHEMA; см. там же)
+-- DDL_REVISION: 2   (последняя строка файла штампует её в COMMENT ON SCHEMA; см. там же)
 -- START_MODULE_CONTRACT
 --   PURPOSE: Движок-хранилище PostgreSQL/TimescaleDB — таблицы, Entity-hypertable, индексы и триггеры целостности (валидация, версионирование, каскад-tombstone, lineage, notify).
---   SCOPE: таблицы Schema/Entity/Account/Credential/Resource/Rule + триггеры schema_lineage/entity_check/entity_update/entity_delete/entity_notify.
+--   SCOPE: таблицы Schema/Entity/Account/Credential/Resource/Rule + триггеры schema_lineage/entity_check/entity_update/entity_delete/entity_notify/entity_collapse + compact.
 --   DEPENDS: none
 --   LINKS: M-DDL, V-M-DDL
 --   ROLE: RUNTIME
@@ -572,6 +572,91 @@ CREATE TRIGGER entity_notify
     FOR EACH ROW EXECUTE FUNCTION "<SCHEMA-NAME>".entity_notify();
 
 -- -----------------------------------------------------------------------------
+-- Триггер 5: no-history — класс с Schema.meta.history=false хранит ОДНУ актуальную
+-- строку на id: после вставки новой версии старые физически удаляются.
+-- Зачем: у мутабельных статус-сущностей (очереди, outbox) история версий делает
+-- jsonb-фильтры неселективными (GIN матчит каждую версию, что когда-либо была в
+-- статусе) — сканы растут O(вся история). Дефолт (meta.history отсутствует/true) —
+-- поведение прежнее, все версии копятся.
+-- Почему AFTER INSERT, а не in-place UPDATE: Entity — гипертаблица по updated
+-- (апдейт time-колонки = перенос между чанками), а entity_notify слушает только
+-- INSERT (in-place UPDATE потерял бы NOTIFY). Оба AFTER INSERT триггера идут по
+-- алфавиту: entity_collapse раньше entity_notify — один NOTIFY на выжившую строку.
+-- -----------------------------------------------------------------------------
+-- START_CONTRACT: entity_collapse
+--   PURPOSE: Для класса с meta.history=false удалить версии старее только что вставленной (одна актуальная строка на id).
+--   INPUTS: { trigger: AFTER INSERT ON Entity (NEW) }
+--   OUTPUTS: { NULL }
+--   SIDE_EFFECTS: DELETE старых версий под letopis.purge='on' (entity_delete пропущен: без tombstone/каскада); pg_advisory_xact_lock на partition|class|id
+--   LINKS: M-DDL, V-M-DDL
+-- END_CONTRACT: entity_collapse
+CREATE OR REPLACE FUNCTION "<SCHEMA-NAME>".entity_collapse() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE prev text;
+BEGIN
+    -- per-class флаг из Schema.meta (PK-lookup; зеркало чтения abstract в entity_check).
+    -- jsonb ->> отдаёт текст: boolean false -> 'false'.
+    IF NOT EXISTS (SELECT 1 FROM "<SCHEMA-NAME>"."Schema"
+                    WHERE partition = NEW.partition AND id = NEW.class
+                      AND meta->>'history' = 'false') THEN
+        RETURN NULL;                                   -- history-класс (дефолт): версии копятся
+    END IF;
+    -- сериализация конкурентных INSERT одного id: тот же ключ, что в entity_delete/purge.
+    -- Лок транзакционный и реентерабельный — tombstone-INSERT внутри entity_delete
+    -- (он уже держит этот лок) не дедлочится.
+    PERFORM pg_advisory_xact_lock(
+        hashtextextended(NEW.partition || '|' || NEW.class || '|' || NEW.id, 0));
+    -- purge-guard: entity_delete висит с WHEN (letopis.purge IS DISTINCT FROM 'on') —
+    -- DELETE ниже идёт физически, без tombstone и каскада. save+restore, чтобы не
+    -- затереть флаг, выставленный снаружи, до конца транзакции.
+    prev := current_setting('letopis.purge', true);
+    PERFORM set_config('letopis.purge', 'on', true);
+    DELETE FROM "<SCHEMA-NAME>"."Entity" e
+     WHERE e.partition = NEW.partition AND e.class = NEW.class AND e.id = NEW.id
+       AND e.updated < NEW.updated;                    -- выживает ровно вставленная версия
+    PERFORM set_config('letopis.purge', COALESCE(prev, ''), true);
+    RETURN NULL;
+END $$;
+
+DROP TRIGGER IF EXISTS entity_collapse ON "<SCHEMA-NAME>"."Entity";
+CREATE TRIGGER entity_collapse
+    AFTER INSERT ON "<SCHEMA-NAME>"."Entity"
+    FOR EACH ROW EXECUTE FUNCTION "<SCHEMA-NAME>".entity_collapse();
+
+-- -----------------------------------------------------------------------------
+-- compact(): разовая компакция класса — оставить по одной (последней) версии на id.
+-- Для перевода класса на meta.history=false с уже накопленной историей: триггер
+-- entity_collapse останавливает накопление ВПЕРЁД, старые версии убирает compact().
+-- Идемпотентна (повторный вызов вернёт 0). GROUP BY покрыт entity_latest_idx.
+-- Не по ctid: в гипертаблице он не уникален между чанками — только PK-условие.
+-- После вызова: ANALYZE "Entity" (статистика для планировщика гипертаблицы).
+-- -----------------------------------------------------------------------------
+-- START_CONTRACT: compact
+--   PURPOSE: Удалить все версии класса, кроме последней на каждый id; вернуть число удалённых строк.
+--   INPUTS: { p_partition: text; p_class: text }
+--   OUTPUTS: { bigint - удалено строк }
+--   SIDE_EFFECTS: физический DELETE под letopis.purge='on' (SET LOCAL, сброс в '' как в purge)
+--   LINKS: M-DDL, V-M-DDL
+-- END_CONTRACT: compact
+CREATE OR REPLACE FUNCTION "<SCHEMA-NAME>".compact(p_partition text, p_class text)
+RETURNS bigint LANGUAGE plpgsql AS $$
+DECLARE n bigint;
+BEGIN
+    PERFORM set_config('letopis.purge', 'on', true);   -- SET LOCAL: физический DELETE
+    WITH keep AS (
+        SELECT partition, class, id, max(updated) AS mx
+        FROM "<SCHEMA-NAME>"."Entity"
+        WHERE partition = p_partition AND class = p_class
+        GROUP BY partition, class, id)
+    DELETE FROM "<SCHEMA-NAME>"."Entity" e USING keep
+     WHERE e.partition = keep.partition AND e.class = keep.class AND e.id = keep.id
+       AND e.updated < keep.mx;
+    GET DIAGNOSTICS n = ROW_COUNT;
+    PERFORM set_config('letopis.purge', '', true);
+    RETURN n;
+END $$;
+
+-- -----------------------------------------------------------------------------
 -- Метка ревизии движка — ПОСЛЕДНЕЙ строкой: комментарий появляется только если весь
 -- файл применился. Её читает connect() и предупреждает, если схема отстала от либы
 -- (DDL_REVISION в lib/src/types.ts; совпадение сверяет scripts/check-docs.mjs).
@@ -582,7 +667,7 @@ CREATE TRIGGER entity_notify
 -- Несовместимая правка СТРУКТУРЫ таблиц — это смена version в имени схемы (v1 → v2),
 -- а не ревизия.
 -- -----------------------------------------------------------------------------
-COMMENT ON SCHEMA "<SCHEMA-NAME>" IS 'letopis ddl_revision=1';
+COMMENT ON SCHEMA "<SCHEMA-NAME>" IS 'letopis ddl_revision=2';
 
 -- -----------------------------------------------------------------------------
 -- Опционально (включать по мере роста данных):

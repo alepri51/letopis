@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import postgres from 'postgres';
 import { up, connect } from '../src/index.js';
 import { dockerRunArgs } from '../src/up.js';
+import { DDL_REVISION } from '../src/types.js';
 
 const DSN = process.env.ENTITY_DSN ?? 'postgres://postgres:test@localhost:15432/clockz';
 const seedFile = join(tmpdir(), `letopis-up-seed-${process.pid}.sql`);
@@ -131,7 +132,7 @@ test('отставший движок: connect предупреждает, upgra
     const [{ c }] = (await db2.sql.unsafe(
       `SELECT obj_description(n.oid, 'pg_namespace') AS c FROM pg_namespace n WHERE n.nspname = 'v1.uptest'`,
     )) as unknown as { c: string | null }[];
-    assert.equal(c, 'letopis ddl_revision=1');
+    assert.equal(c, `letopis ddl_revision=${DDL_REVISION}`);  // актуальная ревизия либы, не литерал
     assert.equal(await db2.Клиент({ name: 'До-апгрейда' }).count(), 1); // данные не пострадали
     await db2.Клиент(клиент.id).delete({ confirm: true }).rows();
   } finally {

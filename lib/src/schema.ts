@@ -306,6 +306,7 @@ function buildDef(row: SchemaRow, byId: Map<string, SchemaRow>): ClassDef {
     idGen,
     meta: row.meta ?? {},
     abstract: row.meta?.abstract === true || row.meta?.abstract === 'true',
+    history: row.meta?.history !== false && row.meta?.history !== 'false',  // дефолт true; только явный false отключает историю
     order: row.order,
     check,
     fieldTypes,

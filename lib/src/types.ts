@@ -116,6 +116,8 @@ export interface ClassDef {
   strictEnds: boolean;
   meta: Record<string, unknown>;
   abstract: boolean;
+  /** false — движок хранит одну актуальную строку на id (триггер entity_collapse), .versions()/.asOf() теряют смысл. */
+  history: boolean;
   order: number;
   /** Как генерить id новой сущности (attributes.id). */
   idGen: IdGen;
@@ -381,7 +383,7 @@ export function reservedNamesOf(def: { id: string; alias?: string }): string[] {
  * Совпадение константы с маркером `-- DDL_REVISION:` в ddl.sql проверяет
  * `scripts/check-docs.mjs` — иначе одно уедет без другого.
  */
-export const DDL_REVISION = 1;
+export const DDL_REVISION = 2;
 
 /** Метка ревизии в комментарии схемы: 'letopis ddl_revision=N' → N; иначе null. */
 export function parseDdlRevision(comment: string | null | undefined): number | null {

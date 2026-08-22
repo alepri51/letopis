@@ -293,6 +293,22 @@ function normalizeFilter(f: Filter | undefined): Filter | undefined {
 
 const clsOf = (steps: Step[]): string[] => steps.map((s) => s.cls.id);
 
+// no-history класс (meta.history=false): в БД одна актуальная строка на id — .versions()
+// вернёт её одну, .asOf() отдаст «текущее» вместо point-in-time. Предупреждаем (не бросаем:
+// вызовы могли жить до перевода класса), один раз на класс+метод за процесс.
+const noHistoryWarned = new Set<string>();
+function warnNoHistory(steps: Step[], method: 'versions' | 'asOf'): void {
+  const cls = steps[steps.length - 1]?.cls;
+  if (!cls || cls.history) return;
+  const key = `${cls.id}|${method}`;
+  if (noHistoryWarned.has(key)) return;
+  noHistoryWarned.add(key);
+  console.warn(
+    `letopis: .${method}() on no-history class "${cls.id}" (meta.history=false) — ` +
+    `хранится одна актуальная версия на id, результат не отражает историю`,
+  );
+}
+
 /** Внутренний канал: план чужой ленивой цепочки (слот-значения, entity()). */
 export const PLAN: unique symbol = Symbol('letopis.plan');
 
@@ -649,7 +665,10 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef, n
           return (field: string, dir?: 'asc' | 'desc' | boolean) =>
             withMods({ order: field, desc: dir === true || dir === 'desc' });
         case 'asOf':
-          return (t: string | Date) => withMods({ asOf: t instanceof Date ? t.toISOString() : t });
+          return (t: string | Date) => {
+            warnNoHistory(steps, 'asOf');
+            return withMods({ asOf: t instanceof Date ? t.toISOString() : t });
+          };
         case 'withDeleted':
           return () => withMods({ withDeleted: true });
         case 'deep':
@@ -699,6 +718,7 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef, n
         case 'versions':
           return async () => {
             guardBatch();
+            warnNoHistory(steps, 'versions');
             if (hasOps) return runPlan(ctx, steps, mods, 'versions') as Promise<Row[]>;
             const q = buildRead(ctx, steps, mods, 'versions');
             const res = await runQuery<{ row: never }>(ctx, q.text, q.params, 'versions', clsOf(steps));
