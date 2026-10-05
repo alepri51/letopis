@@ -121,4 +121,4 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 20, TypeScript): 
 - Телеметрия — хук `onQuery`; служебные запросы (реестр, таблицы, LISTEN) его не вызывают.
 
 ## Не читать
-`lib/node_modules/`, `lib/dist/` (сборка), `lib/package-lock.json`, `reports/` (неотслеживаемые отчёты оценки), `.env` (секреты другого проекта), `RESEARCH.md` (исторический, проект под старым именем entity-chain).
+`lib/node_modules/`, `lib/dist/` (сборка), `lib/package-lock.json`, `reports/` (снимок оценки от 2026-09-24, не источник истины), `.env` (секреты другого проекта), `RESEARCH.md` (исторический, проект под старым именем entity-chain).
