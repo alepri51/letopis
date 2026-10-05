@@ -10,31 +10,6 @@
  *   await t.Мастер({ name: 'Вася' }).навык().Услуга().run()
  */
 
-// FILE: lib/src/index.ts
-// VERSION: 1.3.0
-// START_MODULE_CONTRACT
-//   PURPOSE: Публичная точка входа пакета — открыть соединение (реестр, опциональный ACL, сборка db) и ре-экспорт публичной поверхности; хелпер курсора.
-//   SCOPE: connect, cursorOf + barrel-реэкспорты
-//   DEPENDS: M-SCHEMA, M-CHAIN, M-TABLES, M-ACL, M-SQL, M-TYPES, M-UP
-//   LINKS: M-CONNECT, V-M-CONNECT
-//   ROLE: RUNTIME
-//   MAP_MODE: EXPORTS
-// END_MODULE_CONTRACT
-//
-// START_MODULE_MAP
-//   connect - открывает pg-соединение, грузит реестр, опц. включает ACL (снимок Resource/Rule на подключение), собирает EntityDb
-//   cursorOf - курсор keyset-пагинации из последней строки страницы
-//   NOTE (re-exports) - up/UpOpts←M-UP; uuidv5/uuidv7/LETOPIS_NS←M-UUID; ops←M-OPS; totpCode/AuthApi/AuthResult←M-AUTH; AclApi←M-ACL; ValidationError←M-WRITE; Registry←M-SCHEMA; Session-типы←M-SESSIONS; базовые типы←M-TYPES; типы chain/tables
-// END_MODULE_MAP
-//
-// START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.3.0 - Словарь Resource/Rule снимается ОДИН раз на подключение и
-//     переиспользуется всеми db.as(): scope-per-request под enforceAcl платил два лишних
-//     SELECT на каждый HTTP-запрос. Per-scope остались чтение своего аккаунта и компиляция
-//     энфорсера (один энфорсер = один субъект). Снимок сбрасывает reloadSchema().
-//     Ранее: BREAKING — opts.account/opts.owner сняты, арендатора называет db.as()]
-// END_CHANGE_SUMMARY
-
 import postgres from 'postgres';
 import { loadRegistry } from './schema.js';
 import { makeDb, type EntityDb } from './chain.js';
@@ -44,25 +19,11 @@ import type { Ctx } from './sql.js';
 import { DDL_REVISION, parseDdlRevision } from './types.js';
 import type { ConnectOpts, Resource, Rule } from './types.js';
 
-// START_CONTRACT: connect
-//   PURPOSE: Открыть БЕЗЛИЧНОЕ соединение: postgres-пул, реестр схемы, System-аккаунт, хук компиляции ACL — и собрать EntityDb (арендатора вызова называет db.as()).
-//   INPUTS: { opts: ConnectOpts { dsn, schema, partition?='entity', max?=10, enforceAcl?, enforceAccount?=true, onQuery?, slowMs? } }
-//   OUTPUTS: { Promise<EntityDb> - dot-цепочный db без идентичности; db.as(account) даёт scoped-хендл }
-//   SIDE_EFFECTS: открывает пул postgres (timestamptz строкой), читает реестр и System-аккаунт; ставит ctx.compileAcl (зовётся из db.as: читает resources/rules и компилит aclDecide под субъекта scope; при ненайденном аккаунте — 'letopis: enforceAcl — account "…" not found'); без enforceAcl печатает предупреждение один раз на процесс; NB: ESM-цикл M-CONNECT↔M-UP (up ре-экспортится здесь)
-//   LINKS: M-CONNECT, V-M-CONNECT, M-SCHEMA, M-CHAIN, M-TABLES, M-ACL, M-SQL
-// END_CONTRACT: connect
 /** Предупреждение об отключённом enforceAcl печатается один раз на процесс. */
 let warnedNoAcl = false;
 /** Схемы, про чью ревизию движка уже предупредили (один раз на схему за процесс). */
 const warnedDdl = new Set<string>();
 
-// START_CONTRACT: checkDdlRevision
-//   PURPOSE: Сверить ревизию движка схемы (COMMENT ON SCHEMA) с ожидаемой либой; при отставании предупредить с командой апгрейда.
-//   INPUTS: { sql: Ctx['sql'] - открытый пул; schema: string - полное имя PG-схемы }
-//   OUTPUTS: { Promise<void> }
-//   SIDE_EFFECTS: один SELECT из obj_description; console.warn один раз на схему за процесс (никогда не бросает: правки ddl аддитивны)
-//   LINKS: M-CONNECT, V-M-CONNECT, M-DDL, M-TYPES
-// END_CONTRACT: checkDdlRevision
 async function checkDdlRevision(sql: Ctx['sql'], schema: string): Promise<void> {
   // NB: ::regnamespace тут нельзя — имена схем letopis содержат точку ("v1.booking"),
   // и приведение разберёт их как «схема v1, объект booking» → invalid name syntax.
@@ -100,13 +61,11 @@ export async function connect(opts: ConnectOpts): Promise<EntityDb> {
     `SELECT id FROM ${ident}."Account" WHERE 'System' = ANY(categories) LIMIT 1`,
   )) as unknown as { id: string }[];
 
-  // START_BLOCK_CHECK_DDL_REVISION
   // Схема, накатанная более старой либой, не получает аддитивных правок ddl.sql (в 0.19.0
   // так появились purge/purge_closure/purge_account). Без этой проверки приложение узнаёт
   // о расхождении из сырого `PostgresError: function … does not exist`.
   // Предупреждение, а не отказ: правки аддитивны — то, что уже работало, работает.
   await checkDdlRevision(sql, opts.schema);
-  // END_BLOCK_CHECK_DDL_REVISION
 
   const ctx: Ctx = {
     sql,
@@ -123,7 +82,6 @@ export async function connect(opts: ConnectOpts): Promise<EntityDb> {
     slowMs: opts.slowMs,
   };
 
-  // START_BLOCK_ENFORCE_ACL
   // enforceAcl: правила и категории субъекта компилятся в резолвер ПОД КОНКРЕТНЫЙ scope.
   // Функция живёт на ctx, потому что зовут её двое: db.as() (новый субъект) и reload
   // (тот же субъект на свежем реестре). Субъект берётся из c.account, т.е. из scope.
@@ -173,18 +131,10 @@ export async function connect(opts: ConnectOpts): Promise<EntityDb> {
     aclDict = null;
     ctx.registry = await loadRegistry(sql, opts.schema, partition);
   };
-  // END_BLOCK_ENFORCE_ACL
   return makeDb(ctx);
 }
 
 /** Курсор keyset-пагинации из последней строки страницы (field как в .sort(), вложенные пути поддержаны). */
-// START_CONTRACT: cursorOf
-//   PURPOSE: Собрать курсор keyset-пагинации из последней строки страницы.
-//   INPUTS: { row: Row - строка результата; field?: string='updated' - поле сортировки как в .sort() (вложенные пути 'data.*' поддержаны) }
-//   OUTPUTS: { Cursor - { v, id } для следующей страницы }
-//   SIDE_EFFECTS: none
-//   LINKS: M-CONNECT, V-M-CONNECT, M-TYPES
-// END_CONTRACT: cursorOf
 export function cursorOf(row: import('./types.js').Row, field: string = 'updated'): import('./types.js').Cursor {
   const v =
     field === 'updated'

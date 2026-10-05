@@ -3,29 +3,6 @@
  * Обычные таблицы (UPDATE/DELETE разрешены) — цепочки/версии тут не применяются.
  * Доступны как db.accounts / db.credentials / db.resources / db.rules (и в транзакции).
  */
-//
-// FILE: lib/src/tables.ts
-// VERSION: 1.1.0
-// START_MODULE_CONTRACT
-//   PURPOSE: Типизированный CRUD над служебными таблицами auth/ACL: Account, Credential, Resource, Rule.
-//   SCOPE: makeTables (фасад) + find/get/set/delete по каждой таблице; обычные таблицы без версионирования.
-//   DEPENDS: M-SQL, M-TYPES
-//   LINKS: M-TABLES, V-M-TABLES
-//   ROLE: RUNTIME
-//   MAP_MODE: EXPORTS
-// END_MODULE_CONTRACT
-//
-// START_MODULE_MAP
-//   Tables - фасад accounts/credentials/resources/rules
-//   AccountsApi/CredentialsApi/ResourcesApi/RulesApi - контракты CRUD по таблицам
-//   makeTables - собрать Tables, привязанный к Ctx
-// END_MODULE_MAP
-//
-// START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.1.0 - accounts.purge: сообщение об отсутствии личности вызывающего теперь
-//     указывает на scoped-хендл ((await db.as(caller)).accounts.purge(id)) — опции connect({account})
-//     больше нет. Ранее: Documented existing module: reverse-engineered contract + markup]
-// END_CHANGE_SUMMARY
 import type { Ctx } from './sql.js';
 import type { Account, Credential, Resource, Rule } from './types.js';
 import { reservedNamesOf } from './types.js';
@@ -34,13 +11,6 @@ const T = (ctx: Ctx, name: string) => `"${ctx.pgSchema.replace(/"/g, '""')}"."${
 
 type Cond = { text: (n: number) => string; value: unknown };
 
-// START_CONTRACT: where
-//   PURPOSE: Собрать SQL WHERE из простых equality-условий, добавляя значения в params.
-//   INPUTS: { conds: Cond[] - условия с генераторами текста; params: unknown[] - аккумулятор значений }
-//   OUTPUTS: { string - " WHERE ..." или пустая строка }
-//   SIDE_EFFECTS: пушит значения в params (мутация массива)
-//   LINKS: M-TABLES, V-M-TABLES
-// END_CONTRACT: where
 /** WHERE из простых equality-условий (+спец-обработчики). */
 function where(conds: Cond[], params: unknown[]): string {
   if (!conds.length) return '';
@@ -131,18 +101,10 @@ export interface Tables {
 
 // ---------------------------------------------------------------------------
 
-// START_CONTRACT: makeTables
-//   PURPOSE: Построить фасад Tables (accounts/credentials/resources/rules) поверх Ctx.
-//   INPUTS: { ctx: Ctx - runtime-контекст с sql и pgSchema }
-//   OUTPUTS: { Tables - четыре API с find/get/set/delete }
-//   SIDE_EFFECTS: каждый метод выполняет SELECT/INSERT/UPDATE/DELETE через ctx.sql
-//   LINKS: M-TABLES, V-M-TABLES, M-DDL
-// END_CONTRACT: makeTables
 export function makeTables(ctx: Ctx): Tables {
   const run = <R>(text: string, params: unknown[]): Promise<R[]> =>
     ctx.sql.unsafe(text, params as never[]) as unknown as Promise<R[]>;
 
-  // START_BLOCK_ACCOUNTS_API
   const accounts: AccountsApi = {
     async find(f = {}) {
       const conds: Cond[] = [];
@@ -156,14 +118,6 @@ export function makeTables(ctx: Ctx): Tables {
     async get(id) {
       return (await run<Account>(`SELECT * FROM ${T(ctx, 'Account')} WHERE id = $1`, [id]))[0] ?? null;
     },
-    // START_CONTRACT: accounts.set
-    //   PURPOSE: INSERT (без id) либо UPDATE по id аккаунта; вернуть строку Account.
-    //   INPUTS: { a: Partial<Account> - поля categories/data/meta/avatar/enabled (+id для update) }
-    //   OUTPUTS: { Promise<Account> - созданная/обновлённая строка }
-    //   SIDE_EFFECTS: INSERT или UPDATE в таблице Account
-    //   ERRORS: account "<id>" not found (UPDATE не нашёл строку)
-    //   LINKS: M-TABLES, V-M-TABLES
-    // END_CONTRACT: accounts.set
     async set(a) {
       if (a.id) {
         const sets: string[] = ['updated = now()'];
@@ -203,14 +157,6 @@ export function makeTables(ctx: Ctx): Tables {
       const rows = await run<{ id: string }>(`DELETE FROM ${T(ctx, 'Account')} WHERE id = $1 RETURNING id`, [id]);
       return rows.length > 0;
     },
-    // START_CONTRACT: accounts.purge
-    //   PURPOSE: Физический офбординг тенанта через purge_account(); гарды Owner/System, последний Owner, не-себя — до сноса, в одной tx.
-    //   INPUTS: { id: string - целевой аккаунт }
-    //   OUTPUTS: { Promise<boolean> - true если Account физически снесён }
-    //   SIDE_EFFECTS: физ. DELETE всех Entity аккаунта + Account (Credential FK-каскад) через SQL purge_account()
-    //   ERRORS: нет caller/ACL; вызов не Owner/System; снос последнего Owner; снос своего аккаунта
-    //   LINKS: M-TABLES, V-M-TABLES, M-DDL
-    // END_CONTRACT: accounts.purge
     async purge(id) {
       if (!ctx.account) {
         throw new Error(
@@ -248,8 +194,6 @@ export function makeTables(ctx: Ctx): Tables {
     },
   };
 
-  // END_BLOCK_ACCOUNTS_API
-  // START_BLOCK_CREDENTIALS_API
   const credentials: CredentialsApi = {
     async find(f = {}) {
       const conds: Cond[] = [];
@@ -263,13 +207,6 @@ export function makeTables(ctx: Ctx): Tables {
       if (!f.withDeleted) sql += conds.length ? ' AND deleted IS NULL' : ' WHERE deleted IS NULL';
       return run<Credential>(sql + ' ORDER BY created', params);
     },
-    // START_CONTRACT: credentials.set
-    //   PURPOSE: upsert креденшела по UNIQUE (account, category, identifier); повторный set воскрешает (deleted → NULL).
-    //   INPUTS: { c: { account, category, identifier, meta?, confirmed? } }
-    //   OUTPUTS: { Promise<Credential> - upsert-нутая строка }
-    //   SIDE_EFFECTS: INSERT ... ON CONFLICT DO UPDATE в таблице Credential
-    //   LINKS: M-TABLES, V-M-TABLES
-    // END_CONTRACT: credentials.set
     async set(c) {
       const rows = await run<Credential>(
         `INSERT INTO ${T(ctx, 'Credential')} (account, category, identifier, meta, confirmed)
@@ -290,8 +227,6 @@ export function makeTables(ctx: Ctx): Tables {
     },
   };
 
-  // END_BLOCK_CREDENTIALS_API
-  // START_BLOCK_RESOURCES_API
   const resources: ResourcesApi = {
     async find(f = {}) {
       const conds: Cond[] = [];
@@ -320,8 +255,6 @@ export function makeTables(ctx: Ctx): Tables {
     },
   };
 
-  // END_BLOCK_RESOURCES_API
-  // START_BLOCK_RULES_API
   const rules: RulesApi = {
     async find(f = {}) {
       const conds: Cond[] = [];
@@ -355,9 +288,6 @@ export function makeTables(ctx: Ctx): Tables {
     },
   };
 
-  // END_BLOCK_RULES_API
-
-  // START_BLOCK_SCHEMA_API
   const schema: SchemaApi = {
     async define(def) {
       // класс с именем, которое Proxy разбирает до резолва класса, был бы недостижим как шаг
@@ -386,7 +316,6 @@ export function makeTables(ctx: Ctx): Tables {
       await ctx.reload?.(); // подхватить новое определение сразу (registry + enforcer)
     },
   };
-  // END_BLOCK_SCHEMA_API
 
   return { accounts, credentials, resources, rules, schema };
 }

@@ -6,7 +6,9 @@ dist
 .DS_Store
 *.log
 _design_extract
-.claude/
+.claude/*
+!.claude/rules/
+!.claude/agents/
 dev.log
 
 ignore*

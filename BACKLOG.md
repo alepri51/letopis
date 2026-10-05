@@ -470,16 +470,15 @@ await s.check(token)
 
 ### Что понадобится при выполнении
 
-- `lib/sql/ddl.sql`: guard-блок + бамп `-- VERSION:` в шапке + `MODULE_CONTRACT` (узла
-  `CHANGE_SUMMARY` в этом файле нет, в отличие от `lib/src/*.ts`);
+- `lib/sql/ddl.sql`: guard-блок;
 - тест в `lib/test/up.test.ts` рядом с кейсом про отставший движок: сравнить `oid` обоих FK
   из `pg_constraint` до и после `up({ upgrade: true })` — при `DROP`+`ADD` они меняются.
   Схема в этом файле хардкодится строкой `'v1.uptest'`, переменной `full` там нет;
   негативно проверить на старом `ddl.sql` — тест обязан падать;
 - существующая проверка «FK на месте» — `lib/test/api-full.test.ts`, ожидание
   `/entity_account_fk|violates foreign key/` на `db.accounts.delete(SYS)`;
-- `lib/sql/*.sql` — governed (`AGENTS.md`), значит contract before code и прогон
-  `codescribe-update`; узлы `M-DDL` / `V-M-DDL` FK не описывают, править их скорее нечего;
+- карточка atlas `M-ENGINE` (`.claude/rules/atlas/`): поправить, если меняется инвариант
+  или «что ещё менять вместе» (протокол в `AGENTS.md`);
 - в README §10.8a **не** писать «перекат дёшев»: раздел говорит «безопасно, потому что
   идемпотентен», и это верно, а «дёшево» останется неверным пока жив `ANALYZE`;
 - цифры «было/стало» в CHANGELOG мерить по `ddl.sql`, не по `up()`; полигон для замера —

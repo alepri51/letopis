@@ -14,32 +14,6 @@
  *           .Запись().delete({ confirm: true }).rows()        // сегмент 2: снести записи каждого
  * Продолжение после операции идёт ОТ ЕЁ РЕЗУЛЬТАТА (fan-out по записанным строкам).
  */
-//
-// FILE: lib/src/write.ts
-// VERSION: 1.1.0
-// START_MODULE_CONTRACT
-//   PURPOSE: Write-side движок: валидация, резолв концов/слотов, вычисление id (v5/v7), вставка новых версий, каскадное удаление, анонимизация, исполнение планов и батчей в транзакции.
-//   SCOPE: ValidationError, runPlan, executeBatch, createOp/updateOp/delOp/anonymizeOp, toRow/readRows/deepMerge, BatchPlan.
-//   DEPENDS: M-UUID, M-TYPES, M-SQL, M-ACL
-//   LINKS: M-WRITE, V-M-WRITE
-//   ROLE: RUNTIME
-//   MAP_MODE: EXPORTS
-// END_MODULE_CONTRACT
-//
-// START_MODULE_MAP
-//   ValidationError - ошибка валидации с полями issues
-//   toRow/readRows/deepMerge - нормализация строки, чтение, deep-merge патча
-//   createOp/updateOp/anonymizeOp/delOp - операции записи (create/update/anonymize/delete)
-//   runPlan - исполнить план (сегменты op + читающий хвост) одной транзакцией
-//   executeBatch - исполнить очередь планов (fast-path multi-insert для чистых INSERT)
-//   BatchPlan/PlanMode - модель плана батча и режимы чтения
-// END_MODULE_MAP
-//
-// START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.1.0 - resolveAccount зовёт guardScoped: при enforceAccount без scope (db.as)
-//     запись запрещена с внятной подсказкой; ctx.account теперь приходит из scope, не из connect.
-//     Ранее: Documented existing module: reverse-engineered contract + markup]
-// END_CHANGE_SUMMARY
 import { randomUUID } from 'node:crypto';
 import { uuidv5, uuidv7 } from './uuid.js';
 import type { Row, Path, ChainMods, Filter, ClassDef, PlanOp } from './types.js';
@@ -50,13 +24,6 @@ import {
 } from './sql.js';
 import { aclDenied } from './acl.js';
 
-// START_CONTRACT: ValidationError
-//   PURPOSE: Ошибка валидации класса, несущая список проблемных полей (issues).
-//   INPUTS: { cls: string; issues: {field, message?}[] }
-//   OUTPUTS: { Error - message с перечнем «поле — сообщение» }
-//   SIDE_EFFECTS: none
-//   LINKS: M-WRITE, V-M-WRITE
-// END_CONTRACT: ValidationError
 export class ValidationError extends Error {
   constructor(cls: string, public issues: { field: string; message?: string }[]) {
     super(`letopis: validation failed for "${cls}": ${issues.map((i) => `${i.field} — ${i.message ?? 'invalid'}`).join('; ')}`);
@@ -117,14 +84,6 @@ export function deepMerge(
   return out;
 }
 
-// START_CONTRACT: validate
-//   PURPOSE: Проверить данные по fastest-validator (строго, + id) и концы LINK; вернуть очищенные данные.
-//   INPUTS: { cls: ClassDef; id: string; data: object; links: object }
-//   OUTPUTS: { object - валидные данные (без id) }
-//   SIDE_EFFECTS: none
-//   ERRORS: class is abstract; ValidationError; link requires end; stray link(s)
-//   LINKS: M-WRITE, V-M-WRITE, M-SCHEMA
-// END_CONTRACT: validate
 /** Валидация данных по fastest-validator (строгая, + id) и концов LINK. */
 function validate(cls: ClassDef, id: string, data: Record<string, unknown>, links: Record<string, string>): Record<string, unknown> {
   if (cls.abstract) throw new Error(`letopis: class "${cls.id}" is abstract`);
@@ -134,7 +93,6 @@ function validate(cls: ClassDef, id: string, data: Record<string, unknown>, link
   if (res !== true) throw new ValidationError(cls.id, res);
   delete (merged as { id?: unknown }).id;
 
-  // START_BLOCK_VALIDATE_LINK_ENDS
   if (cls.category === 'LINK') {
     const present = new Set(Object.keys(links));
     if (cls.strictEnds) {
@@ -167,7 +125,6 @@ function validate(cls: ClassDef, id: string, data: Record<string, unknown>, link
       }
     }
   }
-  // END_BLOCK_VALIDATE_LINK_ENDS
   return merged;
 }
 
@@ -184,13 +141,6 @@ interface InsertArgs {
   deleted: Date | null;
 }
 
-// START_CONTRACT: insertOne
-//   PURPOSE: INSERT одной строки-версии с ретраем гонок (23505 коллизия updated, 40P01/40001 transient) вне транзакции.
-//   INPUTS: { ctx: Ctx; a: InsertArgs }
-//   OUTPUTS: { Promise<Row> - вставленная строка }
-//   SIDE_EFFECTS: INSERT в Entity через runQuery
-//   LINKS: M-WRITE, V-M-WRITE, M-SQL, M-DDL
-// END_CONTRACT: insertOne
 /** INSERT одной строки с ретраем гонок: 23505 (коллизия updated) и transient (40P01/40001). */
 async function insertOne(ctx: Ctx, a: InsertArgs): Promise<Row> {
   // jsonb-параметры — JS-объектами (postgres.js сериализует сам)
@@ -198,7 +148,6 @@ async function insertOne(ctx: Ctx, a: InsertArgs): Promise<Row> {
     ctx.partition, a.id, a.cls.id, a.data, a.links, a.tags,
     a.account, a.owner, a.prevUpdated, a.deleted,
   ];
-  // START_BLOCK_INSERT_ONE_RETRY
   for (let attempt = 1; ; attempt++) {
     try {
       const res = await runQuery<RawRow>(ctx, insertSql(ctx.pgSchema), params, 'insert', [a.cls.id]);
@@ -215,7 +164,6 @@ async function insertOne(ctx: Ctx, a: InsertArgs): Promise<Row> {
       throw e;
     }
   }
-  // END_BLOCK_INSERT_ONE_RETRY
 }
 
 /**
@@ -225,14 +173,6 @@ async function insertOne(ctx: Ctx, a: InsertArgs): Promise<Row> {
  *    (явный чужой модификатор на цепочке → ошибка).
  * Мутирует step (объект создаётся цепочкой на вызов — локально безопасно).
  */
-// START_CONTRACT: aclWrite
-//   PURPOSE: enforceAcl-проверка права записи/удаления на класс цели; предикат правила пришпиливает owner/account и фильтрует цели.
-//   INPUTS: { ctx: Ctx; step: Step; op: 'WRITE'|'DELETE' }
-//   OUTPUTS: { void - мутирует step (aclFilter/ownerFilter/accountFilter) }
-//   SIDE_EFFECTS: мутирует step
-//   ERRORS: acl denies WRITE/DELETE; acl pins writes to owner/account
-//   LINKS: M-WRITE, V-M-WRITE, M-ACL
-// END_CONTRACT: aclWrite
 function aclWrite(ctx: Ctx, step: Step, op: 'WRITE' | 'DELETE'): void {
   if (!ctx.aclDecide) return;
   const d = ctx.aclDecide(step.cls, op);
@@ -288,14 +228,6 @@ function endFor(target: ClassDef, cls: ClassDef): { classes: string[] } | undefi
  * target, обязан дать ровно одну сущность (id-фильтр — как есть; иначе чтение путём
  * от начала до него: контекст честно учитывается).
  */
-// START_CONTRACT: resolvePathEnds
-//   PURPOSE: Связи создаваемой сущности из пути: каждый шаг-предок, чей класс — конец target, должен дать ровно одну сущность.
-//   INPUTS: { ctx: Ctx; steps: Step[] }
-//   OUTPUTS: { Promise<Record<string,string>> - класс конца → id }
-//   SIDE_EFFECTS: чтения контекста (readRows)
-//   ERRORS: context step must resolve to exactly one entity
-//   LINKS: M-WRITE, V-M-WRITE
-// END_CONTRACT: resolvePathEnds
 async function resolvePathEnds(ctx: Ctx, steps: Step[]): Promise<Record<string, string>> {
   const target = steps[steps.length - 1].cls;
   const links: Record<string, string> = {};
@@ -321,14 +253,6 @@ async function resolvePathEnds(ctx: Ctx, steps: Step[]): Promise<Record<string, 
 }
 
 /** Резолв слот-значений: строки как есть; вложенные планы — в той же транзакции, ровно одна сущность. */
-// START_CONTRACT: resolveSlots
-//   PURPOSE: Резолв слот-значений (.Класс.set/.unset): строки как есть, вложенные планы — та же транзакция и ровно одна сущность; союз-конец снимается целиком.
-//   INPUTS: { ctx: Ctx; target: ClassDef; extra: Step['extraLinks'] }
-//   OUTPUTS: { Promise<{ vals: Record<string,string>; drops: Set<string> }> }
-//   SIDE_EFFECTS: может исполнять вложенные планы/чтения
-//   ERRORS: slot value plan must resolve to exactly one entity; resolved to class "<x>"
-//   LINKS: M-WRITE, V-M-WRITE
-// END_CONTRACT: resolveSlots
 async function resolveSlots(
   ctx: Ctx,
   target: ClassDef,
@@ -386,14 +310,6 @@ function defaultOf(rule: unknown): unknown {
  * значение — id присутствующего класса конца) или скалярное поле data (если не задано —
  * его default из Schema.attributes: id стабилен и без явного ввода необязательного поля).
  */
-// START_CONTRACT: v5Id
-//   PURPOSE: Детерминированный id (uuid v5) из «схема:партиция:класс:значения from» (концы Schema.links или скалярные поля/дефолты).
-//   INPUTS: { ctx: Ctx; cls: ClassDef; links: object; data: object }
-//   OUTPUTS: { string - uuid v5 }
-//   SIDE_EFFECTS: none
-//   ERRORS: needs end "<...>"; needs scalar data field "<f>"
-//   LINKS: M-WRITE, V-M-WRITE, M-UUID
-// END_CONTRACT: v5Id
 function v5Id(ctx: Ctx, cls: ClassDef, links: Record<string, string>, data: Record<string, unknown>): string {
   const parts: string[] = [];
   for (const f of cls.idGen.from!) {
@@ -451,21 +367,12 @@ async function versionRows(
  *    нет → INSERT с этим id (идемпотентный create, REST-PUT семантика);
  *  - фильтр-объект / pivot — ошибка: create не ищет, это update().
  */
-// START_CONTRACT: createOp
-//   PURPOSE: .create(data) — INSERT новой сущности либо новая версия при известном/вычисленном id (идемпотентный create); поиск — это update().
-//   INPUTS: { ctx: Ctx; steps: Step[]; mods: ChainMods; data: object }
-//   OUTPUTS: { Promise<Row[]> }
-//   SIDE_EFFECTS: INSERT в Entity (в транзакции runPlan)
-//   ERRORS: create() on a pivot; takes no filter; got two ids; computes id (remove explicit); acl denies WRITE
-//   LINKS: M-WRITE, V-M-WRITE, M-ACL
-// END_CONTRACT: createOp
 export async function createOp(
   ctx: Ctx,
   steps: Step[],
   mods: ChainMods,
   data: Record<string, unknown>,
 ): Promise<Row[]> {
-  // START_BLOCK_CREATE_RESOLVE
   const target = steps[steps.length - 1];
   const cls = target.cls;
   aclWrite(ctx, target, 'WRITE');
@@ -534,7 +441,6 @@ export async function createOp(
       tags: tagsValue(target) ?? [], account, owner, prevUpdated: null, deleted: null,
     }),
   ];
-  // END_BLOCK_CREATE_RESOLVE
 }
 
 /**
@@ -542,13 +448,6 @@ export async function createOp(
  * цели: Класс() ≡ Класс({}) — все в границах контекста, id/фильтр/pivot — как в чтении.
  * Не найдено → [] — update НИКОГДА не создаёт.
  */
-// START_CONTRACT: updateOp
-//   PURPOSE: .update(data?) — новая версия каждого найденного путём (deep-merge листьев); никогда не создаёт.
-//   INPUTS: { ctx: Ctx; steps: Step[]; mods: ChainMods; data: object }
-//   OUTPUTS: { Promise<Row[]> }
-//   SIDE_EFFECTS: INSERT новых версий
-//   LINKS: M-WRITE, V-M-WRITE
-// END_CONTRACT: updateOp
 export async function updateOp(
   ctx: Ctx,
   steps: Step[],
@@ -603,7 +502,6 @@ export async function anonymizeOp(ctx: Ctx, steps: Step[], mods: ChainMods, fiel
  *  (deadlock/serialization откатывает ВСЮ внутреннюю транзакцию — повтор честен). */
 async function inTransaction<T>(ctx: Ctx, fn: (c: Ctx) => Promise<T>): Promise<T> {
   if (ctx.inTx) return fn(ctx);
-  // START_BLOCK_IN_TRANSACTION_RETRY
   for (let attempt = 1; ; attempt++) {
     try {
       return (await ctx.sql.begin(async (tsql) => fn({ ...ctx, sql: tsql as never, inTx: true }))) as T;
@@ -615,7 +513,6 @@ async function inTransaction<T>(ctx: Ctx, fn: (c: Ctx) => Promise<T>): Promise<T
       throw e;
     }
   }
-  // END_BLOCK_IN_TRANSACTION_RETRY
 }
 
 /**
@@ -624,14 +521,6 @@ async function inTransaction<T>(ctx: Ctx, fn: (c: Ctx) => Promise<T>): Promise<T
  * каскад + advisory-lock); возвращает ВСЁ удалённое (цели + каскад) с $deleted: true.
  * Без confirm — ПРЕВЬЮ: то же замыкание (цели + каскад), но БД не трогается.
  */
-// START_CONTRACT: delOp
-//   PURPOSE: .delete({confirm}) — серверное удаление (tombstone + рекурсивный каскад) при confirm, иначе превью замыкания; DELETE-право на каждый класс каскада.
-//   INPUTS: { ctx: Ctx; steps: Step[]; mods: ChainMods; confirm: boolean }
-//   OUTPUTS: { Promise<Row[]> - удалённые (цели+каскад) с $deleted, либо превью }
-//   SIDE_EFFECTS: DELETE в Entity (триггер entity_delete) при confirm
-//   ERRORS: acl denies DELETE (в каскаде)
-//   LINKS: M-WRITE, V-M-WRITE, M-ACL, M-DDL
-// END_CONTRACT: delOp
 export async function delOp(ctx: Ctx, steps: Step[], mods: ChainMods, confirm: boolean): Promise<Row[]> {
   const target = steps[steps.length - 1];
   aclWrite(ctx, target, 'DELETE');
@@ -639,7 +528,6 @@ export async function delOp(ctx: Ctx, steps: Step[], mods: ChainMods, confirm: b
   if (!targets.length) return [];
 
   const params = [ctx.partition, target.cls.id, ...targets.map((r) => r.id)];
-  // START_BLOCK_DELETE_CASCADE
   return inTransaction(ctx, async (c) => {
     const closure = await runQuery<RawRow>(c, closureSql(c.pgSchema, targets.length), params, 'delete', [target.cls.id]);
     if (!confirm) return closure.map((r) => toRow(r)); // превью: кандидаты живы, БД не тронута
@@ -653,7 +541,6 @@ export async function delOp(ctx: Ctx, steps: Step[], mods: ChainMods, confirm: b
     await runQuery(c, deleteSql(c.pgSchema, targets.length), params, 'delete', [target.cls.id]);
     return closure.map((r) => ({ ...toRow(r), $deleted: true as const }));
   });
-  // END_BLOCK_DELETE_CASCADE
 }
 
 /**
@@ -664,14 +551,6 @@ export async function delOp(ctx: Ctx, steps: Step[], mods: ChainMods, confirm: b
  * gate: DELETE-право на класс цели (aclWrite) — поддерево уже было DELETE-авторизовано при мягком удалении.
  * В отличие от .delete() (tombstone, обратимо) — необратимо, историю НЕ сохраняет.
  */
-// START_CONTRACT: purgeOp
-//   PURPOSE: .purge({confirm}) — резолв целей (вкл. tombstone) + вызов серверной purge() (снос при confirm, иначе dry-превью).
-//   INPUTS: { ctx: Ctx; steps: Step[]; mods: ChainMods; confirm: boolean }
-//   OUTPUTS: { Promise<Row[]> - снесённое с $deleted, либо dry-превью; [] если цели не tombstone/не найдены }
-//   SIDE_EFFECTS: физический DELETE в Entity через purge() (SET LOCAL letopis.purge отключает триггер)
-//   ERRORS: acl denies DELETE (класс цели)
-//   LINKS: M-WRITE, V-M-WRITE, M-ACL, M-DDL, M-SQL
-// END_CONTRACT: purgeOp
 export async function purgeOp(ctx: Ctx, steps: Step[], mods: ChainMods, confirm: boolean): Promise<Row[]> {
   const target = steps[steps.length - 1];
   aclWrite(ctx, target, 'DELETE');
@@ -756,17 +635,9 @@ export type PlanMode = 'rows' | 'ids' | 'count' | 'paths' | 'versions' | 'agg';
  * строки результата (контекст = строка); self-шаг (op сразу после op) пишет в те же строки.
  * После delete продолжение идёт от строк КЛАССА ЦЕЛИ (замыкание каскада шире).
  */
-// START_CONTRACT: runPlan
-//   PURPOSE: Исполнить план целиком (сегменты операций + читающий хвост) одной транзакцией; продолжение = fan-out по строкам результата.
-//   INPUTS: { ctx: Ctx; steps: Step[]; mods: ChainMods; mode: PlanMode }
-//   OUTPUTS: { Promise<unknown> - результат в запрошенном режиме }
-//   SIDE_EFFECTS: записи + чтения в одной транзакции
-//   LINKS: M-WRITE, V-M-WRITE, M-SQL
-// END_CONTRACT: runPlan
 export async function runPlan(ctx: Ctx, steps: Step[], mods: ChainMods, mode: PlanMode): Promise<unknown> {
   const { segments, tail } = splitPlan(steps);
   return inTransaction(ctx, async (c) => {
-    // START_BLOCK_RUNPLAN_SEGMENTS
     let last: Row[] = [];   // полный результат последней операции (для терминала)
     let start: Row[] = [];  // строки для продолжения (класс цели)
     for (let i = 0; i < segments.length; i++) {
@@ -787,7 +658,6 @@ export async function runPlan(ctx: Ctx, steps: Step[], mods: ChainMods, mode: Pl
         ? last.filter((r) => r.class === targetCls.id) : last;
     }
 
-    // END_BLOCK_RUNPLAN_SEGMENTS
     const opStep = segments[segments.length - 1].steps.at(-1)!;
     const keyName = opStep.aliasKey ?? opStep.name;
 
@@ -882,13 +752,6 @@ const isPureInsertPlan = (p: BatchPlan): boolean =>
   !Object.keys(p.steps[0].extraLinks ?? {}).length &&
   p.steps[0].cls.idGen.version !== 5;
 
-// START_CONTRACT: executeBatch
-//   PURPOSE: Исполнить очередь планов одной транзакцией; подряд идущие чистые INSERT одного класса склеиваются в multi-VALUES.
-//   INPUTS: { ctx: Ctx; queue: BatchPlan[] }
-//   OUTPUTS: { Promise<Row[][]> - результат по каждому плану }
-//   SIDE_EFFECTS: INSERT (multi/по-плану) в транзакции
-//   LINKS: M-WRITE, V-M-WRITE, M-SQL
-// END_CONTRACT: executeBatch
 export async function executeBatch(ctx: Ctx, queue: BatchPlan[]): Promise<Row[][]> {
   if (!queue.length) return [];
   return inTransaction(ctx, async (c) => {
@@ -896,7 +759,6 @@ export async function executeBatch(ctx: Ctx, queue: BatchPlan[]): Promise<Row[][
 
     let i = 0;
     while (i < queue.length) {
-      // START_BLOCK_BATCH_FASTPATH
       if (isPureInsertPlan(queue[i])) {
         const cls = queue[i].steps[0].cls;
         let j = i;
@@ -921,7 +783,6 @@ export async function executeBatch(ctx: Ctx, queue: BatchPlan[]): Promise<Row[][
         continue;
       }
 
-      // END_BLOCK_BATCH_FASTPATH
       results[i] = (await runPlan(c, queue[i].steps, {}, 'rows')) as Row[];
       i++;
     }

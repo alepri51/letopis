@@ -526,10 +526,6 @@
     },
     {
       "module": "sql",
-      "message": "letopis: enforceAccount is on — call db.as(account)…"
-    },
-    {
-      "module": "sql",
       "message": "letopis: enforceAccount is on — reads are pinned to account <…>"
     },
     {
@@ -547,10 +543,6 @@
     {
       "module": "index",
       "message": "letopis: enforceAcl — account \"<…>\" not found"
-    },
-    {
-      "module": "index",
-      "message": "letopis: enforceAcl — account \"…\" not found"
     },
     {
       "module": "chain",
@@ -607,10 +599,6 @@
     {
       "module": "chain",
       "message": "letopis: link slot after <…>() — slots apply to create()/update()"
-    },
-    {
-      "module": "tx",
-      "message": "letopis: lock() works only inside db.begin() transaction"
     },
     {
       "module": "tx",

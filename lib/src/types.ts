@@ -1,53 +1,6 @@
 /**
  * letopis: типы.
  */
-//
-// FILE: lib/src/types.ts
-// VERSION: 1.3.0
-// START_MODULE_CONTRACT
-//   PURPOSE: Общий словарь типов всей библиотеки letopis.
-//   SCOPE: сущности, пути, определения классов, типы полей, фильтры и операторы, курсоры/план записи/модификаторы цепочки, записи auth/ACL, событие запроса и опции connect + символ OP.
-//   DEPENDS: none
-//   LINKS: M-TYPES, V-M-TYPES
-//   ROLE: TYPES
-//   MAP_MODE: EXPORTS
-// END_MODULE_CONTRACT
-//
-// START_MODULE_MAP
-//   Row - строка Entity (актуальная версия): id/class/data/links/tags/account/owner/updated + служебные $deleted/$depth.
-//   Path - вариант пути run(): по одному узлу Row на каждый шаг цепочки.
-//   LinkEnd - конец связи класса (Schema.links v2): допустимые классы, optional, cardinality.
-//   IdGen - способ генерации id класса (версия 4/5/7) + источники from для v5.
-//   ClassDef - класс из таблицы Schema: категория, наследование, атрибуты, концы связей, idGen, валидатор, fieldTypes.
-//   FieldType - тип поля attributes для SQL-кастов (number/date/boolean/string/array/record/object/any).
-//   OP - символьная метка операторов фильтра (Symbol — не конфликтует с данными).
-//   Op - узел оператора фильтра: { [OP]: имя, args }.
-//   Scalar - скалярное значение фильтра: string | number | boolean | null.
-//   FieldFilter - значение фильтра по полю: скаляр (eq) / массив / оператор Op / вложенный record.
-//   Filter - фильтр шага: id-строка/массив, Op (or) или объект полей data.
-//   Cursor - курсор keyset-пагинации: значение поля сортировки + id последней строки.
-//   PlanOp - операция записи шага (create/update/delete/anonymize) + снапшот модификаторов.
-//   ChainMods - модификаторы выборки цепочки (limit/offset/order/desc/asOf/after + внутренняя агрегация).
-//   Account - запись аккаунта служебной таблицы auth.
-//   Credential - учётные данные аккаунта (identifier/category/confirmed/…).
-//   Resource - ресурс ACL: alias/category/pattern/meta.
-//   Rule - правило ACL: account/resource/permission/weight/enabled.
-//   AclOp - операция над данными = категория Resource: 'READ' | 'WRITE' | 'DELETE'.
-//   AclDecision - решение ACL: allow + победившее правило + остаточный filter + code/message.
-//   QueryEvent - событие хука onQuery: режим, классы, ms, rows, slow.
-//   ConnectOpts - опции connect(): dsn/schema/partition/max/enforceAccount/enforceAcl/onQuery/slowMs (account/owner — не здесь, их даёт db.as()).
-//   RESERVED_CLASS_NAMES - имена, перехватываемые Proxy до резолва класса (шаг недостижим под этим именем).
-//   reservedNamesOf - зарезервированные имена среди {id, alias} определения класса.
-// END_MODULE_MAP
-//
-// START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.3.0 - BREAKING: из ConnectOpts удалены account/owner (арендатор — свойство
-//     ВЫЗОВА: db.as(account, { owner })); 'as' добавлен в RESERVED_CLASS_NAMES → 52 имени.
-//     Ранее: 'link' убран из RESERVED_CLASS_NAMES (охранник цепочки снят, имя снова
-//     резолвится как класс); enforceAccount задокументирован как Default true]
-// END_CHANGE_SUMMARY
-//
-// START_BLOCK_ENTITY_TYPES
 
 /** Строка Entity (актуальная версия), как отдаёт либа. account/owner — NOT NULL. */
 export interface Row {
@@ -136,9 +89,6 @@ export type FieldType =
   | { kind: 'record'; value: FieldType }
   | { kind: 'object'; props: Map<string, FieldType> }
   | { kind: 'any' };
-// END_BLOCK_ENTITY_TYPES
-//
-// START_BLOCK_FILTER_TYPES
 
 /** Метка операторов фильтра (Symbol — не конфликтует с данными). */
 export const OP: unique symbol = Symbol('letopis.op');
@@ -207,9 +157,6 @@ export interface ChainMods {
   /** .withDeleted(): последний шаг включает удалённые (tombstone). Снимает ТОЛЬКО фильтр deleted; enforceAccount/enforceAcl действуют. */
   withDeleted?: boolean;
 }
-// END_BLOCK_FILTER_TYPES
-//
-// START_BLOCK_AUTH_TYPES
 
 // --- служебные таблицы (auth/ACL) --------------------------------------------
 
@@ -272,9 +219,6 @@ export interface AclDecision {
   code?: number;
   message?: string;
 }
-// END_BLOCK_AUTH_TYPES
-//
-// START_BLOCK_CONNECT_TYPES
 
 /** Событие хука onQuery: один SQL-запрос цепочки (чтение или запись). */
 export interface QueryEvent {
@@ -329,9 +273,7 @@ export interface ConnectOpts {
   /** Порог «медленного» запроса, мс: событие получает slow: true; без onQuery — console.warn. */
   slowMs?: number;
 }
-// END_BLOCK_CONNECT_TYPES
 
-// START_BLOCK_RESERVED_NAMES
 /**
  * Имена, которые Proxy цепочки/db разбирает ДО резолва класса, поэтому класс с таким
  * id/alias НЕДОСТИЖИМ как шаг под этим именем (`db.Клиент(c).link()` уйдёт в
@@ -363,9 +305,7 @@ export function reservedNamesOf(def: { id: string; alias?: string }): string[] {
   const set = new Set(RESERVED_CLASS_NAMES);
   return [def.id, def.alias].filter((n): n is string => !!n && set.has(n));
 }
-// END_BLOCK_RESERVED_NAMES
 
-// START_BLOCK_DDL_REVISION
 /**
  * Ревизия движка (`lib/sql/ddl.sql`), которую ожидает ЭТА версия либы.
  *
@@ -390,4 +330,3 @@ export function parseDdlRevision(comment: string | null | undefined): number | n
   const m = /letopis ddl_revision=(\d+)/.exec(comment ?? '');
   return m ? Number(m[1]) : null;
 }
-// END_BLOCK_DDL_REVISION

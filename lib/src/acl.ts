@@ -17,32 +17,6 @@
  * Побеждает РОВНО ОДНО правило: max weight; при равном весе deny бьёт allow (равные
  * allow — детерминированно по alias ресурса); НЕТ правил — deny (deny-by-default).
  */
-//
-// FILE: lib/src/acl.ts
-// VERSION: 1.0.1
-// START_MODULE_CONTRACT
-//   PURPOSE: Движок авторизации по таблицам Resource/Rule — матчинг субъектов/ресурсов, выбор победившего правила по весу, allow/deny + row-фильтры.
-//   SCOPE: makeAcl, compileEnforcer, matchCategories, matchMask, aclDenied, ACL_OPS; локальные matchers/decide/toDecision.
-//   DEPENDS: M-TYPES, M-SCHEMA, M-TABLES
-//   LINKS: M-ACL, V-M-ACL
-//   ROLE: RUNTIME
-//   MAP_MODE: EXPORTS
-// END_MODULE_CONTRACT
-//
-// START_MODULE_MAP
-//   ACL_OPS - ['READ','WRITE','DELETE']
-//   matchCategories - шаблон categories против категорий аккаунта
-//   matchMask - маска эндпоинта/класса → сопоставление (кэш RegExp)
-//   AclApi - check/checkData/reload
-//   makeAcl - рантайм-фасад ACL поверх Tables+Registry
-//   compileEnforcer - предкомпилированный энфорсер для цепочек
-//   aclDenied - стандартная Error отказа
-// END_MODULE_MAP
-//
-// START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.0.1 - Docs-only: JSDoc AclApi.reload() разведён с db.reloadSchema() —
-//     reload() чистит кэш ЭТОГО фасада, энфорсер цепочек пересобирает reloadSchema(). Код не менялся]
-// END_CHANGE_SUMMARY
 import type { AclOp, AclDecision, ClassDef, Resource, Rule } from './types.js';
 import type { Registry } from './schema.js';
 import type { Tables } from './tables.js';
@@ -51,13 +25,6 @@ export const ACL_OPS: readonly AclOp[] = ['READ', 'WRITE', 'DELETE'];
 
 // --- матчеры -----------------------------------------------------------------
 
-// START_CONTRACT: matchCategories
-//   PURPOSE: Проверить шаблон pattern.categories ("{A,B}" | "!{A,B}" | NULL) против категорий аккаунта.
-//   INPUTS: { pattern: object|null - шаблон ресурса ACCOUNT; cats: string[] - категории аккаунта }
-//   OUTPUTS: { boolean - подходит ли субъект }
-//   SIDE_EFFECTS: none
-//   LINKS: M-ACL, V-M-ACL
-// END_CONTRACT: matchCategories
 /** pattern.categories: "{A,B}" | "!{A,B}" | отсутствие/NULL (матч всех). */
 export function matchCategories(pattern: Record<string, unknown> | null, cats: string[]): boolean {
   const spec = pattern?.categories;
@@ -74,16 +41,8 @@ export function matchCategories(pattern: Record<string, unknown> | null, cats: s
   return neg ? !hit : hit;
 }
 
-// START_CONTRACT: maskBody
-//   PURPOSE: Скомпилировать тело маски в regex-фрагмент: '{a,b}' → альтернативы (рекурсивно), '*' → хвост из 1+ сегментов.
-//   INPUTS: { mask: string - маска с '.'-сегментами }
-//   OUTPUTS: { string - regex-исходник без якорей }
-//   SIDE_EFFECTS: none
-//   LINKS: M-ACL, V-M-ACL
-// END_CONTRACT: maskBody
 /** Маска → regex: '{a,b}' — альтернативы (рекурсивно), '*' — хвост из 1+ сегментов. */
 function maskBody(mask: string): string {
-  // START_BLOCK_MASK_COMPILE
   let out = '';
   for (let i = 0; i < mask.length; i++) {
     const ch = mask[i];
@@ -116,18 +75,10 @@ function maskBody(mask: string): string {
       out += ch;
     }
   }
-  // END_BLOCK_MASK_COMPILE
   return out;
 }
 
 const regexCache = new Map<string, RegExp>();
-// START_CONTRACT: matchMask
-//   PURPOSE: Сопоставить значение с маской, кэшируя скомпилированный RegExp.
-//   INPUTS: { mask: string; value: string }
-//   OUTPUTS: { boolean }
-//   SIDE_EFFECTS: заполняет regexCache
-//   LINKS: M-ACL, V-M-ACL
-// END_CONTRACT: matchMask
 export function matchMask(mask: string, value: string): boolean {
   let re = regexCache.get(mask);
   if (!re) {
@@ -187,16 +138,8 @@ function rowFilter(r: Resource, account: string): Record<string, unknown> | unde
   return Object.fromEntries(rest.map(([k, v]) => [k, substitute(v, account)]));
 }
 
-// START_CONTRACT: decide
-//   PURPOSE: Выбрать РОВНО ОДНО победившее правило: max weight; при равенстве deny бьёт allow, равные allow — по alias ресурса.
-//   INPUTS: { rules: Rule[]; subjects: Set<string> - alias'ы субъекта; objects: Map<string,Resource> - применимые ресурсы }
-//   OUTPUTS: { { winner?: Rule } }
-//   SIDE_EFFECTS: none
-//   LINKS: M-ACL, V-M-ACL
-// END_CONTRACT: decide
 /** Победитель: max weight; равный вес — deny бьёт allow, равные allow — по alias объекта. */
 function decide(rules: Rule[], subjects: Set<string>, objects: Map<string, Resource>): { winner?: Rule } {
-  // START_BLOCK_DECIDE_WINNER
   let winner: Rule | undefined;
   for (const rule of rules) {
     if (!rule.enabled || !subjects.has(rule.account) || !objects.has(rule.resource)) continue;
@@ -214,17 +157,9 @@ function decide(rules: Rule[], subjects: Set<string>, objects: Map<string, Resou
       winner = rule;
     }
   }
-  // END_BLOCK_DECIDE_WINNER
   return { winner };
 }
 
-// START_CONTRACT: toDecision
-//   PURPOSE: Превратить победителя в AclDecision (allow + остаточный row-фильтр | deny + code/message | deny-by-default).
-//   INPUTS: { winner?: Rule; objects: Map<string,Resource>; account: string }
-//   OUTPUTS: { AclDecision }
-//   SIDE_EFFECTS: none
-//   LINKS: M-ACL, V-M-ACL, type-AclDecision
-// END_CONTRACT: toDecision
 function toDecision(winner: Rule | undefined, objects: Map<string, Resource>, account: string): AclDecision {
   if (!winner) return { allow: false, message: 'no matching rule (deny by default)' };
   if (winner.permission !== 'allow') {
@@ -264,13 +199,6 @@ interface AclSource {
 
 const accId = (a: string | { id: string }) => (typeof a === 'object' ? a.id : a);
 
-// START_CONTRACT: makeAcl
-//   PURPOSE: Построить рантайм-фасад AclApi (check по эндпоинту / checkData по классу+op / reload) с кэшом Resource/Rule.
-//   INPUTS: { tables: Tables; registry: Registry }
-//   OUTPUTS: { AclApi }
-//   SIDE_EFFECTS: лениво читает resources/rules через tables (кэш до reload())
-//   LINKS: M-ACL, V-M-ACL
-// END_CONTRACT: makeAcl
 export function makeAcl(tables: Tables, registry: Registry): AclApi {
   let cache: Promise<AclSource> | null = null;
   const load = () =>
@@ -306,13 +234,6 @@ export function makeAcl(tables: Tables, registry: Registry): AclApi {
 
 // --- enforce-компилятор (connect({enforceAcl: true})) ----------------------------
 
-// START_CONTRACT: compileEnforcer
-//   PURPOSE: Скомпилировать синхронный энфорсер (ClassDef, op) → AclDecision с мемоизацией — субъект и правила снимаются В МОМЕНТ вызова (на connect либо на db.reloadSchema()).
-//   INPUTS: { src: AclSource; account: string; cats: string[]; registry: Registry }
-//   OUTPUTS: { (cls: ClassDef, op: AclOp) => AclDecision }
-//   SIDE_EFFECTS: none (мемо-кэш решений)
-//   LINKS: M-ACL, V-M-ACL, M-SQL, M-WRITE
-// END_CONTRACT: compileEnforcer
 /** Синхронный резолвер для цепочек: категории субъекта и правила — снимок на момент
  *  компиляции (connect либо db.reloadSchema(), который пересобирает энфорсер). */
 export function compileEnforcer(
@@ -321,7 +242,6 @@ export function compileEnforcer(
   cats: string[],
   registry: Registry,
 ): (cls: ClassDef, op: AclOp) => AclDecision {
-  // START_BLOCK_ENFORCER_MEMO
   const subjects = subjectAliases(src.resources, cats);
   const memo = new Map<string, AclDecision>();
   return (cls, op) => {
@@ -338,14 +258,6 @@ export function compileEnforcer(
   };
 }
 
-  // END_BLOCK_ENFORCER_MEMO
-// START_CONTRACT: aclDenied
-//   PURPOSE: Собрать читаемую Error отказа ACL для цепочек (её бросают вызывающие sql/write).
-//   INPUTS: { op: AclOp; clsId: string; d: AclDecision }
-//   OUTPUTS: { Error }
-//   SIDE_EFFECTS: none (возвращает Error, не бросает)
-//   LINKS: M-ACL, V-M-ACL
-// END_CONTRACT: aclDenied
 /** Читаемая ошибка отказа для цепочек. */
 export function aclDenied(op: AclOp, clsId: string, d: AclDecision): Error {
   return new Error(`letopis: acl denies ${op} on ${clsId}${d.message ? ` — ${d.message}` : ''}`);

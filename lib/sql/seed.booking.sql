@@ -3,30 +3,6 @@
 -- Редактируется руками; накат: db/apply.mjs / up() (маркер <SCHEMA-NAME>).
 -- Идемпотентен (ON CONFLICT). Концы связей — Schema.links v2 (JSON-объекты в text[]).
 -- =============================================================================
---
--- FILE: lib/sql/seed.booking.sql
--- VERSION: 1.0.1
--- START_MODULE_CONTRACT
---   PURPOSE: Идемпотентный сид таблицы Schema — источник правды демо-домена booking (классы HUB + LINK).
---   SCOPE: 20 INSERT-ов классов (12 HUB: Entity/Org/Person/Staff/Customer/Location/Element/Service/Product/Complex/Schedule/Folder; 8 LINK: link/address/slot/booking/content/compo/skill/price).
---   DEPENDS: none
---   LINKS: M-SEED-BOOKING, V-M-SEED-BOOKING
---   ROLE: CONFIG
---   MAP_MODE: SUMMARY
--- END_MODULE_CONTRACT
---
--- START_MODULE_MAP
---   HUB-классы - сущности домена (наследование от Entity; id v5/v7)
---   LINK-классы - связи (концы Schema.links v2; id v5 из концов)
---   NB: 20 классов (12 HUB + 8 LINK); число в заголовке файла сверяет scripts/check-docs.mjs
--- END_MODULE_MAP
---
--- START_CHANGE_SUMMARY
---   LAST_CHANGE: [v1.0.1 - Docs-only: заголовок файла приведён к факту (20 классов: 12 HUB + 8 LINK);
---     число теперь проверяется автоматически. INSERT-ы не менялись]
--- END_CHANGE_SUMMARY
---
--- START_BLOCK_SEED_HUB_CLASSES
 
 INSERT INTO "<SCHEMA-NAME>"."Schema" (partition, id, alias, category, ancestor, attributes, meta, links, "order", ancestors) VALUES
   ('entity', 'Entity', 'Сущность', 'HUB', NULL, '{"id":{"type":"uuid","generate":7}}'::jsonb, '{"abstract":true,"appearance":{"icon":{"name":"mdi:atom","color":"text-violet-500"}},"description":"Абстрактный корень всех сущностей; дефолт id v7 наследуют все классы без своего правила"}'::jsonb, '[]'::jsonb, 100, ARRAY['Entity']::text[])
@@ -76,8 +52,6 @@ INSERT INTO "<SCHEMA-NAME>"."Schema" (partition, id, alias, category, ancestor, 
   ('entity', 'Folder', 'Папка', 'HUB', 'Entity', '{"name":"string"}'::jsonb, '{"abstract":false,"appearance":{"icon":{"name":"mdi:folder","color":"text-yellow-500"}},"description":"Папка-категория; вложенность — HUB-конец на родительскую Папку; наполнение — LINK содержимое"}'::jsonb, '[{"class":"Org","cardinality":1},{"class":"Folder","optional":true,"cardinality":1}]'::jsonb, 1200, ARRAY['Folder', 'Entity']::text[])
   ON CONFLICT (partition, id) DO UPDATE SET alias = EXCLUDED.alias, category = EXCLUDED.category, ancestor = EXCLUDED.ancestor, attributes = EXCLUDED.attributes, meta = EXCLUDED.meta, links = EXCLUDED.links, "order" = EXCLUDED."order", ancestors = EXCLUDED.ancestors;
 
--- END_BLOCK_SEED_HUB_CLASSES
--- START_BLOCK_SEED_LINK_CLASSES
 INSERT INTO "<SCHEMA-NAME>"."Schema" (partition, id, alias, category, ancestor, attributes, meta, links, "order", ancestors) VALUES
   ('entity', 'link', 'связь', 'LINK', NULL, '{"id":{"type":"uuid","generate":7}}'::jsonb, '{"abstract":true,"appearance":{"icon":{"name":"mdi:link","color":"text-sky-500"}},"description":"Абстрактная связь; концы объявляются потомками в links (Schema.links v2: объекты-концы, только HUB-классы)"}'::jsonb, '[]'::jsonb, 100, ARRAY['link']::text[])
   ON CONFLICT (partition, id) DO UPDATE SET alias = EXCLUDED.alias, category = EXCLUDED.category, ancestor = EXCLUDED.ancestor, attributes = EXCLUDED.attributes, meta = EXCLUDED.meta, links = EXCLUDED.links, "order" = EXCLUDED."order", ancestors = EXCLUDED.ancestors;
@@ -109,4 +83,3 @@ INSERT INTO "<SCHEMA-NAME>"."Schema" (partition, id, alias, category, ancestor, 
 INSERT INTO "<SCHEMA-NAME>"."Schema" (partition, id, alias, category, ancestor, attributes, meta, links, "order", ancestors) VALUES
   ('entity', 'price', 'цена', 'LINK', 'link', '{"id":{"type":"uuid","generate":5,"from":["Service|Product|Complex","note"]},"note":{"type":"string","default":"базовая"},"amounts":{"type":"record","key":{"type":"enum","values":["RUB","USD","EUR","AED"]},"value":"number|integer|min:0"}}'::jsonb, '{"abstract":false,"appearance":{"icon":{"name":"mdi:cash-multiple","color":"text-green-600"}},"description":"Вариант цены каталожного элемента: мультивалютные суммы (amounts) + описание (note). У элемента несколько вариантов по пожеланиям клиента (note различает: базовая/с дизайном/…); id v5(элемент, note) — note не задан ⇒ дефолт «базовая»; правку одной валюты amounts мержит точечно"}'::jsonb, '[{"classes":["Service","Product","Complex"],"cardinality":1}]'::jsonb, 800, ARRAY['price', 'link']::text[])
   ON CONFLICT (partition, id) DO UPDATE SET alias = EXCLUDED.alias, category = EXCLUDED.category, ancestor = EXCLUDED.ancestor, attributes = EXCLUDED.attributes, meta = EXCLUDED.meta, links = EXCLUDED.links, "order" = EXCLUDED."order", ancestors = EXCLUDED.ancestors;
--- END_BLOCK_SEED_LINK_CLASSES

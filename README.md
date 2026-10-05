@@ -35,14 +35,14 @@ ESM-only, Node 20+. Рантайм-зависимости: `postgres`, `fastest-
 | **быстро начать / я ИИ-агент** | [`AGENT-CHEATSHEET.md`](AGENT-CHEATSHEET.md) — рабочий цикл на одной странице + частые ошибки |
 | полное руководство | [`lib/README.md`](lib/README.md) — §11 API Reference, §12 каталог ошибок, §14 перф, §15 E2E |
 | машиночитаемый контракт API | [`docs/api-contract.json`](docs/api-contract.json) — экспорты, поверхность цепочки, снесённые имена (генерируется) |
-| работать над самой библиотекой | [`AGENTS.md`](AGENTS.md) — точка входа в слой документации, протокол правок |
+| работать над самой библиотекой | [`AGENTS.md`](AGENTS.md) — карта проекта для агента (atlas): модули, трассы сценариев, протокол |
 | что изменилось | [`lib/CHANGELOG.md`](lib/CHANGELOG.md) — источник истины версии вместе с `lib/package.json` |
 
 ## Структура репозитория
 
 ```
 lib/            ← сам npm-пакет (src, sql, scripts, docker, test, bench)
-docs/*.xml      ← машинная карта проекта (модули M-*, use cases, потоки, план проверки)
+docs/atlas/     ← трассы сценариев (F-*); карточки модулей — .claude/rules/atlas/ (M-*)
 db/             ← repo-only скрипты: apply.mjs (накат схемы), policies.mjs (Timescale-политики)
 ```
 

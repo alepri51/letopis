@@ -6,32 +6,7 @@
 -- "<SCHEMA-NAME>" — маркер: letopis.up() / db/apply.mjs подставляет полное имя схемы vN.<имя>.
 -- =============================================================================
 
--- FILE: lib/sql/ddl.sql
--- VERSION: 1.1.0
 -- DDL_REVISION: 2   (последняя строка файла штампует её в COMMENT ON SCHEMA; см. там же)
--- START_MODULE_CONTRACT
---   PURPOSE: Движок-хранилище PostgreSQL/TimescaleDB — таблицы, Entity-hypertable, индексы и триггеры целостности (валидация, версионирование, каскад-tombstone, lineage, notify).
---   SCOPE: таблицы Schema/Entity/Account/Credential/Resource/Rule + триггеры schema_lineage/entity_check/entity_update/entity_delete/entity_notify/entity_collapse + compact.
---   DEPENDS: none
---   LINKS: M-DDL, V-M-DDL
---   ROLE: RUNTIME
---   MAP_MODE: SUMMARY
--- END_MODULE_CONTRACT
---
--- START_MODULE_MAP
---   Schema - определения классов (HUB/LINK), наследование, attributes/links
---   Entity - append-only hypertable версий сущностей и связей
---   Account/Credential/Resource/Rule - служебные таблицы auth/ACL
---   schema_lineage - пересчёт ancestors/descendants (statement-level)
---   entity_check - валидация класса и концов LINK при INSERT
---   entity_update - UPDATE → вставка новой версии
---   entity_delete - DELETE → tombstone + рекурсивный каскад (advisory-lock)
---   entity_notify - pg_notify о новой версии (канал = имя схемы)
--- END_MODULE_MAP
---
--- START_CHANGE_SUMMARY
---   LAST_CHANGE: [v1.0.0 - Documented existing module: reverse-engineered contract + markup]
--- END_CHANGE_SUMMARY
 
 CREATE EXTENSION IF NOT EXISTS timescaledb;
 
@@ -41,7 +16,6 @@ CREATE SCHEMA IF NOT EXISTS "<SCHEMA-NAME>";
 -- Schema: классы предметной области (HUB — сущности, LINK — связи).
 -- Сидится демо-доменом booking: lib/sql/seed.booking.sql (источник правды).
 -- -----------------------------------------------------------------------------
--- START_BLOCK_TABLE_SCHEMA
 CREATE TABLE IF NOT EXISTS "<SCHEMA-NAME>"."Schema" (
     partition  text   NOT NULL DEFAULT 'entity',
     id         text   NOT NULL,                  -- англ. id класса: 'Staff', 'skill'
@@ -56,7 +30,6 @@ CREATE TABLE IF NOT EXISTS "<SCHEMA-NAME>"."Schema" (
     descendants text[] NOT NULL DEFAULT '{}',    -- все потомки (транзитивно)  — считает триггер schema_lineage
     PRIMARY KEY (partition, id)
 );
--- END_BLOCK_TABLE_SCHEMA
 
 -- -----------------------------------------------------------------------------
 -- Триггер lineage: ancestors + descendants пересчитываются автоматически
@@ -64,13 +37,6 @@ CREATE TABLE IF NOT EXISTS "<SCHEMA-NAME>"."Schema" (
 -- Рекурсивные CTE вверх и вниз; защита от циклов (depth ≤ 32) и от
 -- саморекурсии триггера (pg_trigger_depth).
 -- -----------------------------------------------------------------------------
--- START_CONTRACT: schema_lineage
---   PURPOSE: Пересчитать ancestors + descendants всех классов при изменении Schema (statement-level; защита от циклов depth≤32 и саморекурсии).
---   INPUTS: { trigger: AFTER INSERT/UPDATE(ancestor,id)/DELETE ON Schema }
---   OUTPUTS: { NULL - обновляет колонки ancestors/descendants }
---   SIDE_EFFECTS: UPDATE Schema.ancestors/descendants
---   LINKS: M-DDL, V-M-DDL
--- END_CONTRACT: schema_lineage
 CREATE OR REPLACE FUNCTION "<SCHEMA-NAME>".schema_lineage() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
@@ -122,7 +88,6 @@ CREATE TRIGGER schema_lineage
 -- Версия = строка; актуальная версия = max(updated); удаление = tombstone (deleted).
 -- links = {"Класс": "id", ...} — произвольное число ссылок в одной строке.
 -- -----------------------------------------------------------------------------
--- START_BLOCK_ENTITY_STORAGE
 CREATE TABLE IF NOT EXISTS "<SCHEMA-NAME>"."Entity" (
     partition text        NOT NULL,
     id        text        NOT NULL,
@@ -163,7 +128,6 @@ CREATE INDEX IF NOT EXISTS entity_data_idx    ON "<SCHEMA-NAME>"."Entity" USING 
 CREATE INDEX IF NOT EXISTS entity_tags_idx    ON "<SCHEMA-NAME>"."Entity" USING gin (tags);
 CREATE INDEX IF NOT EXISTS entity_account_idx ON "<SCHEMA-NAME>"."Entity" (account);
 CREATE INDEX IF NOT EXISTS entity_owner_idx   ON "<SCHEMA-NAME>"."Entity" (owner);
--- END_BLOCK_ENTITY_STORAGE
 
 -- -----------------------------------------------------------------------------
 -- Триггер 1: целостность при INSERT (только проверки, никакой логики приложения).
@@ -178,14 +142,6 @@ CREATE INDEX IF NOT EXISTS entity_owner_idx   ON "<SCHEMA-NAME>"."Entity" (owner
 --     полиморфный (его резолвит либа), лишние связи не проверяются.
 -- Tombstone-версии (deleted IS NOT NULL) не валидируются.
 -- -----------------------------------------------------------------------------
--- START_CONTRACT: entity_check
---   PURPOSE: Проверить при INSERT — класс существует и не абстрактный; ключи links — существующие классы со строковыми id; концы LINK (v2 жадный матчинг / legacy).
---   INPUTS: { trigger: BEFORE INSERT ON Entity (NEW) }
---   OUTPUTS: { NEW - либо EXCEPTION }
---   SIDE_EFFECTS: none (валидация; tombstone-версии пропускаются)
---   ERRORS: unknown class; class is abstract; links key not a class; link requires end; stray link
---   LINKS: M-DDL, V-M-DDL, M-WRITE
--- END_CONTRACT: entity_check
 CREATE OR REPLACE FUNCTION "<SCHEMA-NAME>".entity_check() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
@@ -230,7 +186,6 @@ BEGIN
 
     -- LINK: концы по Schema.links — jsonb-массив; элемент-объект = v2 (строгий жадный
     -- матчинг по порядку), элемент-строка = legacy-имя класса
-    -- START_BLOCK_ENTITY_CHECK_LINK
     IF s.category = 'LINK' THEN
         is_v2 := EXISTS (
             SELECT 1 FROM jsonb_array_elements(COALESCE(s.links, '[]'::jsonb)) le
@@ -270,7 +225,6 @@ BEGIN
         END IF;
     END IF;
 
-    -- END_BLOCK_ENTITY_CHECK_LINK
     RETURN NEW;
 END $$;
 
@@ -286,13 +240,6 @@ CREATE TRIGGER entity_check
 --   * вставка проходит entity_check (валидация класса/links).
 -- Работает и для голого SQL: UPDATE "<SCHEMA-NAME>"."Entity" SET data=… WHERE …
 -- -----------------------------------------------------------------------------
--- START_CONTRACT: entity_update
---   PURPOSE: Превратить UPDATE в INSERT новой версии — бьёт только актуальную строку, историю не трогает, updated монотонно растёт.
---   INPUTS: { trigger: BEFORE UPDATE ON Entity (OLD/NEW) }
---   OUTPUTS: { NULL - физический UPDATE отменён }
---   SIDE_EFFECTS: INSERT новой версии (проходит entity_check)
---   LINKS: M-DDL, V-M-DDL
--- END_CONTRACT: entity_update
 CREATE OR REPLACE FUNCTION "<SCHEMA-NAME>".entity_update() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE latest timestamptz;
@@ -326,13 +273,6 @@ CREATE TRIGGER entity_update
 --     при SET LOCAL letopis.purge='on' триггер целиком пропускается (WHEN) → физический DELETE.
 -- Работает и для голого SQL: DELETE FROM "<SCHEMA-NAME>"."Entity" WHERE partition=… AND class=… AND id=…
 -- -----------------------------------------------------------------------------
--- START_CONTRACT: entity_delete
---   PURPOSE: Превратить DELETE в tombstone + рекурсивный каскад по links; advisory-lock сериализует параллельные удаления; физического удаления нет.
---   INPUTS: { trigger: BEFORE DELETE ON Entity (OLD) }
---   OUTPUTS: { NULL - физическое удаление отменено }
---   SIDE_EFFECTS: INSERT tombstone; DELETE живых зависимых (рекурсия триггера); pg_advisory_xact_lock
---   LINKS: M-DDL, V-M-DDL, M-WRITE
--- END_CONTRACT: entity_delete
 CREATE OR REPLACE FUNCTION "<SCHEMA-NAME>".entity_delete() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE latest timestamptz;
@@ -385,13 +325,6 @@ CREATE TRIGGER entity_delete
 -- Голый SQL:  SELECT * FROM "<SCHEMA-NAME>".purge('entity','Order','X');          -- снос
 --             SELECT * FROM "<SCHEMA-NAME>".purge('entity','Order','X', true);    -- превью
 -- -----------------------------------------------------------------------------
--- START_CONTRACT: purge_closure
---   PURPOSE: (class,id)-замыкание поддерева по links (вкл. tombstone) — что снесёт purge(); переиспользуется самой purge() (снос и dry-превью).
---   INPUTS: { p_partition text; p_class text; p_ids text[] }
---   OUTPUTS: { SETOF (class text, id text) - узлы замыкания }
---   SIDE_EFFECTS: none (STABLE)
---   LINKS: M-DDL, V-M-DDL, M-WRITE, M-SQL
--- END_CONTRACT: purge_closure
 CREATE OR REPLACE FUNCTION "<SCHEMA-NAME>".purge_closure(p_partition text, p_class text, p_ids text[])
 RETURNS TABLE(class text, id text) LANGUAGE sql STABLE AS $$
     WITH RECURSIVE closure(cls, cid) AS (
@@ -405,13 +338,6 @@ RETURNS TABLE(class text, id text) LANGUAGE sql STABLE AS $$
     SELECT cls, cid FROM closure;
 $$;
 
--- START_CONTRACT: purge
---   PURPOSE: Двухфазно физически стереть логически удалённый корень и всё поддерево (по links, все версии); dry=превью.
---   INPUTS: { p_partition text; p_class text; p_id text; p_dry boolean = false }
---   OUTPUTS: { SETOF Entity - снесённые (по одному на сущность, latest) либо превью (dry); пусто если не tombstone }
---   SIDE_EFFECTS: при dry=false — SET LOCAL letopis.purge (отключает entity_delete на tx) + физический DELETE; advisory-lock
---   LINKS: M-DDL, V-M-DDL, M-WRITE, M-TABLES
--- END_CONTRACT: purge
 CREATE OR REPLACE FUNCTION "<SCHEMA-NAME>".purge(
     p_partition text, p_class text, p_id text, p_dry boolean DEFAULT false)
 RETURNS SETOF "<SCHEMA-NAME>"."Entity" LANGUAGE plpgsql AS $$
@@ -460,7 +386,6 @@ END $$;
 -- =============================================================================
 
 -- Аккаунты: пользователи и сервисы. Категории: System | User | Anonymous | Shadow…
--- START_BLOCK_AUTH_TABLES
 CREATE TABLE IF NOT EXISTS "<SCHEMA-NAME>"."Account" (
     id         uuid                   DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     categories character varying[]    DEFAULT ARRAY['User'::text] NOT NULL,
@@ -518,7 +443,6 @@ CREATE TABLE IF NOT EXISTS "<SCHEMA-NAME>"."Rule" (
     enabled    boolean DEFAULT true NOT NULL,
     PRIMARY KEY (account, resource)
 );
--- END_BLOCK_AUTH_TABLES
 
 -- -----------------------------------------------------------------------------
 -- purge_account(): полный физический офбординг тенанта — все Entity (account|owner) + сам Account.
@@ -526,13 +450,6 @@ CREATE TABLE IF NOT EXISTS "<SCHEMA-NAME>"."Rule" (
 --   снос Entity (см. WHEN). Права/предохранители (Owner-only, последний Owner, не-себя) — в либе
 --   (accounts.purge, им нужен ctx/ACL). Возвращает id снесённого Account либо NULL.
 -- -----------------------------------------------------------------------------
--- START_CONTRACT: purge_account
---   PURPOSE: Физически стереть тенанта: все Entity с account|owner = id + сам Account (Credential — FK-каскад).
---   INPUTS: { p_id uuid }
---   OUTPUTS: { uuid - id снесённого Account, либо NULL если не найден }
---   SIDE_EFFECTS: SET LOCAL letopis.purge (отключает entity_delete); физический DELETE Entity + Account
---   LINKS: M-DDL, V-M-DDL, M-TABLES
--- END_CONTRACT: purge_account
 CREATE OR REPLACE FUNCTION "<SCHEMA-NAME>".purge_account(p_id uuid)
 RETURNS uuid LANGUAGE plpgsql AS $$
 DECLARE gone uuid;
@@ -548,13 +465,6 @@ END $$;
 -- Триггер 4: realtime — факт каждой новой версии в pg_notify (канал = имя схемы).
 -- Payload лёгкий (без data): подписчик дочитывает нужное сам. Потребитель: db.watch().
 -- -----------------------------------------------------------------------------
--- START_CONTRACT: entity_notify
---   PURPOSE: Опубликовать факт новой версии в pg_notify (канал = имя схемы), лёгкий payload без data.
---   INPUTS: { trigger: AFTER INSERT ON Entity (NEW) }
---   OUTPUTS: { NULL }
---   SIDE_EFFECTS: pg_notify(канал = имя схемы)
---   LINKS: M-DDL, V-M-DDL, M-CHAIN
--- END_CONTRACT: entity_notify
 CREATE OR REPLACE FUNCTION "<SCHEMA-NAME>".entity_notify() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
@@ -583,13 +493,6 @@ CREATE TRIGGER entity_notify
 -- INSERT (in-place UPDATE потерял бы NOTIFY). Оба AFTER INSERT триггера идут по
 -- алфавиту: entity_collapse раньше entity_notify — один NOTIFY на выжившую строку.
 -- -----------------------------------------------------------------------------
--- START_CONTRACT: entity_collapse
---   PURPOSE: Для класса с meta.history=false удалить версии старее только что вставленной (одна актуальная строка на id).
---   INPUTS: { trigger: AFTER INSERT ON Entity (NEW) }
---   OUTPUTS: { NULL }
---   SIDE_EFFECTS: DELETE старых версий под letopis.purge='on' (entity_delete пропущен: без tombstone/каскада); pg_advisory_xact_lock на partition|class|id
---   LINKS: M-DDL, V-M-DDL
--- END_CONTRACT: entity_collapse
 CREATE OR REPLACE FUNCTION "<SCHEMA-NAME>".entity_collapse() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE prev text;
@@ -631,13 +534,6 @@ CREATE TRIGGER entity_collapse
 -- Не по ctid: в гипертаблице он не уникален между чанками — только PK-условие.
 -- После вызова: ANALYZE "Entity" (статистика для планировщика гипертаблицы).
 -- -----------------------------------------------------------------------------
--- START_CONTRACT: compact
---   PURPOSE: Удалить все версии класса, кроме последней на каждый id; вернуть число удалённых строк.
---   INPUTS: { p_partition: text; p_class: text }
---   OUTPUTS: { bigint - удалено строк }
---   SIDE_EFFECTS: физический DELETE под letopis.purge='on' (SET LOCAL, сброс в '' как в purge)
---   LINKS: M-DDL, V-M-DDL
--- END_CONTRACT: compact
 CREATE OR REPLACE FUNCTION "<SCHEMA-NAME>".compact(p_partition text, p_class text)
 RETURNS bigint LANGUAGE plpgsql AS $$
 DECLARE n bigint;

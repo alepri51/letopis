@@ -8,38 +8,6 @@
  * (возвращают цепочку, продолжение — от результата); исполняет ТЕРМИНАЛ, весь план
  * одной транзакцией.
  */
-// FILE: lib/src/chain.ts
-// VERSION: 1.3.0
-// START_MODULE_CONTRACT
-//   PURPOSE: Чейнящийся фасад сущностей — из шагов класс/связь/pivot собирает планы чтения и записи и даёт run/rows/first/ids/count/агрегации, versions/asOf/after, create/update/delete/anonymize, слоты связей, батчи, транзакции и watch изменений.
-//   SCOPE: сборка Proxy-цепочек; read-терминалы и агрегации; планы записи; слоты связей; entity()-вклейка; батчи; begin/commit/rollback/lock; watch через LISTEN
-//   DEPENDS: M-TYPES, M-SQL, M-WRITE, M-TX, M-TABLES, M-AUTH, M-ACL, M-SCHEMA
-//   LINKS: M-CHAIN, V-M-CHAIN
-//   ROLE: RUNTIME
-//   MAP_MODE: EXPORTS
-// END_MODULE_CONTRACT
-//
-// START_MODULE_MAP
-//   ChainCore - интерфейс терминалов/модификаторов читающей и пишущей цепочки
-//   StepProp - свойство-класс: вызов = шаг/pivot, без скобок = слот связи (set/unset)
-//   Chain - ChainCore плюс динамические свойства-классы
-//   DbCore - корневой фасад: as (идентичность вызова), begin/commit/rollback, batch, watch, close, auth/acl/таблицы, entity
-//   EntityDb - DbCore плюс классы как стартовые шаги пути
-//   EntityTx - EntityDb внутри транзакции (commit/rollback/lock)
-//   WatchEvent - событие watch(): факт новой версии строки
-//   WatchOpts - опции watch(): onReconnect после re-listen
-//   Batch - именованный батч: очередь планов, run/discard/size
-//   PLAN - internal-symbol: план чужой ленивой цепочки (слоты, entity())
-//   makeDb - фабрика EntityDb над Ctx (и над TxCtx внутри begin())
-// END_MODULE_MAP
-//
-// START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.3.0 - Добавлен db.as(account, { owner }): идентичность ВЫЗОВА, а не
-//     подключения (в connect() опции account больше нет). Клон ctx на том же пуле; при
-//     enforceAcl компилит энфорсер под своего субъекта; батчи не наследуются.
-//     Ранее: снят охранник case 'link' — он затенял реальный класс схемы; добавлен .exact()]
-// END_CHANGE_SUMMARY
-//
 import type { Row, Path, Filter, ChainMods, PlanOp, ClassDef, LinkEnd } from './types.js';
 import {
   buildRead, runQuery, leafType, resolveHop, nextNodeKey,
@@ -271,13 +239,6 @@ interface RawPathRow {
 }
 
 /** Фильтр-аргумент принимает и Row/Account-объект — берётся его id. */
-// START_CONTRACT: normalizeFilter
-//   PURPOSE: Нормализует фильтр-аргумент — Row/Account-объект сворачивается в свой id.
-//   INPUTS: { f: Filter | undefined - id-строка, объект-предикат, массив либо Row/Account }
-//   OUTPUTS: { Filter | undefined - id-строка для Row/Account, иначе исходный фильтр }
-//   SIDE_EFFECTS: none
-//   LINKS: M-CHAIN, V-M-CHAIN
-// END_CONTRACT: normalizeFilter
 function normalizeFilter(f: Filter | undefined): Filter | undefined {
   if (
     f !== undefined &&
@@ -317,13 +278,6 @@ const peekPlan = (x: unknown): PlanPeek | undefined =>
   x !== null && typeof x === 'object' ? (x as { [PLAN]?: PlanPeek })[PLAN] : undefined;
 
 /** Конец схемы владельца, принимающий класс слота (legacy: 'Entity'-конец берёт любой HUB). */
-// START_CONTRACT: findEnd
-//   PURPOSE: Находит конец Schema.links владельца, принимающий класс слота (legacy: конец 'Entity' берёт любой HUB при нестрогих концах).
-//   INPUTS: { owner: ClassDef - класс-владелец связей; slot: ClassDef - класс устанавливаемого конца }
-//   OUTPUTS: { LinkEnd | undefined - подходящий конец связи или undefined }
-//   SIDE_EFFECTS: none
-//   LINKS: M-CHAIN, V-M-CHAIN
-// END_CONTRACT: findEnd
 function findEnd(owner: ClassDef, slot: ClassDef): LinkEnd | undefined {
   return owner.links.find(
     (e) => e.classes.includes(slot.id) || (!owner.strictEnds && e.classes.includes('Entity') && slot.category === 'HUB'),
@@ -331,13 +285,6 @@ function findEnd(owner: ClassDef, slot: ClassDef): LinkEnd | undefined {
 }
 
 /** Значение слота: id-строка | Row | цепочка (одношаговый адрес сворачивается в id). */
-// START_CONTRACT: slotValue
-//   PURPOSE: Приводит значение слота к SlotValue — id-строка, Row (берётся id) или ленивая цепочка (одношаговый адрес db.Класс(id) сворачивается в id, иначе вложенный план).
-//   INPUTS: { slotCls: ClassDef - класс конца связи; v: unknown - id | Row | Chain }
-//   OUTPUTS: { SlotValue - id-строка либо { plan, mods } вложенной цепочки }
-//   SIDE_EFFECTS: бросает при цепочке чужого класса или неподдержанном значении
-//   LINKS: M-CHAIN, V-M-CHAIN
-// END_CONTRACT: slotValue
 function slotValue(slotCls: ClassDef, v: unknown): SlotValue {
   if (typeof v === 'string') return v;
   const plan = peekPlan(v);
@@ -358,13 +305,6 @@ function slotValue(slotCls: ClassDef, v: unknown): SlotValue {
 }
 
 /** Узел для pivot: последний реальный шаг класса cls в ТЕКУЩЕМ читающем сегменте (до op). */
-// START_CONTRACT: pivotNodeOf
-//   PURPOSE: Ищет последний реальный шаг класса cls в текущем читающем сегменте (до первой операции) — узел для pivot-возврата.
-//   INPUTS: { steps: Step[] - шаги цепочки; cls: ClassDef - искомый класс }
-//   OUTPUTS: { Step | undefined - шаг-узел, либо undefined если операция закрыла паттерн }
-//   SIDE_EFFECTS: none
-//   LINKS: M-CHAIN, V-M-CHAIN
-// END_CONTRACT: pivotNodeOf
 function pivotNodeOf(steps: Step[], cls: ClassDef): Step | undefined {
   for (let i = steps.length - 1; i >= 0; i--) {
     const s = steps[i];
@@ -374,15 +314,7 @@ function pivotNodeOf(steps: Step[], cls: ClassDef): Step | undefined {
   return undefined;
 }
 
-// START_CONTRACT: runPaths
-//   PURPOSE: Исполняет читающий план в режиме путей — строит SQL через buildRead и мапит строки в Path (узлы каждого варианта).
-//   INPUTS: { ctx: Ctx - контекст соединения/схемы; steps: Step[] - шаги; mods: ChainMods - модификаторы }
-//   OUTPUTS: { Promise<Path[]> - массив путей вида { ключ_шага: Row } }
-//   SIDE_EFFECTS: читает БД через M-SQL.buildRead/runQuery
-//   LINKS: M-CHAIN, V-M-CHAIN
-// END_CONTRACT: runPaths
 async function runPaths(ctx: Ctx, steps: Step[], mods: ChainMods): Promise<Path[]> {
-  // START_BLOCK_RUN_PATHS
   const q = buildRead(ctx, steps, mods, 'paths');
   const res = await runQuery<RawPathRow>(ctx, q.text, q.params, 'paths', clsOf(steps));
   return res.map((r) => {
@@ -390,18 +322,9 @@ async function runPaths(ctx: Ctx, steps: Step[], mods: ChainMods): Promise<Path[
     for (const [k, v] of Object.entries(r.path)) out[k] = toRow(v);
     return out;
   });
-  // END_BLOCK_RUN_PATHS
 }
 
-// START_CONTRACT: runRows
-//   PURPOSE: Исполняет читающий план в режиме строк — уникальные сущности последнего шага, с $depth при рекурсивном обходе.
-//   INPUTS: { ctx: Ctx; steps: Step[]; mods: ChainMods }
-//   OUTPUTS: { Promise<Row[]> - строки последнего шага (с $depth при deep) }
-//   SIDE_EFFECTS: читает БД через M-SQL.buildRead/runQuery
-//   LINKS: M-CHAIN, V-M-CHAIN
-// END_CONTRACT: runRows
 async function runRows(ctx: Ctx, steps: Step[], mods: ChainMods): Promise<Row[]> {
-  // START_BLOCK_RUN_ROWS
   const q = buildRead(ctx, steps, mods, 'rows');
   const res = await runQuery<{ row: never }>(ctx, q.text, q.params, 'rows', clsOf(steps));
   return res.map((r) => {
@@ -409,7 +332,6 @@ async function runRows(ctx: Ctx, steps: Step[], mods: ChainMods): Promise<Row[]>
     const d = (r.row as { depth?: number }).depth;
     return d != null ? { ...row, $depth: d } : row;
   });
-  // END_BLOCK_RUN_ROWS
 }
 
 /** entity-идентичность: переменная-цепочка → nodeKey её узла в этом пути. */
@@ -420,13 +342,6 @@ const NO_NODES: NodeMap = new Map();
  * Свойство-класс (вызов = шаг/pivot; без скобок = слот). ownerSteps undefined — корень
  * (db/batch): слот без владельца — ошибка.
  */
-// START_CONTRACT: classProp
-//   PURPOSE: Строит StepProp для класса — вызов даёт шаг-навигацию или pivot-возврат, обращение без скобок — слот связи (set/unset) записываемой версии.
-//   INPUTS: { ctx: Ctx; name: string - имя/alias класса; cls: ClassDef; ownerSteps: Step[] | undefined - шаги владельца (undefined = корень db/batch); mods: ChainMods; batch: BatchRef | undefined; nodes: NodeMap - карта entity-идентичности; applySlot?: (slotCls, value) => Chain }
-//   OUTPUTS: { StepProp - вызываемый (шаг) Proxy с методами set/unset }
-//   SIDE_EFFECTS: возвращает новые Chain; бросает подсказки при слоте без владельца / не-конце / обращении без вызова
-//   LINKS: M-CHAIN, V-M-CHAIN
-// END_CONTRACT: classProp
 function classProp(
   ctx: Ctx,
   name: string,
@@ -437,7 +352,6 @@ function classProp(
   nodes: NodeMap,
   applySlot?: (slotCls: ClassDef, value: SlotValue) => Chain,
 ): StepProp {
-  // START_BLOCK_CLASS_STEP
   const step = (filter?: Filter): Chain => {
     const prev = ownerSteps?.[ownerSteps.length - 1];
     // повтор LINK-класса в текущем паттерне — возврат к узлу (pivot)
@@ -451,8 +365,6 @@ function classProp(
     return makeChain(ctx, [...(ownerSteps ?? []), next], ownerSteps ? mods : {}, batch, nodes);
   };
 
-  // END_BLOCK_CLASS_STEP
-  // START_BLOCK_LINK_SLOT
   const slotGuard = (): ClassDef => {
     if (!ownerSteps?.length || !applySlot) {
       throw new Error(`letopis: slot "${name}" needs an owner step — start with a class call: db.Класс(…).${name}.set(…)`);
@@ -496,20 +408,11 @@ function classProp(
       throw new Error(`letopis: "${name}" without call is a link slot (set/unset); for navigation call ${name}(…)`);
     },
   }) as StepProp;
-  // END_BLOCK_LINK_SLOT
 }
 
-// START_CONTRACT: makeChain
-//   PURPOSE: Собирает Proxy-цепочку над списком шагов — модификаторы и слоты порождают новые цепочки, терминалы делегируют чтение (M-SQL) или исполнение плана (M-WRITE.runPlan).
-//   INPUTS: { ctx: Ctx; steps: Step[] - накопленные шаги; mods: ChainMods; batch?: BatchRef - контекст батча; nodes?: NodeMap - entity-идентичность }
-//   OUTPUTS: { Chain - Proxy с терминалами/модификаторами и свойствами-классами }
-//   SIDE_EFFECTS: терминалы читают/пишут БД (runPaths/runRows/runQuery, runPlan); в батче мутирует очередь через syncBatch
-//   LINKS: M-CHAIN, V-M-CHAIN
-// END_CONTRACT: makeChain
 function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef, nodes: NodeMap = NO_NODES): Chain {
   const hasOps = steps.some((s) => s.op);
 
-  // START_BLOCK_STEP_MUTATORS
   const withLast = (patch: Partial<Step>): Chain => {
     const last = steps[steps.length - 1];
     if (last.op) {
@@ -521,8 +424,6 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef, n
   };
   const withMods = (patch: ChainMods): Chain => makeChain(ctx, steps, { ...mods, ...patch }, batch, nodes);
 
-  // END_BLOCK_STEP_MUTATORS
-  // START_BLOCK_WRITE_DISPATCH
   /** Обновить план в батче (регистрируется на первой операции, дальше мутируется). */
   const syncBatch = (next: Step[]): void => {
     if (!batch) return;
@@ -569,8 +470,6 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef, n
     return makeChain(ctx, next, mods, batch, nodes);
   };
 
-  // END_BLOCK_WRITE_DISPATCH
-  // START_BLOCK_ENTITY_EMBED
   /** entity(x): вклейка узла/паттерна; та же переменная повторно — возврат к её узлу. */
   const entityStep = (x: unknown): Chain => {
     const plan = peekPlan(x);
@@ -602,7 +501,6 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef, n
     throw new Error('letopis: entity() accepts a lazy chain or a Row');
   };
 
-  // END_BLOCK_ENTITY_EMBED
   /** Терминал: план (есть операции) — runPlan одной транзакцией; иначе прямое чтение. */
   const guardBatch = () => {
     if (batch && hasOps) {
@@ -616,7 +514,6 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef, n
       if (typeof prop === 'symbol' || prop === 'then') return undefined;
 
       switch (prop) {
-        // START_BLOCK_READ_TERMINALS
         case 'entity':
           return entityStep;
         case 'run':
@@ -655,8 +552,6 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef, n
             const res = await runQuery<{ n: number }>(ctx, q.text, q.params, 'count', clsOf(steps));
             return res[0].n;
           };
-        // END_BLOCK_READ_TERMINALS
-        // START_BLOCK_READ_MODIFIERS
         case 'limit':
           return (n: number) => withMods({ limit: n });
         case 'offset':
@@ -676,8 +571,6 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef, n
         case 'exact':
           // снять полиморфизм ТЕКУЩЕГО шага: только свой класс, без потомков
           return () => withLast({ exactClass: true });
-        // END_BLOCK_READ_MODIFIERS
-        // START_BLOCK_AGGREGATIONS
         case 'sum':
         case 'avg':
         case 'min':
@@ -711,8 +604,6 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef, n
                 })();
             return Object.fromEntries(res.map((r) => [r.k ?? 'null', r.n]));
           };
-        // END_BLOCK_AGGREGATIONS
-        // START_BLOCK_VERSIONS_CURSOR
         case 'after':
           return (cursor: ChainMods['after']) => withMods({ after: cursor });
         case 'versions':
@@ -728,8 +619,6 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef, n
               return raw.deleted ? { ...row, $deleted: true as const } : row;
             });
           };
-        // END_BLOCK_VERSIONS_CURSOR
-        // START_BLOCK_WRITE_TERMINALS
         case 'create':
           return (data: Record<string, unknown> = {}) => {
             const last = steps[steps.length - 1];
@@ -757,8 +646,6 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef, n
         case 'purge':
           return (opts?: { confirm?: boolean }) =>
             withOp({ kind: 'purge', confirm: opts?.confirm === true, mods });
-        // END_BLOCK_WRITE_TERMINALS
-        // START_BLOCK_COLUMN_MODS
         case 'alias':
           return (name: string) => withLast({ aliasKey: name });
         case 'tags':
@@ -773,34 +660,23 @@ function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef, n
         // класс схемы: в демо-домене `link` — абстрактный корень всех связок, и шаг
         // db.Клиент(c).link() падал migration-ошибкой вместо обхода. Обратная совместимость
         // со снесённым в 0.15.0 методом .link() принесена в жертву достижимости класса.
-        // END_BLOCK_COLUMN_MODS
       }
 
-      // START_BLOCK_CLASS_RESOLVE
       if (ctx.registry.has(prop)) {
         return classProp(ctx, prop, ctx.registry.resolve(prop), steps, mods, batch, nodes, applySlot);
       }
       ctx.registry.resolve(prop); // неизвестный класс — понятная ошибка со списком
       return undefined;
-      // END_BLOCK_CLASS_RESOLVE
     },
   };
   return new Proxy({}, handler) as Chain;
 }
 
-// START_CONTRACT: makeBatch
-//   PURPOSE: Собирает Proxy-батч над общей очередью планов — свойства-классы копят цепочки, run() исполняет всю очередь одной транзакцией.
-//   INPUTS: { ctx: Ctx; queue: BatchPlan[] - общая очередь планов батча }
-//   OUTPUTS: { Batch - Proxy с run/discard/size и свойствами-классами }
-//   SIDE_EFFECTS: run() исполняет и очищает очередь через M-WRITE.executeBatch; discard() очищает очередь
-//   LINKS: M-CHAIN, V-M-CHAIN
-// END_CONTRACT: makeBatch
 function makeBatch(ctx: Ctx, queue: BatchPlan[]): Batch {
   const handler: ProxyHandler<object> = {
     get(_t, prop) {
       if (typeof prop === 'symbol' || prop === 'then') return undefined;
       switch (prop) {
-        // START_BLOCK_BATCH_QUEUE
         case 'run':
           return async () => {
             const plans = queue.splice(0, queue.length);
@@ -812,7 +688,6 @@ function makeBatch(ctx: Ctx, queue: BatchPlan[]): Batch {
           return () => void queue.splice(0, queue.length);
         case 'size':
           return () => queue.length;
-        // END_BLOCK_BATCH_QUEUE
       }
       if (ctx.registry.has(prop)) {
         return classProp(ctx, String(prop), ctx.registry.resolve(prop), undefined, {}, { queue }, NO_NODES);
@@ -824,13 +699,6 @@ function makeBatch(ctx: Ctx, queue: BatchPlan[]): Batch {
   return new Proxy({}, handler) as Batch;
 }
 
-// START_CONTRACT: makeDb
-//   PURPOSE: Фабрика корневого фасада EntityDb над Ctx — классы как стартовые шаги, транзакции (begin/commit/rollback/lock), батчи, watch, служебные таблицы/auth/acl, entity()-старт.
-//   INPUTS: { ctx: Ctx - контекст соединения/схемы (или TxCtx внутри begin()); root?: RootState - общее состояние батчей }
-//   OUTPUTS: { EntityDb - Proxy-фасад }
-//   SIDE_EFFECTS: begin() открывает транзакцию (M-TX.beginTx); watch() ставит LISTEN на канал = имя схемы (ctx.pgSchema); close() закрывает соединение; лениво поднимает M-TABLES/M-AUTH/M-ACL
-//   LINKS: M-CHAIN, V-M-CHAIN
-// END_CONTRACT: makeDb
 export function makeDb(ctx: Ctx, root?: RootState): EntityDb {
   const state: RootState = root ?? { batches: new Map() };
   let tables: Tables | undefined; // лениво, на ctx этого фасада (работает и в tr)
@@ -841,7 +709,6 @@ export function makeDb(ctx: Ctx, root?: RootState): EntityDb {
     get(_t, prop) {
       if (typeof prop === 'symbol' || prop === 'then') return undefined;
 
-      // START_BLOCK_TABLES_AUTH_ACL
       if (prop === 'accounts' || prop === 'credentials' || prop === 'resources' || prop === 'rules' || prop === 'schema') {
         tables ??= makeTables(ctx);
         return tables[prop];
@@ -856,10 +723,8 @@ export function makeDb(ctx: Ctx, root?: RootState): EntityDb {
         acl ??= makeAcl(tables, ctx.registry);
         return acl;
       }
-      // END_BLOCK_TABLES_AUTH_ACL
 
       switch (prop) {
-        // START_BLOCK_SCOPE_AS
         // db.as(account): тот же пул, но вызов от имени этого арендатора. Дешёвый клон ctx
         // (как beginTx), НЕ новое соединение. Батчи не наследуются: очередь планов, общая
         // для разных арендаторов, — это утечка записи между ними.
@@ -878,8 +743,6 @@ export function makeDb(ctx: Ctx, root?: RootState): EntityDb {
             await ctx.compileAcl?.(scoped);
             return makeDb(scoped);
           };
-        // END_BLOCK_SCOPE_AS
-        // START_BLOCK_TX_LOCK
         case 'begin':
           return async () => makeDb(await beginTx(ctx), state) as EntityTx;
         case 'commit':
@@ -898,8 +761,6 @@ export function makeDb(ctx: Ctx, root?: RootState): EntityDb {
           };
         case 'lock':
           return (...keys: (string | number)[]) => lock(ctx, ...keys);
-        // END_BLOCK_TX_LOCK
-        // START_BLOCK_BATCH_OPEN
         case 'batch':
           return (name: string) => {
             let q = state.batches.get(name);
@@ -909,8 +770,6 @@ export function makeDb(ctx: Ctx, root?: RootState): EntityDb {
             }
             return makeBatch(ctx, q);
           };
-        // END_BLOCK_BATCH_OPEN
-        // START_BLOCK_WATCH_LISTEN
         case 'watch':
           return async (
             a: string | ((e: WatchEvent) => void),
@@ -952,8 +811,6 @@ export function makeDb(ctx: Ctx, root?: RootState): EntityDb {
             }).listen(ctx.pgSchema, listener, onlisten);
             return unlisten;
           };
-        // END_BLOCK_WATCH_LISTEN
-        // START_BLOCK_CLOSE_META
         case 'close':
           return () => (ctx.sql as unknown as { end(): Promise<void> }).end();
         case 'reloadSchema':
@@ -965,10 +822,8 @@ export function makeDb(ctx: Ctx, root?: RootState): EntityDb {
           return ctx.registry;
         case 'sql':
           return ctx.sql;
-        // END_BLOCK_CLOSE_META
       }
 
-      // START_BLOCK_ENTITY_START
       if (prop === 'entity') {
         // старт пути с готового паттерна/строки: db.entity(pos).…
         return (x: unknown) => makeChain(ctx, [], {}, undefined, NO_NODES).entity(x as Chain | Row);
@@ -978,7 +833,6 @@ export function makeDb(ctx: Ctx, root?: RootState): EntityDb {
       }
       ctx.registry.resolve(prop);
       return undefined;
-      // END_BLOCK_ENTITY_START
     },
   };
   return new Proxy({}, handler) as EntityDb;
