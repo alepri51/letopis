@@ -1,7 +1,7 @@
 ---
 paths:
   - 'lib/src/{sql,ops}.ts'
-synced: 99a28e0
+synced: 6c5460a
 ---
 # M-QUERY — цепочка чтения → SQL, операторы, исполнение
 

@@ -1,7 +1,7 @@
 ---
 paths:
   - 'lib/src/acl.ts'
-synced: 99a28e0
+synced: 6c5460a
 ---
 # M-ACL — Права Resource/Rule: матчинг, вес, row-предикаты, энфорсер на scope
 

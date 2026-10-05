@@ -2,7 +2,7 @@
 paths:
   - 'lib/src/schema.ts'
   - 'lib/scripts/{schema-sync,gen-types}.mjs'
-synced: 99a28e0
+synced: 6c5460a
 ---
 # M-SCHEMA — Схема как данные: реестр классов, валидатор, schema-sync, gen-types
 

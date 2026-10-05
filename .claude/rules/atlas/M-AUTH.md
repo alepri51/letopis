@@ -1,7 +1,7 @@
 ---
 paths:
   - 'lib/src/{auth,sessions,tables}.ts'
-synced: 99a28e0
+synced: 6c5460a
 ---
 # M-AUTH — Вход, сессии и CRUD служебных таблиц Account/Credential/Resource/Rule
 

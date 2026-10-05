@@ -1,7 +1,7 @@
 ---
 paths:
   - 'lib/sql/seed.*.sql'
-synced: 99a28e0
+synced: 6c5460a
 ---
 # M-SEEDS — сиды по умолчанию: booking и auth
 

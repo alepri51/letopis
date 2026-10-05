@@ -2,7 +2,7 @@
 paths:
   - 'lib/sql/ddl.sql'
   - 'db/policies.mjs'
-synced: 99a28e0
+synced: 6c5460a
 ---
 # M-ENGINE — движок в PostgreSQL
 

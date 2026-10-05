@@ -1,7 +1,7 @@
 ---
 paths:
   - 'lib/test/**'
-synced: 99a28e0
+synced: 6c5460a
 ---
 # M-TESTS — Тестовый контур
 

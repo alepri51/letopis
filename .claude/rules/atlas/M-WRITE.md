@@ -1,7 +1,7 @@
 ---
 paths:
   - 'lib/src/{write,tx,uuid}.ts'
-synced: 99a28e0
+synced: 6c5460a
 ---
 # M-WRITE — план записи, id, батч, транзакции
 

@@ -2,7 +2,7 @@
 paths:
   - '.github/workflows/**'
   - 'lib/scripts/{check-docs,gen-api-contract,release-notes}.mjs'
-synced: 99a28e0
+synced: 6c5460a
 ---
 # M-RELEASE — CI, тег, релиз, гейты документации
 

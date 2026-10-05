@@ -1,7 +1,7 @@
 ---
 paths:
   - 'lib/src/{index,chain}.ts'
-synced: 99a28e0
+synced: 6c5460a
 ---
 # M-API — публичная поверхность: connect, db.as, Proxy цепочек, терминалы, watch
 
