@@ -43,6 +43,46 @@
       "message": "letopis: target_not_found: аккаунт не найден"
     },
     {
+      "module": "30-validate",
+      "message": "letopis: invalid_class: format %s внутри anyOf не поддерживается (узел %s)"
+    },
+    {
+      "module": "30-validate",
+      "message": "letopis: invalid_class: format %s не поддерживается (узел %s)"
+    },
+    {
+      "module": "30-validate",
+      "message": "letopis: invalid_class: minProperties внутри anyOf не поддерживается (узел %s)"
+    },
+    {
+      "module": "30-validate",
+      "message": "letopis: invalid_class: uniqueItems внутри anyOf не поддерживается (узел %s)"
+    },
+    {
+      "module": "30-validate",
+      "message": "letopis: invalid_class: длина строки внутри anyOf не поддерживается (узел %s)"
+    },
+    {
+      "module": "30-validate",
+      "message": "letopis: invalid_class: ключевое слово %s не поддерживается (узел %s)"
+    },
+    {
+      "module": "30-validate",
+      "message": "letopis: invalid_class: неизвестный тип в узле %s"
+    },
+    {
+      "module": "30-validate",
+      "message": "letopis: invalid_class: описание узла %s — не объект"
+    },
+    {
+      "module": "30-validate",
+      "message": "letopis: invalid_class: перечисление объектов внутри anyOf не поддерживается (узел %s)"
+    },
+    {
+      "module": "30-validate",
+      "message": "letopis: invalid_class: шаблон "
+    },
+    {
       "module": "up",
       "message": "letopis.up: <…>: <…>"
     },
