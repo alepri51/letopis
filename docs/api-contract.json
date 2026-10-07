@@ -25,5 +25,18 @@
   },
   "chain": [],
   "removed": [],
-  "errors": []
+  "errors": [
+    {
+      "module": "up",
+      "message": "letopis.up: <…>: <…>"
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: неизвестный маркер <…> в SQL"
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: нужен PostgreSQL 18 или новее, а сервер — <…>"
+    }
+  ]
 }
