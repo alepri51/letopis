@@ -1,3 +1,5 @@
+> **Описывает 0.21 (тег `v0.21.0`).** В letopis 1.0 трасса переписывается в своём этапе плана `reports/PLAN-LETOPIS-1.0.md`; до этого она не описывает действующий код.
+
 # F-AUTH — Вход по паролю и сессия
 Процессы: [N] Node-приложение · [P] PostgreSQL (`Credential`, `Account` схемы) · [R] Redis (клиент даёт приложение)
 Триггер: `db.auth.setPassword({ account, identifier: 'ann@x.io', password })` → `r = await db.auth.verifyPassword({ identifier, password })` → `s = db.auth.sessions(redis)` → `token = await s.start(r.account)` (строка, не `{ token }`) → `s.check(token)` → `s.revokeAll(r.account)`

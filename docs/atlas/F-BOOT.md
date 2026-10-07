@@ -1,3 +1,5 @@
+> **Описывает 0.21 (тег `v0.21.0`).** В letopis 1.0 трасса переписывается в своём этапе плана `reports/PLAN-LETOPIS-1.0.md`; до этого она не описывает действующий код.
+
 # F-BOOT — up() → накат схемы → connect
 Процессы: [N] Node-приложение · [P] PostgreSQL + TimescaleDB · [D] docker CLI
 Триггер: `const db = await up({ schema: 'booking', version: 1 })` (dsn по умолчанию — база `letopis` на localhost:15432)

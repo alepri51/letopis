@@ -7,9 +7,9 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "declaration": true,
-    "outDir": "dist",
-    "rootDir": "src",
-    "forceConsistentCasingInFileNames": true
+    "allowImportingTsExtensions": false,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true
   },
-  "include": ["src"]
+  "include": ["src", "test", "bench"]
 }

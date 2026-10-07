@@ -2,6 +2,22 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/), версии — semver.
 
+## [1.0.0-alpha.0] — 2026-10-07
+
+Начало переписывания letopis 1.0 по плану `reports/PLAN-LETOPIS-1.0.md` (редакция 7).
+Версия не публикуется; полная запись `## [1.0.0]` с разделом BREAKING появится на этапе 8.
+
+### Changed — этап 0 (подготовка)
+- Код 0.21 удалён из `lib/`: `src`, `sql`, `test`, `bench`, `docker`, `gen-types.mjs`,
+  `schema-sync.mjs`, а также `db/apply.mjs` и `db/policies.mjs`. Он доступен по тегу `v0.21.0`.
+- Копии `deepMerge`, `decide`, `matchCategories`, `matchMask` и наследования из `buildDef`
+  лежат в `lib/test/oracle/` — эталоны дифференциальных тестов; в пакет не входят.
+- Пакет: Node 22 и новее, единственная рантайм-зависимость `postgres`, Zod 4 — необязательная
+  peer-зависимость, подпуть `letopis/model`; `fastest-validator`, Redis и Docker уходят.
+- CI проверяет каждый пуш в `dev` на `postgres:18`; проверка пакета `scripts/check-package.mjs`
+  общая для CI и `release.yml`; версии с дефисом публикуются под dist-tag `next`.
+- `check-docs` и генератор контракта API переведены на новую раскладку.
+
 ## [0.21.0] — 2026-08-23
 
 ### Added — no-history классы: `meta.history: false` (DDL_REVISION 2)

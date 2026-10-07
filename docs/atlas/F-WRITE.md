@@ -1,3 +1,5 @@
+> **Описывает 0.21 (тег `v0.21.0`).** В letopis 1.0 трасса переписывается в своём этапе плана `reports/PLAN-LETOPIS-1.0.md`; до этого она не описывает действующий код.
+
 # F-WRITE — План записи
 Процессы: [N] Node-процесс приложения · [P] PostgreSQL + TimescaleDB
 Триггер: `await t.Org(orgId).Folder().create({ name: 'a' }).rows()`; `await t.Folder(id).update({ name: 'b' }).rows()`

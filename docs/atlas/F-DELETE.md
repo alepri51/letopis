@@ -1,3 +1,5 @@
+> **Описывает 0.21 (тег `v0.21.0`).** В letopis 1.0 трасса переписывается в своём этапе плана `reports/PLAN-LETOPIS-1.0.md`; до этого она не описывает действующий код.
+
 # F-DELETE — Удаление, каскад и физическое стирание
 Процессы: [N] приложение · [P] PostgreSQL
 Триггер: `t.Org(id).delete().rows()` (превью) → `.delete({ confirm: true })` → `.purge({ confirm: true })`; `(await db.as(caller)).accounts.purge(id)`.

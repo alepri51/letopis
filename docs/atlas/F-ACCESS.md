@@ -1,3 +1,5 @@
+> **Описывает 0.21 (тег `v0.21.0`).** В letopis 1.0 трасса переписывается в своём этапе плана `reports/PLAN-LETOPIS-1.0.md`; до этого она не описывает действующий код.
+
 # F-ACCESS — Изоляция арендатора и ACL
 Процессы: [N] Node-приложение · [P] PostgreSQL
 Триггер: `connect({ dsn, schema, enforceAcl: true })` → `db.as(accountId, { owner })` → `t.Booking().rows()` · `.create({…}).rows()` · `t.X(id).delete({ confirm: true }).rows()`
