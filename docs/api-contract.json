@@ -27,6 +27,22 @@
   "removed": [],
   "errors": [
     {
+      "module": "20-context",
+      "message": "letopis: acl_denied: выпускать сессии может только сервис"
+    },
+    {
+      "module": "20-context",
+      "message": "letopis: no_session: неверный ключ"
+    },
+    {
+      "module": "20-context",
+      "message": "letopis: no_session: нет действующей сессии"
+    },
+    {
+      "module": "20-context",
+      "message": "letopis: target_not_found: аккаунт не найден"
+    },
+    {
       "module": "up",
       "message": "letopis.up: <…>: <…>"
     },

@@ -112,3 +112,17 @@ export async function serverMajor(sql: Sql): Promise<number> {
   const [{ v }] = await sql<{ v: string }[]>`select current_setting('server_version_num') as v`;
   return Math.floor(Number(v) / 10000);
 }
+
+/** Прикладная LOGIN-роль тестов: состоит только в роли приложения (создаётся после install). */
+export async function ensureAppRole(sql: Sql, app = 'letopis_app'): Promise<void> {
+  await sql.unsafe(`do $$ begin
+    if not exists (select 1 from pg_roles where rolname = '${APP_ROLE}') then
+      create role ${APP_ROLE} login password '${APP_PASSWORD}';
+    end if;
+  exception when duplicate_object then null; end $$`);
+  await sql.unsafe(`grant ${app} to ${APP_ROLE}`);
+}
+
+export function appSql(): Sql {
+  return postgres(appDsn(), { max: 4, onnotice: () => {} }) as Sql;
+}

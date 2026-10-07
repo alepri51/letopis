@@ -8,6 +8,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+import { randomBytes } from 'node:crypto';
 import type postgres from 'postgres';
 
 export const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
@@ -28,6 +29,8 @@ export interface InstallResult {
   schema: string;
   owner: string;
   app: string;
+  /** Ключ сервисного аккаунта; выдаётся только при первой установке, дальше — null. */
+  serviceKey: string | null;
 }
 
 const SQL_DIR = fileURLToPath(new URL('../sql/', import.meta.url));
@@ -93,6 +96,7 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
   await sql.unsafe(`create schema if not exists ${quoteIdent(opts.schema)} authorization ${quoteIdent(owner)}`);
 
   const files = await engineFiles(opts.upTo);
+  let serviceKey: string | null = null;
   await sql.begin(async (tx) => {
     await tx.unsafe(`set local role ${quoteIdent(owner)}`);
     for (const f of files) {
@@ -105,6 +109,14 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
         throw err;
       }
     }
+    if (files.some((f) => f.startsWith('95-'))) {
+      const S = quoteIdent(opts.schema);
+      const [{ n }] = await tx.unsafe(`select count(*)::int as n from ${S}.secret where kind = 'APIKEY' and deleted_at is null`);
+      if (n === 0) {
+        serviceKey = `lts_${randomBytes(32).toString('hex')}`;
+        await tx.unsafe(`select ${S}.bootstrap_service($1)`, [serviceKey]);
+      }
+    }
   });
-  return { schema: opts.schema, owner, app };
+  return { schema: opts.schema, owner, app, serviceKey };
 }
