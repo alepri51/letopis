@@ -127,4 +127,7 @@ alter table @SCHEMA@.entity enable row level security;
 alter table @SCHEMA@.log enable row level security;
 alter table @SCHEMA@.secret enable row level security;
 revoke all on all functions in schema @SCHEMA@ from public;
-grant execute on function @SCHEMA@.link_ids(jsonb) to @APP@;
+-- генерируемые колонки ends и hash вычисляются с правами пишущей роли: функции чистые, без побочных эффектов
+grant execute on function @SCHEMA@.link_ids(jsonb),
+  @SCHEMA@.snapshot(uuid, int, text, uuid, uuid, jsonb, jsonb, text[], timestamptz, uuid, text, text, text, uuid),
+  @SCHEMA@.version_hash(bytea, bytea) to @APP@;

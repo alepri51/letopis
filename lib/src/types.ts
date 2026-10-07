@@ -3,4 +3,4 @@
  */
 
 /** Ревизия движка в базе: штамп в lib/sql/99-revision.sql должен совпадать (этап 1). */
-export const DDL_REVISION = 0;
+export const DDL_REVISION = 1;

@@ -54,7 +54,15 @@ return $json${
       }
     },
     "key": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-    "history": {"anyOf": [{"type": "boolean"}, {"type": "object"}]},
+    "history": {"anyOf": [{"type": "boolean"}, {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["all"],
+      "properties": {
+        "all": {"type": "string"}, "daily": {"type": "string"}, "weekly": {"type": "string"},
+        "monthly": {"type": "string"}, "yearly": {"type": "string"}, "tz": {"type": "string"}
+      }
+    }]},
     "ownerDefault": {"type": "string", "enum": ["tenant", "actor"]},
     "cache": {"type": "object"},
     "meta": {"type": "object"},
@@ -70,14 +78,19 @@ begin
   select c.rules, c.validator, c.vars into rules, validator, vars from @SCHEMA@.compile_validator(@SCHEMA@.class_metaschema()) c;
 end $$;
 
-create or replace function @SCHEMA@.lt_raise(p_code text, p_name text, p_msg text, p_detail jsonb default null)
-returns void
-language plpgsql
+-- Строка класса по имени: собственная строка арендатора или системная. id строки Class — v5 от имени
+-- (ключ [name]), поэтому поиск идёт по первичному ключу. Имя пользовательского класса не совпадает
+-- с именем системного (проверка при определении), поэтому порядок нужен только для ясности.
+create or replace function @SCHEMA@.class_row(p_name text, p_tenant uuid) returns @SCHEMA@.entity
+language sql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
-begin
-  raise exception using errcode = p_code, message = 'letopis: ' || p_name || ': ' || p_msg,
-    detail = coalesce(p_detail, '{}'::jsonb)::text;
-end $$;
+  select e.* from @SCHEMA@.entity e
+  where e.id in (@SCHEMA@.v5_id(p_tenant, 'Class', array[p_name]), @SCHEMA@.v5_id('@SYSTEM@'::uuid, 'Class', array[p_name]))
+    and e.class = 'Class'
+  order by (e.tenant = p_tenant) desc
+  limit 1
+$$;
 
 -- Развёрнутое описание класса с учётом предков: поля, концы и ключ наследуются по правилу 0.21
 -- «потомок заменяет поле целиком» (buildDef), метаданные — по ключам, null убирает ключ (§2.13).
@@ -102,9 +115,7 @@ declare
   m record;
 begin
   while cur->>'parent' is not null loop
-    select e.data into cur from @SCHEMA@.entity e
-     where e.class = 'Class' and e.tenant in (p_tenant, '@SYSTEM@') and e.data->>'name' = cur->>'parent'
-     order by (e.tenant = p_tenant) desc limit 1;
+    cur := (@SCHEMA@.class_row(cur->>'parent', p_tenant)).data;
     if cur is null then
       perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('предок %s не найден', chain[cardinality(chain)]->>'parent'));
     end if;
@@ -156,6 +167,9 @@ declare
   fld jsonb;
   e record;
   c record;
+  prev interval;
+  tiers text[];
+  i int;
 begin
   data := p_data - 'resolved';
   select * into ms from @SCHEMA@.class_meta_validator();
@@ -195,6 +209,32 @@ begin
   if coalesce((data->>'system')::boolean, false) and res->'history' = 'false'::jsonb then
     perform @SCHEMA@.lt_raise('LT010', 'invalid_class', 'history: false для системных классов запрещён');
   end if;
+  -- политика хранения (§2.11): сроки ярусов по возрастанию, all не меньше суток, 'forever' — только последний
+  if jsonb_typeof(res->'history') = 'object' then
+    prev := interval '0';
+    tiers := array(select u.tn from unnest(array['all', 'daily', 'weekly', 'monthly', 'yearly']) with ordinality u(tn, ord)
+                   where res->'history' ? u.tn order by u.ord);
+    for i in 1 .. cardinality(tiers) loop
+      k := res->'history'->>tiers[i];
+      if k = 'forever' then
+        if i <> cardinality(tiers) then
+          perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('history: forever допустим только у последнего яруса, а стоит у %s', tiers[i]));
+        end if;
+      elsif not pg_input_is_valid(k, 'interval') then
+        perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('history: срок яруса %s не разбирается: %s', tiers[i], k));
+      elsif k::interval <= prev then
+        perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('history: сроки ярусов должны возрастать (%s)', tiers[i]));
+      else
+        prev := k::interval;
+      end if;
+    end loop;
+    if (res->'history'->>'all') <> 'forever' and (res->'history'->>'all')::interval < interval '1 day' then
+      perform @SCHEMA@.lt_raise('LT010', 'invalid_class', 'history: ярус all не меньше суток');
+    end if;
+    if res->'history' ? 'tz' and not exists (select 1 from pg_timezone_names where name = res->'history'->>'tz') then
+      perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('history: неизвестный часовой пояс %s', res->'history'->>'tz'));
+    end if;
+  end if;
   select * into c from @SCHEMA@.compile_validator(res->'schema');
   data := data || jsonb_build_object('resolved', res || jsonb_build_object('rules', c.rules, 'vars', c.vars));
   validator := c.validator;
@@ -203,7 +243,7 @@ end $$;
 do $$
 declare f text;
 begin
-  foreach f in array array['class_metaschema()', 'class_meta_validator()', 'lt_raise(text, text, text, jsonb)',
+  foreach f in array array['class_metaschema()', 'class_meta_validator()', 'class_row(text, uuid)',
     'class_resolve(jsonb, uuid)', 'class_prepare(jsonb, uuid)'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);
     execute format('revoke all on function @SCHEMA@.%s from public', f);

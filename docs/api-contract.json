@@ -27,6 +27,74 @@
   "removed": [],
   "errors": [
     {
+      "module": "15-errors",
+      "message": "letopis: acl_denied: отказ по правилам доступа"
+    },
+    {
+      "module": "15-errors",
+      "message": "letopis: cursor_expired: курсор подписки старше яруса all"
+    },
+    {
+      "module": "15-errors",
+      "message": "letopis: delete_restricted: удалению мешают ссылающиеся строки"
+    },
+    {
+      "module": "15-errors",
+      "message": "letopis: id_from_db: id класса без ключа выдаёт база"
+    },
+    {
+      "module": "15-errors",
+      "message": "letopis: id_mismatch: id не равен v5 от ключа"
+    },
+    {
+      "module": "15-errors",
+      "message": "letopis: immutable_key: ключевое поле менять нельзя"
+    },
+    {
+      "module": "15-errors",
+      "message": "letopis: invalid_class: описание класса отклонено"
+    },
+    {
+      "module": "15-errors",
+      "message": "letopis: invalid_data: данные не проходят описание класса"
+    },
+    {
+      "module": "15-errors",
+      "message": "letopis: isolation_level: операция разрешена только в read committed"
+    },
+    {
+      "module": "15-errors",
+      "message": "letopis: no_session: нет действующей сессии"
+    },
+    {
+      "module": "15-errors",
+      "message": "letopis: reclass_denied: смена класса отклонена"
+    },
+    {
+      "module": "15-errors",
+      "message": "letopis: recreated_in_statement: id удалён и создан заново одним оператором"
+    },
+    {
+      "module": "15-errors",
+      "message": "letopis: target_not_found: цель не найдена"
+    },
+    {
+      "module": "15-errors",
+      "message": "letopis: tenant_denied: чужой арендатор"
+    },
+    {
+      "module": "15-errors",
+      "message": "letopis: tightening_conflict: ужесточению описания мешают строки"
+    },
+    {
+      "module": "15-errors",
+      "message": "letopis: undeclared_end: конец не объявлен в классе"
+    },
+    {
+      "module": "15-errors",
+      "message": "letopis: use_reclass: класс с ключом меняется функцией reclass()"
+    },
+    {
       "module": "20-context",
       "message": "letopis: acl_denied: выпускать сессии может только сервис"
     },
@@ -81,6 +149,10 @@
     {
       "module": "30-validate",
       "message": "letopis: invalid_class: шаблон "
+    },
+    {
+      "module": "60-write",
+      "message": "letopis: invalid_data: "
     },
     {
       "module": "up",

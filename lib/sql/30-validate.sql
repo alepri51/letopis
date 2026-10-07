@@ -242,7 +242,8 @@ begin
     if v = 'false'::jsonb then
       select string_agg('@.key == ' || @SCHEMA@.jp_str(x), ' || ') into t from jsonb_object_keys(coalesce(p_schema->'properties', '{}')) x;
       r := r || jsonb_build_object('path', p_disp, 'keyword', 'additionalProperties', 'path_expr', p_path, 'vars', '{}'::jsonb,
-        'cond', '(@.type() != "object" || !exists(@.keyvalue() ? (!(' || coalesce(t, 'false') || '))))');
+        'cond', case when t is null then '(@.type() != "object" || !exists(@.keyvalue()))'
+                     else '(@.type() != "object" || !exists(@.keyvalue() ? (!(' || t || '))))' end);
     elsif jsonb_typeof(v) = 'object' then
       -- значения прочих ключей проверяются схемой additionalProperties
       select string_agg('@.key != ' || @SCHEMA@.jp_str(x), ' && ') into t from jsonb_object_keys(coalesce(p_schema->'properties', '{}')) x;
