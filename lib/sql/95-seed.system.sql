@@ -11,14 +11,19 @@ set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 declare
   now_ts timestamptz := clock_timestamp();
+  d jsonb := coalesce(p_data, '{}');
+  vld jsonpath;
 begin
   if exists (select 1 from @SCHEMA@.entity where id = p_id) then
     return p_id;
   end if;
-  insert into @SCHEMA@.entity (id, rev, class, tenant, owner, links, data, at, created_at, author, op)
-  values (p_id, 1, p_class, p_tenant, p_tenant, coalesce(p_links, '{}'), coalesce(p_data, '{}'), now_ts, now_ts, '@SYSTEM@', 'create');
+  if p_class = 'Class' then
+    select c.data, c.validator into d, vld from @SCHEMA@.class_prepare(d, p_tenant) c;
+  end if;
+  insert into @SCHEMA@.entity (id, rev, class, tenant, owner, links, data, at, created_at, author, op, validator)
+  values (p_id, 1, p_class, p_tenant, p_tenant, coalesce(p_links, '{}'), d, now_ts, now_ts, '@SYSTEM@', 'create', vld);
   insert into @SCHEMA@.log (id, rev, class, tenant, owner, links, data, tags, at, author, op)
-  values (p_id, 1, p_class, p_tenant, p_tenant, coalesce(p_links, '{}'), coalesce(p_data, '{}'), '{}', now_ts, '@SYSTEM@', 'create');
+  values (p_id, 1, p_class, p_tenant, p_tenant, coalesce(p_links, '{}'), d, '{}', now_ts, '@SYSTEM@', 'create');
   return p_id;
 end $$;
 alter function @SCHEMA@.sys_create(uuid, text, uuid, jsonb, jsonb) owner to @OWNER@;
@@ -30,9 +35,12 @@ select @SCHEMA@.sys_create('@SYSTEM@'::uuid, 'Account', '@SYSTEM@'::uuid, '{}',
 -- Строка Class, описывающая саму себя, и класс Account. Полная метасхема и развёрнутое
 -- описание resolved появляются в 40-class.sql (этап 1, п. 6).
 select @SCHEMA@.sys_create(@SCHEMA@.v5_id('@SYSTEM@'::uuid, 'Class', array['Class']), 'Class', '@SYSTEM@'::uuid, '{}',
-  '{"name": "Class", "kind": "hub", "key": ["name"], "system": true}');
+  '{"name": "Class", "kind": "hub", "key": ["name"], "system": true,
+    "fields": {"properties": {"name": {"type": "string"}}, "required": ["name"]}}');
 select @SCHEMA@.sys_create(@SCHEMA@.v5_id('@SYSTEM@'::uuid, 'Class', array['Account']), 'Class', '@SYSTEM@'::uuid, '{}',
-  '{"name": "Account", "kind": "hub", "key": [], "system": true}');
+  '{"name": "Account", "kind": "hub", "key": [], "system": true,
+    "fields": {"properties": {"name": {"type": "string"}, "categories": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+               "enabled": {"type": "boolean", "default": true}}, "required": ["name"]}}');
 
 -- Сервисный аккаунт и его ключ: вызывает установщик, ключ генерирует и возвращает он же.
 create or replace function @SCHEMA@.bootstrap_service(p_key text) returns uuid
