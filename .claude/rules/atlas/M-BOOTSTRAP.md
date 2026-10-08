@@ -3,7 +3,7 @@ paths:
   - 'lib/src/up.ts'
   - 'lib/src/pglite.ts'
   - 'lib/sql/95-seed.system.sql'
-synced: c789517
+synced: 4c70299
 ---
 # M-BOOTSTRAP — установщик install(), up(), PGlite и системный сид
 
