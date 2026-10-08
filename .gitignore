@@ -25,3 +25,5 @@ data/
 .env
 
 ignore.me.txt
+# логи прогонов замеров (результаты *.json — в репозитории)
+lib/bench/results/*.log

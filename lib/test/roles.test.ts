@@ -116,3 +116,26 @@ test('7.3.5 №11: колонка validator заполнена и приложе
   assert.match(c.v, /^strict /);
   await assert.rejects(q(`update ${S}.entity set validator = null where class = 'Class' and tenant = $1`, [t.id]), lt('42501'));
 });
+
+test('права по каталогу: функции приложения — белый список, у PUBLIC — ничего, таблицы — только нужное', async () => {
+  const appFns = await e.sql.unsafe(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = $1 and has_function_privilege('letopis_app', p.oid, 'execute') order by 1`, [e.schema]);
+  assert.deepEqual(appFns.map((f) => f.proname), [
+    'ctx', 'ctx_account', 'ctx_tenant', 'error_catalog', 'inc', 'issue_session', 'link_ids', 'login_apikey', 'merge',
+    'reclass', 'reserved_names', 'snapshot', 'uuid_v5', 'v5_id', 'v5_name', 'verify', 'version_hash',
+  ]);
+  const pubFns = await e.sql.unsafe(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = $1 and has_function_privilege('public', p.oid, 'execute')`, [e.schema]);
+  assert.deepEqual([...pubFns], []);
+  const priv = async (table: string, p: string) =>
+    (await e.sql.unsafe(`select has_table_privilege('letopis_app', $1, $2) as ok`, [`${S}.${table}`, p]))[0].ok;
+  for (const p of ['TRUNCATE', 'REFERENCES', 'TRIGGER']) assert.equal(await priv('entity', p), false, `entity ${p}`);
+  for (const p of ['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE']) assert.equal(await priv('log', p), false, `log ${p}`);
+  for (const p of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) assert.equal(await priv('secret', p), false, `secret ${p}`);
+  const cols = await e.sql.unsafe(`select a.attname,
+      has_column_privilege('letopis_app', a.attrelid, a.attnum, 'INSERT') as ins,
+      has_column_privilege('letopis_app', a.attrelid, a.attnum, 'UPDATE') as upd
+    from pg_attribute a where a.attrelid = $1::regclass and a.attnum > 0 and not a.attisdropped order by a.attnum`, [`${S}.entity`]);
+  assert.deepEqual(cols.filter((c) => c.ins).map((c) => c.attname).sort(), ['class', 'data', 'id', 'links', 'owner', 'tags', 'tenant']);
+  assert.deepEqual(cols.filter((c) => c.upd).map((c) => c.attname).sort(), ['class', 'data', 'links', 'tags']);
+});

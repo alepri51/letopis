@@ -1,0 +1,28 @@
+{
+  "name": "core-ids",
+  "at": "2026-10-08T05:43:01.137Z",
+  "scale": 1,
+  "server": {
+    "v": "18.6 (Debian 18.6-1.pgdg13+2)",
+    "sb": "128MB"
+  },
+  "node": "v24.15.0",
+  "measure": 8,
+  "results": {
+    "random (как v5)": {
+      "rows": 10000000,
+      "ms": 74215.9,
+      "perSec": 134742,
+      "indexMB": 382.2,
+      "walMB": 2401.1
+    },
+    "v7 (последовательные)": {
+      "rows": 10000000,
+      "ms": 21519,
+      "perSec": 464705,
+      "indexMB": 300.8,
+      "walMB": 1722.3
+    },
+    "v5ComputeUs": 11.43
+  }
+}

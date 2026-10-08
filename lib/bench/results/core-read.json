@@ -1,0 +1,87 @@
+{
+  "name": "core-read",
+  "at": "2026-10-08T06:12:44.103Z",
+  "scale": 1,
+  "server": {
+    "v": "18.6 (Debian 18.6-1.pgdg13+2)",
+    "sb": "128MB"
+  },
+  "node": "v24.15.0",
+  "measure": [
+    4,
+    5,
+    6,
+    7
+  ],
+  "data": {
+    "tenants": 2,
+    "orgs": 1000,
+    "masters": 100000,
+    "shifts": 1000000
+  },
+  "results": {
+    "m4": {
+      "appMs": 5007.85,
+      "ownerMs": 14.98,
+      "rows": 1000
+    },
+    "m5": {
+      "appMs": 102.05,
+      "ownerMs": 43.83,
+      "appCount": 1000000,
+      "ownerCount": 2000000
+    },
+    "m6_narrow": {
+      "rows": 143,
+      "findIdsMs": 70.05,
+      "directRlsMs": 2973.16,
+      "directOwnerMs": 93.73,
+      "planFindIds": [
+        "entity_pkey"
+      ],
+      "planInsideFindIds": [
+        "entity_ends",
+        "entity_data"
+      ],
+      "planDirectRls": [
+        "entity_class_tenant",
+        "entity_pkey"
+      ],
+      "planDirectOwner": [
+        "entity_data",
+        "entity_class_tenant",
+        "entity_ends"
+      ]
+    },
+    "m6_wide": {
+      "rows": 14285,
+      "findIdsMs": 21663.34,
+      "directRlsMs": 249558.4,
+      "directOwnerMs": 2279.3,
+      "planFindIds": [
+        "entity_pkey",
+        "entity_class_tenant"
+      ],
+      "planInsideFindIds": [
+        "entity_ends",
+        "entity_data"
+      ],
+      "planDirectRls": [
+        "entity_class_tenant",
+        "entity_pkey"
+      ],
+      "planDirectOwner": [
+        "entity_data",
+        "entity_class_tenant",
+        "entity_ends"
+      ]
+    },
+    "m7": {
+      "appMs": 51.2,
+      "ownerMs": 50.13,
+      "plan": [
+        "log_class_at"
+      ]
+    }
+  }
+}

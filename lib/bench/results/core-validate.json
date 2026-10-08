@@ -1,0 +1,35 @@
+{
+  "name": "core-validate",
+  "at": "2026-10-08T05:41:10.030Z",
+  "scale": 1,
+  "server": {
+    "v": "18.6 (Debian 18.6-1.pgdg13+2)",
+    "sb": "128MB"
+  },
+  "node": "v24.15.0",
+  "measure": 3,
+  "rows": 100000,
+  "results": {
+    "flat5": {
+      "validatorChars": 1362,
+      "baselineMs": 17,
+      "validateDataUs": 34.99,
+      "pathMatchUs": 13.6,
+      "pathMatchWithParseUs": 32.78
+    },
+    "nested4": {
+      "validatorChars": 4330,
+      "baselineMs": 21.3,
+      "validateDataUs": 112.52,
+      "pathMatchUs": 39.56,
+      "pathMatchWithParseUs": 98.74
+    },
+    "regex40": {
+      "validatorChars": 10677,
+      "baselineMs": 41.7,
+      "validateDataUs": 1594.04,
+      "pathMatchUs": 523.72,
+      "pathMatchWithParseUs": 937.35
+    }
+  }
+}

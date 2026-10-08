@@ -287,3 +287,35 @@ test('№30: блокировка чужих строк — 0 строк, без
   assert.equal(held.out.length, 0);
   await held.finish(false);
 });
+
+test('ревью А: сервис не выпускает сессию для System и системных аккаунтов', async () => {
+  // сервисная сессия: ключ сервиса известен только установщику, поэтому выпускаем сессию сервиса владельцем
+  const [svc] = await e.sql.unsafe(`select id from ${S}.entity where class = 'Account' and data->'categories' ? 'Service'`);
+  const [{ tok }] = await e.sql.unsafe(`select ${S}.new_session($1::uuid, interval '1 hour', '{}') as tok`, [svc.id]);
+  const service = { id: svc.id, token: tok as string };
+  await assert.rejects(as(service, `select ${S}.issue_session($1::uuid)`, [SYSTEM_ID]), lt('acl_denied'));
+  await assert.rejects(as(service, `select ${S}.issue_session($1::uuid)`, [svc.id]), lt('acl_denied'));
+  const [{ user }] = await as(service, `select ${S}.issue_session($1::uuid) as user`, [a.id]);
+  assert.match(user, /^[0-9a-f]{64}$/);
+});
+
+test('ревью Б: ссылка на чужую цель не берёт на неё блокировку и не ждёт', async () => {
+  const theirs = await ins(b, 'Org', { name: 'B-lock' });
+  const held = await e.hold(b.token, (tx) => tx.unsafe(`select 1 from ${S}.entity where id = $1 for update`, [theirs.id]));
+  try {
+    const err = await e.as(a.token, async (tx) => {
+      await tx.unsafe(`set local lock_timeout = '2s'`);
+      return tx.unsafe(`insert into ${S}.entity (class, data, links) values ('Master', '{"name": "x"}', $1::jsonb)`, [{ Org: theirs.id }]);
+    }).then(() => null, (x) => x);
+    assert.ok(err);
+    lt('target_not_found')(err);
+  } finally {
+    await held.finish(false);
+  }
+});
+
+test('ревью В: имена будущих системных классов арендатору недоступны', async () => {
+  for (const name of ['member', 'Resource', 'rule', 'Class']) {
+    await assert.rejects(e.defineClass(a, { name, kind: name === 'member' || name === 'rule' ? 'link' : 'hub' }), lt('invalid_class'));
+  }
+});

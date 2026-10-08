@@ -87,6 +87,11 @@ begin
                  and coalesce((a.data->>'enabled')::boolean, true)) then
     raise exception using errcode = 'LT002', message = 'letopis: target_not_found: аккаунт не найден';
   end if;
+  -- от имени System и служебных аккаунтов действовать нельзя (§2.7): иначе сервис стал бы администратором
+  if p_account = '@SYSTEM@'::uuid or exists (select 1 from @SCHEMA@.entity a where a.id = p_account
+       and a.data->'categories' ?| array['System', 'Service']) then
+    raise exception using errcode = 'LT006', message = 'letopis: acl_denied: сессии для System и служебных аккаунтов не выпускаются';
+  end if;
   return @SCHEMA@.new_session(p_account, p_ttl, jsonb_build_object('methods', jsonb_build_array('SERVICE'), 'service', c.account));
 end $$;
 

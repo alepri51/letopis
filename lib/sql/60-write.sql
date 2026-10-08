@@ -156,7 +156,9 @@ begin
     return;
   end if;
   if p_lock then
-    perform 1 from @SCHEMA@.entity t where t.id = any (ids) order by t.id for key share;
+    -- только свои и системные цели: строку чужого арендатора не заблокировать и по ожиданию не обнаружить
+    perform 1 from @SCHEMA@.entity t where t.id = any (ids) and t.tenant in (p_tenant, '@SYSTEM@'::uuid)
+      order by t.id for key share;
   end if;
   select r.role into bad
   from (
@@ -355,6 +357,9 @@ declare
   o record;
 begin
   if p_tenant <> '@SYSTEM@'::uuid then
+    if (p_data->>'name') = any (array['Class', 'Account', 'member', 'Resource', 'rule']) then
+      perform @SCHEMA@.lt_fail('invalid_class', format('имя %s зарезервировано за системным классом', p_data->>'name'));
+    end if;
     if coalesce((p_data->>'system')::boolean, false) then
       perform @SCHEMA@.lt_fail('invalid_class', 'признак system задаёт только установка');
     end if;

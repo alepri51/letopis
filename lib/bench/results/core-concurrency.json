@@ -1,0 +1,196 @@
+{
+  "name": "core-concurrency",
+  "at": "2026-10-08T06:21:41.934Z",
+  "scale": 1,
+  "server": {
+    "v": "18.6 (Debian 18.6-1.pgdg13+2)",
+    "sb": "128MB"
+  },
+  "node": "v24.15.0",
+  "measure": [
+    2,
+    11
+  ],
+  "m2": {
+    "connections": 20,
+    "opsPerConnection": 500,
+    "results": {
+      "keyShare": {
+        "ops": 10000,
+        "errors": 0,
+        "ms": 17287,
+        "perSec": 578,
+        "p50": 33.84,
+        "p95": 40.7,
+        "multixact": 9999
+      },
+      "keyShareNoNotify": {
+        "ops": 10000,
+        "errors": 0,
+        "ms": 3433.5,
+        "perSec": 2912,
+        "p50": 6.67,
+        "p95": 8.72,
+        "multixact": 9978
+      },
+      "advisory": {
+        "ops": 10000,
+        "errors": 0,
+        "ms": 17191.2,
+        "perSec": 582,
+        "p50": 33.55,
+        "p95": 41.36,
+        "multixact": 0
+      }
+    }
+  },
+  "m11": {
+    "opsPerConnection": 100,
+    "results": [
+      {
+        "mode": "inc",
+        "notify": true,
+        "connections": 1,
+        "ops": 100,
+        "errors": 0,
+        "ms": 680.1,
+        "perSec": 147,
+        "p50": 6.33,
+        "p95": 10.58,
+        "multixact": 0
+      },
+      {
+        "mode": "inc",
+        "notify": true,
+        "connections": 5,
+        "ops": 500,
+        "errors": 0,
+        "ms": 1537,
+        "perSec": 325,
+        "p50": 12.29,
+        "p95": 30.6,
+        "multixact": 1974
+      },
+      {
+        "mode": "inc",
+        "notify": true,
+        "connections": 10,
+        "ops": 1000,
+        "errors": 0,
+        "ms": 3385.4,
+        "perSec": 295,
+        "p50": 18.18,
+        "p95": 102.64,
+        "multixact": 3957
+      },
+      {
+        "mode": "inc",
+        "notify": true,
+        "connections": 20,
+        "ops": 2000,
+        "errors": 0,
+        "ms": 8678.1,
+        "perSec": 230,
+        "p50": 34.81,
+        "p95": 286.98,
+        "multixact": 7929
+      },
+      {
+        "mode": "inc",
+        "notify": true,
+        "connections": 50,
+        "ops": 5000,
+        "errors": 0,
+        "ms": 32445.1,
+        "perSec": 154,
+        "p50": 175.23,
+        "p95": 1029.21,
+        "multixact": 20070
+      },
+      {
+        "mode": "inc",
+        "notify": false,
+        "connections": 1,
+        "ops": 100,
+        "errors": 0,
+        "ms": 636.7,
+        "perSec": 157,
+        "p50": 6.07,
+        "p95": 8.15,
+        "multixact": 0
+      },
+      {
+        "mode": "inc",
+        "notify": false,
+        "connections": 5,
+        "ops": 500,
+        "errors": 0,
+        "ms": 1527.4,
+        "perSec": 327,
+        "p50": 11.4,
+        "p95": 33.77,
+        "multixact": 1971
+      },
+      {
+        "mode": "inc",
+        "notify": false,
+        "connections": 10,
+        "ops": 1000,
+        "errors": 0,
+        "ms": 3248.2,
+        "perSec": 308,
+        "p50": 18.83,
+        "p95": 92.71,
+        "multixact": 3936
+      },
+      {
+        "mode": "inc",
+        "notify": false,
+        "connections": 20,
+        "ops": 2000,
+        "errors": 0,
+        "ms": 7725,
+        "perSec": 259,
+        "p50": 25.44,
+        "p95": 267.32,
+        "multixact": 7957
+      },
+      {
+        "mode": "inc",
+        "notify": false,
+        "connections": 50,
+        "ops": 5000,
+        "errors": 0,
+        "ms": 31151.7,
+        "perSec": 161,
+        "p50": 166.6,
+        "p95": 985.58,
+        "multixact": 20047
+      },
+      {
+        "mode": "rev",
+        "notify": true,
+        "connections": 20,
+        "ops": 2000,
+        "errors": 0,
+        "ms": 27714,
+        "perSec": 72,
+        "p50": 99.08,
+        "p95": 1002.08,
+        "retries": 23044
+      },
+      {
+        "mode": "forUpdate",
+        "notify": true,
+        "connections": 20,
+        "ops": 2000,
+        "errors": 0,
+        "ms": 13917.8,
+        "perSec": 144,
+        "p50": 134.9,
+        "p95": 161.98,
+        "retries": 0
+      }
+    ]
+  }
+}

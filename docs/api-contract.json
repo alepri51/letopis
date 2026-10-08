@@ -100,6 +100,10 @@
     },
     {
       "module": "20-context",
+      "message": "letopis: acl_denied: сессии для System и служебных аккаунтов не выпускаются"
+    },
+    {
+      "module": "20-context",
       "message": "letopis: no_session: неверный ключ"
     },
     {
