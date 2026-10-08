@@ -22,7 +22,10 @@
         "compileValidator",
         "connect",
         "fromDbError",
+        "generateTypes",
         "idOf",
+        "schemaToTs",
+        "syncModels",
         "uuidv5",
         "v5Id",
         "v5Name"
@@ -35,6 +38,7 @@
         "Issue",
         "KeyedClass",
         "LeafType",
+        "SyncResult",
         "Validator"
       ]
     },

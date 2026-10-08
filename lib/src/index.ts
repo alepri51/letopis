@@ -16,6 +16,7 @@ export { uuidv5, v5Name, v5Id, idOf, type KeyedClass } from './uuid.js';
 export { LetopisError, ValidationError, fromDbError, type Issue } from './errors.js';
 export { Registry, type ClassInfo, type EndInfo, type LeafType } from './registry.js';
 export { compileValidator, applyDefaults, type Validator } from './validate.js';
+export { syncModels, generateTypes, schemaToTs, type SyncResult } from './sync.js';
 
 const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
 const SCHEMA_NAME = /^v\d+\.[a-z_][a-z0-9_]{0,40}$/;
