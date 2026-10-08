@@ -1,7 +1,7 @@
 ---
 paths:
   - 'lib/src/{index,errors,chain,typed}.ts'
-synced: 40b537c
+synced: 9218558
 ---
 # M-API — connect(), фасад db, цепочки (Proxy), батч, ошибки
 

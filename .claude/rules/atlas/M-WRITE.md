@@ -1,7 +1,7 @@
 ---
 paths:
   - 'lib/src/{write,tx,load}.ts'
-synced: 40b537c
+synced: 9218558
 ---
 # M-WRITE — планы записи, транзакции, батч, загрузчик
 

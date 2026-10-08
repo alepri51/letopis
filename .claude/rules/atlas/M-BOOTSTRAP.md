@@ -2,7 +2,7 @@
 paths:
   - 'lib/src/up.ts'
   - 'lib/sql/95-seed.system.sql'
-synced: f625ed8
+synced: 9218558
 ---
 # M-BOOTSTRAP — установщик install() и системный сид
 
