@@ -121,6 +121,10 @@ test('4.5 превью удаления совпадает с удалённым
   assert.equal(byId.get(d2.id), 'unset', 'Backup снимается');
   assert.ok(preview.every((r) => r.$deleted === undefined), 'превью ничего не удаляет');
   assert.ok(await db.Member(m1.id).first());
+  // чужой арендатор: превью (функция владельца без RLS) не раскрывает ни строк, ни классов
+  const t2 = await e.tenant('write-other');
+  const foreign = await e.as(t2.token, (tx) => tx.unsafe(`select * from ${e.S}.delete_preview(array[$1::uuid, $2::uuid])`, [m1.id, d1.id]));
+  assert.equal(foreign.length, 0);
   const gone = await db.Member(m1.id).delete({ confirm: true }).rows();
   assert.deepEqual(gone.map((r) => r.id).sort(), [m1.id, d1.id].sort());
   const d2now = await db.duty(d2.id).first();

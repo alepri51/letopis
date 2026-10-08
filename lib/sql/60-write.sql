@@ -872,26 +872,32 @@ end $$;
 
 -- Превью удаления (этап 4, п. 6): что удалит delete этих строк — те же уровни и то же правило
 -- ref_action(), что у триггера, но без изменений. Строки: action delete (цели — depth 0, каскад —
--- уровень), unset (конец будет снят) и restrict (мешает удалению). Только строки арендатора сессии:
--- функция владельца ищет по индексу ends без RLS (§3 «Индексы под RLS»), чужих строк не раскрывает.
+-- уровень), unset (конец будет снят) и restrict (мешает удалению). Функция владельца ищет по
+-- индексу ends без RLS (§3 «Индексы под RLS»), поэтому и цели, и выдачу пропускает через
+-- row_visible() — то же условие, что у политики чтения (как find_*): невидимых строк не раскрывает
+-- ни id, ни классом. О невидимых мешающих строках скажет само удаление (visible_detail: число).
 create or replace function @SCHEMA@.delete_preview(p_ids uuid[]) returns table(id uuid, class text, action text, depth int)
 language plpgsql stable security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 #variable_conflict use_column
 declare
-  c_tenant uuid := @SCHEMA@.ctx_tenant();
+  c_tenant uuid;
+  c_account uuid;
   lvl uuid[];
   all_ids uuid[];
   casc uuid[];
   d int := 0;
   out_rows jsonb := '[]'::jsonb;
 begin
-  if c_tenant is null then
+  select x.tenant, x.account into c_tenant, c_account from @SCHEMA@.ctx() x;
+  if c_account is null then
     return;
   end if;
+  -- цели — только видимые: превью не подтверждает существование чужих строк
   select coalesce(array_agg(x.id order by x.id), '{}') into lvl
-  from @SCHEMA@.entity x where x.id = any (p_ids) and x.tenant = c_tenant;
+  from @SCHEMA@.entity x
+  where x.id = any (p_ids) and @SCHEMA@.row_visible(x.tenant, x.class, x.id, c_tenant, c_account);
   out_rows := (select coalesce(jsonb_agg(jsonb_build_array(u, 'delete', 0)), '[]'::jsonb) from unnest(lvl) u);
   all_ids := lvl;
   while cardinality(lvl) > 0 loop
@@ -920,7 +926,7 @@ begin
     select (o->>0)::uuid, e.class, o->>1, (o->>2)::int
     from jsonb_array_elements(out_rows) o
     join @SCHEMA@.entity e on e.id = (o->>0)::uuid
-    where e.tenant = c_tenant;
+    where @SCHEMA@.row_visible(e.tenant, e.class, e.id, c_tenant, c_account);
 end $$;
 
 create or replace trigger entity_bi before insert on @SCHEMA@.entity
