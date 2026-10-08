@@ -1,6 +1,6 @@
 {
   "name": "polygons",
-  "at": "2026-10-08T21:07:39.055Z",
+  "at": "2026-10-08T21:24:22.416Z",
   "scale": 1,
   "server": {
     "v": "18.6 (Debian 18.6-1.pgdg13+2)",
@@ -9,14 +9,14 @@
   "node": "v24.15.0",
   "salon": {
     "rows": 980180,
-    "ms": 130263.5,
-    "rowsPerSec": 7525,
+    "ms": 154143,
+    "rowsPerSec": 6359,
     "mismatch": []
   },
   "tenants": {
     "versions": 1000000,
     "wanted": 1000000,
-    "ms": 97139.3,
-    "rowsPerSec": 10294
+    "ms": 116741,
+    "rowsPerSec": 8566
   }
 }

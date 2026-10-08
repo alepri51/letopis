@@ -36,6 +36,28 @@ create or replace function @SCHEMA@.role_has(p_links jsonb, p_roles text[], p_id
 language sql immutable parallel safe
 return exists (select 1 from unnest(p_roles) r(role) where (p_links -> r.role) @> to_jsonb(p_id::text));
 
+-- Версии классов p_classes, действовавшие на момент p_at (последняя версия id среди версий этих классов
+-- не позже p_at; p_at null — последняя вообще), которые ссылаются на p_src: кандидаты — версии,
+-- ссылавшиеся на p_src (GIN log_ends), затем последняя версия каждого кандидата (log_id_rev); ссылку
+-- проверяет она. Класс и время кандидатов — после пробы (offset 0): иначе планировщик объединяет пробу
+-- с log_class_at и читает весь класс в индексе. Без прав: вызывают только функции владельца find_*,
+-- видимость — на них.
+create or replace function @SCHEMA@.log_refs_at(p_classes text[], p_src uuid, p_at timestamptz)
+returns setof @SCHEMA@.log
+language sql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+  select w.* from (
+      select distinct r.id from (
+        select l.id, l.class, l.at from @SCHEMA@.log l where @SCHEMA@.link_ids(l.links) @> array[p_src] offset 0) r
+      where r.class = any (p_classes) and r.at <= coalesce(p_at, 'infinity'::timestamptz)) c
+  cross join lateral (
+      select y.* from (select x.* from @SCHEMA@.log x where x.id = c.id offset 0) y
+      where y.class = any (p_classes) and y.at <= coalesce(p_at, 'infinity'::timestamptz)
+      order by y.rev desc limit 1) w
+  where @SCHEMA@.link_ids(w.links) @> array[p_src]
+$$;
+
 -- id строк классов p_classes: по вложению в data (GIN entity_data), по целям концов (GIN entity_ends),
 -- по списку id (первичный ключ) или по классу (entity_class_tenant).
 create or replace function @SCHEMA@.find_ids(p_classes text[], p_data jsonb, p_ends uuid[], p_ids uuid[],
@@ -88,6 +110,12 @@ begin
       where v.class = any (p_classes) and (v.op = 'delete') = p_dead and v.op not in ('purge', 'trim', 'reset')
         and (p_data is null or v.data @> p_data) and (p_ends is null or @SCHEMA@.link_ids(v.links) @> p_ends)
         and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan);
+  elsif p_ends is not null then
+    -- по целям концов — от версий, ссылавшихся на первую цель (GIN log_ends)
+    return query select v.id, v.rev from @SCHEMA@.log_refs_at(p_classes, p_ends[1], p_at) v
+      where (v.op = 'delete') = p_dead and v.op not in ('purge', 'trim', 'reset')
+        and (p_data is null or v.data @> p_data) and @SCHEMA@.link_ids(v.links) @> p_ends
+        and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan);
   else
     return query select v.id, v.rev from (
         select distinct on (l.id) l.id, l.rev, l.op, l.class, l.tenant, l.owner, l.tags, l.data, l.links
@@ -130,15 +158,10 @@ begin
         and (p_data is null or e.data @> p_data) and (p_ends is null or e.ends @> p_ends)
         and (p_roles is null or @SCHEMA@.role_has(e.links, p_roles, s.src));
   else
-    return query with v as (
-        select distinct on (l.id) l.id, l.rev, l.op, l.class, l.tenant, l.owner, l.tags, l.data, l.links
-        from @SCHEMA@.log l
-        where l.class = any (p_classes) and l.at <= coalesce(p_at, 'infinity'::timestamptz)
-        order by l.id, l.rev desc)
-      select s.src, v.id, v.rev
-      from v
-      cross join lateral unnest(@SCHEMA@.link_ids(v.links)) t(x)
-      join (select distinct u.x as src from unnest(p_src) u(x)) s on s.src = t.x
+    -- на каждый id источника — версии, ссылавшиеся на него (log_refs_at), а не все версии класса
+    return query select s.src, v.id, v.rev
+      from (select distinct u.x as src from unnest(p_src) u(x)) s
+      cross join lateral @SCHEMA@.log_refs_at(p_classes, s.src, p_at) v
       where (v.op = 'delete') = p_dead and v.op not in ('purge', 'trim', 'reset')
         and (p_data is null or v.data @> p_data) and (p_ends is null or @SCHEMA@.link_ids(v.links) @> p_ends)
         and (p_roles is null or @SCHEMA@.role_has(v.links, p_roles, s.src))
@@ -184,24 +207,21 @@ begin
           and @SCHEMA@.row_visible(e.tenant, e.class, e.id, e.owner, e.tags, e.data, e.links, c_tenant, c_account, c_plan))
       select distinct on (d.src, d.id) d.src, d.id, d.rev, d.depth from d order by d.src, d.id, d.depth;
   else
-    return query with recursive v as (
-        select w.id, w.rev, w.links from (
-          select distinct on (l.id) l.id, l.rev, l.op, l.class, l.tenant, l.owner, l.tags, l.data, l.links
-          from @SCHEMA@.log l
-          where l.class = any (p_classes) and l.at <= p_at
-          order by l.id, l.rev desc) w
-        where w.op not in ('delete', 'purge', 'trim', 'reset') and @SCHEMA@.row_visible(w.tenant, w.class, w.id, w.owner, w.tags, w.data, w.links, c_tenant, c_account, c_plan)),
-      d(src, id, rev, depth, seen) as (
+    -- уровень за уровнем: версии на момент, ссылавшиеся на узел (log_refs_at), а не все версии класса
+    return query with recursive d(src, id, rev, depth, seen) as (
         select s.src, v.id, v.rev, 1, array[s.src, v.id]
         from (select distinct u.x as src from unnest(p_src) u(x)) s
-        join v on @SCHEMA@.link_ids(v.links) @> array[s.src]
-        where p_roles is null or @SCHEMA@.role_has(v.links, p_roles, s.src)
+        cross join lateral @SCHEMA@.log_refs_at(p_classes, s.src, p_at) v
+        where v.op not in ('delete', 'purge', 'trim', 'reset')
+          and (p_roles is null or @SCHEMA@.role_has(v.links, p_roles, s.src))
+          and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan)
       union all
         select d.src, v.id, v.rev, d.depth + 1, d.seen || v.id
         from d
-        join v on @SCHEMA@.link_ids(v.links) @> array[d.id]
-        where d.depth < p_max and not (v.id = any (d.seen))
-          and (p_roles is null or @SCHEMA@.role_has(v.links, p_roles, d.id)))
+        cross join lateral @SCHEMA@.log_refs_at(p_classes, d.id, p_at) v
+        where d.depth < p_max and not (v.id = any (d.seen)) and v.op not in ('delete', 'purge', 'trim', 'reset')
+          and (p_roles is null or @SCHEMA@.role_has(v.links, p_roles, d.id))
+          and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan))
       select distinct on (d.src, d.id) d.src, d.id, d.rev, d.depth from d order by d.src, d.id, d.depth;
   end if;
 end $$;
@@ -210,7 +230,7 @@ do $$
 declare f text;
 begin
   foreach f in array array[
-    'role_ids(jsonb, text[])', 'role_has(jsonb, text[], uuid)',
+    'role_ids(jsonb, text[])', 'role_has(jsonb, text[], uuid)', 'log_refs_at(text[], uuid, timestamptz)',
     'find_ids(text[], jsonb, uuid[], uuid[], timestamptz, boolean)',
     'find_hop(text[], jsonb, uuid[], text[], uuid[], timestamptz, boolean)',
     'find_deep(text[], text[], uuid[], int, timestamptz)'] loop

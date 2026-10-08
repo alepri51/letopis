@@ -30,7 +30,11 @@ before(async () => {
     select gen_random_uuid(), 1, 'Staff', $1, $1, jsonb_build_object('Org', $2::text),
            jsonb_build_object('name', 'м' || g, 'phone', '+7', 'specialization', 'стажёр-' || g), now(), now(), $1, 'create'
     from generate_series(1, 5000) g`, [t.id, s.org2]));
-  await e.sql.unsafe(`analyze ${e.S}.entity`);
+  // и их версии в журнал: срез на дату ищет в журнале (log_ends против перебора версий класса)
+  await e.asOwner((tx) => tx.unsafe(`insert into ${e.S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
+    select id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash from ${e.S}.entity
+    where class = 'Staff' and data->>'specialization' like 'стажёр-%'`));
+  await e.sql.unsafe(`analyze ${e.S}.entity; analyze ${e.S}.log`);
 });
 
 after(async () => {
@@ -38,7 +42,7 @@ after(async () => {
   await e?.close();
 });
 
-interface Usage { plan: string; indexes: Set<string>; seqScans: number }
+interface Usage { plan: string; indexes: Set<string>; seqScans: number; logSeqScans: number }
 
 /** План внешнего запроса и индексы, реально использованные в транзакции (с find_* внутри). */
 async function usage(chain: Chain): Promise<Usage> {
@@ -57,7 +61,7 @@ async function usage(chain: Chain): Promise<Usage> {
     const after = await counters();
     const delta = (k: string) => (after.get(k) ?? 0) - (before.get(k) ?? 0);
     const indexes = new Set([...after.keys()].filter((k) => k.startsWith('i:') && delta(k) > 0).map((k) => k.slice(2)));
-    return { plan, indexes, seqScans: delta('r:entity') };
+    return { plan, indexes, seqScans: delta('r:entity'), logSeqScans: delta('r:log') };
   });
 }
 
@@ -94,5 +98,14 @@ test('цепочка из трёх шагов и deep — без перебор�
     const u = await usage(chain);
     assert.equal(u.seqScans, 0, u.plan);
     assert.ok(!outerIndexes(u.plan).has('entity_ends') && !outerIndexes(u.plan).has('entity_data'), u.plan);
+  }
+});
+
+test('срез на дату по переходу, deep на дату и withDeleted — GIN log_ends внутри find_hop()/find_deep(), без перебора журнала (ревизия 5)', async () => {
+  const at = new Date().toISOString();
+  for (const chain of [db.Org(s.org).Staff().asOf(at), db.Folder(s.root).Folder().deep().asOf(at), db.Org(s.org).Staff().withDeleted()]) {
+    const u = await usage(chain);
+    assert.ok(u.indexes.has('log_ends'), [...u.indexes].join(', '));
+    assert.equal(u.logSeqScans, 0);
   }
 });

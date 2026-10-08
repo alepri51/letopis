@@ -92,6 +92,9 @@ create index if not exists log_class_at on @SCHEMA@.log (class, at);
 create index if not exists log_tx_seq on @SCHEMA@.log (tx, seq);
 -- versions({ follow: true }): переход по связи старого и нового id при reclass и rekey (этап 6)
 create index if not exists log_moved on @SCHEMA@.log (moved) where moved is not null;
+-- срез asOf и withDeleted по переходу и deep (ревизия 5): версии, ссылавшиеся на id, — как entity_ends у
+-- текущего состояния; без него поиск в журнале перебирал все версии класса (бенч этапа 7)
+create index if not exists log_ends on @SCHEMA@.log using gin (@SCHEMA@.link_ids(links));
 -- журнал часто прореживается (§2.11): чаще чистим
 alter table @SCHEMA@.log set (autovacuum_vacuum_scale_factor = 0.02, autovacuum_analyze_scale_factor = 0.02);
 

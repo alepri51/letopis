@@ -204,12 +204,15 @@ export async function runTx<T>(ctx: TxContext, fn: (tx: Tx) => Promise<T>,
       const fetch = !pass && ctx.passes && ctx.token ? passSql(conn as unknown as Tx, ctx).execute() : null;
       const [, , got, out] = await Promise.all([begin, setup, fetch, fn(conn as unknown as Tx)]);
       if (got) ctx.passes!.set(ctx, (got as unknown as { p: string }[])[0]?.p);
-      if (!opts.read) {
-        const [row] = await conn`select current_setting('letopis.changed', true) as changed`;
-        changed = (row?.changed as string | null) ?? null;
-      }
       bodyDone = true;
-      await conn.unsafe('commit');
+      // чтение letopis.changed и COMMIT — одним конвейером: порядок на соединении сохраняется (чтение
+      // идёт до фиксации), а круг до базы на запись — один (бенч этапа 7: −0,8 мс на запись)
+      if (opts.read) {
+        await conn.unsafe('commit');
+      } else {
+        const [rows] = await Promise.all([conn`select current_setting('letopis.changed', true) as changed`, conn.unsafe('commit')]);
+        changed = (rows[0]?.changed as string | null) ?? null;
+      }
       ctx.notifier?.add(changed);
       if (changed) ctx.onChanged?.(changedList(changed), opts.raw === true);
       ctx.after?.();
@@ -313,16 +316,9 @@ export class ExplicitTx implements Executor {
     }
     let changed: string | null = null;
     try {
-      const [row] = await this.conn.unsafe(`select current_setting('letopis.changed', true) as changed`);
-      changed = (row?.changed as string | null) ?? null;
-    } catch (e) {
-      if (!isConnectionError(e)) await this.conn.unsafe('rollback').catch(() => {});
-      release(this.conn, e);
-      this.failure = fromDbError(e);
-      throw this.failure;
-    }
-    try {
-      const res = await this.conn.unsafe('commit');
+      // чтение letopis.changed и COMMIT — одним конвейером (как в runTx); обрыв — исход неизвестен
+      const [rows, res] = await Promise.all([this.conn.unsafe(`select current_setting('letopis.changed', true) as changed`), this.conn.unsafe('commit')]);
+      changed = (rows[0]?.changed as string | null) ?? null;
       if ((res as unknown as { command?: string }).command === 'ROLLBACK') {
         this.failure = new LetopisError('tx_rolled_back', 'commit: PostgreSQL откатил транзакцию (в ней была ошибка)');
         throw this.failure;
