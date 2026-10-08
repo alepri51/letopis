@@ -18,6 +18,38 @@
   общая для CI и `release.yml`; версии с дефисом публикуются под dist-tag `next`.
 - `check-docs` и генератор контракта API переведены на новую раскладку.
 
+### Added — этап 1 (ядро в базе)
+- Три таблицы `entity`, `log`, `secret`; хэш версии — генерируемая колонка; права приложения только
+  на пользовательские колонки; RLS по арендатору; роли `letopis_owner` и `letopis_app`.
+- Установщик `install()` (`lib/src/up.ts`): членство `with inherit false, set true`, работает от роли
+  с `CREATEROLE` без суперпользователя; сиды по опции `seeds`.
+- Проверка данных: JSON Schema компилируется в jsonpath (колонка `validator` строки `Class`).
+- Конвейер записи в триггерах: id v5 по ключу, умолчания, концы с `for key share`, воскрешение,
+  монотонное время, журнал; `merge`, `inc` со `start`; удаление триггером после оператора
+  (`cascade`, `unset`, `restrict` по итогу); `reclass()`; `verify()` с якорем.
+- Классы — строки `Class`: метасхема, `resolved` с наследованием, пересчёт потомков, ужесточение
+  под исключительной блокировкой семейства, метаданные `meta`, политика хранения истории.
+- Коды ошибок `LT001`–`LT017` (`error_catalog()`).
+- Сигналы: сырой SQL шлёт `NOTIFY` из триггера; транзакции библиотеки (`letopis.notify = 'deferred'`)
+  копят классы в `letopis.changed` — решение 9 контрольной точки А.
+
+### Added — этап 2 (модели, реестр, контекст, валидатор)
+- `letopis/model`: `hub`, `link`, `one`, `many`, `Infer`, `InferLinks`, `ClassMeta`; нормализатор
+  JSON Schema (`$ref`/`$defs`, рекурсия — ошибка, ключи `.meta()` → `x-meta`, шаблоны в явные
+  классы символов, шаблон Zod у `format` сохраняется).
+- v5 в TypeScript: `uuidv5`, `v5Name`, `v5Id`, `idOf()` — общий файл векторов с базой.
+- Валидатор на TypeScript `compileValidator`, `applyDefaults` — те же нарушения, что в базе.
+- `connect()`: отказ ролям в обход RLS без `allowBypassRls`; транзакция на операцию с токеном
+  сессии и повторами; нотификатор отложенного сигнала (интервал по умолчанию 100 мс);
+  реестр классов с обновлением по сигналу; `db.sql`, `db.transaction`, `db.idOf`.
+- Ошибки: `LetopisError`, `ValidationError` с `issues` одного формата, `fromDbError`.
+- Демо-домен booking на Zod (18 классов 0.21 без корней `Entity` и `link`), `seed.booking.sql`
+  генерируется из моделей (`npm run seed:booking`).
+- CLI `letopis sync` (сухой прогон, применение, потерянные `refine`) и `letopis types`.
+
+### Removed
+- Режим доверия загрузчика (`trust: true`) — решение владельца на контрольной точке А.
+
 ## [0.21.0] — 2026-08-23
 
 ### Added — no-history классы: `meta.history: false` (DDL_REVISION 2)
