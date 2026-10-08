@@ -42,6 +42,7 @@
   },
   "files": [
     "dist",
+    "sql",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"

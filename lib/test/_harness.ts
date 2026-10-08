@@ -123,6 +123,6 @@ export async function ensureAppRole(sql: Sql, app = 'letopis_app'): Promise<void
   await sql.unsafe(`grant ${app} to ${APP_ROLE}`);
 }
 
-export function appSql(): Sql {
-  return postgres(appDsn(), { max: 4, onnotice: () => {} }) as Sql;
+export function appSql(max = 4): Sql {
+  return postgres(appDsn(), { max, onnotice: () => {} }) as Sql;
 }

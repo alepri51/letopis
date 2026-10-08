@@ -187,7 +187,8 @@ end $$;
 
 -- Новая версия строки от имени владельца (пересчёт описаний потомков, снятие конца при удалении):
 -- служебные колонки, журнал, сигнал. Триггеры при этом не срабатывают.
-create or replace function @SCHEMA@.sys_update(p_id uuid, p_data jsonb, p_links jsonb, p_validator jsonpath, p_op text)
+create or replace function @SCHEMA@.sys_update(p_id uuid, p_data jsonb, p_links jsonb, p_validator jsonpath, p_op text,
+  p_class text default null)
 returns @SCHEMA@.entity
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -198,20 +199,21 @@ declare
 begin
   select * into c from @SCHEMA@.ctx();
   update @SCHEMA@.entity x
-     set data = p_data, links = p_links, validator = p_validator,
+     set class = coalesce(p_class, x.class), data = p_data, links = p_links, validator = p_validator,
          rev = x.rev + 1, prev_hash = x.hash,
          at = greatest(@SCHEMA@.now_ts(), x.at + interval '1 microsecond'),
          author = coalesce(c.author, '@SYSTEM@'::uuid), agent = c.agent, op = p_op,
          reason = nullif(current_setting('letopis.reason', true), ''), moved = null,
-         cv = coalesce((@SCHEMA@.class_row(x.class, x.tenant)).rev, x.cv)
+         cv = coalesce((@SCHEMA@.class_row(coalesce(p_class, x.class), x.tenant)).rev, x.cv)
    where x.id = p_id
   returning x.* into e;
   perform @SCHEMA@.log_version(e);
   return e;
 end $$;
 
--- Надгробие: последний снимок удалённой строки следующей версией с видом delete.
-create or replace function @SCHEMA@.tombstone(e @SCHEMA@.entity) returns void
+-- Надгробие: последний снимок удалённой строки следующей версией с видом delete (или reclass/rekey
+-- со ссылкой moved на новый id).
+create or replace function @SCHEMA@.tombstone(e @SCHEMA@.entity, p_op text default 'delete', p_moved uuid default null) returns void
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
@@ -224,9 +226,9 @@ begin
   e.at := greatest(@SCHEMA@.now_ts(), e.at + interval '1 microsecond');
   e.author := coalesce(c.author, '@SYSTEM@'::uuid);
   e.agent := c.agent;
-  e.op := 'delete';
+  e.op := p_op;
   e.reason := nullif(current_setting('letopis.reason', true), '');
-  e.moved := null;
+  e.moved := p_moved;
   perform @SCHEMA@.log_version(e);
 end $$;
 
@@ -720,6 +722,126 @@ alter table @SCHEMA@.entity enable always trigger entity_ai;
 alter table @SCHEMA@.entity enable always trigger entity_bd;
 alter table @SCHEMA@.entity enable always trigger entity_ad;
 
+-- ========================= смена класса с ключом =========================
+
+-- Замена id цели во всех концах.
+create or replace function @SCHEMA@.links_replace(p_links jsonb, p_old uuid, p_new uuid) returns jsonb
+language sql immutable parallel safe
+return (
+  select coalesce(jsonb_object_agg(k.key, case jsonb_typeof(k.value)
+    when 'array' then coalesce((select jsonb_agg(case when x = p_old::text then to_jsonb(p_new::text) else to_jsonb(x) end)
+                                from jsonb_array_elements_text(k.value) x), '[]'::jsonb)
+    else case when k.value #>> '{}' = p_old::text then to_jsonb(p_new::text) else k.value end end), '{}'::jsonb)
+  from jsonb_each(p_links) k
+);
+
+-- Перенос строки на новый id (смена класса с ключом, смена ключа): новая строка продолжает журнал
+-- нового id и ссылается на старый (moved), ссылки переводятся — если переведённый конец входит
+-- в ключ ссылающейся строки, её id тоже меняется, и перевод идёт дальше рекурсивно; старая строка
+-- удаляется с надгробием, которое ссылается на новый id. Проверки делает вызывающая функция.
+create or replace function @SCHEMA@.move_row(o @SCHEMA@.entity, p_new_id uuid, p_class text, p_data jsonb, p_links jsonb, p_op text)
+returns @SCHEMA@.entity
+language plpgsql volatile
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  c record;
+  last record;
+  ts timestamptz;
+  n @SCHEMA@.entity;
+  r @SCHEMA@.entity;
+  nl jsonb;
+  rid uuid;
+begin
+  select * into c from @SCHEMA@.ctx();
+  select l.rev, l.hash, l.at into last from @SCHEMA@.log l where l.id = p_new_id order by l.rev desc limit 1;
+  ts := greatest(@SCHEMA@.now_ts(), last.at + interval '1 microsecond');
+  insert into @SCHEMA@.entity (id, rev, class, cv, tenant, owner, links, data, tags, at, created_at, author, agent, op, reason, moved, prev_hash, validator)
+  values (p_new_id, coalesce(last.rev, 0) + 1, p_class, coalesce((@SCHEMA@.class_row(p_class, o.tenant)).rev, 0), o.tenant, o.owner,
+          p_links, p_data, o.tags, ts, ts, coalesce(c.author, '@SYSTEM@'::uuid), c.agent, p_op,
+          nullif(current_setting('letopis.reason', true), ''), o.id, last.hash, null)
+  returning * into n;
+  perform @SCHEMA@.log_version(n);
+  for r in select x.* from @SCHEMA@.entity x where x.ends @> array[o.id] and x.id <> p_new_id order by x.id for update loop
+    nl := @SCHEMA@.links_replace(r.links, o.id, p_new_id);
+    rid := coalesce(@SCHEMA@.key_id((@SCHEMA@.class_row(r.class, r.tenant)).data->'resolved', r.class, r.tenant, r.data, nl), r.id);
+    if rid <> r.id then
+      perform @SCHEMA@.move_row(r, rid, r.class, r.data, nl, 'rekey');
+    else
+      perform @SCHEMA@.sys_update(r.id, r.data, nl, r.validator, 'update');
+    end if;
+  end loop;
+  delete from @SCHEMA@.entity x where x.id = o.id returning x.* into r;
+  perform @SCHEMA@.tombstone(r, p_op, p_new_id);
+  return n;
+end $$;
+
+-- Смена класса (этап 1, п. 9): у класса с ключом id вычисляется заново для нового класса, ссылки
+-- переводятся в той же транзакции, журнал связывает старый и новый id. У класса без ключа id
+-- сохраняется. Только read committed; на строку сначала берётся for update.
+create or replace function @SCHEMA@.reclass(p_id uuid, p_class text, p_data jsonb default null) returns uuid
+language plpgsql volatile security definer
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  c record;
+  o @SCHEMA@.entity;
+  cls @SCHEMA@.entity;
+  res jsonb;
+  d jsonb;
+  bad jsonb;
+  lk record;
+  nid uuid;
+  inc jsonb;
+begin
+  select * into c from @SCHEMA@.ctx();
+  if c.account is null then
+    perform @SCHEMA@.lt_fail('no_session', 'нет действующей сессии');
+  end if;
+  if current_setting('transaction_isolation') <> 'read committed' then
+    perform @SCHEMA@.lt_fail('isolation_level', 'смена класса разрешена только в read committed');
+  end if;
+  select x.* into o from @SCHEMA@.entity x where x.id = p_id and x.tenant = c.tenant for update;
+  if o.id is null then
+    perform @SCHEMA@.lt_fail('target_not_found', 'цель не найдена');
+  end if;
+  -- строки прав и классов функция не трогает (ACL — этап 5)
+  if o.class in ('Class', 'Account', 'member', 'Resource', 'rule') or p_class in ('Class', 'Account', 'member', 'Resource', 'rule') then
+    perform @SCHEMA@.lt_fail('reclass_denied', 'класс системной строки не меняется');
+  end if;
+  cls := @SCHEMA@.class_row(p_class, o.tenant);
+  if cls.id is null then
+    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s не найден', p_class));
+  end if;
+  perform @SCHEMA@.family_lock(cls.data->'resolved'->'ancestors'->>-1, false);
+  cls := @SCHEMA@.class_row(p_class, o.tenant);
+  res := cls.data->'resolved';
+  if coalesce((res->>'abstract')::boolean, false) then
+    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s абстрактный', p_class));
+  end if;
+  d := @SCHEMA@.apply_defaults(res->'schema', coalesce(p_data, o.data));
+  bad := @SCHEMA@.validate_data(res->'rules', cls.validator, res->'vars', d);
+  if bad <> '[]'::jsonb then
+    perform @SCHEMA@.lt_fail('invalid_data', format('данные не проходят описание класса %s', p_class), jsonb_build_object('issues', bad));
+  end if;
+  select * into lk from @SCHEMA@.check_links(res, o.links, o.tenant, true);
+  if lk.code is not null then
+    perform @SCHEMA@.lt_fail(lk.code, lk.msg);
+  end if;
+  inc := @SCHEMA@.incoming_conflicts(o.id, p_class, o.tenant);
+  if inc <> '[]'::jsonb then
+    perform @SCHEMA@.lt_fail('reclass_denied', format('роли ссылающихся строк не принимают класс %s', p_class),
+      @SCHEMA@.visible_detail(inc, c.tenant));
+  end if;
+  nid := coalesce(@SCHEMA@.key_id(res, p_class, o.tenant, d, lk.links), o.id);
+  if nid = o.id then
+    perform @SCHEMA@.sys_update(o.id, d, lk.links, null, 'reclass', p_class);
+  else
+    perform @SCHEMA@.move_row(o, nid, p_class, d, lk.links, 'reclass');
+  end if;
+  return nid;
+end $$;
+
 -- ========================= merge и inc =========================
 
 -- Слияние патча (§2.5): повторяет deepMerge 0.21 без исключений — объекты сливаются рекурсивно,
@@ -845,7 +967,8 @@ begin
   foreach f in array array[
     'now_ts()', 'family_lock(text, boolean)', 'class_set(jsonb)', 'role_accepts(text, uuid, text, text, uuid)',
     'apply_defaults(jsonb, jsonb)', 'check_links(jsonb, jsonb, uuid, boolean)', 'key_id(jsonb, text, uuid, jsonb, jsonb)',
-    'log_version(@SCHEMA@.entity)', 'sys_update(uuid, jsonb, jsonb, jsonpath, text)', 'tombstone(@SCHEMA@.entity)',
+    'log_version(@SCHEMA@.entity)', 'sys_update(uuid, jsonb, jsonb, jsonpath, text, text)', 'tombstone(@SCHEMA@.entity, text, uuid)',
+    'links_replace(jsonb, uuid, uuid)', 'move_row(@SCHEMA@.entity, uuid, text, jsonb, jsonb, text)', 'reclass(uuid, text, jsonb)',
     'incoming_conflicts(uuid, text, uuid)', 'visible_detail(jsonb, uuid)', 'class_change_safe(jsonb, jsonb)',
     'family_conflicts(text[], uuid, boolean)', 'reserved_names()', 'class_admit(jsonb, uuid)',
     'trg_entity_bi()', 'trg_entity_bu()', 'trg_entity_ai()', 'class_evolve(@SCHEMA@.entity, @SCHEMA@.entity)',
@@ -856,4 +979,4 @@ begin
 end $$;
 -- сырой SQL пишет теми же merge и inc, что и библиотека
 grant execute on function @SCHEMA@.merge(jsonb, jsonb), @SCHEMA@.inc(jsonb, text[], numeric, numeric),
-  @SCHEMA@.verify(), @SCHEMA@.reserved_names() to @APP@;
+  @SCHEMA@.verify(), @SCHEMA@.reserved_names(), @SCHEMA@.reclass(uuid, text, jsonb) to @APP@;

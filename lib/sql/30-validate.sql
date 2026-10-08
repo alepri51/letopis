@@ -141,9 +141,10 @@ begin
       vars := vars || jsonb_build_object(vname, v);
       conds := conds || format('(@.type() == %s && @ == $%s)', @SCHEMA@.jp_str(case jsonb_typeof(v) when 'number' then 'number' when 'string' then 'string' when 'boolean' then 'boolean' else 'null' end), vname);
     end loop;
-    if conds is not null and cardinality(conds) > 0 then
+    -- пустое перечисление не пропускает ничего: условие «узла нет» ложно для любого узла
+    if conds is not null then
       r := r || jsonb_build_object('path', p_disp, 'keyword', case when p_schema ? 'enum' then 'enum' else 'const' end,
-        'path_expr', p_path, 'cond', '(' || array_to_string(conds, ' || ') || ')', 'vars', vars);
+        'path_expr', p_path, 'cond', case when cardinality(conds) = 0 then '!exists(@)' else '(' || array_to_string(conds, ' || ') || ')' end, 'vars', vars);
     end if;
   end if;
 
@@ -265,7 +266,8 @@ begin
       vars := '{}';
       for bv in select x from jsonb_array_elements(p_schema->k) x loop
         select c.p_n, c.rules into p_n, br from @SCHEMA@.jp_compile(bv, '@', p_disp, true, p_n) c;
-        select coalesce(string_agg(format('!exists(%s ? (!(%s)))', e->>'path_expr', e->>'cond'), ' && '), 'true')
+        -- ветка без правил принимает любой узел; в фильтре jsonpath нужно условие, а не значение true
+        select coalesce(string_agg(format('!exists(%s ? (!(%s)))', e->>'path_expr', e->>'cond'), ' && '), 'exists(@)')
           into t from jsonb_array_elements(br) e;
         alt := alt || ('(' || t || ')');
         vars := vars || coalesce((select jsonb_object_agg(kv.key, kv.value) from jsonb_array_elements(br) e2, jsonb_each(e2->'vars') kv), '{}');

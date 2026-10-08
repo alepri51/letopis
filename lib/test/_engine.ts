@@ -46,7 +46,7 @@ export async function engine(file: string, opts: { keep?: boolean } = {}): Promi
   await sql.unsafe(`drop schema if exists ${S} cascade`);
   await install(sql, { schema, allowReset: true });
   await ensureAppRole(sql);
-  const app = appSql();
+  const app = appSql(16);
 
   const as = <T>(token: string | null, fn: (tx: Sql) => Promise<T>, o: { isolation?: string } = {}): Promise<T> =>
     app.begin(async (tx) => {
