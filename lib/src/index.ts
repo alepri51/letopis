@@ -10,6 +10,7 @@ import { LetopisError, notYet, removed } from './errors.js';
 import { Registry } from './registry.js';
 import { ExplicitTx, Notifier, poolExecutor, runTx, type Executor, type Tx, type TxContext } from './tx.js';
 import { idOf as idOfClass } from './uuid.js';
+import { load, type LoadInput, type LoadOptions, type LoadReport } from './load.js';
 import { makeBatch, startEntity, startStep, type Batch, type BatchEntry, type Chain, type ChainCtx, type StepFn } from './chain.js';
 import type { QueryEvent, Row } from './types.js';
 import type { AnyModelLike, StepsOf } from './typed.js';
@@ -23,6 +24,7 @@ export { syncModels, generateTypes, schemaToTs, type SyncResult } from './sync.j
 export { ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends, has, hasAny, hasAll, exists, isNull, not, or, isOp } from './ops.js';
 export { cursorOf } from './sql.js';
 export { inc, isInc, type IncMarker, type WriteRow } from './write.js';
+export type { LoadOptions, LoadReport, LoadIssue, LoadInput } from './load.js';
 export type { Chain, ChainCore, StepFn, BatchEntry } from './chain.js';
 export type { ModelLike, AnyModelLike, RowOf, FilterOf, FieldFilterOf, TypedChain, StepsOf, PatchOf } from './typed.js';
 export type { Row, Path, Filter, FieldFilter, Cursor, ChainMods, QueryEvent, Op, Scalar } from './types.js';
@@ -105,6 +107,11 @@ export interface DbCore {
   as(account: string | { id: string } | null, opts?: { owner?: string }): Db;
   /** Явная транзакция read committed: те же цепочки, commit(), rollback(), lock(), forUpdate(). */
   begin(): Promise<DbTx>;
+  /**
+   * Загрузчик (§2.6): строки любых классов — проверки в коде, COPY от роли владельца, один запрос по
+   * целям вне загрузки. Только на администраторском подключении (иначе admin_required).
+   */
+  load(input: LoadInput, opts?: LoadOptions): Promise<LoadReport>;
   /** Именованная очередь планов: batch.Класс(…).create(…); batch.run() — одной транзакцией. */
   batch(name: string): Batch;
   /** Advisory-блокировка до конца транзакции — только в db.begin() (иначе tx_required). */
@@ -125,7 +132,7 @@ export type TypedDb<M extends readonly AnyModelLike[]> = DbCore & StepsOf<M> & {
 export type { Batch };
 
 /** Имена корня db, которые появятся на следующих этапах. */
-const DB_LATER: Record<string, number> = { load: 4, verify: 6, maintain: 6, reset: 6, describe: 6 };
+const DB_LATER: Record<string, number> = { verify: 6, maintain: 6, reset: 6, describe: 6 };
 
 const quote = (name: string): string => `"${name.replace(/"/g, '""')}"`;
 
@@ -140,6 +147,9 @@ interface Shared {
   onQuery?: (e: QueryEvent) => void;
   slowMs?: number;
   batches: Map<string, BatchEntry[]>;
+  /** Подключение может стать владельцем схемы — загрузчик доступен. */
+  admin: boolean;
+  ownerRole: string;
   close: () => Promise<void>;
 }
 
@@ -175,6 +185,10 @@ function makeDb(sh: Shared, txc: TxContext, exec: Executor, owner?: string, tx?:
       if (tx) throw new LetopisError('invalid_query', 'вложенных транзакций нет: db.begin() внутри db.begin()');
       const t = await ExplicitTx.open(txc);
       return makeDb(sh, txc, t, owner, t) as DbTx;
+    },
+    load: async (input, o) => {
+      if (tx) throw new LetopisError('invalid_query', 'load() — своей транзакцией, не внутри db.begin()');
+      return load({ sql: sh.sql, schema: sh.schema, tenant: sh.tenant(), admin: sh.admin, ownerRole: sh.ownerRole }, input, o);
     },
     batch: (name) => {
       let q = sh.batches.get(name);
@@ -274,6 +288,8 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
     const shared: Shared = {
       sql, schema: opts.schema, registry, notifier, tenant: () => tenant, refresh, onQuery: opts.onQuery, slowMs: opts.slowMs,
       batches: new Map(),
+      admin: Boolean(bypass && (role.rolsuper || role.can_set)),
+      ownerRole: owner,
       async close() {
         await notifier.close();
         await listener.unlisten();

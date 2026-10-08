@@ -19,12 +19,18 @@ synced: 9f59434
 - Батч (`execBatch`): подряд простые create/upsert одного класса с ключом из полей данных — одна многострочная вставка (`jsonb_to_recordset`), create — `on conflict do nothing` (пропущенный id → `exists`), upsert — повтор id режет группу; create класса без ключа — `Promise.all` однострочных вставок (конвейер postgres.js).
 - Сигналы: `letopis.changed` читается перед фиксацией и уходит в `Notifier` (решение 9 точки А) — и в пуле, и в `ExplicitTx.commit`.
 
+- Загрузчик (`load.ts`, §2.6): только администраторское подключение (`set local role` владельца, иначе `admin_required`); режим доверия убран (решение 2 точки А, охранник `removed`). Проход 1 — классы, id (v5 от ключа, `$ext` или случайная часть), повторы (`duplicates`); проход 2 пачками — умолчания и валидатор на TypeScript, концы и ссылки (id, `$key`, `$ext`, у полиморфного — `$class`), цели внутри загрузки; `COPY` в `entity` и `log` со всеми колонками. В конце порции — один запрос по целям вне загрузки с `for key share`, проверка арендатора, сигнал, `ANALYZE` (≥ 10 000 строк).
+- `existing`: `error` — без запросов на пачку, отказ даёт первичный ключ или `log_id_rev`, затем `explainTaken` называет `exists`/`deleted`; `skip`/`update` — существование для всей порции выясняется до проверок (пропущенный объект для ссылок — вне загрузки), `update` — новая версия одним оператором из заблокированных строк, удалённые — воскрешение с продолжением цепочки.
+- postgres.js 3.4 теряет ошибку `COPY`, пришедшую после конца потока: `copyLines` перехватывает `reject` запроса до начала потока — без этого промис висит.
+- Режим истории: версии волнами (`$rev` подряд от 1, `$at`, `$op`), после волны база отдаёт хэши — они `prev_hash` следующей; концы прошлых версий не сверяются.
+- `commitEvery`: порции по группам классов в порядке зависимостей (Тарьян), цикл и класс со ссылкой на себя — целиком.
+
 **Что ещё менять вместе**
 - Новый глагол: `PlanOp`, `precheckPlan`, `opCall`, `ChainCore` и `case` в `chain.ts`, `CHAIN_METHODS`, `TypedChain`.
 - Новый код ошибки библиотеки — README (каталог ошибок), `docs/api-contract.json`.
 
 **Проверка**
-- `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `chain-write`, `tx`.
+- `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `chain-write`, `tx`, `load`.
 
 **Точки входа**
 - `lib/src/write.ts:execPlan` — исполнение плана
@@ -33,3 +39,4 @@ synced: 9f59434
 - `lib/src/tx.ts:runTx` — операция из пула
 - `lib/src/tx.ts:ExplicitTx` — db.begin()
 - `lib/src/tx.ts:Notifier` — отложенный сигнал
+- `lib/src/load.ts:load` — загрузчик

@@ -79,6 +79,10 @@
         "Issue",
         "KeyedClass",
         "LeafType",
+        "LoadInput",
+        "LoadIssue",
+        "LoadOptions",
+        "LoadReport",
         "ModelLike",
         "Op",
         "PatchOf",
@@ -263,6 +267,10 @@
     {
       "module": "chain",
       "message": "letopis: .<…>() у класса <…> без журнала (history: false) — истории нет"
+    },
+    {
+      "module": "cli",
+      "message": "letopis: removed: --trust снят в 1.0.0 — запрос по целям вне загрузки стоит 0,1–1,3 % её времени"
     },
     {
       "module": "errors",
