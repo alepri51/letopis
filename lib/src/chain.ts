@@ -10,11 +10,13 @@
  * Запись (этап 4): глаголы create, update, upsert, delete, anonymize, reclass — звенья плана; слоты
  * `.Роль.set/unset/add/remove` правят концы записываемой версии. Терминал цепочки с глаголами
  * исполняет весь план одной транзакцией (write.ts): продолжение идёт от результата глагола.
+ * Этап 6: restore, purge, rekey; versions({ follow }); кэш результатов .cache() (cache.ts).
  */
-import { LetopisError, notYet, removed } from './errors.js';
+import { LetopisError, removed } from './errors.js';
+import { sessionTag, type ResultCache } from './cache.js';
 import type { ClassInfo, Registry } from './registry.js';
 import {
-  buildRead, nextNodeKey, resolveHop, roleTargets, toRow,
+  buildRead, nextNodeKey, resolveHop, roleTargets, stepClasses, toRow,
   type AggSpec, type BuiltQuery, type ReadMode, type Step,
 } from './sql.js';
 import type { Executor } from './tx.js';
@@ -34,6 +36,8 @@ export interface ChainCtx {
   readonly slowMs?: number;
   /** Цепочка из батча: план копится в очереди до batch.run(). */
   readonly batch?: BatchRef;
+  /** Кэш результатов подключения и тот, кто спрашивает (ключ ответа, §2.12). */
+  readonly cache?: { store: ResultCache; who(): { token: string | null; account?: string; tenant?: string | null } };
 }
 
 /** План в очереди батча; steps обновляется по мере роста цепочки. */
@@ -58,8 +62,11 @@ export interface ChainCore {
   ids(): Promise<string[]>;
   /** Число сущностей последнего шага; { paths: true } — число путей. */
   count(opts?: { paths?: boolean }): Promise<number>;
-  /** Все версии сущностей последнего шага (надгробия — $deleted), по id и номеру версии. */
-  versions(): Promise<Row[]>;
+  /**
+   * Все версии сущностей последнего шага (надгробия — $deleted), по id и номеру версии;
+   * { follow: true } — и через смену id при reclass и rekey, по времени.
+   */
+  versions(opts?: { follow?: boolean }): Promise<Row[]>;
   /** Агрегаты по полю последнего шага ('data.<путь>') — по сущностям, считает база. */
   sum(field: string): Promise<number | null>;
   avg(field: string): Promise<number | null>;
@@ -102,6 +109,14 @@ export interface ChainCore {
   reclass(cls: string, data?: Record<string, unknown>): Chain;
   /** Чтение с блокировкой строк последнего шага до конца db.begin() (rows, first, ids). */
   forUpdate(): Chain;
+  /** Восстановить удалённые объекты шага: последний снимок новой версией (id прежний). */
+  restore(): Chain;
+  /** Стереть историю удалённых объектов шага; без { confirm: true } — превью ($versions). */
+  purge(opts?: { confirm?: boolean }): Chain;
+  /** Новое значение ключа: строка с новым id, ссылки переведены (поля — данные, роли — концы). */
+  rekey(patch: Record<string, unknown>): Chain;
+  /** Кэш результатов (§2.12): ответ хранится в памяти процесса ttl секунд (по умолчанию 60). */
+  cache(opts?: { ttl?: number }): Chain;
 }
 
 /**
@@ -180,7 +195,43 @@ function report(ctx: ChainCtx, mode: QueryEvent['mode'], steps: Step[], t0: numb
   else if (slow) console.warn(`letopis: медленный запрос ${ms.toFixed(0)} мс — ${mode} ${classes.join('→')}`);
 }
 
-async function exec<T>(ctx: ChainCtx, q: BuiltQuery, mode: QueryEvent['mode'], steps: Step[]): Promise<T[]> {
+/** Классы, которые читает цепочка (семейства шагов): по ним сбрасывается её ответ в кэше. */
+function readClasses(reg: Registry, steps: Step[]): string[] {
+  return [...new Set(steps.flatMap((s) => stepClasses(reg, s)))];
+}
+
+/** Срок ответа в кэше, мс: .cache({ ttl }) или пометка cache у всех классов чтения; null — не кэшировать. */
+function cacheTtl(ctx: ChainCtx, steps: Step[], mods: ChainMods, classes: string[]): number | null {
+  const c = ctx.cache;
+  if (!c || !c.store.enabled || ctx.exec.explicit || ctx.batch || mods.forUpdate) return null;
+  if (mods.cache) return mods.cache.ttl !== undefined ? mods.cache.ttl * 1000 : c.store.ttlMs;
+  const marks = classes.map((n) => ctx.reg.find(n)?.cache);
+  if (!marks.length || marks.some((m) => !m)) return null;
+  return Math.min(...marks.map((m) => (m!.ttl !== undefined ? m!.ttl * 1000 : c.store.ttlMs)));
+}
+
+async function exec<T>(ctx: ChainCtx, q: BuiltQuery, mode: QueryEvent['mode'], steps: Step[], mods: ChainMods = {}): Promise<T[]> {
+  const classes = ctx.cache ? readClasses(ctx.reg, steps) : [];
+  const ttl = ctx.cache ? cacheTtl(ctx, steps, mods, classes) : null;
+  if (ttl !== null) {
+    const store = ctx.cache!.store;
+    const who = ctx.cache!.who();
+    const key = store.key(q.text, q.params, who);
+    const hit = store.get(key);
+    if (hit) return hit as T[];
+    const tag = sessionTag(who.token);
+    const tok = store.token(classes, tag);
+    const t0 = performance.now();
+    const S = `"${ctx.schema.replace(/"/g, '""')}"`;
+    const [res, exp] = await ctx.exec.run((tx) => Promise.all([
+      tx.unsafe(q.text, q.params as never[], { prepare: true }) as unknown as Promise<T[]>,
+      tx.unsafe(`select ${S}.session_expires() as e`) as unknown as Promise<{ e: string | null }[]>,
+    ]), { read: true });
+    report(ctx, mode, steps, t0, res.length);
+    const e = exp[0]?.e;
+    store.set(key, [...res], classes, tag, tok, ttl, e ? Date.parse(e) : null);
+    return res;
+  }
   const t0 = performance.now();
   const res = await ctx.exec.run((tx) => tx.unsafe(q.text, q.params as never[], { prepare: true }) as unknown as Promise<T[]>, { read: true });
   report(ctx, mode, steps, t0, res.length);
@@ -192,9 +243,10 @@ async function read<T>(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: Read
   if (ctx.batch && hasOps) throw new LetopisError('invalid_query', 'план стоит в очереди батча — его исполнит batch.run()');
   if (mods.forUpdate) return lockedRead(ctx, steps, mods, mode) as Promise<{ q: BuiltQuery | null; res: T[] }>;
   if (hasOps) return plan(ctx, steps, mods, mode, agg) as Promise<{ q: BuiltQuery | null; res: T[] }>;
-  const q = buildRead(ctx.reg, ctx.schema, steps, mods, mode, agg);
+  const { cache: _c, ...plain } = mods;
+  const q = buildRead(ctx.reg, ctx.schema, steps, plain, mode, agg);
   const ev: QueryEvent['mode'] = mode === 'countPaths' ? 'count' : mode;
-  return exec<T>(ctx, q, ev, steps).then((res) => ({ q, res }));
+  return exec<T>(ctx, q, ev, steps, mods).then((res) => ({ q, res }));
 }
 
 /**
@@ -257,9 +309,6 @@ async function lockedRead(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: R
 
 /** Строка ответа: из чтения — to_jsonb узла, из плана — готовая строка записи. */
 const rowOf = (r: { row: Record<string, unknown>; done?: true }): Row => (r.done ? (r.row as unknown as WriteRow) : toRow(r.row));
-
-/** Кэш результатов и восстановление — этап 6. */
-const LATER: Record<string, number> = { restore: 6, purge: 6, cache: 6 };
 
 /** Значение слота: id, список id, строка ответа или ленивая цепочка. */
 function slotValue(v: unknown): SlotValue {
@@ -407,9 +456,10 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
           return async (opts?: { paths?: boolean }) =>
             (await read<{ n: number }>(ctx, steps, mods, opts?.paths ? 'countPaths' : 'count')).res[0].n;
         case 'versions':
-          return async () => {
+          return async (opts?: { follow?: boolean }) => {
             warnNoHistory(steps, 'versions');
-            return (await read<{ row: Record<string, unknown> }>(ctx, steps, mods, 'versions')).res.map((r) => toRow(r.row));
+            const m = opts?.follow ? { ...mods, follow: true } : mods;
+            return (await read<{ row: Record<string, unknown> }>(ctx, steps, m, 'versions')).res.map((r) => toRow(r.row));
           };
         case 'sum':
         case 'avg':
@@ -467,8 +517,17 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
           throw new LetopisError('invalid_query', `${prop}() — метод слота: db.Класс(…).update(…).Роль.${prop}(…)`);
         case 'forUpdate':
           return () => withMods({ forUpdate: true });
-        case 'restore': case 'purge': case 'cache':
-          throw notYet(`${prop}()`, LATER[prop]);
+        case 'restore':
+          return () => withOp({ kind: 'restore' });
+        case 'purge':
+          return (opts?: { confirm?: boolean }) => withOp({ kind: 'purge', confirm: opts?.confirm === true });
+        case 'rekey':
+          return (patch: Record<string, unknown>) => withOp({ kind: 'rekey', data: patch ?? {} });
+        case 'cache':
+          return (opts?: { ttl?: number }) => {
+            if (opts?.ttl !== undefined && !(opts.ttl > 0)) throw new LetopisError('invalid_query', 'cache({ ttl }): срок — положительное число секунд');
+            return withMods({ cache: opts ?? {} });
+          };
       }
       const found = lookupStep(ctx.reg, prop) ?? unknownName(prop);
       return classProp(ctx, prop, found, steps, mods, nodes);

@@ -27,6 +27,7 @@
         "compileValidator",
         "connect",
         "cursorOf",
+        "describeText",
         "ends",
         "exists",
         "fromDbError",
@@ -54,6 +55,7 @@
         "starts",
         "syncModels",
         "totpCode",
+        "up",
         "uuidv5",
         "uuidv7",
         "v5Id",
@@ -69,6 +71,8 @@
         "AuthApi",
         "Batch",
         "BatchEntry",
+        "CacheOptions",
+        "CacheStats",
         "Chain",
         "ChainCore",
         "ChainMods",
@@ -84,6 +88,7 @@
         "FieldFilterOf",
         "Filter",
         "FilterOf",
+        "HistoryPolicy",
         "IncMarker",
         "Issue",
         "KeyedClass",
@@ -93,20 +98,32 @@
         "LoadOptions",
         "LoadReport",
         "LoginResult",
+        "MaintainOptions",
+        "MaintainReport",
+        "ModelDescription",
         "ModelLike",
         "Op",
         "PatchOf",
         "Path",
         "QueryEvent",
+        "ResetOptions",
+        "ResetResult",
         "Row",
         "RowOf",
         "Scalar",
         "StepFn",
         "StepsOf",
+        "Subscription",
         "SyncResult",
         "TypedChain",
         "TypedDb",
+        "UpOptions",
+        "UpResult",
         "Validator",
+        "VerifyIssue",
+        "VerifyResult",
+        "WatchEvent",
+        "WatchOptions",
         "WriteRow"
       ]
     },
@@ -141,6 +158,10 @@
     {
       "module": "15-errors",
       "message": "letopis: acl_denied: отказ по правилам доступа"
+    },
+    {
+      "module": "15-errors",
+      "message": "letopis: confirm_mismatch: подтверждение не совпадает с именем схемы"
     },
     {
       "module": "15-errors",
@@ -180,11 +201,19 @@
     },
     {
       "module": "15-errors",
+      "message": "letopis: not_deleted: объект не удалён — restore и purge только для удалённых"
+    },
+    {
+      "module": "15-errors",
       "message": "letopis: reclass_denied: смена класса отклонена"
     },
     {
       "module": "15-errors",
       "message": "letopis: recreated_in_statement: id удалён и создан заново одним оператором"
+    },
+    {
+      "module": "15-errors",
+      "message": "letopis: reset_disabled: reset выключен в этой установке"
     },
     {
       "module": "15-errors",
@@ -259,6 +288,18 @@
       "message": "letopis: invalid_data: links_patch: неизвестная операция "
     },
     {
+      "module": "90-time",
+      "message": "letopis: cursor_expired: курсор подписки старше яруса all — события могли проредиться, перечитайте текущее состояние"
+    },
+    {
+      "module": "admin",
+      "message": "letopis: maintain по расписанию: <…>"
+    },
+    {
+      "module": "admin",
+      "message": "letopis: очередь сигналов PostgreSQL заполнена на <…> % — проверьте зависших слушателей"
+    },
+    {
       "module": "chain",
       "message": "letopis: .<…>() у класса <…> без журнала (history: false) — истории нет"
     },
@@ -276,7 +317,35 @@
     },
     {
       "module": "up",
+      "message": "letopis.up: ${own ? seed : "
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: <…>"
+    },
+    {
+      "module": "up",
       "message": "letopis.up: <…>: <…>"
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: history: <…>"
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: migrate/<…>: <…>"
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: serviceKey — lts_ и не меньше 32 шестнадцатеричных знаков"
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: база <…> не готова за <…> с"
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: база в кодировке <…>, нужна UTF8 (casefold и коллация pg_unicode_fast)"
     },
     {
       "module": "up",
@@ -285,6 +354,18 @@
     {
       "module": "up",
       "message": "letopis.up: нужен PostgreSQL 18 или новее, а сервер — <…>"
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: нужен PostgreSQL 18 или новее, а сервер — <…> (<…>)"
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: нужен dsn или sql"
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: схема <…> ревизии <…>, а библиотека знает только <…> — обновите пакет"
     }
   ]
 }

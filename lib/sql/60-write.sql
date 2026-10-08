@@ -559,8 +559,10 @@ begin
     end if;
     NEW.id := kid;
   end if;
-  -- воскрешение: номер версии и цепочка хэшей продолжаются от последней записи журнала
-  select l.rev, l.hash, l.at into last from @SCHEMA@.log l where l.id = NEW.id order by l.rev desc limit 1;
+  -- воскрешение: номер версии и цепочка хэшей продолжаются от последней записи журнала; запись
+  -- блокируется — параллельные purge, обрезка и restore того же id ждут (этап 6), а если purge успел
+  -- стереть её, пара (id, rev) столкнётся с его записью purge в журнале, и операция повторится
+  select l.rev, l.hash, l.at into last from @SCHEMA@.log l where l.id = NEW.id order by l.rev desc limit 1 for update;
   ts := @SCHEMA@.now_ts();
   NEW.rev := coalesce(last.rev, 0) + 1;
   NEW.prev_hash := last.hash;
@@ -1107,7 +1109,7 @@ declare
   rid uuid;
 begin
   select * into c from @SCHEMA@.ctx();
-  select l.rev, l.hash, l.at into last from @SCHEMA@.log l where l.id = p_new_id order by l.rev desc limit 1;
+  select l.rev, l.hash, l.at into last from @SCHEMA@.log l where l.id = p_new_id order by l.rev desc limit 1 for update;
   ts := greatest(@SCHEMA@.now_ts(), last.at + interval '1 microsecond');
   insert into @SCHEMA@.entity (id, rev, class, cv, tenant, owner, links, data, tags, at, created_at, author, agent, op, reason, moved, prev_hash, validator)
   values (p_new_id, coalesce(last.rev, 0) + 1, p_class, coalesce((@SCHEMA@.class_row(p_class, o.tenant)).rev, 0), o.tenant, o.owner,
@@ -1338,53 +1340,6 @@ begin
       'path', to_jsonb(coalesce(path, '{}')), 'keyword', 'inc', 'message', fail)))::text;
 end $$;
 
--- ========================= verify =========================
-
--- Проверка цепочек хэшей (этап 1, п. 11): номера версий подряд с 1, prev_hash каждой версии равен
--- хэшу предыдущей, строка entity совпадает с последней версией журнала. Возвращает находки и якорь —
--- хэш всех голов цепочек, который можно хранить вне базы. Только системный администратор.
-create or replace function @SCHEMA@.verify() returns jsonb
-language plpgsql stable security definer
-set search_path = pg_catalog, @SCHEMA@, pg_temp
-as $$
-declare
-  c record;
-  issues jsonb;
-  anchor text;
-begin
-  select * into c from @SCHEMA@.ctx();
-  if not (coalesce((@SCHEMA@.acl_api_for(c.tenant, c.categories, c.roles, 'letopis.verify', true)->>'allow')::boolean, false)
-          or exists (select 1 from pg_roles where rolname = session_user and rolsuper)
-          or pg_has_role(session_user, '@OWNER_NAME@', 'SET')) then
-    perform @SCHEMA@.lt_fail('acl_denied', 'verify доступен только системному администратору');
-  end if;
-  with chain as (
-    select l.id, l.rev, l.prev_hash, l.hash,
-           lag(l.rev) over w as prev_rev, lag(l.hash) over w as prev_h
-    from @SCHEMA@.log l
-    window w as (partition by l.id order by l.rev)
-  ), found as (
-    select jsonb_build_object('id', id, 'rev', rev, 'problem', 'цепочка начинается не с версии 1') as f
-      from chain where prev_rev is null and (rev <> 1 or prev_hash is not null)
-    union all
-    select jsonb_build_object('id', id, 'rev', prev_rev + 1, 'problem', 'разрыв: нет версий ' || (prev_rev + 1) || '…' || (rev - 1))
-      from chain where prev_rev is not null and rev <> prev_rev + 1
-    union all
-    select jsonb_build_object('id', id, 'rev', prev_rev, 'problem', 'хэш версии не совпадает с prev_hash следующей')
-      from chain where prev_rev is not null and rev = prev_rev + 1 and prev_hash is distinct from prev_h
-    union all
-    select jsonb_build_object('id', e.id, 'rev', e.rev, 'problem', 'строка entity не совпадает с последней версией журнала')
-      from @SCHEMA@.entity e
-      left join lateral (select l.hash, l.rev from @SCHEMA@.log l where l.id = e.id order by l.rev desc limit 1) l on true
-      where coalesce((@SCHEMA@.class_row(e.class, e.tenant)).data->'resolved'->>'history', 'true') <> 'false'
-        and (l.hash is distinct from e.hash or l.rev is distinct from e.rev)
-  )
-  select coalesce(jsonb_agg(f), '[]'::jsonb) into issues from found;
-  select encode(sha256(coalesce(string_agg(e.hash, ''::bytea order by e.id), ''::bytea)), 'hex') into anchor
-  from @SCHEMA@.entity e;
-  return jsonb_build_object('ok', issues = '[]'::jsonb, 'issues', issues, 'anchor', anchor);
-end $$;
-
 do $$
 declare f text;
 begin
@@ -1396,11 +1351,13 @@ begin
     'incoming_conflicts(uuid, text, uuid)', 'visible_detail(jsonb, uuid)', 'class_change_safe(jsonb, jsonb)',
     'family_conflicts(text[], uuid, boolean)', 'reserved_names()', 'class_admit(jsonb, uuid)',
     'trg_entity_bi()', 'trg_entity_bu()', 'trg_entity_ai()', 'trg_entity_au()', 'history_on(text, uuid)', 'signal(text[])', 'class_evolve(@SCHEMA@.entity, @SCHEMA@.entity)',
-    'trg_entity_bd()', 'trg_entity_ad()', 'owner_to_tenant(uuid, uuid)', 'ref_action(jsonb, jsonb, uuid[])', 'delete_preview(uuid[])', 'merge(jsonb, jsonb)', 'inc(jsonb, text[], numeric, numeric)', 'links_patch(jsonb, jsonb)', 'verify()'] loop
+    'trg_entity_bd()', 'trg_entity_ad()', 'owner_to_tenant(uuid, uuid)', 'ref_action(jsonb, jsonb, uuid[])', 'delete_preview(uuid[])', 'merge(jsonb, jsonb)', 'inc(jsonb, text[], numeric, numeric)', 'links_patch(jsonb, jsonb)'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);
     execute format('revoke all on function @SCHEMA@.%s from public', f);
   end loop;
 end $$;
--- сырой SQL пишет теми же merge, inc и links_patch, что и библиотека
+-- сырой SQL пишет теми же merge, inc и links_patch, что и библиотека; verify() — в 90-time.sql
+-- до этапа 6 verify() был без параметров
+drop function if exists @SCHEMA@.verify();
 grant execute on function @SCHEMA@.merge(jsonb, jsonb), @SCHEMA@.inc(jsonb, text[], numeric, numeric), @SCHEMA@.links_patch(jsonb, jsonb),
-  @SCHEMA@.verify(), @SCHEMA@.reserved_names(), @SCHEMA@.reclass(uuid, text, jsonb), @SCHEMA@.delete_preview(uuid[]) to @APP@;
+  @SCHEMA@.reserved_names(), @SCHEMA@.reclass(uuid, text, jsonb), @SCHEMA@.delete_preview(uuid[]) to @APP@;

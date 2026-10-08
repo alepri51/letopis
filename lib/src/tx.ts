@@ -156,7 +156,14 @@ export interface TxContext {
   passes?: AclPasses;
   /** После успешной операции (продление сессии раз в минуту). */
   after?: () => void;
+  /**
+   * После фиксации записи: имена из letopis.changed (классы, session:<тег>) — кэш результатов
+   * сбрасывает свои ответы сразу (§2.12); raw — запись через db.sql.
+   */
+  onChanged?: (names: string[], raw: boolean) => void;
 }
+
+const changedList = (changed: string | null): string[] => (changed ? changed.split(',').filter(Boolean) : []);
 
 /** Служебные настройки транзакции одним оператором (уходит конвейером с первым запросом). */
 const setupSql = (q: Tx, ctx: TxContext, pass: string | null) =>
@@ -176,7 +183,8 @@ const passSql = (q: Tx, ctx: TxContext) =>
  * Операция одной транзакцией с контекстом сессии и повтором при транзиентных ошибках и конфликте
  * журнала. Ошибки базы переводятся в LetopisError. read — операция только читает: сигналы не собираются.
  */
-export async function runTx<T>(ctx: TxContext, fn: (tx: Tx) => Promise<T>, opts: { retries?: number; read?: boolean } = {}): Promise<T> {
+export async function runTx<T>(ctx: TxContext, fn: (tx: Tx) => Promise<T>,
+  opts: { retries?: number; read?: boolean; raw?: boolean; conn?: postgres.ReservedSql<Record<string, unknown>> } = {}): Promise<T> {
   const retries = opts.retries ?? RETRIES;
   for (let attempt = 1; ; attempt++) {
     let bodyDone = false;
@@ -184,7 +192,8 @@ export async function runTx<T>(ctx: TxContext, fn: (tx: Tx) => Promise<T>, opts:
     let failure: unknown = null;
     // своё зарезервированное соединение, а не sql.begin: после гибели серверного процесса
     // postgres.js 3.4 шлёт rollback в закрытый сокет и роняет процесс необработанным TypeError
-    const conn = await ctx.sql.reserve();
+    // своё соединение (opts.conn) вызывающий держит и возвращает сам — например, под сеансовой блокировкой
+    const conn = opts.conn ?? await ctx.sql.reserve();
     try {
       let changed: string | null = null;
       // begin, служебный оператор и первый запрос операции уходят конвейером (§2.9); время — в UTC;
@@ -202,6 +211,7 @@ export async function runTx<T>(ctx: TxContext, fn: (tx: Tx) => Promise<T>, opts:
       bodyDone = true;
       await conn.unsafe('commit');
       ctx.notifier?.add(changed);
+      if (changed) ctx.onChanged?.(changedList(changed), opts.raw === true);
       ctx.after?.();
       return out as T;
     } catch (e) {
@@ -216,15 +226,15 @@ export async function runTx<T>(ctx: TxContext, fn: (tx: Tx) => Promise<T>, opts:
       }
       throw fromDbError(e);
     } finally {
-      release(conn, failure);
+      if (!opts.conn) release(conn, failure);
     }
   }
 }
 
 /** Вход цепочек: где исполнить операцию — отдельной транзакцией из пула или в явной транзакции. */
 export interface Executor {
-  /** Операция одной транзакцией; в явной транзакции — в ней, без повторов. */
-  run<T>(fn: (tx: Tx) => Promise<T>, opts?: { read?: boolean }): Promise<T>;
+  /** Операция одной транзакцией; в явной транзакции — в ней, без повторов. raw — сырой SQL (db.sql). */
+  run<T>(fn: (tx: Tx) => Promise<T>, opts?: { read?: boolean; raw?: boolean }): Promise<T>;
   /** Внутри db.begin(). */
   readonly explicit: boolean;
 }
@@ -245,6 +255,8 @@ export class ExplicitTx implements Executor {
   private broken: unknown = null;
   private done = false;
   private failure: unknown = null;
+  /** В транзакции был сырой SQL (db.sql): после фиксации — весь кэш. */
+  private raw = false;
 
   private constructor(private ctx: TxContext, private conn: postgres.ReservedSql<Record<string, unknown>>) {}
 
@@ -268,9 +280,10 @@ export class ExplicitTx implements Executor {
     return !this.done;
   }
 
-  async run<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+  async run<T>(fn: (tx: Tx) => Promise<T>, opts?: { read?: boolean; raw?: boolean }): Promise<T> {
     if (this.done) throw new LetopisError('tx_required', 'транзакция db.begin() уже завершена');
     if (this.broken) throw this.broken;
+    if (opts?.raw) this.raw = true;
     try {
       return await fn(this.conn as unknown as Tx);
     } catch (e) {
@@ -321,6 +334,7 @@ export class ExplicitTx implements Executor {
     }
     this.conn.release();
     this.ctx.notifier?.add(changed);
+    if (changed) this.ctx.onChanged?.(changedList(changed), this.raw);
     this.ctx.after?.();
   }
 

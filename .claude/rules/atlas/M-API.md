@@ -16,6 +16,7 @@ synced: 9218558
 - Типы по моделям — `typed.ts` (`TypedDb`, `TypedChain`, `PatchOf` — `inc()` только у числовых полей) через структурный `ModelLike`: основная точка входа не импортирует Zod даже в типах.
 - Реестр перечитывается по сигналу класса `Class`; классы — собственные арендатора и системные.
 - Тексты ошибок — `letopis: <код>: …`; новый код базы — `LT_NAMES` в `errors.ts` и `error_catalog()` в `lib/sql/15-errors.sql`. Нарушение условия ACL на новых значениях (42501, `routine = ExecWithCheckOptions`, без `USING`) → `acl_denied`; upsert на чужую строку («USING expression») остаётся 42501 — признак по функции сервера, не по тексту.
+- Этап 6: `db.verify`, `maintain`, `reset`, `trimHistory`, `rekeyClass`, `describe` — `admin.ts`; `db.watch` — `watch.ts` (подписчики сигналов — `Shared.signals`); `db.cache` — `cache.ts` (`ChainCtx.cache`, сброс своих записей — `TxContext.onChanged`, `db.sql` — `raw`); `connect({ listen, cache, maintain })`; ревизия схемы старше библиотеки — предупреждение в `connect()`.
 - Сигнал классов прав (`rule`, `Resource`, `member`, `Account`, `Class`) сбрасывает пропуска прав подключения; сессия продлевается `auth_refresh()` раз в минуту после успешных операций (`connect({ refreshSession: false })` — нет).
 
 **Что ещё менять вместе**

@@ -515,7 +515,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
           + `${ids ? ` and v.id = any (${ids})` : ''})`;
       }
       return `(select v.id, v.rev from ${versionsAt(at, ids ? `l.id = any (${ids})` : `l.class = any (${clsPh})`)} v `
-        + `where v.class = any (${clsPh}) and (v.op = 'delete') = ${isDead}${dataCond('v')}${endsCond(`${S}.link_ids(v.links)`)})`;
+        + `where v.class = any (${clsPh}) and (v.op = 'delete') = ${isDead} and v.op not in ('purge', 'trim', 'reset')${dataCond('v')}${endsCond(`${S}.link_ids(v.links)`)})`;
     };
     const entityPart = (src: string | undefined, depth = 'null::int', from = `${S}.entity x`) =>
       `select ${colsOf('x')}, ${depth} as depth from ${from} where ${where('x', src)}`;
@@ -562,7 +562,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
       let deepSrc = `${S}.find_deep(${clsPh}, ${rolesPh}, ${srcArr}, ${maxPh}, ${atPh})`;
       if (opts.direct) {
         // тот же обход под RLS: невидимый узел обрывает поддерево политикой
-        const node = cur ? `${S}.entity` : `(select w.id, w.rev, w.links from ${versionsAt(atPh, `l.class = any (${clsPh})`)} w where w.op <> 'delete')`;
+        const node = cur ? `${S}.entity` : `(select w.id, w.rev, w.links from ${versionsAt(atPh, `l.class = any (${clsPh})`)} w where w.op not in ('delete', 'purge', 'trim', 'reset'))`;
         const hasSrc = (v: string, src: string) => (cur ? `${v}.ends @> array[${src}]` : `${S}.link_ids(${v}.links) @> array[${src}]`);
         const cls = (v: string) => (cur ? ` and ${v}.class = any (${clsPh})` : '');
         deepSrc = `(with recursive d(src, id, rev, depth, seen) as (`
@@ -592,7 +592,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
         }
         return `(select s.src, v.id, v.rev from ${versionsAt(at, `l.class = any (${clsPh})`)} v `
           + `cross join lateral unnest(${S}.link_ids(v.links)) t(x) join ${srcs} on s.src = t.x `
-          + `where (v.op = 'delete') = ${isDead}${dataCond('v')}${endsCond(`${S}.link_ids(v.links)`)}${rolesCond('v', 's.src')})`;
+          + `where (v.op = 'delete') = ${isDead} and v.op not in ('purge', 'trim', 'reset')${dataCond('v')}${endsCond(`${S}.link_ids(v.links)`)}${rolesCond('v', 's.src')})`;
       };
       ctes.push(`p${i}a as (select q.src, q.id, q.rev from ${hopCall(atPh, false)} q)`);
       parts.push(cur ? entityByIds(`select q.id from p${i}a q`) : logPart(`select q.id, q.rev from p${i}a q`));
@@ -640,7 +640,13 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
   };
   const limitOffset = () =>
     (mods.limit !== undefined ? ` limit ${p.push(mods.limit)}::bigint` : '') + (mods.offset !== undefined ? ` offset ${p.push(mods.offset)}::bigint` : '');
-  const withClause = `with ${ctes.join(',\n')}\n`;
+  // versions({ follow: true }): id, связанные колонкой moved (reclass, rekey), в обе стороны
+  if (mode === 'versions' && mods.follow) {
+    ctes.push(`f(id) as (select z.id from ${ents} z union select x.id from f cross join lateral (`
+      + `select l.moved as id from ${S}.log l where l.id = f.id and l.moved is not null `
+      + `union select l.id from ${S}.log l where l.moved = f.id) x)`);
+  }
+  const withClause = `with ${mode === 'versions' && mods.follow ? 'recursive ' : ''}${ctes.join(',\n')}\n`;
 
   let text: string;
   let aggLeaf: LeafType | undefined;
@@ -662,8 +668,12 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
       text = `${withClause}select count(*)::int as n ${from}${whereOf(tail)}`;
       break;
     case 'versions':
-      text = `${withClause}select to_jsonb(v) as row from (select ${colsOf('l')}, null::int as depth from ${S}.log l `
-        + `where l.id in (select z.id from ${ents} z)) v order by v.id, v.rev${limitOffset()}`;
+      // с follow — по времени через все связанные id; без — по id и номеру версии
+      text = mods.follow
+        ? `${withClause}select to_jsonb(v) as row from (select ${colsOf('l')}, null::int as depth from ${S}.log l `
+          + `where l.id in (select f.id from f)) v order by v.at, v.id, v.rev${limitOffset()}`
+        : `${withClause}select to_jsonb(v) as row from (select ${colsOf('l')}, null::int as depth from ${S}.log l `
+          + `where l.id in (select z.id from ${ents} z)) v order by v.id, v.rev${limitOffset()}`;
       break;
     case 'agg': {
       if (!agg || !agg.field.startsWith('data.')) fail("агрегат по полю 'data.<путь>'");

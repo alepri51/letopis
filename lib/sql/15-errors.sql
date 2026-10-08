@@ -22,7 +22,10 @@ as $$
     ('LT014', 'isolation_level',        'letopis: isolation_level: операция разрешена только в read committed'),
     ('LT015', 'recreated_in_statement', 'letopis: recreated_in_statement: id удалён и создан заново одним оператором'),
     ('LT016', 'cursor_expired',         'letopis: cursor_expired: курсор подписки старше яруса all'),
-    ('LT017', 'delete_restricted',      'letopis: delete_restricted: удалению мешают ссылающиеся строки')
+    ('LT017', 'delete_restricted',      'letopis: delete_restricted: удалению мешают ссылающиеся строки'),
+    ('LT018', 'not_deleted',            'letopis: not_deleted: объект не удалён — restore и purge только для удалённых'),
+    ('LT019', 'reset_disabled',         'letopis: reset_disabled: reset выключен в этой установке'),
+    ('LT020', 'confirm_mismatch',       'letopis: confirm_mismatch: подтверждение не совпадает с именем схемы')
 $$;
 
 create or replace function @SCHEMA@.lt_raise(p_code text, p_name text, p_msg text, p_detail jsonb default null)

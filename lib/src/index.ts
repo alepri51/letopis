@@ -5,9 +5,10 @@
  * Этап 2: connect() — подключение под сессией, реестр классов, отложенный сигнал, db.sql.
  * Этап 3: цепочки чтения t.Класс(…).Связь().rows(); этап 4 — запись цепочками и загрузчик.
  * Этап 5: db.auth (креды, вход, сессии), db.acl, db.as(аккаунт, { tenant }) — имперсонация.
+ * Этап 6: история (restore, purge, rekey, trimHistory), verify, maintain, reset, watch, кэш результатов.
  */
 import postgres from 'postgres';
-import { LetopisError, notYet, removed } from './errors.js';
+import { LetopisError, fromDbError, removed } from './errors.js';
 import { Registry } from './registry.js';
 import { AclPasses, ExplicitTx, Notifier, poolExecutor, runTx, type Executor, type Tx, type TxContext } from './tx.js';
 import { makeAuth, type AuthApi } from './auth.js';
@@ -16,6 +17,14 @@ import { idOf as idOfClass } from './uuid.js';
 import { load, type LoadInput, type LoadOptions, type LoadReport } from './load.js';
 import { makeBatch, startEntity, startStep, type Batch, type BatchEntry, type Chain, type ChainCtx, type StepFn } from './chain.js';
 import type { QueryEvent, Row } from './types.js';
+import { DDL_REVISION } from './types.js';
+import { ACL_CLASSES, ResultCache, type CacheOptions, type CacheStats } from './cache.js';
+import { Subscription, type WatchOptions } from './watch.js';
+import {
+  describe as describeModel, maintain as runMaintain, rekeyClass as runRekeyClass, reset as runReset, scheduleMaintain,
+  trimHistory as runTrim, verify as runVerify, type AdminCtx, type MaintainOptions, type MaintainReport, type ModelDescription,
+  type ResetOptions, type ResetResult, type VerifyResult,
+} from './admin.js';
 import type { AnyModelLike, StepsOf } from './typed.js';
 
 export { DDL_REVISION } from './types.js';
@@ -33,6 +42,11 @@ export type { LoadOptions, LoadReport, LoadIssue, LoadInput } from './load.js';
 export type { Chain, ChainCore, StepFn, BatchEntry } from './chain.js';
 export type { ModelLike, AnyModelLike, RowOf, FilterOf, FieldFilterOf, TypedChain, StepsOf, PatchOf } from './typed.js';
 export type { Row, Path, Filter, FieldFilter, Cursor, ChainMods, QueryEvent, Op, Scalar } from './types.js';
+export type { CacheOptions, CacheStats } from './cache.js';
+export type { WatchOptions, WatchEvent, Subscription } from './watch.js';
+export type { VerifyResult, VerifyIssue, MaintainOptions, MaintainReport, ResetOptions, ResetResult, ModelDescription } from './admin.js';
+export { describeText } from './admin.js';
+export { up, type UpOptions, type UpResult, type HistoryPolicy } from './up.js';
 export { RESERVED_CLASS_NAMES, CHAIN_METHODS, DB_METHODS } from './types.js';
 
 /** Снесено в 1.0.0: id v7 больше не выдаются (§2.3). */
@@ -76,6 +90,16 @@ export interface ConnectOptions {
   slowMs?: number;
   /** Модели letopis/model — только для типов цепочек (TypedDb); описания классов берутся из базы. */
   models?: readonly AnyModelLike[];
+  /**
+   * Слушать сигналы базы (LISTEN, по умолчанию да). false — пул в режиме транзакций (PgBouncer):
+   * реестр перечитывается через db.refresh(), подписка опрашивает журнал, кэш результатов выключен
+   * (с cache: { ttlOnly: true } — работает только по сроку).
+   */
+  listen?: boolean;
+  /** Кэш результатов (§2.12): срок по умолчанию, размер, ttlOnly; false — выключен. */
+  cache?: CacheOptions | false;
+  /** Запускать maintain() по расписанию ('1h', '15m', мс) под advisory-блокировкой: работает один процесс. */
+  maintain?: string | number;
 }
 
 /** Опции 0.21, снятые в 1.0.0, и их замены (этап 3, п. 11). */
@@ -110,6 +134,25 @@ export interface DbCore {
   refresh(): Promise<void>;
   /** Отправить накопленные сигналы сейчас. */
   flushSignals(): Promise<void>;
+  /**
+   * Проверка цепочек хэшей и якорь (хэш всех голов); { data: true } — ещё данные, концы, арендаторы,
+   * владельцы и id всех строк. Только системный администратор или администраторское подключение.
+   */
+  verify(opts?: { data?: boolean }): Promise<VerifyResult>;
+  /** Обслуживание: истёкшие сессии и коды, прореживание журнала по политике хранения, очередь сигналов. */
+  maintain(opts?: MaintainOptions): Promise<MaintainReport>;
+  /** Сброс sessions | tenant | all (allowReset установки, право letopis.reset, confirm — имя схемы). */
+  reset(opts: ResetOptions): Promise<ResetResult>;
+  /** Обрезка истории до момента: класса (с потомками), id, списка id или строк; версия 1 → запись trim. */
+  trimHistory(target: string | string[] | Row | Row[], before: string | Date): Promise<number>;
+  /** Новый ключ класса: строки семейства переносятся на новые id, ссылки переводятся. */
+  rekeyClass(cls: string, key: string[]): Promise<number>;
+  /** Машинное описание модели с метаданными классов (describeText — то же текстом, llms.txt). */
+  describe(): ModelDescription;
+  /** Подписка по курсору: for await (const ev of db.watch({ from })) …; ev.cursor — откуда продолжить. */
+  watch(opts?: WatchOptions): Subscription;
+  /** Кэш результатов подключения. */
+  readonly cache: { clear(): void; stats(): CacheStats };
   /** Начать путь с готового узла: db.entity(row | цепочка). */
   entity(x: Chain | Row): Chain;
   /**
@@ -144,13 +187,7 @@ export type DbTx = Db;
 export type TypedDb<M extends readonly AnyModelLike[]> = DbCore & StepsOf<M> & { [className: string]: StepFn };
 export type { Batch };
 
-/** Имена корня db, которые появятся на следующих этапах. */
-const DB_LATER: Record<string, number> = { verify: 6, maintain: 6, reset: 6, describe: 6 };
-
 const quote = (name: string): string => `"${name.replace(/"/g, '""')}"`;
-
-/** Классы, строки которых меняют права: их сигнал сбрасывает пропуска прав подключения. */
-const ACL_CLASSES = new Set(['rule', 'Resource', 'member', 'Account', 'Class']);
 
 /** Область фасада: контекст транзакций, арендатор и реестр его классов. */
 interface Scope {
@@ -180,13 +217,22 @@ interface Shared {
   /** Подключение может стать владельцем схемы — загрузчик доступен. */
   admin: boolean;
   ownerRole: string;
+  /** Кэш результатов (null — выключен опцией). */
+  cache: ResultCache | null;
+  /** Подписчики сигналов базы (подписки watch). */
+  signals: Set<(name: string) => void>;
+  /** LISTEN включён. */
+  listen: boolean;
   close: () => Promise<void>;
 }
 
 /** Фасад db: пул (exec — исполнитель пула) или явная транзакция (tx). */
 function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: ExplicitTx): Db {
   const txc = scope.txc;
-  const chainCtx: ChainCtx = { reg: scope.registry(), schema: sh.schema, exec, tenant: scope.tenant, owner, onQuery: sh.onQuery, slowMs: sh.slowMs };
+  const chainCtx: ChainCtx = {
+    reg: scope.registry(), schema: sh.schema, exec, tenant: scope.tenant, owner, onQuery: sh.onQuery, slowMs: sh.slowMs,
+    ...(sh.cache ? { cache: { store: sh.cache, who: () => ({ token: txc.token, account: txc.account, tenant: scope.tenant() }) } } : {}),
+  };
   // реестр корня меняется после auth.switch — цепочки берут действующий
   Object.defineProperty(chainCtx, 'reg', { get: scope.registry, enumerable: true });
   const noTx = (what: string): never => {
@@ -197,6 +243,7 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
     await sh.refresh();
   }, scope.root && !tx);
   const acl = makeAcl(sh.S, exec);
+  const adm: AdminCtx = { sql: sh.sql, schema: sh.schema, S: sh.S, txc, exec, registry: scope.registry, tenant: scope.tenant };
   const core: DbCore = {
     schema: sh.schema,
     get token() { return txc.token; },
@@ -204,7 +251,7 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
     get registry() { return scope.registry(); },
     auth,
     acl,
-    sql: (strings, ...values) => exec.run((q) => q(strings, ...(values as never[])) as unknown as Promise<postgres.Row[]>),
+    sql: (strings, ...values) => exec.run((q) => q(strings, ...(values as never[])) as unknown as Promise<postgres.Row[]>, { raw: true }),
     transaction: (fn) => exec.run(fn),
     idOf: (cls, key) => {
       const tenant = scope.tenant();
@@ -214,6 +261,30 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
     },
     refresh: sh.refresh,
     flushSignals: () => sh.notifier.flush(),
+    verify: (o) => runVerify(adm, o),
+    maintain: (o) => runMaintain(adm, o),
+    reset: async (o) => {
+      const r = await runReset(adm, o);
+      sh.passes.clear();
+      sh.cache?.clear();
+      return r;
+    },
+    trimHistory: (target, before) => runTrim(adm, target, before),
+    rekeyClass: (cls, key) => runRekeyClass(adm, cls, key),
+    describe: () => describeModel(adm),
+    watch: (o = {}) => {
+      if (typeof o === 'function' || typeof o === 'string') throw removed('watch(cb) и watch(класс, cb)', 'watch({ from }) — подписка по курсору');
+      const reg = scope.registry();
+      const classes = o.classes ? [...new Set(o.classes.flatMap((c) => reg.family(c).map((x) => x.name)))] : null;
+      return new Subscription({
+        S: sh.S, exec: poolExecutor(txc), classes,
+        ...(sh.listen ? { onSignal: (fn: (name: string) => void) => { sh.signals.add(fn); return () => void sh.signals.delete(fn); } } : {}),
+      }, o);
+    },
+    cache: {
+      clear: () => sh.cache?.clear(),
+      stats: () => sh.cache?.stats() ?? { size: 0, hits: 0, misses: 0, stores: 0, raced: 0, signals: 0, listens: 0, enabled: false },
+    },
     entity: (x) => startEntity(chainCtx, x),
     as: async (account, o) => {
       if (tx) throw new LetopisError('invalid_query', 'db.as() — от корня подключения, а не внутри db.begin()');
@@ -261,16 +332,10 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
         case 'credentials':
         case 'resources':
         case 'rules':
-          throw removed(`фасад db.${prop}`, 'системные классы Account, Resource, rule, member и db.auth');
-        case 'watch':
-          return (arg?: unknown) => {
-            if (typeof arg === 'function' || typeof arg === 'string') throw removed('watch(cb) и watch(класс, cb)', 'watch({ from }) — подписка по курсору (этап 6)');
-            throw notYet('watch({ from })', 6);
-          };
+          throw removed(`фасад db.${prop}`, 'системные классы Account, Resource, rule, member и db.auth (accounts.purge — db.auth.purgeAccount)');
         case 'compact':
-          throw removed('compact()', 'обрезка истории и history: false (этап 6)');
+          throw removed('compact()', 'db.trimHistory(цель, момент), политика хранения history и history: false');
       }
-      if (prop in DB_LATER) throw notYet(`db.${prop}`, DB_LATER[prop]);
       return startStep(chainCtx, prop);
     },
   }) as Db;
@@ -304,11 +369,21 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
     let token = opts.token ?? null;
     const apiKey = opts.apiKey ?? opts.service;
     if (!token && apiKey) {
-      const [r] = await sql.unsafe(`select ${S}.login_apikey($1) as t`, [apiKey]);
+      const [r] = await sql.unsafe(`select ${S}.login_apikey($1) as t`, [apiKey]).catch((e: unknown) => {
+        throw fromDbError(e);
+      });
       token = r.t as string;
     }
+    // ревизия движка: библиотека новее схемы — накат отстал (этап 6, п. 10)
+    const [rv] = await sql`select obj_description(n.oid, 'pg_namespace') as c from pg_namespace n where n.nspname = ${opts.schema}`;
+    const rev = Number(/ddl_revision=(\d+)/.exec(String(rv?.c ?? ''))?.[1] ?? 0);
+    if (!rv) throw new LetopisError('invalid_data', `connect: схемы ${opts.schema} нет — установите её: up({ schema })`);
+    if (rev < DDL_REVISION) console.warn(`letopis: движок схемы ${opts.schema} ревизии ${rev}, библиотека ждёт ${DDL_REVISION} — обновите: up({ schema: '${opts.schema}', upgrade: true })`);
     const notifier = new Notifier(sql, opts.schema, opts.notifyIntervalMs ?? 100);
     const passes = new AclPasses(S);
+    const listen = opts.listen !== false;
+    const cache = opts.cache === false ? null : new ResultCache(opts.cache ?? {});
+    const signals = new Set<(name: string) => void>();
     // продление сессии (§2.9): отдельным вызовом не чаще раза в минуту; ошибка (реплика,
     // транзакции только для чтения) не мешает работе
     let refreshedAt = Date.now();
@@ -317,7 +392,7 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
       refreshedAt = Date.now();
       void runTx({ sql, token, notifier: null }, (q) => q.unsafe(`select ${S}.auth_refresh()`), { retries: 0 }).catch(() => {});
     };
-    const ctx: TxContext = { sql, token, notifier, passes, after: touch };
+    const ctx: TxContext = { sql, token, notifier, passes, after: touch, ...(cache ? { onChanged: (names, raw) => cache.changed(names, raw) } : {}) };
     const root = { tenant: null as string | null, registry: new Registry() };
     const loadClasses = (txc: TxContext) => runTx(txc, (q) =>
       q.unsafe(`select tenant, rev, data from ${S}.entity where class = 'Class' and tenant in (${S}.ctx_tenant(), '${SYSTEM_ID}')`), { read: true });
@@ -341,23 +416,39 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
       return registry;
     };
     await refresh();
-    // описания классов меняются — реестр перечитывается по сигналу; строки прав — пропуска заново
-    const listener = await sql.listen(opts.schema, (cls) => {
-      if (ACL_CLASSES.has(cls)) passes.clear();
-      if (cls === 'Class') void refresh().catch(() => {});
-    });
+    // описания классов меняются — реестр перечитывается по сигналу; строки прав — пропуска заново;
+    // кэш результатов и подписки — по именам классов; (пере)подключение слушателя — кэш целиком
+    const onSignal = (cls: string) => {
+      if (ACL_CLASSES.has(cls) || cls === '*') passes.clear();
+      if (cls === 'Class' || cls === '*') void refresh().catch(() => {});
+      cache?.signal(cls);
+      for (const fn of signals) fn(cls);
+    };
+    const listener = listen
+      ? await sql.listen(opts.schema, onSignal, () => {
+        cache?.listen();
+        for (const fn of signals) fn('*');
+      })
+      : null;
+    let stopMaintain: (() => void) | null = null;
     const shared: Shared = {
       sql, schema: opts.schema, S, notifier, passes, root, registryFor, refresh, onQuery: opts.onQuery, slowMs: opts.slowMs,
       batches: new Map(),
       admin: Boolean(bypass && (role.rolsuper || role.can_set)),
       ownerRole: owner,
+      cache,
+      signals,
+      listen,
       async close() {
+        stopMaintain?.();
         await notifier.close();
-        await listener.unlisten();
+        await listener?.unlisten();
         if (own) await sql.end({ timeout: 5 });
       },
     };
-    return makeDb(shared, { txc: ctx, tenant: () => root.tenant, registry: () => root.registry, root: true }, poolExecutor(ctx));
+    const db = makeDb(shared, { txc: ctx, tenant: () => root.tenant, registry: () => root.registry, root: true }, poolExecutor(ctx));
+    if (opts.maintain !== undefined) stopMaintain = scheduleMaintain(() => db.maintain(), opts.maintain);
+    return db;
   } catch (e) {
     if (own) await sql.end({ timeout: 1 });
     throw e;

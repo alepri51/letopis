@@ -186,8 +186,14 @@ async function reschedule(запись: Row, master: Row, startHour: number): Pr
 
 /** Отмена — удаление с надгробием (история в versions). Идемпотентна: false — записи уже нет. */
 async function cancel(запись: Row): Promise<boolean> {
-  const gone = await db.запись(запись.id).delete({ confirm: true }).rows();
-  return gone.length > 0;
+  try {
+    const gone = await db.запись(запись.id).delete({ confirm: true }).rows();
+    return gone.length > 0;
+  } catch (err) {
+    // запись нашлась, но параллельный перенос успел её удалить (правило числа строк, §2.5)
+    if ((err as { code?: string }).code === 'target_not_found') return false;
+    throw err;
+  }
 }
 
 /** Неявка: пометка в notes новой версией (запись остаётся фактом дня). */

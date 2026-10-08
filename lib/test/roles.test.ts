@@ -126,6 +126,22 @@ test('7.3.8 №4: перечень функций владельца — search_
     },
     reclass: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.reclass(gen_random_uuid(), 'Doc')`)), lt('no_session')),
     verify: () => assert.rejects(q(`select ${S}.verify()`), lt('acl_denied')),
+    // этап 6: история и эксплуатация
+    session_expires: async () => {
+      const [r] = await e.as(null, (tx) => tx.unsafe(`select ${S}.session_expires() as x`));
+      assert.equal(r.x, null);
+    },
+    restore: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.restore(gen_random_uuid())`)), lt('no_session')),
+    purge: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.purge(gen_random_uuid(), true)`)), lt('no_session')),
+    trim_history: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.trim_history(null, array['Doc'], now())`)), lt('no_session')),
+    rekey: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.rekey(gen_random_uuid(), '{}')`)), lt('no_session')),
+    rekey_class: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.rekey_class('Doc', '[]')`)), lt('no_session')),
+    account_purge: async () => {
+      const other = await e.tenant('roles-other');
+      await assert.rejects(q(`select ${S}.account_purge($1)`, [other.id]), lt('acl_denied'));
+    },
+    reset: () => assert.rejects(q(`select ${S}.reset('sessions', $1)`, [e.schema]), lt('acl_denied')),
+    maintain: () => assert.rejects(q(`select ${S}.maintain()`), lt('acl_denied')),
     trg_entity_bi: () => assert.rejects(q(`select ${S}.trg_entity_bi()`), lt('42501')),
     trg_entity_bu: () => assert.rejects(q(`select ${S}.trg_entity_bu()`), lt('42501')),
     trg_entity_ai: () => assert.rejects(q(`select ${S}.trg_entity_ai()`), lt('42501')),
@@ -181,12 +197,13 @@ test('права по каталогу: функции приложения — 
   const appFns = await e.sql.unsafe(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = $1 and has_function_privilege('letopis_app', p.oid, 'execute') order by 1`, [e.schema]);
   assert.deepEqual(appFns.map((f) => f.proname), [
-    'acl_all', 'acl_check', 'acl_check_data', 'acl_ok', 'acl_plan', 'acl_token', 'auth_credentials', 'auth_enroll_totp', 'auth_issue_apikey',
+    'account_purge', 'acl_all', 'acl_check', 'acl_check_data', 'acl_ok', 'acl_plan', 'acl_token', 'auth_credentials', 'auth_enroll_totp', 'auth_issue_apikey',
     'auth_issue_keysecret', 'auth_issue_otp', 'auth_link', 'auth_login_apikey', 'auth_logout', 'auth_logout_all', 'auth_lookup', 'auth_password_get',
     'auth_refresh', 'auth_revoke_credential', 'auth_set_flags', 'auth_set_password', 'auth_switch', 'auth_tenants', 'auth_totp_enabled',
-    'auth_verify_totp', 'ctx', 'ctx_account', 'ctx_tenant', 'delete_preview', 'error_catalog', 'find_deep', 'find_hop', 'find_ids', 'inc',
-    'issue_session', 'link_ids', 'links_patch', 'login_apikey', 'login_keysecret', 'login_otp', 'merge', 'reclass', 'reserved_names',
-    'role_has', 'role_ids', 'snapshot', 'uuid_v5', 'v5_id', 'v5_name', 'verify', 'version_hash',
+    'auth_verify_totp', 'ctx', 'ctx_account', 'ctx_tenant', 'delete_preview', 'error_catalog', 'find_deep', 'find_hop', 'find_ids',
+    'history_default', 'history_iv', 'history_policy', 'inc', 'issue_session', 'link_ids', 'links_patch', 'login_apikey', 'login_keysecret',
+    'login_otp', 'maintain', 'merge', 'purge', 'reclass', 'rekey', 'rekey_class', 'reserved_names', 'reset', 'restore', 'role_has', 'role_ids',
+    'session_expires', 'snapshot', 'trim_history', 'uuid_v5', 'v5_id', 'v5_name', 'verify', 'version_hash', 'watch_head', 'watch_read',
   ]);
   const pubFns = await e.sql.unsafe(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = $1 and has_function_privilege('public', p.oid, 'execute')`, [e.schema]);

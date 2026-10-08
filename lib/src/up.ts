@@ -1,16 +1,21 @@
 /**
- * Установщик letopis 1.0 (план, этап 1, п. 2). На этапе 6 он станет ядром полного up().
+ * Установщик letopis 1.0 (план, этап 1, п. 2) и полный up() (этап 6, п. 9–10).
  *
- * Накатывает lib/sql/NN-*.sql по возрастанию номера с подстановкой имён, идемпотентно создаёт
- * роли, выдаёт себе членство в роли-владельце `with inherit false, set true` и работает от неё
- * только на время явного `set role`. Повторный накат ничего не меняет.
+ * install() накатывает lib/sql/NN-*.sql по возрастанию номера с подстановкой имён, идемпотентно
+ * создаёт роли, выдаёт себе членство в роли-владельце `with inherit false, set true` и работает от
+ * неё только на время явного `set role`. Повторный накат ничего не меняет.
+ *
+ * up() — оркестратор без Docker: ждёт базу (удалённую — до таймаута), создаёт её, проверяет версию
+ * PostgreSQL (18+) и кодировку UTF8, ставит схему (fresh — заново), обновляет отставшую (upgrade:
+ * миграции lib/sql/migrate/ и повторный накат), кладёт сиды, выдаёт или регистрирует сервисный ключ и
+ * выполняет ANALYZE только для таблиц без статистики.
  */
 import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { join } from 'node:path';
-import { randomBytes } from 'node:crypto';
-import type postgres from 'postgres';
-import { RESERVED_CLASS_NAMES } from './types.js';
+import { join, resolve } from 'node:path';
+import { createHash, randomBytes } from 'node:crypto';
+import postgres from 'postgres';
+import { DDL_REVISION, RESERVED_CLASS_NAMES } from './types.js';
 
 export const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
 export const SCHEMA_VERSION = 'v2';
@@ -22,21 +27,47 @@ export interface InstallOptions {
   app?: string;
   /** Константа установки: разрешён ли reset (план, §2.2). По умолчанию выключен. */
   allowReset?: boolean;
+  /**
+   * Константа установки: политика хранения истории для классов без своей (план, §2.11), например
+   * `{ all: '1 day', daily: '1 week', weekly: '1 month', monthly: '1 year', yearly: 'forever' }`.
+   * Не задана — история хранится вся.
+   */
+  history?: HistoryPolicy;
   /** Номер последнего накатываемого файла — для пошаговых тестов. */
   upTo?: number;
-  /** Сиды после ядра: имена файлов lib/sql/seed.<имя>.sql, например ['booking']. */
+  /** Сиды после ядра: имена lib/sql/seed.<имя>.sql (например 'booking') или пути к своим файлам .sql. */
   seeds?: string[];
+  /** Обновление (upgrade): ревизия схемы до наката — миграции lib/sql/migrate/ с номером выше неё. */
+  migrateFrom?: number;
+  /** Каталог миграций (по умолчанию lib/sql/migrate). */
+  migrationsDir?: string;
+  /** Свой ключ сервиса: зарегистрировать, если такого ещё нет (вместо выпуска случайного). */
+  serviceKey?: string;
+}
+
+/** Политика хранения истории (§2.11): сроки ярусов по возрастанию, 'forever' — бессрочно. */
+export interface HistoryPolicy {
+  all: string;
+  daily?: string;
+  weekly?: string;
+  monthly?: string;
+  yearly?: string;
+  /** Часовой пояс границ периодов (по умолчанию UTC). */
+  tz?: string;
 }
 
 export interface InstallResult {
   schema: string;
   owner: string;
   app: string;
-  /** Ключ сервисного аккаунта; выдаётся только при первой установке, дальше — null. */
+  /** Ключ сервисного аккаунта; выдаётся только при первой установке (или зарегистрированный свой), дальше — null. */
   serviceKey: string | null;
+  /** Применённые миграции. */
+  migrations: string[];
 }
 
 const SQL_DIR = fileURLToPath(new URL('../sql/', import.meta.url));
+const MIGRATE_DIR = join(SQL_DIR, 'migrate');
 const ROLE_NAME = /^[a-z_][a-z0-9_]{0,62}$/;
 const SCHEMA_NAME = /^v\d+\.[a-z_][a-z0-9_]{0,40}$/;
 
@@ -93,6 +124,7 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
     PGCRYPTO: quoteIdent(nsp),
     SYSTEM: SYSTEM_ID,
     ALLOW_RESET: opts.allowReset ? 'true' : 'false',
+    HISTORY_DEFAULT: quoteLiteral(JSON.stringify(opts.history ?? null)),
     // методы цепочки — в тексте функции reserved_names() (план, §2.14)
     RESERVED_NAMES: RESERVED_CLASS_NAMES.map(quoteLiteral).join(', '),
   };
@@ -101,9 +133,20 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
   await sql.unsafe(`create schema if not exists ${quoteIdent(opts.schema)} authorization ${quoteIdent(owner)}`);
 
   const files = await engineFiles(opts.upTo);
+  const migrations = opts.migrateFrom === undefined ? [] : await migrationFiles(opts.migrationsDir ?? MIGRATE_DIR, opts.migrateFrom);
   let serviceKey: string | null = null;
   await sql.begin(async (tx) => {
     await tx.unsafe(`set local role ${quoteIdent(owner)}`);
+    // структурные изменения прежних ревизий — до повторного наката функций (этап 6, п. 10)
+    for (const m of migrations) {
+      try {
+        await tx.unsafe(substitute(await readFile(join(opts.migrationsDir ?? MIGRATE_DIR, m), 'utf8'), vars));
+      } catch (e) {
+        const err = e as Error;
+        err.message = `letopis.up: migrate/${m}: ${err.message}`;
+        throw err;
+      }
+    }
     for (const f of files) {
       const text = substitute(await readFile(join(SQL_DIR, f), 'utf8'), vars);
       try {
@@ -115,24 +158,198 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
       }
     }
     for (const seed of opts.seeds ?? []) {
-      if (!/^[a-z0-9-]+$/.test(seed)) throw new Error(`letopis.up: bad seed name "${seed}"`);
-      const f = `seed.${seed}.sql`;
+      // имя сида пакета или путь к своему файлу
+      const own = seed.endsWith('.sql') || /[\\/]/.test(seed);
+      if (!own && !/^[a-z0-9-]+$/.test(seed)) throw new Error(`letopis.up: bad seed name "${seed}"`);
+      const f = own ? resolve(seed) : join(SQL_DIR, `seed.${seed}.sql`);
       try {
-        await tx.unsafe(substitute(await readFile(join(SQL_DIR, f), 'utf8'), vars));
+        await tx.unsafe(substitute(await readFile(f, 'utf8'), vars));
       } catch (e) {
         const err = e as Error;
-        err.message = `letopis.up: ${f}: ${err.message}`;
+        err.message = `letopis.up: ${own ? seed : `seed.${seed}.sql`}: ${err.message}`;
         throw err;
       }
     }
+    if (opts.history && files.some((f) => f.startsWith('40-'))) {
+      // умолчание проверяется той же метасхемой, что политика класса (сроки по возрастанию, all ≥ суток)
+      await tx.unsafe(`select ${quoteIdent(opts.schema)}.class_prepare($1::jsonb, $2::uuid)`,
+        [{ name: 'HistoryDefault', kind: 'hub', history: opts.history } as never, SYSTEM_ID]).catch((e: Error) => {
+        e.message = `letopis.up: history: ${e.message}`;
+        throw e;
+      });
+    }
     if (files.some((f) => f.startsWith('95-'))) {
       const S = quoteIdent(opts.schema);
-      const [{ n }] = await tx.unsafe(`select count(*)::int as n from ${S}.secret where kind = 'APIKEY' and deleted_at is null`);
-      if (n === 0) {
-        serviceKey = `lts_${randomBytes(32).toString('hex')}`;
-        await tx.unsafe(`select ${S}.bootstrap_service($1)`, [serviceKey]);
+      if (opts.serviceKey) {
+        // свой ключ: регистрируется, если его ещё нет (ключ хранится как sha256)
+        if (!/^lts_[0-9a-f]{32,128}$/.test(opts.serviceKey)) throw new Error('letopis.up: serviceKey — lts_ и не меньше 32 шестнадцатеричных знаков');
+        const hash = createHash('sha256').update(opts.serviceKey, 'utf8').digest();
+        const [{ n }] = await tx.unsafe(`select count(*)::int as n from ${S}.secret where kind = 'APIKEY' and material = $1 and deleted_at is null`, [hash]);
+        if (n === 0) {
+          await tx.unsafe(`select ${S}.bootstrap_service($1)`, [opts.serviceKey]);
+          serviceKey = opts.serviceKey;
+        }
+      } else {
+        const [{ n }] = await tx.unsafe(`select count(*)::int as n from ${S}.secret where kind = 'APIKEY' and deleted_at is null`);
+        if (n === 0) {
+          serviceKey = `lts_${randomBytes(32).toString('hex')}`;
+          await tx.unsafe(`select ${S}.bootstrap_service($1)`, [serviceKey]);
+        }
       }
     }
   });
-  return { schema: opts.schema, owner, app, serviceKey };
+  return { schema: opts.schema, owner, app, serviceKey, migrations };
+}
+
+/** Миграции с номером выше ревизии from и не выше DDL_REVISION: `0004-описание.sql`, по номеру. */
+export async function migrationFiles(dir: string, from: number): Promise<string[]> {
+  let files: string[];
+  try {
+    files = await readdir(dir);
+  } catch {
+    return [];
+  }
+  return files.filter((f) => /^\d{4}-[a-z0-9.-]+\.sql$/.test(f))
+    .filter((f) => Number(f.slice(0, 4)) > from && Number(f.slice(0, 4)) <= DDL_REVISION)
+    .sort();
+}
+
+// ---------------------------------------------------------------------------
+// up(): оркестратор (этап 6, п. 9)
+// ---------------------------------------------------------------------------
+
+export interface UpOptions extends Omit<InstallOptions, 'schema' | 'upTo' | 'migrateFrom'> {
+  /** Администраторская строка подключения (роль-установщик). */
+  dsn?: string;
+  /** Готовый пул postgres.js вместо dsn (база уже существует). */
+  sql?: postgres.Sql;
+  /** Схема: полное имя v2.<имя> или только <имя> — версия структуры подставится сама. */
+  schema: string;
+  /** Удалить схему и поставить заново. ДАННЫЕ СХЕМЫ ТЕРЯЮТСЯ. */
+  fresh?: boolean;
+  /** Обновить схему отставшей ревизии: миграции и повторный накат; данные сохраняются. */
+  upgrade?: boolean;
+  /** Без сообщений в консоль. */
+  quiet?: boolean;
+  /** Сколько ждать базу, мс (по умолчанию 60 000). */
+  waitTimeoutMs?: number;
+}
+
+export interface UpResult extends InstallResult {
+  /** Схемы не было — поставлена. */
+  created: boolean;
+  /** Схема была отставшей ревизии — обновлена. */
+  upgraded: boolean;
+  /** Ревизия движка после наката. */
+  revision: number;
+  /** Таблицы, для которых выполнен ANALYZE (статистики не было). */
+  analyzed: string[];
+}
+
+type Ping = { ok: true } | { ok: false; kind: 'no-server' | 'no-database' | 'starting' | 'fatal'; err: unknown };
+
+/** Проба сервера: ok | нет сервера | нет базы | запускается | роковая ошибка (неверный пароль). */
+export async function pgPing(dsn: string): Promise<Ping> {
+  const sql = postgres(dsn, { max: 1, connect_timeout: 3, onnotice: () => {} });
+  try {
+    await sql`select 1`;
+    return { ok: true };
+  } catch (e) {
+    const code = (e as { code?: string }).code;
+    if (code === '3D000') return { ok: false, kind: 'no-database', err: e };
+    if (code === '57P03') return { ok: false, kind: 'starting', err: e };
+    if (code === '28P01' || code === '28000') return { ok: false, kind: 'fatal', err: e };
+    return { ok: false, kind: 'no-server', err: e };
+  } finally {
+    await sql.end({ timeout: 1 }).catch(() => {});
+  }
+}
+
+/** Создать базу строки подключения, если её нет (гонка параллельных up() — 42P04 — не ошибка). */
+export async function ensureDatabase(dsn: string, log: (m: string) => void = () => {}): Promise<boolean> {
+  const url = new URL(dsn);
+  const name = decodeURIComponent(url.pathname.slice(1)) || decodeURIComponent(url.username) || 'postgres';
+  const admin = new URL(url);
+  admin.pathname = '/postgres';
+  const sql = postgres(admin.toString(), { max: 1, onnotice: () => {} });
+  try {
+    const rows = await sql`select 1 from pg_database where datname = ${name}`;
+    if (rows.length) return false;
+    await sql.unsafe(`create database ${quoteIdent(name)} encoding 'UTF8' template template0`).catch((e: { code?: string }) => {
+      if (e.code !== '42P04') throw e;
+    });
+    log(`база ${name} создана`);
+    return true;
+  } finally {
+    await sql.end({ timeout: 1 });
+  }
+}
+
+/** Версия сервера и кодировка базы: PostgreSQL 18+ и UTF8 (casefold и pg_unicode_fast требуют UTF8). */
+export function checkServer(versionNum: number, encoding: string): void {
+  if (versionNum < 180000) throw new Error(`letopis.up: нужен PostgreSQL 18 или новее, а сервер — ${Math.floor(versionNum / 10000)} (${versionNum})`);
+  if (encoding.toUpperCase() !== 'UTF8') throw new Error(`letopis.up: база в кодировке ${encoding}, нужна UTF8 (casefold и коллация pg_unicode_fast)`);
+}
+
+/** Ревизия движка схемы по комментарию 'letopis ddl_revision=N'; схемы нет — null. */
+export async function schemaRevision(sql: postgres.Sql, schema: string): Promise<number | null> {
+  const [r] = await sql`select obj_description(n.oid, 'pg_namespace') as c from pg_namespace n where n.nspname = ${schema}`;
+  if (!r) return null;
+  return Number(/ddl_revision=(\d+)/.exec(String(r.c ?? ''))?.[1] ?? 0);
+}
+
+/**
+ * Поставить или обновить установку letopis. Схема есть и её ревизия совпадает — повторный накат
+ * (идемпотентный); ревизия отстала — только с upgrade: true; новее библиотеки — отказ.
+ */
+export async function up(opts: UpOptions): Promise<UpResult> {
+  const log = opts.quiet ? () => {} : (m: string) => console.log(`letopis.up: ${m}`);
+  const schema = opts.schema.includes('.') ? opts.schema : `${SCHEMA_VERSION}.${opts.schema}`;
+  if (!SCHEMA_NAME.test(schema)) throw new Error(`letopis.up: bad schema name "${opts.schema}" (нужно <имя> или v<N>.<имя>)`);
+  let sql = opts.sql;
+  const own = !sql;
+  if (!sql) {
+    if (!opts.dsn) throw new Error('letopis.up: нужен dsn или sql');
+    const deadline = Date.now() + (opts.waitTimeoutMs ?? 60_000);
+    for (;;) {
+      const ping = await pgPing(opts.dsn);
+      if (ping.ok) break;
+      if (ping.kind === 'fatal') throw ping.err;
+      if (ping.kind === 'no-database') {
+        await ensureDatabase(opts.dsn, log);
+        continue;
+      }
+      if (Date.now() > deadline) throw new Error(`letopis.up: база ${new URL(opts.dsn).host} не готова за ${Math.round((opts.waitTimeoutMs ?? 60_000) / 1000)} с`);
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    sql = postgres(opts.dsn, { max: 1, onnotice: () => {} });
+  }
+  try {
+    const [srv] = await sql`select current_setting('server_version_num')::int as v, pg_encoding_to_char(encoding) as enc
+      from pg_database where datname = current_database()`;
+    checkServer(srv.v as number, srv.enc as string);
+    if (opts.fresh) {
+      await sql.unsafe(`drop schema if exists ${quoteIdent(schema)} cascade`);
+      log(`схема ${schema} удалена (fresh)`);
+    }
+    const before = await schemaRevision(sql, schema);
+    if (before !== null && before > DDL_REVISION) {
+      throw new Error(`letopis.up: схема ${schema} ревизии ${before}, а библиотека знает только ${DDL_REVISION} — обновите пакет`);
+    }
+    if (before !== null && before < DDL_REVISION && !opts.upgrade) {
+      throw new Error(`letopis.up: схема ${schema} ревизии ${before}, библиотека — ${DDL_REVISION}: обновите её up({ schema: '${schema}', upgrade: true })`);
+    }
+    const { dsn: _d, sql: _s, schema: _sc, fresh: _f, upgrade: _u, quiet: _q, waitTimeoutMs: _w, ...rest } = opts;
+    const res = await install(sql, { ...rest, schema, ...(before !== null && before < DDL_REVISION ? { migrateFrom: before } : {}) });
+    // ANALYZE — только там, где статистики ещё нет: на повторном накате это самая дорогая часть
+    const fresh = await sql`select relname from pg_stat_user_tables
+      where schemaname = ${schema} and last_analyze is null and last_autoanalyze is null order by relname`;
+    const analyzed = fresh.map((r) => r.relname as string);
+    for (const t of analyzed) await sql.unsafe(`analyze ${quoteIdent(schema)}.${quoteIdent(t)}`);
+    const revision = (await schemaRevision(sql, schema)) ?? 0;
+    log(`${before === null ? 'схема поставлена' : before < DDL_REVISION ? `схема обновлена с ревизии ${before}` : 'повторный накат'}: ${schema}, ревизия ${revision}`);
+    return { ...res, created: before === null, upgraded: before !== null && before < DDL_REVISION, revision, analyzed };
+  } finally {
+    if (own) await sql.end({ timeout: 5 });
+  }
 }

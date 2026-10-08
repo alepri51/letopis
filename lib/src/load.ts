@@ -748,9 +748,10 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     const waves = Math.max(...lists.map((l) => l.length));
     const prevHash = new Map<string, Buffer | null>();
     const lastPrev = new Map<string, Buffer | null>();
+    // волна — одна вставка с returning hash: хэши волны сразу становятся prev_hash следующей (мелкий
+    // COPY плюс отдельный запрос хэшей стоил по задержке TCP на волну)
     for (let w = 0; w < waves; w++) {
-      const lines: string[] = [];
-      const ids: string[] = [];
+      const items: Record<string, unknown>[] = [];
       for (const l of lists) {
         const i = l[w];
         if (i === undefined) continue;
@@ -762,16 +763,18 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
         const op = typeof r.$op === 'string' ? r.$op : w === 0 ? 'create' : 'update';
         const ph = prevHash.get(id) ?? null;
         if (w === l.length - 1) lastPrev.set(id, ph);
-        lines.push([id, w + 1, cls.name, cur.rev, tenant, tenant, JSON.stringify(sh.links), JSON.stringify(sh.data), '{}', r.$at,
-          SYSTEM_ID, agent, op, null, null, hex(ph), xid].map(esc).join('\t') + '\n');
-        ids.push(id);
+        items.push({ id, rev: w + 1, class: cls.name, cv: cur.rev, tenant, links: sh.links, data: sh.data, at: r.$at,
+          author: SYSTEM_ID, agent, op, ph: ph ? ph.toString('hex') : null, tx: xid });
         touched.add(cls.name);
       }
-      await copyLines(conn, `copy ${S}.log (${LOG_COLS}) from stdin`, lines);
-      if (w < waves - 1 && ids.length) {
-        for (const h of await conn.unsafe(`select id, hash from ${S}.log where id = any ($1::uuid[]) and rev = $2`, [ids, w + 1])) {
-          prevHash.set(h.id as string, h.hash as Buffer);
-        }
+      for (let k = 0; k < items.length; k += 5000) {
+        const res = await conn.unsafe(`insert into ${S}.log (${LOG_COLS})
+          select x.id, x.rev, x.class, x.cv, x.tenant, x.tenant, x.links, x.data, '{}', x.at, x.author, x.agent, x.op, null, null,
+                 decode(x.ph, 'hex'), x.tx::xid8
+          from jsonb_to_recordset($1::jsonb) as x(id uuid, rev int, class text, cv int, tenant uuid, links jsonb, data jsonb,
+                 at timestamptz, author uuid, agent text, op text, ph text, tx text)
+          returning id, hash`, [items.slice(k, k + 5000) as never]);
+        if (w < waves - 1) for (const h of res) prevHash.set(h.id as string, h.hash as Buffer);
       }
     }
     // текущее состояние — последняя версия, если она не надгробие; created_at — время первой версии

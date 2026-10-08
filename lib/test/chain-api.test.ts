@@ -46,7 +46,7 @@ test('охранники снесённого API: ошибка с версие�
   assert.throws(() => (any.watch as (c: string, cb: unknown) => void)('Staff', () => {}), removedErr(/watch\(\{ from \}\)/));
   assert.throws(() => (any.auth as Record<string, unknown>).sessions, removedErr(/в базе/));
   assert.throws(() => (any.acl as Record<string, unknown>).reload, removedErr(/сами/));
-  assert.throws(() => any.compact, removedErr(/обрезка истории/));
+  assert.throws(() => any.compact, removedErr(/trimHistory/));
   assert.throws(() => letopis.uuidv7(), removedErr(/uuidv5/));
   assert.throws(() => `${letopis.LETOPIS_NS}`, removedErr(/арендатора/));
   for (const opt of ['partition', 'enforceAccount', 'enforceAcl', 'container', 'image', 'dataDir', 'redisPort', 'version']) {
@@ -56,9 +56,8 @@ test('охранники снесённого API: ошибка с версие�
 
 test('зарезервированные имена: методы раньше классов; база отклоняет связь с таким именем', async () => {
   const chain = db.Staff() as unknown as Record<string, unknown>;
-  for (const m of ['create', 'update', 'upsert', 'delete', 'anonymize', 'reclass']) assert.equal(typeof chain[m], 'function', m);
-  for (const m of ['restore', 'purge', 'cache']) {
-    assert.throws(() => chain[m], (err: { code?: string }) => err.code === 'not_implemented', m);
+  for (const m of ['create', 'update', 'upsert', 'delete', 'anonymize', 'reclass', 'restore', 'purge', 'rekey', 'cache']) {
+    assert.equal(typeof chain[m], 'function', m);
   }
   // слот — только после глагола записи
   assert.throws(() => (db.Staff as unknown as Record<string, () => void>).set(), (err: { code?: string }) => err.code === 'invalid_query');

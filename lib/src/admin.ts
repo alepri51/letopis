@@ -1,0 +1,275 @@
+/**
+ * Эксплуатация (план, этап 6, п. 3, 4, 6–8, 12): verify, maintain и его запуск по расписанию, reset,
+ * обрезка истории, новый ключ класса, describe. Всё проверяет база: функции владельца 90-time.sql
+ * сами сверяют права (letopis.* — системный администратор или администраторское подключение).
+ */
+import type postgres from 'postgres';
+import { LetopisError } from './errors.js';
+import type { Registry } from './registry.js';
+import { runTx, type Executor, type TxContext } from './tx.js';
+import { CHAIN_METHODS, DB_METHODS } from './types.js';
+
+type Sql = postgres.Sql<Record<string, unknown>>;
+
+export interface VerifyIssue {
+  id: string;
+  rev?: number;
+  class?: string;
+  problem: string;
+  [k: string]: unknown;
+}
+
+export interface VerifyResult {
+  ok: boolean;
+  issues: VerifyIssue[];
+  /** Хэш всех голов цепочек — храните вне базы: подмену последних версий выдаст его расхождение. */
+  anchor: string;
+}
+
+export interface MaintainOptions {
+  /** Момент «сейчас» для прореживания — только в установке с allowReset (тесты). */
+  now?: string | Date;
+  /** Пачек прореживания за вызов (по умолчанию 100); каждая — своя транзакция. */
+  batches?: number;
+  /** Версий в пачке (по умолчанию 10 000). */
+  limit?: number;
+}
+
+export interface MaintainReport {
+  /** Другой процесс уже обслуживает установку (advisory-блокировка): этот вызов ничего не делал. */
+  skipped: boolean;
+  /** Удалено истёкших и погашенных сессий и одноразовых кодов. */
+  sessions: number;
+  codes: number;
+  /** Прорежено версий журнала. */
+  thinned: number;
+  batches: number;
+  /** Прореживание не дошло до конца журнала — следующий вызов продолжит. */
+  more: boolean;
+  /** Заполнение очереди сигналов PostgreSQL (0…1); больше половины — предупреждение. */
+  queue: number;
+}
+
+export interface ResetOptions {
+  level: 'sessions' | 'tenant' | 'all';
+  /** Подтверждение — имя схемы установки. */
+  confirm: string;
+  /** level: 'tenant' — арендатор (по умолчанию — арендатор сессии). */
+  tenant?: string;
+}
+
+export interface ResetResult {
+  level: string;
+  sessions?: number;
+  tenant?: string;
+  rows?: number;
+  versions?: number;
+  /** level: 'all' — новый ключ сервиса: прежние сессии и ключи больше не действуют. */
+  serviceKey?: string;
+}
+
+/** Машинное описание модели (db.describe()). */
+export interface ModelDescription {
+  schema: string;
+  tenant: string | null;
+  classes: {
+    name: string;
+    kind: 'hub' | 'link';
+    alias?: string;
+    abstract: boolean;
+    parent?: string;
+    ancestors: string[];
+    system: boolean;
+    fields: Record<string, unknown>;
+    required: string[];
+    ends: Record<string, unknown>;
+    key: string[];
+    history: unknown;
+    ownerDefault: string;
+    cache?: { ttl?: number };
+    meta: Record<string, unknown>;
+  }[];
+  methods: { chain: readonly string[]; db: readonly string[] };
+}
+
+const SYSTEM_CLASSES = new Set(['Class', 'Account', 'member', 'Resource', 'rule']);
+
+export interface AdminCtx {
+  sql: Sql;
+  schema: string;
+  /** Схема в кавычках. */
+  S: string;
+  txc: TxContext;
+  exec: Executor;
+  registry: () => Registry;
+  tenant: () => string | null;
+}
+
+const one = async <T>(a: AdminCtx, text: string, params: unknown[] = []): Promise<T> =>
+  a.exec.run(async (q) => ((await q.unsafe(text, params as never[])) as unknown as T[])[0]);
+
+export async function verify(a: AdminCtx, opts: { data?: boolean } = {}): Promise<VerifyResult> {
+  const r = await one<{ v: VerifyResult }>(a, `select ${a.S}.verify($1::boolean) as v`, [opts.data === true]);
+  return r.v;
+}
+
+/** Ключ advisory-блокировки обслуживания: форма с двумя int4, своё пространство (19541). */
+const MAINTAIN_LOCK = (schema: string) => [19541, schema] as const;
+
+/**
+ * Обслуживание: истёкшие сессии и коды, прореживание журнала пачками (каждая — своя транзакция,
+ * долгих блокировок нет), заполнение очереди сигналов. Под сеансовой advisory-блокировкой: из
+ * нескольких процессов работает один, остальные получают skipped.
+ */
+export async function maintain(a: AdminCtx, opts: MaintainOptions = {}): Promise<MaintainReport> {
+  if (a.exec.explicit) throw new LetopisError('invalid_query', 'maintain() — пачками в своих транзакциях, не внутри db.begin()');
+  const now = opts.now === undefined ? null : opts.now instanceof Date ? opts.now.toISOString() : opts.now;
+  const report: MaintainReport = { skipped: false, sessions: 0, codes: 0, thinned: 0, batches: 0, more: false, queue: 0 };
+  const lock = await a.sql.reserve();
+  try {
+    const [k1, k2] = MAINTAIN_LOCK(a.schema);
+    const [got] = await lock`select pg_try_advisory_lock(${k1}::int, hashtext(${k2})) as ok`;
+    if (!got?.ok) return { ...report, skipped: true };
+    try {
+      const max = opts.batches ?? 100;
+      for (let i = 0; i < max; i++) {
+        // пачка — своя транзакция на соединении, которое держит блокировку: пул из одного соединения не встанет
+        const [{ r }] = await runTx(a.txc, (q) => q.unsafe(`select ${a.S}.maintain($1::text::timestamptz, $2::int) as r`, [now, opts.limit ?? 10_000] as never[]), { conn: lock });
+        const b = r as { sessions: number; codes: number; thinned: number; more: boolean; queue: number };
+        report.sessions += b.sessions;
+        report.codes += b.codes;
+        report.thinned += b.thinned;
+        report.queue = Number(b.queue);
+        report.more = b.more;
+        report.batches++;
+        if (!b.more) break;
+      }
+    } finally {
+      await lock`select pg_advisory_unlock(${k1}::int, hashtext(${k2}))`;
+    }
+  } finally {
+    lock.release();
+  }
+  const warn = queueWarning(report.queue);
+  if (warn) console.warn(warn);
+  return report;
+}
+
+/** Предупреждение о заполненной очереди сигналов (§2.12): больше половины — зависший слушатель. */
+export function queueWarning(queue: number): string | null {
+  return queue > 0.5 ? `letopis: очередь сигналов PostgreSQL заполнена на ${(queue * 100).toFixed(0)} % — проверьте зависших слушателей` : null;
+}
+
+/** Интервал расписания: число мс или '30s', '15m', '1h', '1d'. */
+export function parseInterval(v: string | number): number {
+  if (typeof v === 'number') return v;
+  const m = /^(\d+(?:\.\d+)?)\s*(ms|s|m|h|d)$/.exec(v.trim());
+  if (!m) throw new LetopisError('invalid_data', `интервал ${v}: число мс или '30s', '15m', '1h', '1d'`);
+  const n = Number(m[1]);
+  return n * { ms: 1, s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }[m[2] as 'ms']!;
+}
+
+/** Запуск maintain() по расписанию (connect({ maintain: '1h' })): ошибки — предупреждением. */
+export function scheduleMaintain(run: () => Promise<unknown>, every: string | number): () => void {
+  const ms = parseInterval(every);
+  let busy = false;
+  const timer = setInterval(() => {
+    if (busy) return;
+    busy = true;
+    run().catch((e) => console.warn(`letopis: maintain по расписанию: ${(e as Error).message}`)).finally(() => (busy = false));
+  }, ms);
+  timer.unref?.();
+  return () => clearInterval(timer);
+}
+
+/**
+ * Сброс (этап 6, п. 6). Предохранители — в базе: флаг allowReset установки, право letopis.reset,
+ * подтверждение именем схемы. tenant — пачками (длинная операция не держит горизонт подписок).
+ */
+export async function reset(a: AdminCtx, opts: ResetOptions): Promise<ResetResult> {
+  if (opts.level === 'tenant') {
+    if (a.exec.explicit) throw new LetopisError('invalid_query', "reset({ level: 'tenant' }) — пачками в своих транзакциях, не внутри db.begin()");
+    let rows = 0;
+    let versions = 0;
+    for (;;) {
+      const [{ r }] = await runTx(a.txc, (q) => q.unsafe(`select ${a.S}.reset($1, $2, $3::uuid, 10000) as r`, [opts.level, opts.confirm, opts.tenant ?? null] as never[]));
+      const b = r as { tenant: string; rows: number; versions: number; done: boolean };
+      rows += b.rows;
+      versions += b.versions;
+      if (b.done) return { level: opts.level, tenant: b.tenant, rows, versions };
+    }
+  }
+  const r = await one<{ r: ResetResult }>(a, `select ${a.S}.reset($1, $2, $3::uuid) as r`, [opts.level, opts.confirm, opts.tenant ?? null]);
+  return r.r;
+}
+
+/**
+ * Обрезка истории (этап 6, п. 3): версии строже момента before удаляются, текущая — никогда; на место
+ * версии 1 встаёт запись trim. target — имя класса (с потомками), id или список id, строка ответа.
+ */
+export async function trimHistory(a: AdminCtx, target: string | string[] | { id: string } | { id: string }[], before: string | Date): Promise<number> {
+  const at = before instanceof Date ? before.toISOString() : before;
+  let ids: string[] | null = null;
+  let classes: string[] | null = null;
+  if (typeof target === 'string' && a.registry().has(target)) {
+    classes = a.registry().family(target).map((c) => c.name);
+  } else {
+    const list = Array.isArray(target) ? target : [target];
+    ids = list.map((x) => (typeof x === 'string' ? x : x.id));
+  }
+  const r = await one<{ n: number }>(a, `select ${a.S}.trim_history($1::uuid[], $2::text[], $3::text::timestamptz) as n`, [ids, classes, at]);
+  return r.n;
+}
+
+/** Новый ключ класса (этап 6, п. 7): строки семейства переносятся на новые id. Возвращает их число. */
+export async function rekeyClass(a: AdminCtx, cls: string, key: string[]): Promise<number> {
+  const name = a.registry().resolve(cls).name;
+  const r = await one<{ n: number }>(a, `select ${a.S}.rekey_class($1, $2::jsonb) as n`, [name, key]);
+  return r.n;
+}
+
+/** Машинное описание модели арендатора вместе с метаданными классов (этап 6, п. 12). */
+export function describe(a: AdminCtx): ModelDescription {
+  const classes = a.registry().all().map((c) => ({
+    name: c.name,
+    kind: c.kind,
+    ...(c.alias ? { alias: c.alias } : {}),
+    abstract: c.abstract,
+    ...(c.ancestors[1] ? { parent: c.ancestors[1] } : {}),
+    ancestors: c.ancestors,
+    system: SYSTEM_CLASSES.has(c.name),
+    fields: (c.schema.properties ?? {}) as Record<string, unknown>,
+    required: (c.schema.required ?? []) as string[],
+    ends: c.ends as Record<string, unknown>,
+    key: c.key,
+    history: c.history,
+    ownerDefault: c.ownerDefault,
+    ...(c.cache ? { cache: c.cache } : {}),
+    meta: c.meta,
+  })).sort((x, y) => Number(x.system) - Number(y.system) || x.name.localeCompare(y.name));
+  return { schema: a.schema, tenant: a.tenant(), classes, methods: { chain: CHAIN_METHODS, db: DB_METHODS } };
+}
+
+/** Описание модели текстом для языковых моделей (llms.txt). */
+export function describeText(d: ModelDescription): string {
+  const out: string[] = [`# letopis: модель схемы ${d.schema}`, '',
+    'Цепочка: db.Класс(фильтр).Связь().Класс().rows(); запись — create, update, upsert, delete; история — versions(), asOf(), withDeleted().', ''];
+  for (const c of d.classes) {
+    const title = typeof c.meta.title === 'string' ? ` — ${c.meta.title}` : '';
+    out.push(`## ${c.name}${c.alias ? ` (${c.alias})` : ''}${title}`);
+    out.push(`- вид: ${c.kind === 'hub' ? 'хаб (объект)' : 'связь'}${c.abstract ? ', абстрактный' : ''}${c.parent ? `, предок ${c.parent}` : ''}${c.system ? ', системный' : ''}`);
+    out.push(`- ключ: ${c.key.length ? c.key.join(', ') : 'нет (id выдаёт база)'}`);
+    const fields = Object.entries(c.fields).map(([k, v]) => {
+      const t = (v as { type?: unknown; format?: unknown }).type;
+      return `${k}${c.required.includes(k) ? '*' : ''}: ${Array.isArray(t) ? t.join('|') : (t as string | undefined) ?? 'any'}`;
+    });
+    if (fields.length) out.push(`- поля: ${fields.join(', ')}`);
+    const ends = Object.entries(c.ends).map(([k, v]) => {
+      const e = v as { class: string | string[]; many?: boolean; required?: boolean };
+      return `${k}${e.required ? '*' : ''} → ${Array.isArray(e.class) ? e.class.join('|') : e.class}${e.many ? '[]' : ''}`;
+    });
+    if (ends.length) out.push(`- концы: ${ends.join(', ')}`);
+    out.push('');
+  }
+  return out.join('\n');
+}

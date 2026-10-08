@@ -3,7 +3,7 @@
  */
 
 /** Ревизия движка в базе: штамп в lib/sql/99-revision.sql должен совпадать (этап 1). */
-export const DDL_REVISION = 3;
+export const DDL_REVISION = 4;
 
 // ---------------------------------------------------------------------------
 // Методы цепочки — единственный источник зарезервированных имён (план, §2.14, этап 3, п. 10)
@@ -14,7 +14,7 @@ export const CHAIN_METHODS = [
   'then', 'entity', 'paths', 'rows', 'first', 'ids', 'count', 'limit', 'offset', 'sort', 'asOf', 'withDeleted',
   'deep', 'exact', 'sum', 'avg', 'min', 'max', 'countBy', 'after', 'versions', 'create', 'update', 'upsert', 'set',
   'unset', 'add', 'remove', 'delete', 'anonymize', 'reclass', 'restore', 'purge', 'alias', 'tags', 'owner',
-  'forUpdate', 'cache', 'run', 'execute', 'account',
+  'forUpdate', 'cache', 'rekey', 'run', 'execute', 'account',
 ] as const;
 
 /** Свойства корня db (и транзакции db.begin()). */
@@ -22,6 +22,7 @@ export const DB_METHODS = [
   'as', 'begin', 'commit', 'rollback', 'lock', 'batch', 'watch', 'close', 'registry', 'sql', 'load', 'verify',
   'maintain', 'reset', 'describe', 'auth', 'acl', 'idOf', 'refresh', 'transaction', 'flushSignals', 'schema',
   'token', 'tenant', 'reloadSchema', 'accounts', 'credentials', 'resources', 'rules', 'compact',
+  'trimHistory', 'rekeyClass', 'cache',
 ] as const;
 
 /** Свойства батча db.batch(name). */
@@ -66,6 +67,10 @@ export interface Row<D = Record<string, unknown>, L = Record<string, string | st
   $upsert?: 'created' | 'updated' | 'unchanged';
   /** Превью удаления (delete() без confirm): удалится, снимется конец или помешает (restrict). */
   $action?: 'delete' | 'unset' | 'restrict';
+  /** purge(): число версий в журнале (превью) или стёртых. */
+  $versions?: number;
+  /** purge({ confirm: true }): история стёрта. */
+  $purged?: true;
 }
 
 /** Путь paths(): узел на каждый шаг цепочки. */
@@ -110,6 +115,10 @@ export interface ChainMods {
   withDeleted?: boolean;
   /** Чтение с блокировкой строк последнего шага (только в db.begin()). */
   forUpdate?: boolean;
+  /** versions({ follow: true }): история и через смену id (reclass, rekey) по колонке moved. */
+  follow?: boolean;
+  /** Кэш результатов (§2.12): .cache() — срок по умолчанию, .cache({ ttl }) — свой, секунды. */
+  cache?: { ttl?: number };
 }
 
 /** Событие хука onQuery: один запрос цепочки. */

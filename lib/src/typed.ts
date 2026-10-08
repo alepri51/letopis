@@ -49,14 +49,15 @@ export type PatchOf<T> = {
 };
 
 type Retyped = 'paths' | 'rows' | 'first' | 'versions' | 'limit' | 'offset' | 'sort' | 'asOf' | 'after' | 'withDeleted' | 'deep' | 'exact'
-  | 'alias' | 'tags' | 'owner' | 'create' | 'update' | 'upsert' | 'delete' | 'anonymize' | 'reclass' | 'forUpdate';
+  | 'alias' | 'tags' | 'owner' | 'create' | 'update' | 'upsert' | 'delete' | 'anonymize' | 'reclass' | 'forUpdate'
+  | 'restore' | 'purge' | 'rekey' | 'cache';
 
 /** Цепочка с текущим классом C: терминалы отдают RowOf<C>, шаги — по моделям M; роли и прочие классы — без типов. */
 export type TypedChain<C, M extends readonly AnyModelLike[]> = Omit<ChainCore, Retyped> & {
   paths(): Promise<Path[]>;
   rows(): Promise<RowOf<C>[]>;
   first(): Promise<RowOf<C> | null>;
-  versions(): Promise<RowOf<C>[]>;
+  versions(opts?: { follow?: boolean }): Promise<RowOf<C>[]>;
   limit(n: number): TypedChain<C, M>;
   offset(n: number): TypedChain<C, M>;
   sort(field: 'at' | 'rev' | 'id' | `data.${string}`, dir?: 'asc' | 'desc' | boolean): TypedChain<C, M>;
@@ -75,4 +76,8 @@ export type TypedChain<C, M extends readonly AnyModelLike[]> = Omit<ChainCore, R
   anonymize(fields: (keyof DataOf<C> & string)[]): TypedChain<C, M>;
   reclass(cls: string, data?: Record<string, unknown>): TypedChain<unknown, M>;
   forUpdate(): TypedChain<C, M>;
+  restore(): TypedChain<C, M>;
+  purge(opts?: { confirm?: boolean }): TypedChain<C, M>;
+  rekey(patch: Partial<DataOf<C>> & Partial<Record<keyof LinksOf<C>, string | { id: string }>>): TypedChain<C, M>;
+  cache(opts?: { ttl?: number }): TypedChain<C, M>;
 } & StepsOf<M> & { [step: string]: StepFn };

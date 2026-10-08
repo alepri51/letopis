@@ -1,6 +1,7 @@
 /**
  * Запись планами (план, §2.5, этап 4, п. 1–7, 10): глаголы create, update, upsert, delete, anonymize
- * и reclass — звенья цепочки; терминал исполняет весь план одной транзакцией.
+ * и reclass — звенья цепочки; терминал исполняет весь план одной транзакцией. Этап 6: restore и
+ * purge — над удалёнными объектами шага, rekey — новое значение ключа (функции базы).
  *
  *   await db.Org(org).Staff().create({ name: 'Вася', phone: '+7' }).rows()      // концы из пути: { Org }
  *   await db.Customer(c).booking({ notes: 'x' }).update({ notes: 'y' }).rows()
@@ -59,7 +60,10 @@ export type PlanOp =
   | { kind: 'upsert'; data: Record<string, unknown> }
   | { kind: 'delete'; confirm: boolean }
   | { kind: 'anonymize'; fields: string[] }
-  | { kind: 'reclass'; cls: string; data?: Record<string, unknown> };
+  | { kind: 'reclass'; cls: string; data?: Record<string, unknown> }
+  | { kind: 'restore' }
+  | { kind: 'purge'; confirm: boolean }
+  | { kind: 'rekey'; data: Record<string, unknown> };
 
 /** Значение слота: id, список id, строка ответа или ленивая цепочка (в той же транзакции). */
 export type SlotValue = string | string[] | { id: string } | null | { plan: Step[]; mods: ChainMods };
@@ -132,8 +136,8 @@ export function splitPatch(patch: Record<string, unknown>): { rest: Record<strin
 // Проверки до отправки (precheckPlan)
 // ---------------------------------------------------------------------------
 
-/** Данные create/upsert: объект без маркеров; ранняя проверка валидатором на TypeScript. */
-function checkFullData(cls: ClassInfo, data: unknown, verb: string): void {
+/** Данные create/upsert: объект без маркеров; ранняя проверка валидатором на TypeScript (full — объект целиком). */
+function checkFullData(cls: ClassInfo, data: unknown, verb: string, full = true): void {
   if (!isPlain(data)) fail('invalid_data', `${verb}(): данные — объект`);
   const scan = (v: unknown, path: string[]): void => {
     if (isInc(v)) fail('invalid_data', `inc() работает только в update(): ${verb}() по пути ${path.join('.')}`);
@@ -143,7 +147,7 @@ function checkFullData(cls: ClassInfo, data: unknown, verb: string): void {
   };
   scan(data, []);
   // описания системных классов проверяет только база (метасхема Class, class_admit)
-  if (cls.name === 'Class' || cls.abstract) return;
+  if (!full || cls.name === 'Class' || cls.abstract) return;
   const issues = cls.validator()(applyDefaults(cls.schema, data));
   if (issues.length) throw new ValidationError(cls.name, issues);
 }
@@ -160,7 +164,9 @@ export function precheckPlan(reg: Registry, steps: Step[]): void {
     }
     const verb = op.kind;
     const m = s.opMods ?? {};
-    if (m.asOf !== undefined || m.withDeleted) fail('invalid_query', `${verb}(): asOf и withDeleted описывают прошлое — записывать в него нельзя`);
+    if (m.asOf !== undefined) fail('invalid_query', `${verb}(): asOf описывает прошлое — записывать в него нельзя`);
+    // restore и purge сами ищут удалённые объекты шага
+    if (m.withDeleted && verb !== 'restore' && verb !== 'purge') fail('invalid_query', `${verb}(): withDeleted описывает удалённые — записывать в них нельзя`);
     switch (op.kind) {
       case 'create':
       case 'upsert':
@@ -193,6 +199,12 @@ export function precheckPlan(reg: Registry, steps: Step[]): void {
         if (op.data !== undefined) checkFullData(reg.resolve(op.cls), op.data, 'reclass');
         break;
       case 'delete':
+      case 'restore':
+      case 'purge':
+        break;
+      case 'rekey':
+        if (!s.cls.key.length) fail('no_key', `rekey(): у класса ${s.cls.name} нет ключа — id выдаёт база, менять нечего`);
+        checkFullData(s.cls, op.data, 'rekey', false);
         break;
     }
     for (const sl of s.slots ?? []) {
@@ -539,6 +551,68 @@ async function reclassOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<Writ
   return res.map((r) => toRow(r.row));
 }
 
+/** Удалённые объекты шага (restore, purge): живые цели без удалённых — not_deleted. */
+async function deletedTargets(w: WriteCtx, steps: Step[], opStep: Step, verb: string): Promise<Row[]> {
+  const rows = await readRows(w, steps.map(bare), { ...(opStep.opMods ?? {}), withDeleted: true });
+  const dead = rows.filter((r) => r.$deleted);
+  if (!dead.length && rows.length) fail('not_deleted', `объект не удалён: ${verb}() — только для удалённых${verb === 'purge' ? ', сначала delete()' : ''}`, { ids: rows.map((r) => r.id) });
+  return dead;
+}
+
+/** Восстановление (этап 6, п. 2): последний снимок новой версией; база перепроверяет его по текущему описанию. */
+async function restoreOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {
+  const S = quoteId(w.schema);
+  const dead = await deletedTargets(w, steps, opStep, 'restore');
+  if (!dead.length) return [];
+  const ids = dead.map((r) => r.id);
+  await query(w, `select ${S}.restore(x) from unnest($1::uuid[]) with ordinality as u(x, i) order by u.i`, [ids]);
+  const res = await query<{ row: Record<string, unknown> }>(w, `select ${rowJson('e')} as row from ${S}.entity e where e.id = any ($1::uuid[]) order by e.id`, [ids]);
+  return res.map((r) => toRow(r.row));
+}
+
+/**
+ * Стирание истории удалённых (этап 6, п. 3): без { confirm: true } — превью (надгробия и число
+ * версий $versions), с ним — версии стёрты, на месте версии 1 — запись purge ($purged).
+ */
+async function purgeOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {
+  const op = opStep.op as { kind: 'purge'; confirm: boolean };
+  const S = quoteId(w.schema);
+  const dead = await deletedTargets(w, steps, opStep, 'purge');
+  const out: WriteRow[] = [];
+  for (const row of dead) {
+    const [{ r }] = await query<{ r: { versions: number; purged: boolean } }>(w, `select ${S}.purge($1::uuid, $2::boolean) as r`, [row.id, op.confirm]);
+    out.push({ ...row, $versions: r.versions, ...(r.purged ? { $purged: true as const } : {}) });
+  }
+  return out;
+}
+
+/** Новое значение ключа (этап 6, п. 7): строка с новым id, ссылки переведены, журнал связывает id. */
+async function rekeyOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {
+  const op = opStep.op as { kind: 'rekey'; data: Record<string, unknown> };
+  const S = quoteId(w.schema);
+  const ids = await targetIds(w, steps, opStep);
+  if (!ids.length) return [];
+  // поля — в данные, роли концов — в концы
+  const data: Record<string, unknown> = {};
+  const links: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(op.data)) {
+    if (opStep.cls.ends[k]) links[k] = typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as { id: string }).id : v;
+    else data[k] = v;
+  }
+  const moved: string[] = [];
+  for (const id of ids) {
+    try {
+      const [{ id: nid }] = await query<{ id: string }>(w, `select ${S}.rekey($1::uuid, $2::jsonb, $3::jsonb) as id`, [id, data, links]);
+      moved.push(nid);
+    } catch (e) {
+      if (isPkConflict(e)) throw Object.assign(new LetopisError('exists', `rekey(): объект класса ${opStep.cls.name} с таким ключом уже существует`, { id }), { cause: e });
+      throw e;
+    }
+  }
+  const res = await query<{ row: Record<string, unknown> }>(w, `select ${rowJson('e')} as row from ${S}.entity e where e.id = any ($1::uuid[]) order by e.id`, [moved]);
+  return res.map((r) => toRow(r.row));
+}
+
 function opCall(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {
   switch (opStep.op!.kind) {
     case 'create': return createOp(w, steps, opStep, false);
@@ -547,6 +621,9 @@ function opCall(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {
     case 'delete': return deleteOp(w, steps, opStep);
     case 'anonymize': return anonymizeOp(w, steps, opStep);
     case 'reclass': return reclassOp(w, steps, opStep);
+    case 'restore': return restoreOp(w, steps, opStep);
+    case 'purge': return purgeOp(w, steps, opStep);
+    case 'rekey': return rekeyOp(w, steps, opStep);
   }
 }
 
@@ -612,10 +689,11 @@ export async function execPlan(w: WriteCtx, steps: Step[], mods: ChainMods, mode
     } else {
       last = await opCall(w, [fromRows(prevOp!, start.map((r) => r.id)), ...seg.steps], opStep);
     }
-    // после удаления продолжение — от удалённых строк класса цели (замыкание каскада шире)
+    // после удаления продолжение — от удалённых строк класса цели (замыкание каскада шире); после
+    // стирания истории продолжать не от чего
     start = kind === 'delete' && (opStep.op as { confirm: boolean }).confirm
       ? last.filter((r) => stepClasses(w.reg, opStep).includes(r.class))
-      : last;
+      : kind === 'purge' ? [] : last;
     prevOp = opStep;
   }
   const opStep = segments[segments.length - 1].steps.at(-1)!;

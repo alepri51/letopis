@@ -14,6 +14,7 @@
 | `@PGCRYPTO@` | схема, где установлен pgcrypto (`pg_extension.extnamespace`) |
 | `@SYSTEM@` | id системного арендатора System: `2eba6d0a-1edd-4bb6-a85a-a703dab49035` (как в 0.21) |
 | `@ALLOW_RESET@` | `true` или `false` — константа установки |
+| `@HISTORY_DEFAULT@` | политика хранения по умолчанию `up({ history })` литералом JSON или `'null'` — константа установки |
 | `@RESERVED_NAMES@` | методы цепочки — `RESERVED_CLASS_NAMES` из `lib/src/types.ts`, литералами через запятую |
 
 ## Колонки снимка версии
@@ -46,7 +47,10 @@
 | LT015 | `recreated_in_statement` | id удалён и создан заново одним оператором |
 | LT016 | `cursor_expired` | курсор подписки старше яруса `all` (этап 6) |
 | LT017 | `delete_restricted` | удалению мешают ссылающиеся строки (`onDelete: restrict`); в деталях `rows`, `others` |
+| LT018 | `not_deleted` | `restore` и `purge` — только для удалённых объектов (этап 6) |
+| LT019 | `reset_disabled` | флаг `allowReset` установки выключен: `reset` и `maintain(now)` недоступны (этап 6) |
+| LT020 | `confirm_mismatch` | подтверждение сброса не совпадает с именем схемы (этап 6) |
 
 ## Порядок файлов
 
-`10-core` → `15-errors` → `20-context` → `30-validate` → `40-class` → `50-acl` → `60-write` → `70-read` → `80-auth` → (`90-time` на этапе 6) → `95-seed.system` → `99-revision`.
+`10-core` → `15-errors` → `20-context` → `30-validate` → `40-class` → `50-acl` → `60-write` → `70-read` → `80-auth` → `90-time` → `95-seed.system` → `99-revision`. Миграции между ревизиями — `migrate/NNNN-*.sql` (номер — ревизия, к которой ведёт), их применяет `up({ upgrade: true })` до повторного наката.

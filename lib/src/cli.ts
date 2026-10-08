@@ -1,25 +1,31 @@
 #!/usr/bin/env node
 /**
- * CLI letopis (план, этап 2, п. 7; этап 4, п. 11): `letopis sync`, `letopis types`, `letopis load`.
- * Команды import, verify, maintain появятся на этапах 6 и 7.
+ * CLI letopis (план, этап 2, п. 7; этап 4, п. 11; этап 6, п. 4, 8, 12): `letopis sync`, `types`, `load`,
+ * `verify`, `maintain`, `describe`. Команда import появится на этапе 7.
  *
  *   letopis sync <модуль моделей> --dsn … --schema v2.x (--token … | --api-key …) [--apply]
  *   letopis types --dsn … --schema v2.x (--token … | --api-key …) [--out types.d.ts]
  *   letopis load <файлы NDJSON…> --dsn … --schema v2.x (--token … | --api-key …) [--class C]
  *     [--duplicates error|first|last] [--existing error|skip|update] [--commit-every N] [--verify]
+ *   letopis verify --dsn … --schema v2.x [--token … | --api-key …] [--data]   — код 1 при находках
+ *   letopis maintain --dsn … --schema v2.x [--token … | --api-key …] [--batches N]
+ *   letopis describe --dsn … --schema v2.x (--token … | --api-key …) [--format json|text] [--out файл]
  */
 import { parseArgs } from 'node:util';
 import { readFile, writeFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
-import { connect } from './index.js';
+import { connect, describeText } from './index.js';
 import { syncModels, generateTypes } from './sync.js';
 import type { AnyModel } from './model.js';
 
 const USAGE = `letopis sync <модуль> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--apply]
 letopis types --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--out <файл>]
 letopis load <файлы…> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--class <Класс>]
-  [--duplicates error|first|last] [--existing error|skip|update] [--commit-every <N>] [--verify]`;
+  [--duplicates error|first|last] [--existing error|skip|update] [--commit-every <N>] [--verify]
+letopis verify --dsn <строка> --schema <v2.имя> [--token <токен> | --api-key <ключ>] [--data]
+letopis maintain --dsn <строка> --schema <v2.имя> [--token <токен> | --api-key <ключ>] [--batches <N>]
+letopis describe --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--format json|text] [--out <файл>]`;
 
 const isModel = (v: unknown): v is AnyModel => typeof v === 'object' && v !== null && typeof (v as AnyModel).describe === 'function' && typeof (v as AnyModel).name === 'string';
 
@@ -31,7 +37,8 @@ export async function main(argv: string[]): Promise<number> {
       dsn: { type: 'string' }, schema: { type: 'string' }, token: { type: 'string' }, 'api-key': { type: 'string' },
       apply: { type: 'boolean' }, out: { type: 'string' }, help: { type: 'boolean' },
       class: { type: 'string' }, duplicates: { type: 'string' }, existing: { type: 'string' }, 'commit-every': { type: 'string' },
-      verify: { type: 'boolean' }, trust: { type: 'boolean' },
+      verify: { type: 'boolean' }, trust: { type: 'boolean' }, data: { type: 'boolean' }, batches: { type: 'string' },
+      format: { type: 'string' },
     },
   });
   const [cmd, arg] = positionals;
@@ -41,7 +48,8 @@ export async function main(argv: string[]): Promise<number> {
   }
   // загрузчику нужно администраторское подключение (§2.6, п. 1)
   const db = await connect({ dsn: values.dsn, schema: values.schema, token: values.token, apiKey: values['api-key'], max: 2,
-    ...(cmd === 'load' ? { allowBypassRls: true } : {}) });
+    // verify и maintain работают и на администраторском подключении без сессии
+    ...(cmd === 'load' || cmd === 'verify' || cmd === 'maintain' ? { allowBypassRls: true } : {}) });
   try {
     if (cmd === 'sync') {
       if (!arg) { console.log(USAGE); return 2; }
@@ -72,6 +80,23 @@ export async function main(argv: string[]): Promise<number> {
         verify: values.verify,
       });
       console.log(JSON.stringify(r));
+      return 0;
+    }
+    if (cmd === 'verify') {
+      const r = await db.verify({ data: values.data });
+      console.log(JSON.stringify(r, null, 2));
+      return r.ok ? 0 : 1;
+    }
+    if (cmd === 'maintain') {
+      const r = await db.maintain({ batches: values.batches ? Number(values.batches) : undefined });
+      console.log(JSON.stringify(r));
+      return 0;
+    }
+    if (cmd === 'describe') {
+      const d = db.describe();
+      const text = values.format === 'text' ? describeText(d) : JSON.stringify(d, null, 2);
+      if (values.out) await writeFile(values.out, text);
+      else console.log(text);
       return 0;
     }
     if (cmd === 'types') {

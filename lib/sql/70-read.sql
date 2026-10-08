@@ -17,7 +17,8 @@
 --
 -- Источник — текущее состояние (entity) или журнал: версии, действовавшие на момент p_at (срез
 -- asOf), либо надгробия удалённых (p_dead, для withDeleted). Возвращается rev версии: строки
--- журнала читаются по паре (id, rev) через уникальный индекс log_id_rev.
+-- журнала читаются по паре (id, rev) через уникальный индекс log_id_rev. Записи purge, trim и reset
+-- (этап 6) — не версии объекта: на момент после них объекта в срезе нет.
 
 -- Цели концов строки: всех (p_roles is null) или только перечисленных ролей.
 create or replace function @SCHEMA@.role_ids(p_links jsonb, p_roles text[]) returns uuid[]
@@ -84,7 +85,7 @@ begin
         from @SCHEMA@.log l
         where l.id = any (p_ids) and l.at <= coalesce(p_at, 'infinity'::timestamptz)
         order by l.id, l.rev desc) v
-      where v.class = any (p_classes) and (v.op = 'delete') = p_dead
+      where v.class = any (p_classes) and (v.op = 'delete') = p_dead and v.op not in ('purge', 'trim', 'reset')
         and (p_data is null or v.data @> p_data) and (p_ends is null or @SCHEMA@.link_ids(v.links) @> p_ends)
         and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan);
   else
@@ -93,7 +94,7 @@ begin
         from @SCHEMA@.log l
         where l.class = any (p_classes) and l.at <= coalesce(p_at, 'infinity'::timestamptz)
         order by l.id, l.rev desc) v
-      where (v.op = 'delete') = p_dead
+      where (v.op = 'delete') = p_dead and v.op not in ('purge', 'trim', 'reset')
         and (p_data is null or v.data @> p_data) and (p_ends is null or @SCHEMA@.link_ids(v.links) @> p_ends)
         and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan);
   end if;
@@ -138,7 +139,7 @@ begin
       from v
       cross join lateral unnest(@SCHEMA@.link_ids(v.links)) t(x)
       join (select distinct u.x as src from unnest(p_src) u(x)) s on s.src = t.x
-      where (v.op = 'delete') = p_dead
+      where (v.op = 'delete') = p_dead and v.op not in ('purge', 'trim', 'reset')
         and (p_data is null or v.data @> p_data) and (p_ends is null or @SCHEMA@.link_ids(v.links) @> p_ends)
         and (p_roles is null or @SCHEMA@.role_has(v.links, p_roles, s.src))
         and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan);
@@ -189,7 +190,7 @@ begin
           from @SCHEMA@.log l
           where l.class = any (p_classes) and l.at <= p_at
           order by l.id, l.rev desc) w
-        where w.op <> 'delete' and @SCHEMA@.row_visible(w.tenant, w.class, w.id, w.owner, w.tags, w.data, w.links, c_tenant, c_account, c_plan)),
+        where w.op not in ('delete', 'purge', 'trim', 'reset') and @SCHEMA@.row_visible(w.tenant, w.class, w.id, w.owner, w.tags, w.data, w.links, c_tenant, c_account, c_plan)),
       d(src, id, rev, depth, seen) as (
         select s.src, v.id, v.rev, 1, array[s.src, v.id]
         from (select distinct u.x as src from unnest(p_src) u(x)) s

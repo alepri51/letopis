@@ -28,10 +28,11 @@ letopis 1.0 — хранилище версионированных сущнос
 - методы цепочки: `then`, `entity`, `paths`, `rows`, `first`, `ids`, `count`, `limit`, `offset`, `sort`, `asOf`,
   `withDeleted`, `deep`, `exact`, `sum`, `avg`, `min`, `max`, `countBy`, `after`, `versions`, `create`, `update`,
   `upsert`, `set`, `unset`, `add`, `remove`, `delete`, `anonymize`, `reclass`, `restore`, `purge`, `alias`, `tags`,
-  `owner`, `forUpdate`, `cache`; охранники снесённого API — `run`, `execute`, `account`;
+  `owner`, `forUpdate`, `cache`, `rekey`; охранники снесённого API — `run`, `execute`, `account`;
 - корень `db`: `as`, `begin`, `commit`, `rollback`, `lock`, `batch`, `watch`, `close`, `registry`, `sql`, `load`,
   `verify`, `maintain`, `reset`, `describe`, `auth`, `acl`, `idOf`, `refresh`, `transaction`, `flushSignals`,
-  `schema`, `token`, `tenant`; охранники — `reloadSchema`, `accounts`, `credentials`, `resources`, `rules`, `compact`;
+  `schema`, `token`, `tenant`, `trimHistory`, `rekeyClass`, `cache`; охранники — `reloadSchema`, `accounts`,
+  `credentials`, `resources`, `rules`, `compact`;
 - батч: `discard`, `size`.
 
 ## 11. API
@@ -213,4 +214,13 @@ const tok = await svc.auth.sessionFor(r.account, { ttl: 600 })   // коротк
 # tx — явные транзакции db.begin(): сломанная транзакция, lock(), 40P01; forUpdate(); батч и его склейка; db.as(…, { owner }) (этап 4)
 # v5 — идентификаторы v5 на стороне SQL против векторов независимой реализации (этап 1)
 # zod-output — снимок вывода z.toJSONSchema() по видам полей демо-домена против эталона (этап 0)
+# time — история: versions({ follow }) через reclass и rekey, withDeleted, restore, purge, обрезка истории, удаление аккаунта (этап 6)
+# rekey — новое значение ключа объекта и новый ключ класса: новые id, перевод ссылок, рекурсия по связям с концом в ключе (этап 6)
+# reset — сброс sessions, tenant, all: флаг allowReset, право letopis.reset, подтверждение именем схемы, запись reset, новый ключ сервиса (этап 6)
+# verify — законные разрывы и подмены, verify({ data: true }): данные, концы, арендаторы, id по ключу; права и CLI (этап 6)
+# retention — политика хранения: ярусы, конечный срок, особые версии, удалённые, asOf, cursor_expired, часовой пояс, догоняющий запуск, наследование и умолчание — против эталона на TypeScript (этап 6)
+# watch — подписка по курсору: порядок фиксации, долгая транзакция, возобновление, обрыв слушателя, два арендатора (этап 6)
+# cache — кэш результатов: попадание, свои и чужие записи, ключ с пользователем, права, погашенные сессии, обрыв слушателя, ttl, пометка класса, без LISTEN, гонка, db.sql (этап 6)
+# maintain — обслуживание: истёкшие сессии и коды, права, один процесс под блокировкой, расписание (этап 6)
+# up — полный установщик: свежая установка, повторный накат, свои сиды, автосоздание базы, UTF8, версия 17, upgrade с миграциями (этап 6)
 ```

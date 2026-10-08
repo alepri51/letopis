@@ -90,6 +90,8 @@ create table if not exists @SCHEMA@.log (
 );
 create index if not exists log_class_at on @SCHEMA@.log (class, at);
 create index if not exists log_tx_seq on @SCHEMA@.log (tx, seq);
+-- versions({ follow: true }): переход по связи старого и нового id при reclass и rekey (этап 6)
+create index if not exists log_moved on @SCHEMA@.log (moved) where moved is not null;
 -- журнал часто прореживается (§2.11): чаще чистим
 alter table @SCHEMA@.log set (autovacuum_vacuum_scale_factor = 0.02, autovacuum_analyze_scale_factor = 0.02);
 

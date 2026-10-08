@@ -35,7 +35,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 | M-QUERY | `find_ids()`, построитель чтения, кэш | `lib/sql/70-read.sql`, `lib/src/sql.ts` | 3, 6 |
 | M-WRITE | планы, батч, транзакции, загрузчик | `lib/src/write.ts`, `lib/src/tx.ts`, `lib/src/load.ts` | 4 |
 | M-API | `connect`, Proxy цепочек, ошибки, охранники | `lib/src/index.ts`, `lib/src/chain.ts`, `lib/src/errors.ts` | 2–4 |
-| M-TIME | история, хранение, подписка, `reset`, `maintain` | `lib/sql/90-time.sql`, `lib/src/watch.ts`, `lib/src/admin.ts` | 6 |
+| M-TIME | история, хранение, подписка, кэш результатов, `reset`, `maintain` | `lib/sql/90-time.sql`, `lib/src/watch.ts`, `lib/src/admin.ts`, `lib/src/cache.ts` | 6 |
 | M-BOOTSTRAP | установщик и `up()` | `lib/src/up.ts` | 1, 6 |
 | M-SEEDS | системный сид, демо-домен | `lib/sql/95-seed.system.sql`, `lib/src/demo/booking.ts` | 1, 2, 5 |
 | M-IMPORT | импорт из 0.21 | `lib/src/import.ts` | 7 |
