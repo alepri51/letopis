@@ -53,6 +53,7 @@
     "test": "tsx --test --test-concurrency=1 --test-force-exit test/*.test.ts",
     "check:docs": "node scripts/check-docs.mjs",
     "check:package": "node scripts/check-package.mjs",
+    "seed:booking": "tsx scripts/gen-seed-booking.mjs",
     "api:contract": "node scripts/gen-api-contract.mjs",
     "prepublishOnly": "npm run typecheck && npm run check:docs && npm run build"
   },

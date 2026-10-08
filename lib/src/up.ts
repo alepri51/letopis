@@ -23,6 +23,8 @@ export interface InstallOptions {
   allowReset?: boolean;
   /** Номер последнего накатываемого файла — для пошаговых тестов. */
   upTo?: number;
+  /** Сиды после ядра: имена файлов lib/sql/seed.<имя>.sql, например ['booking']. */
+  seeds?: string[];
 }
 
 export interface InstallResult {
@@ -103,6 +105,17 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
       const text = substitute(await readFile(join(SQL_DIR, f), 'utf8'), vars);
       try {
         await tx.unsafe(text);
+      } catch (e) {
+        const err = e as Error;
+        err.message = `letopis.up: ${f}: ${err.message}`;
+        throw err;
+      }
+    }
+    for (const seed of opts.seeds ?? []) {
+      if (!/^[a-z0-9-]+$/.test(seed)) throw new Error(`letopis.up: bad seed name "${seed}"`);
+      const f = `seed.${seed}.sql`;
+      try {
+        await tx.unsafe(substitute(await readFile(join(SQL_DIR, f), 'utf8'), vars));
       } catch (e) {
         const err = e as Error;
         err.message = `letopis.up: ${f}: ${err.message}`;

@@ -219,8 +219,10 @@ function makeModel<N extends string>(kind: 'hub' | 'link', name: N, defArg: unkn
     const f = shape[k] as z.ZodType | undefined;
     if (f) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const t = (f as any)._zod.def.type;
-      if (t !== 'string') throw new LetopisError('invalid_class', `${name}: поле ключа ${k} должно быть обязательной строкой`);
+      let zd = (f as any)._zod.def;
+      // умолчание допустимо (база подставит его до проверки), необязательность — нет
+      if (zd.type === 'default') zd = zd.innerType._zod.def;
+      if (zd.type !== 'string') throw new LetopisError('invalid_class', `${name}: поле ключа ${k} должно быть обязательной строкой`);
     } else if (ends[k]) {
       if (ends[k].many || !ends[k].required) throw new LetopisError('invalid_class', `${name}: конец ключа ${k} должен быть обязательным и одиночным`);
     } else {
@@ -249,12 +251,15 @@ function makeModel<N extends string>(kind: 'hub' | 'link', name: N, defArg: unkn
     key,
     describe(): ClassDescription {
       const js = normalizeSchema(z.toJSONSchema(z.object(ownShape), { io: 'input' }) as JsonSchema, { where: name, topLevel: true });
+      // поля ключа обязательны и с умолчанием: база подставляет умолчания до проверки (§2.3)
+      const required = new Set(Array.isArray(js.required) ? (js.required as string[]) : []);
+      for (const k of key) if (k in ownShape) required.add(k);
       const desc: ClassDescription = {
         name,
         kind,
         fields: {
           properties: (js.properties ?? {}) as Record<string, JsonSchema>,
-          ...(Array.isArray(js.required) && js.required.length ? { required: js.required as string[] } : {}),
+          ...(required.size ? { required: [...required] } : {}),
         },
       };
       if (parent) desc.parent = parent.name;

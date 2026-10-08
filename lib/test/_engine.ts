@@ -38,13 +38,13 @@ export interface Tenant {
 
 export { SYSTEM_ID };
 
-export async function engine(file: string, opts: { keep?: boolean } = {}): Promise<Engine> {
+export async function engine(file: string, opts: { keep?: boolean; seeds?: string[] } = {}): Promise<Engine> {
   await ensureDatabase();
   const sql = adminSql();
   const schema = schemaFor(file);
   const S = ident(schema);
   await sql.unsafe(`drop schema if exists ${S} cascade`);
-  await install(sql, { schema, allowReset: true });
+  await install(sql, { schema, allowReset: true, seeds: opts.seeds });
   await ensureAppRole(sql);
   const app = appSql(16);
 
