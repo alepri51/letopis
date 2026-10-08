@@ -84,14 +84,12 @@ begin
   return d;
 end $$;
 
--- Проверка и нормализация концов (этап 1, п. 7): объявлены, обязательные на месте, у множественных
--- нет повторов, соблюдены min и max; uuid — в каноническом виде строчными. Цели (при p_lock — под
--- for key share в порядке id) существуют, принадлежат своему арендатору или System и относятся
--- к объявленному классу или его потомку. Ошибку не бросает: возвращает код и сообщение.
-create or replace function @SCHEMA@.check_links(p_res jsonb, p_links jsonb, p_tenant uuid, p_lock boolean,
-  out links jsonb, out code text, out msg text)
-language plpgsql volatile
-set search_path = pg_catalog, @SCHEMA@, pg_temp
+-- Разбор и нормализация концов (этап 1, п. 7): объявлены, обязательные на месте, у множественных
+-- нет повторов, соблюдены min и max; uuid — в каноническом виде строчными. К таблицам не обращается:
+-- цели проверяет targets_bad() — триггером после оператора, одним запросом на все строки.
+-- Ошибку не бросает: возвращает код и сообщение.
+create or replace function @SCHEMA@.links_shape(p_res jsonb, p_links jsonb, out links jsonb, out code text, out msg text)
+language plpgsql immutable
 as $$
 #variable_conflict use_variable
 declare
@@ -100,8 +98,6 @@ declare
   v jsonb;
   arr jsonb;
   n int;
-  ids uuid[];
-  bad text;
 begin
   links := '{}'::jsonb;
   if p_links is null or p_links = 'null'::jsonb then
@@ -151,27 +147,79 @@ begin
       code := 'invalid_data'; msg := format('обязательный конец %s не задан', e.key); return;
     end if;
   end loop;
-  ids := @SCHEMA@.link_ids(links);
-  if cardinality(ids) = 0 then
-    return;
+end $$;
+
+-- Цели концов набора строк (решение 2 точки А): существуют, принадлежат арендатору строки или
+-- System и относятся к классу конца или его потомку. p_rows — [{class, tenant, links[, ends]}]
+-- (ends — описание концов, если его ещё нет в строке Class). При p_lock цели сначала блокируются
+-- for key share в порядке id — каждая один раз на оператор, только свои и системные: строку чужого
+-- арендатора не заблокировать и по ожиданию не обнаружить. Проверка идёт после блокировки, по
+-- свежим строкам: цель, которую успели удалить или перевести в чужой класс, не пройдёт. Класс цели
+-- прямо в списке конца — без поиска описания; иначе — предки из строки Class цели.
+-- Возвращает роль первой непрошедшей цели или null.
+create or replace function @SCHEMA@.targets_bad(p_rows jsonb, p_lock boolean) returns text
+language plpgsql volatile
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  bad text;
+begin
+  if p_rows is null or jsonb_array_length(p_rows) = 0 then
+    return null;
   end if;
   if p_lock then
-    -- только свои и системные цели: строку чужого арендатора не заблокировать и по ожиданию не обнаружить
-    perform 1 from @SCHEMA@.entity t where t.id = any (ids) and t.tenant in (p_tenant, '@SYSTEM@'::uuid)
-      order by t.id for key share;
+    perform 1 from @SCHEMA@.entity t
+    where t.id in (select (v #>> '{}')::uuid from jsonb_array_elements(p_rows) r
+                   cross join lateral jsonb_path_query(r->'links', 'lax $.*[*]') v)
+      and t.tenant in (select (r->>'tenant')::uuid from jsonb_array_elements(p_rows) r union all select '@SYSTEM@'::uuid)
+    order by t.id for key share;
   end if;
-  select r.role into bad
-  from (
-    select k.key as role, (case jsonb_typeof(k.value) when 'array' then a.value else k.value end #>> '{}')::uuid as tid
-    from jsonb_each(links) k
+  with r as (
+    select x.value as item, (x.value->>'tenant')::uuid as tenant from jsonb_array_elements(p_rows) x
+  ), c as (
+    select d.cls, d.tenant, coalesce(d.ends, (@SCHEMA@.class_row(d.cls, d.tenant)).data->'resolved'->'ends') as ends
+    from (select distinct r.item->>'class' as cls, r.tenant, r.item->'ends' as ends from r) d
+  ), p as (
+    select r.item->>'class' as cls, r.tenant, r.item->'ends' as ends, k.key as role,
+           (case jsonb_typeof(k.value) when 'array' then a.value else k.value end #>> '{}')::uuid as tid
+    from r
+    cross join lateral jsonb_each(r.item->'links') k
     left join lateral jsonb_array_elements(case jsonb_typeof(k.value) when 'array' then k.value else '[]'::jsonb end) a on true
     where jsonb_typeof(k.value) = 'string' or a.value is not null
-  ) r
-  left join @SCHEMA@.entity t on t.id = r.tid
+  )
+  select p.role into bad
+  from p
+  join c on c.cls = p.cls and c.tenant = p.tenant and c.ends is not distinct from coalesce(p.ends, c.ends)
+  left join @SCHEMA@.entity t on t.id = p.tid
   where t.id is null
-     or t.tenant not in (p_tenant, '@SYSTEM@'::uuid)
-     or not @SCHEMA@.class_accepts(p_res->'ends'->r.role->'class', t.class, t.tenant)
+     or t.tenant not in (p.tenant, '@SYSTEM@'::uuid)
+     or not coalesce(@SCHEMA@.class_set(c.ends->p.role->'class') ? t.class
+             or @SCHEMA@.class_set(c.ends->p.role->'class') ?|
+                (select array(select jsonb_array_elements_text(k.data->'resolved'->'ancestors'))
+                 from @SCHEMA@.entity k
+                 where k.class = 'Class' and k.data->>'name' = t.class and k.tenant in (t.tenant, '@SYSTEM@'::uuid)
+                 order by k.tenant = '@SYSTEM@'::uuid limit 1), false)
   limit 1;
+  return bad;
+end $$;
+
+-- Разбор концов и проверка целей одной строки — для функций владельца (reclass, проверка строк
+-- семейства), которые пишут мимо триггеров. При p_lock цели блокируются for key share.
+create or replace function @SCHEMA@.check_links(p_res jsonb, p_links jsonb, p_tenant uuid, p_lock boolean,
+  out links jsonb, out code text, out msg text)
+language plpgsql volatile
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+#variable_conflict use_variable
+declare
+  bad text;
+begin
+  select s.links, s.code, s.msg into links, code, msg from @SCHEMA@.links_shape(p_res, p_links) s;
+  if code is not null or links = '{}'::jsonb then
+    return;
+  end if;
+  bad := @SCHEMA@.targets_bad(jsonb_build_array(jsonb_build_object(
+    'class', p_res->>'name', 'tenant', p_tenant, 'links', links, 'ends', coalesce(p_res->'ends', '{}'::jsonb))), p_lock);
   if bad is not null then
     code := 'target_not_found'; msg := format('цель конца %s не найдена', bad);
   end if;
@@ -186,28 +234,53 @@ return case when jsonb_array_length(coalesce(p_res->'key', '[]'::jsonb)) = 0 the
     from jsonb_array_elements_text(p_res->'key') with ordinality as u(k, i)
     order by u.i)) end;
 
--- Версия в журнал и сигнал NOTIFY с именем класса (§2.12). Классы с history: false журнал не ведут,
--- но сигнал посылают.
+-- Ведёт ли класс журнал (history: false — нет).
+create or replace function @SCHEMA@.history_on(p_class text, p_tenant uuid) returns boolean
+language sql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+return coalesce((@SCHEMA@.class_row(p_class, p_tenant)).data->'resolved'->>'history', 'true') <> 'false';
+
+-- Сигнал с именами изменённых классов (§2.12, решение 9 точки А). Транзакция с NOTIFY фиксируется
+-- под общей блокировкой кластера вместе с fsync, поэтому библиотека помечает свои транзакции
+-- letopis.notify = 'deferred': имена копятся в letopis.changed, а библиотека после фиксации
+-- отправляет их одной транзакцией без данных. Сырой SQL шлёт NOTIFY здесь же, вместе с фиксацией.
+create or replace function @SCHEMA@.signal(p_classes text[]) returns void
+language plpgsql volatile
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  acc text[];
+  cl text;
+begin
+  if p_classes is null or cardinality(p_classes) = 0 then
+    return;
+  end if;
+  if coalesce(current_setting('letopis.notify', true), '') = 'deferred' then
+    acc := coalesce(string_to_array(nullif(current_setting('letopis.changed', true), ''), ','), '{}');
+    if not (acc @> p_classes) then
+      perform set_config('letopis.changed',
+        array_to_string(array(select distinct x from unnest(acc || p_classes) x order by x), ','), true);
+    end if;
+  else
+    foreach cl in array p_classes loop
+      perform pg_notify('@SCHEMA_NAME@', cl);
+    end loop;
+  end if;
+end $$;
+
+-- Версия одной строки в журнал и сигнал — для функций владельца, которые пишут строку сами
+-- (пересчёт потомков, снятие конца, перенос на новый id). Классы с history: false журнал не ведут,
+-- но сигнал посылают. Обычную запись журналируют триггеры после оператора — одной вставкой.
 create or replace function @SCHEMA@.log_version(e @SCHEMA@.entity) returns void
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 begin
-  if coalesce((@SCHEMA@.class_row(e.class, e.tenant)).data->'resolved'->>'history', 'true') <> 'false' then
+  if @SCHEMA@.history_on(e.class, e.tenant) then
     insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
     values (e.id, e.rev, e.class, e.cv, e.tenant, e.owner, e.links, e.data, e.tags, e.at, e.author, e.agent, e.op, e.reason, e.moved, e.prev_hash);
   end if;
-  -- Сигнал (решение 9 точки А). Транзакция с NOTIFY фиксируется под общей блокировкой кластера
-  -- вместе с fsync, поэтому библиотека помечает свои транзакции letopis.notify = 'deferred':
-  -- триггер копит имена классов в letopis.changed, а библиотека после фиксации отправляет их
-  -- одной транзакцией без данных. Сырой SQL шлёт NOTIFY здесь же, вместе с фиксацией.
-  if coalesce(current_setting('letopis.notify', true), '') = 'deferred' then
-    if not (e.class = any (string_to_array(coalesce(current_setting('letopis.changed', true), ''), ','))) then
-      perform set_config('letopis.changed', concat_ws(',', nullif(current_setting('letopis.changed', true), ''), e.class), true);
-    end if;
-  else
-    perform pg_notify('@SCHEMA_NAME@', e.class);
-  end if;
+  perform @SCHEMA@.signal(array[e.class]);
 end $$;
 
 -- Новая версия строки от имени владельца (пересчёт описаний потомков, снятие конца при удалении):
@@ -439,7 +512,8 @@ begin
     end if;
     NEW.validator := null;
   end if;
-  select * into lk from @SCHEMA@.check_links(res, NEW.links, NEW.tenant, true);
+  -- цели проверяет и блокирует триггер после оператора (targets_bad) — один раз на оператор
+  select * into lk from @SCHEMA@.links_shape(res, NEW.links);
   if lk.code is not null then
     perform @SCHEMA@.lt_fail(lk.code, lk.msg);
   end if;
@@ -545,7 +619,7 @@ begin
     end if;
     NEW.validator := null;
   end if;
-  select * into lk from @SCHEMA@.check_links(res, NEW.links, OLD.tenant, NEW.links is distinct from OLD.links);
+  select * into lk from @SCHEMA@.links_shape(res, NEW.links);
   if lk.code is not null then
     perform @SCHEMA@.lt_fail(lk.code, lk.msg);
   end if;
@@ -575,20 +649,66 @@ begin
   return NEW;
 end $$;
 
--- После вставки и правки: версия в журнал, сигнал; для строк Class — пересчёт потомков и проверка
--- строк семейства при ужесточении.
+-- После оператора insert (решение 2 точки А): все версии оператора — одной вставкой в журнал
+-- (по переходной таблице), сигнал — по одному на класс.
 create or replace function @SCHEMA@.trg_entity_ai() returns trigger
 language plpgsql security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
+declare
+  cls text[];
+  bad text;
 begin
-  if TG_OP = 'UPDATE' and NEW.rev = OLD.rev then
-    return null;
+  bad := @SCHEMA@.targets_bad((select jsonb_agg(jsonb_build_object('class', n.class, 'tenant', n.tenant, 'links', n.links))
+                               from added n where n.links <> '{}'::jsonb), true);
+  if bad is not null then
+    perform @SCHEMA@.lt_fail('target_not_found', format('цель конца %s не найдена', bad));
   end if;
-  perform @SCHEMA@.log_version(NEW);
-  if TG_OP = 'UPDATE' and NEW.class = 'Class' then
-    perform @SCHEMA@.class_evolve(OLD, NEW);
+  insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
+  select n.id, n.rev, n.class, n.cv, n.tenant, n.owner, n.links, n.data, n.tags, n.at, n.author, n.agent, n.op, n.reason, n.moved, n.prev_hash
+  from added n
+  join (select k.class, k.tenant from (select distinct a.class, a.tenant from added a) k
+        where @SCHEMA@.history_on(k.class, k.tenant)) h on h.class = n.class and h.tenant = n.tenant;
+  select array_agg(distinct a.class) into cls from added a;
+  perform @SCHEMA@.signal(cls);
+  return null;
+end $$;
+
+-- После оператора update: версии строк, у которых вырос номер версии (пустая правка версии не
+-- даёт), — одной вставкой; сигнал; для строк Class — пересчёт потомков и проверка строк семейства
+-- при ужесточении.
+create or replace function @SCHEMA@.trg_entity_au() returns trigger
+language plpgsql security definer
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  cls text[];
+  o_row @SCHEMA@.entity;
+  n_row @SCHEMA@.entity;
+  cid uuid;
+  bad text;
+begin
+  -- цели проверяются у строк, у которых изменились концы или класс
+  bad := @SCHEMA@.targets_bad((select jsonb_agg(jsonb_build_object('class', n.class, 'tenant', n.tenant, 'links', n.links))
+                               from new_rows n join old_rows o on o.id = n.id and o.rev <> n.rev
+                               where n.links <> '{}'::jsonb and (n.links <> o.links or n.class <> o.class)), true);
+  if bad is not null then
+    perform @SCHEMA@.lt_fail('target_not_found', format('цель конца %s не найдена', bad));
   end if;
+  insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
+  select n.id, n.rev, n.class, n.cv, n.tenant, n.owner, n.links, n.data, n.tags, n.at, n.author, n.agent, n.op, n.reason, n.moved, n.prev_hash
+  from new_rows n
+  join old_rows o on o.id = n.id and o.rev <> n.rev
+  join (select k.class, k.tenant from (select distinct a.class, a.tenant from new_rows a) k
+        where @SCHEMA@.history_on(k.class, k.tenant)) h on h.class = n.class and h.tenant = n.tenant;
+  select array_agg(distinct n.class) into cls from new_rows n join old_rows o on o.id = n.id and o.rev <> n.rev;
+  perform @SCHEMA@.signal(cls);
+  for cid in select n.id from new_rows n join old_rows o on o.id = n.id and o.rev <> n.rev
+             where n.class = 'Class' order by n.id loop
+    select * into o_row from old_rows x where x.id = cid;
+    select * into n_row from new_rows x where x.id = cid;
+    perform @SCHEMA@.class_evolve(o_row, n_row);
+  end loop;
   return null;
 end $$;
 
@@ -637,23 +757,39 @@ begin
   return null;
 end $$;
 
+-- Действие со строкой, которая ссылается на удаляемые id (p_ids), по правилам её концов (p_ends):
+-- cascade сильнее restrict, restrict сильнее unset; null — строка на них не ссылается. Общее правило
+-- для триггера удаления и превью delete_preview() (этап 4, п. 6): превью не расходится с удалением.
+create or replace function @SCHEMA@.ref_action(p_ends jsonb, p_links jsonb, p_ids uuid[]) returns text
+language sql immutable parallel safe
+return (
+  select case when bool_or(x.a = 'cascade') then 'cascade' when bool_or(x.a = 'restrict') then 'restrict'
+              when bool_or(x.a = 'unset') then 'unset' end
+  from (select coalesce(p_ends->k.key->>'onDelete', 'restrict') as a
+        from jsonb_each(p_links) k
+        where exists (select 1 from jsonb_array_elements_text(case jsonb_typeof(k.value) when 'array' then k.value
+                                                                 else jsonb_build_array(k.value) end) t
+                      where t::uuid = any (p_ids))) x
+);
+
 -- После оператора delete (§2.5, этап 1, п. 8): надгробия, каскад по уровням, restrict по итогу.
 -- Строки, которые удалил сам оператор, каскад уже не видит, поэтому сырой delete любого набора
--- связанных строк проходит без ошибки 27000.
+-- связанных строк проходит без ошибки 27000. Надгробия уровня пишутся одной вставкой.
 create or replace function @SCHEMA@.trg_entity_ad() returns trigger
 language plpgsql security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 declare
   c record;
-  e @SCHEMA@.entity;
   r record;
   lvl uuid[];
   all_ids uuid[];
   casc uuid[];
-  unset_rows jsonb;
-  act text;
-  hit boolean;
+  unsets uuid[];
+  classes text[];
+  lvl_classes text[];
+  v_author uuid;
+  v_reason text := nullif(current_setting('letopis.reason', true), '');
   newlinks jsonb;
   k record;
   blockers jsonb;
@@ -669,43 +805,47 @@ begin
       perform @SCHEMA@.lt_fail('invalid_class', format('у класса %s есть строки или потомки', r.name));
     end if;
   end loop;
-  for e in select g.* from gone g order by g.id loop
-    perform @SCHEMA@.tombstone(e);
-  end loop;
-  select coalesce(array_agg(g.id), '{}') into lvl from gone g;
+  v_author := coalesce(c.author, '@SYSTEM@'::uuid);
+  -- надгробия: последний снимок следующей версией с видом delete — одной вставкой на уровень
+  insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
+  select g.id, g.rev + 1, g.class, g.cv, g.tenant, g.owner, g.links, g.data, g.tags,
+         greatest(@SCHEMA@.now_ts(), g.at + interval '1 microsecond'), v_author, c.agent, 'delete', v_reason, null, g.hash
+  from gone g
+  join (select d.class, d.tenant from (select distinct x.class, x.tenant from gone x) d
+        where @SCHEMA@.history_on(d.class, d.tenant)) h on h.class = g.class and h.tenant = g.tenant;
+  select coalesce(array_agg(g.id), '{}'), coalesce(array_agg(distinct g.class), '{}') into lvl, classes from gone g;
   all_ids := lvl;
   while cardinality(lvl) > 0 loop
-    casc := '{}';
-    unset_rows := '[]'::jsonb;
-    for r in select x.id, x.class, x.tenant, x.links from @SCHEMA@.entity x where x.ends && lvl order by x.id loop
-      act := null;
-      for k in select key, value from jsonb_each(r.links) loop
-        hit := exists (select 1 from jsonb_array_elements_text(case jsonb_typeof(k.value) when 'array' then k.value else jsonb_build_array(k.value) end) t
-                       where t::uuid = any (all_ids));
-        continue when not hit;
-        case coalesce((@SCHEMA@.class_row(r.class, r.tenant)).data->'resolved'->'ends'->k.key->>'onDelete', 'restrict')
-          when 'cascade' then act := 'cascade';
-          when 'unset' then act := coalesce(act, 'unset');
-          else act := case when act = 'cascade' then 'cascade' else 'restrict' end;
-        end case;
-      end loop;
-      if act = 'cascade' then
-        casc := casc || r.id;
-      elsif act = 'unset' then
-        unset_rows := unset_rows || jsonb_build_array(r.id);
-      end if;
-    end loop;
+    -- кто ссылается на уровень: действие по правилам концов (общее с превью)
+    with refs as (
+      select x.id, x.class, x.tenant, x.links from @SCHEMA@.entity x where x.ends && lvl
+    ), cls as (
+      select d.class, d.tenant, (@SCHEMA@.class_row(d.class, d.tenant)).data->'resolved'->'ends' as ends
+      from (select distinct refs.class, refs.tenant from refs) d
+    ), act as (
+      select refs.id, @SCHEMA@.ref_action(cls.ends, refs.links, all_ids) as a
+      from refs join cls on cls.class = refs.class and cls.tenant = refs.tenant
+    )
+    select coalesce(array_agg(act.id order by act.id) filter (where act.a = 'cascade'), '{}'),
+           coalesce(array_agg(act.id order by act.id) filter (where act.a = 'unset'), '{}')
+      into casc, unsets from act;
     -- каскад: удаление в порядке id берёт блокировки и ждёт тех, кто как раз пишет ссылки
-    lvl := '{}';
-    for e in delete from @SCHEMA@.entity x
-             where x.id in (select y.id from @SCHEMA@.entity y where y.id = any (casc) order by y.id for update)
-             returning x.* loop
-      perform @SCHEMA@.tombstone(e);
-      lvl := lvl || e.id;
-    end loop;
+    with d as (
+      delete from @SCHEMA@.entity x
+      where x.id in (select y.id from @SCHEMA@.entity y where y.id = any (casc) order by y.id for update)
+      returning x.*
+    ), t as (
+      insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
+      select d.id, d.rev + 1, d.class, d.cv, d.tenant, d.owner, d.links, d.data, d.tags,
+             greatest(@SCHEMA@.now_ts(), d.at + interval '1 microsecond'), v_author, c.agent, 'delete', v_reason, null, d.hash
+      from d
+      join (select dd.class, dd.tenant from (select distinct x.class, x.tenant from d x) dd
+            where @SCHEMA@.history_on(dd.class, dd.tenant)) h on h.class = d.class and h.tenant = d.tenant
+    )
+    select coalesce(array_agg(d.id), '{}'), coalesce(array_agg(distinct d.class), '{}') into lvl, lvl_classes from d;
+    classes := classes || lvl_classes;
     -- unset: снять конец, новая версия
-    for r in select x.* from @SCHEMA@.entity x
-             where x.id in (select (j #>> '{}')::uuid from jsonb_array_elements(unset_rows) j) order by x.id for update loop
+    for r in select x.* from @SCHEMA@.entity x where x.id = any (unsets) order by x.id for update loop
       newlinks := '{}'::jsonb;
       for k in select key, value from jsonb_each(r.links) loop
         if jsonb_typeof(k.value) = 'array' then
@@ -719,6 +859,7 @@ begin
     end loop;
     all_ids := all_ids || lvl;
   end loop;
+  perform @SCHEMA@.signal(array(select distinct x from unnest(classes) x));
   -- restrict — одним запросом после всего каскада
   select coalesce(jsonb_agg(jsonb_build_object('id', x.id, 'class', x.class, 'tenant', x.tenant)), '[]'::jsonb) into blockers
   from (select x.id, x.class, x.tenant from @SCHEMA@.entity x where x.ends && all_ids order by x.id limit 1000) x;
@@ -729,12 +870,69 @@ begin
   return null;
 end $$;
 
+-- Превью удаления (этап 4, п. 6): что удалит delete этих строк — те же уровни и то же правило
+-- ref_action(), что у триггера, но без изменений. Строки: action delete (цели — depth 0, каскад —
+-- уровень), unset (конец будет снят) и restrict (мешает удалению). Только строки арендатора сессии:
+-- функция владельца ищет по индексу ends без RLS (§3 «Индексы под RLS»), чужих строк не раскрывает.
+create or replace function @SCHEMA@.delete_preview(p_ids uuid[]) returns table(id uuid, class text, action text, depth int)
+language plpgsql stable security definer
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+#variable_conflict use_column
+declare
+  c_tenant uuid := @SCHEMA@.ctx_tenant();
+  lvl uuid[];
+  all_ids uuid[];
+  casc uuid[];
+  d int := 0;
+  out_rows jsonb := '[]'::jsonb;
+begin
+  if c_tenant is null then
+    return;
+  end if;
+  select coalesce(array_agg(x.id order by x.id), '{}') into lvl
+  from @SCHEMA@.entity x where x.id = any (p_ids) and x.tenant = c_tenant;
+  out_rows := (select coalesce(jsonb_agg(jsonb_build_array(u, 'delete', 0)), '[]'::jsonb) from unnest(lvl) u);
+  all_ids := lvl;
+  while cardinality(lvl) > 0 loop
+    d := d + 1;
+    with refs as (
+      select x.id, x.class, x.tenant, x.links from @SCHEMA@.entity x
+      where x.ends && lvl and not (x.id = any (all_ids))
+    ), cls as (
+      select dd.class, dd.tenant, (@SCHEMA@.class_row(dd.class, dd.tenant)).data->'resolved'->'ends' as ends
+      from (select distinct refs.class, refs.tenant from refs) dd
+    ), act as (
+      select refs.id, @SCHEMA@.ref_action(cls.ends, refs.links, all_ids) as a
+      from refs join cls on cls.class = refs.class and cls.tenant = refs.tenant
+    )
+    select coalesce(array_agg(act.id order by act.id) filter (where act.a = 'cascade'), '{}') into casc from act;
+    out_rows := out_rows || (select coalesce(jsonb_agg(jsonb_build_array(u, 'delete', d)), '[]'::jsonb) from unnest(casc) u);
+    all_ids := all_ids || casc;
+    lvl := casc;
+  end loop;
+  -- кто останется ссылаться на удалённое: снимаемые концы и мешающие строки
+  out_rows := out_rows || (
+    select coalesce(jsonb_agg(jsonb_build_array(r.id, case when r.a = 'unset' then 'unset' else 'restrict' end, null)), '[]'::jsonb)
+    from (select x.id, @SCHEMA@.ref_action((@SCHEMA@.class_row(x.class, x.tenant)).data->'resolved'->'ends', x.links, all_ids) as a
+          from @SCHEMA@.entity x where x.ends && all_ids and not (x.id = any (all_ids))) r);
+  return query
+    select (o->>0)::uuid, e.class, o->>1, (o->>2)::int
+    from jsonb_array_elements(out_rows) o
+    join @SCHEMA@.entity e on e.id = (o->>0)::uuid
+    where e.tenant = c_tenant;
+end $$;
+
 create or replace trigger entity_bi before insert on @SCHEMA@.entity
   for each row when (current_user <> '@OWNER_NAME@') execute function @SCHEMA@.trg_entity_bi();
 create or replace trigger entity_bu before update on @SCHEMA@.entity
   for each row when (current_user <> '@OWNER_NAME@') execute function @SCHEMA@.trg_entity_bu();
-create or replace trigger entity_ai after insert or update on @SCHEMA@.entity
-  for each row when (current_user <> '@OWNER_NAME@') execute function @SCHEMA@.trg_entity_ai();
+-- до ревизии 2 журнал писал строковый триггер entity_ai после insert или update
+drop trigger if exists entity_ai on @SCHEMA@.entity;
+create trigger entity_ai after insert on @SCHEMA@.entity referencing new table as added
+  for each statement when (current_user <> '@OWNER_NAME@') execute function @SCHEMA@.trg_entity_ai();
+create or replace trigger entity_au after update on @SCHEMA@.entity referencing old table as old_rows new table as new_rows
+  for each statement when (current_user <> '@OWNER_NAME@') execute function @SCHEMA@.trg_entity_au();
 create or replace trigger entity_bd before delete on @SCHEMA@.entity
   for each statement when (current_user <> '@OWNER_NAME@') execute function @SCHEMA@.trg_entity_bd();
 create or replace trigger entity_ad after delete on @SCHEMA@.entity referencing old table as gone
@@ -743,6 +941,7 @@ create or replace trigger entity_ad after delete on @SCHEMA@.entity referencing 
 alter table @SCHEMA@.entity enable always trigger entity_bi;
 alter table @SCHEMA@.entity enable always trigger entity_bu;
 alter table @SCHEMA@.entity enable always trigger entity_ai;
+alter table @SCHEMA@.entity enable always trigger entity_au;
 alter table @SCHEMA@.entity enable always trigger entity_bd;
 alter table @SCHEMA@.entity enable always trigger entity_ad;
 
@@ -867,7 +1066,58 @@ begin
   return nid;
 end $$;
 
--- ========================= merge и inc =========================
+-- ========================= merge, inc, links_patch =========================
+
+-- Правка концов слотами (этап 4, п. 4): .Роль.set(), .unset(), а для множественных концов .add()
+-- и .remove() — атомарно над свежей строкой, без предварительного чтения списка. p_ops — список
+-- [{role, op: set | unset | add | remove, value}]: у set — id, список id или null; у add и remove —
+-- список id. Повтор в add не добавляется, отсутствующий в remove — пропускается. Проверку концов
+-- делают триггеры, как при любой правке.
+create or replace function @SCHEMA@.links_patch(p_links jsonb, p_ops jsonb) returns jsonb
+language plpgsql immutable parallel safe
+as $$
+declare
+  o jsonb;
+  role text;
+  res jsonb := coalesce(p_links, '{}'::jsonb);
+  cur jsonb;
+  v jsonb;
+begin
+  for o in select x from jsonb_array_elements(coalesce(p_ops, '[]'::jsonb)) x loop
+    role := o->>'role';
+    case o->>'op'
+      when 'set' then
+        if o->'value' is null or o->'value' = 'null'::jsonb then
+          res := res - role;
+        else
+          res := jsonb_set(res, array[role], o->'value');
+        end if;
+      when 'unset' then
+        res := res - role;
+      when 'add' then
+        cur := coalesce(res->role, '[]'::jsonb);
+        if jsonb_typeof(cur) = 'array' then
+          for v in select x from jsonb_array_elements(o->'value') x loop
+            v := to_jsonb(lower(v #>> '{}'));
+            if not cur @> jsonb_build_array(v) then
+              cur := cur || jsonb_build_array(v);
+            end if;
+          end loop;
+        end if;
+        res := jsonb_set(res, array[role], cur);
+      when 'remove' then
+        cur := coalesce(res->role, '[]'::jsonb);
+        if jsonb_typeof(cur) = 'array' then
+          cur := coalesce((select jsonb_agg(x) from jsonb_array_elements(cur) x
+                           where not exists (select 1 from jsonb_array_elements_text(o->'value') r where lower(r) = x #>> '{}')), '[]'::jsonb);
+        end if;
+        res := jsonb_set(res, array[role], cur);
+      else
+        raise exception using errcode = 'LT003', message = 'letopis: invalid_data: links_patch: неизвестная операция ' || coalesce(o->>'op', 'null');
+    end case;
+  end loop;
+  return res;
+end $$;
 
 -- Слияние патча (§2.5): повторяет deepMerge 0.21 без исключений — объекты сливаются рекурсивно,
 -- массивы, скаляры и null заменяются. Ключи на $ — обычные данные.
@@ -991,17 +1241,17 @@ declare f text;
 begin
   foreach f in array array[
     'now_ts()', 'family_lock(text, boolean)', 'class_set(jsonb)', 'class_accepts(jsonb, text, uuid)', 'role_accepts(text, uuid, text, text, uuid)',
-    'apply_defaults(jsonb, jsonb)', 'check_links(jsonb, jsonb, uuid, boolean)', 'key_id(jsonb, text, uuid, jsonb, jsonb)',
+    'apply_defaults(jsonb, jsonb)', 'links_shape(jsonb, jsonb)', 'targets_bad(jsonb, boolean)', 'check_links(jsonb, jsonb, uuid, boolean)', 'key_id(jsonb, text, uuid, jsonb, jsonb)',
     'log_version(@SCHEMA@.entity)', 'sys_update(uuid, jsonb, jsonb, jsonpath, text, text)', 'tombstone(@SCHEMA@.entity, text, uuid)',
     'links_replace(jsonb, uuid, uuid)', 'move_row(@SCHEMA@.entity, uuid, text, jsonb, jsonb, text)', 'reclass(uuid, text, jsonb)',
     'incoming_conflicts(uuid, text, uuid)', 'visible_detail(jsonb, uuid)', 'class_change_safe(jsonb, jsonb)',
     'family_conflicts(text[], uuid, boolean)', 'reserved_names()', 'class_admit(jsonb, uuid)',
-    'trg_entity_bi()', 'trg_entity_bu()', 'trg_entity_ai()', 'class_evolve(@SCHEMA@.entity, @SCHEMA@.entity)',
-    'trg_entity_bd()', 'trg_entity_ad()', 'merge(jsonb, jsonb)', 'inc(jsonb, text[], numeric, numeric)', 'verify()'] loop
+    'trg_entity_bi()', 'trg_entity_bu()', 'trg_entity_ai()', 'trg_entity_au()', 'history_on(text, uuid)', 'signal(text[])', 'class_evolve(@SCHEMA@.entity, @SCHEMA@.entity)',
+    'trg_entity_bd()', 'trg_entity_ad()', 'ref_action(jsonb, jsonb, uuid[])', 'delete_preview(uuid[])', 'merge(jsonb, jsonb)', 'inc(jsonb, text[], numeric, numeric)', 'links_patch(jsonb, jsonb)', 'verify()'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);
     execute format('revoke all on function @SCHEMA@.%s from public', f);
   end loop;
 end $$;
--- сырой SQL пишет теми же merge и inc, что и библиотека
-grant execute on function @SCHEMA@.merge(jsonb, jsonb), @SCHEMA@.inc(jsonb, text[], numeric, numeric),
-  @SCHEMA@.verify(), @SCHEMA@.reserved_names(), @SCHEMA@.reclass(uuid, text, jsonb) to @APP@;
+-- сырой SQL пишет теми же merge, inc и links_patch, что и библиотека
+grant execute on function @SCHEMA@.merge(jsonb, jsonb), @SCHEMA@.inc(jsonb, text[], numeric, numeric), @SCHEMA@.links_patch(jsonb, jsonb),
+  @SCHEMA@.verify(), @SCHEMA@.reserved_names(), @SCHEMA@.reclass(uuid, text, jsonb), @SCHEMA@.delete_preview(uuid[]) to @APP@;

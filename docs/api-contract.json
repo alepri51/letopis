@@ -249,6 +249,10 @@
       "message": "letopis: invalid_data: "
     },
     {
+      "module": "60-write",
+      "message": "letopis: invalid_data: links_patch: неизвестная операция "
+    },
+    {
       "module": "chain",
       "message": "letopis: .<…>() у класса <…> без журнала (history: false) — истории нет"
     },

@@ -78,25 +78,20 @@ begin
   select c.rules, c.validator, c.vars into rules, validator, vars from @SCHEMA@.compile_validator(@SCHEMA@.class_metaschema()) c;
 end $$;
 
--- Строка класса по имени: собственная строка арендатора или системная. id строки Class — v5 от имени
--- (ключ [name]), поэтому поиск идёт по первичному ключу. Имя пользовательского класса не совпадает
--- с именем системного (проверка при определении), поэтому порядок нужен только для ясности.
+-- Строка класса по имени: собственная строка арендатора или системная. Поиск — по индексу
+-- entity_class_name, без вычисления v5 (два SHA-1 стоили 30 мкс на поиск, а запись ищет описание
+-- несколько раз). Пара «арендатор, имя» однозначна: id строки Class — v5 от имени. Имя
+-- пользовательского класса не совпадает с именем системного (проверка при определении), поэтому
+-- порядок нужен только для ясности. Нет строки — null.
 create or replace function @SCHEMA@.class_row(p_name text, p_tenant uuid) returns @SCHEMA@.entity
-language plpgsql stable
+language sql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
-declare
-  -- id вычисляются до запроса: иначе обобщённый план считает v5 для каждой просмотренной строки
-  own uuid := @SCHEMA@.v5_id(p_tenant, 'Class', array[p_name]);
-  sys uuid := @SCHEMA@.v5_id('@SYSTEM@'::uuid, 'Class', array[p_name]);
-  r @SCHEMA@.entity;
-begin
-  select e.* into r from @SCHEMA@.entity e where e.id = own and e.class = 'Class';
-  if r.id is null and sys <> own then
-    select e.* into r from @SCHEMA@.entity e where e.id = sys and e.class = 'Class';
-  end if;
-  return r;
-end $$;
+  select e.* from @SCHEMA@.entity e
+  where e.class = 'Class' and e.data->>'name' = p_name and e.tenant in (p_tenant, '@SYSTEM@'::uuid)
+  order by e.tenant = '@SYSTEM@'::uuid
+  limit 1
+$$;
 
 -- Развёрнутое описание класса с учётом предков: поля, концы и ключ наследуются по правилу 0.21
 -- «потомок заменяет поле целиком» (buildDef), метаданные — по ключам, null убирает ключ (§2.13).

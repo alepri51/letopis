@@ -75,11 +75,15 @@ test('7.3.8 №4: перечень функций владельца — search_
     find_deep: async () => {
       assert.deepEqual([...await e.as(null, (tx) => tx.unsafe(`select * from ${S}.find_deep(array['Doc'], null, array[$1::uuid], 5)`, [t.id]))], []);
     },
+    delete_preview: async () => {
+      assert.deepEqual([...await e.as(null, (tx) => tx.unsafe(`select * from ${S}.delete_preview(array[$1::uuid])`, [t.id]))], []);
+    },
     reclass: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.reclass(gen_random_uuid(), 'Doc')`)), lt('no_session')),
     verify: () => assert.rejects(q(`select ${S}.verify()`), lt('acl_denied')),
     trg_entity_bi: () => assert.rejects(q(`select ${S}.trg_entity_bi()`), lt('42501')),
     trg_entity_bu: () => assert.rejects(q(`select ${S}.trg_entity_bu()`), lt('42501')),
     trg_entity_ai: () => assert.rejects(q(`select ${S}.trg_entity_ai()`), lt('42501')),
+    trg_entity_au: () => assert.rejects(q(`select ${S}.trg_entity_au()`), lt('42501')),
     trg_entity_bd: () => assert.rejects(q(`select ${S}.trg_entity_bd()`), lt('42501')),
     trg_entity_ad: () => assert.rejects(q(`select ${S}.trg_entity_ad()`), lt('42501')),
   };
@@ -103,7 +107,7 @@ test('7.3.8 №6: приложение не создаёт постоянных 
 test('7.3.8 №7: триггеры entity по каталогу — условие для владельца и enable always', async () => {
   const trg = await e.sql.unsafe(`select tgname, tgenabled, pg_get_triggerdef(oid) as def from pg_trigger
     where tgrelid = $1::regclass and not tgisinternal order by tgname`, [`${S}.entity`]);
-  assert.deepEqual(trg.map((r) => r.tgname), ['entity_ad', 'entity_ai', 'entity_bd', 'entity_bi', 'entity_bu']);
+  assert.deepEqual(trg.map((r) => r.tgname), ['entity_ad', 'entity_ai', 'entity_au', 'entity_bd', 'entity_bi', 'entity_bu']);
   for (const r of trg) {
     assert.equal(r.tgenabled, 'A', r.tgname);
     assert.match(r.def, /WHEN \(+CURRENT_USER <> 'letopis_owner'::name\)+/, r.tgname);
@@ -131,8 +135,8 @@ test('права по каталогу: функции приложения — 
   const appFns = await e.sql.unsafe(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = $1 and has_function_privilege('letopis_app', p.oid, 'execute') order by 1`, [e.schema]);
   assert.deepEqual(appFns.map((f) => f.proname), [
-    'ctx', 'ctx_account', 'ctx_tenant', 'error_catalog', 'find_deep', 'find_hop', 'find_ids', 'inc', 'issue_session',
-    'link_ids', 'login_apikey', 'merge', 'reclass', 'reserved_names', 'role_has', 'role_ids', 'snapshot', 'uuid_v5',
+    'ctx', 'ctx_account', 'ctx_tenant', 'delete_preview', 'error_catalog', 'find_deep', 'find_hop', 'find_ids', 'inc', 'issue_session',
+    'link_ids', 'links_patch', 'login_apikey', 'merge', 'reclass', 'reserved_names', 'role_has', 'role_ids', 'snapshot', 'uuid_v5',
     'v5_id', 'v5_name', 'verify', 'version_hash',
   ]);
   const pubFns = await e.sql.unsafe(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace

@@ -60,6 +60,8 @@ create table if not exists @SCHEMA@.entity (
 create index if not exists entity_class_tenant on @SCHEMA@.entity (class, tenant);
 create index if not exists entity_ends on @SCHEMA@.entity using gin (ends) with (fastupdate = off);
 create index if not exists entity_data on @SCHEMA@.entity using gin (data jsonb_path_ops);
+-- описание класса по имени (class_row): без вычисления v5 на каждый поиск
+create index if not exists entity_class_name on @SCHEMA@.entity ((data->>'name'), tenant) where class = 'Class';
 
 create table if not exists @SCHEMA@.log (
   seq        bigint generated always as identity,

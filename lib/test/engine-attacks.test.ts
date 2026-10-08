@@ -202,7 +202,7 @@ test('№19: суперпользователь меняет строку в о�
   await e.sql.begin(async (tx) => {
     await tx.unsafe(`alter table ${S}.entity disable trigger user`);
     await tx.unsafe(`update ${S}.entity set data = '{"name": "A19", "city": "подмена"}' where id = $1`, [org.id]);
-    for (const trg of ['entity_bi', 'entity_bu', 'entity_ai', 'entity_bd', 'entity_ad']) {
+    for (const trg of ['entity_bi', 'entity_bu', 'entity_ai', 'entity_au', 'entity_bd', 'entity_ad']) {
       await tx.unsafe(`alter table ${S}.entity enable always trigger ${trg}`);
     }
   });
