@@ -109,7 +109,8 @@ test('№5: смена класса — без ключа проходит, с �
   assert.equal(uses[0].links.What, nid);
   assert.notEqual(uses[0].id, use.id);
   const oldLog = await e.sql.unsafe(`select op, moved from ${S}.log where id = $1 order by rev`, [c1.id]);
-  assert.deepEqual(oldLog.at(-1), { op: 'reclass', moved: nid });
+  // надгробие старого id — всегда вид delete; moved ведёт на новый id
+  assert.deepEqual(oldLog.at(-1), { op: 'delete', moved: nid });
   const newLog = await e.sql.unsafe(`select op, moved from ${S}.log where id = $1 order by rev`, [nid]);
   assert.deepEqual(newLog[0], { op: 'reclass', moved: c1.id });
   const [{ v }] = await e.sql.unsafe(`select ${S}.verify() as v`);
@@ -258,6 +259,24 @@ test('№26: удаление и смена класса только в read co
   await assert.rejects(rr(`delete from ${S}.entity where id = $1`, [cat.id]), lt('isolation_level'));
   await assert.rejects(rr(`update ${S}.entity set class = 'Dog' where id = $1`, [cat.id]), lt('isolation_level'));
   await assert.rejects(rr(`select ${S}.reclass($1, 'Coded2')`, [c.id]), lt('isolation_level'));
+});
+
+test('№27: find_*() напрямую — только id строк, которые пользователь и так видит', async () => {
+  const org = await ins(a, 'Org', { name: 'Тайная', city: 'Казань' });
+  const m = await ins(a, 'Master', { name: 'Секретный' }, { Org: org.id });
+  const find = (t: Tenant | null, cond: unknown) => as(t, `select id from ${S}.find_ids(array['Org'], $1::jsonb, null, null)`, [cond]);
+  assert.deepEqual((await find(a, { city: 'Казань' })).map((r) => r.id), [org.id]);
+  assert.deepEqual([...await find(b, { city: 'Казань' })], [], 'чужой арендатор по условию на data ничего не находит');
+  assert.deepEqual([...await find(null, { city: 'Казань' })], [], 'без сессии — ничего');
+  assert.deepEqual([...await as(b, `select id from ${S}.find_ids(array['Org', 'Master'], null, null, $1::uuid[])`, [[org.id, m.id]])], []);
+  assert.deepEqual([...await as(b, `select id from ${S}.find_hop(array['Master'], null, null, null, array[$1::uuid])`, [org.id])], []);
+  assert.deepEqual([...await as(b, `select id from ${S}.find_deep(array['Master'], null, array[$1::uuid], 5)`, [org.id])], []);
+  assert.deepEqual([...await as(b, `select id from ${S}.find_ids(array['Org'], $1::jsonb, null, null, now(), false)`, [{ city: 'Казань' }])], [],
+    'и в журнале');
+  // классы других арендаторов не видны ни напрямую, ни поиском
+  assert.deepEqual([...await as(b, `select id from ${S}.entity where class = 'Class' and tenant = $1`, [a.id])], []);
+  assert.deepEqual([...await as(b, `select id from ${S}.find_ids(array['Class'], $1::jsonb, null, null)`, [{ name: 'Org' }])]
+    .length, 1, 'только свой класс Org');
 });
 
 test('№28: в сигналах только имена классов', async () => {

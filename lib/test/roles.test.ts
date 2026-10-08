@@ -65,6 +65,16 @@ test('7.3.8 №4: перечень функций владельца — search_
     new_session: () => assert.rejects(q(`select ${S}.new_session($1, interval '1 day', '{}')`, [t.id]), lt('42501')),
     login_apikey: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.login_apikey('lts_wrong')`)), lt('no_session')),
     issue_session: () => assert.rejects(q(`select ${S}.issue_session($1)`, [t.id]), lt('acl_denied')),
+    // поиск без сессии не находит ничего
+    find_ids: async () => {
+      assert.deepEqual([...await e.as(null, (tx) => tx.unsafe(`select * from ${S}.find_ids(array['Doc'], null, null, null)`))], []);
+    },
+    find_hop: async () => {
+      assert.deepEqual([...await e.as(null, (tx) => tx.unsafe(`select * from ${S}.find_hop(array['Doc'], null, null, null, array[$1::uuid])`, [t.id]))], []);
+    },
+    find_deep: async () => {
+      assert.deepEqual([...await e.as(null, (tx) => tx.unsafe(`select * from ${S}.find_deep(array['Doc'], null, array[$1::uuid], 5)`, [t.id]))], []);
+    },
     reclass: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.reclass(gen_random_uuid(), 'Doc')`)), lt('no_session')),
     verify: () => assert.rejects(q(`select ${S}.verify()`), lt('acl_denied')),
     trg_entity_bi: () => assert.rejects(q(`select ${S}.trg_entity_bi()`), lt('42501')),
@@ -121,8 +131,9 @@ test('права по каталогу: функции приложения — 
   const appFns = await e.sql.unsafe(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = $1 and has_function_privilege('letopis_app', p.oid, 'execute') order by 1`, [e.schema]);
   assert.deepEqual(appFns.map((f) => f.proname), [
-    'ctx', 'ctx_account', 'ctx_tenant', 'error_catalog', 'inc', 'issue_session', 'link_ids', 'login_apikey', 'merge',
-    'reclass', 'reserved_names', 'snapshot', 'uuid_v5', 'v5_id', 'v5_name', 'verify', 'version_hash',
+    'ctx', 'ctx_account', 'ctx_tenant', 'error_catalog', 'find_deep', 'find_hop', 'find_ids', 'inc', 'issue_session',
+    'link_ids', 'login_apikey', 'merge', 'reclass', 'reserved_names', 'role_has', 'role_ids', 'snapshot', 'uuid_v5',
+    'v5_id', 'v5_name', 'verify', 'version_hash',
   ]);
   const pubFns = await e.sql.unsafe(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = $1 and has_function_privilege('public', p.oid, 'execute')`, [e.schema]);

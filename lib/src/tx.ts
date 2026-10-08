@@ -76,20 +76,26 @@ export interface TxContext {
 
 /**
  * Операция одной транзакцией с контекстом сессии и повтором при транзиентных ошибках и конфликте
- * журнала. Ошибки базы переводятся в LetopisError.
+ * журнала. Ошибки базы переводятся в LetopisError. read — операция только читает: сигналы не собираются.
  */
-export async function runTx<T>(ctx: TxContext, fn: (tx: Tx) => Promise<T>, opts: { retries?: number } = {}): Promise<T> {
+export async function runTx<T>(ctx: TxContext, fn: (tx: Tx) => Promise<T>, opts: { retries?: number; read?: boolean } = {}): Promise<T> {
   const retries = opts.retries ?? RETRIES;
   for (let attempt = 1; ; attempt++) {
     try {
       let changed: string | null = null;
       const out = await ctx.sql.begin('isolation level read committed', async (tx) => {
-        await tx`select set_config('letopis.token', ${ctx.token ?? ''}, true),
+        // служебный оператор уходит конвейером вместе с первым запросом операции (§2.9);
+        // время — в UTC, чтобы строки ответа не зависели от настроек сервера
+        // execute(): запросы postgres.js ленивые — без него первый запрос fn ушёл бы раньше настроек
+        const setup = tx`select set_config('letopis.token', ${ctx.token ?? ''}, true),
                         set_config('letopis.notify', 'deferred', true),
-                        set_config('letopis.reason', ${ctx.reason ?? ''}, true)`;
-        const r = await fn(tx);
-        const [row] = await tx`select current_setting('letopis.changed', true) as changed`;
-        changed = (row?.changed as string | null) ?? null;
+                        set_config('letopis.reason', ${ctx.reason ?? ''}, true),
+                        set_config('TimeZone', 'UTC', true)`.execute();
+        const [, r] = await Promise.all([setup, fn(tx)]);
+        if (!opts.read) {
+          const [row] = await tx`select current_setting('letopis.changed', true) as changed`;
+          changed = (row?.changed as string | null) ?? null;
+        }
         return r;
       });
       ctx.notifier?.add(changed);

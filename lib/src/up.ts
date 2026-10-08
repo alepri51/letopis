@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import type postgres from 'postgres';
+import { RESERVED_CLASS_NAMES } from './types.js';
 
 export const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
 export const SCHEMA_VERSION = 'v2';
@@ -92,6 +93,8 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
     PGCRYPTO: quoteIdent(nsp),
     SYSTEM: SYSTEM_ID,
     ALLOW_RESET: opts.allowReset ? 'true' : 'false',
+    // методы цепочки — в тексте функции reserved_names() (план, §2.14)
+    RESERVED_NAMES: RESERVED_CLASS_NAMES.map(quoteLiteral).join(', '),
   };
 
   // Схема создаётся до set role: у владельца может не быть права CREATE в базе.

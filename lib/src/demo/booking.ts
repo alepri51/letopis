@@ -162,8 +162,8 @@ export const price = link('price', {
 });
 
 /** Все классы в порядке «предок раньше потомка». */
-export const BOOKING: readonly AnyModel[] = [Org, Person, Staff, Customer, Location, Element, Service, Product, Complex, Schedule, Folder,
-  address, slot, booking, content, compo, skill, price];
+export const BOOKING = [Org, Person, Staff, Customer, Location, Element, Service, Product, Complex, Schedule, Folder,
+  address, slot, booking, content, compo, skill, price] as const satisfies readonly AnyModel[];
 
 /** Текст lib/sql/seed.booking.sql: строки Class системного арендатора, записанные владельцем. */
 export function bookingSeedSql(models: readonly AnyModel[] = BOOKING): string {

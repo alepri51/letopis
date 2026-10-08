@@ -135,10 +135,10 @@ export interface LostRule {
 type DataOf<P, S extends z.ZodRawShape> = P extends Model<string, infer PD, unknown> ? Omit<PD, keyof z.output<z.ZodObject<S>>> & z.output<z.ZodObject<S>> : z.output<z.ZodObject<S>>;
 type AllLinks<P, E extends EndsInput> = P extends Model<string, unknown, infer PL> ? Omit<PL, keyof E> & LinksOf<E> : LinksOf<E>;
 
-export interface Model<N extends string = string, D = unknown, L = unknown> {
+export interface Model<N extends string = string, D = unknown, L = unknown, A extends string = string> {
   readonly name: N;
   readonly kind: 'hub' | 'link';
-  readonly alias?: string;
+  readonly alias?: A;
   readonly parent?: AnyModel;
   readonly abstract: boolean;
   /** Собственные поля класса (без предков). */
@@ -160,7 +160,7 @@ export interface Model<N extends string = string, D = unknown, L = unknown> {
   readonly __types?: { data: D; links: L };
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyModel = Model<string, any, any>;
+export type AnyModel = Model<string, any, any, any>;
 
 /** Тип данных строки класса: `Infer<typeof Master>`. */
 export type Infer<M> = M extends Model<string, infer D, unknown> ? D : never;
@@ -296,11 +296,12 @@ function makeModel<N extends string>(kind: 'hub' | 'link', name: N, defArg: unkn
 }
 
 type ShapeOf<F> = F extends z.ZodObject<infer S> ? S : F extends z.ZodRawShape ? F : Record<never, never>;
+type AliasOf<D> = D extends { alias: infer A extends string } ? A : string;
 
 /** Хаб — объект (мастер, услуга). */
 export function hub<N extends string, S extends z.ZodRawShape>(name: N, shape: S, opts: Omit<ClassDef, 'fields'>): Model<N, z.output<z.ZodObject<S>>, Record<never, never>>;
 export function hub<N extends string, const D extends ClassDef<z.ZodRawShape, EndsInput, AnyModel | undefined>>(name: N, def?: D):
-  Model<N, DataOf<D['extends'], ShapeOf<D['fields']>>, AllLinks<D['extends'], D['ends'] extends EndsInput ? D['ends'] : Record<never, never>>>;
+  Model<N, DataOf<D['extends'], ShapeOf<D['fields']>>, AllLinks<D['extends'], D['ends'] extends EndsInput ? D['ends'] : Record<never, never>>, AliasOf<D>>;
 export function hub(name: string, def?: unknown, opts?: unknown): AnyModel {
   return makeModel('hub', name, def, opts);
 }
@@ -308,7 +309,7 @@ export function hub(name: string, def?: unknown, opts?: unknown): AnyModel {
 /** Связь — отношение между объектами со своими данными (бронь, навык). */
 export function link<N extends string, S extends z.ZodRawShape>(name: N, shape: S, opts: Omit<ClassDef, 'fields'>): Model<N, z.output<z.ZodObject<S>>, Record<never, never>>;
 export function link<N extends string, const D extends ClassDef<z.ZodRawShape, EndsInput, AnyModel | undefined>>(name: N, def?: D):
-  Model<N, DataOf<D['extends'], ShapeOf<D['fields']>>, AllLinks<D['extends'], D['ends'] extends EndsInput ? D['ends'] : Record<never, never>>>;
+  Model<N, DataOf<D['extends'], ShapeOf<D['fields']>>, AllLinks<D['extends'], D['ends'] extends EndsInput ? D['ends'] : Record<never, never>>, AliasOf<D>>;
 export function link(name: string, def?: unknown, opts?: unknown): AnyModel {
   return makeModel('link', name, def, opts);
 }

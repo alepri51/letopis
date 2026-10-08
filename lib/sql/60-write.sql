@@ -236,8 +236,8 @@ begin
   return e;
 end $$;
 
--- Надгробие: последний снимок удалённой строки следующей версией с видом delete (или reclass/rekey
--- со ссылкой moved на новый id).
+-- Надгробие: последний снимок удалённой строки следующей версией с видом delete; при переносе на
+-- новый id (reclass, rekey) moved ссылается на новый id.
 create or replace function @SCHEMA@.tombstone(e @SCHEMA@.entity, p_op text default 'delete', p_moved uuid default null) returns void
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -345,15 +345,11 @@ begin
   return outv;
 end $$;
 
--- Методы цепочки — зарезервированные имена (§2.14). Предварительный список этапа 1; этап 3 заменит
--- его сгенерированным из кода.
+-- Методы цепочки — зарезервированные имена (§2.14). Список подставляет установщик из
+-- RESERVED_CLASS_NAMES (lib/src/types.ts): при изменении списка функция пересоздаётся накатом.
 create or replace function @SCHEMA@.reserved_names() returns text[]
 language sql immutable parallel safe
-return array['then', 'entity', 'paths', 'rows', 'first', 'ids', 'count', 'limit', 'offset', 'sort', 'asOf',
-  'withDeleted', 'deep', 'exact', 'sum', 'avg', 'min', 'max', 'countBy', 'after', 'versions', 'create', 'update',
-  'upsert', 'set', 'unset', 'add', 'remove', 'delete', 'anonymize', 'reclass', 'restore', 'purge', 'alias', 'tags',
-  'owner', 'forUpdate', 'cache', 'as', 'begin', 'commit', 'rollback', 'lock', 'batch', 'watch', 'close', 'registry',
-  'sql', 'load', 'verify', 'maintain', 'reset', 'describe', 'auth', 'acl', 'discard', 'size', 'run'];
+return array[@RESERVED_NAMES@]::text[];
 
 -- Проверки строки Class сверх метасхемы (этап 1, п. 6): признак system, имя системного класса,
 -- имена связей против методов цепочки, однозначность имени конца во всей схеме.
@@ -800,7 +796,8 @@ begin
     end if;
   end loop;
   delete from @SCHEMA@.entity x where x.id = o.id returning x.* into r;
-  perform @SCHEMA@.tombstone(r, p_op, p_new_id);
+  -- надгробие всегда вида delete (по нему срез на момент отличает удалённый id), moved — новый id
+  perform @SCHEMA@.tombstone(r, 'delete', p_new_id);
   return n;
 end $$;
 

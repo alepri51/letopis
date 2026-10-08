@@ -21,6 +21,16 @@ export class LetopisError extends Error {
   }
 }
 
+/** Охранник снесённого API (план, этап 3, п. 11): понятная ошибка с версией и заменой. */
+export function removed(name: string, replacement: string): LetopisError {
+  return new LetopisError('removed', `${name} снят в 1.0.0 — ${replacement}`);
+}
+
+/** Метод зарезервирован, но появится на следующем этапе плана. */
+export function notYet(name: string, stage: number): LetopisError {
+  return new LetopisError('not_implemented', `${name} появится на этапе ${stage} плана 1.0`);
+}
+
 /** Данные не проходят описание класса (`invalid_data`). */
 export class ValidationError extends LetopisError {
   readonly issues: Issue[];

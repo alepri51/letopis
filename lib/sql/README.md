@@ -14,6 +14,7 @@
 | `@PGCRYPTO@` | схема, где установлен pgcrypto (`pg_extension.extnamespace`) |
 | `@SYSTEM@` | id системного арендатора System: `2eba6d0a-1edd-4bb6-a85a-a703dab49035` (как в 0.21) |
 | `@ALLOW_RESET@` | `true` или `false` — константа установки |
+| `@RESERVED_NAMES@` | методы цепочки — `RESERVED_CLASS_NAMES` из `lib/src/types.ts`, литералами через запятую |
 
 ## Колонки снимка версии
 
@@ -48,4 +49,4 @@
 
 ## Порядок файлов
 
-`10-core` → `15-errors` → `20-context` → `30-validate` → `40-class` → `50-acl` → `60-write` → (`70-read`, `80-auth`, `90-time` на этапах 3, 5, 6) → `95-seed.system` → `99-revision`.
+`10-core` → `15-errors` → `20-context` → `30-validate` → `40-class` → `50-acl` → `60-write` → `70-read` → (`80-auth`, `90-time` на этапах 5, 6) → `95-seed.system` → `99-revision`.

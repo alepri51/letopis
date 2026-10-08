@@ -13,6 +13,7 @@ synced: 1775f9d
 - `compileValidator` повторяет `compile_validator`/`validate_data`: одно нарушение на обычное правило, на каждый узел — у дополнительных проверок; новое ключевое слово — в обеих реализациях и в `validator-parity`.
 - Верхний уровень `model.schema` — `z.strictObject` (как `additionalProperties: false` в базе); вложенные `z.object` пропускают лишние ключи, база — тоже.
 - `seed.booking.sql` генерируется (`npm run seed:booking`); тест `demo` сверяет файл с моделями.
+- `Model<N, D, L, A>`: четвёртый параметр — литерал алиаса (шаги `TypedDb` по алиасу); `BOOKING` — кортеж `as const satisfies readonly AnyModel[]`, иначе типы цепочек по моделям схлопываются до `string`.
 - `syncModels` выполняет изменения одной транзакцией; сухой прогон её откатывает — ужесточение проверяет сама база.
 
 **Что ещё менять вместе**
