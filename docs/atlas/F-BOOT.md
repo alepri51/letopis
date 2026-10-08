@@ -1,4 +1,4 @@
-# F-BOOT — up() → install() → connect() (letopis 1.0, этапы 1 и 6)
+# F-BOOT — up() → install() → connect() (letopis 1.0, этапы 1 и 6; ревизия движка 5)
 Процессы: [N] Node-процесс (приложение, CLI или `db/apply.mjs`) · [P] PostgreSQL 18 (или PGlite)
 Триггер: `const r = await up({ dsn, schema: 'salon', seeds: ['booking'], history, allowReset })` → `connect({ dsn, schema: r.schema, apiKey: r.serviceKey })`; `node db/apply.mjs --dsn=… --schema=salon [--seed=…] [--fresh] [--upgrade] [--allow-reset]`.
 
@@ -14,17 +14,17 @@
 
 ## Накат (`install`)
 7. [P] `lib/src/up.ts:install` — роли владельца и приложения идемпотентно; членство установщика `with inherit false, set true`; `create extension if not exists pgcrypto`, его схема — в подстановку `@PGCRYPTO@`; схема создаётся до `set role`.
-8. [P] одна транзакция под `set local role` владельца: миграции `lib/src/up.ts:migrationFiles` (`sql/migrate/NNNN-*.sql`, номер выше ревизии схемы и не выше `DDL_REVISION`) — до функций; затем `lib/sql/NN-*.sql` по номеру через `substitute()` (`@SCHEMA@`, роли, `@SYSTEM@`, `@ALLOW_RESET@`, `@HISTORY_DEFAULT@`, `@RESERVED_NAMES@`); последний — `99-revision.sql` ставит штамп ревизии.
+8. [P] одна транзакция под `set local role` владельца: миграции `lib/src/up.ts:migrationFiles` (`sql/migrate/NNNN-*.sql`, номер выше ревизии схемы и не выше `DDL_REVISION`; каталога нет — миграций нет) — до функций; затем `lib/sql/NN-*.sql` по номеру через `substitute()` (`@SCHEMA@`, роли, `@SYSTEM@`, `@ALLOW_RESET@`, `@HISTORY_DEFAULT@`, `@RESERVED_NAMES@`); последний — `lib/sql/99-revision.sql` ставит штамп `ddl_revision=5` (= `lib/src/types.ts:DDL_REVISION`, сверяет `check:docs`). Файлы идемпотентны: обновление 4 → 5 — повторный накат без миграции (`create index if not exists log_ends` в `lib/sql/10-core.sql`, `create or replace` функции `log_refs_at` и find_* в `lib/sql/70-read.sql`).
 9. [P] сиды `seeds` — имя пакета (`sql/seed.<имя>.sql`) или путь к своему файлу, с теми же подстановками; `history` — проверка умолчания метасхемой (`class_prepare`).
 10. [P] `lib/sql/95-seed.system.sql:seed_system` — системный сид (его же зовёт `reset({ all })`); ключ сервиса — `bootstrap_service`: свой `serviceKey` регистрируется, если его sha256 ещё нет; иначе новый `lts_…` выдаётся, только если в схеме нет ни одного живого `APIKEY`.
 11. [P] `lib/src/up.ts:up#«last_analyze is null»` — `ANALYZE` только таблиц схемы без статистики.
-12. [N] результат: `schema`, `revision`, `created`, `upgraded`, `migrations`, `analyzed`, `serviceKey` (null при повторном накате), `pglite` (`dsn`, `close()`). Ошибка — PGlite останавливается.
+12. [N] результат: `schema`, `owner`, `app`, `revision`, `created`, `upgraded`, `migrations`, `analyzed`, `serviceKey` (null при повторном накате), `pglite` (`dsn`, `close()`). Ошибка — PGlite останавливается.
 
 ## Подключение
 13. [N] `lib/src/index.ts:connect` — снятые опции 0.21 — `removed`; пул postgres.js (`max` 10, `timestamptz` строкой ради микросекунд).
 14. [P] роль обходит RLS (суперпользователь, `BYPASSRLS`, членство в роли владельца с `USAGE` или `SET`) — `bypass_rls`, с `allowBypassRls` — предупреждение «администраторское подключение».
 15. [P] `apiKey`/`service` → `login_apikey` (ошибка базы — `fromDbError`); схемы нет — `invalid_data` «установите её: up({ schema })»; ревизия схемы меньше `DDL_REVISION` — предупреждение с командой `upgrade`, не отказ.
-16. [N] `Notifier`, `AclPasses`, `ResultCache` (`cache: false` — без кэша); реестр классов арендатора сессии и System; LISTEN на канал схемы (`listen: false` — нет) — дальше F-WATCH; `maintain: '1h'` — `lib/src/admin.ts:scheduleMaintain`.
+16. [N] `Notifier`, `AclPasses`, `ResultCache` (`cache: false` — без кэша; `onChanged` контекста → `ResultCache.changed`); реестр классов арендатора сессии и System; LISTEN на канал схемы (`listen: false` — нет) — дальше F-WATCH; `maintain: '1h'` — `lib/src/admin.ts:scheduleMaintain`.
 17. [N] `lib/src/index.ts:makeDb` — фасад `db` → F-READ, F-WRITE, F-ACCESS.
 
 Обёртка CI: `db/apply.mjs` — в репозитории исходники через `tsx` из `lib/node_modules`, иначе `lib/dist/up.js`; печатает JSON (`schema`, `revision`, `created`, `upgraded`, `serviceKey`), ошибка — код 1, без `--dsn`/`ENTITY_DSN` и `--schema` — код 2.

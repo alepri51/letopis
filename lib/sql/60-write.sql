@@ -12,17 +12,27 @@ return clock_timestamp();
 
 -- Блокировки семейства (этап 1, п. 10): писатели и загрузчик берут разделяемую блокировку корня
 -- семейства, ужесточение описания — исключительную. Форма с двумя int4 — отдельное от
--- пользовательского lock() (один bigint) пространство ключей advisory-блокировок.
-create or replace function @SCHEMA@.family_lock(p_root text, p_exclusive boolean) returns void
+-- пользовательского lock() (один bigint) пространство ключей advisory-блокировок. p_cls — строка
+-- Class класса семейства. Ключ — арендатор корневого класса и имя корня (итоговое ревью
+-- безопасности): ужесточение или rekeyClass одноимённого класса в другом арендаторе запись сюда не
+-- останавливает; корень из System (общий для всех арендаторов) — ключ System.
+create or replace function @SCHEMA@.family_lock(p_cls @SCHEMA@.entity, p_exclusive boolean) returns void
 language plpgsql volatile
 as $$
+declare
+  root text := p_cls.data->'resolved'->'ancestors'->>-1;
+  k int;
 begin
+  k := hashtext('@SCHEMA_NAME@:' || (case when p_cls.tenant = '@SYSTEM@'::uuid or p_cls.data->>'name' = root then p_cls.tenant
+    else coalesce((@SCHEMA@.class_row(root, p_cls.tenant)).tenant, p_cls.tenant) end)::text || ':' || root);
   if p_exclusive then
-    perform pg_advisory_xact_lock(19540, hashtext('@SCHEMA_NAME@:' || p_root));
+    perform pg_advisory_xact_lock(19540, k);
   else
-    perform pg_advisory_xact_lock_shared(19540, hashtext('@SCHEMA_NAME@:' || p_root));
+    perform pg_advisory_xact_lock_shared(19540, k);
   end if;
 end $$;
+-- до итогового ревью безопасности ключ был без арендатора
+drop function if exists @SCHEMA@.family_lock(text, boolean);
 
 -- Список классов конца: строка или массив строк → отсортированный jsonb-массив.
 create or replace function @SCHEMA@.class_set(p jsonb) returns jsonb
@@ -497,7 +507,6 @@ declare
   c record;
   cls @SCHEMA@.entity;
   res jsonb;
-  root text;
   bad jsonb;
   lk record;
   kid uuid;
@@ -521,8 +530,7 @@ begin
     perform @SCHEMA@.lt_fail('invalid_class', format('класс %s не найден', NEW.class));
   end if;
   -- разделяемая блокировка корня семейства, затем описание перечитывается под ней
-  root := cls.data->'resolved'->'ancestors'->>-1;
-  perform @SCHEMA@.family_lock(root, false);
+  perform @SCHEMA@.family_lock(cls, false);
   cls := @SCHEMA@.class_row(NEW.class, NEW.tenant);
   res := cls.data->'resolved';
   if coalesce((res->>'abstract')::boolean, false) then
@@ -594,7 +602,6 @@ declare
   cls @SCHEMA@.entity;
   res jsonb;
   old_res jsonb;
-  root text;
   bad jsonb;
   lk record;
   kid uuid;
@@ -619,8 +626,7 @@ begin
   if cls.id is null then
     perform @SCHEMA@.lt_fail('invalid_class', format('класс %s не найден', NEW.class));
   end if;
-  root := cls.data->'resolved'->'ancestors'->>-1;
-  perform @SCHEMA@.family_lock(root, false);
+  perform @SCHEMA@.family_lock(cls, false);
   cls := @SCHEMA@.class_row(NEW.class, OLD.tenant);
   res := cls.data->'resolved';
   if coalesce((res->>'abstract')::boolean, false) then
@@ -673,8 +679,8 @@ begin
   end if;
   if NEW.class = 'Class' and not @SCHEMA@.class_change_safe(OLD.data->'resolved', NEW.data->'resolved') then
     -- ужесточение: исключительная блокировка корня семейства (и нового корня при смене родителя)
-    perform @SCHEMA@.family_lock(OLD.data->'resolved'->'ancestors'->>-1, true);
-    perform @SCHEMA@.family_lock(NEW.data->'resolved'->'ancestors'->>-1, true);
+    perform @SCHEMA@.family_lock(OLD, true);
+    perform @SCHEMA@.family_lock(NEW, true);
   end if;
   NEW.rev := OLD.rev + 1;
   NEW.prev_hash := OLD.hash;
@@ -1177,7 +1183,7 @@ begin
   if cls.id is null then
     perform @SCHEMA@.lt_fail('invalid_class', format('класс %s не найден', p_class));
   end if;
-  perform @SCHEMA@.family_lock(cls.data->'resolved'->'ancestors'->>-1, false);
+  perform @SCHEMA@.family_lock(cls, false);
   cls := @SCHEMA@.class_row(p_class, o.tenant);
   res := cls.data->'resolved';
   if coalesce((res->>'abstract')::boolean, false) then
@@ -1344,7 +1350,7 @@ do $$
 declare f text;
 begin
   foreach f in array array[
-    'now_ts()', 'family_lock(text, boolean)', 'class_set(jsonb)', 'class_accepts(jsonb, text, uuid)', 'role_accepts(text, uuid, text, text, uuid)',
+    'now_ts()', 'family_lock(@SCHEMA@.entity, boolean)', 'class_set(jsonb)', 'class_accepts(jsonb, text, uuid)', 'role_accepts(text, uuid, text, text, uuid)',
     'apply_defaults(jsonb, jsonb)', 'links_shape(jsonb, jsonb)', 'targets_bad(jsonb, boolean, jsonb)', 'check_links(jsonb, jsonb, uuid, boolean, jsonb)', 'key_id(jsonb, text, uuid, jsonb, jsonb)',
     'log_version(@SCHEMA@.entity)', 'sys_update(uuid, jsonb, jsonb, jsonpath, text, text)', 'tombstone(@SCHEMA@.entity, text, uuid)',
     'links_replace(jsonb, uuid, uuid)', 'move_row(@SCHEMA@.entity, uuid, text, jsonb, jsonb, text)', 'reclass(uuid, text, jsonb)',

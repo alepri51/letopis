@@ -4,8 +4,8 @@
 
 ## Сигнал
 1. [P] `lib/sql/60-write.sql:signal` — каждая запись (триггеры, функции владельца, загрузчик; и классы с `history: false`) называет изменённые классы. Транзакции библиотеки помечены `letopis.notify = 'deferred'` (`lib/src/tx.ts:runTx`): имена копятся в `letopis.changed`, NOTIFY нет. Сырой SQL — `pg_notify(схема, класс)` сразу, доставка при фиксации.
-2. [N] `lib/src/tx.ts:runTx` — после фиксации читает `letopis.changed`: `ctx.onChanged` (кэш своих записей, ниже) и `Notifier.add` — классы уходят отдельной транзакцией `pg_notify(...) from unnest(...)` раз в `notifyIntervalMs` (100 мс). Явная транзакция — то же в `commit()`.
-3. [P] Имена сигнала: класс; `*` — `reset` уровней `tenant` и `all` (у `all` ещё `Class`); `session:<16 hex sha256 токена>` — погашенная сессия (`lib/sql/80-auth.sql`); `session:*` — `reset({ sessions })`. Ни id, ни арендатора, ни данных.
+2. [N] `lib/src/tx.ts:runTx` — чтение `letopis.changed` и `COMMIT` уходят одним конвейером (порядок на соединении сохраняется, круг до базы один); операция только для чтения (`read: true`) — просто `COMMIT`. После фиксации — `Notifier.add` (классы уходят отдельной транзакцией `pg_notify(...) from unnest(...)` раз в `notifyIntervalMs`, 100 мс) и `ctx.onChanged` (кэш своих записей, ниже). Явная транзакция — то же в `lib/src/tx.ts:ExplicitTx.commit`; обрыв во время `COMMIT` — `commit_unknown`, сигналов нет.
+3. [P] Имена сигнала: класс; `*` — `reset` уровней `tenant` и `all` (у `all` ещё `Class` и `session:*`); `session:<16 hex sha256 токена>` — погашенная сессия (`lib/sql/80-auth.sql`); `session:*` — `reset({ sessions })`. Ни id, ни арендатора, ни данных.
 4. [N] `lib/src/index.ts:connect#«sql.listen(opts.schema, onSignal»` — одно LISTEN-соединение postgres.js на `connect()`: `onSignal` сбрасывает пропуска прав (классы прав, `*`), перечитывает реестр (`Class`), зовёт `cache.signal` и подписчиков `Shared.signals`. `onlisten` (первое подключение и каждое переподключение) — `cache.listen()` (весь кэш) и `'*'` подпискам. `connect({ listen: false })` — без слушателя.
 
 ## Подписка

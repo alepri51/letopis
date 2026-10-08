@@ -20,6 +20,17 @@ permissions:
 jobs:
   npm-publish:
     runs-on: ubuntu-latest
+    # PostgreSQL 18 — для живого прогона опубликованного пакета (check-package.mjs, план §7.10 №8.2).
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: letopis
+        ports: ['15433:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d letopis"
+          --health-interval 5s --health-timeout 5s --health-retries 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -59,9 +70,13 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       # Проверка АРТЕФАКТА из реестра тем же скриптом, что на dev: каждый экспорт из
-      # docs/api-contract.json импортируется, состав тарбола совпадает с полем files.
+      # docs/api-contract.json импортируется, состав тарбола совпадает с полем files, живой
+      # прогон на сервисе postgres:18 (up, вход сервисом, загрузка, запись, чтение) обязателен.
       - name: Check the published package
         working-directory: lib
+        env:
+          ENTITY_DSN: postgres://postgres:test@localhost:15433/letopis
+          LETOPIS_PKG_LIVE: '1'
         run: |
           set -euo pipefail
           V="$(node -p "require('./package.json').version")"

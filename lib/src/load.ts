@@ -493,7 +493,8 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       await conn.unsafe(`select set_config('TimeZone', 'UTC', true)`);
       // описания классов под разделяемыми блокировками семейств, затем — свежие
       const roots = [...new Set(portion.map((i) => p1[i]!.cls.ancestors[p1[i]!.cls.ancestors.length - 1]))].sort();
-      for (const r of roots) await conn.unsafe(`select ${S}.family_lock($1, false)`, [r]);
+      // ключ блокировки — арендатор корневого класса и имя корня (корень из System — ключ System)
+      for (const r of roots) await conn.unsafe(`select ${S}.family_lock(${S}.class_row($1, $2::uuid), false)`, [r, tenant]);
       const reg = await readRegistry(conn as unknown as Sql);
       const [{ ts, xid }] = await conn.unsafe(`select clock_timestamp()::text as ts, pg_current_xact_id()::text as xid`);
       // от имени пользователя: арендатор доступен ему, планы прав READ и WRITE; класс без права — отказ

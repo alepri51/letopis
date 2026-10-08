@@ -130,7 +130,9 @@ as $$
 declare
   l @SCHEMA@.log;
 begin
-  select x.* into l from @SCHEMA@.log x where x.id = p_id order by x.rev desc limit 1 for update;
+  -- арендатор id неизменен: блокируется только запись своего арендатора, чужую вызов не задерживает
+  -- и по ожиданию не обнаружит (итоговое ревью безопасности)
+  select x.* into l from @SCHEMA@.log x where x.id = p_id and x.tenant = p_tenant order by x.rev desc limit 1 for update;
   if l.id is null or l.tenant <> p_tenant or l.op in ('purge', 'reset')
      or not @SCHEMA@.row_visible(l.tenant, l.class, l.id, l.owner, l.tags, l.data, l.links, p_tenant, (p_acl->>'account')::uuid, p_acl->'plan') then
     perform @SCHEMA@.lt_fail('target_not_found', 'цель не найдена');
@@ -175,7 +177,7 @@ begin
   if cls.id is null then
     perform @SCHEMA@.lt_fail('invalid_class', format('класс %s не найден', l.class));
   end if;
-  perform @SCHEMA@.family_lock(cls.data->'resolved'->'ancestors'->>-1, false);
+  perform @SCHEMA@.family_lock(cls, false);
   cls := @SCHEMA@.class_row(l.class, l.tenant);
   res := cls.data->'resolved';
   if coalesce((res->>'abstract')::boolean, false) then
@@ -375,7 +377,7 @@ begin
     perform @SCHEMA@.lt_fail('invalid_class', 'ключ системной строки не меняется');
   end if;
   cls := @SCHEMA@.class_row(o.class, o.tenant);
-  perform @SCHEMA@.family_lock(cls.data->'resolved'->'ancestors'->>-1, false);
+  perform @SCHEMA@.family_lock(cls, false);
   cls := @SCHEMA@.class_row(o.class, o.tenant);
   res := cls.data->'resolved';
   if jsonb_array_length(coalesce(res->'key', '[]'::jsonb)) = 0 then
@@ -449,7 +451,7 @@ begin
   if not @SCHEMA@.acl_row_ok(wplan, 'Class', cr.id, cr.owner, cr.tenant, cr.tags, cr.data, cr.links) then
     perform @SCHEMA@.lt_fail('acl_denied', 'нет права WRITE на класс Class');
   end if;
-  perform @SCHEMA@.family_lock(cr.data->'resolved'->'ancestors'->>-1, true);
+  perform @SCHEMA@.family_lock(cr, true);
   select x.* into cr from @SCHEMA@.entity x where x.id = cr.id for update;
   select p.data, p.validator into prep from @SCHEMA@.class_prepare(cr.data || jsonb_build_object('key', p_key), cr.tenant) p;
   perform @SCHEMA@.sys_update(cr.id, prep.data, cr.links, prep.validator, 'update');
@@ -519,15 +521,17 @@ begin
   if p_account = c.account then
     perform @SCHEMA@.lt_fail('acl_denied', 'удалить себя нельзя');
   end if;
-  select x.* into a from @SCHEMA@.entity x where x.id = p_account and x.class = 'Account' and x.tenant = '@SYSTEM@'::uuid for update;
-  if a.id is null or p_account = '@SYSTEM@'::uuid then
-    perform @SCHEMA@.lt_fail('target_not_found', 'аккаунт не найден');
-  end if;
+  -- право — до поиска и блокировки цели: без права ответ один (acl_denied), есть ли такой аккаунт,
+  -- не видно, и чужую строку Account вызов не блокирует (итоговое ревью безопасности)
   if not (@SCHEMA@.auth_is_sysadmin() or exists (
       select 1 from @SCHEMA@.entity x
       where x.id = @SCHEMA@.v5_id(p_account, 'member', array[c.account::text, p_account::text]) and x.class = 'member'
-        and coalesce(x.data->'roles' ? 'owner', false))) then
+        and x.tenant = p_account and coalesce(x.data->'roles' ? 'owner', false))) then
     perform @SCHEMA@.lt_fail('acl_denied', 'удалить аккаунт может системный администратор или владелец его арендатора');
+  end if;
+  select x.* into a from @SCHEMA@.entity x where x.id = p_account and x.class = 'Account' and x.tenant = '@SYSTEM@'::uuid for update;
+  if a.id is null or p_account = '@SYSTEM@'::uuid then
+    perform @SCHEMA@.lt_fail('target_not_found', 'аккаунт не найден');
   end if;
   -- последний владелец: в каждом чужом арендаторе, где цель — владелец, должен остаться другой
   for t in select x.tenant from @SCHEMA@.entity x

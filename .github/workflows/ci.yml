@@ -59,8 +59,13 @@ jobs:
         run: npm test
 
       # Тот же скрипт, что в release.yml: собирает тарбол, ставит его в чистую папку,
-      # импортирует каждый экспорт из docs/api-contract.json и сверяет состав с полем files.
-      # Так ошибка упаковки ловится на dev, а не после npm publish.
+      # импортирует каждый экспорт из docs/api-contract.json, сверяет состав с полем files и
+      # делает живой прогон на сервисе postgres:18 (up, вход сервисом, загрузка, запись, чтение;
+      # LETOPIS_PKG_LIVE=1 — без базы проверка красная). Так ошибка упаковки ловится на dev,
+      # а не после npm publish.
       - name: Package check
         working-directory: lib
+        env:
+          ENTITY_DSN: postgres://postgres:test@localhost:15433/letopis
+          LETOPIS_PKG_LIVE: '1'
         run: npm run check:package
