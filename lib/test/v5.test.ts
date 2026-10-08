@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { ensureDatabase, adminSql, schemaFor, ident, type Sql } from './_harness.js';
 import { install } from '../src/up.js';
+import { v5Name, v5Id, idOf } from '../src/uuid.js';
 
 interface Vector { title: string; tenant: string; class: string; values: string[]; name: string; id: string }
 
@@ -42,4 +43,23 @@ test('7.3.6 №2–3: другой арендатор и класс-брат д�
   assert.notEqual(byTitle['кириллица'], byTitle['класс-брат']);
   const [r] = await sql.unsafe(`select uuid_extract_version(${S}.v5_id($1::uuid, 'X', '{a}')) as v`, [vectors[0].tenant]);
   assert.equal(r.v, 5);
+});
+
+test('2.2: v5 в TypeScript совпадает с векторами независимой реализации', () => {
+  for (const v of vectors) {
+    assert.equal(v5Name(v.class, v.values), v.name, `имя: ${v.title}`);
+    assert.equal(v5Id(v.tenant, v.class, v.values), v.id, `id: ${v.title}`);
+  }
+});
+
+test('2.3: idOf — класс без ключа, концы в любом регистре, совпадение с базой', async () => {
+  const tenant = vectors[0].tenant;
+  assert.throws(() => idOf({ name: 'Note', key: [] }, {}, { tenant }), /letopis: no_key:/);
+  const master = { name: 'Master', key: ['Org', 'name'], ends: ['Org'] };
+  const org = '0F8FAD5B-D9CB-469F-A165-70867728950E';
+  const a = idOf(master, { Org: org, name: 'Вася' }, { tenant });
+  assert.equal(a, idOf(master, { Org: org.toLowerCase(), name: 'Вася' }, { tenant }));
+  const [r] = await sql.unsafe(`select ${S}.v5_id($1::uuid, 'Master', array[$2, 'Вася']) as id`, [tenant, org.toLowerCase()]);
+  assert.equal(a, r.id);
+  assert.throws(() => idOf(master, { Org: org }, { tenant }), /letopis: invalid_data:/);
 });

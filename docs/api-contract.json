@@ -14,9 +14,18 @@
   "exports": {
     ".": {
       "values": [
-        "DDL_REVISION"
+        "DDL_REVISION",
+        "LetopisError",
+        "ValidationError",
+        "idOf",
+        "uuidv5",
+        "v5Id",
+        "v5Name"
       ],
-      "types": []
+      "types": [
+        "Issue",
+        "KeyedClass"
+      ]
     },
     "./model": {
       "values": [],
@@ -157,6 +166,10 @@
     {
       "module": "60-write",
       "message": "letopis: invalid_data: "
+    },
+    {
+      "module": "errors",
+      "message": "letopis: <…>: <…>"
     },
     {
       "module": "up",
