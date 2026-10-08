@@ -6,8 +6,9 @@
  * - `$schema` убирается, нерекурсивные `$ref`/`$defs` разворачиваются, рекурсия — ошибка модели;
  * - ключевые слова JSON Schema вне подмножества — ошибка с названием (правило не пропадёт молча);
  *   прочие ключи (например, из `.meta()` Zod) переносятся в `x-meta`;
- * - у `format: date | date-time | uuid | email` длинный `pattern` Zod убирается — форму и смысл
- *   проверяет база (строгое выражение и `pg_input_is_valid`);
+ * - у `format` шаблон Zod сохраняется (переведённым): он несёт правила модели — например, ровно
+ *   три знака после запятой и пояс Z у `z.iso.datetime({ precision: 3 })`, — и без него база
+ *   приняла бы то, что отклоняет Zod;
  * - `pattern` переводится в явные классы символов, одинаковые для JavaScript и PostgreSQL
  *   (`\d` → `[0-9]`, `\w` → `[A-Za-z0-9_]`, `\s` → `[ \t\n\r\f\v]`); `\b`, `\p{…}`, именованные
  *   группы и обратные ссылки отклоняются;
@@ -134,7 +135,6 @@ export function normalizeSchema(input: JsonSchema, opts: NormalizeOptions = {}):
     if (Object.keys(meta).length) out['x-meta'] = { ...((out['x-meta'] as Record<string, Json>) ?? {}), ...meta };
     if (typeof out.format === 'string') {
       if (!FORMATS.has(out.format)) throw new LetopisError('invalid_class', `${where}: format ${out.format} не поддерживается (узел ${path})`);
-      delete out.pattern;
     }
     if (typeof out.pattern === 'string') out.pattern = translatePattern(out.pattern, `${where}: ${path}`);
     if (out.properties && typeof out.properties === 'object' && !Array.isArray(out.properties)) {

@@ -232,7 +232,8 @@ function makeModel<N extends string>(kind: 'hub' | 'link', name: N, defArg: unkn
       throw new LetopisError('invalid_class', `${name}: onDelete unset недопустим для обязательного конца ${role}`);
     }
   }
-  const schema = z.object(shape);
+  // строгий верхний уровень — как в базе (resolved.schema: additionalProperties false)
+  const schema = z.strictObject(shape);
 
   const model: AnyModel = {
     name,

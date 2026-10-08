@@ -92,8 +92,11 @@ test('2.11: метаданные класса, пометки полей, пот
   assert.deepEqual(phone['x-meta'], { widget: 'phone' });
   assert.deepEqual(Short.describe().meta, { order: 1 });
   assert.deepEqual(booking.lostRules(), [{ path: 'booking.notes', kind: 'refine' }]);
-  // время с миллисекундами — только format, длинный шаблон Zod убран
-  assert.deepEqual(booking.describe().fields.properties.start, { type: 'string', format: 'date-time' });
+  // время с миллисекундами: format и переведённый шаблон Zod (ровно три знака, пояс Z)
+  const start = booking.describe().fields.properties.start;
+  assert.equal(start.format, 'date-time');
+  assert.match(String(start.pattern), /\.\[0-9\]\{3\}/);
+  assert.ok(!String(start.pattern).includes('\d'));
 });
 
 test('2.12: нормализатор — $ref и $defs, рекурсия, поле $x, $schema', () => {
