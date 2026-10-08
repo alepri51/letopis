@@ -33,12 +33,23 @@ export function isLogConflict(e: unknown): boolean {
   return err.code === '23505' && err.constraint_name === 'log_id_rev';
 }
 
-/** Обрыв связи (не ответ сервера): исход отправленного оператора неизвестен. */
+/** Обрыв связи: сокет закрыт или серверный процесс завершён (FATAL) — исход отправленного неизвестен. */
 export function isConnectionError(e: unknown): boolean {
   const err = e as { code?: string; severity?: string };
-  if (err?.severity) return false;
+  if (err?.severity) return err.severity === 'FATAL' || err.severity === 'PANIC';
   const code = String(err?.code ?? '');
   return code.startsWith('CONNECTION_') || ['ECONNRESET', 'EPIPE', 'ECONNREFUSED', 'ETIMEDOUT', 'ECONNABORTED'].includes(code);
+}
+
+/**
+ * Вернуть зарезервированное соединение в пул. После обрыва сокета пул postgres.js уже перевёл
+ * соединение в закрытые (onclose); release() вернул бы его в открытые, и следующая операция
+ * писала бы в сокет null — необработанный TypeError роняет процесс.
+ */
+function release(conn: { release(): void }, err: unknown): void {
+  const e = err as { code?: string; severity?: string } | null;
+  if (e && !e.severity && isConnectionError(e)) return;
+  conn.release();
 }
 
 const commitUnknown = (cause: unknown): LetopisError =>
@@ -118,31 +129,39 @@ export async function runTx<T>(ctx: TxContext, fn: (tx: Tx) => Promise<T>, opts:
   const retries = opts.retries ?? RETRIES;
   for (let attempt = 1; ; attempt++) {
     let bodyDone = false;
+    let dead = false;
+    let failure: unknown = null;
+    // своё зарезервированное соединение, а не sql.begin: после гибели серверного процесса
+    // postgres.js 3.4 шлёт rollback в закрытый сокет и роняет процесс необработанным TypeError
+    const conn = await ctx.sql.reserve();
     try {
       let changed: string | null = null;
-      const out = await ctx.sql.begin('isolation level read committed', async (tx) => {
-        // служебный оператор уходит конвейером вместе с первым запросом операции (§2.9);
-        // время — в UTC, чтобы строки ответа не зависели от настроек сервера
-        // execute(): запросы postgres.js ленивые — без него первый запрос fn ушёл бы раньше настроек
-        const setup = setupSql(tx, ctx).execute();
-        const [, r] = await Promise.all([setup, fn(tx)]);
-        if (!opts.read) {
-          const [row] = await tx`select current_setting('letopis.changed', true) as changed`;
-          changed = (row?.changed as string | null) ?? null;
-        }
-        bodyDone = true;
-        return r;
-      });
+      // begin, служебный оператор и первый запрос операции уходят конвейером (§2.9); время — в UTC;
+      // execute(): запросы postgres.js ленивые — без него первый запрос fn ушёл бы раньше настроек
+      const begin = conn.unsafe('begin isolation level read committed').execute();
+      const setup = setupSql(conn as unknown as Tx, ctx).execute();
+      const [, , out] = await Promise.all([begin, setup, fn(conn as unknown as Tx)]);
+      if (!opts.read) {
+        const [row] = await conn`select current_setting('letopis.changed', true) as changed`;
+        changed = (row?.changed as string | null) ?? null;
+      }
+      bodyDone = true;
+      await conn.unsafe('commit');
       ctx.notifier?.add(changed);
       return out as T;
     } catch (e) {
+      failure = e;
+      dead = isConnectionError(e);
+      if (!dead) await conn.unsafe('rollback').catch(() => {});
       // обрыв во время COMMIT: транзакция могла зафиксироваться — не повторяем (§2.5)
-      if (bodyDone && !opts.read && isConnectionError(e)) throw commitUnknown(e);
+      if (bodyDone && !opts.read && dead) throw commitUnknown(e);
       if (attempt <= retries && (isTransient(e) || isLogConflict(e))) {
         await retryDelay(attempt);
         continue;
       }
       throw fromDbError(e);
+    } finally {
+      release(conn, failure);
     }
   }
 }
@@ -217,8 +236,8 @@ export class ExplicitTx implements Executor {
     }
     this.done = true;
     if (this.broken) {
-      await this.conn.unsafe('rollback').catch(() => {});
-      this.conn.release();
+      if (!isConnectionError(this.broken)) await this.conn.unsafe('rollback').catch(() => {});
+      release(this.conn, this.broken);
       this.failure = this.broken;
       throw this.broken;
     }
@@ -227,8 +246,8 @@ export class ExplicitTx implements Executor {
       const [row] = await this.conn.unsafe(`select current_setting('letopis.changed', true) as changed`);
       changed = (row?.changed as string | null) ?? null;
     } catch (e) {
-      await this.conn.unsafe('rollback').catch(() => {});
-      this.conn.release();
+      if (!isConnectionError(e)) await this.conn.unsafe('rollback').catch(() => {});
+      release(this.conn, e);
       this.failure = fromDbError(e);
       throw this.failure;
     }
@@ -240,10 +259,10 @@ export class ExplicitTx implements Executor {
       }
     } catch (e) {
       this.failure ??= isConnectionError(e) ? commitUnknown(e) : fromDbError(e);
+      release(this.conn, e);
       throw this.failure;
-    } finally {
-      this.conn.release();
     }
+    this.conn.release();
     this.ctx.notifier?.add(changed);
   }
 
@@ -251,11 +270,13 @@ export class ExplicitTx implements Executor {
     if (this.done) return;
     this.done = true;
     try {
-      await this.conn.unsafe('rollback');
-    } catch {
+      // соединение, оборванное ошибкой, не трогаем: postgres.js уронил бы процесс записью в закрытый сокет
+      if (!isConnectionError(this.broken)) await this.conn.unsafe('rollback');
+    } catch (e) {
       // соединение могло оборваться — транзакция откатится сама
-    } finally {
-      this.conn.release();
+      release(this.conn, e);
+      return;
     }
+    release(this.conn, this.broken);
   }
 }

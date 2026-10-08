@@ -6,7 +6,8 @@
 --   parent    имя предка или null
 --   abstract  строк класса нет, только у потомков
 --   alias     имя для людей
---   fields    JSON Schema собственных полей: { properties, required }
+--   fields    JSON Schema собственных полей: { properties, required[, anyOf | oneOf] } — условия по
+--             нескольким полям (anyOf, oneOf) потомок заменяет целиком, как поле
 --   ends      { <роль>: { class: <класс> | [<класс>…], many, required, min, max, onDelete, meta } }
 --   key       [<поле или роль>…] — из них вычисляется id (§2.3); [] — класс без ключа
 --   history   true | false | политика хранения (§2.11)
@@ -32,7 +33,9 @@ return $json${
       "additionalProperties": false,
       "properties": {
         "properties": {"type": "object", "propertyNames": {"type": "string", "pattern": "^[^$]"}},
-        "required": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+        "required": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "anyOf": {"type": "array", "minItems": 1, "items": {"type": "object"}},
+        "oneOf": {"type": "array", "minItems": 1, "items": {"type": "object"}}
       }
     },
     "ends": {
@@ -111,6 +114,7 @@ declare
   hist jsonb;
   od text;
   cache jsonb;
+  comp jsonb := '{}';
   i int;
   v jsonb;
   m record;
@@ -132,6 +136,9 @@ begin
     props := props || coalesce(v->'fields'->'properties', '{}');
     req := (select coalesce(jsonb_agg(distinct x), '[]') from jsonb_array_elements_text(req || coalesce(v->'fields'->'required', '[]')) x);
     ends := ends || coalesce(v->'ends', '{}');
+    if v->'fields' ? 'anyOf' or v->'fields' ? 'oneOf' then
+      comp := jsonb_strip_nulls(jsonb_build_object('anyOf', v->'fields'->'anyOf', 'oneOf', v->'fields'->'oneOf'));
+    end if;
     if v ? 'key' then key := v->'key'; end if;
     if v ? 'history' then hist := v->'history'; end if;
     if v ? 'ownerDefault' then od := v->>'ownerDefault'; end if;
@@ -145,7 +152,7 @@ begin
     'kind', p_data->>'kind',
     'abstract', coalesce((p_data->>'abstract')::boolean, false),
     'ancestors', to_jsonb(names),
-    'schema', jsonb_build_object('type', 'object', 'properties', props, 'required', req, 'additionalProperties', false),
+    'schema', jsonb_build_object('type', 'object', 'properties', props, 'required', req, 'additionalProperties', false) || comp,
     'ends', ends,
     'key', coalesce(key, '[]'),
     'history', coalesce(hist, 'true'),
