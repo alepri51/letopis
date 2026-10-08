@@ -38,17 +38,67 @@ create or replace function @SCHEMA@.jp_str(s text) returns text
 language sql immutable strict parallel safe
 return to_jsonb(s)::text;
 
--- Перевод шаблона JavaScript в регулярное выражение PostgreSQL (этап 1, п. 5).
+-- Перевод шаблона JavaScript в регулярное выражение PostgreSQL (этап 1, п. 5): разбор по символам,
+-- как translatePattern в lib/src/jsonschema.ts. \d \w \s и их отрицания — явными наборами (внутри
+-- [ ] — без скобок), экранированная обратная косая черта остаётся собой; \b, \p{…}, именованные
+-- группы и обратные ссылки отклоняются.
 create or replace function @SCHEMA@.jp_pattern(p text) returns text
 language plpgsql immutable strict
 as $$
+declare
+  res text := '';
+  i int := 1;
+  c text;
+  n text;
+  in_class boolean := false;
+  sp constant text := ' \t\n\r\f\v';
+  why text;
 begin
-  if p ~ '\\b|\\B|\\p\{|\\P\{|\(\?<' then
-    raise exception using errcode = 'LT010', message = 'letopis: invalid_class: шаблон ' || p || ' несовместим с регулярными выражениями PostgreSQL (\b, \p{…}, именованные группы)';
-  end if;
-  return replace(replace(replace(replace(replace(replace(p,
-    '\d', '[0-9]'), '\D', '[^0-9]'), '\w', '[A-Za-z0-9_]'), '\W', '[^A-Za-z0-9_]'),
-    '\s', '[ \t\n\r\f\v]'), '\S', '[^ \t\n\r\f\v]');
+  while i <= length(p) loop
+    c := substr(p, i, 1);
+    if c = '\' then
+      n := substr(p, i + 1, 1);
+      i := i + 2;
+      if n = '' then
+        why := 'обратная косая черта в конце шаблона';
+      elsif n = 'd' then
+        res := res || case when in_class then '0-9' else '[0-9]' end;
+      elsif n = 'w' then
+        res := res || case when in_class then 'A-Za-z0-9_' else '[A-Za-z0-9_]' end;
+      elsif n = 's' then
+        res := res || case when in_class then sp else '[' || sp || ']' end;
+      elsif n in ('D', 'W', 'S') then
+        if in_class then
+          why := '\' || n || ' внутри набора [ ] не переводится';
+        else
+          res := res || case n when 'D' then '[^0-9]' when 'W' then '[^A-Za-z0-9_]' else '[^' || sp || ']' end;
+        end if;
+      elsif n in ('b', 'B') then
+        why := '\' || n || ' в PostgreSQL значит другое';
+      elsif n in ('p', 'P') then
+        why := '\p{…} не поддерживается';
+      elsif n = 'k' or n ~ '[1-9]' then
+        why := 'обратные ссылки не поддерживаются';
+      else
+        res := res || c || n;
+      end if;
+      if why is not null then
+        raise exception using errcode = 'LT010', message = 'letopis: invalid_class: шаблон ' || p || ' несовместим с регулярными выражениями PostgreSQL (' || why || ')';
+      end if;
+      continue;
+    end if;
+    if not in_class and substr(p, i, 3) = '(?<' and substr(p, i + 3, 1) not in ('=', '!') then
+      raise exception using errcode = 'LT010', message = 'letopis: invalid_class: шаблон ' || p || ' несовместим с регулярными выражениями PostgreSQL (именованные группы не поддерживаются)';
+    end if;
+    if c = '[' and not in_class then
+      in_class := true;
+    elsif c = ']' and in_class then
+      in_class := false;
+    end if;
+    res := res || c;
+    i := i + 1;
+  end loop;
+  return res;
 end $$;
 
 -- Навигация в строгом режиме без ошибок на отсутствующих ключах и чужих типах:

@@ -28,8 +28,28 @@
       ]
     },
     "./model": {
-      "values": [],
-      "types": []
+      "values": [
+        "End",
+        "hub",
+        "link",
+        "many",
+        "normalizeSchema",
+        "one",
+        "translatePattern"
+      ],
+      "types": [
+        "AnyModel",
+        "ClassDef",
+        "ClassDescription",
+        "ClassMeta",
+        "HistoryPolicy",
+        "Infer",
+        "InferLinks",
+        "JsonSchema",
+        "LostRule",
+        "Model",
+        "OnDelete"
+      ]
     }
   },
   "chain": [],
