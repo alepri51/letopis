@@ -3,12 +3,15 @@
  * (reports/PLAN-LETOPIS-1.0.md); до выпуска 1.0.0 пакет не публикуется.
  *
  * Этап 2: connect() — подключение под сессией, реестр классов, отложенный сигнал, db.sql.
- * Этап 3: цепочки чтения t.Класс(…).Связь().rows(); запись цепочками — этап 4.
+ * Этап 3: цепочки чтения t.Класс(…).Связь().rows(); этап 4 — запись цепочками и загрузчик.
+ * Этап 5: db.auth (креды, вход, сессии), db.acl, db.as(аккаунт, { tenant }) — имперсонация.
  */
 import postgres from 'postgres';
 import { LetopisError, notYet, removed } from './errors.js';
 import { Registry } from './registry.js';
-import { ExplicitTx, Notifier, poolExecutor, runTx, type Executor, type Tx, type TxContext } from './tx.js';
+import { AclPasses, ExplicitTx, Notifier, poolExecutor, runTx, type Executor, type Tx, type TxContext } from './tx.js';
+import { makeAuth, type AuthApi } from './auth.js';
+import { makeAcl, type AclApi } from './acl.js';
 import { idOf as idOfClass } from './uuid.js';
 import { load, type LoadInput, type LoadOptions, type LoadReport } from './load.js';
 import { makeBatch, startEntity, startStep, type Batch, type BatchEntry, type Chain, type ChainCtx, type StepFn } from './chain.js';
@@ -24,6 +27,8 @@ export { syncModels, generateTypes, schemaToTs, type SyncResult } from './sync.j
 export { ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends, has, hasAny, hasAll, exists, isNull, not, or, isOp } from './ops.js';
 export { cursorOf } from './sql.js';
 export { inc, isInc, type IncMarker, type WriteRow } from './write.js';
+export { totpCode, hashPassword, verifyHash, type AuthApi, type LoginResult, type Credential } from './auth.js';
+export type { AclApi, AclDecision, AclDataDecision, AclOp } from './acl.js';
 export type { LoadOptions, LoadReport, LoadIssue, LoadInput } from './load.js';
 export type { Chain, ChainCore, StepFn, BatchEntry } from './chain.js';
 export type { ModelLike, AnyModelLike, RowOf, FilterOf, FieldFilterOf, TypedChain, StepsOf, PatchOf } from './typed.js';
@@ -51,9 +56,12 @@ export interface ConnectOptions {
   sql?: postgres.Sql;
   /** Схема установки, например `v2.salon`. */
   schema: string;
-  /** Токен сессии; либо ключ сервиса APIKEY в `apiKey` — его обменяют на сессию. */
+  /** Токен сессии; либо ключ APIKEY в `apiKey` (он же `service` — ключ сервиса) — его обменяют на сессию. */
   token?: string;
   apiKey?: string;
+  service?: string;
+  /** Продлевать сессию раз в минуту работы (по умолчанию да, §2.9). */
+  refreshSession?: boolean;
   /** Разрешить роль, которая обходит RLS (суперпользователь, BYPASSRLS, член роли-владельца), — администраторское подключение (§2.9). */
   allowBypassRls?: boolean;
   /** Имя роли-владельца (по умолчанию letopis_owner). */
@@ -88,6 +96,10 @@ export interface DbCore {
   /** Арендатор сессии. */
   readonly tenant: string | null;
   readonly registry: Registry;
+  /** Креды, вход и сессии (этап 5). */
+  readonly auth: AuthApi;
+  /** Решения прав: check(endpoint), checkData(class, op) (этап 5). */
+  readonly acl: AclApi;
   /** Сырой SQL под сессией и RLS, одной транзакцией (в db.begin() — в ней): db.sql`select …`. */
   sql(strings: TemplateStringsArray, ...values: unknown[]): Promise<postgres.Row[]>;
   /** Транзакция под сессией: fn получает соединение postgres.js (в db.begin() — ту же транзакцию). */
@@ -101,10 +113,11 @@ export interface DbCore {
   /** Начать путь с готового узла: db.entity(row | цепочка). */
   entity(x: Chain | Row): Chain;
   /**
-   * Тот же пул от имени аккаунта (letopis.account; имперсонацию проверяет база — этап 5) и с явным
-   * владельцем новых строк: db.as(account, { owner }).
+   * Тот же пул от имени аккаунта (letopis.account: имперсонацию проверяет база — право сервиса
+   * auth.impersonate), в арендаторе tenant (собственный аккаунта или по членству) и с явным владельцем
+   * новых строк: await db.as(account, { tenant, owner }). account = null — тот же актор.
    */
-  as(account: string | { id: string } | null, opts?: { owner?: string }): Db;
+  as(account: string | { id: string } | null, opts?: { owner?: string; tenant?: string }): Promise<Db>;
   /** Явная транзакция read committed: те же цепочки, commit(), rollback(), lock(), forUpdate(). */
   begin(): Promise<DbTx>;
   /**
@@ -136,13 +149,30 @@ const DB_LATER: Record<string, number> = { verify: 6, maintain: 6, reset: 6, des
 
 const quote = (name: string): string => `"${name.replace(/"/g, '""')}"`;
 
-/** Общее для всех фасадов одного подключения: пул, реестр, сигналы, очереди батчей. */
+/** Классы, строки которых меняют права: их сигнал сбрасывает пропуска прав подключения. */
+const ACL_CLASSES = new Set(['rule', 'Resource', 'member', 'Account', 'Class']);
+
+/** Область фасада: контекст транзакций, арендатор и реестр его классов. */
+interface Scope {
+  txc: TxContext;
+  tenant: () => string | null;
+  registry: () => Registry;
+  /** Корень подключения (не имперсонация): auth.switch доступен. */
+  root: boolean;
+}
+
+/** Общее для всех фасадов одного подключения: пул, реестры по арендаторам, сигналы, очереди батчей. */
 interface Shared {
   sql: postgres.Sql<Record<string, unknown>>;
   schema: string;
-  registry: Registry;
+  /** Схема в кавычках. */
+  S: string;
   notifier: Notifier;
-  tenant: () => string | null;
+  passes: AclPasses;
+  /** Арендатор и реестр корня — меняются после auth.switch. */
+  root: { tenant: string | null; registry: Registry };
+  /** Реестр классов арендатора (System + арендатор), загруженный контекстом txc. */
+  registryFor: (tenant: string, txc: TxContext) => Promise<Registry>;
   refresh: () => Promise<void>;
   onQuery?: (e: QueryEvent) => void;
   slowMs?: number;
@@ -154,41 +184,60 @@ interface Shared {
 }
 
 /** Фасад db: пул (exec — исполнитель пула) или явная транзакция (tx). */
-function makeDb(sh: Shared, txc: TxContext, exec: Executor, owner?: string, tx?: ExplicitTx): Db {
-  const chainCtx: ChainCtx = { reg: sh.registry, schema: sh.schema, exec, tenant: sh.tenant, owner, onQuery: sh.onQuery, slowMs: sh.slowMs };
+function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: ExplicitTx): Db {
+  const txc = scope.txc;
+  const chainCtx: ChainCtx = { reg: scope.registry(), schema: sh.schema, exec, tenant: scope.tenant, owner, onQuery: sh.onQuery, slowMs: sh.slowMs };
+  // реестр корня меняется после auth.switch — цепочки берут действующий
+  Object.defineProperty(chainCtx, 'reg', { get: scope.registry, enumerable: true });
   const noTx = (what: string): never => {
     throw new LetopisError('tx_required', `${what} — только внутри db.begin()`);
   };
+  const auth = makeAuth(sh.S, exec, async () => {
+    sh.passes.clear();
+    await sh.refresh();
+  }, scope.root && !tx);
+  const acl = makeAcl(sh.S, exec);
   const core: DbCore = {
     schema: sh.schema,
     get token() { return txc.token; },
-    get tenant() { return sh.tenant(); },
-    registry: sh.registry,
+    get tenant() { return scope.tenant(); },
+    get registry() { return scope.registry(); },
+    auth,
+    acl,
     sql: (strings, ...values) => exec.run((q) => q(strings, ...(values as never[])) as unknown as Promise<postgres.Row[]>),
     transaction: (fn) => exec.run(fn),
     idOf: (cls, key) => {
-      const tenant = sh.tenant();
+      const tenant = scope.tenant();
       if (!tenant) throw new LetopisError('no_session', 'idOf: нет арендатора сессии');
-      const c = sh.registry.resolve(cls);
+      const c = scope.registry().resolve(cls);
       return idOfClass({ name: c.name, key: c.key, ends: Object.keys(c.ends) }, key, { tenant });
     },
     refresh: sh.refresh,
     flushSignals: () => sh.notifier.flush(),
     entity: (x) => startEntity(chainCtx, x),
-    as: (account, o) => {
+    as: async (account, o) => {
       if (tx) throw new LetopisError('invalid_query', 'db.as() — от корня подключения, а не внутри db.begin()');
       const id = account === null ? undefined : typeof account === 'object' ? account.id : account;
-      const scoped: TxContext = { ...txc, account: id };
-      return makeDb(sh, scoped, poolExecutor(scoped), o?.owner ?? owner);
+      const nextOwner = o?.owner ?? owner;
+      if (id === undefined && o?.tenant === undefined) {
+        return makeDb(sh, scope, poolExecutor(txc), nextOwner);
+      }
+      // имперсонация и арендатор проверяются базой сразу: ошибка — здесь, а не на первой цепочке
+      const scoped: TxContext = { ...txc, account: id ?? txc.account, tenant: o?.tenant ?? (id === undefined ? txc.tenant : undefined) };
+      const [r] = await runTx(scoped, (q) => q.unsafe(`select account, tenant from ${sh.S}.ctx()`), { read: true });
+      if (!r?.account) throw new LetopisError('no_session', 'db.as(): нет действующей сессии');
+      const tenant = r.tenant as string;
+      const registry = await sh.registryFor(tenant, scoped);
+      return makeDb(sh, { txc: scoped, tenant: () => tenant, registry: () => registry, root: false }, poolExecutor(scoped), nextOwner);
     },
     begin: async () => {
       if (tx) throw new LetopisError('invalid_query', 'вложенных транзакций нет: db.begin() внутри db.begin()');
       const t = await ExplicitTx.open(txc);
-      return makeDb(sh, txc, t, owner, t) as DbTx;
+      return makeDb(sh, scope, t, owner, t) as DbTx;
     },
     load: async (input, o) => {
       if (tx) throw new LetopisError('invalid_query', 'load() — своей транзакцией, не внутри db.begin()');
-      return load({ sql: sh.sql, schema: sh.schema, tenant: sh.tenant(), admin: sh.admin, ownerRole: sh.ownerRole }, input, o);
+      return load({ sql: sh.sql, schema: sh.schema, tenant: scope.tenant(), admin: sh.admin, ownerRole: sh.ownerRole }, input, o);
     },
     batch: (name) => {
       let q = sh.batches.get(name);
@@ -200,13 +249,6 @@ function makeDb(sh: Shared, txc: TxContext, exec: Executor, owner?: string, tx?:
     rollback: async (tr) => (tr ? tr.rollback() : tx ? tx.rollback() : noTx('rollback()')),
     close: () => (tx ? tx.rollback() : sh.close()),
   };
-  const sub = (name: string, guard: string, replacement: string) => new Proxy({}, {
-    get: (_o, p) => {
-      if (p === 'then' || typeof p === 'symbol') return undefined;
-      if (p === guard) throw removed(`db.${name}.${guard}()`, replacement);
-      throw notYet(`db.${name}.${p}`, 5);
-    },
-  });
   return new Proxy(core, {
     get(t, prop, r) {
       if (typeof prop === 'symbol' || prop in t) return Reflect.get(t, prop, r);
@@ -219,16 +261,12 @@ function makeDb(sh: Shared, txc: TxContext, exec: Executor, owner?: string, tx?:
         case 'credentials':
         case 'resources':
         case 'rules':
-          throw removed(`фасад db.${prop}`, 'системные классы и функции входа (этап 5)');
+          throw removed(`фасад db.${prop}`, 'системные классы Account, Resource, rule, member и db.auth');
         case 'watch':
           return (arg?: unknown) => {
             if (typeof arg === 'function' || typeof arg === 'string') throw removed('watch(cb) и watch(класс, cb)', 'watch({ from }) — подписка по курсору (этап 6)');
             throw notYet('watch({ from })', 6);
           };
-        case 'auth':
-          return sub('auth', 'sessions', 'сессии хранятся в базе (этап 5)');
-        case 'acl':
-          return sub('acl', 'reload', 'права обновляются сами');
         case 'compact':
           throw removed('compact()', 'обрезка истории и history: false (этап 6)');
       }
@@ -264,29 +302,52 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
     }
     if (bypass) console.warn('letopis: администраторское подключение — RLS не действует, данные всех арендаторов видны');
     let token = opts.token ?? null;
-    if (!token && opts.apiKey) {
-      const [r] = await sql.unsafe(`select ${S}.login_apikey($1) as t`, [opts.apiKey]);
+    const apiKey = opts.apiKey ?? opts.service;
+    if (!token && apiKey) {
+      const [r] = await sql.unsafe(`select ${S}.login_apikey($1) as t`, [apiKey]);
       token = r.t as string;
     }
     const notifier = new Notifier(sql, opts.schema, opts.notifyIntervalMs ?? 100);
-    const ctx: TxContext = { sql, token, notifier };
-    const registry = new Registry();
-    let tenant: string | null = null;
+    const passes = new AclPasses(S);
+    // продление сессии (§2.9): отдельным вызовом не чаще раза в минуту; ошибка (реплика,
+    // транзакции только для чтения) не мешает работе
+    let refreshedAt = Date.now();
+    const touch = (): void => {
+      if (!token || opts.refreshSession === false || Date.now() - refreshedAt < 60_000) return;
+      refreshedAt = Date.now();
+      void runTx({ sql, token, notifier: null }, (q) => q.unsafe(`select ${S}.auth_refresh()`), { retries: 0 }).catch(() => {});
+    };
+    const ctx: TxContext = { sql, token, notifier, passes, after: touch };
+    const root = { tenant: null as string | null, registry: new Registry() };
+    const loadClasses = (txc: TxContext) => runTx(txc, (q) =>
+      q.unsafe(`select tenant, rev, data from ${S}.entity where class = 'Class' and tenant in (${S}.ctx_tenant(), '${SYSTEM_ID}')`), { read: true });
+    const others = new Map<string, { registry: Registry; txc: TxContext }>();
     const refresh = async () => {
-      const rows = await runTx(ctx, async (tx) => {
-        const [t] = await tx.unsafe(`select ${S}.ctx_tenant() as t`);
-        tenant = (t?.t as string | null) ?? null;
-        return tx.unsafe(`select tenant, rev, data from ${S}.entity where class = 'Class' and tenant in (${S}.ctx_tenant(), '${SYSTEM_ID}')`);
+      const rows = await runTx(ctx, async (q) => {
+        const [t] = await q.unsafe(`select ${S}.ctx_tenant() as t`);
+        root.tenant = (t?.t as string | null) ?? null;
+        return q.unsafe(`select tenant, rev, data from ${S}.entity where class = 'Class' and tenant in (${S}.ctx_tenant(), '${SYSTEM_ID}')`);
       });
-      registry.load(rows as never);
+      root.registry.load(rows as never);
+      for (const o of others.values()) o.registry.load(await loadClasses(o.txc).catch(() => []) as never);
+    };
+    const registryFor = async (tenant: string, txc: TxContext): Promise<Registry> => {
+      if (tenant === root.tenant) return root.registry;
+      const known = others.get(tenant);
+      if (known) return known.registry;
+      const registry = new Registry();
+      registry.load(await loadClasses(txc) as never);
+      others.set(tenant, { registry, txc });
+      return registry;
     };
     await refresh();
-    // описания классов меняются — реестр перечитывается по сигналу (минимальная подписка этапа 2)
+    // описания классов меняются — реестр перечитывается по сигналу; строки прав — пропуска заново
     const listener = await sql.listen(opts.schema, (cls) => {
+      if (ACL_CLASSES.has(cls)) passes.clear();
       if (cls === 'Class') void refresh().catch(() => {});
     });
     const shared: Shared = {
-      sql, schema: opts.schema, registry, notifier, tenant: () => tenant, refresh, onQuery: opts.onQuery, slowMs: opts.slowMs,
+      sql, schema: opts.schema, S, notifier, passes, root, registryFor, refresh, onQuery: opts.onQuery, slowMs: opts.slowMs,
       batches: new Map(),
       admin: Boolean(bypass && (role.rolsuper || role.can_set)),
       ownerRole: owner,
@@ -296,7 +357,7 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
         if (own) await sql.end({ timeout: 5 });
       },
     };
-    return makeDb(shared, ctx, poolExecutor(ctx));
+    return makeDb(shared, { txc: ctx, tenant: () => root.tenant, registry: () => root.registry, root: true }, poolExecutor(ctx));
   } catch (e) {
     if (own) await sql.end({ timeout: 1 });
     throw e;

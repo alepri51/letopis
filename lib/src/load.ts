@@ -15,7 +15,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
-import { LetopisError, notYet, removed, type Issue } from './errors.js';
+import { LetopisError, fromDbError, removed, type Issue } from './errors.js';
 import { isOp } from './ops.js';
 import { Registry, type ClassInfo, type EndInfo } from './registry.js';
 import { accepts } from './sql.js';
@@ -24,6 +24,8 @@ import { applyDefaults } from './validate.js';
 import { isInc } from './write.js';
 
 const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
+/** Классы, строки которых меняют права: загрузка их строк повышает счётчик изменений прав. */
+const ACL_CLASSES = ['rule', 'Resource', 'member', 'Account', 'Class'];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Sql = postgres.Sql<Record<string, unknown>>;
@@ -48,7 +50,11 @@ export interface LoadOptions {
   tenant?: string;
   /** Агент версий (по умолчанию «letopis load»; импорт — «letopis import»). */
   agent?: string;
-  /** Загрузка от имени пользователя — этап 5. */
+  /**
+   * Загрузка от имени пользователя (§2.6, п. 10): автор версий — он; арендатор (по умолчанию —
+   * собственный аккаунта) доступен ему; право WRITE на каждый класс и условия ACL на новые (и в
+   * existing: 'update' — прежние) значения строк; цели ссылок ему видны; владелец — по ownerDefault.
+   */
   as?: string;
 }
 
@@ -334,14 +340,17 @@ async function copyLines(conn: Sql, text: string, lines: string[]): Promise<void
  */
 export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {}): Promise<LoadReport> {
   if ('trust' in opts) throw removed('load({ trust })', 'запрос по целям вне загрузки стоит 0,1–1,3 % её времени — режим доверия убран (решение 2 точки А)');
-  if (opts.as !== undefined) throw notYet('load({ as })', 5);
   if (!env.admin) throw new LetopisError('admin_required', 'загрузчику нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы)');
-  const tenant = opts.tenant ?? env.tenant;
+  const asAcc = opts.as;
+  if (asAcc !== undefined && (typeof asAcc !== 'string' || !UUID.test(asAcc))) throw new LetopisError('invalid_data', 'load({ as }): id аккаунта');
+  if (asAcc !== undefined && opts.withHistory) throw new LetopisError('invalid_data', 'load({ as }) и режим истории несовместимы: историю импортирует администратор');
+  const tenant = opts.tenant ?? asAcc ?? env.tenant;
   if (!tenant) throw new LetopisError('invalid_data', 'load(): нет арендатора — сессия без арендатора и не задан { tenant }');
   const dupMode = opts.duplicates ?? 'error';
   const existing = opts.existing ?? 'error';
   const batch = opts.batch ?? 10000;
   const agent = opts.agent ?? 'letopis load';
+  const author = asAcc ?? SYSTEM_ID;
   const S = `"${env.schema.replace(/"/g, '""')}"`;
   const t0 = performance.now();
   const rows = await toList(input, opts.class);
@@ -356,6 +365,10 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
 
   // проход 1: классы, id строк, повторы
   const issues = new Issues();
+  /** Планы прав пользователя (load({ as })) текущей порции. */
+  let acl: { read: Record<string, unknown>; write: Record<string, unknown> } | null = null;
+  /** Цели ссылок порции (load({ as })): id → первая строка и роль — для проверки видимости. */
+  const targets = new Map<string, { line: number; role: string }>();
   const reg0 = await readRegistry(env.sql);
   const p1: (Plan1 | null)[] = new Array(rows.length);
   const lineOf = new Map<string, number>();
@@ -458,6 +471,8 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
 
   /** Одна порция — одна транзакция. */
   async function loadPortion(portion: number[]): Promise<void> {
+    acl = null;
+    targets.clear();
     const conn = await env.sql.reserve();
     const written: string[] = [];
     let failed: unknown = null;
@@ -470,6 +485,20 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       for (const r of roots) await conn.unsafe(`select ${S}.family_lock($1, false)`, [r]);
       const reg = await readRegistry(conn as unknown as Sql);
       const [{ ts, xid }] = await conn.unsafe(`select clock_timestamp()::text as ts, pg_current_xact_id()::text as xid`);
+      // от имени пользователя: арендатор доступен ему, планы прав READ и WRITE; класс без права — отказ
+      if (asAcc) {
+        const [{ s: subj }] = await conn.unsafe(`select ${S}.acl_subject($1::uuid, $2::uuid) as s`, [asAcc, tenant]);
+        acl = { read: subj.read as Record<string, unknown>, write: subj.write as Record<string, unknown> };
+        const denied = new Set<string>();
+        for (const i of portion) {
+          const n = p1[i]!.cls.name;
+          if (!(n in acl.write) && !denied.has(n)) {
+            denied.add(n);
+            issues.add({ line: i + 1, code: 'acl_denied', message: `нет права WRITE на класс ${n}`, class: n });
+          }
+        }
+        if (issues.any) issues.fail();
+      }
       const inLoad = new Map<string, { cls: string; alive: boolean }>();
       for (const i of portion) {
         const { id, cls } = p1[i]!;
@@ -517,12 +546,25 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
           }
         }
       }
+      // от имени пользователя цели ссылок должны быть ему видны (право READ): и из загрузки, и вне её
+      if (acl && targets.size) {
+        const ids = [...targets.keys()];
+        const hidden = await conn.unsafe(`select e.id from ${S}.entity e where e.id = any ($1::uuid[]) and e.class <> 'Account'
+            and not ${S}.row_visible(e.tenant, e.class, e.id, e.owner, e.tags, e.data, e.links, $2::uuid, $3::uuid, $4::jsonb)`,
+          [ids, tenant, asAcc, acl.read as never]);
+        for (const h of hidden) {
+          const t = targets.get(h.id as string)!;
+          issues.add({ line: t.line, code: 'target_not_found', message: `цель конца ${t.role} не найдена`, id: h.id as string });
+        }
+      }
       // арендатор существует и включён
       const [acc] = await conn.unsafe(`select coalesce((data->>'enabled')::boolean, true) as enabled from ${S}.entity where id = $1::uuid and class = 'Account'`, [tenant]);
       if (!acc || !acc.enabled) issues.add({ line: portion.length ? portion[0] + 1 : 0, code: 'tenant_denied', message: `арендатор ${tenant} не найден или отключён` });
       if (issues.any) issues.fail();
       if (opts.verify && written.length) await verifyRows(conn as unknown as Sql, reg, written);
       if (classesTouched.size) await conn.unsafe(`select pg_notify($1, c) from unnest($2::text[]) c`, [env.schema, [...classesTouched]]);
+      // строки прав меняют планы: пропуска прав клиентов — заново
+      if ([...classesTouched].some((c) => ACL_CLASSES.includes(c))) await conn.unsafe(`select ${S}.acl_bump()`);
       if (portion.length >= 10000) await conn.unsafe(`analyze ${S}.entity; analyze ${S}.log`);
       await conn.unsafe('commit');
     } catch (e) {
@@ -536,7 +578,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       if (err.code === '23505' && (err.constraint_name === 'entity_pkey' || err.constraint_name === 'log_id_rev')) {
         await explainTaken(portion);
       }
-      throw failed;
+      throw fromDbError(failed);
     }
   }
 
@@ -572,11 +614,21 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       issues.add({ line: i + 1, code: sh.error.code, message: sh.error.message, id: p1[i]!.id, class: cls.name, ...(sh.error.issues ? { issues: sh.error.issues } : {}) });
       return null;
     }
+    // аккаунты — только в System; членство лежит в арендаторе, в которого вступают (как в триггерах)
+    if (cls.name === 'Account' && tenant !== SYSTEM_ID) {
+      issues.add({ line: i + 1, code: 'tenant_denied', message: 'аккаунты лежат в арендаторе System', id: p1[i]!.id, class: cls.name });
+      return null;
+    }
+    if (cls.name === 'member' && sh.links.Tenant !== tenant) {
+      issues.add({ line: i + 1, code: 'invalid_data', message: 'конец Tenant членства — арендатор строки', id: p1[i]!.id, class: cls.name });
+      return null;
+    }
     // концы прошлых версий — часть снимка: их цели могли удалить позже (§2.6, п. 3)
     if (!lastVersion) return sh;
     for (const [role, v] of Object.entries(sh.links)) {
       const allowed = asList(cls.ends[role].class);
       for (const id of asList(v)) {
+        if (acl && !targets.has(id)) targets.set(id, { line: i + 1, role });
         const t = inLoad.get(id);
         if (t) {
           if (!t.alive || !accepts(reg, allowed, t.cls)) issues.add({ line: i + 1, code: 'target_not_found', message: `цель конца ${role} не найдена`, id: p1[i]!.id, class: cls.name });
@@ -594,6 +646,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     const ent: string[] = [];
     const log: string[] = [];
     const updates: { id: string; data: Raw; links: Raw; line: number }[] = [];
+    const rowsAcl: { i: number; class: string; id: string; owner: string; data: Raw; links: Raw }[] = [];
     for (const i of part) {
       const { id, cls } = p1[i]!;
       if (existing === 'skip' && (live.has(id) || past.has(id))) {
@@ -611,15 +664,38 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       const rev = prev ? prev.rev + 1 : 1;
       // время воскрешённого объекта — не раньше его прошлой версии (монотонность, §2.10)
       const atv = prev && Date.parse(prev.at) >= Date.parse(ts) ? new Date(Date.parse(prev.at) + 1).toISOString() : ts;
-      const common = [id, rev, cls.name, cur.rev, tenant, tenant, JSON.stringify(sh.links), JSON.stringify(sh.data), '{}', atv];
-      ent.push([...common, atv, SYSTEM_ID, agent, 'create', null, null, hex(prev?.hash), null].map(esc).join('\t') + '\n');
-      if (cur.history !== false) log.push([...common, SYSTEM_ID, agent, 'create', null, null, hex(prev?.hash), xid].map(esc).join('\t') + '\n');
+      // владелец — по ownerDefault класса от имени пользователя, иначе арендатор (§2.10)
+      const owner = asAcc && cur.ownerDefault === 'actor' ? asAcc : tenant!;
+      if (acl) rowsAcl.push({ i, class: cls.name, id, owner, data: sh.data, links: sh.links });
+      const common = [id, rev, cls.name, cur.rev, tenant, owner, JSON.stringify(sh.links), JSON.stringify(sh.data), '{}', atv];
+      ent.push([...common, atv, author, agent, 'create', null, null, hex(prev?.hash), null].map(esc).join('\t') + '\n');
+      if (cur.history !== false) log.push([...common, author, agent, 'create', null, null, hex(prev?.hash), xid].map(esc).join('\t') + '\n');
       report.loaded++;
       report.byClass[cls.name] = (report.byClass[cls.name] ?? 0) + 1;
       touched.add(cls.name);
       written.push(id);
     }
     if (issues.any) return;
+    if (acl) {
+      // условия ACL на строки — одним запросом на пачку: файл пользователя — не доверенные данные
+      const bad = await conn.unsafe(`select (x->>'i')::int as i from jsonb_array_elements($1::jsonb) x
+          where not ${S}.acl_row_ok($2::jsonb, x->>'class', (x->>'id')::uuid, (x->>'owner')::uuid, $3::uuid, '{}', x->'data', x->'links')`,
+        [rowsAcl as never, acl.write as never, tenant]);
+      for (const b of bad) issues.add({ line: (b.i as number) + 1, code: 'acl_denied', message: 'строку запрещает условие ACL', id: p1[b.i as number]!.id });
+      if (updates.length) {
+        // existing: 'update' — условие на прежние значения и на новые (как политика правки)
+        const ids = updates.map((u) => u.id);
+        const old = await conn.unsafe(`select e.id from ${S}.entity e where e.id = any ($1::uuid[])
+            and not ${S}.acl_row_ok($2::jsonb, e.class, e.id, e.owner, e.tenant, e.tags, e.data, e.links)`, [ids, acl.write as never]);
+        const fresh = await conn.unsafe(`select u.id from jsonb_to_recordset($1::jsonb) as u(id uuid, data jsonb, links jsonb)
+            join ${S}.entity e on e.id = u.id
+            where not ${S}.acl_row_ok($2::jsonb, e.class, e.id, e.owner, e.tenant, e.tags, u.data, u.links)`,
+          [updates.map((u) => ({ id: u.id, data: u.data, links: u.links })) as never, acl.write as never]);
+        const lineOfId = new Map(updates.map((u) => [u.id, u.line]));
+        for (const r of [...old, ...fresh]) issues.add({ line: lineOfId.get(r.id as string) ?? 0, code: 'acl_denied', message: 'правку строки запрещает условие ACL', id: r.id as string });
+      }
+      if (issues.any) return;
+    }
     await copyLines(conn, `copy ${S}.entity (${ENTITY_COLS}) from stdin`, ent);
     await copyLines(conn, `copy ${S}.log (${LOG_COLS}) from stdin`, log);
     if (updates.length) {
@@ -635,7 +711,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
             insert into ${S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
             select id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash from up
             where ${S}.history_on(up.class, up.tenant))
-        select up.id, up.class from up`, [updates.map((u) => ({ id: u.id, data: u.data, links: u.links })), ts, SYSTEM_ID, agent]);
+        select up.id, up.class from up`, [updates.map((u) => ({ id: u.id, data: u.data, links: u.links })), ts, author, agent]);
       report.updated += res.length;
       report.skipped += updates.length - res.length;
       for (const r of res) {

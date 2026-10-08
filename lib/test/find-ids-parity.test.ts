@@ -95,7 +95,7 @@ test('30 цепочек: find_*() и прямое чтение под RLS даю
   }
   // проверка, что сверка не тривиальна: ответы непустые
   const [cls] = await both(db.Class({ kind: 'link' }));
-  assert.equal(cls.length, 7, 'семь связей демо-домена');
+  assert.equal(cls.length, 9, 'семь связей демо-домена и две системные: member, rule');
   const [acc] = await both(db.Account());
   assert.equal(acc.length, 1);
 });

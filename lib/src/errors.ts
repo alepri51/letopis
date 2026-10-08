@@ -54,7 +54,13 @@ const LT_NAMES: Record<string, string> = {
  * (JSON) переносятся в detail; прочие ошибки возвращаются как есть.
  */
 export function fromDbError(e: unknown): unknown {
-  const err = e as { code?: string; message?: string; detail?: string };
+  const err = e as { code?: string; message?: string; detail?: string; routine?: string };
+  // новые значения строки не проходят условие ACL (политика RLS WITH CHECK) — отказ по правам; upsert,
+  // которому существующую строку менять нельзя («USING expression»), остаётся 42501 (§2.5). Признак —
+  // функция сервера, а не текст: текст зависит от языка сервера
+  if (err.code === '42501' && err.routine === 'ExecWithCheckOptions' && !/USING/.test(err.message ?? '')) {
+    return Object.assign(new LetopisError('acl_denied', 'новые значения строки запрещают правила доступа'), { cause: e });
+  }
   const name = err.code ? LT_NAMES[err.code] : undefined;
   if (!name) return e;
   let detail: unknown;

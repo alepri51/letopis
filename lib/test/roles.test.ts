@@ -4,7 +4,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import postgres from 'postgres';
-import { engine, lt, type Engine, type Tenant } from './_engine.js';
+import { engine, lt, SYSTEM_ID, type Engine, type Tenant } from './_engine.js';
 import { ADMIN_DSN, ident, type Sql } from './_harness.js';
 import { install } from '../src/up.js';
 
@@ -65,6 +65,55 @@ test('7.3.8 №4: перечень функций владельца — search_
     new_session: () => assert.rejects(q(`select ${S}.new_session($1, interval '1 day', '{}')`, [t.id]), lt('42501')),
     login_apikey: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.login_apikey('lts_wrong')`)), lt('no_session')),
     issue_session: () => assert.rejects(q(`select ${S}.issue_session($1)`, [t.id]), lt('acl_denied')),
+    // права (этап 5): без сессии план пуст, проверки — отказ
+    acl_plan: async () => {
+      const [r] = await e.as(null, (tx) => tx.unsafe(`select ${S}.acl_plan('READ') as p`));
+      assert.deepEqual(r.p, {});
+    },
+    acl_all: async () => {
+      const [r] = await e.as(null, (tx) => tx.unsafe(`select ${S}.acl_all('READ') as a`));
+      assert.deepEqual(r.a, []);
+    },
+    acl_token: async () => {
+      const [r] = await e.as(null, (tx) => tx.unsafe(`select ${S}.acl_token() as t`));
+      assert.equal(r.t, null);
+    },
+    acl_check: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.acl_check('auth.impersonate')`)), lt('no_session')),
+    acl_check_data: async () => {
+      const [r] = await e.as(null, (tx) => tx.unsafe(`select ${S}.acl_check_data('Doc', 'READ') as d`));
+      assert.deepEqual(r.d, { allow: false });
+    },
+    // креды и сессии (этап 5): чужой аккаунт без права auth.* — отказ; без сессии — no_session
+    auth_password_get: () => assert.rejects(q(`select * from ${S}.auth_password_get('x')`), lt('acl_denied')),
+    auth_set_password: () => assert.rejects(q(`select ${S}.auth_set_password($1, 'x@y', 'scrypt$1')`, [SYSTEM_ID]), lt('acl_denied')),
+    auth_issue_apikey: () => assert.rejects(q(`select * from ${S}.auth_issue_apikey($1)`, [SYSTEM_ID]), lt('acl_denied')),
+    auth_issue_keysecret: () => assert.rejects(q(`select * from ${S}.auth_issue_keysecret($1)`, [SYSTEM_ID]), lt('acl_denied')),
+    auth_login_apikey: async () => {
+      const [r] = await e.as(null, (tx) => tx.unsafe(`select ${S}.auth_login_apikey('lts_wrong') as r`));
+      assert.equal(r.r, null);
+    },
+    login_keysecret: async () => {
+      const [r] = await e.as(null, (tx) => tx.unsafe(`select ${S}.login_keysecret('k', 's') as r`));
+      assert.equal(r.r, null);
+    },
+    auth_issue_otp: () => assert.rejects(q(`select ${S}.auth_issue_otp($1, 'x@y')`, [t.id]), lt('acl_denied')),
+    login_otp: async () => {
+      const [r] = await e.as(null, (tx) => tx.unsafe(`select ${S}.login_otp('x@y', '000000') as r`));
+      assert.equal(r.r, null);
+    },
+    auth_enroll_totp: () => assert.rejects(q(`select ${S}.auth_enroll_totp($1)`, [SYSTEM_ID]), lt('acl_denied')),
+    auth_verify_totp: () => assert.rejects(q(`select ${S}.auth_verify_totp($1, '000000')`, [SYSTEM_ID]), lt('acl_denied')),
+    auth_totp_enabled: () => assert.rejects(q(`select ${S}.auth_totp_enabled($1)`, [SYSTEM_ID]), lt('acl_denied')),
+    auth_link: () => assert.rejects(q(`select ${S}.auth_link($1, 'TELEGRAM', '1')`, [SYSTEM_ID]), lt('acl_denied')),
+    auth_lookup: () => assert.rejects(q(`select ${S}.auth_lookup('TELEGRAM', '1')`), lt('acl_denied')),
+    auth_credentials: () => assert.rejects(q(`select * from ${S}.auth_credentials($1)`, [SYSTEM_ID]), lt('acl_denied')),
+    auth_revoke_credential: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.auth_revoke_credential(gen_random_uuid())`)), lt('no_session')),
+    auth_set_flags: () => assert.rejects(q(`select ${S}.auth_set_flags(gen_random_uuid(), true)`), lt('acl_denied')),
+    auth_refresh: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.auth_refresh()`)), lt('no_session')),
+    auth_logout: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.auth_logout()`)), lt('no_session')),
+    auth_logout_all: () => assert.rejects(q(`select ${S}.auth_logout_all($1)`, [SYSTEM_ID]), lt('acl_denied')),
+    auth_switch: () => assert.rejects(q(`select ${S}.auth_switch($1)`, [SYSTEM_ID]), lt('tenant_denied')),
+    auth_tenants: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select * from ${S}.auth_tenants()`)), lt('no_session')),
     // поиск без сессии не находит ничего
     find_ids: async () => {
       assert.deepEqual([...await e.as(null, (tx) => tx.unsafe(`select * from ${S}.find_ids(array['Doc'], null, null, null)`))], []);
@@ -135,9 +184,12 @@ test('права по каталогу: функции приложения — 
   const appFns = await e.sql.unsafe(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = $1 and has_function_privilege('letopis_app', p.oid, 'execute') order by 1`, [e.schema]);
   assert.deepEqual(appFns.map((f) => f.proname), [
-    'ctx', 'ctx_account', 'ctx_tenant', 'delete_preview', 'error_catalog', 'find_deep', 'find_hop', 'find_ids', 'inc', 'issue_session',
-    'link_ids', 'links_patch', 'login_apikey', 'merge', 'reclass', 'reserved_names', 'role_has', 'role_ids', 'snapshot', 'uuid_v5',
-    'v5_id', 'v5_name', 'verify', 'version_hash',
+    'acl_all', 'acl_check', 'acl_check_data', 'acl_ok', 'acl_plan', 'acl_token', 'auth_credentials', 'auth_enroll_totp', 'auth_issue_apikey',
+    'auth_issue_keysecret', 'auth_issue_otp', 'auth_link', 'auth_login_apikey', 'auth_logout', 'auth_logout_all', 'auth_lookup', 'auth_password_get',
+    'auth_refresh', 'auth_revoke_credential', 'auth_set_flags', 'auth_set_password', 'auth_switch', 'auth_tenants', 'auth_totp_enabled',
+    'auth_verify_totp', 'ctx', 'ctx_account', 'ctx_tenant', 'delete_preview', 'error_catalog', 'find_deep', 'find_hop', 'find_ids', 'inc',
+    'issue_session', 'link_ids', 'links_patch', 'login_apikey', 'login_keysecret', 'login_otp', 'merge', 'reclass', 'reserved_names',
+    'role_has', 'role_ids', 'snapshot', 'uuid_v5', 'v5_id', 'v5_name', 'verify', 'version_hash',
   ]);
   const pubFns = await e.sql.unsafe(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = $1 and has_function_privilege('public', p.oid, 'execute')`, [e.schema]);

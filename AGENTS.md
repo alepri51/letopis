@@ -9,7 +9,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 
 ## Протокол
 1. Модуль — по таблице «Модули»; входные файлы — сразу в Read, без обхода каталогов.
-2. «Как работает X» в 1.0 — сначала соответствующий раздел плана (§2, этап в §5), затем код. Трассы `docs/atlas/F-*.md` переписываются в своих этапах; F-READ, F-WRITE и F-DELETE уже описывают 1.0, остальные — 0.21.
+2. «Как работает X» в 1.0 — сначала соответствующий раздел плана (§2, этап в §5), затем код. Трассы `docs/atlas/F-*.md` переписываются в своих этапах; F-READ, F-WRITE, F-DELETE, F-ACCESS и F-AUTH уже описывают 1.0, остальные — 0.21.
 3. Карточка модуля подмешивается сама при Read его файла: инварианты, «что ещё менять», побочки, проверка. Карточки 1.0 появляются вместе с кодом модуля.
 4. Поиск — субагентом `atlas-scout`. Если всё же Explore/Plan — вставь в промпт нужные строки «Модули»: встроенные агенты не видят CLAUDE.md.
 5. Ответ — со ссылками `путь:символ`, проверенными в этой сессии; поведение кода отделяй от планов в документах.
@@ -30,7 +30,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 |---|---|---|---|
 | M-ENGINE | таблицы, роли, триггеры, классы, `merge`, `inc`, каскад, `reclass`, журнал, хэши, `verify`, коды ошибок | `lib/sql/10-core.sql`, `lib/sql/15-errors.sql`, `lib/sql/40-class.sql`, `lib/sql/60-write.sql` | 1 |
 | M-VALIDATE | v5, JSON Schema → jsonpath, валидатор на TypeScript | `lib/sql/30-validate.sql`, `lib/src/validate.ts` | 1, 2 |
-| M-ACCESS | контекст, сессии, RLS, ACL, креды, вход | `lib/sql/20-context.sql`, `lib/sql/50-acl.sql`, `lib/sql/80-auth.sql` | 1, 5 |
+| M-ACCESS | контекст, сессии, RLS, ACL, креды, вход | `lib/sql/20-context.sql`, `lib/sql/50-acl.sql`, `lib/sql/80-auth.sql`, `lib/src/auth.ts`, `lib/src/acl.ts` | 1, 5 |
 | M-MODEL | `letopis/model`, реестр, CLI `sync`/`types` | `lib/src/model.ts`, `lib/src/registry.ts` | 2 |
 | M-QUERY | `find_ids()`, построитель чтения, кэш | `lib/sql/70-read.sql`, `lib/src/sql.ts` | 3, 6 |
 | M-WRITE | планы, батч, транзакции, загрузчик | `lib/src/write.ts`, `lib/src/tx.ts`, `lib/src/load.ts` | 4 |
@@ -54,7 +54,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 - В одном коммите с кодом обновляются карточка модуля, список тестов в `lib/README.md` §16 и контракт API (`cd lib && npm run api:contract`), если изменились экспорты, методы или тексты ошибок; связность ловит `cd lib && npm run check:docs`.
 
 ## Трассы
-`docs/atlas/F-*.md` переписываются в этапах плана; пока не переписанные описывают 0.21 (помечены в начале файла). F-READ — 1.0 (этап 3), F-WRITE и F-DELETE — 1.0 (этап 4); F-ACCESS и F-AUTH — этап 5, F-WATCH и F-BOOT — этап 6, F-RELEASE — этап 8.
+`docs/atlas/F-*.md` переписываются в этапах плана; пока не переписанные описывают 0.21 (помечены в начале файла). F-READ — 1.0 (этап 3), F-WRITE и F-DELETE — 1.0 (этап 4), F-ACCESS и F-AUTH — 1.0 (этап 5); F-WATCH и F-BOOT — этап 6, F-RELEASE — этап 8.
 
 ## Документы
 | Документ | Что это | Как читать |

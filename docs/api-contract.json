@@ -36,6 +36,7 @@
         "has",
         "hasAll",
         "hasAny",
+        "hashPassword",
         "idOf",
         "ilike",
         "inList",
@@ -52,13 +53,20 @@
         "schemaToTs",
         "starts",
         "syncModels",
+        "totpCode",
         "uuidv5",
         "uuidv7",
         "v5Id",
-        "v5Name"
+        "v5Name",
+        "verifyHash"
       ],
       "types": [
+        "AclApi",
+        "AclDataDecision",
+        "AclDecision",
+        "AclOp",
         "AnyModelLike",
+        "AuthApi",
         "Batch",
         "BatchEntry",
         "Chain",
@@ -66,6 +74,7 @@
         "ChainMods",
         "ClassInfo",
         "ConnectOptions",
+        "Credential",
         "Cursor",
         "Db",
         "DbCore",
@@ -83,6 +92,7 @@
         "LoadIssue",
         "LoadOptions",
         "LoadReport",
+        "LoginResult",
         "ModelLike",
         "Op",
         "PatchOf",
@@ -198,23 +208,7 @@
     },
     {
       "module": "20-context",
-      "message": "letopis: acl_denied: выпускать сессии может только сервис"
-    },
-    {
-      "module": "20-context",
-      "message": "letopis: acl_denied: сессии для System и служебных аккаунтов не выпускаются"
-    },
-    {
-      "module": "20-context",
       "message": "letopis: no_session: неверный ключ"
-    },
-    {
-      "module": "20-context",
-      "message": "letopis: no_session: нет действующей сессии"
-    },
-    {
-      "module": "20-context",
-      "message": "letopis: target_not_found: аккаунт не найден"
     },
     {
       "module": "30-validate",

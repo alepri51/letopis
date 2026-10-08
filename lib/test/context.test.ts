@@ -56,7 +56,8 @@ test('7.3.1 №17: с выдуманным токеном не видно нич
 test('вход сервиса по ключу: видны строки Class и собственный Account, но не System', async () => {
   const [{ tok }] = await asToken(null, (tx) => tx.unsafe(`select ${S}.login_apikey($1) as tok`, [key]));
   const rows = await asToken(tok, (tx) => tx.unsafe(`select class, data->>'name' as name from ${S}.entity order by class, name`));
-  assert.deepEqual(rows.map((r) => `${r.class}:${r.name}`), ['Account:service', 'Class:Account', 'Class:Class']);
+  assert.deepEqual(rows.map((r) => `${r.class}:${r.name}`).sort(),
+    ['Account:service', 'Class:Account', 'Class:Class', 'Class:Resource', 'Class:member', 'Class:rule'].sort());
   const sys = await asToken(tok, (tx) => tx.unsafe(`select 1 from ${S}.entity where id = $1`, [SYSTEM_ID]));
   assert.equal(sys.length, 0);
 });

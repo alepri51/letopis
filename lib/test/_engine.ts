@@ -15,8 +15,10 @@ export interface Engine {
   schema: string;
   /** Имя схемы в кавычках для SQL. */
   S: string;
-  /** Новый арендатор: аккаунт и токен его сессии. */
-  tenant(name?: string): Promise<Tenant>;
+  /** Ключ сервисного аккаунта установки (APIKEY). */
+  serviceKey: string;
+  /** Новый арендатор: аккаунт и токен его сессии; bare — без правила «аутентифицированным можно всё». */
+  tenant(name?: string, opts?: { bare?: boolean }): Promise<Tenant>;
   /** Транзакция прикладной роли с токеном сессии (null — без сессии). */
   as<T>(token: string | null, fn: (tx: Sql) => Promise<T>, opts?: { isolation?: string }): Promise<T>;
   /** Транзакция администратора под ролью владельца: триггеры не срабатывают, RLS не действует. */
@@ -44,7 +46,7 @@ export async function engine(file: string, opts: { keep?: boolean; seeds?: strin
   const schema = schemaFor(file);
   const S = ident(schema);
   await sql.unsafe(`drop schema if exists ${S} cascade`);
-  await install(sql, { schema, allowReset: true, seeds: opts.seeds });
+  const inst = await install(sql, { schema, allowReset: true, seeds: opts.seeds });
   await ensureAppRole(sql);
   const app = appSql(16);
 
@@ -63,15 +65,20 @@ export async function engine(file: string, opts: { keep?: boolean; seeds?: strin
 
   return {
     sql,
+    serviceKey: inst.serviceKey!,
     asOwner,
     app,
     schema,
     S,
     as,
-    async tenant(name = 'tenant') {
+    async tenant(name = 'tenant', o: { bare?: boolean } = {}) {
       const id = randomUUID();
-      await asOwner((tx) => tx.unsafe(`select ${S}.sys_create($1::uuid, 'Account', $2::uuid, '{}', $3::jsonb)`,
-        [id, SYSTEM_ID, { name, enabled: true } as never]));
+      // права включены всегда и по умолчанию запрещают; тестовому арендатору — «аутентифицированным
+      // можно всё» (этап 5, п. 9): тесты цепочек проверяют цепочки, а не права
+      await asOwner(async (tx) => {
+        await tx.unsafe(`select ${S}.sys_create($1::uuid, 'Account', $2::uuid, '{}', $3::jsonb)`, [id, SYSTEM_ID, { name, enabled: true } as never]);
+        if (!o.bare) await tx.unsafe(`select ${S}.sys_grant_all($1::uuid)`, [id]);
+      });
       const [{ tok }] = await sql.unsafe(`select ${S}.new_session($1::uuid, interval '1 day', '{}') as tok`, [id]);
       return { id, token: tok as string };
     },

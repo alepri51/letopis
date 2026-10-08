@@ -1,0 +1,244 @@
+/**
+ * acl — права ACL (план, §2.8, этап 5, п. 5–7; тест-план §7.7, 5.10, 5.12–5.15). Перенос набора 0.21
+ * (lib/test/acl.test.ts тега v0.21.0) на правила-строки Resource и rule: решение ровно одним правилом
+ * (вес, запрет сильнее при равном весе), запрет по умолчанию, условия на строки ($actor) сужают
+ * чтение заранее — пагинация и count честные, запись по условию, права в каскаде удаления, запрет на
+ * потомке не обходится шагом по предку. Подписка (watch) — этап 6.
+ */
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { engine, lt, SYSTEM_ID, type Engine } from './_engine.js';
+import { appDsn } from './_harness.js';
+import { account, member, resource, rule, session, sqlAs, sysRes, type Acc } from './_access.js';
+import { connect, type Db } from '../src/index.js';
+
+let e: Engine;
+let S: string;
+let org: string;
+let anon: Acc;
+let user: Acc;
+let other: Acc;
+let banned: Acc;
+const dbs: Db[] = [];
+let du: Db;
+let dother: Db;
+
+const cls = (name: string, extra: Record<string, unknown>) =>
+  e.asOwner((tx) => tx.unsafe(`select ${S}.sys_create(${S}.v5_id($1::uuid, 'Class', array[$2]), 'Class', $1::uuid, '{}', $3::jsonb)`,
+    [org, name, { name, kind: 'hub', ...extra } as never]));
+const ownRow = async (className: string, data: Record<string, unknown>, links: Record<string, unknown> = {}, owner?: string) => {
+  const [{ id }] = await e.asOwner((tx) => tx.unsafe(`insert into ${S}.entity (id, rev, class, tenant, owner, links, data, at, created_at, author, op)
+    values (gen_random_uuid(), 1, $1, $2::uuid, $3::uuid, $4::jsonb, $5::jsonb, now(), now(), $2::uuid, 'create') returning id`,
+    [className, org, owner ?? org, links as never, data as never]));
+  return id as string;
+};
+const open = async (a: Acc) => {
+  const db = await connect({ dsn: appDsn(), schema: e.schema, token: a.token, max: 2 });
+  dbs.push(db);
+  return db;
+};
+
+before(async () => {
+  e = await engine(import.meta.filename);
+  S = e.S;
+  // арендатор-организация без правила «можно всё»: права только те, что заданы ниже
+  org = (await account(e, 'Салон ACL')).id;
+  await cls('Vehicle', { alias: 'Транспорт', fields: { properties: { name: { type: 'string' } }, required: ['name'] } });
+  await cls('Car', { parent: 'Vehicle', alias: 'Машина' });
+  await cls('SportsCar', { parent: 'Car', alias: 'Спорткар' });
+  await cls('Garage', { fields: { properties: { name: { type: 'string' } } }, ends: { SportsCar: { class: 'SportsCar', onDelete: 'cascade' } } });
+  await cls('Service', { fields: { properties: { name: { type: 'string' }, duration: { type: 'integer' } }, required: ['name'] } });
+  await cls('booking', { kind: 'link', ownerDefault: 'actor', fields: { properties: { start: { type: 'string' }, notes: { type: 'string' } } } });
+  await cls('Customer', { fields: { properties: { name: { type: 'string' }, phone: { type: 'string' } } } });
+  await cls('Visit', { kind: 'link', ends: { Customer: { class: 'Customer', required: true } } });
+  await cls('Folder', { fields: { properties: { name: { type: 'string' }, hidden: { type: 'boolean', default: false } } },
+    ends: { Parent: { class: 'Folder' } } });
+
+  anon = await account(e, 'гость', { categories: ['Anonymous'] });
+  user = await account(e, 'юзер', { categories: ['User'] });
+  other = await account(e, 'сосед', { categories: ['User'] });
+  banned = await account(e, 'бан', { categories: ['User', 'Blocked'] });
+  for (const a of [anon, user, other, banned]) {
+    await member(e, a.id, org, ['staff']);
+    a.token = await session(e, a.id, { tenant: org });
+  }
+
+  // объекты-строки: шаблон строки (class с предками и условие на колонки) — в арендаторе
+  const auth = await sysRes(e, 'authenticated:ACCOUNT');
+  const grant = async (alias: string, cat: string, pattern: Record<string, unknown>, weight: number, perm: 'allow' | 'deny' = 'allow') =>
+    rule(e, org, auth, await resource(e, org, alias, cat, pattern), perm, weight);
+  await grant('svc.express:READ', 'READ', { class: 'Service', data: { duration: 30 } }, 50);
+  await grant('booking.own:READ', 'READ', { class: 'booking', owner: '$actor' }, 60);
+  await grant('booking.own:WRITE', 'WRITE', { class: 'booking', owner: '$actor' }, 60);
+  for (const op of ['READ', 'WRITE', 'DELETE']) await grant(`vehicle:${op}`, op, { class: 'Vehicle' }, 90);
+  await grant('garage:READ', 'READ', { class: 'Garage' }, 90);
+  await grant('folder:READ', 'READ', { class: 'Folder', data: { hidden: false } }, 90);
+  await grant('visit:WRITE', 'WRITE', { class: 'Visit' }, 90);
+  await grant('visit:READ', 'READ', { class: 'Visit' }, 90);
+  // эндпоинты, как в сиде 0.21
+  const any = await sysRes(e, 'any:ACCOUNT');
+  await rule(e, org, any, await resource(e, org, 'auth.anonymous:API', 'API', { endpoint: 'v2.auth.password.{signup,signin,reset.*,email.*}' }), 'allow', 105);
+  await rule(e, org, auth, await resource(e, org, 'auth.user.apikey:API', 'API', { endpoint: 'v2.auth.apikey.*' }), 'allow', 90);
+
+  du = await open(user);
+  dother = await open(other);
+});
+
+after(async () => {
+  for (const d of dbs) await d.close();
+  await e?.close();
+});
+
+test('5.10 API: семантика как в 0.21 — маски, вес, запрет по умолчанию', async () => {
+  const da = await open(anon);
+  const signup = await da.acl.check('v2.auth.password.signup');
+  assert.equal(signup.allow, true);
+  assert.equal(signup.rule?.weight, 105);
+  assert.equal((await da.acl.check('v2.auth.password.reset.confirm')).allow, true, 'вложенная маска');
+  const denied = await da.acl.check('v2.auth.apikey.create');
+  assert.equal(denied.allow, false);
+  assert.equal(denied.code, 403, 'дно-запрет System');
+  assert.equal((await du.acl.check('v2.auth.apikey.create')).allow, true, '90 > 0');
+  assert.equal((await du.acl.check('v2.nonexistent.thing')).allow, false);
+});
+
+test('5.10 слои веса: административный бан перебивает все разрешения', async () => {
+  const blocked = await resource(e, org, 'blocked:ACCOUNT', 'ACCOUNT', { categories: '{Blocked}' });
+  await rule(e, org, blocked, await sysRes(e, 'any:API'), 'deny', 1000, { code: 423, message: 'Account blocked' });
+  const db = await open(banned);
+  const d = await db.acl.check('v2.auth.apikey.create');
+  assert.equal(d.allow, false);
+  assert.equal(d.code, 423);
+  assert.equal(d.message, 'Account blocked');
+  assert.equal((await du.acl.check('v2.auth.apikey.create')).allow, true);
+});
+
+test('5.10 checkData: предки, запрет по умолчанию, условие с подставленным актором', async () => {
+  assert.deepEqual(await du.acl.checkData('SportsCar', 'READ'), { allow: true }, 'право дал предок Vehicle — без условия');
+  assert.deepEqual(await du.acl.checkData('booking', 'READ'), { allow: true, filter: { owner: user.id } });
+  assert.equal((await du.acl.checkData('booking', 'DELETE')).allow, false, 'DELETE не выдан');
+  assert.equal((await du.acl.checkData('Customer', 'READ')).allow, false, 'правил нет — запрет');
+  const da = await open(anon);
+  assert.equal((await da.acl.checkData('booking', 'READ')).allow, false, 'гость не authenticated');
+});
+
+test('5.10 условие owner = $actor сужает чтение заранее — пагинация и count честные', async () => {
+  for (const [db, n] of [[du, 3], [dother, 2]] as const) {
+    for (let i = 0; i < n; i++) await db.booking().create({ start: `2026-08-0${i + 1}T10:00`, notes: 'x' }).rows();
+  }
+  assert.equal(await du.booking().count(), 3, 'чужие не посчитаны');
+  const all = await du.booking().rows();
+  assert.ok(all.every((r) => r.owner === user.id));
+  const p1 = await du.booking().sort('data.start', 'desc').limit(2).rows();
+  const p2 = await du.booking().sort('data.start', 'desc').offset(2).limit(2).rows();
+  assert.equal(p1.length, 2);
+  assert.equal(p2.length, 1);
+  assert.equal(await dother.booking().count(), 2);
+  assert.ok((await dother.booking().rows()).every((r) => r.owner === other.id));
+  // запрещённый класс — пустая выборка (RLS), а не ошибка построения, как в 0.21
+  assert.deepEqual(await du.Customer().rows(), []);
+});
+
+test('5.10 статический шаблон data — виден только срез', async () => {
+  await ownRow('Service', { name: 'Экспресс', duration: 30 });
+  await ownRow('Service', { name: 'Обстоятельная', duration: 60 });
+  const rows = await du.Service().rows();
+  assert.ok(rows.length >= 1);
+  assert.ok(rows.every((r) => r.data.duration === 30));
+});
+
+test('5.10, 5.15 запись по условию: свой владелец, чужой — acl_denied; чужая строка не находится — пусто; класс без права — acl_denied', async () => {
+  const [mine] = await du.booking().create({ start: '2026-08-09T10:00' }).rows();
+  assert.equal(mine.owner, user.id, 'ownerDefault: actor');
+  // 5.15: явный владелец при условии owner = $actor
+  const asOther = await du.as(null, { owner: other.id });
+  await assert.rejects(asOther.booking().create({ start: '2026-08-10T10:00' }).rows(), (err: { code?: string }) => err.code === 'acl_denied');
+  const [theirs] = await dother.booking().create({ start: '2026-08-11T10:00' }).rows();
+  // чужую строку шаг не находит — правка тихо пуста, как в 0.21
+  assert.deepEqual(await du.booking(theirs.id).update({ notes: 'моё' }).rows(), []);
+  assert.equal((await dother.booking(theirs.id).first())!.data.notes, undefined);
+  const [upd] = await du.booking(mine.id).update({ notes: 'подтверждена' }).rows();
+  assert.equal(upd.data.notes, 'подтверждена');
+  await assert.rejects(du.Customer().create({ name: 'х' }).rows(), (err: { code?: string }) => err.code === 'acl_denied');
+  // сырой SQL — тот же отказ: политика вставки
+  await assert.rejects(sqlAs(e, user.token)(`insert into ${S}.entity (class, data) values ('Customer', '{"name": "х"}')`), lt('42501'));
+});
+
+test('5.10 каскад удаления: право DELETE на каждый класс замыкания — запрет внутри откатывает всё', async () => {
+  const [car] = await du.SportsCar().create({ name: 'Феррари' }).rows();
+  const garage = await ownRow('Garage', { name: 'Гараж' }, { SportsCar: car.id });
+  await assert.rejects(du.SportsCar(car.id).delete({ confirm: true }).rows(), (err: { code?: string; message?: string }) =>
+    err.code === 'acl_denied' && /Garage/.test(err.message ?? ''));
+  assert.equal(await du.SportsCar(car.id).count(), 1, 'транзакция откатилась');
+  assert.equal(await du.Garage(garage).count(), 1);
+  const [lone] = await du.SportsCar().create({ name: 'Одинокий' }).rows();
+  assert.equal((await du.SportsCar(lone.id).delete({ confirm: true }).rows()).length, 1);
+});
+
+test('5.10 полиморфное чтение и ACL: запрет на потомке не обходится шагом по предку; права меняются сразу', async () => {
+  const T = 'polyacl';
+  for (const [c, name] of [['Vehicle', 'вэн'], ['Car', 'купе'], ['SportsCar', 'ракета']] as const) await du[c]().tags(T).create({ name }).rows();
+  assert.deepEqual((await du.Vehicle().tags(T).rows()).map((r) => r.class).sort(), ['Car', 'SportsCar', 'Vehicle']);
+  const auth = await sysRes(e, 'authenticated:ACCOUNT');
+  const deny = await rule(e, org, auth, await resource(e, org, 'sportscar:READ', 'READ', { class: 'SportsCar' }), 'deny', 200);
+  // пропуск прав подключения устарел (счётчик изменений прав) — база считает план заново
+  const rows = await du.Vehicle().tags(T).rows();
+  assert.deepEqual(rows.map((r) => r.class).sort(), ['Car', 'Vehicle'], 'запрет на потомке обойдён — утечка');
+  assert.equal(await du.Vehicle().tags(T).count(), 2);
+  assert.deepEqual(await du.SportsCar().rows(), []);
+  assert.deepEqual((await du.Car().tags(T).rows()).map((r) => r.class), ['Car']);
+  await e.asOwner((tx) => tx.unsafe(`delete from ${S}.entity where id = $1`, [deny]));
+  await e.asOwner((tx) => tx.unsafe(`select ${S}.acl_bump()`));
+  assert.equal(await du.Vehicle().tags(T).count(), 3, 'правило снято — снова видно');
+});
+
+test('5.13 ACL внутри рекурсии: запрещённый узел обрывает своё поддерево', async () => {
+  const root = await ownRow('Folder', { name: 'корень', hidden: false });
+  const a = await ownRow('Folder', { name: 'а', hidden: true }, { Parent: root });
+  await ownRow('Folder', { name: 'а1', hidden: false }, { Parent: a });
+  const b = await ownRow('Folder', { name: 'б', hidden: false }, { Parent: root });
+  await ownRow('Folder', { name: 'б1', hidden: false }, { Parent: b });
+  const names = (await du.Folder(root).Folder().deep().rows()).map((r) => r.data.name).sort();
+  assert.deepEqual(names, ['б', 'б1']);
+});
+
+test('5.14 цель, невидимая по ACL: ссылка на неё — target_not_found', async () => {
+  const c = await ownRow('Customer', { name: 'Аня' });
+  await assert.rejects(du.Visit().create({}).Customer.set(c).rows(), (err: { code?: string }) => err.code === 'target_not_found');
+  await assert.rejects(sqlAs(e, user.token)(`insert into ${S}.entity (class, links) values ('Visit', $1::jsonb)`, [{ Customer: c }]), lt('target_not_found'));
+});
+
+test('5.12 сырой SQL и библиотека под одной сессией видят одни и те же строки', async () => {
+  const raw = sqlAs(e, user.token);
+  const root = (await raw(`select id from ${S}.entity where class = 'Folder' and data->>'name' = 'корень'`))[0].id as string;
+  const ids = (rows: readonly Record<string, unknown>[]) => rows.map((r) => r.id as string).sort();
+  const pairs: [string, Promise<string[]>, Promise<string[]>][] = [];
+  for (const c of ['Vehicle', 'Car', 'SportsCar', 'Service', 'booking', 'Folder', 'Garage', 'Customer', 'Visit']) {
+    pairs.push([c, du[c]().exact().ids().then((x) => [...x].sort()), raw(`select id from ${S}.entity where class = $1`, [c]).then(ids)]);
+  }
+  pairs.push(['семейство Vehicle', du.Vehicle().ids().then((x) => [...x].sort()),
+    raw(`select id from ${S}.entity where class in ('Vehicle', 'Car', 'SportsCar')`).then(ids)]);
+  pairs.push(['дети папки', du.Folder(root).Folder().ids().then((x) => [...x].sort()),
+    raw(`select id from ${S}.entity where class = 'Folder' and links->>'Parent' = $1`, [root]).then(ids)]);
+  pairs.push(['Service по условию', du.Service({ duration: 30 }).ids().then((x) => [...x].sort()),
+    raw(`select id from ${S}.entity where class = 'Service' and (data->>'duration')::int = 30`).then(ids)]);
+  pairs.push(['booking по notes', du.booking({ notes: 'x' }).ids().then((x) => [...x].sort()),
+    raw(`select id from ${S}.entity where class = 'booking' and data->>'notes' = 'x'`).then(ids)]);
+  pairs.push(['журнал booking', du.booking().versions().then((v) => [...new Set(v.map((r) => r.id))].sort()),
+    raw(`select distinct id from ${S}.log where class = 'booking'`).then(ids)]);
+  pairs.push(['гаражи со спорткаром', du.SportsCar().Garage().ids().then((x) => [...x].sort()),
+    raw(`select g.id from ${S}.entity g join ${S}.entity c on c.id = (g.links->>'SportsCar')::uuid where g.class = 'Garage' and c.class = 'SportsCar'`).then(ids)]);
+  assert.equal(pairs.length, 15);
+  for (const [label, lib, sql] of pairs) assert.deepEqual(await lib, await sql, label);
+  assert.ok((await pairs[4][1]).length > 0 && (await pairs[5][1]).length > 0, 'сверка не пустая');
+});
+
+test('строки прав в арендаторе: пользователь без права не видит и не пишет rule, Resource, member', async () => {
+  const raw = sqlAs(e, user.token);
+  assert.deepEqual([...await raw(`select id from ${S}.entity where class in ('rule', 'Resource')`)], []);
+  // собственное членство видно самому участнику (§2.2)
+  assert.equal((await raw(`select id from ${S}.entity where class = 'member'`)).length, 1);
+  await assert.rejects(raw(`insert into ${S}.entity (class, links, data) values ('member', $1::jsonb, '{"roles": ["admin"]}')`,
+    [{ User: other.id, Tenant: org }]), lt('42501'));
+  void SYSTEM_ID;
+});

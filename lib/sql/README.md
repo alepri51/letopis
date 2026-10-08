@@ -49,4 +49,4 @@
 
 ## Порядок файлов
 
-`10-core` → `15-errors` → `20-context` → `30-validate` → `40-class` → `50-acl` → `60-write` → `70-read` → (`80-auth`, `90-time` на этапах 5, 6) → `95-seed.system` → `99-revision`.
+`10-core` → `15-errors` → `20-context` → `30-validate` → `40-class` → `50-acl` → `60-write` → `70-read` → `80-auth` → (`90-time` на этапе 6) → `95-seed.system` → `99-revision`.

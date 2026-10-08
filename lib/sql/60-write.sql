@@ -156,8 +156,11 @@ end $$;
 -- арендатора не заблокировать и по ожиданию не обнаружить. Проверка идёт после блокировки, по
 -- свежим строкам: цель, которую успели удалить или перевести в чужой класс, не пройдёт. Класс цели
 -- прямо в списке конца — без поиска описания; иначе — предки из строки Class цели.
+-- При p_acl ({tenant, account, plan} — план READ актора) цель ещё и должна быть видна актору (этап 5,
+-- п. 6): строку, которую он не видит, нельзя использовать как цель — ответ тот же, что для
+-- несуществующей. Цели-аккаунты (Account) не проверяются: на них ссылаются членства и владельцы.
 -- Возвращает роль первой непрошедшей цели или null.
-create or replace function @SCHEMA@.targets_bad(p_rows jsonb, p_lock boolean) returns text
+create or replace function @SCHEMA@.targets_bad(p_rows jsonb, p_lock boolean, p_acl jsonb default null) returns text
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
@@ -199,13 +202,19 @@ begin
                  from @SCHEMA@.entity k
                  where k.class = 'Class' and k.data->>'name' = t.class and k.tenant in (t.tenant, '@SYSTEM@'::uuid)
                  order by k.tenant = '@SYSTEM@'::uuid limit 1), false)
+     or (p_acl is not null and t.class <> 'Account'
+         and not @SCHEMA@.row_visible(t.tenant, t.class, t.id, t.owner, t.tags, t.data, t.links,
+                                      (p_acl->>'tenant')::uuid, (p_acl->>'account')::uuid, p_acl->'plan'))
   limit 1;
   return bad;
 end $$;
+-- до этапа 5 цели не сверялись с правами актора
+drop function if exists @SCHEMA@.targets_bad(jsonb, boolean);
 
 -- Разбор концов и проверка целей одной строки — для функций владельца (reclass, проверка строк
--- семейства), которые пишут мимо триггеров. При p_lock цели блокируются for key share.
-create or replace function @SCHEMA@.check_links(p_res jsonb, p_links jsonb, p_tenant uuid, p_lock boolean,
+-- семейства), которые пишут мимо триггеров. При p_lock цели блокируются for key share; p_acl — как
+-- у targets_bad (цели видны актору).
+create or replace function @SCHEMA@.check_links(p_res jsonb, p_links jsonb, p_tenant uuid, p_lock boolean, p_acl jsonb,
   out links jsonb, out code text, out msg text)
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -219,11 +228,12 @@ begin
     return;
   end if;
   bad := @SCHEMA@.targets_bad(jsonb_build_array(jsonb_build_object(
-    'class', p_res->>'name', 'tenant', p_tenant, 'links', links, 'ends', coalesce(p_res->'ends', '{}'::jsonb))), p_lock);
+    'class', p_res->>'name', 'tenant', p_tenant, 'links', links, 'ends', coalesce(p_res->'ends', '{}'::jsonb))), p_lock, p_acl);
   if bad is not null then
     code := 'target_not_found'; msg := format('цель конца %s не найдена', bad);
   end if;
 end $$;
+drop function if exists @SCHEMA@.check_links(jsonb, jsonb, uuid, boolean);
 
 -- id класса с ключом — v5 от арендатора, класса и значений ключа (§2.3); у класса без ключа — null.
 create or replace function @SCHEMA@.key_id(p_res jsonb, p_class text, p_tenant uuid, p_data jsonb, p_links jsonb) returns uuid
@@ -344,11 +354,23 @@ as $$
 $$;
 
 -- Перечень видимых актору строк и число остальных — для ошибок restrict, смены класса, ужесточения.
+-- Видимость — та же, что у чтения (row_visible с планом READ актора), а не только арендатор.
 create or replace function @SCHEMA@.visible_detail(p_rows jsonb, p_tenant uuid) returns jsonb
-language sql stable
-return jsonb_build_object(
-  'rows', coalesce((select jsonb_agg(r - 'tenant') from jsonb_array_elements(p_rows) r where (r->>'tenant')::uuid = p_tenant), '[]'::jsonb),
-  'others', (select count(*) from jsonb_array_elements(p_rows) r where (r->>'tenant')::uuid is distinct from p_tenant));
+language plpgsql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  a jsonb := @SCHEMA@.acl_actor('READ');
+  vis jsonb;
+begin
+  select coalesce(jsonb_agg(r - 'tenant'), '[]'::jsonb) into vis
+  from jsonb_array_elements(p_rows) r
+  join @SCHEMA@.entity e on e.id = (r->>'id')::uuid
+  where (r->>'tenant')::uuid = p_tenant and a is not null
+    and @SCHEMA@.row_visible(e.tenant, e.class, e.id, e.owner, e.tags, e.data, e.links,
+                             (a->>'tenant')::uuid, (a->>'account')::uuid, a->'plan');
+  return jsonb_build_object('rows', vis, 'others', jsonb_array_length(p_rows) - jsonb_array_length(vis));
+end $$;
 
 -- Безопасно ли изменение описания класса (этап 1, п. 10): новые необязательные поля и концы,
 -- метаданные, алиас, политика истории, кэш. Всё остальное — ужесточение с проверкой строк.
@@ -396,7 +418,7 @@ begin
       if bad <> '[]'::jsonb then
         problem := 'данные: ' || bad::text;
       else
-        select * into lk from @SCHEMA@.check_links(res, r.links, r.tenant, false);
+        select * into lk from @SCHEMA@.check_links(res, r.links, r.tenant, false, null);
         if lk.code is not null then
           problem := lk.msg;
         elsif coalesce(@SCHEMA@.key_id(res, r.class, r.tenant, r.data, r.links), r.id) <> r.id then
@@ -490,6 +512,10 @@ begin
   if NEW.tenant <> c.tenant then
     perform @SCHEMA@.lt_fail('tenant_denied', 'запись в чужого арендатора');
   end if;
+  -- аккаунты (с их категориями) — только в System: их пишет системный администратор (этап 5)
+  if NEW.class = 'Account' and NEW.tenant <> '@SYSTEM@'::uuid then
+    perform @SCHEMA@.lt_fail('tenant_denied', 'аккаунты лежат в арендаторе System');
+  end if;
   cls := @SCHEMA@.class_row(NEW.class, NEW.tenant);
   if cls.id is null then
     perform @SCHEMA@.lt_fail('invalid_class', format('класс %s не найден', NEW.class));
@@ -518,6 +544,9 @@ begin
     perform @SCHEMA@.lt_fail(lk.code, lk.msg);
   end if;
   NEW.links := lk.links;
+  if NEW.class = 'member' and NEW.links->>'Tenant' is distinct from NEW.tenant::text then
+    perform @SCHEMA@.lt_fail('invalid_data', 'конец Tenant членства — арендатор строки');
+  end if;
   kid := @SCHEMA@.key_id(res, NEW.class, NEW.tenant, NEW.data, NEW.links);
   if kid is null then
     if NEW.id is not null then
@@ -540,9 +569,10 @@ begin
   NEW.cv := cls.rev;
   if NEW.owner is null then
     NEW.owner := case res->>'ownerDefault' when 'actor' then c.account else NEW.tenant end;
-  elsif NEW.owner not in (NEW.tenant, c.account) then
-    -- явный владелец — только по условию ACL (этап 5); до него — арендатор или сам автор
-    perform @SCHEMA@.lt_fail('acl_denied', 'владелец строки не разрешён');
+  elsif NEW.owner not in (NEW.tenant, c.account)
+        and not exists (select 1 from @SCHEMA@.entity a where a.id = NEW.owner and a.class = 'Account' and a.tenant = '@SYSTEM@'::uuid) then
+    -- явный владелец — существующий аккаунт; разрешает ли его условие ACL, решает политика вставки
+    perform @SCHEMA@.lt_fail('target_not_found', 'владелец строки не найден');
   end if;
   NEW.author := c.author;
   NEW.agent := c.agent;
@@ -624,6 +654,9 @@ begin
     perform @SCHEMA@.lt_fail(lk.code, lk.msg);
   end if;
   NEW.links := lk.links;
+  if NEW.class = 'member' and NEW.links->>'Tenant' is distinct from OLD.tenant::text then
+    perform @SCHEMA@.lt_fail('invalid_data', 'конец Tenant членства — арендатор строки');
+  end if;
   kid := @SCHEMA@.key_id(res, NEW.class, OLD.tenant, NEW.data, NEW.links);
   if kid is not null and kid <> OLD.id then
     perform @SCHEMA@.lt_fail('immutable_key', format('ключевое поле класса %s менять нельзя: id изменился бы (rekey)', NEW.class));
@@ -659,8 +692,10 @@ declare
   cls text[];
   bad text;
 begin
-  bad := @SCHEMA@.targets_bad((select jsonb_agg(jsonb_build_object('class', n.class, 'tenant', n.tenant, 'links', n.links))
-                               from added n where n.links <> '{}'::jsonb), true);
+  if exists (select 1 from added n where n.links <> '{}'::jsonb) then
+    bad := @SCHEMA@.targets_bad((select jsonb_agg(jsonb_build_object('class', n.class, 'tenant', n.tenant, 'links', n.links))
+                                 from added n where n.links <> '{}'::jsonb), true, @SCHEMA@.acl_actor('READ'));
+  end if;
   if bad is not null then
     perform @SCHEMA@.lt_fail('target_not_found', format('цель конца %s не найдена', bad));
   end if;
@@ -671,6 +706,9 @@ begin
         where @SCHEMA@.history_on(k.class, k.tenant)) h on h.class = n.class and h.tenant = n.tenant;
   select array_agg(distinct a.class) into cls from added a;
   perform @SCHEMA@.signal(cls);
+  if cls && array['rule', 'Resource', 'member', 'Account', 'Class'] then
+    perform @SCHEMA@.acl_bump();
+  end if;
   return null;
 end $$;
 
@@ -689,9 +727,12 @@ declare
   bad text;
 begin
   -- цели проверяются у строк, у которых изменились концы или класс
-  bad := @SCHEMA@.targets_bad((select jsonb_agg(jsonb_build_object('class', n.class, 'tenant', n.tenant, 'links', n.links))
-                               from new_rows n join old_rows o on o.id = n.id and o.rev <> n.rev
-                               where n.links <> '{}'::jsonb and (n.links <> o.links or n.class <> o.class)), true);
+  if exists (select 1 from new_rows n join old_rows o on o.id = n.id and o.rev <> n.rev
+             where n.links <> '{}'::jsonb and (n.links <> o.links or n.class <> o.class)) then
+    bad := @SCHEMA@.targets_bad((select jsonb_agg(jsonb_build_object('class', n.class, 'tenant', n.tenant, 'links', n.links))
+                                 from new_rows n join old_rows o on o.id = n.id and o.rev <> n.rev
+                                 where n.links <> '{}'::jsonb and (n.links <> o.links or n.class <> o.class)), true, @SCHEMA@.acl_actor('READ'));
+  end if;
   if bad is not null then
     perform @SCHEMA@.lt_fail('target_not_found', format('цель конца %s не найдена', bad));
   end if;
@@ -703,11 +744,20 @@ begin
         where @SCHEMA@.history_on(k.class, k.tenant)) h on h.class = n.class and h.tenant = n.tenant;
   select array_agg(distinct n.class) into cls from new_rows n join old_rows o on o.id = n.id and o.rev <> n.rev;
   perform @SCHEMA@.signal(cls);
+  if cls && array['rule', 'Resource', 'member', 'Account', 'Class'] then
+    perform @SCHEMA@.acl_bump();
+  end if;
   for cid in select n.id from new_rows n join old_rows o on o.id = n.id and o.rev <> n.rev
              where n.class = 'Class' order by n.id loop
     select * into o_row from old_rows x where x.id = cid;
     select * into n_row from new_rows x where x.id = cid;
     perform @SCHEMA@.class_evolve(o_row, n_row);
+  end loop;
+  -- отключённый аккаунт: сессии гаснут (этап 5, п. 2), каждая — сигнал кэшу
+  for cid in select n.id from new_rows n join old_rows o on o.id = n.id
+             where n.class = 'Account' and coalesce((o.data->>'enabled')::boolean, true)
+               and not coalesce((n.data->>'enabled')::boolean, true) loop
+    perform @SCHEMA@.auth_kill(cid, null);
   end loop;
   return null;
 end $$;
@@ -772,6 +822,36 @@ return (
                       where t::uuid = any (p_ids))) x
 );
 
+-- Строки арендатора, которыми владел пользователь, переходят арендатору (выход из членства, §2.10):
+-- новая версия каждой строки с журналом. Индекс entity_owner — только строки с владельцем-не арендатором.
+create or replace function @SCHEMA@.owner_to_tenant(p_tenant uuid, p_user uuid) returns int
+language plpgsql volatile
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  c record;
+  r @SCHEMA@.entity;
+  n int := 0;
+begin
+  if p_tenant is null or p_user is null or p_tenant = p_user then
+    return 0;
+  end if;
+  select * into c from @SCHEMA@.ctx();
+  for r in select x.* from @SCHEMA@.entity x where x.owner = p_user and x.owner <> x.tenant and x.tenant = p_tenant
+           order by x.id for update loop
+    update @SCHEMA@.entity x
+       set owner = p_tenant, rev = x.rev + 1, prev_hash = x.hash,
+           at = greatest(@SCHEMA@.now_ts(), x.at + interval '1 microsecond'),
+           author = coalesce(c.author, '@SYSTEM@'::uuid), agent = c.agent, op = 'update',
+           reason = nullif(current_setting('letopis.reason', true), ''), moved = null
+     where x.id = r.id
+    returning x.* into r;
+    perform @SCHEMA@.log_version(r);
+    n := n + 1;
+  end loop;
+  return n;
+end $$;
+
 -- После оператора delete (§2.5, этап 1, п. 8): надгробия, каскад по уровням, restrict по итогу.
 -- Строки, которые удалил сам оператор, каскад уже не видит, поэтому сырой delete любого набора
 -- связанных строк проходит без ошибки 27000. Надгробия уровня пишутся одной вставкой.
@@ -793,8 +873,19 @@ declare
   newlinks jsonb;
   k record;
   blockers jsonb;
+  dplan jsonb;
+  wplan jsonb;
+  denied text;
+  accs uuid[];
+  mems jsonb;
+  lvl_accs uuid[];
+  lvl_mems jsonb;
 begin
   select * into c from @SCHEMA@.ctx();
+  -- права в замыкании (этап 5, п. 6): DELETE на каждую удаляемую каскадом строку, WRITE — на строку,
+  -- у которой снимается конец
+  dplan := @SCHEMA@.acl_plan('DELETE');
+  wplan := @SCHEMA@.acl_plan('WRITE');
   if exists (select 1 from @SCHEMA@.entity x join gone g on g.id = x.id) then
     perform @SCHEMA@.lt_fail('recreated_in_statement', 'id удалён и создан заново одним оператором');
   end if;
@@ -813,7 +904,10 @@ begin
   from gone g
   join (select d.class, d.tenant from (select distinct x.class, x.tenant from gone x) d
         where @SCHEMA@.history_on(d.class, d.tenant)) h on h.class = g.class and h.tenant = g.tenant;
-  select coalesce(array_agg(g.id), '{}'), coalesce(array_agg(distinct g.class), '{}') into lvl, classes from gone g;
+  select coalesce(array_agg(g.id), '{}'), coalesce(array_agg(distinct g.class), '{}'),
+         coalesce(array_agg(g.id) filter (where g.class = 'Account'), '{}'),
+         coalesce(jsonb_agg(jsonb_build_object('tenant', g.tenant, 'user', g.links->>'User')) filter (where g.class = 'member'), '[]'::jsonb)
+    into lvl, classes, accs, mems from gone g;
   all_ids := lvl;
   while cardinality(lvl) > 0 loop
     -- кто ссылается на уровень: действие по правилам концов (общее с превью)
@@ -842,10 +936,22 @@ begin
       join (select dd.class, dd.tenant from (select distinct x.class, x.tenant from d x) dd
             where @SCHEMA@.history_on(dd.class, dd.tenant)) h on h.class = d.class and h.tenant = d.tenant
     )
-    select coalesce(array_agg(d.id), '{}'), coalesce(array_agg(distinct d.class), '{}') into lvl, lvl_classes from d;
+    select coalesce(array_agg(d.id), '{}'), coalesce(array_agg(distinct d.class), '{}'),
+           min(d.class) filter (where not @SCHEMA@.acl_row_ok(dplan, d.class, d.id, d.owner, d.tenant, d.tags, d.data, d.links)),
+           coalesce(array_agg(d.id) filter (where d.class = 'Account'), '{}'),
+           coalesce(jsonb_agg(jsonb_build_object('tenant', d.tenant, 'user', d.links->>'User')) filter (where d.class = 'member'), '[]'::jsonb)
+      into lvl, lvl_classes, denied, lvl_accs, lvl_mems from d;
+    if denied is not null then
+      perform @SCHEMA@.lt_fail('acl_denied', format('нет права DELETE на класс %s в каскаде удаления', denied));
+    end if;
+    accs := accs || lvl_accs;
+    mems := mems || lvl_mems;
     classes := classes || lvl_classes;
     -- unset: снять конец, новая версия
     for r in select x.* from @SCHEMA@.entity x where x.id = any (unsets) order by x.id for update loop
+      if not @SCHEMA@.acl_row_ok(wplan, r.class, r.id, r.owner, r.tenant, r.tags, r.data, r.links) then
+        perform @SCHEMA@.lt_fail('acl_denied', format('нет права WRITE на класс %s: снятие конца при удалении', r.class));
+      end if;
       newlinks := '{}'::jsonb;
       for k in select key, value from jsonb_each(r.links) loop
         if jsonb_typeof(k.value) = 'array' then
@@ -859,7 +965,20 @@ begin
     end loop;
     all_ids := all_ids || lvl;
   end loop;
+  -- выход из членства (и удаление аккаунта, которое снимает его членства): строки арендатора, которыми
+  -- владел участник, переходят арендатору (§2.10) — новой версией
+  for r in select distinct (m->>'tenant')::uuid as tenant, (m->>'user')::uuid as usr from jsonb_array_elements(mems) m loop
+    perform @SCHEMA@.owner_to_tenant(r.tenant, r.usr);
+  end loop;
+  -- удалённый аккаунт: сессии гаснут, креды удаляются (идентификаторы освобождаются)
+  for r in select distinct u as acc from unnest(accs) u loop
+    perform @SCHEMA@.auth_kill(r.acc, null);
+    update @SCHEMA@.secret x set deleted_at = clock_timestamp() where x.account = r.acc and x.deleted_at is null;
+  end loop;
   perform @SCHEMA@.signal(array(select distinct x from unnest(classes) x));
+  if classes && array['rule', 'Resource', 'member', 'Account', 'Class'] then
+    perform @SCHEMA@.acl_bump();
+  end if;
   -- restrict — одним запросом после всего каскада
   select coalesce(jsonb_agg(jsonb_build_object('id', x.id, 'class', x.class, 'tenant', x.tenant)), '[]'::jsonb) into blockers
   from (select x.id, x.class, x.tenant from @SCHEMA@.entity x where x.ends && all_ids order by x.id limit 1000) x;
@@ -882,22 +1001,23 @@ set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 #variable_conflict use_column
 declare
-  c_tenant uuid;
-  c_account uuid;
+  a jsonb := @SCHEMA@.acl_actor('READ');
+  c_tenant uuid := (a->>'tenant')::uuid;
+  c_account uuid := (a->>'account')::uuid;
+  c_plan jsonb := a->'plan';
   lvl uuid[];
   all_ids uuid[];
   casc uuid[];
   d int := 0;
   out_rows jsonb := '[]'::jsonb;
 begin
-  select x.tenant, x.account into c_tenant, c_account from @SCHEMA@.ctx() x;
   if c_account is null then
     return;
   end if;
   -- цели — только видимые: превью не подтверждает существование чужих строк
   select coalesce(array_agg(x.id order by x.id), '{}') into lvl
   from @SCHEMA@.entity x
-  where x.id = any (p_ids) and @SCHEMA@.row_visible(x.tenant, x.class, x.id, c_tenant, c_account);
+  where x.id = any (p_ids) and @SCHEMA@.row_visible(x.tenant, x.class, x.id, x.owner, x.tags, x.data, x.links, c_tenant, c_account, c_plan);
   out_rows := (select coalesce(jsonb_agg(jsonb_build_array(u, 'delete', 0)), '[]'::jsonb) from unnest(lvl) u);
   all_ids := lvl;
   while cardinality(lvl) > 0 loop
@@ -926,7 +1046,7 @@ begin
     select (o->>0)::uuid, e.class, o->>1, (o->>2)::int
     from jsonb_array_elements(out_rows) o
     join @SCHEMA@.entity e on e.id = (o->>0)::uuid
-    where @SCHEMA@.row_visible(e.tenant, e.class, e.id, c_tenant, c_account);
+    where @SCHEMA@.row_visible(e.tenant, e.class, e.id, e.owner, e.tags, e.data, e.links, c_tenant, c_account, c_plan);
 end $$;
 
 create or replace trigger entity_bi before insert on @SCHEMA@.entity
@@ -1023,6 +1143,9 @@ declare
   lk record;
   nid uuid;
   inc jsonb;
+  rd jsonb;
+  wplan jsonb;
+  denied text;
 begin
   select * into c from @SCHEMA@.ctx();
   if c.account is null then
@@ -1031,11 +1154,16 @@ begin
   if current_setting('transaction_isolation') <> 'read committed' then
     perform @SCHEMA@.lt_fail('isolation_level', 'смена класса разрешена только в read committed');
   end if;
+  rd := @SCHEMA@.acl_actor('READ');
+  wplan := @SCHEMA@.acl_plan('WRITE');
   select x.* into o from @SCHEMA@.entity x where x.id = p_id and x.tenant = c.tenant for update;
-  if o.id is null then
+  if o.id is null or not @SCHEMA@.row_visible(o.tenant, o.class, o.id, o.owner, o.tags, o.data, o.links, c.tenant, c.account, rd->'plan') then
     perform @SCHEMA@.lt_fail('target_not_found', 'цель не найдена');
   end if;
-  -- строки прав и классов функция не трогает (ACL — этап 5)
+  if not @SCHEMA@.acl_row_ok(wplan, o.class, o.id, o.owner, o.tenant, o.tags, o.data, o.links) then
+    perform @SCHEMA@.lt_fail('acl_denied', format('нет права WRITE на строку класса %s', o.class));
+  end if;
+  -- строки прав и классов функция не трогает
   if o.class in ('Class', 'Account', 'member', 'Resource', 'rule') or p_class in ('Class', 'Account', 'member', 'Resource', 'rule') then
     perform @SCHEMA@.lt_fail('reclass_denied', 'класс системной строки не меняется');
   end if;
@@ -1054,7 +1182,7 @@ begin
   if bad <> '[]'::jsonb then
     perform @SCHEMA@.lt_fail('invalid_data', format('данные не проходят описание класса %s', p_class), jsonb_build_object('issues', bad));
   end if;
-  select * into lk from @SCHEMA@.check_links(res, o.links, o.tenant, true);
+  select * into lk from @SCHEMA@.check_links(res, o.links, o.tenant, true, rd);
   if lk.code is not null then
     perform @SCHEMA@.lt_fail(lk.code, lk.msg);
   end if;
@@ -1064,6 +1192,17 @@ begin
       @SCHEMA@.visible_detail(inc, c.tenant));
   end if;
   nid := coalesce(@SCHEMA@.key_id(res, p_class, o.tenant, d, lk.links), o.id);
+  if not @SCHEMA@.acl_row_ok(wplan, p_class, nid, o.owner, o.tenant, o.tags, d, lk.links) then
+    perform @SCHEMA@.lt_fail('acl_denied', format('нет права WRITE на класс %s', p_class));
+  end if;
+  if nid <> o.id then
+    -- перевод ссылок пишет ссылающиеся строки: на них тоже нужно право WRITE
+    select min(x.class) into denied from @SCHEMA@.entity x
+    where x.ends @> array[o.id] and not @SCHEMA@.acl_row_ok(wplan, x.class, x.id, x.owner, x.tenant, x.tags, x.data, x.links);
+    if denied is not null then
+      perform @SCHEMA@.lt_fail('acl_denied', format('нет права WRITE на ссылающиеся строки класса %s', denied));
+    end if;
+  end if;
   if nid = o.id then
     perform @SCHEMA@.sys_update(o.id, d, lk.links, null, 'reclass', p_class);
   else
@@ -1210,7 +1349,7 @@ declare
   anchor text;
 begin
   select * into c from @SCHEMA@.ctx();
-  if not (coalesce('System' = any (c.categories), false)
+  if not (coalesce((@SCHEMA@.acl_api_for(c.tenant, c.categories, c.roles, 'letopis.verify', true)->>'allow')::boolean, false)
           or exists (select 1 from pg_roles where rolname = session_user and rolsuper)
           or pg_has_role(session_user, '@OWNER_NAME@', 'SET')) then
     perform @SCHEMA@.lt_fail('acl_denied', 'verify доступен только системному администратору');
@@ -1247,13 +1386,13 @@ declare f text;
 begin
   foreach f in array array[
     'now_ts()', 'family_lock(text, boolean)', 'class_set(jsonb)', 'class_accepts(jsonb, text, uuid)', 'role_accepts(text, uuid, text, text, uuid)',
-    'apply_defaults(jsonb, jsonb)', 'links_shape(jsonb, jsonb)', 'targets_bad(jsonb, boolean)', 'check_links(jsonb, jsonb, uuid, boolean)', 'key_id(jsonb, text, uuid, jsonb, jsonb)',
+    'apply_defaults(jsonb, jsonb)', 'links_shape(jsonb, jsonb)', 'targets_bad(jsonb, boolean, jsonb)', 'check_links(jsonb, jsonb, uuid, boolean, jsonb)', 'key_id(jsonb, text, uuid, jsonb, jsonb)',
     'log_version(@SCHEMA@.entity)', 'sys_update(uuid, jsonb, jsonb, jsonpath, text, text)', 'tombstone(@SCHEMA@.entity, text, uuid)',
     'links_replace(jsonb, uuid, uuid)', 'move_row(@SCHEMA@.entity, uuid, text, jsonb, jsonb, text)', 'reclass(uuid, text, jsonb)',
     'incoming_conflicts(uuid, text, uuid)', 'visible_detail(jsonb, uuid)', 'class_change_safe(jsonb, jsonb)',
     'family_conflicts(text[], uuid, boolean)', 'reserved_names()', 'class_admit(jsonb, uuid)',
     'trg_entity_bi()', 'trg_entity_bu()', 'trg_entity_ai()', 'trg_entity_au()', 'history_on(text, uuid)', 'signal(text[])', 'class_evolve(@SCHEMA@.entity, @SCHEMA@.entity)',
-    'trg_entity_bd()', 'trg_entity_ad()', 'ref_action(jsonb, jsonb, uuid[])', 'delete_preview(uuid[])', 'merge(jsonb, jsonb)', 'inc(jsonb, text[], numeric, numeric)', 'links_patch(jsonb, jsonb)', 'verify()'] loop
+    'trg_entity_bd()', 'trg_entity_ad()', 'owner_to_tenant(uuid, uuid)', 'ref_action(jsonb, jsonb, uuid[])', 'delete_preview(uuid[])', 'merge(jsonb, jsonb)', 'inc(jsonb, text[], numeric, numeric)', 'links_patch(jsonb, jsonb)', 'verify()'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);
     execute format('revoke all on function @SCHEMA@.%s from public', f);
   end loop;

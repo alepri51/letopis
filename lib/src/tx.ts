@@ -1,8 +1,14 @@
 /**
- * Клиентский контекст (план, §2.5, §2.9, этап 2, п. 5; этап 4, п. 9): каждая операция библиотеки —
- * транзакция `read committed`, первые операторы которой выставляют `letopis.token` (и при
- * необходимости `letopis.account`, `letopis.reason`) через set_config(…, true) — настройки живут до
- * конца транзакции, соединение в пуле чужой токен не унесёт.
+ * Клиентский контекст (план, §2.5, §2.9, этап 2, п. 5; этап 4, п. 9; этап 5): каждая операция
+ * библиотеки — транзакция `read committed`, первые операторы которой выставляют `letopis.token` (и при
+ * необходимости `letopis.account`, `letopis.tenant`, `letopis.reason`) через set_config(…, true) —
+ * настройки живут до конца транзакции, соединение в пуле чужой токен не унесёт.
+ *
+ * Пропуск прав (`letopis.acl`, этап 5): подписанный базой план прав актора. Без него база считает
+ * план на каждый запрос (сотни микросекунд); с ним — проверяет подпись. Пропуск кэшируется на
+ * подключение по токену, актору и арендатору; нет пропуска — первая же операция берёт его тем же
+ * конвейером. Устаревший пропуск база не принимает и считает план сама — кэш влияет на скорость,
+ * а не на права; библиотека сбрасывает его по сигналам изменений прав и через минуту.
  *
  * Исполнитель (Executor) — общий вход цепочек: операция из пула — отдельная транзакция с повтором
  * при 40P01, 40001 и конфликте журнала (план повторяется целиком); явная транзакция db.begin() —
@@ -104,22 +110,67 @@ export class Notifier {
   }
 }
 
+/** Кэш подписанных пропусков прав одного подключения: по токену, актору и арендатору. */
+export class AclPasses {
+  private map = new Map<string, { pass: string; at: number }>();
+
+  /** schema — имя схемы в кавычках (для вызова acl_token). */
+  constructor(readonly schema: string, private ttlMs = 60_000, private max = 10_000) {}
+
+  private key(c: TxContext): string {
+    return `${c.token ?? ''}\u0001${c.account ?? ''}\u0001${c.tenant ?? ''}`;
+  }
+
+  get(c: TxContext): string | null {
+    const v = this.map.get(this.key(c));
+    if (!v) return null;
+    if (Date.now() - v.at > this.ttlMs) {
+      this.map.delete(this.key(c));
+      return null;
+    }
+    return v.pass;
+  }
+
+  set(c: TxContext, pass: string | null | undefined): void {
+    if (!pass) return;
+    if (this.map.size >= this.max) this.map.delete(this.map.keys().next().value as string);
+    this.map.set(this.key(c), { pass, at: Date.now() });
+  }
+
+  /** Права изменились (сигнал строк прав, auth.switch): все пропуска — заново. */
+  clear(): void {
+    this.map.clear();
+  }
+}
+
 export interface TxContext {
   sql: Sql;
   token: string | null;
   notifier: Notifier | null;
   /** Имперсонация: аккаунт, от имени которого действует сервис (letopis.account, этап 5). */
   account?: string;
+  /** Рабочий арендатор (letopis.tenant): собственный или по членству; база проверяет членство. */
+  tenant?: string;
   reason?: string;
+  /** Кэш пропусков прав подключения (letopis.acl). */
+  passes?: AclPasses;
+  /** После успешной операции (продление сессии раз в минуту). */
+  after?: () => void;
 }
 
 /** Служебные настройки транзакции одним оператором (уходит конвейером с первым запросом). */
-const setupSql = (q: Tx, ctx: TxContext) =>
+const setupSql = (q: Tx, ctx: TxContext, pass: string | null) =>
   q`select set_config('letopis.token', ${ctx.token ?? ''}, true),
            set_config('letopis.account', ${ctx.account ?? ''}, true),
+           set_config('letopis.tenant', ${ctx.tenant ?? ''}, true),
+           set_config('letopis.acl', ${pass ?? ''}, true),
            set_config('letopis.notify', 'deferred', true),
            set_config('letopis.reason', ${ctx.reason ?? ''}, true),
            set_config('TimeZone', 'UTC', true)`;
+
+/** Пропуска нет — взять его в этой же транзакции (им пользуются и её запросы). */
+const passSql = (q: Tx, ctx: TxContext) =>
+  q.unsafe(`select set_config('letopis.acl', coalesce(${ctx.passes!.schema}.acl_token(), ''), true) as p`);
 
 /**
  * Операция одной транзакцией с контекстом сессии и повтором при транзиентных ошибках и конфликте
@@ -139,8 +190,11 @@ export async function runTx<T>(ctx: TxContext, fn: (tx: Tx) => Promise<T>, opts:
       // begin, служебный оператор и первый запрос операции уходят конвейером (§2.9); время — в UTC;
       // execute(): запросы postgres.js ленивые — без него первый запрос fn ушёл бы раньше настроек
       const begin = conn.unsafe('begin isolation level read committed').execute();
-      const setup = setupSql(conn as unknown as Tx, ctx).execute();
-      const [, , out] = await Promise.all([begin, setup, fn(conn as unknown as Tx)]);
+      const pass = ctx.passes?.get(ctx) ?? null;
+      const setup = setupSql(conn as unknown as Tx, ctx, pass).execute();
+      const fetch = !pass && ctx.passes && ctx.token ? passSql(conn as unknown as Tx, ctx).execute() : null;
+      const [, , got, out] = await Promise.all([begin, setup, fetch, fn(conn as unknown as Tx)]);
+      if (got) ctx.passes!.set(ctx, (got as unknown as { p: string }[])[0]?.p);
       if (!opts.read) {
         const [row] = await conn`select current_setting('letopis.changed', true) as changed`;
         changed = (row?.changed as string | null) ?? null;
@@ -148,6 +202,7 @@ export async function runTx<T>(ctx: TxContext, fn: (tx: Tx) => Promise<T>, opts:
       bodyDone = true;
       await conn.unsafe('commit');
       ctx.notifier?.add(changed);
+      ctx.after?.();
       return out as T;
     } catch (e) {
       failure = e;
@@ -197,7 +252,9 @@ export class ExplicitTx implements Executor {
     const conn = await ctx.sql.reserve();
     try {
       await conn.unsafe('begin isolation level read committed');
-      await setupSql(conn as unknown as Tx, ctx);
+      const pass = ctx.passes?.get(ctx) ?? null;
+      await setupSql(conn as unknown as Tx, ctx, pass);
+      if (!pass && ctx.passes && ctx.token) ctx.passes.set(ctx, ((await passSql(conn as unknown as Tx, ctx)) as unknown as { p: string }[])[0]?.p);
     } catch (e) {
       await conn.unsafe('rollback').catch(() => {});
       conn.release();
@@ -264,6 +321,7 @@ export class ExplicitTx implements Executor {
     }
     this.conn.release();
     this.ctx.notifier?.add(changed);
+    this.ctx.after?.();
   }
 
   async rollback(): Promise<void> {

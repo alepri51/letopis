@@ -8,6 +8,7 @@ synced: f625ed8
 
 **Инварианты и грабли**
 - Схема на файл: `v2.t_<имя файла>`; `engine(import.meta.filename)` ставит схему, прикладную роль `letopis_test_app`, даёт `tenant()`, `as()`, `asOwner()`, `hold()`, `defineClass()`.
+- Права (этап 5) по умолчанию запрещают: `e.tenant()` выдаёт арендатору `sys_grant_all` («аутентифицированным можно всё»), `tenant(name, { bare: true })` — без него. Помощники доступа — `test/_access.ts` (`account`, `session`, `member`, `resource`, `rule`, `sysRes`, `sysadmin`, `service`, `sqlAs`); `e.serviceKey` — ключ сервиса установки.
 - Гонки без пауз: `hold(token, шаг)` держит транзакцию A открытой; оператор B запускается промисом; `waitForLock(sql)` ждёт сеанс с `wait_event_type = 'Lock'`; затем `finish(true|false)`.
 - Пул прикладной роли в `engine()` — 16 соединений: удерживаемые транзакции занимают соединения, при малом пуле следующий запрос ждёт пул, а не блокировку, и тест виснет.
 - postgres.js: объект в параметр `::jsonb` — как есть (без `JSON.stringify`, иначе двойное кодирование); скаляры (`true`, числа) он передаёт типизированными — для них `JSON.stringify` и `$1::text::jsonb`.

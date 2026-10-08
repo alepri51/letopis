@@ -201,12 +201,13 @@ test('4.14 батч upsert: одна вставка; повтор id режет 
   assert.equal((await db.Wallet({ number: 'U-1' }).first())!.rev, 3);
 });
 
-test('db.as(…, { owner }): явный владелец — сам автор; чужой — отказ', async () => {
-  const mine = db.as(null, { owner: t.id });
+test('db.as(…, { owner }): явный владелец — сам автор; несуществующий аккаунт — target_not_found', async () => {
+  const mine = await db.as(null, { owner: t.id });
   const [n] = await mine.Note().create({ text: 'моё' }).rows();
   assert.equal(n.owner, t.id);
+  // разрешает ли существующего владельца условие ACL — набор acl (5.15)
   const [n2] = await db.Note().owner('00000000-0000-4000-8000-000000000001').create({ text: 'чужое' }).rows().catch((err) => [err]);
-  assert.equal((n2 as { code?: string }).code, 'acl_denied');
+  assert.equal((n2 as { code?: string }).code, 'target_not_found');
 });
 
 function inList1000() {

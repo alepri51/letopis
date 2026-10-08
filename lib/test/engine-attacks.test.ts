@@ -179,7 +179,9 @@ test('№14: чужой арендатор — пустая выборка, но
 
 test('№16: таблица secret, строки Account и системные классы приложению недоступны', async () => {
   await assert.rejects(as(a, `select * from ${S}.secret`), lt('42501'));
-  await assert.rejects(as(a, `insert into ${S}.entity (class, data) values ('Account', '{"name": "x", "categories": ["System"]}')`), lt('42501'));
+  // аккаунт с категориями — только в System, а писать в System может только системный администратор
+  await assert.rejects(as(a, `insert into ${S}.entity (class, data) values ('Account', '{"name": "x", "categories": ["System"]}')`), lt('tenant_denied'));
+  await assert.rejects(as(a, `insert into ${S}.entity (class, tenant, data) values ('Account', $1, '{"name": "x", "categories": ["Service"]}')`, [SYSTEM_ID]), lt('tenant_denied'));
   assert.equal((await as(a, `update ${S}.entity set data = data where class = 'Account' returning id`)).length, 0);
   assert.equal((await as(a, `update ${S}.entity set data = data where tenant = $1 returning id`, [SYSTEM_ID])).length, 0);
 });
@@ -337,4 +339,91 @@ test('ревью В: имена будущих системных классов
   for (const name of ['member', 'Resource', 'rule', 'Class']) {
     await assert.rejects(e.defineClass(a, { name, kind: name === 'member' || name === 'rule' ? 'link' : 'hub' }), lt('invalid_class'));
   }
+});
+
+// ---------------------------------------------------------------------------
+// Этап 5: права ACL (строки 15–17, 30 и задача 13 — категории аккаунта)
+// ---------------------------------------------------------------------------
+
+/** Арендатор без правила «можно всё»: Org читается только из Твери, Note — пишется, Master — ничего. */
+async function aclTenant(): Promise<{ org: string; user: Tenant; Sx: string }> {
+  const { account, member, resource, rule, session, sysRes } = await import('./_access.js');
+  const org = (await account(e, 'ACL-салон')).id;
+  for (const c of CLASSES.slice(0, 3)) {
+    await e.asOwner((tx) => tx.unsafe(`select ${S}.sys_create(${S}.v5_id($1::uuid, 'Class', array[$2]), 'Class', $1::uuid, '{}', $3::jsonb)`,
+      [org, c.name as string, c as never]));
+  }
+  const u = await account(e, 'acl-user', { categories: ['User'] });
+  await member(e, u.id, org, ['staff']);
+  const g = await sysRes(e, 'authenticated:ACCOUNT');
+  await rule(e, org, g, await resource(e, org, 'org-tver:READ', 'READ', { class: 'Org', data: { city: 'Тверь' } }), 'allow', 10);
+  await rule(e, org, g, await resource(e, org, 'note:WRITE', 'WRITE', { class: 'Note' }), 'allow', 10);
+  await rule(e, org, g, await resource(e, org, 'note:READ', 'READ', { class: 'Note' }), 'allow', 10);
+  return { org, user: { id: u.id, token: await session(e, u.id, { tenant: org }) }, Sx: S };
+}
+
+const ownerIns = async (tenant: string, cls: string, data: unknown, links: unknown = {}) =>
+  (await e.asOwner((tx) => tx.unsafe(`insert into ${S}.entity (id, rev, class, tenant, owner, links, data, at, created_at, author, op)
+    values (gen_random_uuid(), 1, $1, $2::uuid, $2::uuid, $3::jsonb, $4::jsonb, now(), now(), $2::uuid, 'create') returning id`,
+    [cls, tenant, links as never, data as never])))[0].id as string;
+
+test('№15: обойти ACL — пустая выборка, ноль строк, отказ вставки; find_*() и журнал — по тем же правам', async () => {
+  const { org, user } = await aclTenant();
+  const tver = await ownerIns(org, 'Org', { name: 'Т', city: 'Тверь' });
+  const msk = await ownerIns(org, 'Org', { name: 'М', city: 'Москва' });
+  await e.asOwner((tx) => tx.unsafe(`insert into ${S}.log (id, rev, class, tenant, owner, links, data, tags, at, author, op)
+    select id, rev, class, tenant, owner, links, data, tags, at, author, op from ${S}.entity where id = any ($1::uuid[])`, [[tver, msk]]));
+  assert.deepEqual((await as(user, `select id from ${S}.entity where class = 'Org'`)).map((r) => r.id), [tver]);
+  assert.equal((await as(user, `select id from ${S}.entity where id = $1`, [msk])).length, 0);
+  assert.equal((await as(user, `update ${S}.entity set data = data where id = $1 returning id`, [tver])).length, 0, 'WRITE на Org нет');
+  assert.equal((await as(user, `delete from ${S}.entity where id = $1 returning id`, [tver])).length, 0, 'DELETE нет');
+  await assert.rejects(as(user, `insert into ${S}.entity (class, data) values ('Org', '{"name": "x", "city": "Тверь"}')`), lt('42501'));
+  assert.deepEqual((await as(user, `select id from ${S}.find_ids(array['Org'], '{"name": "М"}', null, null)`)).length, 0);
+  assert.deepEqual((await as(user, `select id from ${S}.log where class = 'Org'`)).map((r) => r.id), [tver]);
+  // условие плана проверяется и на новых значениях: правка, уводящая строку из-под условия, — отказ
+  const note = (await as(user, `insert into ${S}.entity (class, data) values ('Note', '{"text": "можно"}') returning id`))[0].id;
+  assert.ok(note);
+  await assert.rejects(as(user, `insert into ${S}.entity (class, data, links) values ('Note', '{"text": "x"}', $1::jsonb)`, [{ About: msk }]),
+    lt('target_not_found'), 'цель, невидимая по ACL');
+});
+
+test('№16 (этап 5): правила и аккаунты — только по правам; категорию Service себе не выдать', async () => {
+  const { org, user } = await aclTenant();
+  const g = (await as(user, `select ${S}.v5_id($1::uuid, 'Resource', array['authenticated:ACCOUNT']) as g`, [SYSTEM_ID]))[0].g;
+  await assert.rejects(as(user, `insert into ${S}.entity (class, data) values ('Resource', '{"alias": "evil:READ", "category": "READ"}')`), lt('42501'));
+  assert.equal((await as(user, `select id from ${S}.entity where class in ('rule', 'Resource')`)).length, 0);
+  assert.deepEqual((await as(user, `select id from ${S}.entity where class = 'Account'`)).map((r) => r.id), [user.id]);
+  // своя строка Account видна, но не правится: она в System
+  assert.equal((await as(user, `update ${S}.entity set data = ${S}.merge(data, '{"categories": ["Service"]}') where id = $1 returning id`, [user.id])).length, 0);
+  await assert.rejects(as(user, `insert into ${S}.entity (class, data) values ('Account', '{"name": "я-сервис", "categories": ["Service"]}')`), lt('tenant_denied'));
+  // и даже с «можно всё» в своём арендаторе (обвязка выдаёт тестовым арендаторам) — категории не выдать
+  await assert.rejects(as(a, `insert into ${S}.entity (class, data) values ('Account', '{"name": "я-сервис", "categories": ["Service"]}')`), lt('tenant_denied'));
+  const [r] = await as(a, `select ${S}.acl_check('auth.impersonate') as d`);
+  assert.equal(r.d.allow, false);
+  void org;
+  void g;
+});
+
+test('№17 (этап 5): letopis.account без права сервиса — отказ, а не чужой контекст', async () => {
+  await assert.rejects(e.as(a.token, async (tx) => {
+    await tx.unsafe(`select set_config('letopis.account', $1, true)`, [b.id]);
+    return tx.unsafe(`select * from ${S}.entity`);
+  }), lt('acl_denied'));
+  const n = await e.as(null, async (tx) => {
+    await tx.unsafe(`select set_config('letopis.account', $1, true)`, [b.id]);
+    return tx.unsafe(`select count(*)::int as n from ${S}.entity`);
+  });
+  assert.equal(n[0].n, 0);
+});
+
+test('№30 (этап 5): видимую, но неправимую строку не заблокировать — 0 строк, без ожидания', async () => {
+  const { org, user } = await aclTenant();
+  const tver = await ownerIns(org, 'Org', { name: 'Т30', city: 'Тверь' });
+  assert.equal((await as(user, `select id from ${S}.entity where id = $1`, [tver])).length, 1, 'видна');
+  const held = await e.hold(user.token, (tx) => tx.unsafe(`select id from ${S}.entity where id = $1 for no key update`, [tver]));
+  assert.equal(held.out.length, 0);
+  // писатель строки её не ждёт: блокировка не взята
+  await e.asOwner((tx) => tx.unsafe(`update ${S}.entity set tags = '{x}' where id = $1`, [tver]));
+  await held.finish(false);
+  assert.equal((await as(user, `select id from ${S}.entity where id = $1 for update`, [tver])).length, 0);
 });

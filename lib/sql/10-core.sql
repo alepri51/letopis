@@ -62,6 +62,8 @@ create index if not exists entity_ends on @SCHEMA@.entity using gin (ends) with 
 create index if not exists entity_data on @SCHEMA@.entity using gin (data jsonb_path_ops);
 -- описание класса по имени (class_row): без вычисления v5 на каждый поиск
 create index if not exists entity_class_name on @SCHEMA@.entity ((data->>'name'), tenant) where class = 'Class';
+-- строки с владельцем-пользователем: переход владения арендатору при выходе из членства (этап 5)
+create index if not exists entity_owner on @SCHEMA@.entity (owner, tenant) where owner <> tenant;
 
 create table if not exists @SCHEMA@.log (
   seq        bigint generated always as identity,

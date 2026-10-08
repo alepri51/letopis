@@ -4,7 +4,8 @@
 -- uuid и текста); поиск внутри jsonb и массивов (@>) к ним не относится, и пометить его так может
 -- только суперпользователь. Поэтому шаг цепочки делится на две части:
 --   1) функции владельца find_* выполняются без RLS и находят id по индексам GIN (entity_ends,
---      entity_data), сами применяя то же условие видимости, что и политики RLS (row_visible);
+--      entity_data), сами применяя то же условие видимости, что и политики RLS (row_visible с планом
+--      прав READ актора — acl_actor);
 --   2) строки читаются по этим id через первичный ключ под RLS, и там же применяются остальные
 --      условия шага: операторы с приведением типов, диапазоны, like.
 -- Прямой вызов find_* сырым SQL возвращает только id строк, которые пользователь и так видит.
@@ -44,10 +45,11 @@ set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 #variable_conflict use_column
 declare
-  c_tenant uuid;
-  c_account uuid;
+  a jsonb := @SCHEMA@.acl_actor('READ');
+  c_tenant uuid := (a->>'tenant')::uuid;
+  c_account uuid := (a->>'account')::uuid;
+  c_plan jsonb := a->'plan';
 begin
-  select x.tenant, x.account into c_tenant, c_account from @SCHEMA@.ctx() x;
   if c_account is null then
     return;
   end if;
@@ -57,43 +59,43 @@ begin
       return query select e.id, e.rev from @SCHEMA@.entity e
         where e.id = any (p_ids) and e.class = any (p_classes)
           and (p_data is null or e.data @> p_data) and (p_ends is null or e.ends @> p_ends)
-          and @SCHEMA@.row_visible(e.tenant, e.class, e.id, c_tenant, c_account);
+          and @SCHEMA@.row_visible(e.tenant, e.class, e.id, e.owner, e.tags, e.data, e.links, c_tenant, c_account, c_plan);
     elsif p_data is not null and p_ends is not null then
       return query select e.id, e.rev from @SCHEMA@.entity e
         where e.class = any (p_classes) and e.data @> p_data and e.ends @> p_ends
-          and @SCHEMA@.row_visible(e.tenant, e.class, e.id, c_tenant, c_account);
+          and @SCHEMA@.row_visible(e.tenant, e.class, e.id, e.owner, e.tags, e.data, e.links, c_tenant, c_account, c_plan);
     elsif p_data is not null then
       return query select e.id, e.rev from @SCHEMA@.entity e
         where e.class = any (p_classes) and e.data @> p_data
-          and @SCHEMA@.row_visible(e.tenant, e.class, e.id, c_tenant, c_account);
+          and @SCHEMA@.row_visible(e.tenant, e.class, e.id, e.owner, e.tags, e.data, e.links, c_tenant, c_account, c_plan);
     elsif p_ends is not null then
       return query select e.id, e.rev from @SCHEMA@.entity e
         where e.class = any (p_classes) and e.ends @> p_ends
-          and @SCHEMA@.row_visible(e.tenant, e.class, e.id, c_tenant, c_account);
+          and @SCHEMA@.row_visible(e.tenant, e.class, e.id, e.owner, e.tags, e.data, e.links, c_tenant, c_account, c_plan);
     else
       return query select e.id, e.rev from @SCHEMA@.entity e
         where e.class = any (p_classes)
-          and @SCHEMA@.row_visible(e.tenant, e.class, e.id, c_tenant, c_account);
+          and @SCHEMA@.row_visible(e.tenant, e.class, e.id, e.owner, e.tags, e.data, e.links, c_tenant, c_account, c_plan);
     end if;
   elsif p_ids is not null then
     -- журнал: последняя версия каждого id не позже p_at; удалён — если это надгробие
     return query select v.id, v.rev from (
-        select distinct on (l.id) l.id, l.rev, l.op, l.class, l.tenant, l.data, l.links
+        select distinct on (l.id) l.id, l.rev, l.op, l.class, l.tenant, l.owner, l.tags, l.data, l.links
         from @SCHEMA@.log l
         where l.id = any (p_ids) and l.at <= coalesce(p_at, 'infinity'::timestamptz)
         order by l.id, l.rev desc) v
       where v.class = any (p_classes) and (v.op = 'delete') = p_dead
         and (p_data is null or v.data @> p_data) and (p_ends is null or @SCHEMA@.link_ids(v.links) @> p_ends)
-        and @SCHEMA@.row_visible(v.tenant, v.class, v.id, c_tenant, c_account);
+        and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan);
   else
     return query select v.id, v.rev from (
-        select distinct on (l.id) l.id, l.rev, l.op, l.class, l.tenant, l.data, l.links
+        select distinct on (l.id) l.id, l.rev, l.op, l.class, l.tenant, l.owner, l.tags, l.data, l.links
         from @SCHEMA@.log l
         where l.class = any (p_classes) and l.at <= coalesce(p_at, 'infinity'::timestamptz)
         order by l.id, l.rev desc) v
       where (v.op = 'delete') = p_dead
         and (p_data is null or v.data @> p_data) and (p_ends is null or @SCHEMA@.link_ids(v.links) @> p_ends)
-        and @SCHEMA@.row_visible(v.tenant, v.class, v.id, c_tenant, c_account);
+        and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan);
   end if;
 end $$;
 
@@ -108,10 +110,11 @@ set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 #variable_conflict use_column
 declare
-  c_tenant uuid;
-  c_account uuid;
+  a jsonb := @SCHEMA@.acl_actor('READ');
+  c_tenant uuid := (a->>'tenant')::uuid;
+  c_account uuid := (a->>'account')::uuid;
+  c_plan jsonb := a->'plan';
 begin
-  select x.tenant, x.account into c_tenant, c_account from @SCHEMA@.ctx() x;
   if c_account is null or p_src is null then
     return;
   end if;
@@ -119,15 +122,15 @@ begin
     return query select s.src, e.id, e.rev
       from (select distinct u.x as src from unnest(p_src) u(x)) s
       cross join lateral (
-        select x.id, x.rev, x.class, x.tenant, x.data, x.ends, x.links from @SCHEMA@.entity x
+        select x.id, x.rev, x.class, x.tenant, x.owner, x.tags, x.data, x.ends, x.links from @SCHEMA@.entity x
         where x.ends @> array[s.src] offset 0) e
       where e.class = any (p_classes)
-        and @SCHEMA@.row_visible(e.tenant, e.class, e.id, c_tenant, c_account)
+        and @SCHEMA@.row_visible(e.tenant, e.class, e.id, e.owner, e.tags, e.data, e.links, c_tenant, c_account, c_plan)
         and (p_data is null or e.data @> p_data) and (p_ends is null or e.ends @> p_ends)
         and (p_roles is null or @SCHEMA@.role_has(e.links, p_roles, s.src));
   else
     return query with v as (
-        select distinct on (l.id) l.id, l.rev, l.op, l.class, l.tenant, l.data, l.links
+        select distinct on (l.id) l.id, l.rev, l.op, l.class, l.tenant, l.owner, l.tags, l.data, l.links
         from @SCHEMA@.log l
         where l.class = any (p_classes) and l.at <= coalesce(p_at, 'infinity'::timestamptz)
         order by l.id, l.rev desc)
@@ -138,7 +141,7 @@ begin
       where (v.op = 'delete') = p_dead
         and (p_data is null or v.data @> p_data) and (p_ends is null or @SCHEMA@.link_ids(v.links) @> p_ends)
         and (p_roles is null or @SCHEMA@.role_has(v.links, p_roles, s.src))
-        and @SCHEMA@.row_visible(v.tenant, v.class, v.id, c_tenant, c_account);
+        and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan);
   end if;
 end $$;
 
@@ -153,10 +156,11 @@ set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 #variable_conflict use_column
 declare
-  c_tenant uuid;
-  c_account uuid;
+  a jsonb := @SCHEMA@.acl_actor('READ');
+  c_tenant uuid := (a->>'tenant')::uuid;
+  c_account uuid := (a->>'account')::uuid;
+  c_plan jsonb := a->'plan';
 begin
-  select x.tenant, x.account into c_tenant, c_account from @SCHEMA@.ctx() x;
   if c_account is null or p_src is null then
     return;
   end if;
@@ -165,27 +169,27 @@ begin
         select s.src, e.id, e.rev, 1, array[s.src, e.id]
         from (select distinct u.x as src from unnest(p_src) u(x)) s
         cross join lateral (
-          select x.id, x.rev, x.class, x.tenant, x.links from @SCHEMA@.entity x where x.ends @> array[s.src] offset 0) e
+          select x.id, x.rev, x.class, x.tenant, x.owner, x.tags, x.data, x.links from @SCHEMA@.entity x where x.ends @> array[s.src] offset 0) e
         where e.class = any (p_classes)
           and (p_roles is null or @SCHEMA@.role_has(e.links, p_roles, s.src))
-          and @SCHEMA@.row_visible(e.tenant, e.class, e.id, c_tenant, c_account)
+          and @SCHEMA@.row_visible(e.tenant, e.class, e.id, e.owner, e.tags, e.data, e.links, c_tenant, c_account, c_plan)
       union all
         select d.src, e.id, e.rev, d.depth + 1, d.seen || e.id
         from d
         cross join lateral (
-          select x.id, x.rev, x.class, x.tenant, x.links from @SCHEMA@.entity x where x.ends @> array[d.id] offset 0) e
+          select x.id, x.rev, x.class, x.tenant, x.owner, x.tags, x.data, x.links from @SCHEMA@.entity x where x.ends @> array[d.id] offset 0) e
         where d.depth < p_max and not (e.id = any (d.seen)) and e.class = any (p_classes)
           and (p_roles is null or @SCHEMA@.role_has(e.links, p_roles, d.id))
-          and @SCHEMA@.row_visible(e.tenant, e.class, e.id, c_tenant, c_account))
+          and @SCHEMA@.row_visible(e.tenant, e.class, e.id, e.owner, e.tags, e.data, e.links, c_tenant, c_account, c_plan))
       select distinct on (d.src, d.id) d.src, d.id, d.rev, d.depth from d order by d.src, d.id, d.depth;
   else
     return query with recursive v as (
         select w.id, w.rev, w.links from (
-          select distinct on (l.id) l.id, l.rev, l.op, l.class, l.tenant, l.links
+          select distinct on (l.id) l.id, l.rev, l.op, l.class, l.tenant, l.owner, l.tags, l.data, l.links
           from @SCHEMA@.log l
           where l.class = any (p_classes) and l.at <= p_at
           order by l.id, l.rev desc) w
-        where w.op <> 'delete' and @SCHEMA@.row_visible(w.tenant, w.class, w.id, c_tenant, c_account)),
+        where w.op <> 'delete' and @SCHEMA@.row_visible(w.tenant, w.class, w.id, w.owner, w.tags, w.data, w.links, c_tenant, c_account, c_plan)),
       d(src, id, rev, depth, seen) as (
         select s.src, v.id, v.rev, 1, array[s.src, v.id]
         from (select distinct u.x as src from unnest(p_src) u(x)) s
