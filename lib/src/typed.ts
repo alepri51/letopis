@@ -6,6 +6,7 @@
  */
 import type { ChainCore, StepFn } from './chain.js';
 import type { Cursor, Op, Path, Row, Scalar } from './types.js';
+import type { IncMarker } from './write.js';
 
 /** То, что цепочкам нужно от модели: имя, алиас и выведенные типы данных и концов. */
 export interface ModelLike<N extends string = string, D = unknown, L = unknown, A extends string = string> {
@@ -40,8 +41,15 @@ export type StepsOf<M extends readonly AnyModelLike[]> =
   { [K in M[number] as K['name']]: (filter?: FilterOf<K>) => TypedChain<K, M> } &
   { [K in M[number] as K extends ModelLike<string, unknown, unknown, infer A> ? (string extends A ? never : A) : never]: (filter?: FilterOf<K>) => TypedChain<K, M> };
 
+/** Патч update: поля любой глубины необязательны; inc() — только у числовых полей (§2.5). */
+export type PatchOf<T> = {
+  [P in keyof T]?: T[P] extends number | undefined ? T[P] | IncMarker
+    : T[P] extends readonly unknown[] | undefined ? T[P]
+    : T[P] extends Record<string, unknown> | undefined ? PatchOf<NonNullable<T[P]>> : T[P];
+};
+
 type Retyped = 'paths' | 'rows' | 'first' | 'versions' | 'limit' | 'offset' | 'sort' | 'asOf' | 'after' | 'withDeleted' | 'deep' | 'exact'
-  | 'alias' | 'tags' | 'owner';
+  | 'alias' | 'tags' | 'owner' | 'create' | 'update' | 'upsert' | 'delete' | 'anonymize' | 'reclass' | 'forUpdate';
 
 /** Цепочка с текущим классом C: терминалы отдают RowOf<C>, шаги — по моделям M; роли и прочие классы — без типов. */
 export type TypedChain<C, M extends readonly AnyModelLike[]> = Omit<ChainCore, Retyped> & {
@@ -60,4 +68,11 @@ export type TypedChain<C, M extends readonly AnyModelLike[]> = Omit<ChainCore, R
   alias(name: string): TypedChain<C, M>;
   tags(v: string | string[] | Op): TypedChain<C, M>;
   owner(v: string | { id: string }): TypedChain<C, M>;
+  create(data: Partial<DataOf<C>>): TypedChain<C, M>;
+  update(patch?: PatchOf<DataOf<C>>, opts?: { rev?: number }): TypedChain<C, M>;
+  upsert(data: Partial<DataOf<C>>): TypedChain<C, M>;
+  delete(opts?: { confirm?: boolean }): TypedChain<C, M>;
+  anonymize(fields: (keyof DataOf<C> & string)[]): TypedChain<C, M>;
+  reclass(cls: string, data?: Record<string, unknown>): TypedChain<unknown, M>;
+  forUpdate(): TypedChain<C, M>;
 } & StepsOf<M> & { [step: string]: StepFn };

@@ -54,12 +54,14 @@ test('охранники снесённого API: ошибка с версие�
   }
 });
 
-test('зарезервированные имена: методы раньше классов; запись — этап 4; база отклоняет связь с таким именем', async () => {
+test('зарезервированные имена: методы раньше классов; база отклоняет связь с таким именем', async () => {
   const chain = db.Staff() as unknown as Record<string, unknown>;
-  for (const m of ['create', 'update', 'upsert', 'delete', 'forUpdate']) {
+  for (const m of ['create', 'update', 'upsert', 'delete', 'anonymize', 'reclass']) assert.equal(typeof chain[m], 'function', m);
+  for (const m of ['restore', 'purge', 'cache']) {
     assert.throws(() => chain[m], (err: { code?: string }) => err.code === 'not_implemented', m);
   }
-  assert.throws(() => (db.Staff as unknown as Record<string, () => void>).set(), (err: { code?: string }) => err.code === 'not_implemented');
+  // слот — только после глагола записи
+  assert.throws(() => (db.Staff as unknown as Record<string, () => void>).set(), (err: { code?: string }) => err.code === 'invalid_query');
   assert.ok(RESERVED_CLASS_NAMES.includes('paths') && RESERVED_CLASS_NAMES.includes('forUpdate'));
   const [{ names }] = await e.sql.unsafe(`select ${e.S}.reserved_names() as names`);
   assert.deepEqual([...names].sort(), [...RESERVED_CLASS_NAMES].sort(), 'список в базе подставлен из кода');

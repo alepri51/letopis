@@ -8,9 +8,9 @@
 import postgres from 'postgres';
 import { LetopisError, notYet, removed } from './errors.js';
 import { Registry } from './registry.js';
-import { Notifier, runTx, type Tx } from './tx.js';
+import { ExplicitTx, Notifier, poolExecutor, runTx, type Executor, type Tx, type TxContext } from './tx.js';
 import { idOf as idOfClass } from './uuid.js';
-import { startEntity, startStep, type Chain, type ChainCtx, type StepFn } from './chain.js';
+import { makeBatch, startEntity, startStep, type Batch, type BatchEntry, type Chain, type ChainCtx, type StepFn } from './chain.js';
 import type { QueryEvent, Row } from './types.js';
 import type { AnyModelLike, StepsOf } from './typed.js';
 
@@ -22,8 +22,9 @@ export { compileValidator, applyDefaults, type Validator } from './validate.js';
 export { syncModels, generateTypes, schemaToTs, type SyncResult } from './sync.js';
 export { ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends, has, hasAny, hasAll, exists, isNull, not, or, isOp } from './ops.js';
 export { cursorOf } from './sql.js';
-export type { Chain, ChainCore, StepFn } from './chain.js';
-export type { ModelLike, AnyModelLike, RowOf, FilterOf, FieldFilterOf, TypedChain, StepsOf } from './typed.js';
+export { inc, isInc, type IncMarker, type WriteRow } from './write.js';
+export type { Chain, ChainCore, StepFn, BatchEntry } from './chain.js';
+export type { ModelLike, AnyModelLike, RowOf, FilterOf, FieldFilterOf, TypedChain, StepsOf, PatchOf } from './typed.js';
 export type { Row, Path, Filter, FieldFilter, Cursor, ChainMods, QueryEvent, Op, Scalar } from './types.js';
 export { RESERVED_CLASS_NAMES, CHAIN_METHODS, DB_METHODS } from './types.js';
 
@@ -85,9 +86,9 @@ export interface DbCore {
   /** Арендатор сессии. */
   readonly tenant: string | null;
   readonly registry: Registry;
-  /** Сырой SQL под сессией и RLS, одной транзакцией: db.sql`select …`. */
+  /** Сырой SQL под сессией и RLS, одной транзакцией (в db.begin() — в ней): db.sql`select …`. */
   sql(strings: TemplateStringsArray, ...values: unknown[]): Promise<postgres.Row[]>;
-  /** Транзакция под сессией (основа записи цепочками этапа 4). */
+  /** Транзакция под сессией: fn получает соединение postgres.js (в db.begin() — ту же транзакцию). */
   transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T>;
   /** id объекта класса с ключом в арендаторе сессии. */
   idOf(cls: string, key: Readonly<Record<string, unknown>>): string;
@@ -97,20 +98,131 @@ export interface DbCore {
   flushSignals(): Promise<void>;
   /** Начать путь с готового узла: db.entity(row | цепочка). */
   entity(x: Chain | Row): Chain;
+  /**
+   * Тот же пул от имени аккаунта (letopis.account; имперсонацию проверяет база — этап 5) и с явным
+   * владельцем новых строк: db.as(account, { owner }).
+   */
+  as(account: string | { id: string } | null, opts?: { owner?: string }): Db;
+  /** Явная транзакция read committed: те же цепочки, commit(), rollback(), lock(), forUpdate(). */
+  begin(): Promise<DbTx>;
+  /** Именованная очередь планов: batch.Класс(…).create(…); batch.run() — одной транзакцией. */
+  batch(name: string): Batch;
+  /** Advisory-блокировка до конца транзакции — только в db.begin() (иначе tx_required). */
+  lock(...keys: (string | number)[]): Promise<void>;
+  /** Зафиксировать транзакцию tr (то же, что tr.commit()). */
+  commit(tr?: DbTx): Promise<void>;
+  /** Откатить транзакцию tr (то же, что tr.rollback()). */
+  rollback(tr?: DbTx): Promise<void>;
   close(): Promise<void>;
 }
 
 /** Подключение: служебные методы и классы как стартовые шаги цепочек — db.Класс(фильтр). */
 export type Db = DbCore & { [className: string]: StepFn };
+/** Явная транзакция db.begin(): тот же API; ошибка любого запроса её ломает (§2.5). */
+export type DbTx = Db;
 /** Подключение с типами шагов, строк и фильтров по моделям: connect({ models }). */
 export type TypedDb<M extends readonly AnyModelLike[]> = DbCore & StepsOf<M> & { [className: string]: StepFn };
+export type { Batch };
 
 /** Имена корня db, которые появятся на следующих этапах. */
-const DB_LATER: Record<string, number> = {
-  as: 4, begin: 4, commit: 4, rollback: 4, lock: 4, batch: 4, load: 4, verify: 6, maintain: 6, reset: 6, describe: 6,
-};
+const DB_LATER: Record<string, number> = { load: 4, verify: 6, maintain: 6, reset: 6, describe: 6 };
 
 const quote = (name: string): string => `"${name.replace(/"/g, '""')}"`;
+
+/** Общее для всех фасадов одного подключения: пул, реестр, сигналы, очереди батчей. */
+interface Shared {
+  sql: postgres.Sql<Record<string, unknown>>;
+  schema: string;
+  registry: Registry;
+  notifier: Notifier;
+  tenant: () => string | null;
+  refresh: () => Promise<void>;
+  onQuery?: (e: QueryEvent) => void;
+  slowMs?: number;
+  batches: Map<string, BatchEntry[]>;
+  close: () => Promise<void>;
+}
+
+/** Фасад db: пул (exec — исполнитель пула) или явная транзакция (tx). */
+function makeDb(sh: Shared, txc: TxContext, exec: Executor, owner?: string, tx?: ExplicitTx): Db {
+  const chainCtx: ChainCtx = { reg: sh.registry, schema: sh.schema, exec, tenant: sh.tenant, owner, onQuery: sh.onQuery, slowMs: sh.slowMs };
+  const noTx = (what: string): never => {
+    throw new LetopisError('tx_required', `${what} — только внутри db.begin()`);
+  };
+  const core: DbCore = {
+    schema: sh.schema,
+    get token() { return txc.token; },
+    get tenant() { return sh.tenant(); },
+    registry: sh.registry,
+    sql: (strings, ...values) => exec.run((q) => q(strings, ...(values as never[])) as unknown as Promise<postgres.Row[]>),
+    transaction: (fn) => exec.run(fn),
+    idOf: (cls, key) => {
+      const tenant = sh.tenant();
+      if (!tenant) throw new LetopisError('no_session', 'idOf: нет арендатора сессии');
+      const c = sh.registry.resolve(cls);
+      return idOfClass({ name: c.name, key: c.key, ends: Object.keys(c.ends) }, key, { tenant });
+    },
+    refresh: sh.refresh,
+    flushSignals: () => sh.notifier.flush(),
+    entity: (x) => startEntity(chainCtx, x),
+    as: (account, o) => {
+      if (tx) throw new LetopisError('invalid_query', 'db.as() — от корня подключения, а не внутри db.begin()');
+      const id = account === null ? undefined : typeof account === 'object' ? account.id : account;
+      const scoped: TxContext = { ...txc, account: id };
+      return makeDb(sh, scoped, poolExecutor(scoped), o?.owner ?? owner);
+    },
+    begin: async () => {
+      if (tx) throw new LetopisError('invalid_query', 'вложенных транзакций нет: db.begin() внутри db.begin()');
+      const t = await ExplicitTx.open(txc);
+      return makeDb(sh, txc, t, owner, t) as DbTx;
+    },
+    batch: (name) => {
+      let q = sh.batches.get(name);
+      if (!q) sh.batches.set(name, (q = []));
+      return makeBatch(chainCtx, q);
+    },
+    lock: async (...keys) => (tx ? tx.lock(...keys) : noTx('lock()')),
+    commit: async (tr) => (tr ? tr.commit() : tx ? tx.commit() : noTx('commit()')),
+    rollback: async (tr) => (tr ? tr.rollback() : tx ? tx.rollback() : noTx('rollback()')),
+    close: () => (tx ? tx.rollback() : sh.close()),
+  };
+  const sub = (name: string, guard: string, replacement: string) => new Proxy({}, {
+    get: (_o, p) => {
+      if (p === 'then' || typeof p === 'symbol') return undefined;
+      if (p === guard) throw removed(`db.${name}.${guard}()`, replacement);
+      throw notYet(`db.${name}.${p}`, 5);
+    },
+  });
+  return new Proxy(core, {
+    get(t, prop, r) {
+      if (typeof prop === 'symbol' || prop in t) return Reflect.get(t, prop, r);
+      switch (prop) {
+        case 'then':
+          return undefined;
+        case 'reloadSchema':
+          throw removed('reloadSchema()', 'реестр обновляется сам по сигналу; принудительно — db.refresh()');
+        case 'accounts':
+        case 'credentials':
+        case 'resources':
+        case 'rules':
+          throw removed(`фасад db.${prop}`, 'системные классы и функции входа (этап 5)');
+        case 'watch':
+          return (arg?: unknown) => {
+            if (typeof arg === 'function' || typeof arg === 'string') throw removed('watch(cb) и watch(класс, cb)', 'watch({ from }) — подписка по курсору (этап 6)');
+            throw notYet('watch({ from })', 6);
+          };
+        case 'auth':
+          return sub('auth', 'sessions', 'сессии хранятся в базе (этап 5)');
+        case 'acl':
+          return sub('acl', 'reload', 'права обновляются сами');
+        case 'compact':
+          throw removed('compact()', 'обрезка истории и history: false (этап 6)');
+      }
+      if (prop in DB_LATER) throw notYet(`db.${prop}`, DB_LATER[prop]);
+      return startStep(chainCtx, prop);
+    },
+  }) as Db;
+}
 
 export function connect<const M extends readonly AnyModelLike[]>(opts: ConnectOptions & { models: M }): Promise<TypedDb<M>>;
 export function connect(opts: ConnectOptions): Promise<Db>;
@@ -139,11 +251,11 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
     if (bypass) console.warn('letopis: администраторское подключение — RLS не действует, данные всех арендаторов видны');
     let token = opts.token ?? null;
     if (!token && opts.apiKey) {
-      const [r] = await sql.unsafe(`select ${S}.login_apikey($1) as t`, [opts.apiKey]).catch((e) => { throw e; });
+      const [r] = await sql.unsafe(`select ${S}.login_apikey($1) as t`, [opts.apiKey]);
       token = r.t as string;
     }
     const notifier = new Notifier(sql, opts.schema, opts.notifyIntervalMs ?? 100);
-    const ctx = { sql, token, notifier };
+    const ctx: TxContext = { sql, token, notifier };
     const registry = new Registry();
     let tenant: string | null = null;
     const refresh = async () => {
@@ -159,65 +271,16 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
     const listener = await sql.listen(opts.schema, (cls) => {
       if (cls === 'Class') void refresh().catch(() => {});
     });
-    const chainCtx: ChainCtx = { reg: registry, schema: opts.schema, txc: ctx, onQuery: opts.onQuery, slowMs: opts.slowMs };
-    const core: DbCore = {
-      schema: opts.schema,
-      get token() { return token; },
-      get tenant() { return tenant; },
-      registry,
-      sql: (strings, ...values) => runTx(ctx, (tx) => tx(strings, ...(values as never[])) as unknown as Promise<postgres.Row[]>),
-      transaction: (fn) => runTx(ctx, fn),
-      idOf: (cls, key) => {
-        if (!tenant) throw new LetopisError('no_session', 'idOf: нет арендатора сессии');
-        const c = registry.resolve(cls);
-        return idOfClass({ name: c.name, key: c.key, ends: Object.keys(c.ends) }, key, { tenant });
-      },
-      refresh,
-      flushSignals: () => notifier.flush(),
-      entity: (x) => startEntity(chainCtx, x),
+    const shared: Shared = {
+      sql, schema: opts.schema, registry, notifier, tenant: () => tenant, refresh, onQuery: opts.onQuery, slowMs: opts.slowMs,
+      batches: new Map(),
       async close() {
         await notifier.close();
         await listener.unlisten();
         if (own) await sql.end({ timeout: 5 });
       },
     };
-    const sub = (name: string, guard: string, replacement: string) => new Proxy({}, {
-      get: (_o, p) => {
-        if (p === 'then' || typeof p === 'symbol') return undefined;
-        if (p === guard) throw removed(`db.${name}.${guard}()`, replacement);
-        throw notYet(`db.${name}.${p}`, 5);
-      },
-    });
-    const db = new Proxy(core, {
-      get(t, prop, r) {
-        if (typeof prop === 'symbol' || prop in t) return Reflect.get(t, prop, r);
-        switch (prop) {
-          case 'then':
-            return undefined;
-          case 'reloadSchema':
-            throw removed('reloadSchema()', 'реестр обновляется сам по сигналу; принудительно — db.refresh()');
-          case 'accounts':
-          case 'credentials':
-          case 'resources':
-          case 'rules':
-            throw removed(`фасад db.${prop}`, 'системные классы и функции входа (этап 5)');
-          case 'watch':
-            return (arg?: unknown) => {
-              if (typeof arg === 'function' || typeof arg === 'string') throw removed('watch(cb) и watch(класс, cb)', 'watch({ from }) — подписка по курсору (этап 6)');
-              throw notYet('watch({ from })', 6);
-            };
-          case 'auth':
-            return sub('auth', 'sessions', 'сессии хранятся в базе (этап 5)');
-          case 'acl':
-            return sub('acl', 'reload', 'права обновляются сами');
-          case 'compact':
-            throw removed('compact()', 'обрезка истории и history: false (этап 6)');
-        }
-        if (prop in DB_LATER) throw notYet(`db.${prop}`, DB_LATER[prop]);
-        return startStep(chainCtx, prop);
-      },
-    }) as Db;
-    return db;
+    return makeDb(shared, ctx, poolExecutor(ctx));
   } catch (e) {
     if (own) await sql.end({ timeout: 1 });
     throw e;

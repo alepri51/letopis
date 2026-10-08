@@ -60,8 +60,12 @@ export interface Row<D = Record<string, unknown>, L = Record<string, string | st
   moved?: string;
   /** Надгробие: удалённая сущность (withDeleted) или версия удаления (versions). */
   $deleted?: true;
-  /** Глубина узла при deep() (1 — прямой потомок). */
+  /** Глубина узла при deep() (1 — прямой потомок); в превью удаления — уровень каскада (0 — цель). */
   $depth?: number;
+  /** Что сделал upsert (этап 4). */
+  $upsert?: 'created' | 'updated' | 'unchanged';
+  /** Превью удаления (delete() без confirm): удалится, снимется конец или помешает (restrict). */
+  $action?: 'delete' | 'unset' | 'restrict';
 }
 
 /** Путь paths(): узел на каждый шаг цепочки. */
@@ -104,6 +108,8 @@ export interface ChainMods {
   after?: Cursor;
   /** Последний шаг включает удалённые. */
   withDeleted?: boolean;
+  /** Чтение с блокировкой строк последнего шага (только в db.begin()). */
+  forUpdate?: boolean;
 }
 
 /** Событие хука onQuery: один запрос цепочки. */

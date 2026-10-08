@@ -39,6 +39,8 @@
         "idOf",
         "ilike",
         "inList",
+        "inc",
+        "isInc",
         "isNull",
         "isOp",
         "like",
@@ -57,6 +59,8 @@
       ],
       "types": [
         "AnyModelLike",
+        "Batch",
+        "BatchEntry",
         "Chain",
         "ChainCore",
         "ChainMods",
@@ -65,16 +69,19 @@
         "Cursor",
         "Db",
         "DbCore",
+        "DbTx",
         "EndInfo",
         "FieldFilter",
         "FieldFilterOf",
         "Filter",
         "FilterOf",
+        "IncMarker",
         "Issue",
         "KeyedClass",
         "LeafType",
         "ModelLike",
         "Op",
+        "PatchOf",
         "Path",
         "QueryEvent",
         "Row",
@@ -85,7 +92,8 @@
         "SyncResult",
         "TypedChain",
         "TypedDb",
-        "Validator"
+        "Validator",
+        "WriteRow"
       ]
     },
     "./model": {

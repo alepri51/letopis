@@ -40,6 +40,14 @@ export interface Step {
   tagsFilter?: unknown;
   ownerFilter?: string;
   deepMax?: number;
+  /** Звено плана записи (этап 4): глагол на этом шаге; построитель чтения его не видит. */
+  op?: import('./write.js').PlanOp;
+  /** Модификаторы цепочки на момент глагола: limit и sort сужают цели записи. */
+  opMods?: ChainMods;
+  /** Слоты концов записываемой версии: .Роль.set/unset/add/remove. */
+  slots?: import('./write.js').Slot[];
+  /** Глагол сразу после глагола — пишет в те же сущности. */
+  self?: true;
 }
 
 let nodeSeq = 0;
@@ -91,7 +99,8 @@ export function stepClasses(reg: Registry, step: Step): string[] {
   return uniq(base.flatMap((b) => (reg.has(b) ? reg.family(b).map((c) => c.name) : [b])));
 }
 
-const accepts = (reg: Registry, targets: string[], cls: string): boolean =>
+/** Принимает ли список классов конца класс cls (с учётом его предков). */
+export const accepts = (reg: Registry, targets: string[], cls: string): boolean =>
   (reg.find(cls)?.ancestors ?? [cls]).some((a) => targets.includes(a));
 
 /** Роли классов from, цели которых принимают хотя бы один класс to. */

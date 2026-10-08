@@ -7,7 +7,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { engine, type Engine, type Tenant } from './_engine.js';
 import { appDsn } from './_harness.js';
-import { connect, gt, type TypedDb } from '../src/index.js';
+import { connect, gt, inc, type TypedDb } from '../src/index.js';
 import { BOOKING } from '../src/demo/booking.js';
 
 let e: Engine;
@@ -52,4 +52,11 @@ export function typeChecks(): void {
   // @ts-expect-error — сортировка только по at, rev, id или data.<путь>
   void db.Service().sort('duration');
   void db.Service({ Org: 'id' }).Staff({ specialization: 'барбер' }).limit(1).rows().then((r) => r[0]?.data.specialization);
+  // запись (этап 4): патч по модели, inc() — только у числовых полей
+  void db.Service('id').update({ duration: inc(5) }).rows();
+  void db.Org('id').update({ settings: { booking: { autoconfirm: true } } }).rows();
+  // @ts-expect-error — inc() у строкового поля
+  void db.Service('id').update({ name: inc(1) });
+  // @ts-expect-error — поля nme нет в модели Service
+  void db.Service().create({ nme: 'x' });
 }
