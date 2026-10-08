@@ -234,7 +234,9 @@ begin
         raise exception using errcode = 'LT010', message = format('letopis: invalid_class: format %s внутри anyOf не поддерживается (узел %s)', t, p_disp);
       end if;
       r := r || jsonb_build_object('path', p_disp, 'keyword', 'format', 'path_expr', p_path, 'cond', 'true', 'vars', '{}'::jsonb,
-        'extra', jsonb_build_object('kind', 'date', 'type', case t when 'date' then 'date' else 'timestamptz' end));
+        'extra', jsonb_build_object('kind', 'date', 'type', case t when 'date' then 'date' else 'timestamptz' end,
+          're', case t when 'date' then '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+                  else '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$' end));
     end if;
   end if;
   if p_schema ? 'minLength' or p_schema ? 'maxLength' then
@@ -380,7 +382,8 @@ begin
             bad := bad || jsonb_build_object('path', e->'path', 'keyword', 'uniqueItems', 'message', 'элементы повторяются');
           end if;
         elsif (e->'extra'->>'kind') = 'date' and jsonb_typeof(x) = 'string' then
-          if not pg_input_is_valid(x #>> '{}', e->'extra'->>'type') then
+          -- смысл проверяется только у строки правильной формы: форму проверяет правило format
+          if (x #>> '{}') ~ (e->'extra'->>'re') and not pg_input_is_valid(x #>> '{}', e->'extra'->>'type') then
             bad := bad || jsonb_build_object('path', e->'path', 'keyword', 'format', 'message', 'такой даты не бывает');
           end if;
         elsif (e->'extra'->>'kind') = 'props' and jsonb_typeof(x) = 'object' then
