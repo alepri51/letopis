@@ -197,7 +197,17 @@ begin
     insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
     values (e.id, e.rev, e.class, e.cv, e.tenant, e.owner, e.links, e.data, e.tags, e.at, e.author, e.agent, e.op, e.reason, e.moved, e.prev_hash);
   end if;
-  perform pg_notify('@SCHEMA_NAME@', e.class);
+  -- Сигнал (решение 9 точки А). Транзакция с NOTIFY фиксируется под общей блокировкой кластера
+  -- вместе с fsync, поэтому библиотека помечает свои транзакции letopis.notify = 'deferred':
+  -- триггер копит имена классов в letopis.changed, а библиотека после фиксации отправляет их
+  -- одной транзакцией без данных. Сырой SQL шлёт NOTIFY здесь же, вместе с фиксацией.
+  if coalesce(current_setting('letopis.notify', true), '') = 'deferred' then
+    if not (e.class = any (string_to_array(coalesce(current_setting('letopis.changed', true), ''), ','))) then
+      perform set_config('letopis.changed', concat_ws(',', nullif(current_setting('letopis.changed', true), ''), e.class), true);
+    end if;
+  else
+    perform pg_notify('@SCHEMA_NAME@', e.class);
+  end if;
 end $$;
 
 -- Новая версия строки от имени владельца (пересчёт описаний потомков, снятие конца при удалении):

@@ -298,3 +298,22 @@ test('7.3.3 №17: приращение inc', async () => {
   assert.deepEqual(d.data.free, { $ref: 'r', nested: { $inc: 5 }, $inc: 5 });
   assert.equal(d.data.balance, 400);
 });
+
+test('решение 9: отложенный сигнал — NOTIFY нет, классы (и каскада) копятся в letopis.changed', async () => {
+  const org = await ins('Org', { name: 'Deferred' });
+  await ins('Master', { name: 'm' }, { Org: org.id });
+  const listener = postgres(appDsn(), { max: 1, onnotice: () => {} });
+  const got: string[] = [];
+  await listener.listen(e.schema, (x) => got.push(x));
+  const changed = await e.as(t.token, async (tx) => {
+    await tx.unsafe(`select set_config('letopis.notify', 'deferred', true)`);
+    await tx.unsafe(`update ${S}.entity set data = ${S}.merge(data, '{"city": "Тула"}') where id = $1`, [org.id]);
+    await tx.unsafe(`delete from ${S}.entity where id = $1`, [org.id]);
+    const [{ c }] = await tx.unsafe(`select current_setting('letopis.changed', true) as c`);
+    return c as string;
+  });
+  assert.deepEqual(changed.split(',').sort(), ['Master', 'Org']);
+  await new Promise((r) => setTimeout(r, 200));
+  assert.deepEqual(got, [], 'в транзакции с отложенным сигналом NOTIFY не отправлен');
+  await listener.end({ timeout: 1 });
+});
