@@ -28,7 +28,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 Целевой набор 1.0 (план §4). Карточка — `.claude/rules/atlas/<ID>.md`; появляется вместе с кодом модуля.
 | ID | Суть | Вход | Этапы |
 |---|---|---|---|
-| M-ENGINE | таблицы, роли, триггеры, `merge`, `inc`, каскад, журнал, хэши, `verify` | `lib/sql/10-core.sql`, `lib/sql/60-write.sql` | 1 |
+| M-ENGINE | таблицы, роли, триггеры, классы, `merge`, `inc`, каскад, `reclass`, журнал, хэши, `verify`, коды ошибок | `lib/sql/10-core.sql`, `lib/sql/15-errors.sql`, `lib/sql/40-class.sql`, `lib/sql/60-write.sql` | 1 |
 | M-VALIDATE | v5, JSON Schema → jsonpath, валидатор на TypeScript | `lib/sql/30-validate.sql`, `lib/src/validate.ts` | 1, 2 |
 | M-ACCESS | контекст, сессии, RLS, ACL, креды, вход | `lib/sql/20-context.sql`, `lib/sql/50-acl.sql`, `lib/sql/80-auth.sql` | 1, 5 |
 | M-MODEL | `letopis/model`, реестр, CLI `sync`/`types` | `lib/src/model.ts`, `lib/src/registry.ts` | 2 |
