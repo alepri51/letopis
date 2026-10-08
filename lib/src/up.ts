@@ -17,6 +17,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import postgres from 'postgres';
 import { DDL_REVISION, RESERVED_CLASS_NAMES } from './types.js';
 import { startPglite, type PgliteOptions, type PgliteServer } from './pglite.js';
+import { hashPassword } from './auth.js';
+import { v5Id } from './uuid.js';
 
 export const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
 export const SCHEMA_VERSION = 'v2';
@@ -239,6 +241,8 @@ export interface UpOptions extends Omit<InstallOptions, 'schema' | 'upTo' | 'mig
    * одно соединение — connect({ dsn: r.pglite.dsn, listen: false, max: 1 }); не для гонок и CI.
    */
   pglite?: boolean | PgliteOptions;
+  /** Арендатор и его первый пользователь — без своего сида (createTenant). */
+  tenant?: TenantOptions;
 }
 
 export interface UpResult extends InstallResult {
@@ -252,6 +256,8 @@ export interface UpResult extends InstallResult {
   analyzed: string[];
   /** up({ pglite }): запущенный PGlite — строка подключения и остановка. */
   pglite?: PgliteServer;
+  /** up({ tenant }): арендатор (и его первый пользователь с сессией). */
+  tenant?: TenantResult;
 }
 
 type Ping = { ok: true } | { ok: false; kind: 'no-server' | 'no-database' | 'starting' | 'fatal'; err: unknown };
@@ -358,7 +364,9 @@ export async function up(opts: UpOptions): Promise<UpResult> {
     for (const t of analyzed) await sql.unsafe(`analyze ${quoteIdent(schema)}.${quoteIdent(t)}`);
     const revision = (await schemaRevision(sql, schema)) ?? 0;
     log(`${before === null ? 'схема поставлена' : before < DDL_REVISION ? `схема обновлена с ревизии ${before}` : 'повторный накат'}: ${schema}, ревизия ${revision}`);
-    return { ...res, created: before === null, upgraded: before !== null && before < DDL_REVISION, revision, analyzed, ...(lite ? { pglite: lite } : {}) };
+    const tenant = opts.tenant ? await createTenant(sql, schema, opts.tenant, opts.owner) : undefined;
+    return { ...res, created: before === null, upgraded: before !== null && before < DDL_REVISION, revision, analyzed,
+      ...(lite ? { pglite: lite } : {}), ...(tenant ? { tenant } : {}) };
   } catch (e) {
     if (lite) await sql.end({ timeout: 1 }).then(() => lite.close(), () => lite.close());
     throw e;
@@ -366,4 +374,74 @@ export async function up(opts: UpOptions): Promise<UpResult> {
     if (own && !lite) await sql.end({ timeout: 5 });
     else if (lite) await sql.end({ timeout: 5 }).catch(() => {});
   }
+}
+
+// ---------------------------------------------------------------------------
+// Первый арендатор и пользователь на чистой установке (решение владельца на точке В)
+// ---------------------------------------------------------------------------
+
+export interface TenantOptions {
+  /** Имя арендатора (аккаунт в System; id — v5 от «tenant:<имя>», как у letopis import --tenant). */
+  name: string;
+  /** Правило арендатора «аутентифицированным можно всё» (READ, WRITE, DELETE; по умолчанию да). */
+  grantAll?: boolean;
+  /** Первый пользователь: аккаунт, членство в арендаторе с ролью owner, пароль и сессия в арендаторе. */
+  user?: { name: string; login: string; password: string; kind?: string; ttl?: string };
+}
+
+export interface TenantResult {
+  /** id аккаунта-арендатора. */
+  tenant: string;
+  /** id аккаунта пользователя (если задан). */
+  user: string | null;
+  /** Токен сессии пользователя в арендаторе: connect({ token }) (если задан пользователь). */
+  token: string | null;
+  /** Арендатор создан этим вызовом (повтор с тем же именем — false). */
+  created: boolean;
+}
+
+/**
+ * Арендатор и его первый пользователь — то, что раньше делал свой сид функциями владельца
+ * (sys_create, sys_grant_all). Нужно администраторское подключение (роль может стать владельцем);
+ * всё — одной транзакцией от владельца. Повтор с тем же именем и логином ничего не дублирует:
+ * id — v5 от имени и логина, существующие строки пропускаются (пароль не меняется), сессия выдаётся
+ * заново.
+ */
+export async function createTenant(sql: postgres.Sql, schema: string, opts: TenantOptions, owner = 'letopis_owner'): Promise<TenantResult> {
+  if (!opts.name) throw new Error('letopis.createTenant: имя арендатора обязательно');
+  const S = quoteIdent(schema);
+  const tenant = v5Id(SYSTEM_ID, 'Account', [`tenant:${opts.name}`]);
+  const u = opts.user;
+  const user = u ? v5Id(SYSTEM_ID, 'Account', [`user:${u.login}`]) : null;
+  const hash = u ? await hashPassword(u.password) : null;
+  return sql.begin(async (tx) => {
+    await tx.unsafe(`set local role ${quoteIdent(owner)}`);
+    const exists = async (id: string) => (await tx.unsafe(`select 1 from ${S}.entity where id = $1::uuid`, [id])).length > 0;
+    const created = !(await exists(tenant));
+    if (created) {
+      await tx.unsafe(`select ${S}.sys_create($1::uuid, 'Account', $2::uuid, '{}', $3::jsonb)`,
+        [tenant, SYSTEM_ID, { name: opts.name, categories: [], enabled: true } as never]);
+      if (opts.grantAll !== false) await tx.unsafe(`select ${S}.sys_grant_all($1::uuid)`, [tenant]);
+    }
+    let token: string | null = null;
+    if (u && user) {
+      if (!(await exists(user))) {
+        await tx.unsafe(`select ${S}.sys_create($1::uuid, 'Account', $2::uuid, '{}', $3::jsonb)`,
+          [user, SYSTEM_ID, { name: u.name, categories: ['User'], enabled: true } as never]);
+      }
+      const member = (await tx.unsafe(`select ${S}.v5_id($1::uuid, 'member', array[$2::text, $1::text]) as id`, [tenant, user]))[0].id as string;
+      if (!(await exists(member))) {
+        await tx.unsafe(`select ${S}.sys_create($1::uuid, 'member', $2::uuid, $3::jsonb, $4::jsonb)`,
+          [member, tenant, { User: user, Tenant: tenant } as never, { roles: ['owner'] } as never]);
+      }
+      const kind = u.kind ?? 'PASSWORD';
+      await tx.unsafe(`insert into ${S}.secret (account, kind, ident, material, meta)
+        select $1::uuid, $2, $3, convert_to($4, 'UTF8'), '{"confirmed": true}'::jsonb
+        where not exists (select 1 from ${S}.secret where kind = $2 and casefold(ident) collate pg_unicode_fast = casefold($3) collate pg_unicode_fast and deleted_at is null)`,
+      [user, kind, u.login, hash]);
+      token = (await tx.unsafe(`select ${S}.new_session($1::uuid, $2::interval, $3::jsonb) as t`,
+        [user, u.ttl ?? '7 days', { tenant } as never]))[0].t as string;
+    }
+    return { tenant, user, token, created };
+  }) as Promise<TenantResult>;
 }

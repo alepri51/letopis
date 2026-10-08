@@ -9,8 +9,8 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import postgres from 'postgres';
-import { ensureDatabase as harnessDb, ADMIN_DSN, adminSql, ident, type Sql } from './_harness.js';
-import { up, checkServer } from '../src/up.js';
+import { ensureDatabase as harnessDb, ADMIN_DSN, adminSql, ident, appDsn, ensureAppRole, type Sql } from './_harness.js';
+import { up, checkServer, createTenant } from '../src/up.js';
 import { connect, DDL_REVISION } from '../src/index.js';
 
 let sql: Sql;
@@ -136,5 +136,52 @@ test('up({ pglite }): база для разработки без PostgreSQL —
     }
   } finally {
     await r.pglite!.close();
+  }
+});
+
+test('up({ tenant }) и createTenant: первый арендатор и пользователь без своего сида — вход, запись, пароль, повтор, изоляция', async () => {
+  const schema = 'v2.t_up_tenant';
+  await ensureAppRole(sql);
+  const r = await up({ dsn: ADMIN_DSN, schema, fresh: true, seeds: ['booking'], quiet: true,
+    tenant: { name: 'Салон', user: { name: 'Ольга', login: 'olga@salon.ru', password: 'пароль-Ольги-1' } } });
+  try {
+    const t = r.tenant!;
+    assert.equal(t.created, true);
+    assert.match(t.token ?? '', /^[0-9a-f]{64}$/);
+    // сессия пользователя — в арендаторе: правило «можно всё» и членство с ролью owner
+    const olga = await connect({ dsn: appDsn(), schema, token: t.token!, max: 1, listen: false });
+    try {
+      await olga.Org().create({ name: 'Салон на Тверской' }).rows();
+      const [org] = await olga.Org().rows();
+      assert.equal(org.tenant, t.tenant);
+      assert.equal(org.data.name, 'Салон на Тверской');
+    } finally {
+      await olga.close();
+    }
+    // вход по паролю — сервисом: настоящий пароль даёт сессию, неверный — нет
+    const svc = await connect({ dsn: ADMIN_DSN, schema, apiKey: r.serviceKey!, allowBypassRls: true, max: 1, listen: false });
+    try {
+      const ok = await svc.auth.verifyPassword({ identifier: 'olga@salon.ru', password: 'пароль-Ольги-1' });
+      assert.equal(ok?.account, t.user);
+      assert.equal(await svc.auth.verifyPassword({ identifier: 'olga@salon.ru', password: 'неверный' }), null);
+    } finally {
+      await svc.close();
+    }
+    // повтор: те же id, ничего не дублируется, новая сессия
+    const again = await createTenant(sql, schema, { name: 'Салон', user: { name: 'Ольга', login: 'olga@salon.ru', password: 'другой' } });
+    assert.deepEqual([again.created, again.tenant, again.user], [false, t.tenant, t.user]);
+    assert.notEqual(again.token, t.token);
+    const [{ n }] = await sql.unsafe(`select count(*)::int as n from ${ident(schema)}.secret where kind = 'PASSWORD'`);
+    assert.equal(n, 1, 'пароль не задублирован и не заменён');
+    // другой арендатор данных Салона не видит
+    const other = await createTenant(sql, schema, { name: 'Чужой', user: { name: 'Пётр', login: 'petr@other.ru', password: 'пароль-Петра-1' } });
+    const petr = await connect({ dsn: appDsn(), schema, token: other.token!, max: 1, listen: false });
+    try {
+      assert.equal(await petr.Org().count(), 0);
+    } finally {
+      await petr.close();
+    }
+  } finally {
+    await sql.unsafe(`drop schema if exists ${ident(schema)} cascade`);
   }
 });

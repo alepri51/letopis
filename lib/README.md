@@ -22,8 +22,12 @@ import { hub, link, one } from 'letopis/model'
 import { z } from 'zod'
 
 // 1. Установка — от администраторской роли. Повторный вызов безопасен: повторный накат той же ревизии.
-const r = await up({ dsn: 'postgres://admin@localhost/app', schema: 'shop' })    // схема v2.shop
+//    tenant — первый арендатор (правило «аутентифицированным можно всё») и его пользователь (членство owner, пароль).
+const r = await up({ dsn: 'postgres://admin@localhost/app', schema: 'shop',     // схема v2.shop
+  tenant: { name: 'Магазин', user: { name: 'Анна', login: 'anna@shop.ru', password } } })
 // r.serviceKey — ключ сервиса; выдаётся только при первой установке, его нужно сохранить
+// r.tenant — { tenant, user, token, created }; ещё арендатор — createTenant(sql, 'v2.shop', { name, user })
+const org = r.tenant!.tenant
 
 // 2. Подключение сервиса — от роли приложения (член letopis_app): ключ обменивается на сессию.
 const svc = await connect({ dsn: 'postgres://app@localhost/app', schema: 'v2.shop', apiKey: r.serviceKey! })
@@ -589,7 +593,7 @@ letopis import --from postgres://…/letopis --from-schema v1.salon --dsn postgr
 # watch — подписка по курсору: порядок фиксации, долгая транзакция, возобновление, обрыв слушателя, два арендатора (этап 6)
 # cache — кэш результатов: попадание, свои и чужие записи, ключ с пользователем, права, погашенные сессии, обрыв слушателя, ttl, пометка класса, без LISTEN, гонка, db.sql (этап 6)
 # maintain — обслуживание: истёкшие сессии и коды, права, один процесс под блокировкой, расписание (этап 6)
-# up — полный установщик: свежая установка, повторный накат, свои сиды, автосоздание базы, UTF8, версия 17, upgrade с миграциями (этап 6)
+# up — полный установщик: свежая установка, повторный накат, свои сиды, автосоздание базы, UTF8, версия 17, upgrade с миграциями, PGlite, первый арендатор и пользователь (up({ tenant }), createTenant) (этапы 6, 8)
 # scenario-salon — сквозной сценарий салона: 21 акт 0.21 (salon) с матрицей покрытия API 1.0 (этап 6)
 # telemetry — onQuery и slowMs, describe() и метаданные классов с наследованием, describeText (этап 6)
 # import — импорт из 0.21 по фикстуре настоящей 0.21: нарушение ключа, --keyless, счётчики по классам, verify, самоссылка, повтор, id без ключа, висячая ссылка, $$strict и поля на $, update, креды, CLI (этап 7)

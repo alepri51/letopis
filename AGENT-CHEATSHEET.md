@@ -36,25 +36,26 @@ const r = await up({ dsn: ADMIN, schema: 'myapp', seeds: ['/abs/path/myapp.sql']
   `create role myapp login password '…'; grant letopis_app to myapp;`. Подключение суперпользователем —
   ошибка `bypass_rls` (RLS не действовал бы); администраторское подключение — только явно `allowBypassRls: true`.
 
-Свой сид выполняется от роли-владельца при создании схемы; маркеры `@SCHEMA@` и `@SYSTEM@` подставляет `up()`.
-Минимум — арендатор, которому «аутентифицированным можно всё» (`sys_grant_all`, вес правила 10), и пользователь:
-```sql
--- myapp.sql
-select @SCHEMA@.sys_create('0a0a0a0a-0000-4000-8000-000000000001', 'Account', '@SYSTEM@'::uuid, '{}',
-  '{"name": "Салон", "enabled": true}');
-select @SCHEMA@.sys_grant_all('0a0a0a0a-0000-4000-8000-000000000001');
-select @SCHEMA@.sys_create('0a0a0a0a-0000-4000-8000-000000000002', 'Account', '@SYSTEM@'::uuid, '{}',
-  '{"name": "Ольга", "enabled": true}');
+Первый арендатор и пользователь — без своего сида: `up({ tenant })` или `createTenant(sql, schema, opts)` (нужно
+администраторское подключение). Арендатор получает правило «аутентифицированным можно всё» (`grantAll`, по умолчанию
+да, вес 10), пользователь — членство с ролью `owner`, пароль (`login`) и сессию в арендаторе:
+```ts
+const r = await up({ dsn: ADMIN, schema: 'myapp', seeds: ['booking'],
+  tenant: { name: 'Салон', user: { name: 'Ольга', login: 'olga@salon.ru', password: 'Сирень-2026!' } } })
+// r.tenant: { tenant, user, token, created } — connect({ dsn: APP, schema: 'v2.myapp', token: r.tenant.token })
+// повтор с тем же именем и логином ничего не дублирует (id — v5 от «tenant:<имя>» и «user:<логин>»)
+import { createTenant } from 'letopis'          // ещё арендатор: createTenant(postgres(ADMIN), 'v2.myapp', { name, user })
 ```
-Аккаунты живут в арендаторе System; после установки их создаёт системный администратор цепочкой
-`admin.Account().create({ name, categories })`.
+Аккаунты живут в арендаторе System; дальше их может создавать системный администратор цепочкой
+`admin.Account().create({ name, categories })`. Свой сид (`seeds: ['./my.sql']`, функции владельца `sys_create`,
+`sys_grant_all`, маркеры `@SCHEMA@`, `@SYSTEM@`) остаётся для особых случаев.
 
 ### 2. Вход: сервис, пароль, сессия
 
 ```ts
 const APP = 'postgres://myapp:…@localhost:5432/app'
 const svc = await connect({ dsn: APP, schema: 'v2.myapp', apiKey: r.serviceKey! })   // сервис: ключ → сессия
-const SALON = '0a0a0a0a-0000-4000-8000-000000000001', OLGA = '0a0a0a0a-0000-4000-8000-000000000002'
+const SALON = r.tenant!.tenant, OLGA = r.tenant!.user!
 await svc.auth.setPassword({ account: SALON, identifier: 'salon@example.com', password: 'Сирень-2026!', confirmed: true })
 const login = await svc.auth.verifyPassword({ identifier: 'salon@example.com', password: 'Сирень-2026!' })
 // login: { account, token } | null (неверный пароль или кред не подтверждён — null, без ошибки)
@@ -293,7 +294,7 @@ npx letopis import --from "$ADMIN" --from-schema v1.fixture --dsn "$ADMIN" --sch
 13. **Имена методов зарезервированы**: класс с именем `count`, `sort`, `set`, `run`, `account`, `sql`, `auth` … как
     шаг недостижим (список — `RESERVED_CLASS_NAMES`). Снятое API 0.21 (`run()`, `account()`, `watch(cb)`,
     `reloadSchema()`, фасады `db.accounts` …) бросает `removed` с заменой — см. `lib/MIGRATION.md`.
-14. **Права запрещают по умолчанию.** Новый арендатор без правил ничего не видит; `sys_grant_all` в сиде — быстрый
+14. **Права запрещают по умолчанию.** Новый арендатор без правил ничего не видит; `createTenant` (`grantAll`) — быстрый
     старт. Права `auth.*` (пароли, сессии, имперсонация) есть у сервиса и системного администратора.
 15. **Ошибки:** `err.code` — строчный код (`exists`, `conflict`, `invalid_data` …), текст — `letopis: <код>: …`;
     у `invalid_data` — `err.issues: [{ path, keyword, message }]`.

@@ -46,7 +46,7 @@ export type { CacheOptions, CacheStats } from './cache.js';
 export type { WatchOptions, WatchEvent, Subscription } from './watch.js';
 export type { VerifyResult, VerifyIssue, MaintainOptions, MaintainReport, ResetOptions, ResetResult, ModelDescription } from './admin.js';
 export { describeText } from './admin.js';
-export { up, type UpOptions, type UpResult, type HistoryPolicy } from './up.js';
+export { up, createTenant, type UpOptions, type UpResult, type HistoryPolicy, type TenantOptions, type TenantResult } from './up.js';
 export { RESERVED_CLASS_NAMES, CHAIN_METHODS, DB_METHODS } from './types.js';
 
 /** Снесено в 1.0.0: id v7 больше не выдаются (§2.3). */

@@ -18,6 +18,8 @@ synced: c789517
 - `up()` (этап 6): готовность и автосоздание базы, PostgreSQL 18+ и UTF8 (`checkServer`), `fresh`, отставшая ревизия — только `upgrade` (миграции `lib/sql/migrate/NNNN-*.sql` новее ревизии схемы, затем накат), сиды — имена или пути, свой ключ сервиса (`serviceKey`), `ANALYZE` только таблиц без статистики. Константа `@HISTORY_DEFAULT@` (`up({ history })`) проверяется `class_prepare`. Сид — функция `seed_system()` (её же вызывает `reset({ all })`). Обёртка CI — `db/apply.mjs`.
 - `up({ pglite })` (решение 6 точки А): `pglite.ts:startPglite` грузит `@electric-sql/pglite` (с pgcrypto) и `@electric-sql/pglite-socket` динамическим `import()` — это необязательные peer-зависимости, основная точка входа их не импортирует; нет пакета — ошибка с командой установки. Сокет на свободном порту `127.0.0.1`, база и пользователь `postgres`; одно соединение — `connect({ dsn: r.pglite.dsn, listen: false, max: 1 })`; ошибка `up()` останавливает PGlite, иначе останавливает вызывающий (`r.pglite.close()`).
 
+- `createTenant` / `up({ tenant })`: одной транзакцией от владельца — `sys_create` аккаунта-арендатора (`v5(System, 'Account', ['tenant:<имя>'])`, как `letopis import --tenant`), `sys_grant_all` (только при создании), пользователь (`user:<логин>`), `member` с ролью `owner`, пароль в `secret` (scrypt, `confirmed`), `new_session(…, { tenant })`; существующие строки пропускаются, пароль не меняется.
+
 **Что ещё менять вместе**
 - Новый файл SQL: номер по порядку `lib/sql/README.md`; функции — `revoke … from public` в том же файле.
 - Новая подстановка: `vars` в `install()` и таблица в `lib/sql/README.md`.
