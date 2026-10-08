@@ -5,7 +5,7 @@
 ## Превью (без изменений)
 1. [N] `lib/src/write.ts:deleteOp` — цели `targetIds` (путь и модификаторы до глагола).
 2. [P] `lib/sql/60-write.sql:delete_preview` — функция владельца (индекс `ends` без RLS); цели и выдача — только видимые актору (`row_visible` с планом READ, как политика чтения): уровни каскада по правилу `ref_action()` (cascade > restrict > unset), затем кто останется ссылаться — `unset` или `restrict`.
-3. [N] строки по id под RLS: `$action` (`delete` | `unset` | `restrict`), `$depth` — уровень каскада (0 — цель).
+3. [N] строки по id под RLS: `$action` (`delete` | `unset` | `restrict`), `$depth` — уровень каскада (0 — цель; у `restrict` — null).
 
 ## Удаление
 4. [N] `lib/src/write.ts:deleteOp` — метка `max(seq)` журнала этой транзакции (`log.tx = pg_current_xact_id()`), затем `delete from entity where id = any(…) returning …`; меньше строк, чем целей, — `explainMissing`.

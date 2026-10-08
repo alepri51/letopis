@@ -4,7 +4,7 @@ paths:
   - 'lib/sql/seed.*.sql'
   - 'lib/src/demo/*.ts'
   - 'lib/scripts/gen-seed-booking.mjs'
-synced: pending
+synced: 2e5bcbd
 ---
 # M-SEEDS — системный сид и демо-домен booking (этапы 1, 2, 5)
 

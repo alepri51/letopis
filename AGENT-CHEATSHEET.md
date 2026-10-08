@@ -67,7 +67,12 @@ db.tenant          // арендатор сессии: по умолчанию �
   `enrollTotp`, `verifyTotp`, `issueOtp`, `verifyOtp`, `link`, `lookup`, `credentials`, `revokeCredential`,
   `setFlags`, `sessionFor(account, { ttl })`, `refresh`, `revoke`, `revokeAll`, `switch(tenant)`, `tenants()`,
   `purgeAccount`. Проверку паролей, OTP и TOTP, выпуск сессий и подтверждение кредов вызывает **сервис** (права
-  `auth.*`); обычному пользователю — `acl_denied`.
+  `auth.*`); обычному пользователю — `acl_denied`. Сигнатуры: `issueApiKey({ account, name?, ttl? })` →
+  `{ key, id }`; `verifyApiKey(key)` → `{ token, account } | null`; `sessionFor(account, { ttl })` → строка-токен —
+  дальше `connect({ dsn, schema, token })`, а для работы в чужом арендаторе по членству — `db.auth.switch(арендатор)`
+  (без него сессия — в собственном арендаторе аккаунта). Токен для CLI (`--token`) — тот же `token` из
+  `verifyPassword`/`verifyApiKey`/`sessionFor`. Администраторское подключение (`allowBypassRls`) печатает
+  предупреждение «RLS не действует» — так и должно быть.
 - Работа в чужом арендаторе по членству: `await user.auth.tenants()` → `[{ tenant, roles }]`, затем
   `await user.auth.switch(tenant)` (только от корня подключения). Имперсонация сервисом:
   `const u = await svc.as(account, { tenant, owner })` — проверяет база, в журнале `author` — пользователь,
@@ -99,7 +104,7 @@ npx letopis sync ./models.ts --dsn "$APP" --schema v2.myapp --token "$TOKEN" --a
 npx letopis types --dsn "$APP" --schema v2.myapp --token "$TOKEN" --out types.ts       # типы классов из базы
 ```
 В коде: `await syncModels(db, [Shop, Wallet, Payment, Note], { apply: true })` →
-`{ created, updated, unchanged, skipped, lost }` (`lost` — `refine` и прочее, чего JSON Schema не выражает).
+`{ applied, created, updated, unchanged, skipped, lost }` (`lost` — `refine` и прочее, чего JSON Schema не выражает).
 Типы цепочек: `connect({ …, models: [Shop, Wallet, Payment, Note] })` — модели только для типов.
 
 ### 4. Запись цепочками
@@ -150,7 +155,7 @@ await db.Wallet(or({ number: 'W-1' }, { number: 'W-2' })).ids()
 
 ```ts
 const preview = await db.Shop(shop).delete().rows()     // ничего не удаляет: всё замыкание каскада,
-// в каждой строке $action: 'delete' | 'unset' | 'restrict' и $depth (0 — цель). Wallet ссылается на Shop
+// в каждой строке $action: 'delete' | 'unset' | 'restrict' и $depth (0 — цель; у restrict — null). Wallet ссылается на Shop
 // с onDelete по умолчанию 'restrict' — в превью он с $action 'restrict', а delete({ confirm: true }) даст delete_restricted
 await db.Note(n.id).delete({ confirm: true }).rows()   // надгробия (row.$deleted); каскад — по onDelete концов
 await db.Note(n.id).restore().rows()                   // вернуть удалённое (id прежний); живое — not_deleted
@@ -292,3 +297,5 @@ npx letopis import --from "$ADMIN" --from-schema v1.fixture --dsn "$ADMIN" --sch
     старт. Права `auth.*` (пароли, сессии, имперсонация) есть у сервиса и системного администратора.
 15. **Ошибки:** `err.code` — строчный код (`exists`, `conflict`, `invalid_data` …), текст — `letopis: <код>: …`;
     у `invalid_data` — `err.issues: [{ path, keyword, message }]`.
+- Терминал цепочки с глаголами (`…create(…).Wallet().update(…).rows()`) отдаёт строки последнего шага.
+- Отчёт `letopis import` — JSON: `classes`, `notes`, `source`/`target` (объекты, версии, живые по классам), `tenants`, `accounts`, `credentials`, `resources`, `rules`, `objects`, `uuidFields`, `droppedFields`, `ownerLost`, `verify`, `ms`.
