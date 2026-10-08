@@ -1,7 +1,7 @@
 ---
 paths:
   - 'lib/bench/*.mjs'
-synced: f9cd30c
+synced: 907f737
 ---
 # M-BENCH — замеры точки А и бенч против 0.21 (этапы 1, 7)
 

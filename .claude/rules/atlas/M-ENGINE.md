@@ -1,7 +1,7 @@
 ---
 paths:
   - 'lib/sql/{10-core,15-errors,40-class,60-write,99-revision}.sql'
-synced: c789517
+synced: 907f737
 ---
 # M-ENGINE — таблицы, триггеры записи, классы, журнал, хэши, verify
 
