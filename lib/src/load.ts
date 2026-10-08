@@ -10,8 +10,9 @@
  *   await db.load(rows)                                    // массив или поток строк с полем $class
  *
  * Строка — объект: поля данных и роли концов на верхнем уровне; $class — класс строки, $ext —
- * внешний ключ класса без ключа (повторяемый импорт). Значение конца — id, { $key: [...] } или
- * { $ext: '…' }, у полиморфного конца — с $class цели. Ключи на $ внутри данных — обычные данные.
+ * внешний ключ класса без ключа (повторяемый импорт), $tags — теги, $owner — владелец (аккаунт; не
+ * с { as }: там владелец по ownerDefault). Значение конца — id, { $key: [...] } или { $ext: '…' }, у
+ * полиморфного конца — с $class цели. Ключи на $ внутри данных — обычные данные.
  */
 import { randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
@@ -108,6 +109,8 @@ const hex = (b: Buffer | null | undefined): string | null => (b ? '\\x' + b.toSt
 const ENTITY_COLS = 'id, rev, class, cv, tenant, owner, links, data, tags, at, created_at, author, agent, op, reason, moved, prev_hash, validator';
 const LOG_COLS = 'id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash, tx';
 const asList = (v: string | string[]): string[] => (Array.isArray(v) ? v : [v]);
+/** Теги → литерал text[] для COPY (экранирование COPY — потом, в esc). */
+const pgArray = (tags: readonly string[]): string => `{${tags.map((t) => `"${t.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`).join(',')}}`;
 const isObj = (v: unknown): v is Raw => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /** Нарушения копятся; загрузка отменяется с первым кодом и списком строк (до 100). */
@@ -171,6 +174,10 @@ function refOf(reg: Registry, tenant: string, end: EndInfo, v: unknown): { id: s
 interface Shaped {
   data: Raw;
   links: Record<string, string | string[]>;
+  /** $tags строки (по умолчанию — без тегов). */
+  tags?: string[];
+  /** $owner строки (по умолчанию — арендатор или ownerDefault). */
+  owner?: string;
   error?: { code: string; message: string; issues?: Issue[] };
 }
 
@@ -344,6 +351,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
   const asAcc = opts.as;
   if (asAcc !== undefined && (typeof asAcc !== 'string' || !UUID.test(asAcc))) throw new LetopisError('invalid_data', 'load({ as }): id аккаунта');
   if (asAcc !== undefined && opts.withHistory) throw new LetopisError('invalid_data', 'load({ as }) и режим истории несовместимы: историю импортирует администратор');
+  if (opts.withHistory && opts.existing === 'update') throw new LetopisError('invalid_data', "режим истории: existing — 'error' или 'skip' (новую версию существующего объекта пишет загрузка без истории)");
   const tenant = opts.tenant ?? asAcc ?? env.tenant;
   if (!tenant) throw new LetopisError('invalid_data', 'load(): нет арендатора — сессия без арендатора и не задан { tenant }');
   const dupMode = opts.duplicates ?? 'error';
@@ -369,6 +377,8 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
   let acl: { read: Record<string, unknown>; write: Record<string, unknown> } | null = null;
   /** Цели ссылок порции (load({ as })): id → первая строка и роль — для проверки видимости. */
   const targets = new Map<string, { line: number; role: string }>();
+  /** Владельцы ($owner) порции, кроме арендатора: id → первая строка; сверяются запросом в конце. */
+  const owners = new Map<string, number>();
   const reg0 = await readRegistry(env.sql);
   const p1: (Plan1 | null)[] = new Array(rows.length);
   const lineOf = new Map<string, number>();
@@ -453,7 +463,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
           continue;
         }
       }
-      cur.push(...g.flatMap((n) => byClass.get(n) ?? []));
+      for (const n of g) for (const i of byClass.get(n) ?? []) cur.push(i);
       if (cur.length >= opts.commitEvery) {
         portions.push(cur);
         cur = [];
@@ -473,6 +483,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
   async function loadPortion(portion: number[]): Promise<void> {
     acl = null;
     targets.clear();
+    owners.clear();
     const conn = await env.sql.reserve();
     const written: string[] = [];
     let failed: unknown = null;
@@ -522,9 +533,23 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
         }
         if (existing === 'skip') for (const i of portion) if (live.has(p1[i]!.id) || past.has(p1[i]!.id)) inLoad.delete(p1[i]!.id);
       }
+      // режим истории, skip: объект, у которого уже есть строка или журнал, пропускается со всей историей
+      let todo = portion;
+      if (existing === 'skip' && opts.withHistory) {
+        const taken = new Set<string>();
+        const ids = [...new Set(portion.map((i) => p1[i]!.id))];
+        for (let b = 0; b < ids.length; b += batch) {
+          const part = ids.slice(b, b + batch);
+          for (const r of await conn.unsafe(`select x as id from unnest($1::uuid[]) x
+              where exists (select 1 from ${S}.entity e where e.id = x) or exists (select 1 from ${S}.log l where l.id = x)`, [part])) taken.add(r.id as string);
+        }
+        for (const id of taken) inLoad.delete(id);
+        report.skipped += taken.size;
+        todo = portion.filter((i) => !taken.has(p1[i]!.id));
+      }
 
       if (opts.withHistory) {
-        await historyWrite(conn as unknown as Sql, reg, portion, inLoad, external, xid as string, classesTouched);
+        await historyWrite(conn as unknown as Sql, reg, todo, inLoad, external, xid as string, classesTouched);
       } else {
         for (let b = 0; b < portion.length; b += batch) {
           const part = portion.slice(b, b + batch);
@@ -545,6 +570,14 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
             issues.add({ line: ref.line, code: 'target_not_found', message: `цель конца ${ref.role} не найдена`, id });
           }
         }
+      }
+      // владельцы ($owner) — аккаунты: из загрузки (живые) или из базы, с блокировкой до фиксации
+      if (owners.size) {
+        const ids = [...owners.keys()].filter((id) => !(inLoad.get(id)?.cls === 'Account' && inLoad.get(id)!.alive)).sort();
+        const found = new Set(ids.length
+          ? (await conn.unsafe(`select e.id from ${S}.entity e where e.id = any ($1::uuid[]) and e.class = 'Account' order by e.id for key share`, [ids])).map((r) => r.id as string)
+          : []);
+        for (const id of ids) if (!found.has(id)) issues.add({ line: owners.get(id)!, code: 'target_not_found', message: `владелец ${id} не найден`, id });
       }
       // от имени пользователя цели ссылок должны быть ему видны (право READ): и из загрузки, и вне её
       if (acl && targets.size) {
@@ -623,6 +656,21 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       issues.add({ line: i + 1, code: 'invalid_data', message: 'конец Tenant членства — арендатор строки', id: p1[i]!.id, class: cls.name });
       return null;
     }
+    const tags = raw.$tags;
+    if (tags !== undefined && (!Array.isArray(tags) || !tags.every((x) => typeof x === 'string'))) {
+      issues.add({ line: i + 1, code: 'invalid_data', message: '$tags — список строк', id: p1[i]!.id, class: cls.name });
+      return null;
+    }
+    if (tags) sh.tags = tags as string[];
+    const own = raw.$owner;
+    if (own !== undefined && own !== null) {
+      if (asAcc || typeof own !== 'string' || !UUID.test(own)) {
+        issues.add({ line: i + 1, code: 'invalid_data', message: asAcc ? 'load({ as }): $owner не задаётся — владелец по ownerDefault класса' : '$owner — id аккаунта', id: p1[i]!.id, class: cls.name });
+        return null;
+      }
+      sh.owner = own.toLowerCase();
+      if (lastVersion && sh.owner !== tenant && !owners.has(sh.owner)) owners.set(sh.owner, i + 1);
+    }
     // концы прошлых версий — часть снимка: их цели могли удалить позже (§2.6, п. 3)
     if (!lastVersion) return sh;
     for (const [role, v] of Object.entries(sh.links)) {
@@ -645,8 +693,8 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     live: Set<string>, past: Map<string, { rev: number; hash: Buffer; at: string }>): Promise<void> {
     const ent: string[] = [];
     const log: string[] = [];
-    const updates: { id: string; data: Raw; links: Raw; line: number }[] = [];
-    const rowsAcl: { i: number; class: string; id: string; owner: string; data: Raw; links: Raw }[] = [];
+    const updates: { id: string; data: Raw; links: Raw; tags: string[] | null; line: number }[] = [];
+    const rowsAcl: { i: number; class: string; id: string; owner: string; tags: string[]; data: Raw; links: Raw }[] = [];
     for (const i of part) {
       const { id, cls } = p1[i]!;
       if (existing === 'skip' && (live.has(id) || past.has(id))) {
@@ -656,7 +704,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       const sh = check(reg, i, inLoad, external, true);
       if (!sh || issues.any) continue;
       if (live.has(id)) {
-        updates.push({ id, data: sh.data, links: sh.links, line: i + 1 });
+        updates.push({ id, data: sh.data, links: sh.links, tags: sh.tags ?? null, line: i + 1 });
         continue;
       }
       const cur = reg.find(cls.name) ?? cls;
@@ -664,10 +712,11 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       const rev = prev ? prev.rev + 1 : 1;
       // время воскрешённого объекта — не раньше его прошлой версии (монотонность, §2.10)
       const atv = prev && Date.parse(prev.at) >= Date.parse(ts) ? new Date(Date.parse(prev.at) + 1).toISOString() : ts;
-      // владелец — по ownerDefault класса от имени пользователя, иначе арендатор (§2.10)
-      const owner = asAcc && cur.ownerDefault === 'actor' ? asAcc : tenant!;
-      if (acl) rowsAcl.push({ i, class: cls.name, id, owner, data: sh.data, links: sh.links });
-      const common = [id, rev, cls.name, cur.rev, tenant, owner, JSON.stringify(sh.links), JSON.stringify(sh.data), '{}', atv];
+      // владелец — $owner, по ownerDefault класса от имени пользователя, иначе арендатор (§2.10)
+      const owner = sh.owner ?? (asAcc && cur.ownerDefault === 'actor' ? asAcc : tenant!);
+      const tags = sh.tags ?? [];
+      if (acl) rowsAcl.push({ i, class: cls.name, id, owner, tags, data: sh.data, links: sh.links });
+      const common = [id, rev, cls.name, cur.rev, tenant, owner, JSON.stringify(sh.links), JSON.stringify(sh.data), pgArray(tags), atv];
       ent.push([...common, atv, author, agent, 'create', null, null, hex(prev?.hash), null].map(esc).join('\t') + '\n');
       if (cur.history !== false) log.push([...common, author, agent, 'create', null, null, hex(prev?.hash), xid].map(esc).join('\t') + '\n');
       report.loaded++;
@@ -679,7 +728,8 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     if (acl) {
       // условия ACL на строки — одним запросом на пачку: файл пользователя — не доверенные данные
       const bad = await conn.unsafe(`select (x->>'i')::int as i from jsonb_array_elements($1::jsonb) x
-          where not ${S}.acl_row_ok($2::jsonb, x->>'class', (x->>'id')::uuid, (x->>'owner')::uuid, $3::uuid, '{}', x->'data', x->'links')`,
+          where not ${S}.acl_row_ok($2::jsonb, x->>'class', (x->>'id')::uuid, (x->>'owner')::uuid, $3::uuid,
+            array(select jsonb_array_elements_text(x->'tags')), x->'data', x->'links')`,
         [rowsAcl as never, acl.write as never, tenant]);
       for (const b of bad) issues.add({ line: (b.i as number) + 1, code: 'acl_denied', message: 'строку запрещает условие ACL', id: p1[b.i as number]!.id });
       if (updates.length) {
@@ -687,10 +737,10 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
         const ids = updates.map((u) => u.id);
         const old = await conn.unsafe(`select e.id from ${S}.entity e where e.id = any ($1::uuid[])
             and not ${S}.acl_row_ok($2::jsonb, e.class, e.id, e.owner, e.tenant, e.tags, e.data, e.links)`, [ids, acl.write as never]);
-        const fresh = await conn.unsafe(`select u.id from jsonb_to_recordset($1::jsonb) as u(id uuid, data jsonb, links jsonb)
+        const fresh = await conn.unsafe(`select u.id from jsonb_to_recordset($1::jsonb) as u(id uuid, data jsonb, links jsonb, tags text[])
             join ${S}.entity e on e.id = u.id
-            where not ${S}.acl_row_ok($2::jsonb, e.class, e.id, e.owner, e.tenant, e.tags, u.data, u.links)`,
-          [updates.map((u) => ({ id: u.id, data: u.data, links: u.links })) as never, acl.write as never]);
+            where not ${S}.acl_row_ok($2::jsonb, e.class, e.id, e.owner, e.tenant, coalesce(u.tags, e.tags), u.data, u.links)`,
+          [updates.map((u) => ({ id: u.id, data: u.data, links: u.links, tags: u.tags })) as never, acl.write as never]);
         const lineOfId = new Map(updates.map((u) => [u.id, u.line]));
         for (const r of [...old, ...fresh]) issues.add({ line: lineOfId.get(r.id as string) ?? 0, code: 'acl_denied', message: 'правку строки запрещает условие ACL', id: r.id as string });
       }
@@ -700,18 +750,19 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     await copyLines(conn, `copy ${S}.log (${LOG_COLS}) from stdin`, log);
     if (updates.length) {
       // новая версия из заблокированных значений — одним оператором; без изменений — без версии
-      const res = await conn.unsafe(`with u as (select * from jsonb_to_recordset($1::jsonb) as x(id uuid, data jsonb, links jsonb)),
+      const res = await conn.unsafe(`with u as (select * from jsonb_to_recordset($1::jsonb) as x(id uuid, data jsonb, links jsonb, tags text[])),
           up as (
-            update ${S}.entity e set data = u.data, links = u.links, rev = e.rev + 1, prev_hash = e.hash,
+            update ${S}.entity e set data = u.data, links = u.links, tags = coalesce(u.tags, e.tags), rev = e.rev + 1, prev_hash = e.hash,
               at = greatest($2::timestamptz, e.at + interval '1 microsecond'), author = $3::uuid, agent = $4::text, op = 'update',
               reason = null, moved = null, cv = coalesce((${S}.class_row(e.class, e.tenant)).rev, e.cv)
-            from u where e.id = u.id and (e.data is distinct from u.data or e.links is distinct from u.links)
+            from u where e.id = u.id and (e.data is distinct from u.data or e.links is distinct from u.links
+              or e.tags is distinct from coalesce(u.tags, e.tags))
             returning e.*),
           lg as (
             insert into ${S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
             select id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash from up
             where ${S}.history_on(up.class, up.tenant))
-        select up.id, up.class from up`, [updates.map((u) => ({ id: u.id, data: u.data, links: u.links })), ts, author, agent]);
+        select up.id, up.class from up`, [updates.map((u) => ({ id: u.id, data: u.data, links: u.links, tags: u.tags })), ts, author, agent]);
       report.updated += res.length;
       report.skipped += updates.length - res.length;
       for (const r of res) {
@@ -745,7 +796,8 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       if (sh) shaped.set(i, sh);
     });
     if (issues.any) return;
-    const waves = Math.max(...lists.map((l) => l.length));
+    // без разворота в аргументы: на сотнях тысяч объектов он переполняет стек
+    const waves = lists.reduce((m, l) => Math.max(m, l.length), 0);
     const prevHash = new Map<string, Buffer | null>();
     const lastPrev = new Map<string, Buffer | null>();
     // волна — одна вставка с returning hash: хэши волны сразу становятся prev_hash следующей (мелкий
@@ -763,16 +815,16 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
         const op = typeof r.$op === 'string' ? r.$op : w === 0 ? 'create' : 'update';
         const ph = prevHash.get(id) ?? null;
         if (w === l.length - 1) lastPrev.set(id, ph);
-        items.push({ id, rev: w + 1, class: cls.name, cv: cur.rev, tenant, links: sh.links, data: sh.data, at: r.$at,
-          author: SYSTEM_ID, agent, op, ph: ph ? ph.toString('hex') : null, tx: xid });
+        items.push({ id, rev: w + 1, class: cls.name, cv: cur.rev, tenant, owner: sh.owner ?? tenant, tags: sh.tags ?? [], links: sh.links,
+          data: sh.data, at: r.$at, author: SYSTEM_ID, agent, op, ph: ph ? ph.toString('hex') : null, tx: xid });
         touched.add(cls.name);
       }
       for (let k = 0; k < items.length; k += 5000) {
         const res = await conn.unsafe(`insert into ${S}.log (${LOG_COLS})
-          select x.id, x.rev, x.class, x.cv, x.tenant, x.tenant, x.links, x.data, '{}', x.at, x.author, x.agent, x.op, null, null,
+          select x.id, x.rev, x.class, x.cv, x.tenant, x.owner, x.links, x.data, x.tags, x.at, x.author, x.agent, x.op, null, null,
                  decode(x.ph, 'hex'), x.tx::xid8
-          from jsonb_to_recordset($1::jsonb) as x(id uuid, rev int, class text, cv int, tenant uuid, links jsonb, data jsonb,
-                 at timestamptz, author uuid, agent text, op text, ph text, tx text)
+          from jsonb_to_recordset($1::jsonb) as x(id uuid, rev int, class text, cv int, tenant uuid, owner uuid, tags text[], links jsonb,
+                 data jsonb, at timestamptz, author uuid, agent text, op text, ph text, tx text)
           returning id, hash`, [items.slice(k, k + 5000) as never]);
         if (w < waves - 1) for (const h of res) prevHash.set(h.id as string, h.hash as Buffer);
       }
@@ -787,7 +839,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       const cur = reg.find(cls.name) ?? cls;
       const sh = shaped.get(last)!;
       const op = typeof r.$op === 'string' ? r.$op : l.length === 1 ? 'create' : 'update';
-      ent.push([id, l.length, cls.name, cur.rev, tenant, tenant, JSON.stringify(sh.links), JSON.stringify(sh.data), '{}', r.$at,
+      ent.push([id, l.length, cls.name, cur.rev, tenant, sh.owner ?? tenant, JSON.stringify(sh.links), JSON.stringify(sh.data), pgArray(sh.tags ?? []), r.$at,
         rows[l[0]].$at, SYSTEM_ID, agent, op, null, null, hex(cur.history === false ? null : lastPrev.get(id) ?? null), null].map(esc).join('\t') + '\n');
       report.loaded++;
       report.byClass[cls.name] = (report.byClass[cls.name] ?? 0) + 1;

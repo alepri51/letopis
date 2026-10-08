@@ -334,3 +334,31 @@ test('7.6.1 №18 (этап 6): после загрузки verify: true и db.v
   const v = await adm.verify({ data: true });
   assert.equal(v.ok, true, JSON.stringify(v.issues));
 });
+
+test('этап 7: $tags и $owner строки; режим истории с existing: skip пропускает объект со всей историей', async () => {
+  const other = await e.tenant('load-owner', { bare: true });
+  const r = await adm.load([{ $class: 'Org', name: 'tg-1', $tags: ['vip', 'тег "в кавычках"'], $owner: other.id }]);
+  assert.equal(r.loaded, 1);
+  const [row] = await e.sql.unsafe(`select tags, owner::text as owner from ${e.S}.entity where class = 'Org' and data->>'name' = 'tg-1'`);
+  assert.deepEqual([row.tags, row.owner], [['vip', 'тег "в кавычках"'], other.id]);
+  const [lg] = await e.sql.unsafe(`select tags, owner::text as owner from ${e.S}.log where class = 'Org' and data->>'name' = 'tg-1'`);
+  assert.deepEqual([lg.tags, lg.owner], [['vip', 'тег "в кавычках"'], other.id]);
+  // владелец — аккаунт: неизвестный — отказ запросом в конце с номером строки; теги — список строк
+  let err: unknown;
+  await adm.load([{ $class: 'Org', name: 'tg-2' }, { $class: 'Org', name: 'tg-3', $owner: '00000000-0000-4000-8000-0000000000ee' }]).catch((x) => (err = x));
+  assert.equal((err as { code?: string }).code, 'target_not_found');
+  assert.equal(rowsOf(err)[0].line, 2);
+  await assert.rejects(adm.load([{ $class: 'Org', name: 'tg-4', $tags: 'vip' }]), code('invalid_data'));
+  // режим истории: объект уже есть — skip пропускает его целиком, update недопустим
+  const at = (h: number) => `2026-02-0${h}T00:00:00.000Z`;
+  const hist = [
+    { $class: 'Org', name: 'tg-1', $rev: 1, $at: at(1) },
+    { $class: 'Org', name: 'tg-1', $rev: 2, $at: at(2), city: 'Псков' },
+    { $class: 'Org', name: 'tg-new', $rev: 1, $at: at(1), $tags: ['h'] },
+  ];
+  const s = await adm.load(hist, { withHistory: true, existing: 'skip' });
+  assert.deepEqual([s.loaded, s.skipped], [1, 1]);
+  assert.equal((await db.Org({ name: 'tg-1' }).first())!.rev, 1, 'существующий объект не тронут');
+  assert.deepEqual((await db.Org({ name: 'tg-new' }).first())!.tags, ['h']);
+  await assert.rejects(adm.load(hist, { withHistory: true, existing: 'update' }), code('invalid_data'));
+});

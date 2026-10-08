@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * CLI letopis (план, этап 2, п. 7; этап 4, п. 11; этап 6, п. 4, 8, 12): `letopis sync`, `types`, `load`,
- * `verify`, `maintain`, `describe`. Команда import появится на этапе 7.
+ * `verify`, `maintain`, `describe`; этап 7 — `import` (из 0.21).
  *
  *   letopis sync <модуль моделей> --dsn … --schema v2.x (--token … | --api-key …) [--apply]
  *   letopis types --dsn … --schema v2.x (--token … | --api-key …) [--out types.d.ts]
@@ -10,6 +10,8 @@
  *   letopis verify --dsn … --schema v2.x [--token … | --api-key …] [--data]   — код 1 при находках
  *   letopis maintain --dsn … --schema v2.x [--token … | --api-key …] [--batches N]
  *   letopis describe --dsn … --schema v2.x (--token … | --api-key …) [--format json|text] [--out файл]
+ *   letopis import --from <строка 0.21> --from-schema v1.x --dsn … --schema v2.x [--tenant <имя>] [--keyless C]…
+ *     [--rename Старое=Новое]… [--update] [--commit-every N] [--partition p]   — код 1, если verify нашёл расхождения
  */
 import { parseArgs } from 'node:util';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -17,6 +19,7 @@ import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 import { connect, describeText } from './index.js';
 import { syncModels, generateTypes } from './sync.js';
+import { import021 } from './import.js';
 import type { AnyModel } from './model.js';
 
 const USAGE = `letopis sync <модуль> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--apply]
@@ -25,7 +28,9 @@ letopis load <файлы…> --dsn <строка> --schema <v2.имя> (--token 
   [--duplicates error|first|last] [--existing error|skip|update] [--commit-every <N>] [--verify]
 letopis verify --dsn <строка> --schema <v2.имя> [--token <токен> | --api-key <ключ>] [--data]
 letopis maintain --dsn <строка> --schema <v2.имя> [--token <токен> | --api-key <ключ>] [--batches <N>]
-letopis describe --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--format json|text] [--out <файл>]`;
+letopis describe --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--format json|text] [--out <файл>]
+letopis import --from <строка 0.21> --from-schema <v1.имя> --dsn <строка> --schema <v2.имя> [--tenant <имя>] [--keyless <Класс>]…
+  [--rename <Старое>=<Новое>]… [--update] [--commit-every <N>] [--partition <имя>]`;
 
 const isModel = (v: unknown): v is AnyModel => typeof v === 'object' && v !== null && typeof (v as AnyModel).describe === 'function' && typeof (v as AnyModel).name === 'string';
 
@@ -39,12 +44,31 @@ export async function main(argv: string[]): Promise<number> {
       class: { type: 'string' }, duplicates: { type: 'string' }, existing: { type: 'string' }, 'commit-every': { type: 'string' },
       verify: { type: 'boolean' }, trust: { type: 'boolean' }, data: { type: 'boolean' }, batches: { type: 'string' },
       format: { type: 'string' },
+      from: { type: 'string' }, 'from-schema': { type: 'string' }, tenant: { type: 'string' }, partition: { type: 'string' },
+      keyless: { type: 'string', multiple: true }, rename: { type: 'string', multiple: true }, update: { type: 'boolean' },
     },
   });
   const [cmd, arg] = positionals;
   if (values.help || !cmd || !values.dsn || !values.schema) {
     console.log(USAGE);
     return cmd ? 2 : 0;
+  }
+  if (cmd === 'import') {
+    // импорт сам открывает администраторские подключения к 0.21 и к 1.0 (загрузчик, функции владельца)
+    if (!values.from || !values['from-schema']) { console.log(USAGE); return 2; }
+    const rename: Record<string, string> = {};
+    for (const x of values.rename ?? []) {
+      const [from, to] = x.split('=');
+      if (!from || !to) { console.log(USAGE); return 2; }
+      rename[from] = to;
+    }
+    const r = await import021({
+      from: values.from, fromSchema: values['from-schema'], dsn: values.dsn, schema: values.schema, tenant: values.tenant,
+      partition: values.partition, keyless: values.keyless, rename, update: values.update,
+      commitEvery: values['commit-every'] ? Number(values['commit-every']) : undefined,
+    });
+    console.log(JSON.stringify(r, null, 2));
+    return r.verify.ok ? 0 : 1;
   }
   // загрузчику нужно администраторское подключение (§2.6, п. 1)
   const db = await connect({ dsn: values.dsn, schema: values.schema, token: values.token, apiKey: values['api-key'], max: 2,

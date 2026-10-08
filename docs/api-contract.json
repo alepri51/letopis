@@ -312,6 +312,10 @@
       "message": "letopis: <…>: <…>"
     },
     {
+      "module": "import",
+      "message": "letopis.import: <…>"
+    },
+    {
       "module": "index",
       "message": "letopis: администраторское подключение — RLS не действует, данные всех арендаторов видны"
     },
