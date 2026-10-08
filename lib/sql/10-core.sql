@@ -10,15 +10,9 @@ grant usage on schema @SCHEMA@ to @APP@;
 create or replace function @SCHEMA@.link_ids(links jsonb) returns uuid[]
 language sql immutable parallel safe
 return (
-  select coalesce(array_agg(distinct v::uuid order by v::uuid), '{}'::uuid[])
-  from (
-    select jsonb_array_elements_text(case jsonb_typeof(e.value) when 'array' then e.value else '[]'::jsonb end) as v
-    from jsonb_each(coalesce(links, '{}'::jsonb)) as e
-    union all
-    select e.value #>> '{}'
-    from jsonb_each(coalesce(links, '{}'::jsonb)) as e
-    where jsonb_typeof(e.value) = 'string'
-  ) s
+  -- lax $.*[*]: значения концов, массивы разворачиваются, одиночная строка остаётся собой
+  select coalesce(array_agg(distinct (v #>> '{}')::uuid order by (v #>> '{}')::uuid), '{}'::uuid[])
+  from jsonb_path_query(coalesce(links, '{}'::jsonb), 'lax $.*[*]') as v
 );
 
 -- Снимок версии для хэша (§2.2). Не зависит от настроек сеанса: время — числом микросекунд,

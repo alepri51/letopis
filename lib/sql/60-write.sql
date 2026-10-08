@@ -32,6 +32,19 @@ return (
   from jsonb_array_elements_text(case jsonb_typeof(p) when 'array' then p else jsonb_build_array(p) end) x
 );
 
+-- Входит ли класс цели (с учётом его предков) в список допустимых классов конца.
+create or replace function @SCHEMA@.class_accepts(p_allowed jsonb, p_target_class text, p_target_tenant uuid) returns boolean
+language sql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+  select exists (
+    select 1
+    from jsonb_array_elements_text(@SCHEMA@.class_set(p_allowed)) a(name)
+    where a.name in (select jsonb_array_elements_text(
+           (@SCHEMA@.class_row(p_target_class, p_target_tenant)).data->'resolved'->'ancestors'))
+  )
+$$;
+
 -- Принимает ли роль ref_role класса ref_class цель класса target_class (с учётом предков цели).
 create or replace function @SCHEMA@.role_accepts(p_ref_class text, p_ref_tenant uuid, p_role text,
   p_target_class text, p_target_tenant uuid) returns boolean
@@ -155,7 +168,7 @@ begin
   left join @SCHEMA@.entity t on t.id = r.tid
   where t.id is null
      or t.tenant not in (p_tenant, '@SYSTEM@'::uuid)
-     or not @SCHEMA@.role_accepts(p_res->>'name', p_tenant, r.role, t.class, t.tenant)
+     or not @SCHEMA@.class_accepts(p_res->'ends'->r.role->'class', t.class, t.tenant)
   limit 1;
   if bad is not null then
     code := 'target_not_found'; msg := format('цель конца %s не найдена', bad);
@@ -965,7 +978,7 @@ do $$
 declare f text;
 begin
   foreach f in array array[
-    'now_ts()', 'family_lock(text, boolean)', 'class_set(jsonb)', 'role_accepts(text, uuid, text, text, uuid)',
+    'now_ts()', 'family_lock(text, boolean)', 'class_set(jsonb)', 'class_accepts(jsonb, text, uuid)', 'role_accepts(text, uuid, text, text, uuid)',
     'apply_defaults(jsonb, jsonb)', 'check_links(jsonb, jsonb, uuid, boolean)', 'key_id(jsonb, text, uuid, jsonb, jsonb)',
     'log_version(@SCHEMA@.entity)', 'sys_update(uuid, jsonb, jsonb, jsonpath, text, text)', 'tombstone(@SCHEMA@.entity, text, uuid)',
     'links_replace(jsonb, uuid, uuid)', 'move_row(@SCHEMA@.entity, uuid, text, jsonb, jsonb, text)', 'reclass(uuid, text, jsonb)',

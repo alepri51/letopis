@@ -82,15 +82,21 @@ end $$;
 -- (ключ [name]), поэтому поиск идёт по первичному ключу. Имя пользовательского класса не совпадает
 -- с именем системного (проверка при определении), поэтому порядок нужен только для ясности.
 create or replace function @SCHEMA@.class_row(p_name text, p_tenant uuid) returns @SCHEMA@.entity
-language sql stable
+language plpgsql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
-  select e.* from @SCHEMA@.entity e
-  where e.id in (@SCHEMA@.v5_id(p_tenant, 'Class', array[p_name]), @SCHEMA@.v5_id('@SYSTEM@'::uuid, 'Class', array[p_name]))
-    and e.class = 'Class'
-  order by (e.tenant = p_tenant) desc
-  limit 1
-$$;
+declare
+  -- id вычисляются до запроса: иначе обобщённый план считает v5 для каждой просмотренной строки
+  own uuid := @SCHEMA@.v5_id(p_tenant, 'Class', array[p_name]);
+  sys uuid := @SCHEMA@.v5_id('@SYSTEM@'::uuid, 'Class', array[p_name]);
+  r @SCHEMA@.entity;
+begin
+  select e.* into r from @SCHEMA@.entity e where e.id = own and e.class = 'Class';
+  if r.id is null and sys <> own then
+    select e.* into r from @SCHEMA@.entity e where e.id = sys and e.class = 'Class';
+  end if;
+  return r;
+end $$;
 
 -- Развёрнутое описание класса с учётом предков: поля, концы и ключ наследуются по правилу 0.21
 -- «потомок заменяет поле целиком» (buildDef), метаданные — по ключам, null убирает ключ (§2.13).
