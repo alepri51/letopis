@@ -1,41 +1,33 @@
-> **Описывает 0.21 (тег `v0.21.0`).** В letopis 1.0 трасса переписывается в своём этапе плана `reports/PLAN-LETOPIS-1.0.md`; до этого она не описывает действующий код.
+# F-BOOT — up() → install() → connect() (letopis 1.0, этапы 1 и 6)
+Процессы: [N] Node-процесс (приложение, CLI или `db/apply.mjs`) · [P] PostgreSQL 18 (или PGlite)
+Триггер: `const r = await up({ dsn, schema: 'salon', seeds: ['booking'], history, allowReset })` → `connect({ dsn, schema: r.schema, apiKey: r.serviceKey })`; `node db/apply.mjs --dsn=… --schema=salon [--seed=…] [--fresh] [--upgrade] [--allow-reset]`.
 
-# F-BOOT — up() → накат схемы → connect
-Процессы: [N] Node-приложение · [P] PostgreSQL + TimescaleDB · [D] docker CLI
-Триггер: `const db = await up({ schema: 'booking', version: 1 })` (dsn по умолчанию — база `letopis` на localhost:15432)
+## Проба и база
+1. [N] `lib/src/up.ts:up` — имя без версии получает `v2.` (`SCHEMA_VERSION`); проверка `SCHEMA_NAME`. Готовый пул `opts.sql` — без пробы.
+2. [N] `lib/src/up.ts:up#«opts.pglite»` — `up({ pglite })`: `lib/src/pglite.ts:startPglite` грузит необязательные `@electric-sql/pglite` (с pgcrypto) и `@electric-sql/pglite-socket` по требованию (нет пакета — ошибка с командой установки), сокет на свободном порту `127.0.0.1`; дальше — как с обычной базой через `postgres://postgres:postgres@127.0.0.1:<порт>/postgres`, одно соединение.
+3. [N] `lib/src/up.ts:pgPing` — `select 1` раз в 500 мс до `waitTimeoutMs` (60 с): `3D000` → `ensureDatabase` (через базу `postgres`, `encoding 'UTF8' template template0`, гонка `42P04` — не ошибка), `57P03` и нет сервера → ждать, `28P01`/`28000` → сразу ошибка.
+4. [P] `lib/src/up.ts:checkServer` — `server_version_num` не ниже 180000 и кодировка базы UTF8, иначе понятный отказ.
 
-## Проба
-1. [N] `lib/src/up.ts:up` — имя без точки и версии, version — целое ≥ 1 → `v1.booking`; local = localhost/127.0.0.1/::1; дедлайн = вход + `waitTimeoutMs` (120 с, сборка образа тоже в нём).
-2. [N] `lib/src/up.ts:pgPing` — `select 1` (connect_timeout 3 с): 3D000 → нет базы, 57P03 → стартует, 28P01/28000 → фатально, прочее → нет сервера.
-3. [N] `lib/src/up.ts:up#«docker skipped»` — PG ответил: docker и проверка Redis пропускаются.
-4. [P] `lib/src/up.ts:ensureDatabase` — нет базы: `CREATE DATABASE` через базу `postgres`.
+## Ревизия
+5. [P] `fresh` — `drop schema … cascade`. `lib/src/up.ts:schemaRevision` — комментарий схемы `letopis ddl_revision=N`; схемы нет → `null` (свежая установка).
+6. [N] ревизия схемы новее `DDL_REVISION` — отказ «обновите пакет»; старше без `upgrade` — отказ с командой `up({ schema, upgrade: true })`; старше с `upgrade` — `migrateFrom`.
 
-## Docker (local-dsn и PG не ответил)
-5. [D] `lib/src/up.ts:ensureContainer` — бежит → reuse; стоит → `docker start`; нет → `docker build` из `lib/docker` (TimescaleDB + Redis), если образа нет, и `docker run`.
-6. [D] `lib/src/up.ts:dockerRunArgs` — порт/user/пароль/база из dsn, том `letopis-pgdata` (`dataDir`: путь → bind).
-7. [N] `lib/src/up.ts:up#«for (;;)»` — pgPing раз в 500 мс до дедлайна, затем TCP Redis-порта.
+## Накат (`install`)
+7. [P] `lib/src/up.ts:install` — роли владельца и приложения идемпотентно; членство установщика `with inherit false, set true`; `create extension if not exists pgcrypto`, его схема — в подстановку `@PGCRYPTO@`; схема создаётся до `set role`.
+8. [P] одна транзакция под `set local role` владельца: миграции `lib/src/up.ts:migrationFiles` (`sql/migrate/NNNN-*.sql`, номер выше ревизии схемы и не выше `DDL_REVISION`) — до функций; затем `lib/sql/NN-*.sql` по номеру через `substitute()` (`@SCHEMA@`, роли, `@SYSTEM@`, `@ALLOW_RESET@`, `@HISTORY_DEFAULT@`, `@RESERVED_NAMES@`); последний — `99-revision.sql` ставит штамп ревизии.
+9. [P] сиды `seeds` — имя пакета (`sql/seed.<имя>.sql`) или путь к своему файлу, с теми же подстановками; `history` — проверка умолчания метасхемой (`class_prepare`).
+10. [P] `lib/sql/95-seed.system.sql:seed_system` — системный сид (его же зовёт `reset({ all })`); ключ сервиса — `bootstrap_service`: свой `serviceKey` регистрируется, если его sha256 ещё нет; иначе новый `lts_…` выдаётся, только если в схеме нет ни одного живого `APIKEY`.
+11. [P] `lib/src/up.ts:up#«last_analyze is null»` — `ANALYZE` только таблиц схемы без статистики.
+12. [N] результат: `schema`, `revision`, `created`, `upgraded`, `migrations`, `analyzed`, `serviceKey` (null при повторном накате), `pglite` (`dsn`, `close()`). Ошибка — PGlite останавливается.
 
-## Накат
-8. [P] `lib/src/up.ts:applySchema` — `fresh` → `DROP SCHEMA … CASCADE`; схема есть → пропуск.
-9. [P] `lib/src/up.ts:applySchema#«if (upgrade)»` — `upgrade` на существующей схеме: только ddl (идемпотентен) + ANALYZE, сиды не трогаются.
-10. [P] `lib/src/up.ts:applySchema#«readFile(f, 'utf8')»` — схемы нет: ddl + демо-сиды booking/auth (или `seeds`), `<SCHEMA-NAME>` → полное имя везде, и в канале pg_notify (F-WATCH); ddl штампует ревизию в `COMMENT ON SCHEMA`.
-11. [P] `lib/src/up.ts:applySchema#«statistics collected»` — ANALYZE `Entity` для планировщика; после массовой заливки повторить вручную.
+## Подключение
+13. [N] `lib/src/index.ts:connect` — снятые опции 0.21 — `removed`; пул postgres.js (`max` 10, `timestamptz` строкой ради микросекунд).
+14. [P] роль обходит RLS (суперпользователь, `BYPASSRLS`, членство в роли владельца с `USAGE` или `SET`) — `bypass_rls`, с `allowBypassRls` — предупреждение «администраторское подключение».
+15. [P] `apiKey`/`service` → `login_apikey` (ошибка базы — `fromDbError`); схемы нет — `invalid_data` «установите её: up({ schema })»; ревизия схемы меньше `DDL_REVISION` — предупреждение с командой `upgrade`, не отказ.
+16. [N] `Notifier`, `AclPasses`, `ResultCache` (`cache: false` — без кэша); реестр классов арендатора сессии и System; LISTEN на канал схемы (`listen: false` — нет) — дальше F-WATCH; `maintain: '1h'` — `lib/src/admin.ts:scheduleMaintain`.
+17. [N] `lib/src/index.ts:makeDb` — фасад `db` → F-READ, F-WRITE, F-ACCESS.
 
-## Connect
-12. [N] `lib/src/index.ts:connect` — пул postgres.js (`max` 10).
-13. [P] `lib/src/schema.ts:loadRegistry` — классы из `Schema`; имя, занятое API цепочки (демо `link`), → warn.
-14. [P] `lib/src/index.ts:connect#«'System' = ANY(categories)»` — System-аккаунт: fallback account записи без `db.as`.
-15. [P] `lib/src/index.ts:checkDdlRevision` — метка ≠ `DDL_REVISION` → warn «движок схемы … отстал», не отказ.
-16. [N] `lib/src/index.ts:connect#«enforceAcl is off»` — `enforceAccount` по умолчанию true (0.20.0); ACL лениво в `db.as` (F-ACCESS); без `enforceAcl` — warn.
-17. [N] `lib/src/chain.ts:makeDb` — корневой Proxy без арендатора; `then` → undefined, иначе `await` развернул бы db. Дальше F-READ / F-WRITE.
-
-Состояние: контейнер `letopis-timescale` и том `letopis-pgdata` переживают процесс; схема: нет → накатана | есть → не тронута | upgrade → ddl перекатан | fresh → заново. Warn connect — раз на процесс (на схему/класс).
-Сбои: `letopis.up: bad schema name` / `bad version`; 3D000/57P03 — не сбой (база создаётся / ожидание); 28P01 — сырая ошибка PG без ретраев; `docker CLI not found`; `docker start|build|run … failed`; `postgres not ready in 120 s`; `redis not ready on 16379`; connect: `has no "Schema" table` (передано базовое имя), `has no classes`.
-Логи: stdout `[letopis.up] …` на каждой развилке: `docker skipped`, `reused|started|created`, `postgres ready in N s`, `applied|already exists — apply skipped|upgraded|dropped (fresh)`, `connected`; warn connect — stderr `letopis: …`.
-Варианты режима:
-- Удалённый dsn — без docker: `waiting for remote postgres`, ожидание до дедлайна без проверки Redis.
-- CLI `node db/apply.mjs --dsn --schema --version [--no-seed] [--upgrade]` (`db/apply.mjs:files`) — та же подстановка и ANALYZE; нет пробы, CREATE DATABASE и проверки «схема есть»: без `--upgrade` сиды перекатываются, их ON CONFLICT возвращает Schema демо-классов и Resource/Rule к сидовым. Нужен `npm ci` в `lib`.
-- CI `.github/workflows/ci.yml` — сервисы timescaledb-pg17 (база `clockz`) и redis:7-alpine, накат apply.mjs; up() в тестах идёт пробой. Контур — F-RELEASE.
-- `seeds: false` — connect падает «has no classes», схема остаётся: повторный up() её пропустит, нужен `fresh: true`. Свои `seeds` — пути от cwd; нужен ≥ 1 класс, а для записи без `db.as` — Account с категорией System.
-- `quiet` глушит только `[letopis.up]`. Redis-клиент передаёт приложение (F-AUTH).
-Проверка: `cd lib && npx tsx --test --test-force-exit test/up.test.ts` (ENTITY_DSN, по умолчанию база `clockz`). Docker-ветка — только юнит `dockerRunArgs`; `apply.mjs --upgrade` и «enforceAcl is off» не покрыты.
+Обёртка CI: `db/apply.mjs` — в репозитории исходники через `tsx` из `lib/node_modules`, иначе `lib/dist/up.js`; печатает JSON (`schema`, `revision`, `created`, `upgraded`, `serviceKey`), ошибка — код 1, без `--dsn`/`ENTITY_DSN` и `--schema` — код 2.
+Состояние: схема `v2.<имя>` с ревизией в комментарии; роли общие для кластера; ключ сервиса — только в ответе первой установки.
+Сбои: PostgreSQL ниже 18, база не в UTF8, отставшая ревизия без `upgrade`, ошибка файла — сообщение с именем файла (`letopis.up: 60-write.sql: …`, `migrate/0005-…: …`). PGlite — одно соединение: `connect({ dsn: r.pglite.dsn, listen: false, max: 1 })`, без гонок и LISTEN.
+Проверка: `cd lib && npx tsx --test --test-force-exit test/up.test.ts` (6.10 и PGlite), `test/install.test.ts`, `test/roles.test.ts`.

@@ -297,3 +297,36 @@ test('7.8.1 №10: наследование политики и умолчани
   await install(e.sql, { schema: e.schema, allowReset: true });
   void ident;
 });
+
+test('7.3.2 №15: прореживание во время записи и подписки — новые версии целы, подписка без потерь, цепочка чиста', async () => {
+  const pol = { all: '1 day', daily: 'forever' };
+  await defineHub('Busy', pol);
+  await db.refresh();
+  const ats = Array.from({ length: 600 }, (_, i) => NOW - 61 * DAY + i * (DAY / 10));
+  const id = await history('Busy', 'B1', ats);
+  const sub = db.watch({ from: 'now', classes: ['Busy'] });
+  try {
+    const thin = (async () => {
+      for (;;) {
+        const r = await adm.maintain({ batches: 1, limit: 50 });
+        if (!r.more) return;
+      }
+    })();
+    const writes = (async () => {
+      for (let i = 0; i < 20; i++) await db.Busy(id).update({ n: 10_000 + i }).rows();
+    })();
+    await Promise.all([thin, writes]);
+    const got: number[] = [];
+    while (got.length < 20) {
+      const ev = await sub.next();
+      got.push(ev.value.row.data.n as number);
+    }
+    assert.deepEqual(got, Array.from({ length: 20 }, (_, i) => 10_000 + i), 'подписка без потерь и повторов');
+  } finally {
+    sub.close();
+  }
+  const left = await revs(id);
+  for (let r = 601; r <= 620; r++) assert.ok(left.includes(r), `новая версия ${r} на месте`);
+  const v = (await e.sql.unsafe(`select ${e.S}.verify() as v`))[0].v;
+  assert.equal(v.ok, true, JSON.stringify(v.issues));
+});

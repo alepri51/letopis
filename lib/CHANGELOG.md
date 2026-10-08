@@ -133,6 +133,27 @@
 - Вес правила арендатора — не больше 999: административные запреты System (вес от 1000) он не перевесит.
 - Строки прав не получаются сменой класса; служебная строка ключа подписи исключена из функций кредов; хэш выдаётся только для видов «логин/пароль».
 
+### Added — этап 6 (время, хранение, события, кэш, эксплуатация)
+- История: `versions({ follow: true })` через смену id (`reclass`, `rekey`, колонка `moved`, индекс `log_moved`); глаголы `restore()` (последний снимок удалённого, перепроверка по текущему описанию, id прежний) и `purge({ confirm })` (только удалённые, запись `purge` под номером 1); `db.trimHistory(цель, момент)` — обрезка с записью `trim` (время версии 1, стык по хэшу).
+- Смена ключа: глагол `rekey(patch)` и `db.rekeyClass(класс, ключ)` — новые id, перевод ссылок, рекурсия по связям с концом в ключе.
+- Политика хранения истории (§2.11): `history: { all, daily, weekly, monthly, yearly, tz }` у класса и `up({ history })`; прореживание в `maintain()` пачками; законные пропуски в `verify()`.
+- `db.verify({ data })` и `letopis verify`: законные разрывы (`purge`, `trim`, `reset`, прореживание), проверка данных, концов, арендаторов, владельцев и id всех строк; якорь.
+- `db.maintain()` (сессии, коды, прореживание, очередь сигналов) под advisory-блокировкой, `connect({ maintain })`, `letopis maintain`.
+- `db.reset({ level: 'sessions' | 'tenant' | 'all', confirm, tenant })` с флагом `allowReset`, правом `letopis.reset`, подтверждением; `all` — сид и новый ключ сервиса.
+- `db.auth.purgeAccount()` — удаление аккаунта с предохранителями 0.21 и переходом владения.
+- Подписка `db.watch({ from, classes })` по курсору (tx, seq) ниже горизонта, `cursor_expired`, `lag()`.
+- Кэш результатов `.cache({ ttl })` и пометка класса `cache`; `db.cache.clear()`, `stats()`; `connect({ cache, listen })`.
+- `up()` — оркестратор без Docker: ожидание и создание базы, PostgreSQL 18+ и UTF8, `fresh`, `upgrade` с миграциями `sql/migrate/`, свои сиды и ключ сервиса, `ANALYZE` без статистики; `up({ pglite })` — PGlite для разработки (решение 6 точки А; необязательные peer-зависимости `@electric-sql/pglite`, `@electric-sql/pglite-socket`); `db/apply.mjs`.
+- `db.describe()`, `describeText()`, `letopis describe`; коды ошибок `not_deleted`, `reset_disabled`, `confirm_mismatch`; каталог ошибок в README §12.
+- Тесты: `time`, `rekey`, `reset`, `verify`, `retention`, `watch`, `cache`, `maintain`, `up`, `telemetry`, `scenario-salon`; строки этапа 6 в `hash`, `load`, `balance`.
+
+### Changed — этап 6
+- Ревизия движка 4. `verify(p_data)` перенесён в `90-time.sql`; системный сид — функция `seed_system()`.
+- Воскрешение, `restore`, `purge` и обрезка берут последнюю запись журнала id `for update`.
+- Загрузчик в режиме истории пишет волну одной вставкой `insert … returning hash` (4000 волн — 6 с вместо 400 с).
+- `acl_bump()` сохраняет остальные ключи служебной строки ключа (курсор прореживания).
+- `compact()` — охранник с заменой `db.trimHistory`; `watch(cb)` — охранник с заменой `watch({ from })`.
+
 ### Removed
 - Режим доверия загрузчика (`trust: true`, `--trust`) — решение владельца на контрольной точке А; охранник `removed`.
 

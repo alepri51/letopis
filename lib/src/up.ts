@@ -16,6 +16,7 @@ import { join, resolve } from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
 import postgres from 'postgres';
 import { DDL_REVISION, RESERVED_CLASS_NAMES } from './types.js';
+import { startPglite, type PgliteOptions, type PgliteServer } from './pglite.js';
 
 export const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
 export const SCHEMA_VERSION = 'v2';
@@ -233,6 +234,11 @@ export interface UpOptions extends Omit<InstallOptions, 'schema' | 'upTo' | 'mig
   quiet?: boolean;
   /** Сколько ждать базу, мс (по умолчанию 60 000). */
   waitTimeoutMs?: number;
+  /**
+   * База для разработки без PostgreSQL (решение 6 точки А): PGlite с pgcrypto через pglite-socket;
+   * одно соединение — connect({ dsn: r.pglite.dsn, listen: false, max: 1 }); не для гонок и CI.
+   */
+  pglite?: boolean | PgliteOptions;
 }
 
 export interface UpResult extends InstallResult {
@@ -244,6 +250,8 @@ export interface UpResult extends InstallResult {
   revision: number;
   /** Таблицы, для которых выполнен ANALYZE (статистики не было). */
   analyzed: string[];
+  /** up({ pglite }): запущенный PGlite — строка подключения и остановка. */
+  pglite?: PgliteServer;
 }
 
 type Ping = { ok: true } | { ok: false; kind: 'no-server' | 'no-database' | 'starting' | 'fatal'; err: unknown };
@@ -308,6 +316,8 @@ export async function up(opts: UpOptions): Promise<UpResult> {
   if (!SCHEMA_NAME.test(schema)) throw new Error(`letopis.up: bad schema name "${opts.schema}" (нужно <имя> или v<N>.<имя>)`);
   let sql = opts.sql;
   const own = !sql;
+  const lite = opts.pglite ? await startPglite(opts.pglite === true ? {} : opts.pglite) : undefined;
+  if (lite) sql = postgres(lite.dsn, { max: 1, onnotice: () => {} });
   if (!sql) {
     if (!opts.dsn) throw new Error('letopis.up: нужен dsn или sql');
     const deadline = Date.now() + (opts.waitTimeoutMs ?? 60_000);
@@ -339,7 +349,7 @@ export async function up(opts: UpOptions): Promise<UpResult> {
     if (before !== null && before < DDL_REVISION && !opts.upgrade) {
       throw new Error(`letopis.up: схема ${schema} ревизии ${before}, библиотека — ${DDL_REVISION}: обновите её up({ schema: '${schema}', upgrade: true })`);
     }
-    const { dsn: _d, sql: _s, schema: _sc, fresh: _f, upgrade: _u, quiet: _q, waitTimeoutMs: _w, ...rest } = opts;
+    const { dsn: _d, sql: _s, schema: _sc, fresh: _f, upgrade: _u, quiet: _q, waitTimeoutMs: _w, pglite: _p, ...rest } = opts;
     const res = await install(sql, { ...rest, schema, ...(before !== null && before < DDL_REVISION ? { migrateFrom: before } : {}) });
     // ANALYZE — только там, где статистики ещё нет: на повторном накате это самая дорогая часть
     const fresh = await sql`select relname from pg_stat_user_tables
@@ -348,8 +358,12 @@ export async function up(opts: UpOptions): Promise<UpResult> {
     for (const t of analyzed) await sql.unsafe(`analyze ${quoteIdent(schema)}.${quoteIdent(t)}`);
     const revision = (await schemaRevision(sql, schema)) ?? 0;
     log(`${before === null ? 'схема поставлена' : before < DDL_REVISION ? `схема обновлена с ревизии ${before}` : 'повторный накат'}: ${schema}, ревизия ${revision}`);
-    return { ...res, created: before === null, upgraded: before !== null && before < DDL_REVISION, revision, analyzed };
+    return { ...res, created: before === null, upgraded: before !== null && before < DDL_REVISION, revision, analyzed, ...(lite ? { pglite: lite } : {}) };
+  } catch (e) {
+    if (lite) await sql.end({ timeout: 1 }).then(() => lite.close(), () => lite.close());
+    throw e;
   } finally {
-    if (own) await sql.end({ timeout: 5 });
+    if (own && !lite) await sql.end({ timeout: 5 });
+    else if (lite) await sql.end({ timeout: 5 }).catch(() => {});
   }
 }

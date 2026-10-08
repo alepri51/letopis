@@ -1,10 +1,11 @@
 ---
 paths:
   - 'lib/src/up.ts'
+  - 'lib/src/pglite.ts'
   - 'lib/sql/95-seed.system.sql'
 synced: 9218558
 ---
-# M-BOOTSTRAP — установщик install() и системный сид
+# M-BOOTSTRAP — установщик install(), up(), PGlite и системный сид
 
 **Инварианты и грабли**
 - Схему создаёт установщик до `set role` (`create schema … authorization владелец`): у владельца может не быть права CREATE в базе.
@@ -15,15 +16,18 @@ synced: 9218558
 - SQL читается из `lib/sql` рядом со сборкой (`../sql/` от `dist/up.js`) — каталог `sql` обязан быть в `files` пакета.
 
 - `up()` (этап 6): готовность и автосоздание базы, PostgreSQL 18+ и UTF8 (`checkServer`), `fresh`, отставшая ревизия — только `upgrade` (миграции `lib/sql/migrate/NNNN-*.sql` новее ревизии схемы, затем накат), сиды — имена или пути, свой ключ сервиса (`serviceKey`), `ANALYZE` только таблиц без статистики. Константа `@HISTORY_DEFAULT@` (`up({ history })`) проверяется `class_prepare`. Сид — функция `seed_system()` (её же вызывает `reset({ all })`). Обёртка CI — `db/apply.mjs`.
+- `up({ pglite })` (решение 6 точки А): `pglite.ts:startPglite` грузит `@electric-sql/pglite` (с pgcrypto) и `@electric-sql/pglite-socket` динамическим `import()` — это необязательные peer-зависимости, основная точка входа их не импортирует; нет пакета — ошибка с командой установки. Сокет на свободном порту `127.0.0.1`, база и пользователь `postgres`; одно соединение — `connect({ dsn: r.pglite.dsn, listen: false, max: 1 })`; ошибка `up()` останавливает PGlite, иначе останавливает вызывающий (`r.pglite.close()`).
 
 **Что ещё менять вместе**
 - Новый файл SQL: номер по порядку `lib/sql/README.md`; функции — `revoke … from public` в том же файле.
 - Новая подстановка: `vars` в `install()` и таблица в `lib/sql/README.md`.
 
 **Проверка**
-- `cd lib && npx tsx --test --test-force-exit test/install.test.ts` и `test/roles.test.ts` (№3).
+- `cd lib && npx tsx --test --test-force-exit test/install.test.ts`, `test/up.test.ts` (6.10, PGlite) и `test/roles.test.ts` (№3).
 
 **Точки входа**
 - `lib/src/up.ts:install` — накат
+- `lib/src/up.ts:up` — оркестратор
+- `lib/src/pglite.ts:startPglite` — PGlite
 - `lib/sql/95-seed.system.sql:sys_create` — запись от владельца
 - `lib/sql/95-seed.system.sql:bootstrap_service` — сервисный аккаунт и ключ

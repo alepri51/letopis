@@ -64,14 +64,24 @@
     "postgres": "^3.4.9"
   },
   "peerDependencies": {
-    "zod": "^4"
+    "zod": "^4",
+    "@electric-sql/pglite": "^0.5.8",
+    "@electric-sql/pglite-socket": "^0.2.11"
   },
   "peerDependenciesMeta": {
     "zod": {
       "optional": true
+    },
+    "@electric-sql/pglite": {
+      "optional": true
+    },
+    "@electric-sql/pglite-socket": {
+      "optional": true
     }
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@electric-sql/pglite-socket": "^0.2.11",
     "@types/node": "^22.20.5",
     "letopis-0": "npm:letopis@0.21.0",
     "tsx": "^4.23.15",

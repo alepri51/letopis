@@ -1,6 +1,9 @@
 /**
  * Подписка на изменения (план, этап 6, п. 5): `for await (const ev of db.watch({ from }))`.
  *
+ * «now» — голова в момент подписки: курсор с горизонта и снимок, чтобы не отдать транзакции,
+ * зафиксированные до подписки, но ещё не ушедшие за горизонт.
+ *
  * Курсор — (tx, seq) записи журнала: события читаются только ниже горизонта завершённых
  * транзакций (pg_snapshot_xmin) — транзакцию с меньшим номером, зафиксированную позже, курсор уже
  * не обгонит, поэтому событий нет ни потерянных, ни повторных. Поток стоит, пока открыта более
@@ -43,14 +46,26 @@ interface Pos {
   tx: string;
   seq: string;
   at: string | null;
+  /**
+   * Снимок момента подписки «now»: транзакции, видимые в нём, зафиксированы до подписки и не отдаются.
+   * Нужен, пока курсор не прошёл границу снимка (xmax): дальше таких транзакций нет.
+   */
+  snap?: string;
 }
 
-const encode = (p: Pos): string => `${p.tx}:${p.seq}${p.at ? `:${p.at}` : ''}`;
+/** Курсор события: «tx:seq[:время][~снимок]». */
+const encode = (p: Pos): string => `${p.tx}:${p.seq}${p.at ? `:${p.at}` : ''}${p.snap ? `~${p.snap}` : ''}`;
 function decode(c: string): Pos {
-  const m = /^(\d+):(\d+)(?::(.+))?$/.exec(c);
-  if (!m) throw new LetopisError('invalid_query', `watch: курсор ${c} — ожидается «tx:seq[:время]» из события`);
-  return { tx: m[1], seq: m[2], at: m[3] ?? null };
+  const [head, snap] = c.split('~');
+  const m = /^(\d+):(\d+)(?::(.+))?$/.exec(head);
+  if (!m || (snap !== undefined && !/^\d+:\d+:[\d,]*$/.test(snap))) {
+    throw new LetopisError('invalid_query', `watch: курсор ${c} — ожидается курсор события`);
+  }
+  return { tx: m[1], seq: m[2], at: m[3] ?? null, ...(snap ? { snap } : {}) };
 }
+/** Снимок ещё нужен: курсор не дошёл до его xmax. */
+const keepSnap = (snap: string | undefined, tx: string): string | undefined =>
+  snap && BigInt(tx) < BigInt(snap.split(':')[1]) ? snap : undefined;
 
 export interface WatchCtx {
   S: string;
@@ -109,8 +124,8 @@ export class Subscription implements AsyncIterable<WatchEvent> {
   }
 
   private async head(): Promise<Pos> {
-    const [r] = await this.ctx.exec.run((q) => q.unsafe(`select tx::text as tx, seq::text as seq from ${this.ctx.S}.watch_head()`) as unknown as Promise<{ tx: string; seq: string }[]>, { read: true });
-    return { tx: r.tx, seq: r.seq, at: null };
+    const [r] = await this.ctx.exec.run((q) => q.unsafe(`select tx::text as tx, seq::text as seq, snap::text as snap from ${this.ctx.S}.watch_head()`) as unknown as Promise<{ tx: string; seq: string; snap: string }[]>, { read: true });
+    return { tx: r.tx, seq: r.seq, at: null, snap: r.snap };
   }
 
   /** Следующая пачка событий ниже горизонта; пусто — горизонт ещё не дошёл или событий нет. */
@@ -121,11 +136,12 @@ export class Subscription implements AsyncIterable<WatchEvent> {
       `select l.tx::text as tx, l.seq::text as seq, jsonb_build_object('id', l.id, 'rev', l.rev, 'class', l.class, 'tenant', l.tenant, `
       + `'owner', l.owner, 'links', l.links, 'data', l.data, 'tags', l.tags, 'at', l.at, 'author', l.author, 'agent', l.agent, `
       + `'op', l.op, 'reason', l.reason, 'moved', l.moved) as row `
-      + `from ${this.ctx.S}.watch_read($1::text::xid8, $2::bigint, $3::text::timestamptz, $4::text[], $5::int) l`,
-      [p.tx, p.seq, p.at, this.ctx.classes, this.batch] as never[]) as unknown as Promise<{ tx: string; seq: string; row: Record<string, unknown> }[]>, { read: true });
+      + `from ${this.ctx.S}.watch_read($1::text::xid8, $2::bigint, $3::text::timestamptz, $4::text[], $5::int, $6::text::pg_snapshot) l`,
+      [p.tx, p.seq, p.at, this.ctx.classes, this.batch, p.snap ?? null] as never[]) as unknown as Promise<{ tx: string; seq: string; row: Record<string, unknown> }[]>, { read: true });
     for (const r of rows) {
       const row = toRow(r.row);
-      this.pos = { tx: r.tx, seq: r.seq, at: row.at };
+      const snap = keepSnap(p.snap, r.tx);
+      this.pos = { tx: r.tx, seq: r.seq, at: row.at, ...(snap ? { snap } : {}) };
       this.buf.push({ cursor: encode(this.pos), row, id: row.id, class: row.class, op: row.op, rev: row.rev, at: row.at });
     }
     return rows.length;

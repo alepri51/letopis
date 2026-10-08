@@ -316,6 +316,10 @@
       "message": "letopis: администраторское подключение — RLS не действует, данные всех арендаторов видны"
     },
     {
+      "module": "pglite",
+      "message": "letopis.up: для pglite нужен пакет <…> — npm i -D @electric-sql/pglite @electric-sql/pglite-socket"
+    },
+    {
       "module": "up",
       "message": "letopis.up: ${own ? seed : "
     },

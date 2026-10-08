@@ -121,3 +121,20 @@ test('6.10 автосоздание базы; база не в UTF8 — поня
   assert.doesNotThrow(() => checkServer(180006, 'UTF8'));
   void postgres;
 });
+
+test('up({ pglite }): база для разработки без PostgreSQL — установка, вход сервисом, запись и чтение (решение 6 точки А)', async () => {
+  const r = await up({ pglite: true, schema: 'dev', quiet: true });
+  try {
+    assert.equal(r.revision, DDL_REVISION);
+    const db = await connect({ dsn: r.pglite!.dsn, schema: 'v2.dev', apiKey: r.serviceKey!, allowBypassRls: true, listen: false, max: 1 });
+    try {
+      assert.ok(db.describe().classes.some((c) => c.name === 'Class'));
+      const v = await db.verify({ data: true });
+      assert.equal(v.ok, true);
+    } finally {
+      await db.close();
+    }
+  } finally {
+    await r.pglite!.close();
+  }
+});

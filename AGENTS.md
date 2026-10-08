@@ -9,7 +9,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 
 ## Протокол
 1. Модуль — по таблице «Модули»; входные файлы — сразу в Read, без обхода каталогов.
-2. «Как работает X» в 1.0 — сначала соответствующий раздел плана (§2, этап в §5), затем код. Трассы `docs/atlas/F-*.md` переписываются в своих этапах; F-READ, F-WRITE, F-DELETE, F-ACCESS и F-AUTH уже описывают 1.0, остальные — 0.21.
+2. «Как работает X» в 1.0 — сначала соответствующий раздел плана (§2, этап в §5), затем код. Трассы `docs/atlas/F-*.md` переписываются в своих этапах; F-READ, F-WRITE, F-DELETE, F-ACCESS, F-AUTH, F-WATCH и F-BOOT уже описывают 1.0, F-RELEASE — 0.21.
 3. Карточка модуля подмешивается сама при Read его файла: инварианты, «что ещё менять», побочки, проверка. Карточки 1.0 появляются вместе с кодом модуля.
 4. Поиск — субагентом `atlas-scout`. Если всё же Explore/Plan — вставь в промпт нужные строки «Модули»: встроенные агенты не видят CLAUDE.md.
 5. Ответ — со ссылками `путь:символ`, проверенными в этой сессии; поведение кода отделяй от планов в документах.
@@ -36,7 +36,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 | M-WRITE | планы, батч, транзакции, загрузчик | `lib/src/write.ts`, `lib/src/tx.ts`, `lib/src/load.ts` | 4 |
 | M-API | `connect`, Proxy цепочек, ошибки, охранники | `lib/src/index.ts`, `lib/src/chain.ts`, `lib/src/errors.ts` | 2–4 |
 | M-TIME | история, хранение, подписка, кэш результатов, `reset`, `maintain` | `lib/sql/90-time.sql`, `lib/src/watch.ts`, `lib/src/admin.ts`, `lib/src/cache.ts` | 6 |
-| M-BOOTSTRAP | установщик и `up()` | `lib/src/up.ts` | 1, 6 |
+| M-BOOTSTRAP | установщик, `up()`, PGlite | `lib/src/up.ts`, `lib/src/pglite.ts` | 1, 6 |
 | M-SEEDS | системный сид, демо-домен | `lib/sql/95-seed.system.sql`, `lib/src/demo/booking.ts` | 1, 2, 5 |
 | M-IMPORT | импорт из 0.21 | `lib/src/import.ts` | 7 |
 | M-RELEASE | CI, тег, релиз, check-docs, check-package, контракт API | `lib/scripts/check-docs.mjs` | 0, 8 |
@@ -54,7 +54,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 - В одном коммите с кодом обновляются карточка модуля, список тестов в `lib/README.md` §16 и контракт API (`cd lib && npm run api:contract`), если изменились экспорты, методы или тексты ошибок; связность ловит `cd lib && npm run check:docs`.
 
 ## Трассы
-`docs/atlas/F-*.md` переписываются в этапах плана; пока не переписанные описывают 0.21 (помечены в начале файла). F-READ — 1.0 (этап 3), F-WRITE и F-DELETE — 1.0 (этап 4), F-ACCESS и F-AUTH — 1.0 (этап 5); F-WATCH и F-BOOT — этап 6, F-RELEASE — этап 8.
+`docs/atlas/F-*.md` переписываются в этапах плана; пока не переписанные описывают 0.21 (помечены в начале файла). F-READ — 1.0 (этап 3), F-WRITE и F-DELETE — 1.0 (этап 4), F-ACCESS и F-AUTH — 1.0 (этап 5), F-WATCH и F-BOOT — 1.0 (этап 6); F-RELEASE — этап 8.
 
 ## Документы
 | Документ | Что это | Как читать |

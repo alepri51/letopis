@@ -310,3 +310,27 @@ test('гонки 9, 13: загрузчик и create одного ключа; з
   await del.commit();
   assert.equal(((await p2) as { code?: string })?.code, 'target_not_found');
 });
+
+test('7.6.1 №9 (этап 6): объект после purge и после обрезки истории — отказ без запросов на пачку (deleted, exists)', async () => {
+  await adm.load([{ $class: 'Org', name: 'pg-1' }, { $class: 'Org', name: 'tr-1' }]);
+  const [pg] = await db.Org({ name: 'pg-1' }).rows();
+  await db.Org(pg.id).delete({ confirm: true }).rows();
+  await db.Org(pg.id).purge({ confirm: true }).rows();
+  const [tr] = await db.Org({ name: 'tr-1' }).rows();
+  await db.Org(tr.id).update({ city: 'B' }).rows();
+  await db.trimHistory(tr.id, new Date(Date.now() + 1000));
+  let err: unknown;
+  try {
+    await adm.load([{ $class: 'Org', name: 'pg-1' }, { $class: 'Org', name: 'tr-1' }]);
+  } catch (x) {
+    err = x;
+  }
+  assert.deepEqual(rowsOf(err).map((r) => [r.line, r.code]), [[1, 'deleted'], [2, 'exists']], 'версия 1 занята записями purge и trim');
+});
+
+test('7.6.1 №18 (этап 6): после загрузки verify: true и db.verify({ data: true }) — нарушений нет', async () => {
+  const r = await adm.load([{ $class: 'Org', name: 'vf-1', city: 'A' }, { $class: 'Org', name: 'vf-2', city: 'B' }], { verify: true });
+  assert.equal(r.loaded, 2);
+  const v = await adm.verify({ data: true });
+  assert.equal(v.ok, true, JSON.stringify(v.issues));
+});

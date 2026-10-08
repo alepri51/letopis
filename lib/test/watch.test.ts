@@ -116,3 +116,27 @@ test('6.5 с начала журнала: все версии, включая н
     sub.close();
   }
 });
+
+test('6.5 «now» — изменения после подписки: зафиксированное до неё не приходит, даже если горизонт держит старая транзакция', async () => {
+  // A открыта раньше всех и держит горизонт; B фиксируется до подписки
+  const a = await e.hold(t.token, (tx) => tx.unsafe(`insert into ${e.S}.entity (class, data) values ('Ev', '{"n": 30}')`));
+  await ins(t.token, 31);
+  const sub = db.watch({ from: 'now', classes: ['Ev'] });
+  try {
+    assert.ok(sub.cursor === null || /~/.test(sub.cursor ?? ''), 'курсор «now» несёт снимок');
+    await a.finish(true);
+    await ins(t.token, 32);
+    const evs = await take(sub, 2);
+    assert.deepEqual(evs.map((x) => x.row.data.n), [30, 32], 'B (31) зафиксирована до подписки — её нет');
+    // курсор события продолжает без B и без повторов
+    const again = db.watch({ from: evs[0].cursor, classes: ['Ev'] });
+    try {
+      const [next] = await take(again, 1);
+      assert.equal(next.row.data.n, 32);
+    } finally {
+      again.close();
+    }
+  } finally {
+    sub.close();
+  }
+});

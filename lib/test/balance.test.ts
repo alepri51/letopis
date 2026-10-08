@@ -453,3 +453,16 @@ test('№28, 30: forUpdate вне транзакции, lock на завершё
   await assert.rejects(db.Wallet({ group: 'g' }).update({ balance: 1 }, { rev: 1 }).rows(), code('rev_ambiguous'));
   assert.equal(await db.Wallet({ group: 'g', balance: 1 }).count(), 0, 'ничего не записано');
 });
+
+test('№21: история кошелька — каждая операция версией с автором и временем, срез между операциями, verify чист', async () => {
+  const w = await wallet('B-hist');
+  await operate(db, w, 'h-1', 'topup', 1000);
+  await operate(db, w, 'h-2', 'debit', 300);
+  const v = await db.Wallet(w).versions();
+  assert.deepEqual(v.map((x) => x.data.balance), [0, 1000, 700]);
+  assert.ok(v.every((x) => x.author === t.id && typeof x.at === 'string'));
+  const [mid] = await db.Wallet(w).asOf(v[1].at).rows();
+  assert.equal(mid.data.balance, 1000, 'срез на момент между операциями');
+  const [{ r }] = await e.sql.unsafe(`select ${e.S}.verify() as r`);
+  assert.equal(r.ok, true, JSON.stringify(r.issues));
+});

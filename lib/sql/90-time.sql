@@ -671,6 +671,10 @@ declare
   more boolean;
 begin
   select (s.meta->>'thin')::uuid into cur from @SCHEMA@.secret s where s.id = '@SYSTEM@'::uuid for update;
+  -- умолчание установки прореживает журнал: verify() и после его снятия считает такие пропуски законными
+  if @SCHEMA@.history_default() is not null then
+    update @SCHEMA@.secret s set meta = s.meta || '{"default_policy": true}' where s.id = '@SYSTEM@'::uuid and not (s.meta ? 'default_policy');
+  end if;
   with pol as (
     select x.data->>'name' as cls, x.tenant as ct, @SCHEMA@.history_policy(x.data->'resolved') as p
     from @SCHEMA@.entity x where x.class = 'Class'
@@ -763,7 +767,7 @@ end $$;
 -- версии равен хэшу предыдущей, строка entity совпадает с последней версией журнала. Законные
 -- разрывы: после записи trim (стык — по $trimmed и $hash), запись purge и reset — начало цепочки,
 -- прореживание — пропуск после версии старше яруса all класса, у которого есть (или была) политика
--- хранения. p_data — ещё и все строки: данные по проверке класса, концы (цель существует, её
+-- хранения — своя или умолчание установки (метка default_policy в строке ключа). p_data — ещё и все строки: данные по проверке класса, концы (цель существует, её
 -- арендатор — тот же или System, класс принимается концом), арендатор и владелец существуют, id
 -- класса с ключом — v5 от ключа. Возвращает находки и якорь — хэш всех голов цепочек. Только
 -- системный администратор (право letopis.verify) или администраторское подключение.
@@ -787,7 +791,9 @@ begin
     from @SCHEMA@.entity x
     where x.class = 'Class'
       and (@SCHEMA@.history_policy(x.data->'resolved') is not null
-           or exists (select 1 from @SCHEMA@.log h where h.id = x.id and jsonb_typeof(h.data->'resolved'->'history') = 'object'))
+           or exists (select 1 from @SCHEMA@.log h where h.id = x.id and jsonb_typeof(h.data->'resolved'->'history') = 'object')
+           or (x.data->'resolved'->'history' = 'true'::jsonb and x.data->>'name' not in ('Class', 'Account', 'member', 'Resource', 'rule')
+               and exists (select 1 from @SCHEMA@.secret k where k.id = '@SYSTEM@'::uuid and k.meta ? 'default_policy')))
   ), chain as (
     select l.id, l.rev, l.class, l.tenant, l.prev_hash,
            lag(l.rev) over w as prev_rev, lag(l.hash) over w as prev_h, lag(l.op) over w as prev_op,
@@ -886,8 +892,10 @@ end $$;
 -- завершённых транзакций (pg_snapshot_xmin) — их уже ничто не обгонит, поэтому без потерь и повторов.
 -- Выполняется с правами вызывающего: RLS журнала показывает только своё. p_at — время последнего
 -- события курсора: старше яруса all какого-либо класса подписки — cursor_expired (события могли
--- проредиться). p_classes null — все классы.
-create or replace function @SCHEMA@.watch_read(p_tx xid8, p_seq bigint, p_at timestamptz, p_classes text[], p_limit int)
+-- проредиться). p_classes null — все классы. p_snap — снимок момента подписки «now»: транзакции,
+-- видимые в нём (зафиксированные до подписки), не отдаются.
+create or replace function @SCHEMA@.watch_read(p_tx xid8, p_seq bigint, p_at timestamptz, p_classes text[], p_limit int,
+  p_snap pg_snapshot default null)
 returns setof @SCHEMA@.log
 language plpgsql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -907,16 +915,21 @@ begin
   end if;
   return query select l.* from @SCHEMA@.log l
     where (l.tx, l.seq) > (p_tx, p_seq) and l.tx < horizon and (p_classes is null or l.class = any (p_classes))
+      and (p_snap is null or not pg_visible_in_snapshot(l.tx, p_snap))
     order by l.tx, l.seq limit p_limit;
 end $$;
 
--- Голова журнала для подписки «с этого момента»: горизонт и последний seq.
-create or replace function @SCHEMA@.watch_head(out tx xid8, out seq bigint)
+-- Точка подписки «с этого момента»: курсор — горизонт завершённых транзакций, снимок — чтобы не
+-- отдавать транзакции, зафиксированные до подписки, но ещё не ушедшие за горизонт.
+drop function if exists @SCHEMA@.watch_head();
+create or replace function @SCHEMA@.watch_head(out tx xid8, out seq bigint, out snap pg_snapshot)
 language sql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
-  select pg_snapshot_xmin(pg_current_snapshot()), 0::bigint
+  select pg_snapshot_xmin(s), 0::bigint, s from pg_current_snapshot() s
 $$;
+-- до исправления подписки «now»: без снимка
+drop function if exists @SCHEMA@.watch_read(xid8, bigint, timestamptz, text[], int);
 
 do $$
 declare f text;
@@ -927,7 +940,7 @@ begin
     'last_version_visible(uuid, uuid, jsonb)', 'restore(uuid)', 'purge(uuid, boolean)', 'trim_history(uuid[], text[], timestamptz)',
     'rekey(uuid, jsonb, jsonb)', 'rekey_class(text, jsonb)', 'account_purge(uuid)', 'reset_mark(uuid, text, uuid)',
     'reset(text, text, uuid, int)', 'thin_batch(timestamptz, int)', 'maintain(timestamptz, int)', 'verify(boolean)',
-    'watch_read(xid8, bigint, timestamptz, text[], int)', 'watch_head()'] loop
+    'watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot)', 'watch_head()'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);
     execute format('revoke all on function @SCHEMA@.%s from public', f);
   end loop;
@@ -936,5 +949,5 @@ end $$;
 grant execute on function @SCHEMA@.restore(uuid), @SCHEMA@.purge(uuid, boolean), @SCHEMA@.trim_history(uuid[], text[], timestamptz),
   @SCHEMA@.rekey(uuid, jsonb, jsonb), @SCHEMA@.rekey_class(text, jsonb), @SCHEMA@.account_purge(uuid),
   @SCHEMA@.reset(text, text, uuid, int), @SCHEMA@.maintain(timestamptz, int), @SCHEMA@.verify(boolean),
-  @SCHEMA@.session_expires(), @SCHEMA@.watch_read(xid8, bigint, timestamptz, text[], int), @SCHEMA@.watch_head(),
+  @SCHEMA@.session_expires(), @SCHEMA@.watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot), @SCHEMA@.watch_head(),
   @SCHEMA@.history_default(), @SCHEMA@.history_policy(jsonb), @SCHEMA@.history_iv(text) to @APP@;

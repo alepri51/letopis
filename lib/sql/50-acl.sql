@@ -243,7 +243,8 @@ create or replace function @SCHEMA@.acl_bump() returns void
 language sql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
-  update @SCHEMA@.secret s set meta = jsonb_build_object('v', coalesce((s.meta->>'v')::bigint, 0) + 1)
+  -- остальные ключи meta (курсор прореживания, метка умолчания хранения, этап 6) сохраняются
+  update @SCHEMA@.secret s set meta = s.meta || jsonb_build_object('v', coalesce((s.meta->>'v')::bigint, 0) + 1)
   where s.id = '@SYSTEM@'::uuid and s.kind = 'KEY'
 $$;
 
