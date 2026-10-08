@@ -16,15 +16,26 @@
       "values": [
         "DDL_REVISION",
         "LetopisError",
+        "Registry",
         "ValidationError",
+        "applyDefaults",
+        "compileValidator",
+        "connect",
+        "fromDbError",
         "idOf",
         "uuidv5",
         "v5Id",
         "v5Name"
       ],
       "types": [
+        "ClassInfo",
+        "ConnectOptions",
+        "Db",
+        "EndInfo",
         "Issue",
-        "KeyedClass"
+        "KeyedClass",
+        "LeafType",
+        "Validator"
       ]
     },
     "./model": {
@@ -190,6 +201,10 @@
     {
       "module": "errors",
       "message": "letopis: <…>: <…>"
+    },
+    {
+      "module": "index",
+      "message": "letopis: администраторское подключение — RLS не действует, данные всех арендаторов видны"
     },
     {
       "module": "up",
