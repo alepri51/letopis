@@ -2,7 +2,7 @@
 paths:
   - 'lib/src/{model,jsonschema,validate,registry,sync,cli,uuid}.ts'
   - 'lib/src/demo/booking.ts'
-synced: 1775f9d
+synced: 9f59434
 ---
 # M-MODEL — модели на Zod, нормализатор, валидатор, реестр, CLI
 

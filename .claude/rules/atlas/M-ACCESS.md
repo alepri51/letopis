@@ -1,7 +1,7 @@
 ---
 paths:
   - 'lib/sql/{20-context,50-acl}.sql'
-synced: 6eb1049
+synced: 9f59434
 ---
 # M-ACCESS — контекст сессии и RLS (этап 1; ACL и креды — этап 5)
 

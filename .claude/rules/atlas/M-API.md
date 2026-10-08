@@ -1,7 +1,7 @@
 ---
 paths:
   - 'lib/src/{index,tx,errors,chain,typed}.ts'
-synced: 6eb1049
+synced: 9f59434
 ---
 # M-API — connect(), цепочки (Proxy), транзакции под сессией, сигналы, ошибки
 
