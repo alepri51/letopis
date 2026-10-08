@@ -36,20 +36,74 @@ as $$
 declare
   c record;
   login_at timestamptz;
+  methods jsonb;
 begin
   select * into c from @SCHEMA@.ctx();
   if c.account is null then
     perform @SCHEMA@.lt_fail('no_session', 'нет действующей сессии');
   end if;
   if c.account = p_account and c.service is null then
-    select (s.meta->>'login_at')::timestamptz into login_at from @SCHEMA@.secret s where s.id = c.session;
-    if login_at > clock_timestamp() - @SCHEMA@.auth_recent() then
+    select (s.meta->>'login_at')::timestamptz, coalesce(s.meta->'methods', '[]'::jsonb) into login_at, methods
+    from @SCHEMA@.secret s where s.id = c.session;
+    -- недавний вход — интерактивный (ключ, пара ключ + секрет и сессия от сервиса не в счёт); у аккаунта
+    -- с включённым TOTP — ещё и пройденный TOTP (ревью этапа 5)
+    if login_at > clock_timestamp() - @SCHEMA@.auth_recent()
+       and exists (select 1 from jsonb_array_elements_text(methods) m where m not in ('APIKEY', 'KEYSECRET', 'SERVICE'))
+       and (methods ? 'TOTP' or not exists (select 1 from @SCHEMA@.secret t where t.account = p_account and t.kind = 'TOTP'
+                                            and t.deleted_at is null and coalesce((t.meta->>'confirmed')::boolean, false))) then
       return;
     end if;
   end if;
   if not coalesce((@SCHEMA@.acl_api_for(c.tenant, c.categories, c.roles, 'auth.credential', true)->>'allow')::boolean, false) then
     perform @SCHEMA@.lt_fail('acl_denied', 'привязка отклонена: нужен недавний вход или право auth.credential');
   end if;
+  -- креды System, сервисов и системных администраторов выдаёт только системный администратор: иначе
+  -- сервис привязал бы себе вход под ними (ревью этапа 5)
+  if not @SCHEMA@.auth_target_ok(p_account) and not @SCHEMA@.auth_is_sysadmin() then
+    perform @SCHEMA@.lt_fail('acl_denied', 'привязка отклонена: нужен недавний вход или право auth.credential');
+  end if;
+end $$;
+
+-- Креды и сессии System, сервисов и системных администраторов затрагивает только сам аккаунт или
+-- системный администратор (ревью этапа 5).
+create or replace function @SCHEMA@.auth_guard(p_account uuid) returns void
+language plpgsql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  c record;
+begin
+  select * into c from @SCHEMA@.ctx();
+  if p_account is distinct from c.account and not @SCHEMA@.auth_target_ok(p_account) and not @SCHEMA@.auth_is_sysadmin() then
+    perform @SCHEMA@.lt_fail('acl_denied', 'креды и сессии этого аккаунта меняет только он сам или системный администратор');
+  end if;
+end $$;
+
+-- Актор — системный администратор: право letopis.credential по правилам System (роль admin в System).
+create or replace function @SCHEMA@.auth_is_sysadmin() returns boolean
+language plpgsql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  c record;
+begin
+  select * into c from @SCHEMA@.ctx();
+  return c.account is not null
+    and coalesce((@SCHEMA@.acl_api_for(c.tenant, c.categories, c.roles, 'letopis.credential', true)->>'allow')::boolean, false);
+end $$;
+
+-- Подтверждать кред может только обладатель права auth.credential: свой кред аккаунт сам не
+-- подтверждает (иначе обошёл бы requireConfirmed — проверку почты или телефона сервисом).
+create or replace function @SCHEMA@.auth_may_confirm() returns boolean
+language plpgsql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  c record;
+begin
+  select * into c from @SCHEMA@.ctx();
+  return c.account is not null
+    and coalesce((@SCHEMA@.acl_api_for(c.tenant, c.categories, c.roles, 'auth.credential', true)->>'allow')::boolean, false);
 end $$;
 
 -- Аккаунт, для которого можно выпустить сессию: существует, включён, не System, не сервис и не
@@ -116,6 +170,9 @@ as $$
 #variable_conflict use_column
 begin
   perform @SCHEMA@.acl_require('auth.password');
+  if not @SCHEMA@.auth_kind_ok(p_kind) then
+    return;
+  end if;
   return query
     select s.id, s.account, convert_from(s.material, 'UTF8'), coalesce((s.meta->>'confirmed')::boolean, false)
     from @SCHEMA@.secret s
@@ -140,6 +197,9 @@ declare
 begin
   perform @SCHEMA@.auth_can_manage(p_account);
   select * into c from @SCHEMA@.ctx();
+  if not @SCHEMA@.auth_may_confirm() then
+    p_confirmed := null;
+  end if;
   if not @SCHEMA@.auth_kind_ok(p_kind) or coalesce(p_ident, '') = '' or p_hash !~ '^scrypt\$' then
     perform @SCHEMA@.lt_fail('invalid_data', 'пароль: вид, идентификатор и хэш scrypt$… обязательны');
   end if;
@@ -268,7 +328,7 @@ end $$;
 -- Одноразовый код для доставки сервисом (почта, SMS, сброс пароля): только с правом auth.otp.
 -- Повторный выпуск на тот же идентификатор заменяет код: действует только последний.
 create or replace function @SCHEMA@.auth_issue_otp(p_account uuid, p_ident text, p_kind text default 'OTP',
-  p_ttl interval default interval '10 minutes', p_digits int default 6) returns text
+  p_ttl interval default interval '10 minutes', p_digits int default 6, p_max_attempts int default 5) returns text
 language plpgsql volatile security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
@@ -282,19 +342,23 @@ begin
   if not @SCHEMA@.auth_enabled(p_account) then
     perform @SCHEMA@.lt_fail('target_not_found', 'аккаунт не найден');
   end if;
+  if not @SCHEMA@.auth_target_ok(p_account) and not @SCHEMA@.auth_is_sysadmin() then
+    perform @SCHEMA@.lt_fail('acl_denied', 'коды входа для System, сервисов и системных администраторов выпускает только системный администратор');
+  end if;
   code := lpad((('x' || encode(@PGCRYPTO@.gen_random_bytes(7), 'hex'))::bit(56)::bigint % (10::bigint ^ p_digits)::bigint)::text, p_digits, '0');
   update @SCHEMA@.secret s set deleted_at = clock_timestamp()
   where s.kind = p_kind and s.deleted_at is null
     and casefold(s.ident) collate pg_unicode_fast = casefold(p_ident) collate pg_unicode_fast;
   insert into @SCHEMA@.secret (account, kind, ident, material, meta, expires_at)
-  values (p_account, p_kind, p_ident, sha256(convert_to(code, 'UTF8')), jsonb_build_object('attempts', 0, 'confirmed', true),
+  values (p_account, p_kind, p_ident, sha256(convert_to(code, 'UTF8')),
+          jsonb_build_object('attempts', 0, 'max_attempts', least(greatest(coalesce(p_max_attempts, 5), 1), 10), 'confirmed', true),
           clock_timestamp() + p_ttl);
   return code;
 end $$;
 
 -- Вход по одноразовому коду: проверка атомарна (строка кода блокируется), учитывает срок и счётчик
--- попыток; успех сжигает код, перебор после p_max_attempts — тоже. { account, token } или null.
-create or replace function @SCHEMA@.login_otp(p_ident text, p_code text, p_kind text default 'OTP', p_max_attempts int default 5)
+-- попыток (лимит задал выпуск кода, а не вход); успех сжигает код, перебор — тоже. { account, token } или null.
+create or replace function @SCHEMA@.login_otp(p_ident text, p_code text, p_kind text default 'OTP')
 returns jsonb
 language plpgsql volatile security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -303,7 +367,11 @@ declare
   s record;
   n int;
 begin
-  select x.id, x.account, x.material, x.expires_at, coalesce((x.meta->>'attempts')::int, 0) as attempts into s
+  -- счётчик попыток транзакционный: вызывающий мог бы откатывать неудачи к точке сохранения, поэтому
+  -- код проверяет только сервис с правом auth.otp, и частоту попыток ограничивает он (ревью этапа 5)
+  perform @SCHEMA@.acl_require('auth.otp');
+  select x.id, x.account, x.material, x.expires_at, coalesce((x.meta->>'attempts')::int, 0) as attempts,
+         coalesce((x.meta->>'max_attempts')::int, 5) as max_attempts into s
   from @SCHEMA@.secret x
   where x.kind = p_kind and x.kind ~ '^OTP' and x.deleted_at is null
     and casefold(x.ident) collate pg_unicode_fast = casefold(p_ident) collate pg_unicode_fast
@@ -317,7 +385,7 @@ begin
   end if;
   if s.material <> sha256(convert_to(coalesce(p_code, ''), 'UTF8')) then
     n := s.attempts + 1;
-    if n >= coalesce(p_max_attempts, 5) then
+    if n >= s.max_attempts then
       update @SCHEMA@.secret set deleted_at = clock_timestamp() where id = s.id;
     else
       update @SCHEMA@.secret set meta = meta || jsonb_build_object('attempts', n) where id = s.id;
@@ -374,23 +442,28 @@ declare
   s record;
   now_step bigint := floor(extract(epoch from clock_timestamp()) / 30)::bigint;
   st bigint;
+  w int;
 begin
   select * into c from @SCHEMA@.ctx();
   perform @SCHEMA@.auth_session_required(c.account);
-  if not (c.account = p_account and c.service is null) then
-    perform @SCHEMA@.acl_require('auth.totp');
-  end if;
-  select x.id, x.material, coalesce((x.meta->>'last_step')::bigint, 0) as last_step into s
+  -- счётчик неудач транзакционный (откат к точке сохранения его снял бы): проверяет сервис с правом
+  -- auth.totp и ограничивает частоту сам (ревью этапа 5)
+  perform @SCHEMA@.acl_require('auth.totp');
+  perform @SCHEMA@.auth_guard(p_account);
+  select x.id, x.material, coalesce((x.meta->>'last_step')::bigint, 0) as last_step,
+         coalesce((x.meta->>'fails')::int, 0) as fails, (x.meta->>'locked_until')::timestamptz as locked_until into s
   from @SCHEMA@.secret x
   where x.account = p_account and x.kind = 'TOTP' and x.deleted_at is null
   for update;
-  if s.id is null then
+  if s.id is null or s.locked_until > clock_timestamp() then
     return false;
   end if;
-  for st in now_step - greatest(coalesce(p_window, 1), 0) .. now_step + greatest(coalesce(p_window, 1), 0) loop
+  -- окно — не больше шага в каждую сторону: шире окно — проще перебор (ревью этапа 5)
+  w := least(greatest(coalesce(p_window, 1), 0), 1);
+  for st in now_step - w .. now_step + w loop
     continue when st <= s.last_step;
     if @SCHEMA@.totp_code(s.material, st) = coalesce(p_code, '') then
-      update @SCHEMA@.secret set meta = meta || jsonb_build_object('last_step', st, 'confirmed', true) where id = s.id;
+      update @SCHEMA@.secret set meta = (meta - 'fails' - 'locked_until') || jsonb_build_object('last_step', st, 'confirmed', true) where id = s.id;
       if c.account = p_account and c.service is null then
         update @SCHEMA@.secret x
            set meta = x.meta || jsonb_build_object('methods', coalesce(x.meta->'methods', '[]'::jsonb) || '["TOTP"]'::jsonb,
@@ -400,6 +473,10 @@ begin
       return true;
     end if;
   end loop;
+  -- неудача: после пяти подряд проверка закрыта на 5 минут
+  update @SCHEMA@.secret set meta = meta || jsonb_build_object('fails', s.fails + 1)
+    || case when s.fails + 1 >= 5 then jsonb_build_object('fails', 0, 'locked_until', clock_timestamp() + interval '5 minutes') else '{}'::jsonb end
+  where id = s.id;
   return false;
 end $$;
 
@@ -414,6 +491,7 @@ begin
   perform @SCHEMA@.auth_session_required(c.account);
   if c.account <> p_account then
     perform @SCHEMA@.acl_require('auth.totp');
+    perform @SCHEMA@.auth_guard(p_account);
   end if;
   return exists (select 1 from @SCHEMA@.secret s where s.account = p_account and s.kind = 'TOTP' and s.deleted_at is null
                  and coalesce((s.meta->>'confirmed')::boolean, false));
@@ -429,6 +507,9 @@ declare
   cid uuid;
 begin
   perform @SCHEMA@.auth_can_manage(p_account);
+  if not @SCHEMA@.auth_may_confirm() then
+    p_confirmed := false;
+  end if;
   if not @SCHEMA@.auth_kind_ok(p_kind) or p_kind = 'PASSWORD' or coalesce(p_ident, '') = '' then
     perform @SCHEMA@.lt_fail('invalid_data', 'identity: вид (TELEGRAM, GOOGLE, …) и идентификатор обязательны');
   end if;
@@ -476,13 +557,14 @@ begin
   perform @SCHEMA@.auth_session_required(c.account);
   if c.account <> p_account then
     perform @SCHEMA@.acl_require('auth.credential');
+    perform @SCHEMA@.auth_guard(p_account);
   end if;
   return query
     select s.id, s.kind, case when s.kind = 'TOTP' then null else s.ident end,
            coalesce((s.meta->>'confirmed')::boolean, false), coalesce((s.meta->>'enabled')::boolean, true),
            s.meta - 'confirmed' - 'enabled' - 'attempts' - 'last_step', s.created_at, s.expires_at
     from @SCHEMA@.secret s
-    where s.account = p_account and s.kind <> 'SESSION' and s.deleted_at is null
+    where s.account = p_account and s.kind not in ('SESSION', 'KEY') and s.deleted_at is null
       and (s.expires_at is null or s.expires_at > clock_timestamp())
     order by s.created_at, s.id;
 end $$;
@@ -498,7 +580,7 @@ declare
 begin
   select * into c from @SCHEMA@.ctx();
   perform @SCHEMA@.auth_session_required(c.account);
-  select s.account into acc from @SCHEMA@.secret s where s.id = p_id and s.kind <> 'SESSION' and s.deleted_at is null;
+  select s.account into acc from @SCHEMA@.secret s where s.id = p_id and s.kind not in ('SESSION', 'KEY') and s.deleted_at is null;
   if acc is null then
     return false;
   end if;
@@ -513,11 +595,18 @@ create or replace function @SCHEMA@.auth_set_flags(p_id uuid, p_confirmed boolea
 language plpgsql volatile security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
+declare
+  acc uuid;
 begin
   perform @SCHEMA@.acl_require('auth.credential');
+  select s.account into acc from @SCHEMA@.secret s where s.id = p_id and s.kind not in ('SESSION', 'KEY') and s.deleted_at is null;
+  if acc is null then
+    return false;
+  end if;
+  perform @SCHEMA@.auth_guard(acc);
   update @SCHEMA@.secret s
      set meta = s.meta || jsonb_strip_nulls(jsonb_build_object('confirmed', p_confirmed, 'enabled', p_enabled))
-   where s.id = p_id and s.kind <> 'SESSION' and s.deleted_at is null;
+   where s.id = p_id;
   return found;
 end $$;
 
@@ -532,7 +621,10 @@ declare
 begin
   select * into c from @SCHEMA@.ctx();
   perform @SCHEMA@.auth_session_required(c.account);
-  update @SCHEMA@.secret s set expires_at = greatest(s.expires_at, clock_timestamp() + p_ttl)
+  -- не дольше срока, выданного при входе (meta.ttl): продление не делает сессию вечной (ревью этапа 5)
+  update @SCHEMA@.secret s
+     set expires_at = greatest(s.expires_at, clock_timestamp()
+           + least(coalesce(p_ttl, interval '7 days'), coalesce((s.meta->>'ttl')::interval, interval '7 days')))
   where s.id = c.session returning s.expires_at into e;
   return e;
 end $$;
@@ -567,6 +659,7 @@ begin
   acc := coalesce(p_account, c.account);
   if acc <> c.account or c.service is not null then
     perform @SCHEMA@.acl_require('auth.session');
+    perform @SCHEMA@.auth_guard(acc);
   end if;
   return @SCHEMA@.auth_kill(acc, null);
 end $$;
@@ -627,10 +720,10 @@ declare f text;
 begin
   foreach f in array array[
     'auth_recent()', 'auth_kind_ok(text)', 'auth_session_required(uuid)', 'auth_can_manage(uuid)', 'auth_target_ok(uuid)', 'auth_enabled(uuid)',
-    'auth_kill(uuid, uuid)', 'issue_session(uuid, interval, text[])', 'auth_password_get(text, text)',
+    'auth_kill(uuid, uuid)', 'auth_guard(uuid)', 'auth_is_sysadmin()', 'auth_may_confirm()', 'issue_session(uuid, interval, text[])', 'auth_password_get(text, text)',
     'auth_set_password(uuid, text, text, text, boolean, boolean)', 'auth_issue_apikey(uuid, text, interval)',
-    'auth_issue_keysecret(uuid, text)', 'auth_login_apikey(text)', 'login_keysecret(text, text)', 'auth_issue_otp(uuid, text, text, interval, int)',
-    'login_otp(text, text, text, int)', 'totp_code(bytea, bigint)', 'auth_enroll_totp(uuid)', 'auth_verify_totp(uuid, text, int)',
+    'auth_issue_keysecret(uuid, text)', 'auth_login_apikey(text)', 'login_keysecret(text, text)', 'auth_issue_otp(uuid, text, text, interval, int, int)',
+    'login_otp(text, text, text)', 'totp_code(bytea, bigint)', 'auth_enroll_totp(uuid)', 'auth_verify_totp(uuid, text, int)',
     'auth_totp_enabled(uuid)', 'auth_link(uuid, text, text, jsonb, boolean)', 'auth_lookup(text, text, boolean)',
     'auth_credentials(uuid)', 'auth_revoke_credential(uuid, boolean)', 'auth_set_flags(uuid, boolean, boolean)',
     'auth_refresh(interval)', 'auth_logout()', 'auth_logout_all(uuid)', 'auth_switch(uuid)', 'auth_tenants()'] loop
@@ -638,13 +731,15 @@ begin
     execute format('revoke all on function @SCHEMA@.%s from public', f);
   end loop;
 end $$;
--- до этапа 5 выпуск сессии сервисом принимал два аргумента
+-- до этапа 5 выпуск сессии сервисом принимал два аргумента; ранние сигнатуры OTP этапа 5
 drop function if exists @SCHEMA@.issue_session(uuid, interval);
+drop function if exists @SCHEMA@.auth_issue_otp(uuid, text, text, interval, int);
+drop function if exists @SCHEMA@.login_otp(text, text, text, int);
 grant execute on function
   @SCHEMA@.issue_session(uuid, interval, text[]), @SCHEMA@.auth_password_get(text, text),
   @SCHEMA@.auth_set_password(uuid, text, text, text, boolean, boolean), @SCHEMA@.auth_issue_apikey(uuid, text, interval),
-  @SCHEMA@.auth_issue_keysecret(uuid, text), @SCHEMA@.auth_login_apikey(text), @SCHEMA@.login_keysecret(text, text), @SCHEMA@.auth_issue_otp(uuid, text, text, interval, int),
-  @SCHEMA@.login_otp(text, text, text, int), @SCHEMA@.auth_enroll_totp(uuid), @SCHEMA@.auth_verify_totp(uuid, text, int),
+  @SCHEMA@.auth_issue_keysecret(uuid, text), @SCHEMA@.auth_login_apikey(text), @SCHEMA@.login_keysecret(text, text), @SCHEMA@.auth_issue_otp(uuid, text, text, interval, int, int),
+  @SCHEMA@.login_otp(text, text, text), @SCHEMA@.auth_enroll_totp(uuid), @SCHEMA@.auth_verify_totp(uuid, text, int),
   @SCHEMA@.auth_totp_enabled(uuid), @SCHEMA@.auth_link(uuid, text, text, jsonb, boolean), @SCHEMA@.auth_lookup(text, text, boolean),
   @SCHEMA@.auth_credentials(uuid), @SCHEMA@.auth_revoke_credential(uuid, boolean), @SCHEMA@.auth_set_flags(uuid, boolean, boolean),
   @SCHEMA@.auth_refresh(interval), @SCHEMA@.auth_logout(), @SCHEMA@.auth_logout_all(uuid), @SCHEMA@.auth_switch(uuid),

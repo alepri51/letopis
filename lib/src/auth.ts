@@ -128,9 +128,9 @@ export interface AuthApi {
   verifyTotp(a: { account: AccountRef; code: string; window?: number }): Promise<boolean>;
   totpEnabled(account: AccountRef): Promise<boolean>;
   /** Одноразовый код для доставки сервисом (право auth.otp). */
-  issueOtp(a: { account: AccountRef; identifier: string; kind?: string; ttl?: number; digits?: number }): Promise<{ code: string }>;
-  /** Вход по одноразовому коду: успех и перебор сжигают код. */
-  verifyOtp(a: { identifier: string; code: string; kind?: string; maxAttempts?: number }): Promise<LoginResult | null>;
+  issueOtp(a: { account: AccountRef; identifier: string; kind?: string; ttl?: number; digits?: number; maxAttempts?: number }): Promise<{ code: string }>;
+  /** Вход по одноразовому коду: успех и перебор (лимит задал выпуск, 1–10, по умолчанию 5) сжигают код. */
+  verifyOtp(a: { identifier: string; code: string; kind?: string }): Promise<LoginResult | null>;
   /** Внешняя identity (TELEGRAM, GOOGLE, SSO): токен проверяет сервис, здесь — связка. */
   link(a: { account: AccountRef; kind: string; identifier: string; meta?: Record<string, unknown>; confirmed?: boolean }): Promise<string>;
   /** Вход по identity — для сервиса с правами auth.identity и auth.session. */
@@ -218,13 +218,12 @@ function makeAuthCore(S: string, exec: Executor, onSwitch: () => Promise<void>, 
       return (await one<{ ok: boolean }>(`select ${S}.auth_totp_enabled($1::uuid) as ok`, [accId(account)])).ok;
     },
     async issueOtp(a) {
-      const r = await one<{ c: string }>(`select ${S}.auth_issue_otp($1::uuid, $2, $3, coalesce($4::interval, interval '10 minutes'), $5) as c`,
-        [accId(a.account), a.identifier, a.kind ?? 'OTP', ttlOf(a.ttl), a.digits ?? 6]);
+      const r = await one<{ c: string }>(`select ${S}.auth_issue_otp($1::uuid, $2, $3, coalesce($4::interval, interval '10 minutes'), $5, $6) as c`,
+        [accId(a.account), a.identifier, a.kind ?? 'OTP', ttlOf(a.ttl), a.digits ?? 6, a.maxAttempts ?? 5]);
       return { code: r.c };
     },
     async verifyOtp(a) {
-      return (await one<{ r: LoginResult | null }>(`select ${S}.login_otp($1, $2, $3, $4) as r`,
-        [a.identifier, a.code, a.kind ?? 'OTP', a.maxAttempts ?? 5])).r;
+      return (await one<{ r: LoginResult | null }>(`select ${S}.login_otp($1, $2, $3) as r`, [a.identifier, a.code, a.kind ?? 'OTP'])).r;
     },
     async link(a) {
       return (await one<{ id: string }>(`select ${S}.auth_link($1::uuid, $2, $3, $4::jsonb, $5) as id`,

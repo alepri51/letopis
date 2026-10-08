@@ -149,3 +149,11 @@ test('7.3.8 №5: проверка acl_ok встроена в план запр�
   assert.ok(!/acl_ok\(/.test(plan), plan);
   assert.match(plan, /jsonb_build_object/, 'тело acl_ok подставлено в условие');
 });
+
+test('ревью этапа 5: правило арендатора с любым весом не перевесит административный запрет System (вес ≥ 1000)', async () => {
+  const auth = await (await import('./_access.js')).sysRes(e, 'authenticated:ACCOUNT');
+  const ban = await resource(e, '2eba6d0a-1edd-4bb6-a85a-a703dab49035', 'pin-ban:WRITE', 'WRITE', { class: 'Pin' });
+  await rule(e, '2eba6d0a-1edd-4bb6-a85a-a703dab49035', auth, ban, 'deny', 1000);
+  await rule(e, org, auth, await resource(e, org, 'pin-all:WRITE', 'WRITE', { class: 'Pin' }), 'allow', 1_000_000);
+  await assert.rejects(dc.Pin().create({ n: 7 }).rows(), code('acl_denied'));
+});

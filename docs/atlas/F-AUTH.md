@@ -10,8 +10,8 @@
 
 ## Прочие креды
 5. [P] `lib/sql/80-auth.sql:auth_issue_apikey` — `lts_` + 48 hex, в базе sha256, префикс в ident; вход — `login_apikey` (connect) или `auth_login_apikey`.
-6. [P] `lib/sql/80-auth.sql:login_otp` — строка кода под блокировкой: срок, счётчик попыток, успех и перебор сжигают код.
-7. [P] `lib/sql/80-auth.sql:auth_verify_totp` — `totp_code` (HMAC-SHA1 pgcrypto, шаг 30 с, окно ±1), повтор шага отклоняется, первая удача включает фактор и дописывает `TOTP` в способы входа сессии.
+6. [P] `lib/sql/80-auth.sql:login_otp` — только сервис с правом `auth.otp` (счётчик транзакционный); строка кода под блокировкой: срок, лимит попыток из выпуска, успех и перебор сжигают код.
+7. [P] `lib/sql/80-auth.sql:auth_verify_totp` — только сервис с правом `auth.totp`; `totp_code` (HMAC-SHA1 pgcrypto, шаг 30 с, окно не шире ±1), повтор шага отклоняется, пять неудач — блокировка на 5 минут, первая удача включает фактор.
 8. [P] `lib/sql/80-auth.sql:auth_lookup` — identity (`TELEGRAM`, …) по праву `auth.identity`.
 
 ## Сессии

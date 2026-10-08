@@ -97,12 +97,9 @@ test('7.3.8 №4: перечень функций владельца — search_
       assert.equal(r.r, null);
     },
     auth_issue_otp: () => assert.rejects(q(`select ${S}.auth_issue_otp($1, 'x@y')`, [t.id]), lt('acl_denied')),
-    login_otp: async () => {
-      const [r] = await e.as(null, (tx) => tx.unsafe(`select ${S}.login_otp('x@y', '000000') as r`));
-      assert.equal(r.r, null);
-    },
+    login_otp: () => assert.rejects(q(`select ${S}.login_otp('x@y', '000000')`), lt('acl_denied')),
     auth_enroll_totp: () => assert.rejects(q(`select ${S}.auth_enroll_totp($1)`, [SYSTEM_ID]), lt('acl_denied')),
-    auth_verify_totp: () => assert.rejects(q(`select ${S}.auth_verify_totp($1, '000000')`, [SYSTEM_ID]), lt('acl_denied')),
+    auth_verify_totp: () => assert.rejects(q(`select ${S}.auth_verify_totp($1, '000000')`, [t.id]), lt('acl_denied')),
     auth_totp_enabled: () => assert.rejects(q(`select ${S}.auth_totp_enabled($1)`, [SYSTEM_ID]), lt('acl_denied')),
     auth_link: () => assert.rejects(q(`select ${S}.auth_link($1, 'TELEGRAM', '1')`, [SYSTEM_ID]), lt('acl_denied')),
     auth_lookup: () => assert.rejects(q(`select ${S}.auth_lookup('TELEGRAM', '1')`), lt('acl_denied')),

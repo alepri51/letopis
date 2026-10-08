@@ -609,6 +609,10 @@ begin
   if (NEW.class = 'Class') <> (OLD.class = 'Class') then
     perform @SCHEMA@.lt_fail('invalid_class', 'строку Class нельзя превратить в данные и наоборот');
   end if;
+  -- строки прав не получаются сменой класса: аккаунт с категориями — только в System (ревью этапа 5)
+  if NEW.class <> OLD.class and (NEW.class in ('Account', 'member', 'Resource', 'rule') or OLD.class in ('Account', 'member', 'Resource', 'rule')) then
+    perform @SCHEMA@.lt_fail('reclass_denied', 'класс системной строки не меняется');
+  end if;
   cls := @SCHEMA@.class_row(NEW.class, OLD.tenant);
   if cls.id is null then
     perform @SCHEMA@.lt_fail('invalid_class', format('класс %s не найден', NEW.class));

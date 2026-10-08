@@ -183,7 +183,11 @@ as $$
 begin
   -- PL/pgSQL: план запроса кэшируется на сеанс (SQL-функция с set планировала бы его на каждый вызов)
   return query
-  select x.id, coalesce((x.data->>'weight')::numeric, 0), coalesce(x.data->>'permission', 'deny') <> 'allow',
+  -- вес правила арендатора — не больше 999: правила System с весом от 1000 — административный слой
+  -- (бан), который арендатор своими правилами не перевесит (ревью этапа 5)
+  select x.id, case when x.tenant = '@SYSTEM@'::uuid then coalesce((x.data->>'weight')::numeric, 0)
+                    else least(coalesce((x.data->>'weight')::numeric, 0), 999) end,
+         coalesce(x.data->>'permission', 'deny') <> 'allow',
          o.data->>'alias', o.data->'pattern', g.data->>'alias', x.data->'code', x.data->>'message'
   from @SCHEMA@.entity x
   join @SCHEMA@.entity g on g.id = (x.links->>'Group')::uuid and g.class = 'Resource'

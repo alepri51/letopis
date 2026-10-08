@@ -133,10 +133,11 @@ test('5.4 OTP: истёкший код, перебор, повтор успеш�
   const exp = await svc.auth.issueOtp({ account: anna.id, identifier: 'exp@salon.ru', ttl: 1 });
   await new Promise((r) => setTimeout(r, 1200));
   assert.equal(await svc.auth.verifyOtp({ identifier: 'exp@salon.ru', code: exp.code }), null);
-  const { code } = await svc.auth.issueOtp({ account: anna.id, identifier: 'brute@salon.ru' });
+  // лимит попыток задаёт выпуск кода (сервис), а не вход: вызывающий вход его не расширит
+  const { code } = await svc.auth.issueOtp({ account: anna.id, identifier: 'brute@salon.ru', maxAttempts: 3 });
   const wrong = code === '000000' ? '111111' : '000000';
-  for (let i = 0; i < 3; i++) assert.equal(await svc.auth.verifyOtp({ identifier: 'brute@salon.ru', code: wrong, maxAttempts: 3 }), null);
-  assert.equal(await svc.auth.verifyOtp({ identifier: 'brute@salon.ru', code, maxAttempts: 3 }), null, 'после лимита код сожжён');
+  for (let i = 0; i < 3; i++) assert.equal(await svc.auth.verifyOtp({ identifier: 'brute@salon.ru', code: wrong }), null);
+  assert.equal(await svc.auth.verifyOtp({ identifier: 'brute@salon.ru', code }), null, 'после лимита код сожжён');
   const fresh = await svc.auth.issueOtp({ account: anna.id, identifier: 'once@salon.ru' });
   assert.equal((await svc.auth.verifyOtp({ identifier: 'once@salon.ru', code: fresh.code }))?.account, anna.id);
   assert.equal(await svc.auth.verifyOtp({ identifier: 'once@salon.ru', code: fresh.code }), null, 'повтор успешного кода');
@@ -145,13 +146,15 @@ test('5.4 OTP: истёкший код, перебор, повтор успеш�
   await assert.rejects(user.auth.issueOtp({ account: anna.id, identifier: 'self@salon.ru' }), (err: { code?: string }) => err.code === 'acl_denied');
 });
 
-test('5.5 TOTP: первая проверка включает фактор, повтор того же шага — отказ', async () => {
-  const user = await open({ token: await session(e, anna.id) });
+test('5.5 TOTP: первая проверка включает фактор, повтор того же шага — отказ; проверяет сервис', async () => {
+  const user = await open({ token: await session(e, anna.id, { methods: ['PASSWORD'] }) });
   const { secret } = await user.auth.enrollTotp({ account: anna.id });
   const code = totpCode(secret);
-  assert.equal(await user.auth.verifyTotp({ account: anna.id, code }), true);
+  // сам пользователь коды не проверяет: счётчик неудач снимался бы откатом к точке сохранения
+  await assert.rejects(user.auth.verifyTotp({ account: anna.id, code }), (err: { code?: string }) => err.code === 'acl_denied');
+  assert.equal(await svc.auth.verifyTotp({ account: anna.id, code }), true);
   assert.equal(await user.auth.totpEnabled(anna.id), true);
-  assert.equal(await user.auth.verifyTotp({ account: anna.id, code }), false, 'повтор шага');
+  assert.equal(await svc.auth.verifyTotp({ account: anna.id, code }), false, 'повтор шага');
 });
 
 test('5.6 гашение сессий: срок, выход, выход везде, отключение, смена пароля, удаление креда, удаление аккаунта', async () => {
@@ -176,6 +179,7 @@ test('5.6 гашение сессий: срок, выход, выход везд
   const cur = await session(e, u.id);
   const other = await session(e, u.id);
   const self = await open({ token: cur });
+  await e.sql.unsafe(`update ${S}.secret set meta = meta || '{"methods": ["PASSWORD"]}' where kind = 'SESSION' and material = sha256(convert_to($1, 'UTF8'))`, [cur]);
   await self.auth.setPassword({ account: u.id, identifier: 'vera@salon.ru', password: 'Первый-1' });
   await self.auth.setPassword({ account: u.id, identifier: 'vera@salon.ru', password: 'Второй-2' });
   assert.equal(await alive(cur), true, 'текущая сессия при смене пароля');
@@ -219,4 +223,40 @@ test('недавний вход: свой кред без недавнего в�
   assert.match(sig ?? '', /^session:[0-9a-f]{16}$/);
   assert.ok(!seen.some((x) => x.includes(u.id) || x.includes(old)), 'ни id, ни токена в сигналах');
   await assert.rejects(sqlAs(e, null)(`select ${S}.auth_logout()`), lt('no_session'));
+});
+
+test('ревью этапа 5: креды привилегированных аккаунтов, самоподтверждение, окно и блокировка TOTP, предел продления, лимит OTP', async () => {
+  const admin = await sysadmin(e);
+  const adminDb = await open({ token: admin.token });
+  const svc2 = await account(e, 'Другой сервис', { categories: ['Service'] });
+  // сервис не привязывает себе вход под System, другим сервисом или системным администратором
+  for (const [label, target] of [['System', SYSTEM_ID], ['сервис', svc2.id], ['администратор', admin.id]]) {
+    await assert.rejects(svc.auth.setPassword({ account: target, identifier: `x-${label}@salon.ru`, password: 'p' }), (err: { code?: string }) => err.code === 'acl_denied', label);
+    await assert.rejects(svc.auth.issueApiKey({ account: target }), (err: { code?: string }) => err.code === 'acl_denied', label);
+    await assert.rejects(svc.auth.issueOtp({ account: target, identifier: `otp-${label}` }), (err: { code?: string }) => err.code === 'acl_denied', label);
+  }
+  // системный администратор — может
+  assert.match((await adminDb.auth.issueApiKey({ account: admin.id })).key, /^lts_/);
+  // свой кред аккаунт сам не подтверждает
+  const u = await account(e, 'Дина');
+  const self = await open({ token: await session(e, u.id, { methods: ['PASSWORD'] }) });
+  await self.auth.setPassword({ account: u.id, identifier: 'dina@salon.ru', password: 'Свой-1', confirmed: true });
+  assert.equal(await svc.auth.verifyPassword({ identifier: 'dina@salon.ru', password: 'Свой-1' }), null, 'не подтверждён');
+  await self.auth.link({ account: u.id, kind: 'TELEGRAM', identifier: 'dina-tg', confirmed: true });
+  assert.equal(await svc.auth.lookup({ kind: 'TELEGRAM', identifier: 'dina-tg' }), null, 'связка не подтверждена');
+  // TOTP: окно не шире шага; пять неудач — блокировка
+  const { secret } = await self.auth.enrollTotp({ account: u.id });
+  assert.equal(await svc.auth.verifyTotp({ account: u.id, code: totpCode(secret, Date.now() + 5 * 30_000), window: 100 }), false, 'окно ограничено');
+  for (let i = 0; i < 4; i++) await svc.auth.verifyTotp({ account: u.id, code: '000000' === totpCode(secret) ? '111111' : '000000' });
+  assert.equal(await svc.auth.verifyTotp({ account: u.id, code: totpCode(secret) }), false, 'после пяти неудач — блокировка');
+  // недавний вход по ключу API не даёт менять креды; при включённом TOTP нужен пройденный TOTP
+  const viaKey = await open({ token: await session(e, u.id, { methods: ['APIKEY'] }) });
+  await assert.rejects(viaKey.auth.issueApiKey({ account: u.id }), (err: { code?: string }) => err.code === 'acl_denied');
+  // продление — не дольше срока, выданного при входе
+  const exp = await self.auth.refresh({ ttl: 10 * 365 * 24 * 3600 });
+  assert.ok(Date.parse(exp) < Date.now() + 8 * 24 * 3600 * 1000, exp);
+  // лимит попыток OTP задаёт выпуск и ограничен десятью
+  await svc.auth.issueOtp({ account: u.id, identifier: 'dina-otp', maxAttempts: 1000 });
+  const [m] = await e.sql.unsafe(`select meta->>'max_attempts' as m from ${S}.secret where kind = 'OTP' and ident = 'dina-otp' and deleted_at is null`);
+  assert.equal(m.m, '10');
 });

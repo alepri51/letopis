@@ -113,7 +113,7 @@ declare
 begin
   insert into @SCHEMA@.secret (account, kind, material, meta, expires_at)
   values (p_account, 'SESSION', sha256(convert_to(tok, 'UTF8')),
-          coalesce(p_meta, '{}'::jsonb) || jsonb_build_object('login_at', clock_timestamp()),
+          coalesce(p_meta, '{}'::jsonb) || jsonb_build_object('login_at', clock_timestamp(), 'ttl', coalesce(p_ttl, interval '7 days')::text),
           clock_timestamp() + coalesce(p_ttl, interval '7 days'));
   return tok;
 end $$;
