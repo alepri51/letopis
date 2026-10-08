@@ -14,7 +14,7 @@ synced: 9f59434
 - «Уже существует» — код `exists`, id вычисляет `idOf`, а не текст ошибки сервера.
 - Результат `delete({ confirm })` — надгробия этой транзакции после метки (`log.tx = pg_current_xact_id()`, `seq > mark`; xid8eq leakproof — индекс `(tx, seq)` работает под RLS) плюс строки без журнала из `returning`; превью — `delete_preview()` (то же правило `ref_action`, что у триггера).
 - Продолжение плана: create и upsert — по строке результата, остальные глаголы — от всех строк сразу (`fromRows`); после удаления — от удалённых строк класса цели.
-- `runTx` (пул): `read committed`, служебные `set_config` конвейером с первым запросом (`.execute()`), повтор при 40P01, 40001, конфликте `log_id_rev`; обрыв связи после тела операции — `commit_unknown`, без повтора.
+- `runTx` (пул): своё зарезервированное соединение (`begin read committed`, служебные `set_config` и первый запрос — конвейером, `.execute()`), а не `sql.begin`: после гибели серверного процесса (FATAL) или обрыва сокета `rollback` не шлётся, а закрытое соединение не возвращается в пул (`release()` в tx.ts) — иначе postgres.js 3.4 роняет процесс необработанным `TypeError` в `nextWrite`. Повтор при 40P01, 40001, конфликте `log_id_rev`; обрыв после тела операции — `commit_unknown`, без повтора.
 - `ExplicitTx` (db.begin): зарезервированное соединение; ошибка любого запроса ломает транзакцию — каждый следующий вызов и `commit()` бросают исходную ошибку (тот же объект), `rollback()` проходит; ответ ROLLBACK на COMMIT — `tx_rolled_back`; 40P01 — с подсказкой повторить блок. `commit` и `rollback` идемпотентны.
 - Батч (`execBatch`): подряд простые create/upsert одного класса с ключом из полей данных — одна многострочная вставка (`jsonb_to_recordset`), create — `on conflict do nothing` (пропущенный id → `exists`), upsert — повтор id режет группу; create класса без ключа — `Promise.all` однострочных вставок (конвейер postgres.js).
 - Сигналы: `letopis.changed` читается перед фиксацией и уходит в `Notifier` (решение 9 точки А) — и в пуле, и в `ExplicitTx.commit`.
@@ -30,7 +30,7 @@ synced: 9f59434
 - Новый код ошибки библиотеки — README (каталог ошибок), `docs/api-contract.json`.
 
 **Проверка**
-- `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `chain-write`, `tx`, `load`.
+- `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `chain-write`, `tx`, `load`, `balance` (обрыв связи — `test/_proxy.ts`, подключению через прокси нужен `prepare: false`: иначе `commit` уходит по имени подготовленного оператора, без текста).
 
 **Точки входа**
 - `lib/src/write.ts:execPlan` — исполнение плана
