@@ -47,6 +47,10 @@
     "dist",
     "sql",
     "README.md",
+    "README.en.md",
+    "AGENT-CHEATSHEET.md",
+    "AGENT-CHEATSHEET.en.md",
+    "llms.txt",
     "CHANGELOG.md",
     "MIGRATION.md",
     "LICENSE"

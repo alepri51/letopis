@@ -21,7 +21,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 | Процесс | Где | Режим | Вход |
 |---|---|---|---|
 | Тесты | `cd lib && npm test` (concurrency 1) | обвязка сама поднимает контейнер `letopis-pg18` (`postgres:18`, порт 15433); `ENTITY_DSN`, `ENTITY_APP_DSN`; схема `v2.t_<файл>` на тестовый файл | `lib/test/_harness.ts` |
-| Сверка документов | `cd lib && npm run check:docs` | без БД: версия, ссылки, README §16, ревизия, бенч, контракт API, зарезервированные имена | `lib/scripts/check-docs.mjs` |
+| Сверка документов | `cd lib && npm run check:docs` | без БД: версия, ссылки и якоря, управляющие символы, раздел «Тесты» README (ru, en), ревизия, бенч, контракт API, зарезервированные имена, структура и английские версии | `lib/scripts/check-docs.mjs` |
 | Проверка пакета | `cd lib && npm run check:package` | собирает тарбол, ставит в чистую папку, импортирует экспорты из контракта, живой прогон на `ENTITY_DSN` (`LETOPIS_PKG_LIVE=1` — обязателен) | `lib/scripts/check-package.mjs` |
 | Импорт полигона 0.21 | `cd lib && npm run test:import-salon` | засевка 0.21, `up({ fresh })` 1.0, импорт, сверка объектов и версий, `verify()`; код 1 при расхождении | `lib/bench/import-salon.mjs` |
 | Бенч против 0.21 | `cd lib && npx tsx bench/compare.bench.mjs` (`BENCH_SCALE=0.1` — быстро) | 0.21 — dev-зависимость `letopis-0` (`npm:letopis@0.21.0`) на контейнере `letopis-timescale`, порт 15432; итог — `bench/results/compare.md` | `lib/bench/compare.bench.mjs` |
@@ -63,7 +63,8 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 ## Сквозные правила
 - Деплой (CLAUDE.md): пуш только в dev → PR dev→main → merge → тег (tag.yml) → публикация Release → npm. Выпуск 1.0.0 — только по команде владельца.
 - Утверждения о поведении — только по коду и тестам; планы — в `reports/PLAN-LETOPIS-1.0.md`.
-- В одном коммите с кодом обновляются карточка модуля, трасса, список тестов в `lib/README.md` §16 и контракт API (`cd lib && npm run api:contract`), если изменились экспорты, методы или тексты ошибок; связность ловит `cd lib && npm run check:docs`.
+- В одном коммите с кодом обновляются карточка модуля, трасса, список тестов в разделе «Тесты» `lib/README.md` и `lib/README.en.md` и контракт API (`cd lib && npm run api:contract`), если изменились экспорты, методы или тексты ошибок; связность ловит `cd lib && npm run check:docs`.
+- Документация пакета двуязычная: правка `lib/README.md` или `lib/AGENT-CHEATSHEET.md` — та же правка в `.en.md`; помеченные примеры (`<!-- run -->`) исполняет тест `docs`.
 
 ## Трассы
 `docs/atlas/F-*.md` — все описывают 1.0: F-READ (чтение), F-WRITE и F-DELETE (запись и удаление), F-ACCESS и F-AUTH (права и вход), F-WATCH (подписка, кэш), F-BOOT (установка и `up()`), F-RELEASE (от коммита до npm).
@@ -73,9 +74,10 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 |---|---|---|
 | `reports/PLAN-LETOPIS-1.0.md` | план и спецификация 1.0, редакция 8 (решения точки А — в шапке) | по разделам: §2 решения, §5 этапы, §7 тест-планы |
 | `reports/PROPOSAL-SVOD.md` | предложение «Свод», основание плана | по разделам |
-| `lib/README.md` | руководство 1.0 | §3 — зарезервированные имена, §11 — API, §16 — список тестов |
+| `lib/README.md` | руководство 1.0 по задачам; английская версия — `lib/README.en.md` | по оглавлению; «Справочник API» (в нём «Зарезервированные имена»), «Ошибки», «Тесты» |
 | `lib/MIGRATION.md` | переход с 0.21 на 1.0 | по заголовку |
-| `AGENT-CHEATSHEET.md` | шпаргалка для агента-пользователя пакета | целиком |
+| `lib/AGENT-CHEATSHEET.md` | шпаргалка для агента-пользователя пакета (входит в пакет); английская — `lib/AGENT-CHEATSHEET.en.md` | целиком |
+| `lib/llms.txt` | указатель пакета для языковых моделей (входит в пакет) | целиком |
 | `lib/CHANGELOG.md` | решения по версиям; версия = `lib/package.json` | grep `## \[` |
 | `docs/api-contract.json` | машинный контракт API, генерируется | grep имени |
 | `docs/checkpoint-a.md` | замеры точки А | по серии |

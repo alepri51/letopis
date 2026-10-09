@@ -21,7 +21,7 @@ synced: c789517
 
 **Что ещё менять вместе**
 - Новый экспорт — `lib/src/index.ts`, `cd lib && npm run api:contract`, `npm run check:package`.
-- Новое свойство корня db — `DB_METHODS` (`types.ts`) и README §3.
+- Новое свойство корня db — `DB_METHODS` (`types.ts`) и раздел «Зарезервированные имена» README (обе версии).
 
 **Проверка**
 - `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `connect`, `chain-read`, `chain-write`, `chain-api`, `chain-types`, `tx`.
