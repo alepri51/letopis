@@ -383,13 +383,16 @@ begin
 end $$;
 
 -- Безопасно ли изменение описания класса (этап 1, п. 10): новые необязательные поля и концы,
--- метаданные, алиас, политика истории, кэш. Всё остальное — ужесточение с проверкой строк.
+-- метаданные, алиас, политика истории, кэш. Всё остальное — ужесточение с проверкой строк, в том числе
+-- любая правка условий anyOf и oneOf (1.0.1: прежде они не сравнивались, и строки не перепроверялись).
 create or replace function @SCHEMA@.class_change_safe(o jsonb, n jsonb) returns boolean
 language sql immutable
 return
   o->'key' = n->'key'
   and o->'ancestors' = n->'ancestors'
   and (o->'abstract' = n->'abstract' or n->>'abstract' = 'false')
+  and o->'schema'->'anyOf' is not distinct from n->'schema'->'anyOf'
+  and o->'schema'->'oneOf' is not distinct from n->'schema'->'oneOf'
   and coalesce(o->'schema'->'required', '[]'::jsonb) @> coalesce(n->'schema'->'required', '[]'::jsonb)
   and not exists (select 1 from jsonb_each(coalesce(o->'schema'->'properties', '{}'::jsonb)) p
                   where n->'schema'->'properties'->p.key is distinct from p.value)

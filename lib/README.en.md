@@ -477,7 +477,8 @@ name of the class for a chain step, for example a name in another language.
 `syncModels(db, models)` without `apply` is a dry run; with `{ apply: true }` it applies the changes. The result is
 `{ applied, created, updated, unchanged, skipped, lost }`; `skipped` lists System classes, which only the installation
 changes. `syncModels` touches only the classes passed to it and deletes nothing. Safe changes (a new optional field or
-end, metadata, an alias) are applied at once. A tightening checks all rows of the family; if some rows conflict with it, you get
+end, metadata, an alias) are applied at once. Anything else, including any change to the `anyOf` and `oneOf` conditions, is a
+tightening: it checks all rows of the family; if some rows conflict with it, you get
 `tightening_conflict` with a list. Classes are written to the session tenant, and other tenants do not see them.
 Classes shared by everyone are in System: the installation seed or the import puts them there.
 

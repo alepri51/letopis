@@ -132,6 +132,23 @@ test('ужесточение и безопасные изменения (эта�
   await assert.rejects(ins('Abs', {}), lt('invalid_class'));
 });
 
+test('правка anyOf и oneOf — ужесточение с проверкой строк (1.0.1)', async () => {
+  for (const kw of ['anyOf', 'oneOf']) {
+    const name = `Cond${kw}`;
+    await def(hub(name, { a: { type: 'string' }, b: { type: 'string' } }));
+    const row = await ins(name, { a: 'x' });
+    // строка без b не проходит новое условие — отказ с перечнем, описание не изменилось
+    const err = await patchClass(name, { fields: { [kw]: [{ required: ['b'] }] } }).then(() => null, (x) => x);
+    assert.ok(err, `${kw}: правка, которой мешает строка, принята`);
+    lt('tightening_conflict')(err);
+    assert.deepEqual(JSON.parse(err.detail).rows.map((x: { id: string }) => x.id), [row.id]);
+    assert.equal((await cls(name)).data.resolved.schema[kw], undefined);
+    // условие, которому строки соответствуют, принимается
+    await patchClass(name, { fields: { [kw]: [{ required: ['a'] }] } });
+    assert.deepEqual((await cls(name)).data.resolved.schema[kw], [{ required: ['a'] }]);
+  }
+});
+
 test('7.3.4 №11: однозначность имени конца во всей схеме', async () => {
   await def(hub('E1'));
   await def(hub('E2'));
