@@ -3,7 +3,7 @@
 > Карта говорит, где смотреть; истина — код. Нашёл расхождение — поправь карту в том же изменении.
 
 ## Паспорт
-**letopis 1.0 выпущена**: `main` — последний выпуск (тег `v` + версия из `lib/package.json`, npm `latest`); разработка — в ветке `dev`. Версия — в `lib/package.json` (= верхняя запись `lib/CHANGELOG.md`); версии с дефисом (`1.1.0-rc.1`) уходят в npm под dist-tag `next`. Выпуск — только по команде владельца. Спецификация 1.0 — `reports/PLAN-LETOPIS-1.0.md` (редакция 8, выполнена): девять этапов, контрольные точки А, Б, В.
+**letopis 1.0 выпущена**: `main` — последний выпуск (тег `v` + версия из `lib/package.json`, npm `latest`); разработка — в ветке `dev`. Версия — в `lib/package.json` (= верхняя запись `lib/CHANGELOG.md`); версии с дефисом (`1.1.0-rc.1`) уходят в npm под dist-tag `next`. Выпуск — только по команде владельца. Спецификация 1.0 — `reports/PLAN-LETOPIS-1.0.md` (редакция 8, выполнена): девять этапов, контрольные точки А, Б, В. План 1.1 и 1.2 (раздел 13 плана 1.0 без партиций и порта на Python) — `reports/PLAN-LETOPIS-1.1.md`, к исполнению не утверждён.
 npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) — хранилище версионированных сущностей на PostgreSQL 18: три таблицы (`entity`, `log`, `secret`), целостность, арендаторы и права проверяет база (триггеры и RLS), поверх — цепочки `t.Класс(фильтр).Связь().rows()`. Рантайм-зависимость одна — `postgres`; необязательные peer-зависимости: Zod 4 (`letopis/model`), `@electric-sql/pglite` и `@electric-sql/pglite-socket` (`up({ pglite })` для разработки без PostgreSQL). CLI `letopis`: `sync`, `types`, `load`, `verify`, `maintain`, `describe`, `import` (`lib/src/cli.ts`).
 Код 0.21 доступен по тегу: `git show v0.21.0:lib/src/sql.ts`. Эталоны 0.21 для дифференциальных тестов — `lib/test/oracle/`; переход с 0.21 — `lib/MIGRATION.md`.
 
@@ -62,7 +62,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 
 ## Сквозные правила
 - Деплой (CLAUDE.md): пуш только в dev → PR dev→main → merge → тег (tag.yml) → публикация Release → npm. Выпуск — только по команде владельца.
-- Утверждения о поведении — только по коду и тестам; планы — в `reports/PLAN-LETOPIS-1.0.md`.
+- Утверждения о поведении — только по коду и тестам; планы — в `reports/PLAN-LETOPIS-1.0.md` и `reports/PLAN-LETOPIS-1.1.md`.
 - В одном коммите с кодом обновляются карточка модуля, трасса, список тестов в разделе «Тесты» `lib/README.md` и `lib/README.en.md` и контракт API (`cd lib && npm run api:contract`), если изменились экспорты, методы или тексты ошибок; связность ловит `cd lib && npm run check:docs`.
 - Документация пакета двуязычная: правка `lib/README.md` или `lib/AGENT-CHEATSHEET.md` — та же правка в `.en.md`; помеченные примеры (`<!-- run -->`) исполняет тест `docs`.
 
@@ -73,6 +73,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 | Документ | Что это | Как читать |
 |---|---|---|
 | `reports/PLAN-LETOPIS-1.0.md` | план и спецификация 1.0, редакция 8 (решения точки А — в шапке) | по разделам: §2 решения, §5 этапы, §7 тест-планы |
+| `reports/PLAN-LETOPIS-1.1.md` | план 1.1 и 1.2: diff/blame, интервалы, сигналы, первая заливка, ПД, производные представления, MCP; не утверждён | по разделам: §2 решения со сравнением с другими системами, §5 этапы, §6 контрольные точки, §7 тест-планы |
 | `reports/PROPOSAL-SVOD.md` | предложение «Свод», основание плана | по разделам |
 | `lib/README.md` | руководство 1.0 по задачам; английская версия — `lib/README.en.md` | по оглавлению; «Справочник API» (в нём «Зарезервированные имена»), «Ошибки», «Тесты» |
 | `lib/MIGRATION.md` | переход с 0.21 на 1.0 | по заголовку |
@@ -84,4 +85,4 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 | `BACKLOG.md`, `COMPARISON.md` | бэклог и сравнение с аналогами (0.19–0.21) | по заголовку |
 
 ## Не читать
-`lib/node_modules/`, `lib/dist/` (сборка), `lib/package-lock.json`, `reports/` кроме `PLAN-LETOPIS-1.0.md`, `PROPOSAL-SVOD.md`, `PROPOSAL-SVITOK.md`, `ZAPIS-CONCEPT.md` (остальное — снимок оценки от 2026-09-24, не источник истины), `.env` (секреты другого проекта), `RESEARCH.md` (исторический, проект под старым именем entity-chain).
+`lib/node_modules/`, `lib/dist/` (сборка), `lib/package-lock.json`, `reports/` кроме `PLAN-LETOPIS-1.0.md`, `PLAN-LETOPIS-1.1.md`, `PROPOSAL-SVOD.md`, `PROPOSAL-SVITOK.md`, `ZAPIS-CONCEPT.md` (остальное — снимок оценки от 2026-09-24, не источник истины), `.env` (секреты другого проекта), `RESEARCH.md` (исторический, проект под старым именем entity-chain).
