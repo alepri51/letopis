@@ -2,7 +2,7 @@
 paths:
   - 'lib/sql/{20-context,50-acl,80-auth}.sql'
   - 'lib/src/{auth,acl}.ts'
-synced: c789517
+synced: 3033e57
 ---
 # M-ACCESS — контекст, сессии, ACL и RLS, креды и вход (этапы 1, 5)
 

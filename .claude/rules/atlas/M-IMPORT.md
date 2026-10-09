@@ -2,7 +2,7 @@
 paths:
   - 'lib/src/import.ts'
   - 'lib/test/fixtures/gen-v021.mjs'
-synced: 5e89882
+synced: 3033e57
 ---
 # M-IMPORT — импорт из letopis 0.21 (этап 7)
 

@@ -2,7 +2,7 @@
 paths:
   - 'lib/sql/70-read.sql'
   - 'lib/src/{sql,ops}.ts'
-synced: 0420dc7
+synced: 3033e57
 ---
 # M-QUERY — поиск id под RLS (find_*) и построитель чтения
 

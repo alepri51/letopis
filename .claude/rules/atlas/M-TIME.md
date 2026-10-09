@@ -2,7 +2,7 @@
 paths:
   - 'lib/sql/90-time.sql'
   - 'lib/src/{watch,admin,cache}.ts'
-synced: 2e5bcbd
+synced: 3033e57
 ---
 # M-TIME — история, хранение, подписка, кэш, сброс, обслуживание (этап 6)
 
