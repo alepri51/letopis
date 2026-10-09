@@ -156,9 +156,14 @@ test('7.9 висячая ссылка 0.21: живая запись ссылае
     from (select id from $F."Entity" where class = 'Customer' and deleted is not null) g
     where e.class = 'booking' and e.updated = (select max(updated) from $F."Entity" where class = 'booking')`);
   await target();
-  await assert.rejects(run({ keyless: ['Service'] }), (e: Error & { code?: string; detail?: { rows: { class: string; code: string }[] } }) => {
+  type Detail = { rows: { class: string; code: string }[]; total?: number; truncated?: boolean; limit?: number; complete?: boolean; notes?: unknown[] };
+  await assert.rejects(run({ keyless: ['Service'] }), (e: Error & { code?: string; detail?: Detail }) => {
     assert.equal(e.code, 'target_not_found');
-    assert.ok(e.detail!.rows.some((x) => x.class === 'booking' && x.code === 'target_not_found'), JSON.stringify(e.detail));
+    const d = e.detail!;
+    assert.ok(d.rows.some((x) => x.class === 'booking' && x.code === 'target_not_found'), JSON.stringify(d));
+    // счёт и полнота отчёта загрузчика доходят до вызывающего вместе со строками 0.21 и заметками
+    assert.deepEqual([d.total, d.truncated, d.limit, d.complete], [d.rows.length, false, 100, true], JSON.stringify(d));
+    assert.ok(Array.isArray(d.notes));
     return true;
   });
 });

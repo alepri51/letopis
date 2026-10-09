@@ -8,6 +8,8 @@
 --   rule (связь Group → Resource, Object → Resource, ключ [Group, Object]) — data { permission, weight,
 --     enabled, code, message }.
 --   Маска: сегменты через точку, {a,b} — альтернативы (вложенные можно), * — хвост из 1+ сегментов.
+--   Маски categories, roles, endpoint и class — только строки (описание класса Resource, 95-seed);
+--   строка, записанная в обход проверки с маской не строкой, разрешений не даёт (в 0.21 совпадала со всеми).
 -- Решение — ровно одно правило: наибольший вес; при равном весе запрет сильнее разрешения; из равных —
 -- объект с меньшим alias; нет правил — запрет.
 --
@@ -86,7 +88,9 @@ create or replace function @SCHEMA@.acl_mask_ok(p_mask text, p_value text) retur
 language sql immutable parallel safe
 return p_value ~ ('^' || @SCHEMA@.acl_mask_re(p_mask) || '$');
 
--- Шаблон множества "{A,B}" | "!{A,B}" против значений (matchCategories, acl.ts:51): не строка — совпадает.
+-- Шаблон множества "{A,B}" | "!{A,B}" против значений (matchCategories, acl.ts:51). Маска — только строка
+-- (описание класса Resource); не строка — null, «неизвестно» (в 0.21 совпадала со всеми): строка,
+-- записанная в обход проверки, разрешений не даёт, а запрет по ней действует на всех, как прежде (acl_rules).
 create or replace function @SCHEMA@.acl_set_ok(p_spec jsonb, p_have text[]) returns boolean
 language plpgsql immutable parallel safe
 as $$
@@ -96,7 +100,7 @@ declare
   list text[];
 begin
   if jsonb_typeof(p_spec) is distinct from 'string' then
-    return true;
+    return null;
   end if;
   s := p_spec #>> '{}';
   neg := left(s, 1) = '!';
@@ -106,18 +110,21 @@ begin
 end $$;
 
 -- Группа (Resource ACCOUNT) против субъекта. p_same — правило того же арендатора, что и рабочий:
--- только тогда учитываются роли членства.
+-- только тогда учитываются роли членства. null — решает маска не строкой (acl_set_ok).
 create or replace function @SCHEMA@.acl_group_ok(p_pat jsonb, p_cats text[], p_roles text[], p_same boolean) returns boolean
 language sql immutable parallel safe
 return p_pat is null or jsonb_typeof(p_pat) <> 'object'
     or ((not (p_pat ? 'categories') or @SCHEMA@.acl_set_ok(p_pat->'categories', p_cats))
         and (not (p_pat ? 'roles') or (p_same and @SCHEMA@.acl_set_ok(p_pat->'roles', p_roles))));
 
--- Объект строк (READ | WRITE | DELETE) против имён класса: класс, предки и их алиасы (matchesRow).
+-- Объект строк (READ | WRITE | DELETE) против имён класса: класс, предки и их алиасы (matchesRow). Нет
+-- маски — все классы; маска не строкой — null, как у acl_set_ok (acl_plan_for: разрешение по ней не
+-- действует, запрет — на все классы).
 create or replace function @SCHEMA@.acl_class_ok(p_pat jsonb, p_names text[]) returns boolean
 language sql immutable parallel safe
-return p_pat is null or jsonb_typeof(p_pat) <> 'object' or jsonb_typeof(p_pat->'class') is distinct from 'string'
-    or exists (select 1 from unnest(p_names) n where @SCHEMA@.acl_mask_ok(p_pat->>'class', n));
+return case when p_pat is null or jsonb_typeof(p_pat) <> 'object' or not (p_pat ? 'class') then true
+            when jsonb_typeof(p_pat->'class') <> 'string' then null
+            else exists (select 1 from unnest(p_names) n where @SCHEMA@.acl_mask_ok(p_pat->>'class', n)) end;
 
 -- Объект API против эндпоинта (matchesApi): нет pattern — все; pattern без строки endpoint — ни один.
 create or replace function @SCHEMA@.acl_endpoint_ok(p_pat jsonb, p_endpoint text) returns boolean
@@ -196,12 +203,15 @@ begin
     and (x.tenant = '@SYSTEM@'::uuid or (not p_system_only and x.tenant = p_tenant))
     and coalesce((x.data->>'enabled')::boolean, true)
     and g.data->>'category' = 'ACCOUNT' and o.data->>'category' = p_category
-    and @SCHEMA@.acl_group_ok(g.data->'pattern', p_cats, p_roles, x.tenant = p_tenant);
+    -- маска группы не строкой (null): разрешение не действует, запрет — на всех
+    and coalesce(@SCHEMA@.acl_group_ok(g.data->'pattern', p_cats, p_roles, x.tenant = p_tenant),
+                 coalesce(x.data->>'permission', 'deny') <> 'allow');
 end $$;
 
 -- План прав субъекта на операцию над строками: { <класс>: <условие> } по всем классам арендатора и
 -- System; запрещённых классов в плане нет. Маска класса разбирается один раз на правило: простое имя
--- сравнивается строкой, маска с {…} или * — регулярным выражением (как acl_class_ok).
+-- сравнивается строкой, маска с {…} или * — регулярным выражением (как acl_class_ok). Маска класса не
+-- строкой: разрешение отбрасывается, запрет совпадает со всеми классами.
 create or replace function @SCHEMA@.acl_plan_for(p_actor uuid, p_tenant uuid, p_cats text[], p_roles text[], p_op text)
 returns jsonb
 language plpgsql stable
@@ -213,7 +223,10 @@ begin
     select x.*, m.mask, case when m.mask ~ '[{*]' then '^' || @SCHEMA@.acl_mask_re(m.mask) || '$' end as re
     from @SCHEMA@.acl_rules(p_tenant, p_cats, p_roles, p_op, false) x
     cross join lateral (select case when jsonb_typeof(x.pattern) = 'object' and jsonb_typeof(x.pattern->'class') = 'string'
-                                    then x.pattern->>'class' end as mask) m
+                                    then x.pattern->>'class' end as mask,
+                               coalesce(jsonb_typeof(x.pattern) = 'object' and x.pattern ? 'class'
+                                        and jsonb_typeof(x.pattern->'class') <> 'string', false) as bad) m
+    where x.deny or not m.bad
   ), cl as (
     select c.data->>'name' as name, c.data->>'alias' as alias, c.data->'resolved'->'ancestors' as anc
     from @SCHEMA@.entity c

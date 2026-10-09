@@ -439,7 +439,10 @@ function checkTenant(opts: TenantOptions): string[] {
  * (sys_create, sys_grant_all). Нужно администраторское подключение (роль может стать владельцем);
  * всё — одной транзакцией от владельца. Повтор с тем же именем и логином ничего не дублирует:
  * id — v5 от имени и логина, существующие строки пропускаются (пароль и роли членства не меняются),
- * сессия выдаётся заново.
+ * сессия выдаётся заново. Удалённые арендатор, аккаунт пользователя или членство (строки нет, а
+ * журнал id есть) — отказ invalid_data, транзакция откатывается целиком: повтор не воскрешает то,
+ * что удалил администратор (up({ tenant }) идёт при каждом запуске), а sys_create пишет только
+ * версию 1 — её занимает история; вернуть строку — restore() цепочкой.
  */
 export async function createTenant(sql: postgres.Sql, schema: string, opts: TenantOptions, owner = 'letopis_owner'): Promise<TenantResult> {
   const roles = checkTenant(opts);
@@ -450,8 +453,16 @@ export async function createTenant(sql: postgres.Sql, schema: string, opts: Tena
   const hash = u ? await hashPassword(u.password) : null;
   return sql.begin(async (tx) => {
     await tx.unsafe(`set local role ${quoteIdent(owner)}`);
-    const exists = async (id: string) => (await tx.unsafe(`select 1 from ${S}.entity where id = $1::uuid`, [id])).length > 0;
-    const created = !(await exists(tenant));
+    /** Строка есть — true, не было — false; строки нет, а журнал id есть, — удалена: отказ gone (что и как вернуть). */
+    const exists = async (id: string, cls: 'Account' | 'member', gone: string) => {
+      const [r] = await tx.unsafe(`select exists (select 1 from ${S}.entity where id = $1::uuid) as live,
+          exists (select 1 from ${S}.log where id = $1::uuid) as was`, [id]);
+      if (!r.live && r.was) throw new LetopisError('invalid_data', `createTenant: ${gone}`, { id, class: cls });
+      return r.live as boolean;
+    };
+    const why = 'а его история осталась в журнале — повтор удалённое не воскрешает';
+    const created = !(await exists(tenant, 'Account', `арендатор «${opts.name}» (${tenant}) удалён, ${why}: `
+      + 'верните его db.Account(id).restore() от имени системного администратора или выберите другое имя'));
     if (created) {
       await tx.unsafe(`select ${S}.sys_create($1::uuid, 'Account', $2::uuid, '{}', $3::jsonb)`,
         [tenant, SYSTEM_ID, { name: opts.name, categories: [], enabled: true } as never]);
@@ -459,13 +470,15 @@ export async function createTenant(sql: postgres.Sql, schema: string, opts: Tena
     }
     let token: string | null = null;
     if (u && user) {
-      if (!(await exists(user))) {
+      if (!(await exists(user, 'Account', `аккаунт пользователя ${u.login} (${user}) удалён, ${why}: `
+        + 'верните его db.Account(id).restore() от имени системного администратора или выберите другой логин'))) {
         await tx.unsafe(`select ${S}.sys_create($1::uuid, 'Account', $2::uuid, '{}', $3::jsonb)`,
           [user, SYSTEM_ID, { name: u.name, categories: ['User'], enabled: true } as never]);
       }
       const member = (await tx.unsafe(`select ${S}.v5_id($1::uuid, 'member', array[$2::text, $1::text]) as id`, [tenant, user]))[0].id as string;
       // существующее членство не трогаем: повтор с другими ролями их не меняет (их правят правкой member)
-      if (!(await exists(member))) {
+      if (!(await exists(member, 'member', `членство ${u.login} в арендаторе «${opts.name}» (${member}) удалено, ${why}: `
+        + 'верните его db.member(id).restore() в этом арендаторе или выберите другой логин'))) {
         await tx.unsafe(`select ${S}.sys_create($1::uuid, 'member', $2::uuid, $3::jsonb, $4::jsonb)`,
           [member, tenant, { User: user, Tenant: tenant } as never, { roles } as never]);
       }

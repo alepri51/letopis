@@ -95,12 +95,16 @@ begin
       "ends": {"User": {"class": "Account", "required": true, "onDelete": "cascade"},
                "Tenant": {"class": "Account", "required": true, "onDelete": "cascade"}},
       "fields": {"properties": {"roles": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "default": []}}}}');
-  -- Ресурс ACL (этап 5, п. 5): группа, эндпоинт или объект строк — см. 50-acl.sql.
+  -- Ресурс ACL (этап 5, п. 5): группа, эндпоинт или объект строк — см. 50-acl.sql. Маски шаблона —
+  -- только строки: маска не строкой в 0.21 совпадала со всеми (группа {"roles": ["staff"]} — с любым аккаунтом).
   perform @SCHEMA@.sys_create(@SCHEMA@.v5_id('@SYSTEM@'::uuid, 'Class', array['Resource']), 'Class', '@SYSTEM@'::uuid, '{}',
     '{"name": "Resource", "kind": "hub", "key": ["alias"], "system": true,
       "fields": {"properties": {"alias": {"type": "string", "minLength": 1},
                                 "category": {"type": "string", "enum": ["ACCOUNT", "API", "READ", "WRITE", "DELETE"]},
-                                "pattern": {"type": "object"}, "description": {"type": "string"}},
+                                "pattern": {"type": "object",
+                                            "properties": {"categories": {"type": "string"}, "roles": {"type": "string"},
+                                                           "endpoint": {"type": "string"}, "class": {"type": "string"}}},
+                                "description": {"type": "string"}},
                  "required": ["alias", "category"]}}');
   -- Правило ACL: группа → объект, allow | deny, вес; одно правило на пару.
   perform @SCHEMA@.sys_create(@SCHEMA@.v5_id('@SYSTEM@'::uuid, 'Class', array['rule']), 'Class', '@SYSTEM@'::uuid, '{}',

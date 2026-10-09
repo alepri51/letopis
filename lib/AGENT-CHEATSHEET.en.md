@@ -79,6 +79,15 @@ db.tenant          // the session tenant: by default the account's own tenant (h
   tenant through a membership, `db.auth.switch(tenant)` (without it, the session is in the account's own tenant). The
   token for the CLI (`--token`) is the same `token` from `verifyPassword`/`verifyApiKey`/`sessionFor`. An admin
   connection (`allowBypassRls`) prints the warning "RLS не действует" (RLS is not in effect); this is expected.
+- Second factor: `verifyPassword({ identifier, password, totp })` and `lookup({ kind, identifier, totp })` check the
+  TOTP code after the first check (the `auth.totp` permission; the failure counter and lockout are shared with
+  `verifyTotp`) → a session with the methods `[kind, 'TOTP']`, with which a user with TOTP changes their own
+  credentials. A wrong or repeated code and a code for an account without TOTP give `null`; without `totp`, the code
+  is not checked.
+- Service keys: with a session of its own key, the service issues and revokes its own keys itself (`issueApiKey`,
+  `issueKeySecret` with `account` set to the service id; `revokeCredential(id)`). Revoking a key revokes only the
+  sessions of that key, so rotation has no downtime: new key → processes onto it → revoke the old one. The last active
+  key of a service cannot be revoked (`acl_denied`); to disable a service, set `enabled: false` on its account.
 - Working in another tenant through a membership: `await user.auth.tenants()` → `[{ tenant, roles }]`, then
   `await user.auth.switch(tenant)` (only from the connection root). Impersonation by a service:
   `const u = await svc.as(account, { tenant, owner })` — the database checks it; in the journal, `author` is the user
@@ -228,7 +237,9 @@ const canDelete = await olga.acl.checkData('Wallet', 'DELETE')    // { allow: fa
 ```
 - A membership is a `member` row with the ends `User` and `Tenant` and the key `[User, Tenant]`: a new membership is
   `db.member().create({ roles }).User.set(account).Tenant.set(tenant)` if it does not exist yet (otherwise `exists`).
-- Group: `{ categories: '{Staff}' }` (account categories) or `{ roles: '{staff}' }` (membership roles).
+- Group: `{ categories: '{Staff}' }` (account categories) or `{ roles: '{staff}' }` (membership roles). A mask
+  (`categories`, `roles`, `endpoint`, `class`) is **a string only**: the database rejects an array (`['staff']`), a
+  number or `null` with `invalid_data`.
   Object condition: `{ class: 'Wallet', owner: '$actor' }`, `{ class: 'Wallet', data: { … } }`; a class mask includes
   descendants, `'{rule,Resource,member}'` means several classes. `deny` with `{ code, message }` is a custom endpoint
   refusal.

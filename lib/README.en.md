@@ -259,9 +259,13 @@ session. The login goes into the id as is: `Anna@shop.ru` and `anna@shop.ru` wou
 would have no password, so write logins in one case. The `created` field in the result tells whether this call created
 the tenant: for an existing tenant with a new user it is `false`. The roles are set by `user.roles`, a non-empty list
 of names (not masks), otherwise `invalid_data`. A repeat does not change the roles of an existing membership: they are
-changed by editing the membership ([Granting a permission](#granting-a-permission)). The session from `createTenant`
-has no sign-in method, so the user cannot change their own password with it: for that the user signs in with the
-password. `createTenant` needs an admin postgres.js pool:
+changed by editing the membership ([Granting a permission](#granting-a-permission)). A repeat does not bring back
+what was deleted: if the tenant, the user account or the membership is deleted (the row is gone but its history is in
+the journal), `createTenant` answers `invalid_data` and writes nothing. The error text names what was deleted and
+advises bringing it back with `restore()`: an account with `db.Account(id).restore()` on behalf of the system
+administrator, a membership with `db.member(id).restore()` in that tenant; the other way out is a different name or
+login. The session from `createTenant` has no sign-in method, so the user cannot change their own password with it:
+for that the user signs in with the password. `createTenant` needs an admin postgres.js pool:
 
 <!-- run: guide -->
 ```ts
@@ -766,6 +770,11 @@ description a string, a number or `true`/`false`. `null` fits only data fields, 
 The check cannot tell apart a cursor of the same type taken from another field. `limit` and `offset` are available
 too.
 
+A data field may be `null` or missing. `sort` places such rows the way `order by` in PostgreSQL does: last when
+ascending, first when descending, and `after()` treats `null` as a value after all others (ascending) or before them
+(descending). So pages go through such rows without gaps or repeats, and a cursor with the value `null` gives the next
+page.
+
 ### Trees: `deep`
 
 <!-- run: guide -->
@@ -1115,11 +1124,18 @@ System with the `admin` role is put in place by your own installation seed or by
 
 A service is an account of category `Service` with an API key. `up()` issues the installation key. The service checks
 passwords and codes, issues sessions and acts on behalf of users. It issues and revokes the keys of regular users
-itself (the `auth.credential` permission), as for Boris below. The keys of the service itself, of System and of system
-administrators are issued and revoked only by a system administrator; without one, a new service key is registered by
-`up({ serviceKey })`. There can be several keys, but revoking any credential revokes all sessions of the account
-except the session of whoever revokes it. So after the old key is revoked, the service's connections reconnect with
-the new one: rotation without downtime is not possible yet.
+itself (the `auth.credential` permission), as for Boris below. The service also issues and revokes its own API keys
+and "key + secret" pairs itself, with a session opened by its own key (`connect({ apiKey })`, `verifyApiKey`,
+`verifyKeySecret`). Its other credentials and the keys of other services, of System and of system administrators are
+issued and revoked only by a system administrator; a new service key is also registered by `up({ serviceKey })`.
+
+There can be several keys. A session opened by a key remembers it, and revoking a key revokes only its sessions:
+connections by other keys keep working. So rotation goes without downtime: the service issues itself a new key
+(`issueApiKey({ account: <service id> })`), moves its processes to it and revokes the old one (`revokeCredential(id)`).
+The revocation keeps the current session; `keepCurrent: false` revokes it too. The last active key of a service
+cannot be revoked: `acl_denied` "последний действующий ключ сервиса не отзывается: сначала выпустите новый" ("the
+last active key of a service is not revoked: issue a new one first"). To disable a service, set `enabled: false` on
+its account.
 
 <!-- run: guide -->
 ```ts
@@ -1144,6 +1160,10 @@ const failed = await svc.auth.verifyPassword({ identifier: 'boris@lutik.ru', pas
 - A password change revokes the other sessions of the account (`keepCurrent` keeps the current one).
 - By default, sign-in works only by a confirmed credential, otherwise `null`; `requireConfirmed: false` also lets in by
   an unconfirmed one. The service confirms a credential: `confirmed: true` in `setPassword` or `setFlags`.
+- The second factor is the `totp` option: `verifyPassword({ identifier, password, totp })` checks the account's TOTP
+  code after a correct password and issues a session with the methods `[kind, 'TOTP']`, `['PASSWORD', 'TOTP']` by
+  default (see below). Without `totp`, sign-in does not check the code: the service decides whether to require the
+  second factor.
 
 ### One-time codes and TOTP
 
@@ -1161,10 +1181,18 @@ A code is single-use: a successful check and brute force (5 attempts by default)
 rolled back together with the caller's transaction, so the service limits the rate of attempts. A repeat of the same
 TOTP step is rejected. `totpCode(secret)` is a helper for tests and services.
 
+Sign-in with the second factor is `verifyPassword({ …, totp })` and `lookup({ …, totp })`. The code is checked only
+after a correct password or a found identity, by the same check as `verifyTotp`: the `auth.totp` permission is needed,
+the window is one step each way, and the failure counter is shared (five in a row close the check for 5 minutes). A
+correct code gives a session with the methods `[kind, 'TOTP']` and enables a not yet confirmed factor; a wrong or
+repeated code, like a code for an account without TOTP, gives `null`. With such a session, a user with TOTP changes
+their own credentials for 10 minutes.
+
 ### External identities
 
 `link({ account, kind, identifier, confirmed })` links an external identity (Telegram, Google, SSO): the service checks
-its token, and the database stores the binding. `lookup({ kind, identifier })` signs in with it:
+its token, and the database stores the binding. `lookup({ kind, identifier })` signs in with it (with the `totp`
+option, also by a TOTP code, like `verifyPassword`):
 
 <!-- run: guide -->
 ```ts
@@ -1174,10 +1202,9 @@ const viaTelegram = await svc.auth.lookup({ kind: 'TELEGRAM', identifier: '10050
 
 A user can link their own credentials only after a recent sign-in (10 minutes; an API key, a "key + secret" pair and a
 session from a service do not count), and cannot confirm them. With TOTP enabled, the database requires a session that
-has passed TOTP, but the library does not issue such a session yet: for a user with TOTP, the service changes their
-credentials. If the identifier is taken, linking answers with the same `acl_denied` as
-without a recent sign-in. But a user with a recent sign-in can tell from such a denial that the identifier is taken
-([section 18](#18-limitations)).
+has passed TOTP: `verifyPassword` and `lookup` with the `totp` option issue one. If the identifier is taken, linking
+answers with the same `acl_denied` as without a recent sign-in. But a user with a recent sign-in can tell from such a
+denial that the identifier is taken ([section 18](#18-limitations)).
 
 ### Sessions
 
@@ -1194,7 +1221,9 @@ the current session: the new lifetime is counted from the current moment, but it
 at sign-in; it returns the new expiration time. `connect()` extends the session itself once per minute of work
 (`refreshSession`), so a session in use does not expire: the lifetime is the idle time. `revoke()` signs out,
 `revokeAll()` signs out everywhere. Sessions are revoked when the account is disabled, the password is changed, a credential is deleted or the
-account is deleted.
+account is deleted. Deleting a credential revokes the other sessions of the account, while revoking an API key or a
+"key + secret" pair revokes only the sessions opened by that key (and old sessions of the same sign-in method without
+a key mark); the current session stays unless you pass `keepCurrent: false`.
 
 ### Working in another tenant
 
@@ -1267,9 +1296,13 @@ Fields of the system permission classes:
 - `member`: the ends `User` and `Tenant`, the field `roles` (a list of roles);
 - `Resource`: `alias` (the unique name of the resource and its key; this is not a class alias), `category` (`ACCOUNT`,
   `API`, `READ`, `WRITE`, `DELETE`) and `pattern`, the mask. A group's mask is `categories` or `roles`, and only a
-  string: `'{staff}'`, `'{a,b}'`, negation `'!{a}'`. **A non-string mask (for example, the array `['staff']`) matches
-  every account**: an allowing rule with such a group would grant the permission to everyone. An object's mask is
-  `endpoint` or `class` plus conditions on the columns;
+  string: `'{staff}'`, `'{a,b}'`, negation `'!{a}'`. An object's mask is `endpoint` or `class` (also strings only) plus
+  conditions on the columns. **The database rejects a non-string mask (for example, the array `['staff']`, a number or
+  `null`)** with `invalid_data`, whether written by the library, raw SQL or the loader. Old rows with such a mask
+  (written before this check or around it) grant no permissions, while a denial by them applies to everyone: by a
+  group, to all accounts, by a `class` mask, to all classes (a non-string `endpoint` mask, as before, matches no
+  endpoint). The write check comes with the description of the `Resource` class: it arrives with a fresh installation
+  and after `reset({ all })`; in an existing schema, the corrected matching works after `up()` is run again;
 - `rule`: the ends `Group` and `Object` (`Resource` rows), the fields `permission` (`allow` or `deny`), `weight`, and,
   for the endpoint's own denial, `code` and `message`.
 
@@ -1426,8 +1459,12 @@ const report = await adm.maintain()     // { sessions, codes, thinned, batches, 
 `maintain()` deletes expired sessions and one-time codes, thins the journal by the retention policy and checks the
 PostgreSQL signal queue: if it is more than half full, you get a warning. The system administrator, a role with the
 `letopis.maintain` permission or an admin connection can call it. An external scheduler runs it (`letopis maintain`),
-or the library itself does: `connect({ maintain: '1h' })`. Of several processes, only one works, under an advisory
-lock.
+or the library itself does: `connect({ maintain: '1h' })`. Of several processes, only one works: each batch is its own
+transaction, and the first thing it does is take a transaction-level advisory lock (`pg_try_advisory_xact_lock`),
+which is released when the batch commits. If another process holds the lock, the call answers `skipped: true` before
+the first batch, and between batches it stops (that process continues) and reports what it has done with
+`more: true`. There is no session-level lock, so `maintain()` works behind any pool, including PgBouncer in
+transaction mode.
 
 ### Reset: `reset()`
 
@@ -1494,8 +1531,8 @@ letopis import --from <0.21 dsn> --from-schema <v1.name> --dsn <dsn> --schema <v
 With PgBouncer in transaction mode, `LISTEN` is not available: use `connect({ listen: false })`. Then the registry is
 re-read with `db.refresh()`, the subscription polls the journal, and the result cache is off or works by term only.
 Prepared statements work with PgBouncer 1.21 and newer; with older versions, pass your own postgres.js pool with
-`prepare: false` in `connect({ sql })`. `maintain()` holds a session-level advisory lock on one connection, so run it
-over a direct connection to PostgreSQL.
+`prepare: false` in `connect({ sql })`. `maintain()` takes a transaction-level lock in each batch and works behind
+such a pool.
 
 <!-- run: guide -->
 ```ts
@@ -1531,6 +1568,10 @@ npx letopis import --from postgres://…/old --from-schema v1.salon --dsn postgr
 - The import stops before the first write if two 0.21 objects give one 1.0 id (the data violates the key; use
   `--keyless <Class>`), if a key changed between versions, or if it references a missing object. A dangling reference
   in a live row gives `target_not_found` with the 0.21 object.
+- If the loader rejects the data, the error starts with `import: арендатор …`, and its `detail` is the loader's
+  ([Report and errors](#report-and-errors)), except that rows are named by 0.21 objects: `rows` are the violations
+  with the `class`, `id` and `rev` of the 0.21 object, `code` and `message`; `total`, `truncated`, `limit` and
+  `complete` are as in the loader's report; `notes` are the untranslated rules.
 - A repeat adds what is missing without duplicates; `--update` also adds new versions of changed objects. The report is
   JSON at the end of the output: objects and versions by class in 0.21 and in 1.0, `verify()`, untranslated rules,
   classes without a key, and uuids in `data` that match old ids (the import does not rewrite them). The exit code is 1
@@ -1585,12 +1626,12 @@ Removed 0.21 names (`uuidv7`, `LETOPIS_NS` and the methods listed below) throw `
 | Method | Parameters → result |
 |---|---|
 | `setPassword` | `{ account, identifier, password, kind?, confirmed?, keepCurrent? }` → credential id |
-| `verifyPassword` | `{ identifier, password, kind?, requireConfirmed?, ttl? }` → `{ account, token }` or `null` |
+| `verifyPassword` | `{ identifier, password, kind?, requireConfirmed?, ttl?, totp? }` → `{ account, token }` or `null` |
 | `issueApiKey`, `verifyApiKey` | `{ account, name?, ttl? }` → `{ key, id }`; `(key)` → sign-in or `null` |
 | `issueKeySecret`, `verifyKeySecret` | `{ account, name? }` → `{ key, secret, id }`; `(key, secret)` → sign-in or `null` |
 | `enrollTotp`, `verifyTotp`, `totpEnabled` | `{ account, issuer?, label? }` → `{ secret, uri }`; `{ account, code, window? }` → `boolean`; `(account)` → `boolean` |
 | `issueOtp`, `verifyOtp` | `{ account, identifier, kind?, ttl?, digits?, maxAttempts? }` → `{ code }`; `{ identifier, code, kind? }` → sign-in or `null` |
-| `link`, `lookup` | `{ account, kind, identifier, meta?, confirmed? }` → id; `{ kind, identifier, requireConfirmed?, ttl? }` → sign-in or `null` |
+| `link`, `lookup` | `{ account, kind, identifier, meta?, confirmed? }` → id; `{ kind, identifier, requireConfirmed?, ttl?, totp? }` → sign-in or `null` |
 | `credentials`, `revokeCredential`, `setFlags` | `(account)` → credentials without secrets; `(id, { keepCurrent? })`; `(id, { confirmed?, enabled? })` |
 | `sessionFor`, `refresh`, `revoke`, `revokeAll` | `(account, { ttl? })` → token; `({ ttl? })` → the new expiration time (the token stays the same); `()`; `(account?)` → number of sessions |
 | `tenants`, `switch` | `()` → `[{ tenant, roles }]`; `(tenant)` |
@@ -1598,8 +1639,11 @@ Removed 0.21 names (`uuidv7`, `LETOPIS_NS` and the methods listed below) throw `
 
 Password, code and TOTP checks, session issuing and credential confirmation are called by the service (`auth.*`
 permissions); a regular user gets `acl_denied`. The credentials of System, services and system administrators can be
-changed only by the account itself after a recent interactive sign-in, or by the system administrator: a service signed
-in by its key cannot change its own keys. The credential kind `kind` is `^[A-Z][A-Z0-9_]{1,31}$` (`PASSWORD`, `EMAIL`,
+changed only by the account itself after a recent interactive sign-in, or by the system administrator. The exception is
+the service's keys: the service issues and revokes its own API keys and "key + secret" pairs itself with a session of
+its own key, but not its other credentials; nobody can revoke the last active key of a service (`acl_denied`). With
+`totp`, `verifyPassword` and `lookup` also check the TOTP code (the `auth.totp` permission) and issue a session with the
+`TOTP` method. The credential kind `kind` is `^[A-Z][A-Z0-9_]{1,31}$` (`PASSWORD`, `EMAIL`,
 `TELEGRAM` …); `SESSION`, `APIKEY`, `KEYSECRET`, `OTP`, `TOTP` and `KEY` are taken.
 
 ### Result row
@@ -1775,16 +1819,16 @@ behavior.
   lock of its row ([section 8](#8-transactions-batches-and-money), "Recipe: wallet").
 - A link cannot have a reserved name, and a hub with such a name cannot be reached as a step
   (["Reserved names"](#reserved-names)).
-- `after()` pagination by a data field loses rows with `null` in that field (or without the field): a comparison with
-  `null` does not pass, so such rows do not get onto the following pages, and after a row with `null` the next page is
-  empty. Paginate by required fields.
 
 **Access**
 
 - The service key is the root of trust: its compromise allows acting on behalf of any enabled user of the
   installation except System, services and system administrators; the access rules do not narrow this scope. The key
-  is reissued (`db.auth.issueApiKey`) and revoked (`db.auth.revokeCredential`) by the system administrator. A database
-  password alone, without a token, gives nothing.
+  is reissued (`db.auth.issueApiKey`) and revoked (`db.auth.revokeCredential`) by the service itself with a session of
+  its own key, or by the system administrator; with its key the service also issues itself new keys, so after a leak
+  revoke all its keys except the new one (`credentials` lists them). Nobody can revoke the last active key of a
+  service: to cut a service off, set `enabled: false` on its account. A database password alone, without a token,
+  gives nothing.
 - The permission pass reveals its own plan to the client (the classes and rule conditions that apply to it).
 - Raw SQL without the permission pass pays for the permission plan on every query: 0.3–1.3 ms depending on the number
   of rules.

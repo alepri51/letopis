@@ -6,7 +6,9 @@
 -- pgcrypto), внешние identity (TELEGRAM, GOOGLE, …: связка, токен проверяет сервис), SESSION.
 -- Пара «вид, идентификатор» уникальна среди неудалённых записей без учёта регистра (индекс
 -- secret_kind_ident). Права: auth.* — по правилам System (сервис, системный администратор);
--- свои креды аккаунт привязывает сам только после недавнего входа.
+-- свои креды аккаунт привязывает сам только после недавнего входа; свои ключи (APIKEY, KEYSECRET)
+-- сервис выпускает и отзывает сам по сессии своего ключа. Сессия по ключу помнит его id (meta.cred):
+-- отзыв ключа гасит только его сессии.
 
 -- Недавний вход: способы входа и время — в meta сессии.
 create or replace function @SCHEMA@.auth_recent() returns interval
@@ -125,6 +127,31 @@ return exists (select 1 from @SCHEMA@.entity a
                where a.id = p_account and a.class = 'Account' and a.tenant = '@SYSTEM@'::uuid
                  and coalesce((a.data->>'enabled')::boolean, true));
 
+-- Аккаунт — сервис (категория Service в System).
+create or replace function @SCHEMA@.auth_is_service(p_account uuid) returns boolean
+language sql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+return exists (select 1 from @SCHEMA@.entity a
+               where a.id = p_account and a.class = 'Account' and a.tenant = '@SYSTEM@'::uuid
+                 and coalesce(a.data->'categories' ? 'Service', false));
+
+-- Свои ключи (APIKEY, KEYSECRET) сервис выпускает и отзывает сам: актор — сам сервис, не через
+-- имперсонацию, по сессии, открытой его ключом (интерактивного входа у сервиса нет, а auth_can_manage
+-- креды сервисов отдаёт только системному администратору). Прочие свои креды и ключи других
+-- сервисов, System и системных администраторов — по-прежнему auth_can_manage.
+create or replace function @SCHEMA@.auth_service_self(p_account uuid) returns boolean
+language plpgsql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  c record;
+begin
+  select * into c from @SCHEMA@.ctx();
+  return coalesce(c.account = p_account and c.service is null and @SCHEMA@.auth_is_service(p_account)
+    and exists (select 1 from @SCHEMA@.secret s
+                where s.id = c.session and coalesce(s.meta->'methods', '[]'::jsonb) ?| array['APIKEY', 'KEYSECRET']), false);
+end $$;
+
 -- Погасить сессии аккаунта, кроме p_except; каждая погашенная — сигнал кэшу с началом хэша токена.
 create or replace function @SCHEMA@.auth_kill(p_account uuid, p_except uuid) returns int
 language plpgsql volatile
@@ -136,6 +163,26 @@ begin
   with k as (
     update @SCHEMA@.secret s set deleted_at = clock_timestamp()
     where s.account = p_account and s.kind = 'SESSION' and s.deleted_at is null and s.id is distinct from p_except
+    returning s.material)
+  select array_agg('session:' || left(encode(k.material, 'hex'), 16)) into sig from k;
+  perform @SCHEMA@.signal(sig);
+  return coalesce(cardinality(sig), 0);
+end $$;
+
+-- Погасить сессии, открытые ключом p_cred (APIKEY, KEYSECRET: meta.cred), кроме p_except. Сессия по
+-- ключу того же вида без отметки креда (открыта до появления отметки) тоже гаснет: чей это ключ, не
+-- узнать, а пережить отзыв своего ключа она не должна.
+create or replace function @SCHEMA@.auth_kill_cred(p_account uuid, p_cred uuid, p_kind text, p_except uuid) returns int
+language plpgsql volatile
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  sig text[];
+begin
+  with k as (
+    update @SCHEMA@.secret s set deleted_at = clock_timestamp()
+    where s.account = p_account and s.kind = 'SESSION' and s.deleted_at is null and s.id is distinct from p_except
+      and (s.meta->>'cred' = p_cred::text or (not s.meta ? 'cred' and coalesce(s.meta->'methods', '[]'::jsonb) ? p_kind))
     returning s.material)
   select array_agg('session:' || left(encode(k.material, 'hex'), 16)) into sig from k;
   perform @SCHEMA@.signal(sig);
@@ -230,7 +277,8 @@ begin
 end $$;
 
 -- Ключ API: lts_ и 48 шестнадцатеричных знаков; отдаётся один раз, в базе — sha256, в ident — префикс.
--- У аккаунта может быть несколько ключей: ротация — новый ключ и отзыв старого без простоя.
+-- У аккаунта может быть несколько ключей: ротация — новый ключ и отзыв старого без простоя (отзыв
+-- гасит только сессии старого ключа). Себе сервис выпускает ключ сам по сессии своего ключа.
 create or replace function @SCHEMA@.auth_issue_apikey(p_account uuid, p_name text default null, p_ttl interval default null)
 returns table (key text, id uuid)
 language plpgsql volatile security definer
@@ -242,7 +290,9 @@ declare
   cid uuid;
   i int;
 begin
-  perform @SCHEMA@.auth_can_manage(p_account);
+  if not @SCHEMA@.auth_service_self(p_account) then
+    perform @SCHEMA@.auth_can_manage(p_account);
+  end if;
   for i in 1 .. 5 loop
     k := 'lts_' || encode(@PGCRYPTO@.gen_random_bytes(24), 'hex');
     begin
@@ -262,29 +312,30 @@ begin
 end $$;
 
 -- Вход по ключу API для db.auth.verifyApiKey: { account, token } или null (login_apikey — для
--- connect(), бросает no_session).
+-- connect(), бросает no_session). Сессия помнит ключ (meta.cred): его отзыв гасит её.
 create or replace function @SCHEMA@.auth_login_apikey(p_key text) returns jsonb
 language plpgsql volatile security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 declare
-  acc uuid;
+  k record;
 begin
-  select s.account into acc from @SCHEMA@.secret s
+  select s.id, s.account into k from @SCHEMA@.secret s
   where s.kind = 'APIKEY' and s.deleted_at is null
     and casefold(s.ident) collate pg_unicode_fast = casefold(left(coalesce(p_key, ''), 12)) collate pg_unicode_fast
     and s.material = sha256(convert_to(coalesce(p_key, ''), 'UTF8'))
     and (s.expires_at is null or s.expires_at > clock_timestamp())
     and coalesce((s.meta->>'enabled')::boolean, true)
     and @SCHEMA@.auth_enabled(s.account);
-  if acc is null then
+  if k.account is null then
     return null;
   end if;
-  return jsonb_build_object('account', acc,
-    'token', @SCHEMA@.new_session(acc, interval '7 days', jsonb_build_object('methods', jsonb_build_array('APIKEY'))));
+  return jsonb_build_object('account', k.account,
+    'token', @SCHEMA@.new_session(k.account, interval '7 days', jsonb_build_object('methods', jsonb_build_array('APIKEY'), 'cred', k.id)));
 end $$;
 
 -- Пара ключ + секрет: ключ — открытый идентификатор, секрет отдаётся один раз, в базе — sha256.
+-- Себе сервис выпускает пару сам по сессии своего ключа.
 create or replace function @SCHEMA@.auth_issue_keysecret(p_account uuid, p_name text default null)
 returns table (key text, secret text, id uuid)
 language plpgsql volatile security definer
@@ -295,7 +346,9 @@ declare
   k text := encode(@PGCRYPTO@.gen_random_bytes(8), 'hex');
   s text := encode(@PGCRYPTO@.gen_random_bytes(24), 'hex');
 begin
-  perform @SCHEMA@.auth_can_manage(p_account);
+  if not @SCHEMA@.auth_service_self(p_account) then
+    perform @SCHEMA@.auth_can_manage(p_account);
+  end if;
   insert into @SCHEMA@.secret as x (account, kind, ident, material, meta)
   values (p_account, 'KEYSECRET', k, sha256(convert_to(s, 'UTF8')), jsonb_strip_nulls(jsonb_build_object('name', p_name, 'confirmed', true)))
   returning x.id into id;
@@ -304,25 +357,25 @@ begin
   return next;
 end $$;
 
--- Вход по паре ключ + секрет: { account, token } или null.
+-- Вход по паре ключ + секрет: { account, token } или null. Сессия помнит пару (meta.cred).
 create or replace function @SCHEMA@.login_keysecret(p_key text, p_secret text) returns jsonb
 language plpgsql volatile security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 declare
-  acc uuid;
+  k record;
 begin
-  select s.account into acc from @SCHEMA@.secret s
+  select s.id, s.account into k from @SCHEMA@.secret s
   where s.kind = 'KEYSECRET' and s.deleted_at is null
     and casefold(s.ident) collate pg_unicode_fast = casefold(p_key) collate pg_unicode_fast
     and s.material = sha256(convert_to(coalesce(p_secret, ''), 'UTF8'))
     and coalesce((s.meta->>'enabled')::boolean, true)
     and @SCHEMA@.auth_enabled(s.account);
-  if acc is null then
+  if k.account is null then
     return null;
   end if;
-  return jsonb_build_object('account', acc,
-    'token', @SCHEMA@.new_session(acc, interval '7 days', jsonb_build_object('methods', jsonb_build_array('KEYSECRET'))));
+  return jsonb_build_object('account', k.account,
+    'token', @SCHEMA@.new_session(k.account, interval '7 days', jsonb_build_object('methods', jsonb_build_array('KEYSECRET'), 'cred', k.id)));
 end $$;
 
 -- Одноразовый код для доставки сервисом (почта, SMS, сброс пароля): только с правом auth.otp.
@@ -569,24 +622,51 @@ begin
     order by s.created_at, s.id;
 end $$;
 
--- Удаление креда: гасит остальные сессии аккаунта (текущую — если p_keep_current = false).
+-- Удаление креда. Ключ API и пара ключ + секрет гасят только свои сессии (meta.cred) — ротация без
+-- простоя; прочие креды — остальные сессии аккаунта. Текущую сессию — если p_keep_current = false.
+-- Свои ключи сервис отзывает сам по сессии своего ключа; последний действующий ключ сервиса не
+-- отзывается никем: сервис остался бы без входа.
 create or replace function @SCHEMA@.auth_revoke_credential(p_id uuid, p_keep_current boolean default true) returns boolean
 language plpgsql volatile security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 declare
   c record;
-  acc uuid;
+  cr record;
+  is_key boolean;
 begin
   select * into c from @SCHEMA@.ctx();
   perform @SCHEMA@.auth_session_required(c.account);
-  select s.account into acc from @SCHEMA@.secret s where s.id = p_id and s.kind not in ('SESSION', 'KEY') and s.deleted_at is null;
-  if acc is null then
+  select s.account, s.kind,
+         (s.expires_at is null or s.expires_at > clock_timestamp()) and coalesce((s.meta->>'enabled')::boolean, true) as live
+  into cr from @SCHEMA@.secret s where s.id = p_id and s.kind not in ('SESSION', 'KEY') and s.deleted_at is null;
+  if cr.account is null then
     return false;
   end if;
-  perform @SCHEMA@.auth_can_manage(acc);
-  update @SCHEMA@.secret set deleted_at = clock_timestamp() where id = p_id;
-  perform @SCHEMA@.auth_kill(acc, case when p_keep_current then c.session end);
+  is_key := cr.kind in ('APIKEY', 'KEYSECRET');
+  if not (is_key and @SCHEMA@.auth_service_self(cr.account)) then
+    perform @SCHEMA@.auth_can_manage(cr.account);
+  end if;
+  if is_key and cr.live and @SCHEMA@.auth_is_service(cr.account) then
+    -- ключи сервиса — под блокировкой: два параллельных отзыва не снимут оба последних ключа
+    perform 1 from @SCHEMA@.secret s
+    where s.account = cr.account and s.kind in ('APIKEY', 'KEYSECRET') and s.deleted_at is null
+    for update;
+    if not exists (select 1 from @SCHEMA@.secret s
+                   where s.account = cr.account and s.kind in ('APIKEY', 'KEYSECRET') and s.deleted_at is null and s.id <> p_id
+                     and (s.expires_at is null or s.expires_at > clock_timestamp()) and coalesce((s.meta->>'enabled')::boolean, true)) then
+      perform @SCHEMA@.lt_fail('acl_denied', 'последний действующий ключ сервиса не отзывается: сначала выпустите новый');
+    end if;
+  end if;
+  update @SCHEMA@.secret s set deleted_at = clock_timestamp() where s.id = p_id and s.deleted_at is null;
+  if not found then
+    return false;
+  end if;
+  if is_key then
+    perform @SCHEMA@.auth_kill_cred(cr.account, p_id, cr.kind, case when p_keep_current then c.session end);
+  else
+    perform @SCHEMA@.auth_kill(cr.account, case when p_keep_current then c.session end);
+  end if;
   return true;
 end $$;
 
@@ -720,7 +800,8 @@ declare f text;
 begin
   foreach f in array array[
     'auth_recent()', 'auth_kind_ok(text)', 'auth_session_required(uuid)', 'auth_can_manage(uuid)', 'auth_target_ok(uuid)', 'auth_enabled(uuid)',
-    'auth_kill(uuid, uuid)', 'auth_guard(uuid)', 'auth_is_sysadmin()', 'auth_may_confirm()', 'issue_session(uuid, interval, text[])', 'auth_password_get(text, text)',
+    'auth_is_service(uuid)', 'auth_service_self(uuid)', 'auth_kill(uuid, uuid)', 'auth_kill_cred(uuid, uuid, text, uuid)', 'auth_guard(uuid)',
+    'auth_is_sysadmin()', 'auth_may_confirm()', 'issue_session(uuid, interval, text[])', 'auth_password_get(text, text)',
     'auth_set_password(uuid, text, text, text, boolean, boolean)', 'auth_issue_apikey(uuid, text, interval)',
     'auth_issue_keysecret(uuid, text)', 'auth_login_apikey(text)', 'login_keysecret(text, text)', 'auth_issue_otp(uuid, text, text, interval, int, int)',
     'login_otp(text, text, text)', 'totp_code(bytea, bigint)', 'auth_enroll_totp(uuid)', 'auth_verify_totp(uuid, text, int)',

@@ -728,7 +728,17 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
     if (!mods.after) return undefined;
     if (!sort) fail('after(cursor) требует sort(поле)');
     const c = cursorParams(mods.after, sort!);
-    return `(${sort!.expr(a)}, ${a}.id) ${mods.desc ? '<' : '>'} (${p.push(c.v)}${sort!.pcast}, ${p.push(c.id)}::uuid)`;
+    if (!sort!.nullable) return `(${sort!.expr(a)}, ${a}.id) ${mods.desc ? '<' : '>'} (${p.push(c.v)}${sort!.pcast}, ${p.push(c.id)}::uuid)`;
+    // Поле данных бывает null (или его нет): order by ставит такие строки в конец при возрастании и в
+    // начало при убывании, а сравнение строк с null даёт null — одно сравнение их теряло, курсор null
+    // давал пустую страницу. Здесь null — значение после всех прочих (asc) или перед ними (desc); текст
+    // один на оба вида курсора (параметр — с явным приведением: он стоит и в is null).
+    const e = `(${sort!.expr(a)})`;
+    const v = `${p.push(c.v)}${sort!.pcast || '::text'}`;
+    const id = `${p.push(c.id)}::uuid`;
+    return mods.desc
+      ? `((${e}, ${a}.id) < (${v}, ${id}) or (${v} is null and (${e} is not null or ${a}.id < ${id})))`
+      : `((${e}, ${a}.id) > (${v}, ${id}) or (${e} is null and (${v} is not null or ${a}.id > ${id})))`;
   };
   const limitOffset = () =>
     (mods.limit !== undefined ? ` limit ${p.push(mods.limit)}::bigint` : '') + (mods.offset !== undefined ? ` offset ${p.push(mods.offset)}::bigint` : '');

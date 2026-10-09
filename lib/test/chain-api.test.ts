@@ -121,6 +121,29 @@ test('ошибки построения: курсор другого поля и
   assert.deepEqual((await db.Mark().sort('data.any').after(cursorOf(marks[1], 'data.any')).rows()).map((r) => r.data.any), ['x']);
 });
 
+test('keyset по полю данных с null: [1, 2, 2, null, null] страницами по 2 в обе стороны — без пропусков и повторов, курсор null', async () => {
+  await e.defineClass(t, { name: 'Rank', kind: 'hub', fields: { properties: { n: { type: ['integer', 'null'] } } } });
+  await db.refresh();
+  // null — и значением, и отсутствием поля
+  for (const data of [{ n: 2 }, {}, { n: 1 }, { n: null }, { n: 2 }]) await db.Rank().create(data).rows();
+  for (const dir of ['asc', 'desc'] as const) {
+    const all = await db.Rank().sort('data.n', dir).rows();
+    // null — после прочих по возрастанию и перед ними по убыванию (как order by)
+    assert.deepEqual(all.map((r) => r.data.n ?? null), dir === 'asc' ? [1, 2, 2, null, null] : [null, null, 2, 2, 1], dir);
+    const seen: Row[] = [];
+    const cursors: unknown[] = [];
+    let page = await db.Rank().sort('data.n', dir).limit(2).rows();
+    while (page.length) {
+      seen.push(...page);
+      const c = cursorOf(page.at(-1)!, 'data.n');
+      cursors.push(c.v);
+      page = await db.Rank().sort('data.n', dir).after(c).limit(2).rows();
+    }
+    assert.deepEqual(seen.map((r) => r.id), all.map((r) => r.id), `${dir}: без пропусков и повторов`);
+    assert.ok(cursors.includes(null), `${dir}: страница после курсора null`);
+  }
+});
+
 test('кэш плана: текст запроса зависит только от формы цепочки, подготовленный оператор переиспользуется (3.10)', async () => {
   const textOf = (chain: unknown) => {
     const { steps, mods } = (chain as Record<symbol, { steps: Step[]; mods: ChainMods }>)[PLAN];

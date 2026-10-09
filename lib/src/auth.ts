@@ -115,12 +115,16 @@ export interface Credential {
 export interface AuthApi {
   /** Пароль (и любой «логин/пароль»: kind — PASSWORD, EMAIL, …): создать или заменить. Смена гасит остальные сессии аккаунта. */
   setPassword(a: { account: AccountRef; identifier: string; password: string; kind?: string; confirmed?: boolean; keepCurrent?: boolean }): Promise<string>;
-  /** Вход по паролю — для сервиса с правом auth.password и auth.session. Неудача — null. */
-  verifyPassword(a: { identifier: string; password: string; kind?: string; requireConfirmed?: boolean; ttl?: number }): Promise<LoginResult | null>;
-  /** Ключ API `lts_…`: отдаётся один раз. */
+  /**
+   * Вход по паролю — для сервиса с правом auth.password и auth.session. Неудача — null. С `totp` после
+   * верного пароля база проверяет код TOTP аккаунта (право auth.totp; счётчик неудач и блокировка — общие
+   * с verifyTotp): верный — сессия со способами [kind, 'TOTP'], неверный или повторный — null.
+   */
+  verifyPassword(a: { identifier: string; password: string; kind?: string; requireConfirmed?: boolean; ttl?: number; totp?: string }): Promise<LoginResult | null>;
+  /** Ключ API `lts_…`: отдаётся один раз. Себе сервис выпускает ключ сам по сессии своего ключа. */
   issueApiKey(a: { account: AccountRef; name?: string; ttl?: number }): Promise<{ key: string; id: string }>;
   verifyApiKey(key: string): Promise<LoginResult | null>;
-  /** Пара ключ + секрет: секрет отдаётся один раз. */
+  /** Пара ключ + секрет: секрет отдаётся один раз. Себе сервис выпускает пару сам по сессии своего ключа. */
   issueKeySecret(a: { account: AccountRef; name?: string }): Promise<{ key: string; secret: string; id: string }>;
   verifyKeySecret(key: string, secret: string): Promise<LoginResult | null>;
   /** TOTP: секрет в base32 и ссылка otpauth:// для QR; фактор включает первая успешная проверка. */
@@ -133,11 +137,15 @@ export interface AuthApi {
   verifyOtp(a: { identifier: string; code: string; kind?: string }): Promise<LoginResult | null>;
   /** Внешняя identity (TELEGRAM, GOOGLE, SSO): токен проверяет сервис, здесь — связка. */
   link(a: { account: AccountRef; kind: string; identifier: string; meta?: Record<string, unknown>; confirmed?: boolean }): Promise<string>;
-  /** Вход по identity — для сервиса с правами auth.identity и auth.session. */
-  lookup(a: { kind: string; identifier: string; requireConfirmed?: boolean; ttl?: number }): Promise<LoginResult | null>;
+  /** Вход по identity — для сервиса с правами auth.identity и auth.session; `totp` — как у verifyPassword. */
+  lookup(a: { kind: string; identifier: string; requireConfirmed?: boolean; ttl?: number; totp?: string }): Promise<LoginResult | null>;
   /** Креды аккаунта без секретов. */
   credentials(account: AccountRef): Promise<Credential[]>;
-  /** Удалить кред: остальные сессии аккаунта гаснут (текущая — если keepCurrent: false). */
+  /**
+   * Удалить кред. Ключ API и пара ключ + секрет гасят только свои сессии, прочие креды — остальные сессии
+   * аккаунта; текущая гаснет, если keepCurrent: false. Свои ключи сервис отзывает сам; последний
+   * действующий ключ сервиса не отзывается (acl_denied).
+   */
   revokeCredential(id: string, opts?: { keepCurrent?: boolean }): Promise<boolean>;
   /** Признаки креда confirmed и enabled (право auth.credential). */
   setFlags(id: string, flags: { confirmed?: boolean; enabled?: boolean }): Promise<boolean>;
@@ -177,8 +185,17 @@ function makeAuthCore(S: string, exec: Executor, onSwitch: () => Promise<void>, 
     const rows = await exec.run((q) => q.unsafe(text, params as never[]));
     return rows[0] as T;
   };
-  const login = async (account: string | null | undefined, ttl: number | undefined, methods: string[]): Promise<LoginResult | null> => {
+  // Вход после первой проверки. Код TOTP проверяет база той же функцией, что verifyTotp (право auth.totp,
+  // окно ±1 шаг, повтор шага, счётчик неудач и блокировка), секрет из базы не выходит; способ TOTP
+  // сессия получает только после удачи. Без кода — сессия без отметки TOTP, как раньше.
+  const login = async (account: string | null | undefined, ttl: number | undefined, methods: string[],
+    totp?: string | null): Promise<LoginResult | null> => {
     if (!account) return null;
+    if (totp != null) {
+      const v = await one<{ ok: boolean }>(`select ${S}.auth_verify_totp($1::uuid, $2::text, 1) as ok`, [account, String(totp)]);
+      if (!v.ok) return null;
+      methods = [...methods, 'TOTP'];
+    }
     const r = await one<{ t: string }>(`select ${S}.issue_session($1::uuid, coalesce($2::interval, interval '7 days'), $3::text[]) as t`,
       [account, ttlOf(ttl), methods]);
     return { account, token: r.t };
@@ -196,7 +213,7 @@ function makeAuthCore(S: string, exec: Executor, onSwitch: () => Promise<void>, 
       if (!cred) return dummyVerify(a.password).then(() => null);
       if (!(await verifyHash(a.password, cred.hash))) return null;
       if (!cred.confirmed && a.requireConfirmed !== false) return null;
-      return login(cred.account, a.ttl, [a.kind ?? 'PASSWORD']);
+      return login(cred.account, a.ttl, [a.kind ?? 'PASSWORD'], a.totp);
     },
     async issueApiKey(a) {
       return one(`select key, id from ${S}.auth_issue_apikey($1::uuid, $2, $3::interval)`, [accId(a.account), a.name ?? null, ttlOf(a.ttl)]);
@@ -237,7 +254,7 @@ function makeAuthCore(S: string, exec: Executor, onSwitch: () => Promise<void>, 
     },
     async lookup(a) {
       const r = await one<{ a: string | null }>(`select ${S}.auth_lookup($1, $2, $3) as a`, [a.kind, a.identifier, a.requireConfirmed ?? true]);
-      return login(r.a, a.ttl, [a.kind]);
+      return login(r.a, a.ttl, [a.kind], a.totp);
     },
     async credentials(account) {
       return exec.run((q) => q.unsafe(`select * from ${S}.auth_credentials($1::uuid)`, [accId(account)])) as unknown as Promise<Credential[]>;

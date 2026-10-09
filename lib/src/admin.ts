@@ -118,37 +118,35 @@ const MAINTAIN_LOCK = (schema: string) => [19541, schema] as const;
 
 /**
  * Обслуживание: истёкшие сессии и коды, прореживание журнала пачками (каждая — своя транзакция,
- * долгих блокировок нет), заполнение очереди сигналов. Под сеансовой advisory-блокировкой: из
- * нескольких процессов работает один, остальные получают skipped.
+ * долгих блокировок нет), заполнение очереди сигналов. Из нескольких процессов работает один: пачка
+ * первым делом берёт транзакционную advisory-блокировку (pg_try_advisory_xact_lock), и та снимается
+ * с фиксацией пачки. Сеансовая блокировка за пулом в режиме транзакций (PgBouncer) оставалась бы на
+ * серверном соединении, которое пул отдаёт другим клиентам, — и обслуживание молча вставало бы
+ * (skipped у всех). Блокировку держит другой процесс: до первой пачки — skipped; между пачками —
+ * вызов останавливается (продолжит тот процесс), отчёт — о сделанном, more: true.
  */
 export async function maintain(a: AdminCtx, opts: MaintainOptions = {}): Promise<MaintainReport> {
   if (a.exec.explicit) throw new LetopisError('invalid_query', 'maintain() — пачками в своих транзакциях, не внутри db.begin()');
   const now = opts.now === undefined ? null : opts.now instanceof Date ? opts.now.toISOString() : opts.now;
   const report: MaintainReport = { skipped: false, sessions: 0, codes: 0, thinned: 0, batches: 0, more: false, queue: 0 };
-  const lock = await a.sql.reserve();
-  try {
-    const [k1, k2] = MAINTAIN_LOCK(a.schema);
-    const [got] = await lock`select pg_try_advisory_lock(${k1}::int, hashtext(${k2})) as ok`;
-    if (!got?.ok) return { ...report, skipped: true };
-    try {
-      const max = opts.batches ?? 100;
-      for (let i = 0; i < max; i++) {
-        // пачка — своя транзакция на соединении, которое держит блокировку: пул из одного соединения не встанет
-        const [{ r }] = await runTx(a.txc, (q) => q.unsafe(`select ${a.S}.maintain($1::text::timestamptz, $2::int) as r`, [now, opts.limit ?? 10_000] as never[]), { conn: lock });
-        const b = r as { sessions: number; codes: number; thinned: number; more: boolean; queue: number };
-        report.sessions += b.sessions;
-        report.codes += b.codes;
-        report.thinned += b.thinned;
-        report.queue = Number(b.queue);
-        report.more = b.more;
-        report.batches++;
-        if (!b.more) break;
-      }
-    } finally {
-      await lock`select pg_advisory_unlock(${k1}::int, hashtext(${k2}))`;
+  const [k1, k2] = MAINTAIN_LOCK(a.schema);
+  const max = opts.batches ?? 100;
+  for (let i = 0; i < max; i++) {
+    // блокировка и пачка — одним оператором: case вычисляет maintain() только при взятой блокировке
+    const [{ r }] = await runTx(a.txc, (q) => q.unsafe(`select case when pg_try_advisory_xact_lock($1::int, hashtext($2::text))
+        then ${a.S}.maintain($3::text::timestamptz, $4::int) end as r`, [k1, k2, now, opts.limit ?? 10_000] as never[]));
+    if (r === null) {
+      if (i === 0) return { ...report, skipped: true };
+      break;
     }
-  } finally {
-    lock.release();
+    const b = r as { sessions: number; codes: number; thinned: number; more: boolean; queue: number };
+    report.sessions += b.sessions;
+    report.codes += b.codes;
+    report.thinned += b.thinned;
+    report.queue = Number(b.queue);
+    report.more = b.more;
+    report.batches++;
+    if (!b.more) break;
   }
   const warn = queueWarning(report.queue);
   if (warn) console.warn(warn);

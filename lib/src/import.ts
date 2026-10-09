@@ -817,12 +817,12 @@ export async function import021(opts: ImportOptions): Promise<ImportReport> {
           report.objects.updated += u.updated;
         }
       } catch (e) {
-        // строки загрузчика → объекты 0.21
+        // строки загрузчика → объекты 0.21; total, truncated, limit и complete отчёта загрузчика — как есть
         const err = e as LetopisError;
         const detail = err.detail as { rows?: LoadIssue[] } | undefined;
         if (detail?.rows) {
           const mapped = detail.rows.map((x) => ({ ...origin[x.line - 1], code: x.code, message: x.message }));
-          throw new LetopisError(err.code ?? 'invalid_data', `import: арендатор ${tenant}: ${err.message}`, { rows: mapped, notes: b.notes });
+          throw new LetopisError(err.code ?? 'invalid_data', `import: арендатор ${tenant}: ${err.message}`, { ...detail, rows: mapped, notes: b.notes });
         }
         throw e;
       }

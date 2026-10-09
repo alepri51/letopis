@@ -6,9 +6,9 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { engine, lt, SYSTEM_ID, type Engine } from './_engine.js';
-import { ADMIN_DSN, appDsn } from './_harness.js';
+import { appDsn } from './_harness.js';
 import { account, session, sqlAs, sysadmin, type Acc } from './_access.js';
-import { connect, totpCode, up, v5Id, type Db } from '../src/index.js';
+import { connect, totpCode, type Db } from '../src/index.js';
 
 let e: Engine;
 let S: string;
@@ -65,12 +65,17 @@ test('5.1 APIKEY и KEYSECRET: проверяет база; неверный к�
   const viaKey = await open({ apiKey: key });
   assert.equal((await viaKey.transaction((q) => q.unsafe(`select account from ${S}.ctx()`)))[0].account, anna.id);
   assert.equal(await svc.auth.verifyApiKey(key.slice(0, -1) + (key.endsWith('0') ? '1' : '0')), null);
-  // ротация: второй ключ, отзыв первого — без простоя
+  // ротация: второй ключ, отзыв первого — без простоя: гаснут только сессии отозванного ключа
   const second = await svc.auth.issueApiKey({ account: anna.id });
+  const viaSecond = await open({ apiKey: second.key });
   const creds = await svc.auth.credentials(anna.id);
   const first = creds.find((c) => c.kind === 'APIKEY' && c.meta.name === 'интеграция')!;
   assert.equal(await svc.auth.revokeCredential(first.id), true);
   assert.equal(await svc.auth.verifyApiKey(key), null);
+  assert.equal(await whose(r!.token), null, 'вход по отозванному ключу');
+  assert.equal(await whose(viaKey.token!), null, 'подключение по отозванному ключу');
+  assert.equal(await whose(viaSecond.token!), anna.id, 'подключение по второму ключу');
+  assert.equal(await whose(anna.token), anna.id, 'сессия не по ключу');
   assert.equal((await svc.auth.verifyApiKey(second.key))?.account, anna.id);
   const ks = await svc.auth.issueKeySecret({ account: boris.id });
   assert.equal((await svc.auth.verifyKeySecret(ks.key, ks.secret))?.account, boris.id);
@@ -141,7 +146,7 @@ test('5.4 OTP: истёкший код, перебор, повтор успеш�
   const fresh = await svc.auth.issueOtp({ account: anna.id, identifier: 'once@salon.ru' });
   assert.equal((await svc.auth.verifyOtp({ identifier: 'once@salon.ru', code: fresh.code }))?.account, anna.id);
   assert.equal(await svc.auth.verifyOtp({ identifier: 'once@salon.ru', code: fresh.code }), null, 'повтор успешного кода');
-  // выпуск кода — только сервису с правом auth.otp (прежние сессии Анны погасил отзыв ключа в 5.1)
+  // выпуск кода — только сервису с правом auth.otp
   const user = await open({ token: await session(e, anna.id) });
   await assert.rejects(user.auth.issueOtp({ account: anna.id, identifier: 'self@salon.ru' }), (err: { code?: string }) => err.code === 'acl_denied');
 });
@@ -261,92 +266,113 @@ test('ревью этапа 5: креды привилегированных а�
   assert.equal(m.m, '10');
 });
 
-test('разбор б) TOTP и свои креды: сервис проверил пароль и TOTP — сессия не помечена TOTP, свой пароль пользователь не меняет', async () => {
-  // Фиксирует текущее поведение — дефект. Свои креды при включённом TOTP auth_can_manage принимает только
-  // по сессии со способом TOTP, а добавляет его сессии лишь auth_verify_totp по своей сессии — но там же
-  // требуется право auth.totp (правила System: сервис, системный администратор), и пользователю его не
-  // вызвать; проверка сервисом сессию пользователя не помечает. Правильно: сессия, которую сервис выдал
-  // после проверки пароля и TOTP, несёт способ TOTP (например, verifyPassword({ …, totp }) →
-  // issue_session(…, ['PASSWORD', 'TOTP'])), и 10 минут пользователь меняет свои креды сам.
+test('TOTP при входе: verifyPassword и lookup с кодом выдают сессию со способом TOTP — свои креды пользователь меняет сам; без кода — как раньше; неверный и повторный код — отказ, счётчик общий с verifyTotp', async () => {
   const denied = (err: { code?: string }) => err.code === 'acl_denied';
   const methods = async (token: string) => (await e.sql.unsafe(`select meta->'methods' as m from ${S}.secret
     where kind = 'SESSION' and material = sha256(convert_to($1, 'UTF8'))`, [token]))[0]?.m;
-  // коды TOTP — по часам базы: шаги считает она
+  const fails = async (acc: string) => Number((await e.sql.unsafe(`select coalesce(meta->>'fails', '0') as f from ${S}.secret
+    where account = $1 and kind = 'TOTP' and deleted_at is null`, [acc]))[0].f);
+  // коды TOTP — по часам базы: шаги считает она; окно проверки — шаг в каждую сторону
   const dbNow = async () => Number((await e.sql`select extract(epoch from clock_timestamp()) * 1000 as ms`)[0].ms);
+  const code = async (secret: string, step = 0) => totpCode(secret, await dbNow() + step * 30_000);
+  const wrong = async (secret: string) => {
+    const now = await dbNow();
+    const near = [-1, 0, 1].map((k) => totpCode(secret, now + k * 30_000));
+    return ['000000', '111111', '222222', '333333'].find((c) => !near.includes(c))!;
+  };
   const u = await account(e, 'Зоя');
   await svc.auth.setPassword({ account: u.id, identifier: 'zoya@salon.ru', password: 'Зоя-пароль-1', confirmed: true });
-  // без TOTP путь есть: вход по паролю через сервис — недавний интерактивный вход, свой пароль пользователь меняет сам
+  // TOTP подключает сам пользователь после входа по паролю; фактор включает первая проверка кода сервисом
   const first = (await svc.auth.verifyPassword({ identifier: 'zoya@salon.ru', password: 'Зоя-пароль-1' }))!;
-  assert.deepEqual(await methods(first.token), ['PASSWORD']);
-  const zoya = await open({ token: first.token });
-  await zoya.auth.setPassword({ account: u.id, identifier: 'zoya@salon.ru', password: 'Зоя-пароль-2' });
-  // TOTP подключает сам пользователь, включает первая проверка кода — сервисом
-  const { secret } = await zoya.auth.enrollTotp({ account: u.id });
-  assert.equal(await svc.auth.verifyTotp({ account: u.id, code: totpCode(secret, await dbNow()) }), true);
-  // вход, как его делает приложение: сервис проверяет пароль, затем TOTP (код следующего шага — текущий уже использован)
-  const login = (await svc.auth.verifyPassword({ identifier: 'zoya@salon.ru', password: 'Зоя-пароль-2' }))!;
-  assert.equal(await svc.auth.verifyTotp({ account: u.id, code: totpCode(secret, await dbNow() + 30_000) }), true);
-  assert.deepEqual(await methods(login.token), ['PASSWORD'], 'проверка TOTP сервисом сессию пользователя не помечает');
+  const { secret } = await (await open({ token: first.token })).auth.enrollTotp({ account: u.id });
+  assert.equal(await svc.auth.verifyTotp({ account: u.id, code: await code(secret, -1) }), true);
+  // без кода — как раньше: сессия без отметки TOTP, свои креды по ней не меняются
+  const plain = (await svc.auth.verifyPassword({ identifier: 'zoya@salon.ru', password: 'Зоя-пароль-1' }))!;
+  assert.deepEqual(await methods(plain.token), ['PASSWORD']);
+  await assert.rejects((await open({ token: plain.token })).auth.setPassword({ account: u.id, identifier: 'zoya@salon.ru', password: 'Зоя-пароль-2' }), denied);
+  // код проверяется только после верного пароля: неверный пароль счётчик неудач TOTP не трогает
+  assert.equal(await svc.auth.verifyPassword({ identifier: 'zoya@salon.ru', password: 'Зоя-пароль-0', totp: await wrong(secret) }), null);
+  assert.equal(await fails(u.id), 0);
+  // неверный код — вход не состоялся, неудача засчитана, как у verifyTotp
+  assert.equal(await svc.auth.verifyPassword({ identifier: 'zoya@salon.ru', password: 'Зоя-пароль-1', totp: await wrong(secret) }), null);
+  assert.equal(await fails(u.id), 1);
+  // пароль и код — сессия со способами PASSWORD и TOTP: 10 минут пользователь меняет свои креды сам
+  const totp = await code(secret);
+  const login = (await svc.auth.verifyPassword({ identifier: 'zoya@salon.ru', password: 'Зоя-пароль-1', totp }))!;
+  assert.equal(login.account, u.id);
+  assert.deepEqual(await methods(login.token), ['PASSWORD', 'TOTP']);
+  assert.equal(await fails(u.id), 0, 'удача сбрасывает счётчик');
   const self = await open({ token: login.token });
-  await assert.rejects(self.auth.setPassword({ account: u.id, identifier: 'zoya@salon.ru', password: 'Зоя-пароль-3' }), denied);
-  await assert.rejects(self.auth.enrollTotp({ account: u.id }), denied, 'новый секрет TOTP — тоже нет');
-  // пометить свою сессию пользователю нечем: TOTP проверяет только обладатель auth.totp — ни сам, ни сервис от его имени
-  const next = totpCode(secret, await dbNow() + 30_000);
-  await assert.rejects(self.auth.verifyTotp({ account: u.id, code: next }), denied);
-  await assert.rejects((await svc.as(u.id)).auth.verifyTotp({ account: u.id, code: next }), denied);
-  // путь публичного API один: креды меняет сервис по праву auth.credential (повторную проверку пользователя делает приложение)
-  await svc.auth.setPassword({ account: u.id, identifier: 'zoya@salon.ru', password: 'Зоя-пароль-3' });
-  assert.equal((await svc.auth.verifyPassword({ identifier: 'zoya@salon.ru', password: 'Зоя-пароль-3' }))?.account, u.id);
-  // база отметку принимает — issue_session доверяет сервису способы входа, но библиотека их не передаёт: только сырой SQL
-  const [{ t }] = await svc.transaction((q) => q.unsafe(`select ${S}.issue_session($1::uuid, interval '10 minutes', array['PASSWORD', 'TOTP']) as t`, [u.id]));
-  await (await open({ token: t as string })).auth.setPassword({ account: u.id, identifier: 'zoya@salon.ru', password: 'Зоя-пароль-4' });
+  await self.auth.setPassword({ account: u.id, identifier: 'zoya@salon.ru', password: 'Зоя-пароль-2' });
+  assert.match((await self.auth.issueApiKey({ account: u.id, name: 'свой' })).key, /^lts_/);
+  // повтор того же кода — отказ
+  assert.equal(await svc.auth.verifyPassword({ identifier: 'zoya@salon.ru', password: 'Зоя-пароль-2', totp }), null, 'повтор кода');
+  // вход по внешней учётной записи — так же
+  await svc.auth.link({ account: u.id, kind: 'TELEGRAM', identifier: 'zoya-tg', confirmed: true });
+  assert.deepEqual(await methods((await svc.auth.lookup({ kind: 'TELEGRAM', identifier: 'zoya-tg' }))!.token), ['TELEGRAM']);
+  assert.equal(await svc.auth.lookup({ kind: 'TELEGRAM', identifier: 'zoya-tg', totp: await wrong(secret) }), null);
+  const tg = (await svc.auth.lookup({ kind: 'TELEGRAM', identifier: 'zoya-tg', totp: await code(secret, 1) }))!;
+  assert.deepEqual(await methods(tg.token), ['TELEGRAM', 'TOTP']);
+  await (await open({ token: tg.token })).auth.link({ account: u.id, kind: 'VK', identifier: 'zoya-vk' });
+  // код без подключённого TOTP — отказ; счётчик общий с verifyTotp: пять неудач подряд (проверка и вход
+  // вперемешку) закрывают проверку на 5 минут — и верный код не пускает
+  const v = await account(e, 'Ия');
+  await svc.auth.setPassword({ account: v.id, identifier: 'iya@salon.ru', password: 'Ия-пароль-1', confirmed: true });
+  assert.equal(await svc.auth.verifyPassword({ identifier: 'iya@salon.ru', password: 'Ия-пароль-1', totp: '123456' }), null, 'TOTP не подключён');
+  const { secret: s2 } = await svc.auth.enrollTotp({ account: v.id });
+  for (let i = 0; i < 2; i++) assert.equal(await svc.auth.verifyTotp({ account: v.id, code: await wrong(s2) }), false);
+  for (let i = 0; i < 3; i++) assert.equal(await svc.auth.verifyPassword({ identifier: 'iya@salon.ru', password: 'Ия-пароль-1', totp: await wrong(s2) }), null);
+  assert.equal(await svc.auth.verifyPassword({ identifier: 'iya@salon.ru', password: 'Ия-пароль-1', totp: await code(s2) }), null, 'блокировка');
+  assert.equal(await svc.auth.verifyTotp({ account: v.id, code: await code(s2) }), false, 'блокировка общая');
 });
 
-test('разбор а) ключ сервиса: своим ключом сервис свои ключи не выпускает и не отзывает; без своего сида — новый через up({ serviceKey }), отзыв — системным администратором из загрузчика', async () => {
-  // Фиксирует текущее поведение — пробел. auth_can_manage пускает к своим кредам по недавнему интерактивному
-  // входу (у сервиса его не бывает: вход по ключу) или по праву auth.credential, но креды сервисов выдаёт
-  // только системный администратор (auth_target_ok, auth_is_sysadmin). up({ serviceKey }) ключ добавляет, а
-  // отозвать прежний может лишь системный администратор; назначить его без своего SQL можно только окольным
-  // путём загрузчика, и даже его отзыв гасит все сессии сервиса, в том числе по новому ключу. Правильно:
-  // ротация ключа сервиса без своего SQL и без простоя — например, сервис сам выпускает и отзывает свои APIKEY
-  // (только этот вид, только себе) или up() снимает прежние ключи сервиса, а отзыв ключа гасит только его сессии.
-  // Тест последний в файле: он гасит сессии сервиса и дальше подключение svc работает по новому ключу.
+test('ключи сервиса: по сессии своего ключа сервис выпускает и отзывает свои APIKEY и KEYSECRET, последний — нет; ротация без простоя: отзыв ключа гасит только его сессии', async () => {
+  // Тест последний в файле: ключ установки отзывается, дальше подключение svc работает по новому ключу.
   const denied = (err: { code?: string }) => err.code === 'acl_denied';
-  const [{ id: svcId }] = await e.sql.unsafe(`select id from ${S}.entity where class = 'Account' and data->'categories' ? 'Service'`);
-  const apiKeys = async (db: Db) => (await db.auth.credentials(svcId as string)).filter((c) => c.kind === 'APIKEY');
-  // свои ключи сервис видит, но не выпускает и не отзывает
-  const first = (await apiKeys(svc)).find((c) => c.ident === e.serviceKey.slice(0, 12))!;
-  await assert.rejects(svc.auth.issueApiKey({ account: svcId }), denied);
-  await assert.rejects(svc.auth.issueKeySecret({ account: svcId }), denied);
-  await assert.rejects(svc.auth.revokeCredential(first.id), denied);
-  // выпуск без своего сида есть: повторный up({ serviceKey }) регистрирует тому же сервису ещё один ключ…
-  const second = `lts_${'5e'.repeat(24)}`;
-  assert.equal((await up({ sql: e.sql, schema: e.schema, allowReset: true, serviceKey: second, quiet: true })).serviceKey, second);
-  const svc2 = await open({ apiKey: second });
-  assert.equal(await whose(svc2.token!), svcId);
-  // …а отзыва нет: прежний ключ сервис не отзывает и сессией по новому
-  await assert.rejects(svc2.auth.revokeCredential(first.id), denied);
-  // системный администратор без своего сида: загрузчик администраторского подключения кладёт аккаунт и его
-  // членство в System с ролью admin; ключ аккаунту выпускает сервис, пока тот ещё не член System
-  const adm = await connect({ dsn: ADMIN_DSN, schema: e.schema, allowBypassRls: true, max: 1, listen: false });
-  dbs.push(adm);
-  await adm.load([{ $class: 'Account', $ext: 'ops', name: 'Дежурный', categories: [] }], { tenant: SYSTEM_ID });
-  const ops = v5Id(SYSTEM_ID, 'Account', ['ops']);
-  const { key: opsKey } = await svc.auth.issueApiKey({ account: ops, name: 'дежурный' });
-  await adm.load([{ $class: 'member', User: ops, Tenant: SYSTEM_ID, roles: ['admin'] }], { tenant: SYSTEM_ID });
-  await assert.rejects(svc.auth.issueApiKey({ account: ops }), denied, 'члену System креды выдаёт только системный администратор');
-  const opsDb = await open({ apiKey: opsKey });
-  await opsDb.auth.switch(SYSTEM_ID);
-  // ротация: новый ключ сервису, прежние отозваны
-  const third = await opsDb.auth.issueApiKey({ account: svcId, name: 'ротация' });
-  const early = await open({ apiKey: third.key });   // приложение уже перешло на новый ключ
-  for (const k of await apiKeys(opsDb)) if (k.id !== third.id) assert.equal(await opsDb.auth.revokeCredential(k.id), true);
-  // отзыв креда гасит все сессии аккаунта, кроме сессии вызывающего (auth_kill), — и открытые по новому ключу;
-  // connect() меняет ключ на сессию один раз, так что без простоя не выходит: подключения сервиса пересоздаются
-  await assert.rejects(svc2.auth.credentials(svcId), lt('no_session'));
-  await assert.rejects(early.auth.credentials(svcId), lt('no_session'));
-  svc = await open({ apiKey: third.key });
-  assert.equal(await svc.auth.verifyApiKey(e.serviceKey), null);
-  assert.equal(await svc.auth.verifyApiKey(second), null);
-  assert.equal((await svc.auth.verifyApiKey(third.key))?.account, svcId);
+  const [{ id: svcId }] = await e.sql.unsafe(`select id from ${S}.entity where class = 'Account' and data->'categories' ? 'Service'`) as unknown as { id: string }[];
+  const meta = async (token: string) => (await e.sql.unsafe(`select meta from ${S}.secret
+    where kind = 'SESSION' and material = sha256(convert_to($1, 'UTF8'))`, [token]))[0]?.meta;
+  const old = (await svc.auth.credentials(svcId)).find((c) => c.kind === 'APIKEY' && c.ident === e.serviceKey.slice(0, 12))!;
+  // сессия по ключу помнит его id
+  assert.equal((await meta(svc.token!)).cred, old.id);
+  // последний действующий ключ не отзывается: сервис остался бы без входа
+  await assert.rejects(svc.auth.revokeCredential(old.id),
+    (err: Error & { code?: string }) => err.code === 'acl_denied' && /последний действующий ключ сервиса/.test(err.message));
+  // пара «ключ + секрет»: выпуск себе, вход, отзыв — гаснет только её сессия
+  const ks = await svc.auth.issueKeySecret({ account: svcId, name: 'пара' });
+  const byPair = (await svc.auth.verifyKeySecret(ks.key, ks.secret))!;
+  assert.equal(byPair.account, svcId);
+  assert.equal((await meta(byPair.token)).cred, ks.id);
+  assert.equal(await svc.auth.revokeCredential(ks.id), true);
+  assert.equal(await whose(byPair.token), null, 'сессия по отозванной паре');
+  assert.equal(await whose(svc.token!), svcId, 'сессия по ключу жива');
+  // только ключи и только свои: пароль себе сервис не задаёт, ключи другого сервиса не выпускает и не отзывает
+  await assert.rejects(svc.auth.setPassword({ account: svcId, identifier: 'svc@salon.ru', password: 'Сервис-1' }), denied);
+  const other = await account(e, 'Сервис-2', { categories: ['Service'] });
+  await assert.rejects(svc.auth.issueApiKey({ account: other.id }), denied);
+  const admin = await open({ token: (await sysadmin(e, 'admin-keys')).token });
+  const otherKey = await admin.auth.issueApiKey({ account: other.id });
+  await assert.rejects(svc.auth.revokeCredential(otherKey.id), denied);
+  // и только по сессии своего ключа: сессия сервиса без входа по ключу своих ключей не выпускает
+  await assert.rejects((await open({ token: await session(e, svcId) })).auth.issueApiKey({ account: svcId }), denied);
+  // ротация без простоя: 1) сервис выпускает себе новый ключ; 2) второе подключение входит по нему
+  const fresh = await svc.auth.issueApiKey({ account: svcId, name: 'ротация' });
+  const next = await open({ apiKey: fresh.key });
+  assert.equal((await meta(next.token!)).cred, fresh.id);
+  const stale = await open({ apiKey: e.serviceKey });   // ещё одно подключение по старому ключу
+  const plain = await session(e, svcId);                // сессия сервиса не по ключу
+  const legacy = await session(e, svcId, { methods: ['APIKEY'] });   // по ключу, но без отметки креда (открыта до неё)
+  // 3) сервис отзывает старый ключ (keepCurrent: false — своё подключение по старому ключу тоже гасит)
+  assert.equal(await svc.auth.revokeCredential(old.id, { keepCurrent: false }), true);
+  // 4) подключение по новому ключу работает, по старому — no_session; прочие сессии отзыв ключа не трогает
+  assert.deepEqual((await next.auth.credentials(svcId)).filter((c) => c.kind === 'APIKEY').map((c) => c.id), [fresh.id]);
+  await assert.rejects(svc.auth.credentials(svcId), lt('no_session'));
+  await assert.rejects(stale.auth.credentials(svcId), lt('no_session'));
+  await assert.rejects(open({ apiKey: e.serviceKey }), lt('no_session'));
+  assert.equal(await whose(plain), svcId);
+  assert.equal(await whose(legacy), null, 'чей ключ у сессии без отметки, не узнать — она гаснет');
+  // теперь последний — новый ключ
+  await assert.rejects(next.auth.revokeCredential(fresh.id), denied);
+  svc = next;
+  assert.equal((await svc.auth.verifyApiKey(fresh.key))?.account, svcId);
 });

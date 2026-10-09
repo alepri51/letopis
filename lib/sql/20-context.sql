@@ -118,15 +118,16 @@ begin
   return tok;
 end $$;
 
--- Вход по API-ключу (APIKEY): префикс ищется в ident, ключ сверяется по sha256.
+-- Вход по API-ключу (APIKEY): префикс ищется в ident, ключ сверяется по sha256. Сессия помнит ключ
+-- (meta.cred): отзыв ключа гасит только его сессии.
 create or replace function @SCHEMA@.login_apikey(p_key text) returns text
 language plpgsql volatile security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 declare
-  acc uuid;
+  k record;
 begin
-  select s.account into acc
+  select s.id, s.account into k
   from @SCHEMA@.secret s
   join @SCHEMA@.entity a on a.id = s.account and a.class = 'Account' and a.tenant = '@SYSTEM@'::uuid
   where s.kind = 'APIKEY' and s.deleted_at is null
@@ -135,10 +136,10 @@ begin
     and (s.expires_at is null or s.expires_at > clock_timestamp())
     and coalesce((s.meta->>'enabled')::boolean, true)
     and coalesce((a.data->>'enabled')::boolean, true);
-  if acc is null then
+  if k.account is null then
     raise exception using errcode = 'LT001', message = 'letopis: no_session: неверный ключ';
   end if;
-  return @SCHEMA@.new_session(acc, interval '7 days', jsonb_build_object('methods', jsonb_build_array('APIKEY')));
+  return @SCHEMA@.new_session(k.account, interval '7 days', jsonb_build_object('methods', jsonb_build_array('APIKEY'), 'cred', k.id));
 end $$;
 
 alter function @SCHEMA@.ctx() owner to @OWNER@;

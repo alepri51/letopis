@@ -5,12 +5,13 @@
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import postgres from 'postgres';
 import { ensureDatabase as harnessDb, ADMIN_DSN, adminSql, ident, appDsn, ensureAppRole, type Sql } from './_harness.js';
-import { up, checkServer, createTenant } from '../src/up.js';
+import { up, checkServer, createTenant, SYSTEM_ID } from '../src/up.js';
 import { connect, DDL_REVISION } from '../src/index.js';
 
 let sql: Sql;
@@ -224,6 +225,76 @@ test('createTenant и up({ tenant }): роли членства — user.roles (
     }
     await assert.rejects(up({ dsn: ADMIN_DSN, schema, quiet: true, tenant: { name: 'Новый', user: { ...petr, roles: [] } } }), invalid);
     assert.equal(await rows(), before, 'ничего не записано');
+  } finally {
+    await sql.unsafe(`drop schema if exists ${S} cascade`);
+  }
+});
+
+test('createTenant после удаления: членство, аккаунт пользователя, арендатор — invalid_data с объяснением вместо 23505, ничего не записано; restore() возвращает строку, повтор проходит', async () => {
+  const schema = 'v2.t_up_gone';
+  const S = ident(schema);
+  await ensureAppRole(sql);
+  const r = await up({ dsn: ADMIN_DSN, schema, fresh: true, quiet: true,
+    tenant: { name: 'Салон', user: { name: 'Ольга', login: 'olga@salon.ru', password: 'пароль-Ольги-1' } } });
+  try {
+    const salon = r.tenant!.tenant;
+    const vera = { name: 'Вера', login: 'vera@salon.ru', password: 'пароль-Веры-1', roles: ['staff'] };
+    const v = await createTenant(sql, schema, { name: 'Салон', user: vera });
+    const [{ id: veraMember }] = await sql.unsafe(`select ${S}.v5_id($2::uuid, 'member', array[$1::text, $2::text]) as id`, [v.user, salon]);
+    /** Всё записанное: строки, версии, секреты (сессии и пароли). */
+    const rows = async () => (await sql.unsafe(`select (select count(*) from ${S}.entity)::int + (select count(*) from ${S}.log)::int
+      + (select count(*) from ${S}.secret)::int as n`))[0].n as number;
+    /** Отказ createTenant об удалённой строке: код, текст (что, id, почему, как вернуть), detail. */
+    const gone = (re: RegExp, detail?: unknown) => (err: { code?: string; message?: string; detail?: unknown }) => {
+      assert.equal(err.code, 'invalid_data', err.message);
+      assert.match(err.message ?? '', re);
+      assert.match(err.message ?? '', /, а его история осталась в журнале — повтор удалённое не воскрешает: верните его /);
+      if (detail) assert.deepEqual(err.detail, detail);
+      return true;
+    };
+
+    // членство удалено (владелец арендатора убрал сотрудницу): повтор — отказ, а не 23505 log_id_rev
+    const olga = await connect({ dsn: appDsn(), schema, token: r.tenant!.token!, max: 1, listen: false });
+    try {
+      await olga.member(veraMember).delete({ confirm: true }).rows();
+      const before = await rows();
+      await assert.rejects(createTenant(sql, schema, { name: 'Салон', user: vera }),
+        gone(/^letopis: invalid_data: createTenant: членство vera@salon\.ru в арендаторе «Салон» \([0-9a-f-]{36}\) удалено, .*db\.member\(id\)\.restore\(\) в этом арендаторе или выберите другой логин$/,
+          { id: veraMember, class: 'member' }));
+      assert.equal(await rows(), before, 'ничего не записано: ни строк, ни сессии');
+      // совет из текста работает: restore() возвращает членство с прежними ролями, повтор проходит
+      await olga.member(veraMember).restore().rows();
+      const again = await createTenant(sql, schema, { name: 'Салон', user: vera });
+      assert.deepEqual([again.created, again.user], [false, v.user]);
+      assert.match(again.token ?? '', /^[0-9a-f]{64}$/);
+    } finally {
+      await olga.close();
+    }
+
+    // аккаунт пользователя и арендатора удаляет системный администратор (член System с ролью admin)
+    const adminId = randomUUID();
+    await sql.begin(async (tx) => {
+      await tx.unsafe('set local role letopis_owner');
+      await tx.unsafe(`select ${S}.sys_create($1::uuid, 'Account', $2::uuid, '{}', $3::jsonb)`,
+        [adminId, SYSTEM_ID, { name: 'Админ', categories: [], enabled: true } as never]);
+      await tx.unsafe(`select ${S}.sys_create(${S}.v5_id($2::uuid, 'member', array[$1::text, $2::text]), 'member', $2::uuid,
+        jsonb_build_object('User', $1::uuid, 'Tenant', $2::uuid), '{"roles": ["admin"]}')`, [adminId, SYSTEM_ID]);
+    });
+    const [{ tok }] = await sql.unsafe(`select ${S}.new_session($1::uuid, '1 hour', $2::jsonb) as tok`, [adminId, { tenant: SYSTEM_ID } as never]);
+    const admin = await connect({ dsn: appDsn(), schema, token: tok as string, max: 1, listen: false });
+    try {
+      await admin.Account(v.user!).delete({ confirm: true }).rows();
+      await assert.rejects(createTenant(sql, schema, { name: 'Салон', user: vera }),
+        gone(/createTenant: аккаунт пользователя vera@salon\.ru \([0-9a-f-]{36}\) удалён, .*db\.Account\(id\)\.restore\(\) от имени системного администратора или выберите другой логин$/));
+      const empty = await createTenant(sql, schema, { name: 'Пустой' });
+      await admin.Account(empty.tenant).delete({ confirm: true }).rows();
+      const before = await rows();
+      await assert.rejects(createTenant(sql, schema, { name: 'Пустой' }),
+        gone(/createTenant: арендатор «Пустой» \([0-9a-f-]{36}\) удалён, .*или выберите другое имя$/));
+      assert.equal(await rows(), before, 'ничего не записано');
+    } finally {
+      await admin.close();
+    }
   } finally {
     await sql.unsafe(`drop schema if exists ${S} cascade`);
   }

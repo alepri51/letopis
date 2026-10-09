@@ -8,7 +8,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { engine, lt, SYSTEM_ID, type Engine } from './_engine.js';
-import { appDsn } from './_harness.js';
+import { ADMIN_DSN, appDsn } from './_harness.js';
 import { account, member, resource, rule, session, sqlAs, sysRes, type Acc } from './_access.js';
 import { connect, type Db } from '../src/index.js';
 
@@ -241,4 +241,86 @@ test('строки прав в арендаторе: пользователь б
   await assert.rejects(raw(`insert into ${S}.entity (class, links, data) values ('member', $1::jsonb, '{"roles": ["admin"]}')`,
     [{ User: other.id, Tenant: org }]), lt('42501'));
   void SYSTEM_ID;
+});
+
+// путь нарушения pattern.<поле> в списке issues (библиотека, база и загрузчик пишут одинаково)
+const atMask = (issues: unknown, field: string) =>
+  Array.isArray(issues) && issues.some((i: { path?: unknown }) => Array.isArray(i.path) && i.path.join('.') === `pattern.${field}`);
+
+test('маски шаблона Resource — только строки: массив, число и null отклоняются при записи (библиотека, загрузчик, сырой SQL)', async () => {
+  // арендатор с правилом «можно всё»: отказывает описание класса Resource, а не права
+  const t = await e.tenant('маски');
+  const dt = await open(t);
+  const raw = sqlAs(e, t.token);
+  const adm = await connect({ dsn: ADMIN_DSN, schema: e.schema, allowBypassRls: true, max: 1, listen: false });
+  dbs.push(adm);
+  const cases: [string, string, Record<string, unknown>][] = [
+    ['ACCOUNT', 'roles', { roles: ['staff'] }],
+    ['ACCOUNT', 'categories', { categories: 1 }],
+    ['ACCOUNT', 'categories', { categories: ['User'] }],
+    ['ACCOUNT', 'roles', { roles: null }],
+    ['API', 'endpoint', { endpoint: ['v2.secret.*'] }],
+    ['READ', 'class', { class: ['Customer'], owner: '$actor' }],
+  ];
+  for (const [i, [category, field, pattern]] of cases.entries()) {
+    const row = { alias: `bad${i}:${category}`, category, pattern };
+    const label = JSON.stringify(pattern);
+    await assert.rejects(dt.Resource().create(row).rows(),
+      (err: { code?: string; issues?: unknown }) => err.code === 'invalid_data' && atMask(err.issues, field), `библиотека: ${label}`);
+    await assert.rejects(raw(`insert into ${S}.entity (class, data) values ('Resource', $1::jsonb)`, [row]),
+      (err: { message?: string; detail?: string }) => lt('invalid_data')(err) && atMask(JSON.parse(err.detail ?? '{}').issues, field),
+      `сырой SQL: ${label}`);
+    await assert.rejects(adm.load([{ $class: 'Resource', ...row }], { tenant: t.id }),
+      (err: { code?: string; detail?: { rows?: { issues?: unknown }[] } }) => err.code === 'invalid_data' && atMask(err.detail?.rows?.[0]?.issues, field),
+      `загрузчик: ${label}`);
+  }
+  assert.deepEqual([...await raw(`select id from ${S}.entity where class = 'Resource'`)], [], 'ни одна строка не записана');
+  // маска строкой принимается; правка в не строку — отказ триггера правки
+  const [ok] = await dt.Resource().create({ alias: 'staff:ACCOUNT', category: 'ACCOUNT', pattern: { roles: '{staff}' } }).rows();
+  await assert.rejects(dt.Resource(ok.id).update({ pattern: { roles: ['staff'] } }).rows(), (err: { code?: string }) => err.code === 'invalid_data');
+  await assert.rejects(raw(`update ${S}.entity set data = jsonb_set(data, '{pattern,categories}', '1') where id = $1`, [ok.id]), lt('invalid_data'));
+  assert.deepEqual((await dt.Resource(ok.id).first())!.data.pattern, { roles: '{staff}' });
+});
+
+test('строки Resource с маской не строкой, записанные в обход проверки (от владельца), прав не дают; запрет по ним — на всех, как прежде', async () => {
+  const raw = sqlAs(e, user.token);
+  const auth = await sysRes(e, 'authenticated:ACCOUNT');
+  await ownRow('Customer', { name: 'Тайный' });
+  // владелец пишет мимо триггеров и описания класса — маски остаются как есть
+  const secret = await resource(e, org, 'secret:API', 'API', { endpoint: 'v2.secret.*' });
+  const customers = await resource(e, org, 'customer:READ', 'READ', { class: 'Customer' });
+  const groups: string[] = [];
+  for (const [alias, pattern] of [['arr.roles:ACCOUNT', { roles: ['staff'] }], ['num.categories:ACCOUNT', { categories: 1 }],
+    ['arr.categories:ACCOUNT', { categories: ['User'] }]] as const) {
+    const g = await resource(e, org, alias, 'ACCOUNT', pattern);
+    groups.push(g);
+    await rule(e, org, g, secret, 'allow', 500);
+    await rule(e, org, g, customers, 'allow', 500);
+  }
+  const [{ kind }] = await e.sql.unsafe(`select jsonb_typeof(data->'pattern'->'roles') as kind from ${S}.entity where id = $1`, [groups[0]]);
+  assert.equal(kind, 'array', 'маска записана не строкой');
+  // объект строк с маской класса не строкой — от группы, в которую пользователь входит
+  await rule(e, org, auth, await resource(e, org, 'arr.class:READ', 'READ', { class: ['Customer'] }), 'allow', 500);
+
+  const api = await du.acl.check('v2.secret.read');
+  assert.equal(api.allow, false, 'группа с маской не строкой совпала со всеми');
+  assert.equal(api.code, 403, 'решает запрет по умолчанию System');
+  assert.deepEqual(await du.acl.checkData('Customer', 'READ'), { allow: false });
+  assert.deepEqual(await du.Customer().rows(), []);
+  assert.deepEqual([...await raw(`select id from ${S}.entity where class = 'Customer'`)], []);
+  // та же группа с маской строкой — совпадает: роль staff членства в этом арендаторе
+  await rule(e, org, await resource(e, org, 'str.roles:ACCOUNT', 'ACCOUNT', { roles: '{staff}' }), secret, 'allow', 500);
+  assert.equal((await du.acl.check('v2.secret.read')).allow, true);
+
+  // запрет по такой строке действует на всех, как и до проверки масок: исправление прав не прибавляет
+  const vehicleRead = await resource(e, org, 'vehicle:READ', 'READ', { class: 'Vehicle' });
+  const deny = [await rule(e, org, groups[0], vehicleRead, 'deny', 500),
+    await rule(e, org, auth, await resource(e, org, 'arr.class:WRITE', 'WRITE', { class: ['Customer'] }), 'deny', 500)];
+  assert.deepEqual(await du.acl.checkData('Vehicle', 'READ'), { allow: false });
+  assert.deepEqual(await dother.acl.checkData('Vehicle', 'READ'), { allow: false });
+  assert.deepEqual(await du.acl.checkData('Vehicle', 'WRITE'), { allow: false }, 'запрет с маской класса не строкой — на все классы');
+  await e.asOwner((tx) => tx.unsafe(`delete from ${S}.entity where id = any ($1::uuid[])`, [deny]));
+  await e.asOwner((tx) => tx.unsafe(`select ${S}.acl_bump()`));
+  assert.deepEqual(await du.acl.checkData('Vehicle', 'READ'), { allow: true });
+  assert.deepEqual(await du.acl.checkData('Vehicle', 'WRITE'), { allow: true });
 });

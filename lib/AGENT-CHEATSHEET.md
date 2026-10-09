@@ -75,6 +75,14 @@ db.tenant          // арендатор сессии: по умолчанию �
   (без него сессия — в собственном арендаторе аккаунта). Токен для CLI (`--token`) — тот же `token` из
   `verifyPassword`/`verifyApiKey`/`sessionFor`. Администраторское подключение (`allowBypassRls`) печатает
   предупреждение «RLS не действует» — так и должно быть.
+- Второй фактор: `verifyPassword({ identifier, password, totp })` и `lookup({ kind, identifier, totp })` после первой
+  проверки сверяют код TOTP (право `auth.totp`, счётчик неудач и блокировка — общие с `verifyTotp`) → сессия со
+  способами `[вид, 'TOTP']`, по ней пользователь с TOTP меняет свои креды сам. Неверный или повторный код и код у
+  аккаунта без TOTP — `null`; без `totp` код не проверяется.
+- Ключи сервиса: по сессии своего ключа сервис сам выпускает и отзывает свои ключи (`issueApiKey`,
+  `issueKeySecret` с `account` — id сервиса; `revokeCredential(id)`). Отзыв ключа гасит только сессии этого ключа —
+  ротация без простоя: новый ключ → процессы на него → отзыв старого. Последний действующий ключ сервиса не
+  отзывается (`acl_denied`); отключить сервис — `enabled: false` у его аккаунта.
 - Работа в чужом арендаторе по членству: `await user.auth.tenants()` → `[{ tenant, roles }]`, затем
   `await user.auth.switch(tenant)` (только от корня подключения). Имперсонация сервисом:
   `const u = await svc.as(account, { tenant, owner })` — проверяет база, в журнале `author` — пользователь,
@@ -223,7 +231,9 @@ const canDelete = await olga.acl.checkData('Wallet', 'DELETE')    // { allow: fa
 ```
 - Членство — строка `member` с концами `User` и `Tenant`, ключ `[User, Tenant]`: новое членство —
   `db.member().create({ roles }).User.set(аккаунт).Tenant.set(арендатор)`, если его ещё нет (иначе `exists`).
-- Группа: `{ categories: '{Staff}' }` (категории аккаунта) или `{ roles: '{staff}' }` (роли членства).
+- Группа: `{ categories: '{Staff}' }` (категории аккаунта) или `{ roles: '{staff}' }` (роли членства). Маска
+  (`categories`, `roles`, `endpoint`, `class`) — **только строка**: массив (`['staff']`), число или `null` база
+  отклоняет с `invalid_data`.
   Условие объекта: `{ class: 'Wallet', owner: '$actor' }`, `{ class: 'Wallet', data: { … } }`; маска класса —
   с потомками, `'{rule,Resource,member}'` — несколько классов. `deny` с `{ code, message }` — свой отказ эндпоинта.
 - Права пересчитываются базой сами; убрать право — `db.rule(id).delete({ confirm: true }).rows()`.
