@@ -184,7 +184,7 @@ const passSql = (q: Tx, ctx: TxContext) =>
  * журнала. Ошибки базы переводятся в LetopisError. read — операция только читает: сигналы не собираются.
  */
 export async function runTx<T>(ctx: TxContext, fn: (tx: Tx) => Promise<T>,
-  opts: { retries?: number; read?: boolean; raw?: boolean; conn?: postgres.ReservedSql<Record<string, unknown>> } = {}): Promise<T> {
+  opts: { retries?: number; read?: boolean; raw?: boolean } = {}): Promise<T> {
   const retries = opts.retries ?? RETRIES;
   for (let attempt = 1; ; attempt++) {
     let bodyDone = false;
@@ -192,8 +192,7 @@ export async function runTx<T>(ctx: TxContext, fn: (tx: Tx) => Promise<T>,
     let failure: unknown = null;
     // своё зарезервированное соединение, а не sql.begin: после гибели серверного процесса
     // postgres.js 3.4 шлёт rollback в закрытый сокет и роняет процесс необработанным TypeError
-    // своё соединение (opts.conn) вызывающий держит и возвращает сам — например, под сеансовой блокировкой
-    const conn = opts.conn ?? await ctx.sql.reserve();
+    const conn = await ctx.sql.reserve();
     try {
       let changed: string | null = null;
       // begin, служебный оператор и первый запрос операции уходят конвейером (§2.9); время — в UTC;
@@ -229,7 +228,7 @@ export async function runTx<T>(ctx: TxContext, fn: (tx: Tx) => Promise<T>,
       }
       throw fromDbError(e);
     } finally {
-      if (!opts.conn) release(conn, failure);
+      release(conn, failure);
     }
   }
 }
