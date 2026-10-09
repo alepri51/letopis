@@ -2,7 +2,7 @@
 paths:
   - 'lib/test/_harness.ts'
   - 'lib/test/_engine.ts'
-synced: 5e89882
+synced: d7707a2
 ---
 # M-TESTS — обвязка тестов
 

@@ -3,7 +3,7 @@ paths:
   - 'lib/scripts/{check-docs,check-package,gen-api-contract,release-notes}.mjs'
   - '.github/workflows/*.yml'
   - 'docs/api-contract.json'
-synced: 2e5bcbd
+synced: d7707a2
 ---
 # M-RELEASE — CI, тег, релиз, check-docs, check-package, контракт API (этапы 0, 8)
 
