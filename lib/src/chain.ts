@@ -536,7 +536,11 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
   return new Proxy({}, handler) as Chain;
 }
 
-/** Батч: очередь планов; каждый вызов класса — своя ссылка на очередь (свой план). */
+/**
+ * Батч: очередь планов; каждый вызов класса — своя ссылка на очередь (свой план). run() исполняет очередь
+ * в контексте ctx (актор, арендатор, владелец, транзакция) — поэтому очередь принадлежит фасаду этого ctx
+ * и общей с другими фасадами быть не может: иначе план исполнился бы от имени чужого актора.
+ */
 export function makeBatch(ctx: ChainCtx, queue: BatchEntry[]): Batch {
   return new Proxy({}, {
     get(_t, prop) {

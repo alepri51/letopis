@@ -113,19 +113,34 @@ const asList = (v: string | string[]): string[] => (Array.isArray(v) ? v : [v]);
 const pgArray = (tags: readonly string[]): string => `{${tags.map((t) => `"${t.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`).join(',')}}`;
 const isObj = (v: unknown): v is Raw => typeof v === 'object' && v !== null && !Array.isArray(v);
 
-/** Нарушения копятся; загрузка отменяется с первым кодом и списком строк (до 100). */
+/** Предел списка нарушений в ошибке загрузки (detail.rows); счёт нарушений — без предела. */
+const ISSUES_LIMIT = 100;
+
+/**
+ * Нарушения копятся; загрузка отменяется с кодом первого. detail: rows — первые ISSUES_LIMIT нарушений,
+ * total — все найденные, truncated — список обрезан, limit — предел, complete — проверки, нашедшие
+ * нарушения, прошли все строки. Иначе (unchecked — почему) нарушений может быть больше total, и текст
+ * говорит «не меньше».
+ */
 class Issues {
   list: LoadIssue[] = [];
+  total = 0;
+  /** Почему проверены не все строки: следующие порции, пачки без условий ACL, предел проверки базы. */
+  unchecked = new Set<string>();
   add(i: LoadIssue): void {
-    if (this.list.length < 100) this.list.push(i);
+    this.total++;
+    if (this.list.length < ISSUES_LIMIT) this.list.push(i);
   }
   get any(): boolean {
-    return this.list.length > 0;
+    return this.total > 0;
   }
   fail(): never {
     const first = this.list[0];
-    const more = this.list.length > 1 ? ` (и ещё ${this.list.length - 1})` : '';
-    throw new LetopisError(first.code, `загрузка отменена: строка ${first.line} — ${first.message}${more}`, { rows: this.list });
+    const rest = this.total - 1;
+    const why = [...this.unchecked].join('; ');
+    const more = why ? ` (${rest ? `и ещё не меньше ${rest}` : 'возможно, не единственная'}: ${why})` : rest ? ` (и ещё ${rest})` : '';
+    throw new LetopisError(first.code, `загрузка отменена: строка ${first.line} — ${first.message}${more}`,
+      { rows: this.list, total: this.total, truncated: this.total > this.list.length, limit: ISSUES_LIMIT, complete: !why });
   }
 }
 
@@ -375,6 +390,8 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
   const issues = new Issues();
   /** Планы прав пользователя (load({ as })) текущей порции. */
   let acl: { read: Record<string, unknown>; write: Record<string, unknown> } | null = null;
+  /** Условия ACL уже проверяли пачку этой порции: пачку, пропущенную из-за нарушений, они не проверят. */
+  let aclRan = false;
   /** Цели ссылок порции (load({ as })): id → первая строка и роль — для проверки видимости. */
   const targets = new Map<string, { line: number; role: string }>();
   /** Владельцы ($owner) порции, кроме арендатора: id → первая строка; сверяются запросом в конце. */
@@ -482,8 +499,11 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
   /** Одна порция — одна транзакция. */
   async function loadPortion(portion: number[]): Promise<void> {
     acl = null;
+    aclRan = false;
     targets.clear();
     owners.clear();
+    issues.unchecked.clear();
+    laterUnchecked(portion, issues);
     const conn = await env.sql.reserve();
     const written: string[] = [];
     let failed: unknown = null;
@@ -616,6 +636,11 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     }
   }
 
+  /** Порция не последняя (commitEvery): следующие порции загрузчик уже не проверит — нарушений может быть больше. */
+  function laterUnchecked(portion: number[], to: Issues): void {
+    if (portion !== portions[portions.length - 1]) to.unchecked.add('следующие порции не проверялись');
+  }
+
   function isLastVersion(i: number): boolean {
     const list = versions.get(p1[i]!.id);
     if (!list) return true;
@@ -630,6 +655,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       from unnest($1::uuid[]) x`, [ids]);
     const taken = new Map(res.filter((r) => r.live || r.was).map((r) => [r.id as string, r.live ? 'exists' : 'deleted']));
     const out = new Issues();
+    laterUnchecked(portion, out);
     for (const i of portion) {
       const c = taken.get(p1[i]!.id);
       if (c) out.add({ line: i + 1, code: c, message: c === 'exists' ? 'объект уже есть в базе' : 'объект с этим id жил раньше и удалён (existing: update воскресит)', id: p1[i]!.id, class: p1[i]!.cls.name });
@@ -725,8 +751,12 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       touched.add(cls.name);
       written.push(id);
     }
-    if (issues.any) return;
+    if (issues.any) {
+      if (aclRan) issues.unchecked.add('условия ACL следующих пачек не проверялись');
+      return;
+    }
     if (acl) {
+      aclRan = true;
       // условия ACL на строки — одним запросом на пачку: файл пользователя — не доверенные данные
       const bad = await conn.unsafe(`select (x->>'i')::int as i from jsonb_array_elements($1::jsonb) x
           where not ${S}.acl_row_ok($2::jsonb, x->>'class', (x->>'id')::uuid, (x->>'owner')::uuid, $3::uuid,
@@ -852,8 +882,9 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
   async function verifyRows(conn: Sql, reg: Registry, ids: string[]): Promise<void> {
     const bad = await conn.unsafe(`select e.id, e.class, ${S}.validate_data(c.data->'resolved'->'rules', c.validator, c.data->'resolved'->'vars', e.data) as issues
       from ${S}.entity e cross join lateral ${S}.class_row(e.class, e.tenant) c
-      where e.id = any ($1::uuid[]) and ${S}.validate_data(c.data->'resolved'->'rules', c.validator, c.data->'resolved'->'vars', e.data) <> '[]'::jsonb limit 100`, [ids]);
+      where e.id = any ($1::uuid[]) and ${S}.validate_data(c.data->'resolved'->'rules', c.validator, c.data->'resolved'->'vars', e.data) <> '[]'::jsonb limit ${ISSUES_LIMIT}`, [ids]);
     for (const r of bad) issues.add({ line: 0, code: 'invalid_data', message: `проверка базы: строка ${r.id} не проходит описание класса ${r.class}`, id: r.id as string, issues: r.issues as Issue[] });
+    if (bad.length >= ISSUES_LIMIT) issues.unchecked.add(`проверка базы называет не больше ${ISSUES_LIMIT} строк`);
     const [t] = await conn.unsafe(`select ${S}.targets_bad((select jsonb_agg(jsonb_build_object('class', e.class, 'tenant', e.tenant, 'links', e.links))
       from ${S}.entity e where e.id = any ($1::uuid[]) and e.links <> '{}'::jsonb), false) as role`, [ids]);
     if (t?.role) issues.add({ line: 0, code: 'target_not_found', message: `проверка базы: цель конца ${t.role} не найдена` });

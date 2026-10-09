@@ -195,6 +195,34 @@ test('7.6.1 №9–11: существующие объекты — error (exists
   assert.equal(v.ok, true, JSON.stringify(v.issues));
 });
 
+test('отчёт ошибки: в тексте — число всех проблемных строк, в detail — первые 100 и признак обрезки; порции — «не меньше»', async () => {
+  type Detail = { rows: { line: number; code: string }[]; total: number; truncated: boolean; limit: number; complete: boolean };
+  const fails = async (p: Promise<unknown>): Promise<{ message: string; code: string; detail: Detail }> => {
+    const err = await p.then(() => assert.fail('загрузка прошла'), (x: unknown) => x);
+    return err as { message: string; code: string; detail: Detail };
+  };
+  const many = orgs(500, 'many');
+  await adm.load({ Org: many });
+  // повтор 500 существующих без опций: все 500 в счёте, в списке — первые 100
+  const all = await fails(adm.load({ Org: many }));
+  assert.equal(all.code, 'exists');
+  assert.equal(all.message, 'letopis: exists: загрузка отменена: строка 1 — объект уже есть в базе (и ещё 499)');
+  assert.deepEqual([all.detail.rows.length, all.detail.total, all.detail.truncated, all.detail.limit, all.detail.complete], [100, 500, true, 100, true]);
+  assert.deepEqual([all.detail.rows[0].line, all.detail.rows[99].line], [1, 100]);
+  // порции commitEvery: следующие загрузчик не проверяет — число «не меньше»
+  const portion = await fails(adm.load({ Org: many }, { commitEvery: 100 }));
+  assert.match(portion.message, /строка 1 — объект уже есть в базе \(и ещё не меньше 99: следующие порции не проверялись\)$/);
+  assert.deepEqual([portion.detail.rows.length, portion.detail.total, portion.detail.truncated, portion.detail.complete], [100, 100, false, false]);
+  const fresh = Array.from({ length: 199 }, (_, i) => ({ $class: 'Org', name: `one-${i}` }));
+  const single = await fails(adm.load([{ $class: 'Org', name: 'many-0' }, ...fresh], { commitEvery: 100 }));
+  assert.match(single.message, /строка 1 — объект уже есть в базе \(возможно, не единственная: следующие порции не проверялись\)$/);
+  // одна проблемная строка в единственной порции — без «и ещё»
+  const one = await fails(adm.load([{ $class: 'Org', name: 'many-0' }, ...fresh]));
+  assert.match(one.message, /строка 1 — объект уже есть в базе$/);
+  assert.deepEqual([one.detail.rows.length, one.detail.total, one.detail.truncated, one.detail.complete], [1, 1, false, true]);
+  assert.equal(await db.Org({ name: 'one-0' }).count(), 0, 'отменённые загрузки ничего не записали');
+});
+
 test('7.6.1 №13–14, 23: только администратор; строки Class не принимаются; режима доверия нет', async () => {
   await assert.rejects(db.load([{ $class: 'Org', name: 'x' }]), code('admin_required'));
   await assert.rejects(adm.load([{ $class: 'Class', name: 'X', kind: 'hub' }]), code('class_not_loadable'));

@@ -42,15 +42,16 @@ const r = await up({ dsn: ADMIN, schema: 'myapp',                  // schema 'v2
   `connect({ dsn: r.pglite.dsn, listen: false, max: 1, allowBypassRls: true, … })` — a superuser connection, RLS
   does not apply on it).
 - `tenant` — the first tenant and user without a seed of your own: the tenant gets the rule "authenticated users may
-  do everything" (`grantAll`, on by default, weight 10); the user gets a membership with the role `owner`, a password
-  for signing in with the login `login`, and a session in the tenant. Repeating the call with the same name and login duplicates nothing (the ids
-  are v5 of `tenant:<name>` and `user:<login>`). Another tenant: `createTenant(postgres(ADMIN), 'v2.myapp', { name,
+  do everything" (`grantAll`, on by default, weight 10); the user gets a membership with the roles `user.roles`
+  (`['owner']` by default), a password for signing in with the login `login`, and a session in the tenant. Repeating
+  the call with the same name and login duplicates nothing and does not change the roles of an existing membership (the
+  ids are v5 of `tenant:<name>` and `user:<login>`). Another tenant: `createTenant(postgres(ADMIN), 'v2.myapp', { name,
   user })` (needs an admin connection).
 - The application connects with an **application LOGIN role** that is a member of `letopis_app` only:
   `create role myapp login password '…'; grant letopis_app to myapp;`. Connecting as a superuser is the error
   `bypass_rls` (RLS would not apply); an admin connection is possible only with an explicit `allowBypassRls: true`.
-- Accounts live in the System tenant; the system administrator (a member of System with the `admin` role; only your
-  own installation seed appoints one) creates them with the chain `admin.Account().create({ name, categories })`. Your own seed (`seeds: ['./my.sql']`, the owner functions
+- Accounts live in the System tenant; the system administrator (a member of System with the `admin` role; your own
+  installation seed or the loader on an admin connection appoints one) creates them with the chain `admin.Account().create({ name, categories })`. Your own seed (`seeds: ['./my.sql']`, the owner functions
   `sys_create`, `sys_grant_all`, the markers `@SCHEMA@`, `@SYSTEM@`) remains for special cases.
 
 ### 2. Sign-in: service, password, session
@@ -201,7 +202,8 @@ npx letopis load shops.ndjson wallets.ndjson --dsn "$ADMIN" --schema v2.myapp --
 # {"$class":"Wallet","number":"W-10","Shop":{"$key":["South"]}}
 # {"$class":"Note","text":"x","$ext":"n1"}         ← $ext is the row's external key for references { "$ext": "n1" }
 ```
-An error carries the code of the first problem and `err.detail.rows` (line number, code, violations). A polymorphic
+An error carries the code of the first problem; `err.detail.rows` is the first 100 violations (line number, code,
+details), `err.detail.total` is how many there are in all, `err.detail.truncated` means the list is cut. A polymorphic
 reference needs `$class`. `$tags` are the row's tags, `$owner` is its owner.
 
 ### 8. Access rules: granting a permission
@@ -350,5 +352,6 @@ await adm.close(); await db.close(); await svc.close()
     `'start'`.
 17. **The terminal returns the rows of the last step.** `…Payment().create(…).Wallet().update(…).rows()` returns the
     `Wallet` rows, not the created payment; if you need the payment, end the chain on it.
-18. **A batch name is a shared queue of the connection.** `db.batch('x')` on `svc` and on `svc.as(…)` is one queue,
-    and `run()` executes it on behalf of the caller. Give each operation its own name.
+18. **A batch queue belongs to its facade.** `db.batch('x')` on the root, on each `await db.as(…)` and on each
+    `db.begin()` are different queues; a plan runs on behalf of whoever queued it. Collect plans through one facade
+    object.

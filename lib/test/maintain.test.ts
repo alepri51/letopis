@@ -9,6 +9,7 @@ import postgres from 'postgres';
 import { engine, SYSTEM_ID, type Engine, type Tenant } from './_engine.js';
 import { ADMIN_DSN, appDsn } from './_harness.js';
 import { connect, type Db } from '../src/index.js';
+import { maintain, type AdminCtx } from '../src/admin.js';
 import { sysadmin } from './_access.js';
 
 let e: Engine;
@@ -22,6 +23,27 @@ const code = (c: string) => (err: { code?: string }) => {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const secrets = async (kind: string, acc: string) =>
   (await e.sql.unsafe(`select count(*)::int as n from ${e.S}.secret where kind = $1 and account = $2`, [kind, acc]))[0].n as number;
+/**
+ * Клиентское соединение за пулом в режиме транзакций (PgBouncer, pool_mode = transaction): серверное
+ * соединение выдаётся на транзакцию. Оператор вне транзакции идёт на то, что выдал пул (здесь — по
+ * очереди route: индексы серверных соединений), begin закрепляет серверное соединение до commit или
+ * rollback. Серверные соединения — зарезервированные соединения postgres.js; release() — пустой: их держит пул.
+ */
+function txPooled(server: postgres.ReservedSql[], route: number[]): postgres.ReservedSql {
+  type Call = (strings: TemplateStringsArray, ...values: unknown[]) => unknown;
+  let pinned: postgres.ReservedSql | null = null;
+  const next = () => server[route.shift() ?? 0];
+  const conn = ((strings: TemplateStringsArray, ...values: unknown[]) => ((pinned ?? next()) as unknown as Call)(strings, ...values)) as unknown as postgres.ReservedSql;
+  conn.unsafe = ((text: string, params?: never[]) => {
+    if (/^\s*begin\b/i.test(text)) pinned = next();
+    const s = pinned ?? next();
+    if (/^\s*(commit|rollback)\b/i.test(text)) pinned = null;
+    return s.unsafe(text, params);
+  }) as never;
+  conn.release = () => {};
+  return conn;
+}
+
 /** Истёкшая сессия и истёкший код аккаунта. */
 async function expired(acc: string): Promise<void> {
   await e.sql.unsafe(`select ${e.S}.new_session($1::uuid, interval '-1 minute', '{}')`, [acc]);
@@ -100,5 +122,48 @@ test('7.8.1 №11 из нескольких процессов работает 
   } finally {
     await p1.close();
     await p2.close();
+  }
+});
+
+test('разбор в) maintain() за пулом в режиме транзакций: сеансовая блокировка остаётся на серверном соединении, unlock уходит в другое — обслуживание молча встаёт', async () => {
+  // Фиксирует текущее поведение — дефект для PgBouncer в режиме транзакций (connect({ listen: false }) его
+  // поддерживает, а maintain() — нет): pg_try_advisory_lock — сеансовая блокировка серверного процесса,
+  // reserve() за таким пулом серверное соединение не закрепляет, и каждый оператор вне транзакции пул
+  // отдаёт любому серверному соединению. Правильно: блокировка обслуживания не переживает транзакцию —
+  // pg_try_advisory_xact_lock в каждой пачке (или аренда в строке ключа secret): ни утечки, ни ложного skipped.
+  const notices: string[] = [];
+  const pool = postgres(ADMIN_DSN, { max: 2, onnotice: (n) => notices.push(String(n.message)) });
+  const s0 = await pool.reserve();
+  const s1 = await pool.reserve();
+  try {
+    const [{ pid }] = await s0`select pg_backend_pid() as pid`;
+    /** Сеансовых блокировок обслуживания у серверного процесса S0 (форма с двумя int4: classid = 19541). */
+    const held = async () => (await e.sql.unsafe(`select count(*)::int as n from pg_locks
+      where locktype = 'advisory' and classid = 19541 and objsubid = 2 and pid = $1 and granted`, [pid]))[0].n as number;
+    /** maintain() библиотеки через «пул»: администраторская роль, без сессии (admin_role). */
+    const run = (route: number[]) => {
+      const conn = txPooled([s0, s1], route);
+      const sql = { reserve: async () => conn };
+      return maintain({ sql, schema: e.schema, S: e.S, txc: { sql, token: null, notifier: null }, exec: { explicit: false } } as unknown as AdminCtx);
+    };
+    // тихая система: пул отдаёт последнее освободившееся соединение (LIFO) — блокировка и unlock на одном S0
+    assert.equal((await run([0, 1, 0])).skipped, false);
+    assert.equal(await held(), 0);
+    // под нагрузкой unlock достался S1: блокировкой он не владеет — false и WARNING, которые библиотека не видит
+    assert.equal((await run([0, 1, 1])).skipped, false, 'вызов отработал и вернул отчёт как обычно');
+    assert.ok(notices.some((m) => /you don't own a lock of type ExclusiveLock/.test(m)), notices.join('\n'));
+    assert.equal(await held(), 1, 'блокировка осталась на S0, которое пул отдаёт другим клиентам');
+    // пока S0 жив (PgBouncer: server_idle_timeout 600 с, server_lifetime 3600 с), обслуживание прочих — skipped, без ошибки
+    assert.equal((await adb.maintain()).skipped, true);
+    // а процесс, чей оператор блокировки пул отдал тому же S0, проходит: сеансовая блокировка повторная — исключения нет
+    assert.equal((await run([0, 1, 1])).skipped, false);
+    // S0 закрыт пулом или сброшен DISCARD ALL (pg_advisory_unlock_all) — блокировка снята, обслуживание идёт
+    await s0`select pg_advisory_unlock_all()`;
+    assert.equal(await held(), 0);
+    assert.equal((await adb.maintain()).skipped, false);
+  } finally {
+    s0.release();
+    s1.release();
+    await pool.end();
   }
 });

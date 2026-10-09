@@ -251,15 +251,17 @@ Permissions in letopis are always on and deny everything by default. So a new te
 
 - the tenant: an account in System with an id from the name (`tenant:<name>`);
 - the rule "authenticated users may do everything" in this tenant (`grantAll`, on by default, weight 10);
-- a user (id from the login) with a membership in the tenant with the `owner` role, a password and a session in the
-  tenant.
+- a user (id from the login) with a membership in the tenant with the roles `user.roles` (`['owner']` by default), a
+  password and a session in the tenant.
 
 A repeat with the same name and login duplicates nothing and does not change the password; it only issues a new
 session. The login goes into the id as is: `Anna@shop.ru` and `anna@shop.ru` would give two accounts, and the second one
 would have no password, so write logins in one case. The `created` field in the result tells whether this call created
-the tenant: for an existing tenant with a new user it is `false`. The user always gets the `owner` role; a different
-role is set by editing the membership ([Granting a permission](#granting-a-permission)). `createTenant` needs an admin
-postgres.js pool:
+the tenant: for an existing tenant with a new user it is `false`. The roles are set by `user.roles`, a non-empty list
+of names (not masks), otherwise `invalid_data`. A repeat does not change the roles of an existing membership: they are
+changed by editing the membership ([Granting a permission](#granting-a-permission)). The session from `createTenant`
+has no sign-in method, so the user cannot change their own password with it: for that the user signs in with the
+password. `createTenant` needs an admin postgres.js pool:
 
 <!-- run: guide -->
 ```ts
@@ -756,8 +758,13 @@ const page2 = await db.Product().sort('data.price', 'desc')
 `sort(field, 'asc' | 'desc')` sorts by `'at'`, `'rev'`, `'id'` or `'data.<path>'`. `after(cursorOf(row, field))` is
 pagination "after this row"; it requires `sort()`. Such pagination withstands inserts and deletes between pages, but a
 row whose sort field has changed may drop out or repeat. A cursor is an object `{ v, id }` (the field value and the row
-id): it survives JSON, so you can hand it to a client. The field in `cursorOf` must match the `sort` field. `limit` and
-`offset` are available too.
+id): it survives JSON, so you can hand it to a client. The field in `cursorOf` must match the `sort` field. The cursor
+value is checked against the type of the `sort` field before the query, and a wrong one is `invalid_query`: a numeric
+field needs a finite number, `rev` an integer, a boolean field `true` or `false`, a text field a string, uuid fields
+and `id` a uuid, time fields and `at` an ISO string with a time zone, a date field `YYYY-MM-DD`, a field without a
+description a string, a number or `true`/`false`. `null` fits only data fields, and the cursor's `id` is always a uuid.
+The check cannot tell apart a cursor of the same type taken from another field. `limit` and `offset` are available
+too.
 
 ### Trees: `deep`
 
@@ -896,8 +903,9 @@ const results = await b.run()       // Row[][]: an array of rows for each plan, 
 A batch collects plans, and `run()` executes them in one transaction. Consecutive simple `create` and `upsert` calls of
 a class with a key are merged into one multi-row statement. `b.size()` is the number of queued plans, `b.discard()`
 clears the queue. A terminal on a queued plan gives `invalid_query`: only `run()` executes. The name is the key of a
-queue for the whole connection, including connections from `as()`: `run()` executes all plans of the queue on behalf of
-whoever called `run()`. Give each operation its own name.
+queue of the facade: the root connection, each `db.as()` and each `db.begin()` have their own queues. A plan runs on
+behalf of the facade that queued it (actor, tenant, owner, transaction), and `run()` never executes plans of other
+facades. Collect plans through one and the same facade object.
 
 ### Recipe: wallet
 
@@ -1073,11 +1081,23 @@ NDJSON files have one object per line; all files form one load.
 ### Report and errors
 
 Report: `rows`, `loaded`, `updated`, `skipped`, `duplicates`, `byClass`, `external` (how many targets outside the load
-were checked by a query at the end), `portions`, `ms`. An error is a `LetopisError` with the code of the first problem,
-and `detail.rows` holds at most 100 rows with their number, code and violations (`line`, `code`, `message`, `id`,
-`class`, `issues`). Row codes: the codes of the database checks, and also `duplicate` (a repeated id), `exists` (the object
-already exists), `deleted` (an object with this id existed before) and `class_not_loadable` (the loader does not accept
-`Class` rows: classes are set by `syncModels`).
+were checked by a query at the end), `portions`, `ms`. An error is a `LetopisError` with the code of the first
+problem. Its `detail`: `rows` is the first 100 violations with the row number, code and details (`line`, `code`,
+`message`, `id`, `class`, `issues`), `total` is how many violations were found, `truncated` means the list is cut,
+`limit` is the list limit (100), `complete` means the checks that found violations went through all rows. Row codes:
+the codes of the database checks, and also `duplicate` (a repeated id), `exists` (the object already exists), `deleted`
+(an object with this id existed before) and `class_not_loadable` (the loader does not accept `Class` rows: classes are
+set by `syncModels`).
+
+Violations are searched for in stages: parsing the rows (classes, ids, repeats), permissions on classes
+(`load({ as })`), data and ends in batches, and at the end of a portion the targets outside the load, owners and the
+tenant. The load is cancelled after the first stage that found violations, and `total` counts the violations of that
+stage. A target outside the load is one violation per target (the row is the first one that references it).
+"(и ещё N)" ("and N more") in the error text is the exact number of the remaining violations. If not all rows were
+checked, `complete` is `false`, and the text says "(и ещё не меньше N: причины)" ("at least N more: reasons") or, if
+one violation was found, "(возможно, не единственная: причины)" ("possibly not the only one: reasons"). The reasons:
+the following `commitEvery` portions were not checked; the ACL conditions of the following batches were not checked
+(`load({ as })`); the database check (`verify: true`) names at most 100 rows.
 
 ## 10. Users, sign-in and permissions
 
@@ -1086,9 +1106,10 @@ already exists), `deleted` (an object with this id existed before) and `class_no
 An account is a row of class `Account` in System: a name, categories (`User`, `Service` and your own) and an `enabled`
 flag. Every account is its own tenant. A `member` membership allows work in another tenant: it is a link from a user
 (`User`) to a tenant (`Tenant`) with roles in its data. Accounts and their categories are edited by the system
-administrator, a member of System with the `admin` role. There is no public API to appoint one: such a membership is
-put in place by your own installation seed with the owner functions. New users of a tenant are easy to create with
-`createTenant` ([section 3](#3-installation-and-connection)).
+administrator, a member of System with the `admin` role. There is no separate method to appoint one: a membership in
+System with the `admin` role is put in place by your own installation seed or by the loader on an admin connection (a
+`member` row with `tenant: <System id>`). New users of a tenant are easy to create with `createTenant`
+([section 3](#3-installation-and-connection)).
 
 ### Service and API keys
 
@@ -1096,8 +1117,9 @@ A service is an account of category `Service` with an API key. `up()` issues the
 passwords and codes, issues sessions and acts on behalf of users. It issues and revokes the keys of regular users
 itself (the `auth.credential` permission), as for Boris below. The keys of the service itself, of System and of system
 administrators are issued and revoked only by a system administrator; without one, a new service key is registered by
-`up({ serviceKey })`. There can be several keys, so rotation means issuing a new key and revoking the old one without
-downtime.
+`up({ serviceKey })`. There can be several keys, but revoking any credential revokes all sessions of the account
+except the session of whoever revokes it. So after the old key is revoked, the service's connections reconnect with
+the new one: rotation without downtime is not possible yet.
 
 <!-- run: guide -->
 ```ts
@@ -1151,7 +1173,9 @@ const viaTelegram = await svc.auth.lookup({ kind: 'TELEGRAM', identifier: '10050
 ```
 
 A user can link their own credentials only after a recent sign-in (10 minutes; an API key, a "key + secret" pair and a
-session from a service do not count, and with TOTP enabled the sign-in must have passed TOTP), and cannot confirm them. If the identifier is taken, linking answers with the same `acl_denied` as
+session from a service do not count), and cannot confirm them. With TOTP enabled, the database requires a session that
+has passed TOTP, but the library does not issue such a session yet: for a user with TOTP, the service changes their
+credentials. If the identifier is taken, linking answers with the same `acl_denied` as
 without a recent sign-in. But a user with a recent sign-in can tell from such a denial that the identifier is taken
 ([section 18](#18-limitations)).
 
@@ -1242,8 +1266,10 @@ Fields of the system permission classes:
 
 - `member`: the ends `User` and `Tenant`, the field `roles` (a list of roles);
 - `Resource`: `alias` (the unique name of the resource and its key; this is not a class alias), `category` (`ACCOUNT`,
-  `API`, `READ`, `WRITE`, `DELETE`) and `pattern`, the mask. A group's mask is `categories` or `roles`: a string
-  `'{a,b}'` or an array. An object's mask is `endpoint` or `class` plus conditions on the columns;
+  `API`, `READ`, `WRITE`, `DELETE`) and `pattern`, the mask. A group's mask is `categories` or `roles`, and only a
+  string: `'{staff}'`, `'{a,b}'`, negation `'!{a}'`. **A non-string mask (for example, the array `['staff']`) matches
+  every account**: an allowing rule with such a group would grant the permission to everyone. An object's mask is
+  `endpoint` or `class` plus conditions on the columns;
 - `rule`: the ends `Group` and `Object` (`Resource` rows), the fields `permission` (`allow` or `deny`), `weight`, and,
   for the endpoint's own denial, `code` and `message`.
 
@@ -1638,7 +1664,7 @@ Library codes:
 | Code | When |
 |---|---|
 | `exists` | the object already exists: `create` (`detail.id` is its id), `rekey` (the new id is taken) or the loader |
-| `duplicate`, `deleted` | the loader: a repeated id in the load; an object with this id existed before. The loader throws the code of the first problem row, all rows are in `detail.rows` |
+| `duplicate`, `deleted` | the loader: a repeated id in the load; an object with this id existed before. The loader throws the code of the first problem row, the first 100 are in `detail.rows`, the total is `detail.total` |
 | `conflict` | `update(patch, { rev })`: the row was changed in the meantime (`detail`: `id`, `rev`, `expected`) |
 | `rev_ambiguous` | `{ rev }` on a step that does not have exactly one target |
 | `tx_required` | `forUpdate()`, `lock()`, `commit()` or `rollback()` outside an active `db.begin()` |
@@ -1647,7 +1673,7 @@ Library codes:
 | `tx_rolled_back` | PostgreSQL answered `ROLLBACK` to `COMMIT`: the error was caught inside `tr.transaction(fn)` |
 | `no_key` | `upsert`, `rekey` or `idOf` on a class without a key |
 | `no_path` | there is no hop between the classes of neighboring steps |
-| `invalid_query` | the chain or the API is used incorrectly (a step modifier `deep`, `exact`, `alias`, `tags` or `owner` after a verb, a slot not after a verb, a bad cursor and so on) |
+| `invalid_query` | the chain or the API is used incorrectly (a step modifier `deep`, `exact`, `alias`, `tags` or `owner` after a verb, a slot not after a verb, an `after()` cursor with a value of a different type than the `sort` field, without `v` or with an `id` that is not a uuid, and so on) |
 | `admin_required` | the loader needs an admin connection |
 | `class_not_loadable` | the loader does not accept `Class` rows |
 | `bypass_rls` | `connect()` with a role that bypasses RLS, without `allowBypassRls` |
@@ -1749,8 +1775,9 @@ behavior.
   lock of its row ([section 8](#8-transactions-batches-and-money), "Recipe: wallet").
 - A link cannot have a reserved name, and a hub with such a name cannot be reached as a step
   (["Reserved names"](#reserved-names)).
-- The queue of a batch `db.batch(name)` is shared by the connection and all its `as()`: `run()` executes the plans on
-  behalf of whoever called it.
+- `after()` pagination by a data field loses rows with `null` in that field (or without the field): a comparison with
+  `null` does not pass, so such rows do not get onto the following pages, and after a row with `null` the next page is
+  empty. Paginate by required fields.
 
 **Access**
 
@@ -1847,7 +1874,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # scenario-real-life — the "real life" of a salon: 16 scenes from 0.21 (real-life) — a booking service on top of chains, races of double booking, rescheduling and cancellation, walk-in, refusals, reports and daily invariants (stage 4)
 # system-classes — system classes instead of the 0.21 facades: the System seed, accounts, credentials, resources and rules, transactions (stage 5)
 # sync — letopis sync (dry run, apply, tightening, lost refine) and letopis types (stage 2)
-# tx — explicit db.begin() transactions: a broken transaction, lock(), 40P01; forUpdate(); the batch and its merging; db.as(…, { owner }) (stage 4)
+# tx — explicit db.begin() transactions: a broken transaction, lock(), 40P01; forUpdate(); the batch and its merging, a batch queue per facade; db.as(…, { owner }) (stage 4)
 # v5 — v5 identifiers on the SQL side versus the vectors of an independent implementation (stage 1)
 # zod-output — a snapshot of the z.toJSONSchema() output by field kind of the demo domain versus a reference (stage 0)
 # time — history: versions({ follow }) across reclass and rekey, withDeleted, restore, purge, history trimming, account deletion (stage 6)

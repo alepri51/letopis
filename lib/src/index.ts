@@ -168,7 +168,10 @@ export interface DbCore {
    * целям вне загрузки. Только на администраторском подключении (иначе admin_required).
    */
   load(input: LoadInput, opts?: LoadOptions): Promise<LoadReport>;
-  /** Именованная очередь планов: batch.Класс(…).create(…); batch.run() — одной транзакцией. */
+  /**
+   * Именованная очередь планов фасада: batch.Класс(…).create(…); batch.run() — одной транзакцией. У корня,
+   * у каждого db.as() и у каждой db.begin() очереди свои: план исполняется от имени фасада, который его поставил.
+   */
   batch(name: string): Batch;
   /** Advisory-блокировка до конца транзакции — только в db.begin() (иначе tx_required). */
   lock(...keys: (string | number)[]): Promise<void>;
@@ -198,7 +201,7 @@ interface Scope {
   root: boolean;
 }
 
-/** Общее для всех фасадов одного подключения: пул, реестры по арендаторам, сигналы, очереди батчей. */
+/** Общее для всех фасадов одного подключения: пул, реестры по арендаторам, сигналы. */
 interface Shared {
   sql: postgres.Sql<Record<string, unknown>>;
   schema: string;
@@ -213,7 +216,6 @@ interface Shared {
   refresh: () => Promise<void>;
   onQuery?: (e: QueryEvent) => void;
   slowMs?: number;
-  batches: Map<string, BatchEntry[]>;
   /** Подключение может стать владельцем схемы — загрузчик доступен. */
   admin: boolean;
   ownerRole: string;
@@ -235,6 +237,9 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
   };
   // реестр корня меняется после auth.switch — цепочки берут действующий
   Object.defineProperty(chainCtx, 'reg', { get: scope.registry, enumerable: true });
+  // очереди батчей — свои у фасада, а не общие на подключение: run() исполняет очередь в контексте фасада
+  // (актор, арендатор, владелец, транзакция), значит, в ней только планы, поставленные этим же фасадом
+  const batches = new Map<string, BatchEntry[]>();
   const noTx = (what: string): never => {
     throw new LetopisError('tx_required', `${what} — только внутри db.begin()`);
   };
@@ -311,8 +316,8 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
       return load({ sql: sh.sql, schema: sh.schema, tenant: scope.tenant(), admin: sh.admin, ownerRole: sh.ownerRole }, input, o);
     },
     batch: (name) => {
-      let q = sh.batches.get(name);
-      if (!q) sh.batches.set(name, (q = []));
+      let q = batches.get(name);
+      if (!q) batches.set(name, (q = []));
       return makeBatch(chainCtx, q);
     },
     lock: async (...keys) => (tx ? tx.lock(...keys) : noTx('lock()')),
@@ -433,7 +438,6 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
     let stopMaintain: (() => void) | null = null;
     const shared: Shared = {
       sql, schema: opts.schema, S, notifier, passes, root, registryFor, refresh, onQuery: opts.onQuery, slowMs: opts.slowMs,
-      batches: new Map(),
       admin: Boolean(bypass && (role.rolsuper || role.can_set)),
       ownerRole: owner,
       cache,

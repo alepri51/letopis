@@ -397,17 +397,108 @@ function asFrags(cf: CompiledFilter, p: Params): Frag[] {
 // Сортировка и keyset
 // ---------------------------------------------------------------------------
 
-function sortSpec(order: string, leaf: (path: string[]) => LeafType): { expr: Frag; pcast: string } {
+interface SortSpec {
+  expr: Frag;
+  /** Приведение параметра курсора. */
+  pcast: string;
+  /** Поле, как названо в sort(), — для текста ошибки курсора. */
+  field: string;
+  /** Тип значения: тип листа поля данных; колонка at — timestamptz, rev — int, id — uuid. */
+  type: LeafType | 'int';
+  /** Поля данных может не быть (курсор null); колонки at, rev, id есть всегда. */
+  nullable: boolean;
+}
+
+function sortSpec(order: string, leaf: (path: string[]) => LeafType): SortSpec {
   const f = order === 'updated' ? 'at' : order;
-  if (f === 'at') return { expr: (a) => `${a}.at`, pcast: '::text::timestamptz' };
-  if (f === 'rev') return { expr: (a) => `${a}.rev`, pcast: '::int' };
-  if (f === 'id') return { expr: (a) => `${a}.id`, pcast: '::uuid' };
+  const col = { field: order, nullable: false };
+  if (f === 'at') return { ...col, expr: (a) => `${a}.at`, pcast: '::text::timestamptz', type: 'timestamptz' };
+  if (f === 'rev') return { ...col, expr: (a) => `${a}.rev`, pcast: '::int', type: 'int' };
+  if (f === 'id') return { ...col, expr: (a) => `${a}.id`, pcast: '::uuid', type: 'uuid' };
   if (f.startsWith('data.')) {
     const path = f.slice(5).split('.');
     const t = leaf(path);
-    return { expr: (a) => (CAST[t] ? `(${accessor(path)(a)})${CAST[t]}` : accessor(path)(a)), pcast: PCAST[t] };
+    return { expr: (a) => (CAST[t] ? `(${accessor(path)(a)})${CAST[t]}` : accessor(path)(a)), pcast: PCAST[t], field: order, type: t, nullable: true };
   }
   return fail(`sort: поле 'at', 'rev', 'id' или 'data.<путь>', а не '${order}'`);
+}
+
+/** Формы значений курсора — как у форматов uuid, date и date-time валидатора (validate.ts). */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const TIME_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d{1,6})?(?:Z|[+-](\d{2}):(\d{2}))$/;
+
+/** Дата (и время), которую примет приведение базы ::date / ::timestamptz: форма и смысл полей. */
+function dateOk(s: string, withTime: boolean): boolean {
+  const m = (withTime ? TIME_RE : DATE_RE).exec(s);
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+  if (y < 1 || mo < 1 || mo > 12 || d < 1 || d > [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][mo - 1]) return false;
+  if (!withTime) return true;
+  const [h, mi, se] = [Number(m[4]), Number(m[5]), Number(m[6])];
+  const frac = /[1-9]/.test(m[7] ?? '');
+  // 24:00:00 и секунду :60 база принимает, но без долей секунды; смещение — до ±15:59
+  if (h > 24 || mi > 59 || se > 60 || (h === 24 && (mi > 0 || se > 0 || frac)) || (se === 60 && frac)) return false;
+  return m[8] === undefined || (Number(m[8]) <= 15 && Number(m[9]) <= 59);
+}
+
+/** Значение курсора для параметра keyset по типу поля сортировки; undefined — не подходит. */
+function cursorValue(v: unknown, type: SortSpec['type']): unknown {
+  const text = typeof v === 'string' && !v.includes('\0'); // нулевой символ текст PostgreSQL не примет
+  switch (type) {
+    case 'numeric':
+      return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+    case 'int':
+      return Number.isInteger(v) && (v as number) >= -2147483648 && (v as number) <= 2147483647 ? v : undefined;
+    case 'boolean':
+      return typeof v === 'boolean' ? v : undefined;
+    case 'uuid':
+      return typeof v === 'string' && UUID_RE.test(v) ? v : undefined;
+    case 'timestamptz':
+    case 'date':
+      return typeof v === 'string' && dateOk(v, type === 'timestamptz') ? v : undefined;
+    case 'text':
+      return text ? v : undefined;
+    case 'jsonb':
+      // поле без описания сравнивается текстом (->>): скаляр уходит своим текстом, как его отдаёт база
+      return text || typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v)) ? String(v) : undefined;
+  }
+}
+
+/** Значение для текста ошибки: JSON, длинное — с многоточием. */
+function shown(v: unknown): string {
+  let s: string;
+  try {
+    s = typeof v === 'number' || typeof v === 'bigint' || v === undefined ? String(v) : (JSON.stringify(v) ?? String(v));
+  } catch {
+    s = String(v);
+  }
+  return s.length > 60 ? `${s.slice(0, 59)}…` : s;
+}
+
+const CURSOR_EXPECT: Record<SortSpec['type'], string> = {
+  numeric: 'число', int: 'целое число', boolean: 'true/false', text: 'строка', uuid: 'uuid строкой',
+  timestamptz: 'время строкой вида 2026-10-07T10:00:00Z', date: 'дата строкой вида 2026-10-07', jsonb: 'строка, число, true/false',
+};
+
+/**
+ * Параметры keyset из курсора: значение проверяется по типу поля сортировки до запроса. Курсор
+ * cursorOf() по полю sort() проходит всегда; курсор другого поля или собранный вручную — invalid_query,
+ * а не ошибка приведения сервера (22P02, 22007, 42883…) и не запрос, повисший на undefined в параметре.
+ * Курсор того же типа с другого поля проверка не отличит.
+ */
+function cursorParams(c: unknown, sort: SortSpec): { v: unknown; id: string } {
+  const how = `cursorOf(строка, '${sort.field}')`;
+  if (typeof c !== 'object' || c === null || (c as Partial<Cursor>).v === undefined) return fail(`after(cursor): курсор — объект { v, id } из ${how}`);
+  const { v, id } = c as Cursor;
+  if (typeof id !== 'string' || !UUID_RE.test(id)) return fail(`after(cursor): id курсора — uuid строки, а не ${shown(id)}`);
+  const value = v === null && sort.nullable ? null : cursorValue(v, sort.type);
+  if (value === undefined) {
+    return fail(`after(cursor): значение курсора ${shown(v)} не подходит к sort('${sort.field}') — ожидалось: ${CURSOR_EXPECT[sort.type]}`
+      + `${sort.nullable ? ' или null' : ''}; курсор снят с другого поля? Нужен ${how}`);
+  }
+  return { v: value, id };
 }
 
 /** Курсор keyset-пагинации из последней строки страницы. */
@@ -636,7 +727,8 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
   const after = (a: string) => {
     if (!mods.after) return undefined;
     if (!sort) fail('after(cursor) требует sort(поле)');
-    return `(${sort!.expr(a)}, ${a}.id) ${mods.desc ? '<' : '>'} (${p.push(mods.after.v)}${sort!.pcast}, ${p.push(mods.after.id)}::uuid)`;
+    const c = cursorParams(mods.after, sort!);
+    return `(${sort!.expr(a)}, ${a}.id) ${mods.desc ? '<' : '>'} (${p.push(c.v)}${sort!.pcast}, ${p.push(c.id)}::uuid)`;
   };
   const limitOffset = () =>
     (mods.limit !== undefined ? ` limit ${p.push(mods.limit)}::bigint` : '') + (mods.offset !== undefined ? ` offset ${p.push(mods.offset)}::bigint` : '');

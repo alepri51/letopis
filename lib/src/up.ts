@@ -18,6 +18,7 @@ import postgres from 'postgres';
 import { DDL_REVISION, RESERVED_CLASS_NAMES } from './types.js';
 import { startPglite, type PgliteOptions, type PgliteServer } from './pglite.js';
 import { hashPassword } from './auth.js';
+import { LetopisError } from './errors.js';
 import { v5Id } from './uuid.js';
 
 export const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
@@ -320,6 +321,8 @@ export async function up(opts: UpOptions): Promise<UpResult> {
   const log = opts.quiet ? () => {} : (m: string) => console.log(`letopis.up: ${m}`);
   const schema = opts.schema.includes('.') ? opts.schema : `${SCHEMA_VERSION}.${opts.schema}`;
   if (!SCHEMA_NAME.test(schema)) throw new Error(`letopis.up: bad schema name "${opts.schema}" (нужно <имя> или v<N>.<имя>)`);
+  // опции арендатора — до подключения и наката: с неверными up() ничего не начинает
+  if (opts.tenant) checkTenant(opts.tenant);
   let sql = opts.sql;
   const own = !sql;
   const lite = opts.pglite ? await startPglite(opts.pglite === true ? {} : opts.pglite) : undefined;
@@ -385,8 +388,16 @@ export interface TenantOptions {
   name: string;
   /** Правило арендатора «аутентифицированным можно всё» (READ, WRITE, DELETE; по умолчанию да). */
   grantAll?: boolean;
-  /** Первый пользователь: аккаунт, членство в арендаторе с ролью owner, пароль и сессия в арендаторе. */
-  user?: { name: string; login: string; password: string; kind?: string; ttl?: string };
+  /** Первый пользователь: аккаунт, членство в арендаторе с ролями roles, пароль и сессия в арендаторе. */
+  user?: {
+    name: string;
+    login: string;
+    password: string;
+    kind?: string;
+    ttl?: string;
+    /** Роли членства (по умолчанию ['owner']); роли уже существующего членства повтор не меняет. */
+    roles?: string[];
+  };
 }
 
 export interface TenantResult {
@@ -401,14 +412,37 @@ export interface TenantResult {
 }
 
 /**
+ * Опции арендатора до записи; возвращает роли членства пользователя (по умолчанию owner). Членство
+ * пишет sys_create от владельца — без проверки класса member, поэтому список ролей проверяется здесь:
+ * непустой, без повторов, каждая роль — имя, а не маска группы '{a,b}': не пустое, без пробелов по
+ * краям (маска их отрезает) и запятых (разделитель маски), без фигурных скобок и «!» в начале
+ * (синтаксис маски).
+ */
+function checkTenant(opts: TenantOptions): string[] {
+  if (!opts.name) throw new Error('letopis.createTenant: имя арендатора обязательно');
+  if (opts.user?.roles === undefined) return ['owner'];
+  const roles: unknown = opts.user.roles;
+  const bad = (why: string) => new LetopisError('invalid_data', `createTenant: user.roles — ${why}`);
+  if (!Array.isArray(roles) || roles.length === 0) throw bad("непустой список ролей, например ['staff']");
+  for (const r of roles) {
+    if (typeof r !== 'string') throw bad(`роль — строка, а не ${r === null ? 'null' : typeof r}`);
+    if (!r || r !== r.trim() || /[,{}]/.test(r) || r.startsWith('!')) {
+      throw bad(`роль ${JSON.stringify(r)}: нужно имя роли, а не маска группы — не пустое, без пробелов по краям, запятых, фигурных скобок и «!» в начале`);
+    }
+  }
+  if (new Set(roles).size !== roles.length) throw bad('роли повторяются');
+  return roles;
+}
+
+/**
  * Арендатор и его первый пользователь — то, что раньше делал свой сид функциями владельца
  * (sys_create, sys_grant_all). Нужно администраторское подключение (роль может стать владельцем);
  * всё — одной транзакцией от владельца. Повтор с тем же именем и логином ничего не дублирует:
- * id — v5 от имени и логина, существующие строки пропускаются (пароль не меняется), сессия выдаётся
- * заново.
+ * id — v5 от имени и логина, существующие строки пропускаются (пароль и роли членства не меняются),
+ * сессия выдаётся заново.
  */
 export async function createTenant(sql: postgres.Sql, schema: string, opts: TenantOptions, owner = 'letopis_owner'): Promise<TenantResult> {
-  if (!opts.name) throw new Error('letopis.createTenant: имя арендатора обязательно');
+  const roles = checkTenant(opts);
   const S = quoteIdent(schema);
   const tenant = v5Id(SYSTEM_ID, 'Account', [`tenant:${opts.name}`]);
   const u = opts.user;
@@ -430,9 +464,10 @@ export async function createTenant(sql: postgres.Sql, schema: string, opts: Tena
           [user, SYSTEM_ID, { name: u.name, categories: ['User'], enabled: true } as never]);
       }
       const member = (await tx.unsafe(`select ${S}.v5_id($1::uuid, 'member', array[$2::text, $1::text]) as id`, [tenant, user]))[0].id as string;
+      // существующее членство не трогаем: повтор с другими ролями их не меняет (их правят правкой member)
       if (!(await exists(member))) {
         await tx.unsafe(`select ${S}.sys_create($1::uuid, 'member', $2::uuid, $3::jsonb, $4::jsonb)`,
-          [member, tenant, { User: user, Tenant: tenant } as never, { roles: ['owner'] } as never]);
+          [member, tenant, { User: user, Tenant: tenant } as never, { roles } as never]);
       }
       const kind = u.kind ?? 'PASSWORD';
       await tx.unsafe(`insert into ${S}.secret (account, kind, ident, material, meta)

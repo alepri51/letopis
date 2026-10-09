@@ -8,7 +8,7 @@ import { engine, lt, type Engine, type Tenant } from './_engine.js';
 import { appDsn } from './_harness.js';
 import { seedSalon, type Salon } from './_salon.js';
 import * as letopis from '../src/index.js';
-import { connect, RESERVED_CLASS_NAMES, type Db, type QueryEvent } from '../src/index.js';
+import { connect, cursorOf, RESERVED_CLASS_NAMES, type Db, type QueryEvent, type Row } from '../src/index.js';
 import { PLAN } from '../src/chain.js';
 import { buildRead, type Step } from '../src/sql.js';
 import type { ChainMods } from '../src/types.js';
@@ -73,6 +73,52 @@ test('ошибки построения: неизвестный класс, не
   await assert.rejects(db.Org(s.org).Staff().deep().rows(), (err: { code?: string }) => err.code === 'invalid_query');
   await assert.rejects(db.Staff().after({ v: 1, id: s.vasya }).rows(), (err: { code?: string }) => err.code === 'invalid_query');
   await assert.rejects(db.Staff().sort('name').rows(), (err: { code?: string }) => err.code === 'invalid_query');
+});
+
+test('ошибки построения: курсор другого поля или битый — invalid_query до запроса; правильные курсоры (null, равные значения) работают', async () => {
+  const invalid = (re: RegExp) => (err: { code?: string; message?: string }) => err.code === 'invalid_query' && re.test(err.message ?? '');
+  const svc = (await db.Service({ name: 'Стрижка' }).first())!;
+  const [b] = await db.booking().sort('data.start_datetime').limit(1).rows();
+  // курсор снят с data.name, а сортировка — по data.duration: раньше 22P02 сервера, теперь отказ построителя — без запроса
+  const wrong = db.Service().sort('data.duration').after(cursorOf(svc, 'data.name'));
+  const { steps, mods } = (wrong as unknown as Record<symbol, { steps: Step[]; mods: ChainMods }>)[PLAN];
+  const text = /^letopis: invalid_query: after\(cursor\): значение курсора "Стрижка" не подходит к sort\('data\.duration'\) — ожидалось: число или null; курсор снят с другого поля\? Нужен cursorOf\(строка, 'data\.duration'\)$/;
+  assert.throws(() => buildRead(db.registry, db.schema, steps, mods, 'rows'), invalid(text));
+  await assert.rejects(wrong.rows(), invalid(text));
+  // наоборот (число для текста) и другие типы: время, uuid, целое; колонка at не бывает null
+  await assert.rejects(db.Service().sort('data.name').after(cursorOf(svc, 'data.duration')).rows(), invalid(/ожидалось: строка или null;/));
+  await assert.rejects(db.booking().sort('data.start_datetime').after(cursorOf(b, 'rev')).rows(), invalid(/ожидалось: время строкой/));
+  await assert.rejects(db.Service().sort('id').after({ v: 'Стрижка', id: svc.id }).rows(), invalid(/ожидалось: uuid строкой;/));
+  await assert.rejects(db.Service().sort('rev').after({ v: 1.5, id: svc.id }).rows(), invalid(/ожидалось: целое число;/));
+  await assert.rejects(db.Service().sort('at').after({ v: null, id: svc.id }).rows(), invalid(/значение курсора null не подходит к sort\('at'\)/));
+  // битый курсор: без v (раньше запрос зависал на undefined в параметре), id не uuid (раньше 22P02)
+  await assert.rejects(db.Service().sort('data.duration').after({ id: svc.id } as never).rows(), invalid(/курсор — объект \{ v, id \}/));
+  await assert.rejects(db.Service().sort('data.duration').after({ v: 45, id: 'Стрижка' }).rows(), invalid(/id курсора — uuid строки, а не "Стрижка"$/));
+
+  // равные значения (три услуги по 45 минут): страницы по 2 без пропусков и повторов в обе стороны
+  for (const name of ['Тест-1', 'Тест-2']) await db.Org(s.org).Service().create({ name, duration: 45 }).rows();
+  for (const dir of ['asc', 'desc'] as const) {
+    const all = await db.Service().sort('data.duration', dir).rows();
+    const seen: Row[] = [];
+    let page = await db.Service().sort('data.duration', dir).limit(2).rows();
+    while (page.length) {
+      seen.push(...page);
+      page = await db.Service().sort('data.duration', dir).after(cursorOf(page.at(-1)!, 'data.duration')).limit(2).rows();
+    }
+    assert.equal(all.filter((r) => r.data.duration === 45).length, 3);
+    assert.deepEqual(seen.map((r) => r.id), all.map((r) => r.id), dir);
+  }
+  // курсор null — поля в строке нет — принимается
+  const noNotes = (await db.booking(s.bookings[1]).first())!;
+  assert.deepEqual(cursorOf(noNotes, 'data.notes'), { v: null, id: noNotes.id });
+  assert.ok(Array.isArray(await db.booking().sort('data.notes').after(cursorOf(noNotes, 'data.notes')).rows()));
+  // поле без описания (лист jsonb) сравнивается текстом: курсор true уходит текстом 'true' (раньше 42883 сервера)
+  await e.defineClass(t, { name: 'Mark', kind: 'hub', fields: { properties: { any: {} } } });
+  await db.refresh();
+  for (const any of [true, false, 'x']) await db.Mark().create({ any }).rows();
+  const marks = await db.Mark().sort('data.any').rows();
+  assert.deepEqual(marks.map((r) => r.data.any), [false, true, 'x']);
+  assert.deepEqual((await db.Mark().sort('data.any').after(cursorOf(marks[1], 'data.any')).rows()).map((r) => r.data.any), ['x']);
 });
 
 test('кэш плана: текст запроса зависит только от формы цепочки, подготовленный оператор переиспользуется (3.10)', async () => {

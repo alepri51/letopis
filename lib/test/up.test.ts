@@ -185,3 +185,46 @@ test('up({ tenant }) и createTenant: первый арендатор и пол�
     await sql.unsafe(`drop schema if exists ${ident(schema)} cascade`);
   }
 });
+
+test('createTenant и up({ tenant }): роли членства — user.roles (по умолчанию owner); неверные — invalid_data до записи; повтор роли не меняет', async () => {
+  const schema = 'v2.t_up_roles';
+  const S = ident(schema);
+  await ensureAppRole(sql);
+  const r = await up({ dsn: ADMIN_DSN, schema, fresh: true, quiet: true,
+    tenant: { name: 'Салон', user: { name: 'Ольга', login: 'olga@salon.ru', password: 'пароль-Ольги-1' } } });
+  try {
+    const salon = r.tenant!.tenant;
+    /** Роли членства пользователя в Салоне — та строка member, по которой ctx() даёт роли сессии. */
+    const rolesOf = async (user: string) => (await sql.unsafe(`select data->'roles' as r from ${S}.entity
+      where class = 'member' and id = ${S}.v5_id($2::uuid, 'member', array[$1::text, $2::text])`, [user, salon]))[0]?.r;
+    // без roles — owner
+    assert.deepEqual(await rolesOf(r.tenant!.user!), ['owner']);
+    // сотрудник с ролью staff в том же арендаторе: создаётся только пользователь
+    const vera = await createTenant(sql, schema, { name: 'Салон',
+      user: { name: 'Вера', login: 'vera@salon.ru', password: 'пароль-Веры-1', roles: ['staff'] } });
+    assert.equal(vera.created, false);
+    assert.deepEqual(await rolesOf(vera.user!), ['staff']);
+    const db = await connect({ dsn: appDsn(), schema, token: vera.token!, max: 1, listen: false });
+    try {
+      assert.deepEqual((await db.auth.tenants()).find((x) => x.tenant === salon)?.roles, ['staff'], 'роль — в сессии сотрудника');
+    } finally {
+      await db.close();
+    }
+    // повтор с другими ролями существующее членство не меняет (роли правят правкой member)
+    await createTenant(sql, schema, { name: 'Салон',
+      user: { name: 'Вера', login: 'vera@salon.ru', password: 'другой', roles: ['owner', 'staff'] } });
+    assert.deepEqual(await rolesOf(vera.user!), ['staff']);
+    // неверные роли — invalid_data до записи: ни арендатора, ни пользователя, ни пароля, ни сессии
+    const rows = async () => (await sql.unsafe(`select (select count(*) from ${S}.entity)::int + (select count(*) from ${S}.secret)::int as n`))[0].n as number;
+    const before = await rows();
+    const petr = { name: 'Пётр', login: 'petr@new.ru', password: 'пароль-Петра-1' };
+    const invalid = (err: { code?: string }) => err.code === 'invalid_data';
+    for (const roles of [[], [''], [' staff'], ['a,b'], ['{staff}'], ['!staff'], ['staff', 'staff'], [1], [null], 'staff']) {
+      await assert.rejects(createTenant(sql, schema, { name: 'Новый', user: { ...petr, roles: roles as never } }), invalid, JSON.stringify(roles));
+    }
+    await assert.rejects(up({ dsn: ADMIN_DSN, schema, quiet: true, tenant: { name: 'Новый', user: { ...petr, roles: [] } } }), invalid);
+    assert.equal(await rows(), before, 'ничего не записано');
+  } finally {
+    await sql.unsafe(`drop schema if exists ${S} cascade`);
+  }
+});

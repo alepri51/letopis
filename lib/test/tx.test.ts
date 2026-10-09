@@ -7,6 +7,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { engine, waitForLock, type Engine, type Tenant } from './_engine.js';
 import { appDsn } from './_harness.js';
+import { account, member } from './_access.js';
 import { connect, gte, inc, inList, type Db } from '../src/index.js';
 
 let e: Engine;
@@ -199,6 +200,43 @@ test('4.14 батч upsert: одна вставка; повтор id режет 
   assert.deepEqual(r2.map((r) => r[0].$upsert), ['updated', 'updated', 'updated', 'unchanged']);
   assert.equal((await db.Wallet({ number: 'U-1' }).first())!.data.balance, 3);
   assert.equal((await db.Wallet({ number: 'U-1' }).first())!.rev, 3);
+});
+
+test('батч: очередь — своя у каждого фасада (корень, db.as(), db.begin()); план исполняется от имени того, кто его поставил', async () => {
+  // сервис действует от имени двух членов арендатора: их планы под одним именем не смешиваются
+  const svc = await connect({ dsn: appDsn(), schema: e.schema, apiKey: e.serviceKey, max: 2 });
+  try {
+    const [{ account: svcId }] = await svc.transaction((q) => q.unsafe(`select account from ${e.S}.ctx()`));
+    const A = await account(e, 'Актор A');
+    const B = await account(e, 'Актор B');
+    for (const x of [A, B]) await member(e, x.id, t.id);
+    const a = await svc.as(A.id, { tenant: t.id });
+    const b = await svc.as(B.id, { tenant: t.id });
+    a.batch('x').Note().create({ text: 'от A' });
+    b.batch('x').Note().create({ text: 'от B' });
+    a.batch('x').Note().create({ text: 'ещё от A' });
+    assert.deepEqual([a.batch('x').size(), b.batch('x').size(), svc.batch('x').size()], [2, 1, 0], 'имя — ключ очереди фасада');
+    assert.deepEqual(await svc.batch('x').run(), [], 'run() корня чужих планов не исполняет');
+    const ra = await a.batch('x').run();
+    assert.equal(b.batch('x').size(), 1, 'run() у A не трогает план B');
+    const rb = await b.batch('x').run();
+    assert.deepEqual(ra.map(([r]) => [r.data.text, r.author, r.tenant]), [['от A', A.id, t.id], ['ещё от A', A.id, t.id]]);
+    assert.deepEqual(rb.map(([r]) => [r.data.text, r.author, r.tenant]), [['от B', B.id, t.id]]);
+    // журнал: author — актор, поставивший план, agent — сервис
+    const ids = [...ra, ...rb].map(([r]) => r.id);
+    const log = await e.sql.unsafe(`select id, author, agent from ${e.S}.log where id = any ($1::uuid[])`, [ids]);
+    const who = new Map(log.map((v) => [v.id as string, [v.author, v.agent]]));
+    assert.deepEqual(ids.map((id) => who.get(id)), [[A.id, svcId], [A.id, svcId], [B.id, svcId]]);
+  } finally {
+    await svc.close();
+  }
+  // план из db.begin() не исполнит run() корня вне транзакции
+  const tr = await db.begin();
+  tr.batch('x').Note().create({ text: 'в транзакции' });
+  assert.deepEqual(await db.batch('x').run(), []);
+  assert.equal(tr.batch('x').size(), 1);
+  await tr.rollback();
+  assert.equal(await db.Note({ text: 'в транзакции' }).count(), 0);
 });
 
 test('db.as(…, { owner }): явный владелец — сам автор; несуществующий аккаунт — target_not_found', async () => {
