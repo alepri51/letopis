@@ -6,7 +6,9 @@ dist
 .DS_Store
 *.log
 _design_extract
-.claude/
+.claude/*
+!.claude/rules/
+!.claude/agents/
 dev.log
 
 ignore*
@@ -23,3 +25,5 @@ data/
 .env
 
 ignore.me.txt
+# логи прогонов замеров (результаты *.json — в репозитории)
+lib/bench/results/*.log

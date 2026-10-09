@@ -1,985 +1,577 @@
 /**
- * Dot-цепочки: db.Сотрудник({name:'Вася'}).навык().Услуга().run()
- * db и цепочка — Proxy над реестром классов (id и alias работают одинаково).
+ * Цепочки чтения (план, этап 3, п. 1, 6, 7, 11): `t.Класс(фильтр).Связь().Класс().rows()`.
  *
- * Выборка настраивается модификаторами: .limit(n) .offset(n) .sort(field, dir?)
- * Колонки — модификаторами: .tags(…) .account(…) .owner(…); ключ путей — .alias(…).
- * Запись: .create(data) / .update(data) / .delete({confirm}) / .anonymize(fields) — ЗВЕНЬЯ
- * (возвращают цепочку, продолжение — от результата); исполняет ТЕРМИНАЛ, весь план
- * одной транзакцией.
+ * db и цепочка — Proxy над реестром классов: имя класса, его алиас или имя роли (конца) — шаг пути.
+ * Шаг-роль ведёт именно этим концом: `t.Folder(f).Parent()` — родительская папка,
+ * `t.Referal(anna).Customer()` — клиенты, которых привела anna. Повтор связи в пути — возврат к её
+ * узлу (pivot): от него ветвится следующий шаг. Модификаторы возвращают новую цепочку; терминалы
+ * строят один запрос (sql.ts) и исполняют его транзакцией под сессией (tx.ts).
+ *
+ * Запись (этап 4): глаголы create, update, upsert, delete, anonymize, reclass — звенья плана; слоты
+ * `.Роль.set/unset/add/remove` правят концы записываемой версии. Терминал цепочки с глаголами
+ * исполняет весь план одной транзакцией (write.ts): продолжение идёт от результата глагола.
+ * Этап 6: restore, purge, rekey; versions({ follow }); кэш результатов .cache() (cache.ts).
  */
-// FILE: lib/src/chain.ts
-// VERSION: 1.3.0
-// START_MODULE_CONTRACT
-//   PURPOSE: Чейнящийся фасад сущностей — из шагов класс/связь/pivot собирает планы чтения и записи и даёт run/rows/first/ids/count/агрегации, versions/asOf/after, create/update/delete/anonymize, слоты связей, батчи, транзакции и watch изменений.
-//   SCOPE: сборка Proxy-цепочек; read-терминалы и агрегации; планы записи; слоты связей; entity()-вклейка; батчи; begin/commit/rollback/lock; watch через LISTEN
-//   DEPENDS: M-TYPES, M-SQL, M-WRITE, M-TX, M-TABLES, M-AUTH, M-ACL, M-SCHEMA
-//   LINKS: M-CHAIN, V-M-CHAIN
-//   ROLE: RUNTIME
-//   MAP_MODE: EXPORTS
-// END_MODULE_CONTRACT
-//
-// START_MODULE_MAP
-//   ChainCore - интерфейс терминалов/модификаторов читающей и пишущей цепочки
-//   StepProp - свойство-класс: вызов = шаг/pivot, без скобок = слот связи (set/unset)
-//   Chain - ChainCore плюс динамические свойства-классы
-//   DbCore - корневой фасад: as (идентичность вызова), begin/commit/rollback, batch, watch, close, auth/acl/таблицы, entity
-//   EntityDb - DbCore плюс классы как стартовые шаги пути
-//   EntityTx - EntityDb внутри транзакции (commit/rollback/lock)
-//   WatchEvent - событие watch(): факт новой версии строки
-//   WatchOpts - опции watch(): onReconnect после re-listen
-//   Batch - именованный батч: очередь планов, run/discard/size
-//   PLAN - internal-symbol: план чужой ленивой цепочки (слоты, entity())
-//   makeDb - фабрика EntityDb над Ctx (и над TxCtx внутри begin())
-// END_MODULE_MAP
-//
-// START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.3.0 - Добавлен db.as(account, { owner }): идентичность ВЫЗОВА, а не
-//     подключения (в connect() опции account больше нет). Клон ctx на том же пуле; при
-//     enforceAcl компилит энфорсер под своего субъекта; батчи не наследуются.
-//     Ранее: снят охранник case 'link' — он затенял реальный класс схемы; добавлен .exact()]
-// END_CHANGE_SUMMARY
-//
-import type { Row, Path, Filter, ChainMods, PlanOp, ClassDef, LinkEnd } from './types.js';
+import { LetopisError, removed } from './errors.js';
+import { sessionTag, type ResultCache } from './cache.js';
+import type { ClassInfo, Registry } from './registry.js';
 import {
-  buildRead, runQuery, leafType, resolveHop, nextNodeKey,
-  type Ctx, type Step, type SlotValue,
+  buildRead, nextNodeKey, resolveHop, roleTargets, stepClasses, toRow,
+  type AggSpec, type BuiltQuery, type ReadMode, type Step,
 } from './sql.js';
-import { runPlan, executeBatch, toRow, type BatchPlan } from './write.js';
-import { beginTx, lock, type TxCtx } from './tx.js';
-import { makeTables, type Tables } from './tables.js';
-import { makeAuth, type AuthApi } from './auth.js';
-import { makeAcl, type AclApi } from './acl.js';
-import type { Registry } from './schema.js';
+import type { Executor } from './tx.js';
+import type { ChainMods, Cursor, Filter, Path, QueryEvent, Row } from './types.js';
+import { execBatch, execPlan, precheckPlan, slotRole, type PlanOp, type PlanResult, type Slot, type SlotValue, type WriteRow } from './write.js';
 
-// ---------------------------------------------------------------------------
-// Публичные типы фасадов
-// ---------------------------------------------------------------------------
+export interface ChainCtx {
+  readonly reg: Registry;
+  readonly schema: string;
+  /** Где исполнять: отдельной транзакцией из пула или в явной транзакции db.begin(). */
+  readonly exec: Executor;
+  /** Арендатор сессии. */
+  readonly tenant: () => string | null;
+  /** Владелец новых строк по умолчанию (db.as(…, { owner })). */
+  readonly owner?: string;
+  readonly onQuery?: (e: QueryEvent) => void;
+  readonly slowMs?: number;
+  /** Цепочка из батча: план копится в очереди до batch.run(). */
+  readonly batch?: BatchRef;
+  /** Кэш результатов подключения и тот, кто спрашивает (ключ ответа, §2.12). */
+  readonly cache?: { store: ResultCache; who(): { token: string | null; account?: string; tenant?: string | null } };
+}
+
+/** План в очереди батча; steps обновляется по мере роста цепочки. */
+export interface BatchEntry {
+  steps: Step[];
+}
+/** Ссылка цепочки на очередь: первый глагол регистрирует план, следующие — обновляют. */
+export interface BatchRef {
+  queue: BatchEntry[];
+  entry?: BatchEntry;
+}
+
+/** Батч db.batch(имя): классы копят планы; run() исполняет очередь одной транзакцией. */
+export type Batch = { run(): Promise<Row[][]>; discard(): void; size(): number } & { [className: string]: StepFn };
 
 export interface ChainCore {
-  /** Пути: [{шаг1: Row, шаг2: Row, …}, …] — все узлы каждого варианта (бывший execute). */
-  run(): Promise<Path[]>;
+  /** Пути: [{ шаг1: Row, шаг2: Row, … }] — узлы каждого варианта. */
+  paths(): Promise<Path[]>;
   /** Уникальные сущности последнего шага. */
   rows(): Promise<Row[]>;
   first(): Promise<Row | null>;
   ids(): Promise<string[]>;
-  count(): Promise<number>;
-  /** Максимум строк/путей. */
-  limit(n: number): Chain;
-  /** Пропустить N. */
-  offset(n: number): Chain;
-  /** Сортировка по полю последнего шага: 'updated' | 'data.<поле>' (каст по типу из Schema). */
-  sort(field: string, dir?: 'asc' | 'desc' | boolean): Chain;
-  /** Чтение «как было на момент T» (ISO-строка или Date): версии позже T невидимы. */
-  asOf(t: string | Date): Chain;
-  /** Keyset-пагинация: строго после курсора (см. cursorOf). Требует .sort(). */
-  after(cursor: import('./types.js').Cursor): Chain;
+  /** Число сущностей последнего шага; { paths: true } — число путей. */
+  count(opts?: { paths?: boolean }): Promise<number>;
   /**
-   * Включить в выдачу последнего шага удалённые (tombstone). Снимает ТОЛЬКО фильтр deleted —
-   * изоляция арендатора (enforceAccount) и ACL (enforceAcl) остаются в силе.
+   * Все версии сущностей последнего шага (надгробия — $deleted), по id и номеру версии;
+   * { follow: true } — и через смену id при reclass и rekey, по времени.
    */
-  withDeleted(): Chain;
-  /** ВСЕ версии сущностей последнего шага (включая tombstone → $deleted), по возрастанию updated. */
-  versions(): Promise<Row[]>;
-  /** Рекурсивный self-обход: дети любой глубины (тот же класс), $depth в Row. */
-  deep(max?: number): Chain;
-  /**
-   * Только ЭТОТ класс, без классов-потомков. По умолчанию шаг полиморфен: родитель отдаёт
-   * объединение с потомками (`db.Контрагент()` → Мастера + Клиенты). `.exact()` нужен, когда
-   * наследование в домене — переиспользование attributes, а не «is-a» для выборки:
-   * в демо `запись` наследует `окно`, но смена ≠ бронь, поэтому «смены мастера» —
-   * `db.Мастер(id).окно().exact()`.
-   */
-  exact(): Chain;
-  /** Агрегации по полю последнего шага ('data.<путь>'), считает БД. */
+  versions(opts?: { follow?: boolean }): Promise<Row[]>;
+  /** Агрегаты по полю последнего шага ('data.<путь>') — по сущностям, считает база. */
   sum(field: string): Promise<number | null>;
   avg(field: string): Promise<number | null>;
   min(field: string): Promise<unknown>;
   max(field: string): Promise<unknown>;
   countBy(field: string): Promise<Record<string, number>>;
-  /**
-   * GDPR-звено: новая версия с затёртыми string-полями ('[erased]') + тег 'anonymized'.
-   * История остаётся. Возвращает цепочку — исполняет терминал; продолжение — от затёртых версий.
-   */
-  anonymize(fields: string[]): Chain;
-  /** Переименовать ключ ТЕКУЩЕГО шага в выводе путей. */
+  limit(n: number): Chain;
+  offset(n: number): Chain;
+  /** Сортировка по полю последнего шага: 'at' | 'rev' | 'id' | 'data.<путь>'. */
+  sort(field: string, dir?: 'asc' | 'desc' | boolean): Chain;
+  /** Срез «как было на момент T»: версии журнала. */
+  asOf(t: string | Date): Chain;
+  /** Keyset-пагинация: строго после курсора (cursorOf). Требует sort(). */
+  after(cursor: Cursor): Chain;
+  /** Последний шаг включает удалённые (надгробия, $deleted). */
+  withDeleted(): Chain;
+  /** Дети любой глубины на переходе к тому же классу; $depth в строке. */
+  deep(max?: number): Chain;
+  /** Только сам класс шага, без потомков. */
+  exact(): Chain;
+  /** Ключ текущего шага в путях. */
   alias(name: string): Chain;
-  /** Колонка tags: строка | string[] (все) | has/hasAny/hasAll. В записи — значение тегов. */
+  /** Колонка tags: строка | список (все) | has / hasAny / hasAll. */
   tags(v: string | string[] | object): Chain;
-  /** Колонка account (uuid или Row/Account). В create() — значение. */
-  account(v: string | { id: string }): Chain;
-  /** Колонка owner (uuid или Row/Account). В create() — значение. */
+  /** Колонка owner. */
   owner(v: string | { id: string }): Chain;
-  /**
-   * Вставить узел в путь: x — ленивая цепочка-паттерн (стык проверяется правилами
-   * переходов) либо Row (шаг его класса по id). ТА ЖЕ переменная-цепочка повторно
-   * в одном пути — возврат к её узлу (ветвление); разные переменные — разные узлы.
-   */
+  /** Вставить узел: ленивая цепочка-паттерн или строка ответа; та же переменная повторно — возврат к её узлу. */
   entity(x: Chain | Row): Chain;
-  /**
-   * Создать сущность (ЗВЕНО — вернёт цепочку, исполняет терминал):
-   *   await db.Организация(org).Сотрудник().create({ name: 'Вася' }).rows()
-   * Связи — контекст-шагами до create() + слотами .Класс.set(…) после. id — по Schema
-   * (attributes.id: v4 | v7 | v5-вычисляемый); известный id (Класс(id) / data.id / v5)
-   * уже существует → новая версия (идемпотентно). Фильтр-объект — ошибка: это update().
-   */
+  /** Создать объект: концы — из пути и слотов; занятый ключ — ошибка exists с id. */
   create(data?: Record<string, unknown>): Chain;
-  /**
-   * Новая версия КАЖДОГО найденного путём (deep-merge листьев data):
-   *   await db.Запись(з).позиция({ qty: 1 }).update({ qty: 2 }).rows()
-   * Класс() ≡ Класс({}) — все в границах контекста. Не найдено → [] (НИКОГДА не создаёт).
-   * Продолжение цепочки — от записанных строк (fan-out при множестве).
-   */
-  update(data?: Record<string, unknown>): Chain;
-  /**
-   * Удаление-звено. { confirm: true } — серверный tombstone + каскад (продолжение — от
-   * затомбстоуненных, $deleted: true); БЕЗ confirm — превью: терминал вернёт кандидатов
-   * (цели + каскад), БД не тронута.
-   */
+  /** Новая версия каждой цели шага: слияние патча в базе; inc(n) — приращение; { rev } — строгий режим. */
+  update(patch?: Record<string, unknown>, opts?: { rev?: number }): Chain;
+  /** Создать или заменить целиком (класс с ключом); строка ответа несёт $upsert. */
+  upsert(data: Record<string, unknown>): Chain;
+  /** Удалить цели шага с каскадом; без { confirm: true } — превью замыкания ($action). */
   delete(opts?: { confirm?: boolean }): Chain;
-  /**
-   * ФИЗИЧЕСКИЙ hard-erase (необратимо): сносит УЖЕ логически удалённые (tombstone) цели + всё
-   * поддерево по links (все версии). Живую сущность не трогает — сначала .delete(). { confirm: true }
-   * — стирает; без confirm — превью замыкания (что сотрётся), БД не тронута. Историю НЕ сохраняет
-   * (в отличие от .delete()). Реализуется серверной purge() (SET LOCAL letopis.purge отключает триггер).
-   */
+  /** Затереть строковые поля ('[erased]') и пометить тегом anonymized. */
+  anonymize(fields: string[]): Chain;
+  /** Сменить класс: у класса с ключом — новый id и перевод ссылок. */
+  reclass(cls: string, data?: Record<string, unknown>): Chain;
+  /** Чтение с блокировкой строк последнего шага до конца db.begin() (rows, first, ids). */
+  forUpdate(): Chain;
+  /** Восстановить удалённые объекты шага: последний снимок новой версией (id прежний). */
+  restore(): Chain;
+  /** Стереть историю удалённых объектов шага; без { confirm: true } — превью ($versions). */
   purge(opts?: { confirm?: boolean }): Chain;
+  /** Новое значение ключа: строка с новым id, ссылки переведены (поля — данные, роли — концы). */
+  rekey(patch: Record<string, unknown>): Chain;
+  /** Кэш результатов (§2.12): ответ хранится в памяти процесса ttl секунд (по умолчанию 60). */
+  cache(opts?: { ttl?: number }): Chain;
 }
 
 /**
- * Свойство-класс на цепочке:
- *   ВЫЗОВ  `Класс(фильтр?)` — шаг-навигация; повтор LINK-класса в пути = возврат
- *          к его узлу (pivot: ветвление к другому концу, дофильтровка AND);
- *   СЛОТ   `Класс` без скобок — конец links записываемой версии:
- *     .set(target) — установить конец (id | Row | вложенная цепочка: та же транзакция,
- *                    ровно одна сущность класса конца); союз-конец замещается целиком;
- *     .unset()     — снять optional-конец.
- * Слот валиден только для конца из Schema.links владельца и ТОЛЬКО после операции
- * записи: …create(…).Класс.set(x) / …update(…).Класс.unset() — та же версия строки.
+ * Шаг цепочки: вызов — переход (фильтр); после глагола записи без вызова — слот конца версии:
+ * `.Роль.set(id | [id] | строка | цепочка)`, `.unset()`, у множественного конца `.add()` и `.remove()`.
  */
-export type StepProp = ((filter?: Filter) => Chain) & {
-  set(target: string | { id: string } | Chain): Chain;
+export type StepFn = ((filter?: Filter) => Chain) & {
+  set(value: unknown): Chain;
   unset(): Chain;
+  add(value: unknown): Chain;
+  remove(value: unknown): Chain;
 };
+export type Chain = ChainCore & { [className: string]: StepFn };
 
-export type Chain = ChainCore & {
-  [className: string]: StepProp;
-};
-
-export interface DbCore {
-  /**
-   * Идентичность ВЫЗОВА: хендл того же пула, работающий от имени account.
-   * Арендатор — свойство вызова, а не подключения (в connect() опции account нет):
-   *
-   *   const db = await connect({ dsn, schema })   // пул, безличный
-   *   const t  = await db.as(req.accountId)       // кто именно делает этот вызов
-   *   await t.Клиент().rows()                     // изолировано по account
-   *
-   * При enforceAccount (default) чтение/запись возможны только с такого хендла.
-   * При enforceAcl энфорсер компилится под ЭТОГО субъекта (у каждого scope свой).
-   * owner по умолчанию = account; переопределяется вторым аргументом.
-   */
-  as(account: string | { id: string }, opts?: { owner?: string }): Promise<EntityDb>;
-  /** Открыть транзакцию: tr — тот же API + commit/rollback/lock. */
-  begin(): Promise<EntityTx>;
-  commit(tr: EntityTx): Promise<void>;
-  rollback(tr: EntityTx): Promise<void>;
-  /** Именованный батч: те же цепочки, планы записи копятся до run(). */
-  batch(name: string): Batch;
-  /**
-   * Realtime: события каждой вставленной версии (insert/update/delete-tombstone).
-   * watch(cb) — все классы; watch('Запись', cb) — один. Возврат — stop-функция.
-   * LISTEN-соединение переживает обрывы (re-listen автоматом), но NOTIFY за время
-   * разрыва потеряны — opts.onReconnect зовётся после восстановления: дочитайте пропущенное.
-   */
-  watch(cb: (e: WatchEvent) => void, opts?: WatchOpts): Promise<() => void>;
-  watch(cls: string, cb: (e: WatchEvent) => void, opts?: WatchOpts): Promise<() => void>;
-  close(): Promise<void>;
-  /**
-   * Перечитать определения классов из таблицы Schema (после правки её простым SQL / db.schema.define):
-   * пересобирает registry и, при enforceAcl, ACL-резолвер — без реконнекта. Подхват «сразу».
-   */
-  reloadSchema(): Promise<void>;
-  registry: Registry;
-  /** Голый postgres-клиент (тесты, EXPLAIN). */
-  sql: Ctx['sql'];
-  /** Служебные таблицы auth/ACL (обычные, вне версий/цепочек). */
-  accounts: Tables['accounts'];
-  credentials: Tables['credentials'];
-  resources: Tables['resources'];
-  rules: Tables['rules'];
-  /** Определения классов: db.schema.define(def) — upsert в таблицу Schema + reloadSchema(). */
-  schema: Tables['schema'];
-  /** Вход по кредам (пароль/api-key/key-secret/внешние identity) + сессии в Redis. */
-  auth: AuthApi;
-  /** ACL по Resource/Rule: check(эндпоинт) / checkData(класс, READ|WRITE|DELETE) / reload. */
-  acl: AclApi;
-  /** Начать путь с готового узла/паттерна: db.entity(pos).… (pos — ленивая цепочка или Row). */
-  entity(x: Chain | Row): Chain;
-}
-
-export type EntityDb = DbCore & {
-  [className: string]: (filter?: Filter) => Chain;
-};
-
-export type EntityTx = EntityDb & {
-  commit(): Promise<void>;
-  rollback(): Promise<void>;
-  lock(...keys: (string | number)[]): Promise<void>;
-};
-
-/** Событие watch(): факт новой версии; данные дочитываются запросом при надобности. */
-export interface WatchEvent {
-  partition: string;
-  class: string;
-  id: string;
-  updated: string;
-  deleted: boolean;
-}
-
-/** Опции watch(): реакция на восстановление LISTEN-соединения. */
-export interface WatchOpts {
-  /** Зовётся после каждого re-listen (не на первом подключении): NOTIFY за разрыв потеряны. */
-  onReconnect?: () => void;
-}
-
-export type Batch = {
-  /** Исполнить всю очередь планов одной транзакцией (бывший execute). */
-  run(): Promise<Row[][]>;
-  discard(): void;
-  size(): number;
-} & {
-  [className: string]: (filter?: Filter) => Chain;
-};
-
-// ---------------------------------------------------------------------------
-// Реализация
-// ---------------------------------------------------------------------------
-
-interface RootState {
-  batches: Map<string, BatchPlan[]>;
-}
-
-/** Батч-контекст цепочки: общая очередь + план ЭТОЙ цепочки в ней (появляется на первой операции). */
-interface BatchRef {
-  queue: BatchPlan[];
-  entry?: BatchPlan;
-}
-
-interface RawPathRow {
-  path: Record<string, never>;
-}
-
-/** Фильтр-аргумент принимает и Row/Account-объект — берётся его id. */
-// START_CONTRACT: normalizeFilter
-//   PURPOSE: Нормализует фильтр-аргумент — Row/Account-объект сворачивается в свой id.
-//   INPUTS: { f: Filter | undefined - id-строка, объект-предикат, массив либо Row/Account }
-//   OUTPUTS: { Filter | undefined - id-строка для Row/Account, иначе исходный фильтр }
-//   SIDE_EFFECTS: none
-//   LINKS: M-CHAIN, V-M-CHAIN
-// END_CONTRACT: normalizeFilter
-function normalizeFilter(f: Filter | undefined): Filter | undefined {
-  if (
-    f !== undefined &&
-    typeof f === 'object' &&
-    !Array.isArray(f) &&
-    typeof (f as { id?: unknown }).id === 'string' &&
-    (typeof (f as { class?: unknown }).class === 'string' || 'categories' in (f as object))
-  ) {
-    return (f as { id: string }).id;
-  }
-  return f;
-}
-
-const clsOf = (steps: Step[]): string[] => steps.map((s) => s.cls.id);
-
-// no-history класс (meta.history=false): в БД одна актуальная строка на id — .versions()
-// вернёт её одну, .asOf() отдаст «текущее» вместо point-in-time. Предупреждаем (не бросаем:
-// вызовы могли жить до перевода класса), один раз на класс+метод за процесс.
-const noHistoryWarned = new Set<string>();
-function warnNoHistory(steps: Step[], method: 'versions' | 'asOf'): void {
-  const cls = steps[steps.length - 1]?.cls;
-  if (!cls || cls.history) return;
-  const key = `${cls.id}|${method}`;
-  if (noHistoryWarned.has(key)) return;
-  noHistoryWarned.add(key);
-  console.warn(
-    `letopis: .${method}() on no-history class "${cls.id}" (meta.history=false) — ` +
-    `хранится одна актуальная версия на id, результат не отражает историю`,
-  );
-}
-
-/** Внутренний канал: план чужой ленивой цепочки (слот-значения, entity()). */
+/** Внутренний канал: план чужой ленивой цепочки (entity()). */
 export const PLAN: unique symbol = Symbol('letopis.plan');
-
 type PlanPeek = { steps: Step[]; mods: ChainMods };
 const peekPlan = (x: unknown): PlanPeek | undefined =>
-  x !== null && typeof x === 'object' ? (x as { [PLAN]?: PlanPeek })[PLAN] : undefined;
-
-/** Конец схемы владельца, принимающий класс слота (legacy: 'Entity'-конец берёт любой HUB). */
-// START_CONTRACT: findEnd
-//   PURPOSE: Находит конец Schema.links владельца, принимающий класс слота (legacy: конец 'Entity' берёт любой HUB при нестрогих концах).
-//   INPUTS: { owner: ClassDef - класс-владелец связей; slot: ClassDef - класс устанавливаемого конца }
-//   OUTPUTS: { LinkEnd | undefined - подходящий конец связи или undefined }
-//   SIDE_EFFECTS: none
-//   LINKS: M-CHAIN, V-M-CHAIN
-// END_CONTRACT: findEnd
-function findEnd(owner: ClassDef, slot: ClassDef): LinkEnd | undefined {
-  return owner.links.find(
-    (e) => e.classes.includes(slot.id) || (!owner.strictEnds && e.classes.includes('Entity') && slot.category === 'HUB'),
-  );
-}
-
-/** Значение слота: id-строка | Row | цепочка (одношаговый адрес сворачивается в id). */
-// START_CONTRACT: slotValue
-//   PURPOSE: Приводит значение слота к SlotValue — id-строка, Row (берётся id) или ленивая цепочка (одношаговый адрес db.Класс(id) сворачивается в id, иначе вложенный план).
-//   INPUTS: { slotCls: ClassDef - класс конца связи; v: unknown - id | Row | Chain }
-//   OUTPUTS: { SlotValue - id-строка либо { plan, mods } вложенной цепочки }
-//   SIDE_EFFECTS: бросает при цепочке чужого класса или неподдержанном значении
-//   LINKS: M-CHAIN, V-M-CHAIN
-// END_CONTRACT: slotValue
-function slotValue(slotCls: ClassDef, v: unknown): SlotValue {
-  if (typeof v === 'string') return v;
-  const plan = peekPlan(v);
-  if (plan) {
-    const [head] = plan.steps;
-    if (plan.steps.length === 1 && !head.op && typeof head.filter === 'string') {
-      if (head.cls.id !== slotCls.id) {
-        throw new Error(`letopis: slot "${slotCls.id}" got a chain of class "${head.cls.id}"`);
-      }
-      return head.filter; // просто адрес db.Класс(id) — без вложенного исполнения
-    }
-    return { plan: plan.steps, mods: plan.mods };
-  }
-  if (v !== null && typeof v === 'object' && typeof (v as { id?: unknown }).id === 'string') {
-    return (v as { id: string }).id; // Row / Account
-  }
-  throw new Error(`letopis: slot "${slotCls.id}" accepts an id, a Row or a chain`);
-}
-
-/** Узел для pivot: последний реальный шаг класса cls в ТЕКУЩЕМ читающем сегменте (до op). */
-// START_CONTRACT: pivotNodeOf
-//   PURPOSE: Ищет последний реальный шаг класса cls в текущем читающем сегменте (до первой операции) — узел для pivot-возврата.
-//   INPUTS: { steps: Step[] - шаги цепочки; cls: ClassDef - искомый класс }
-//   OUTPUTS: { Step | undefined - шаг-узел, либо undefined если операция закрыла паттерн }
-//   SIDE_EFFECTS: none
-//   LINKS: M-CHAIN, V-M-CHAIN
-// END_CONTRACT: pivotNodeOf
-function pivotNodeOf(steps: Step[], cls: ClassDef): Step | undefined {
-  for (let i = steps.length - 1; i >= 0; i--) {
-    const s = steps[i];
-    if (s.op) return undefined; // операция закрывает паттерн — узлы до неё недоступны
-    if (s.pivotKey === undefined && s.cls.id === cls.id) return s;
-  }
-  return undefined;
-}
-
-// START_CONTRACT: runPaths
-//   PURPOSE: Исполняет читающий план в режиме путей — строит SQL через buildRead и мапит строки в Path (узлы каждого варианта).
-//   INPUTS: { ctx: Ctx - контекст соединения/схемы; steps: Step[] - шаги; mods: ChainMods - модификаторы }
-//   OUTPUTS: { Promise<Path[]> - массив путей вида { ключ_шага: Row } }
-//   SIDE_EFFECTS: читает БД через M-SQL.buildRead/runQuery
-//   LINKS: M-CHAIN, V-M-CHAIN
-// END_CONTRACT: runPaths
-async function runPaths(ctx: Ctx, steps: Step[], mods: ChainMods): Promise<Path[]> {
-  // START_BLOCK_RUN_PATHS
-  const q = buildRead(ctx, steps, mods, 'paths');
-  const res = await runQuery<RawPathRow>(ctx, q.text, q.params, 'paths', clsOf(steps));
-  return res.map((r) => {
-    const out: Path = {};
-    for (const [k, v] of Object.entries(r.path)) out[k] = toRow(v);
-    return out;
-  });
-  // END_BLOCK_RUN_PATHS
-}
-
-// START_CONTRACT: runRows
-//   PURPOSE: Исполняет читающий план в режиме строк — уникальные сущности последнего шага, с $depth при рекурсивном обходе.
-//   INPUTS: { ctx: Ctx; steps: Step[]; mods: ChainMods }
-//   OUTPUTS: { Promise<Row[]> - строки последнего шага (с $depth при deep) }
-//   SIDE_EFFECTS: читает БД через M-SQL.buildRead/runQuery
-//   LINKS: M-CHAIN, V-M-CHAIN
-// END_CONTRACT: runRows
-async function runRows(ctx: Ctx, steps: Step[], mods: ChainMods): Promise<Row[]> {
-  // START_BLOCK_RUN_ROWS
-  const q = buildRead(ctx, steps, mods, 'rows');
-  const res = await runQuery<{ row: never }>(ctx, q.text, q.params, 'rows', clsOf(steps));
-  return res.map((r) => {
-    const row = toRow(r.row);
-    const d = (r.row as { depth?: number }).depth;
-    return d != null ? { ...row, $depth: d } : row;
-  });
-  // END_BLOCK_RUN_ROWS
-}
+  x !== null && (typeof x === 'object' || typeof x === 'function') ? (x as { [PLAN]?: PlanPeek })[PLAN] : undefined;
 
 /** entity-идентичность: переменная-цепочка → nodeKey её узла в этом пути. */
 type NodeMap = ReadonlyMap<object, number>;
 const NO_NODES: NodeMap = new Map();
 
-/**
- * Свойство-класс (вызов = шаг/pivot; без скобок = слот). ownerSteps undefined — корень
- * (db/batch): слот без владельца — ошибка.
- */
-// START_CONTRACT: classProp
-//   PURPOSE: Строит StepProp для класса — вызов даёт шаг-навигацию или pivot-возврат, обращение без скобок — слот связи (set/unset) записываемой версии.
-//   INPUTS: { ctx: Ctx; name: string - имя/alias класса; cls: ClassDef; ownerSteps: Step[] | undefined - шаги владельца (undefined = корень db/batch); mods: ChainMods; batch: BatchRef | undefined; nodes: NodeMap - карта entity-идентичности; applySlot?: (slotCls, value) => Chain }
-//   OUTPUTS: { StepProp - вызываемый (шаг) Proxy с методами set/unset }
-//   SIDE_EFFECTS: возвращает новые Chain; бросает подсказки при слоте без владельца / не-конце / обращении без вызова
-//   LINKS: M-CHAIN, V-M-CHAIN
-// END_CONTRACT: classProp
-function classProp(
-  ctx: Ctx,
-  name: string,
-  cls: ClassDef,
-  ownerSteps: Step[] | undefined,
-  mods: ChainMods,
-  batch: BatchRef | undefined,
-  nodes: NodeMap,
-  applySlot?: (slotCls: ClassDef, value: SlotValue) => Chain,
-): StepProp {
-  // START_BLOCK_CLASS_STEP
-  const step = (filter?: Filter): Chain => {
-    const prev = ownerSteps?.[ownerSteps.length - 1];
-    // повтор LINK-класса в текущем паттерне — возврат к узлу (pivot)
-    const node = prev && cls.category === 'LINK' ? pivotNodeOf(ownerSteps!, cls) : undefined;
-    if (node) {
-      const pivot: Step = { name, cls, filter: normalizeFilter(filter), pivotKey: node.nodeKey };
-      return makeChain(ctx, [...ownerSteps!, pivot], mods, batch, nodes);
-    }
-    if (prev && !prev.op) resolveHop(prev.cls, cls); // ранняя проверка пути (после op — продолжение от результата)
-    const next: Step = { name, cls, filter: normalizeFilter(filter), nodeKey: nextNodeKey() };
-    return makeChain(ctx, [...(ownerSteps ?? []), next], ownerSteps ? mods : {}, batch, nodes);
-  };
-
-  // END_BLOCK_CLASS_STEP
-  // START_BLOCK_LINK_SLOT
-  const slotGuard = (): ClassDef => {
-    if (!ownerSteps?.length || !applySlot) {
-      throw new Error(`letopis: slot "${name}" needs an owner step — start with a class call: db.Класс(…).${name}.set(…)`);
-    }
-    const owner = ownerSteps[ownerSteps.length - 1];
-    if (!findEnd(owner.cls, cls)) {
-      throw new Error(
-        `letopis: "${cls.id}" is not a link end of "${owner.cls.id}" (Schema.links: ${owner.cls.links.map((e) => e.classes.join('|')).join(', ') || '—'})`,
-      );
-    }
-    return owner.cls;
-  };
-
-  return new Proxy(step, {
-    apply: (t, _self, args: [Filter?]) => t(...args),
-    get(t, p, r) {
-      if (p === 'set') {
-        return (v: unknown) => {
-          slotGuard();
-          return applySlot!(cls, slotValue(cls, v));
-        };
-      }
-      if (p === 'unset') {
-        return () => {
-          const ownerCls = slotGuard();
-          const end = findEnd(ownerCls, cls)!;
-          if (ownerCls.strictEnds && !end.optional) {
-            throw new Error(`letopis: link end "${cls.id}" of "${ownerCls.id}" is required — cannot unset`);
-          }
-          return applySlot!(cls, null);
-        };
-      }
-      if (p === 'delete') {
-        return () => {
-          throw new Error(`letopis: slot .delete() renamed to .unset() (0.16.0) — .${name}.unset() removes the link end`);
-        };
-      }
-      if (typeof p === 'symbol' || p === 'then' || p in Function.prototype || p === 'name' || p === 'length' || p === 'prototype') {
-        return Reflect.get(t, p, r);
-      }
-      throw new Error(`letopis: "${name}" without call is a link slot (set/unset); for navigation call ${name}(…)`);
-    },
-  }) as StepProp;
-  // END_BLOCK_LINK_SLOT
+/** Строка ответа как фильтр — её id. */
+function normalizeFilter(f: Filter | undefined): Filter | undefined {
+  if (f !== null && typeof f === 'object' && !Array.isArray(f)) {
+    const o = f as { id?: unknown; class?: unknown };
+    if (typeof o.id === 'string' && typeof o.class === 'string') return o.id;
+  }
+  return f;
 }
 
-// START_CONTRACT: makeChain
-//   PURPOSE: Собирает Proxy-цепочку над списком шагов — модификаторы и слоты порождают новые цепочки, терминалы делегируют чтение (M-SQL) или исполнение плана (M-WRITE.runPlan).
-//   INPUTS: { ctx: Ctx; steps: Step[] - накопленные шаги; mods: ChainMods; batch?: BatchRef - контекст батча; nodes?: NodeMap - entity-идентичность }
-//   OUTPUTS: { Chain - Proxy с терминалами/модификаторами и свойствами-классами }
-//   SIDE_EFFECTS: терминалы читают/пишут БД (runPaths/runRows/runQuery, runPlan); в батче мутирует очередь через syncBatch
-//   LINKS: M-CHAIN, V-M-CHAIN
-// END_CONTRACT: makeChain
-function makeChain(ctx: Ctx, steps: Step[], mods: ChainMods, batch?: BatchRef, nodes: NodeMap = NO_NODES): Chain {
+/** Класс, алиас или роль → класс шага (для роли — первый класс её целей). */
+export function lookupStep(reg: Registry, name: string): { cls: ClassInfo; role?: string } | undefined {
+  const cls = reg.find(name);
+  if (cls) return { cls };
+  const targets = roleTargets(reg, name);
+  const t = targets.map((n) => reg.find(n)).find((c): c is ClassInfo => !!c);
+  return t ? { cls: t, role: name } : undefined;
+}
+
+const unknownName = (name: string): never => {
+  throw new LetopisError('invalid_class', `класс или роль ${name} не найдены`);
+};
+
+const nodeOf = (steps: Step[], s: Step): Step =>
+  s.pivotKey === undefined ? s : steps.find((x) => x.nodeKey === s.pivotKey) ?? s;
+
+/** Узел для возврата: последний реальный шаг того же класса-связи в текущем читающем сегменте. */
+function pivotNodeOf(steps: Step[], cls: string): Step | undefined {
+  for (let i = steps.length - 1; i >= 0; i--) {
+    const s = steps[i];
+    if (s.op) return undefined; // глагол закрывает паттерн — узлы до него недоступны
+    if (s.pivotKey === undefined && !s.role && s.cls.name === cls) return s;
+  }
+  return undefined;
+}
+
+const noHistoryWarned = new Set<string>();
+function warnNoHistory(steps: Step[], method: 'versions' | 'asOf'): void {
+  const cls = steps[steps.length - 1]?.cls;
+  if (!cls || cls.history !== false) return;
+  const key = `${cls.name}|${method}`;
+  if (noHistoryWarned.has(key)) return;
+  noHistoryWarned.add(key);
+  console.warn(`letopis: .${method}() у класса ${cls.name} без журнала (history: false) — истории нет`);
+}
+
+function report(ctx: ChainCtx, mode: QueryEvent['mode'], steps: Step[], t0: number, rows: number): void {
+  if (!ctx.onQuery && ctx.slowMs === undefined) return;
+  const ms = performance.now() - t0;
+  const slow = ctx.slowMs !== undefined && ms > ctx.slowMs;
+  const classes = steps.map((s) => s.cls.name);
+  if (ctx.onQuery) ctx.onQuery({ mode, classes, ms, rows, slow });
+  else if (slow) console.warn(`letopis: медленный запрос ${ms.toFixed(0)} мс — ${mode} ${classes.join('→')}`);
+}
+
+/** Классы, которые читает цепочка (семейства шагов): по ним сбрасывается её ответ в кэше. */
+function readClasses(reg: Registry, steps: Step[]): string[] {
+  return [...new Set(steps.flatMap((s) => stepClasses(reg, s)))];
+}
+
+/** Срок ответа в кэше, мс: .cache({ ttl }) или пометка cache у всех классов чтения; null — не кэшировать. */
+function cacheTtl(ctx: ChainCtx, steps: Step[], mods: ChainMods, classes: string[]): number | null {
+  const c = ctx.cache;
+  if (!c || !c.store.enabled || ctx.exec.explicit || ctx.batch || mods.forUpdate) return null;
+  if (mods.cache) return mods.cache.ttl !== undefined ? mods.cache.ttl * 1000 : c.store.ttlMs;
+  const marks = classes.map((n) => ctx.reg.find(n)?.cache);
+  if (!marks.length || marks.some((m) => !m)) return null;
+  return Math.min(...marks.map((m) => (m!.ttl !== undefined ? m!.ttl * 1000 : c.store.ttlMs)));
+}
+
+async function exec<T>(ctx: ChainCtx, q: BuiltQuery, mode: QueryEvent['mode'], steps: Step[], mods: ChainMods = {}): Promise<T[]> {
+  const classes = ctx.cache ? readClasses(ctx.reg, steps) : [];
+  const ttl = ctx.cache ? cacheTtl(ctx, steps, mods, classes) : null;
+  if (ttl !== null) {
+    const store = ctx.cache!.store;
+    const who = ctx.cache!.who();
+    const key = store.key(q.text, q.params, who);
+    const hit = store.get(key);
+    if (hit) return hit as T[];
+    const tag = sessionTag(who.token);
+    const tok = store.token(classes, tag);
+    const t0 = performance.now();
+    const S = `"${ctx.schema.replace(/"/g, '""')}"`;
+    const [res, exp] = await ctx.exec.run((tx) => Promise.all([
+      tx.unsafe(q.text, q.params as never[], { prepare: true }) as unknown as Promise<T[]>,
+      tx.unsafe(`select ${S}.session_expires() as e`) as unknown as Promise<{ e: string | null }[]>,
+    ]), { read: true });
+    report(ctx, mode, steps, t0, res.length);
+    const e = exp[0]?.e;
+    store.set(key, [...res], classes, tag, tok, ttl, e ? Date.parse(e) : null);
+    return res;
+  }
+  const t0 = performance.now();
+  const res = await ctx.exec.run((tx) => tx.unsafe(q.text, q.params as never[], { prepare: true }) as unknown as Promise<T[]>, { read: true });
+  report(ctx, mode, steps, t0, res.length);
+  return res;
+}
+
+async function read<T>(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMode, agg?: AggSpec): Promise<{ q: BuiltQuery | null; res: T[] }> {
   const hasOps = steps.some((s) => s.op);
+  if (ctx.batch && hasOps) throw new LetopisError('invalid_query', 'план стоит в очереди батча — его исполнит batch.run()');
+  if (mods.forUpdate) return lockedRead(ctx, steps, mods, mode) as Promise<{ q: BuiltQuery | null; res: T[] }>;
+  if (hasOps) return plan(ctx, steps, mods, mode, agg) as Promise<{ q: BuiltQuery | null; res: T[] }>;
+  const { cache: _c, ...plain } = mods;
+  const q = buildRead(ctx.reg, ctx.schema, steps, plain, mode, agg);
+  const ev: QueryEvent['mode'] = mode === 'countPaths' ? 'count' : mode;
+  return exec<T>(ctx, q, ev, steps, mods).then((res) => ({ q, res }));
+}
 
-  // START_BLOCK_STEP_MUTATORS
+/**
+ * Цепочка с глаголами: весь план одной транзакцией (§2.5). Результат приводится к виду ответа
+ * чтения (строки rows/paths, id, n, агрегаты), чтобы терминалы разбирали его одинаково.
+ */
+async function plan(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMode, agg?: AggSpec): Promise<{ q: BuiltQuery | null; res: unknown[] }> {
+  precheckPlan(ctx.reg, steps);
+  const t0 = performance.now();
+  const r: PlanResult = await ctx.exec.run((q) => execPlan({ reg: ctx.reg, schema: ctx.schema, q, tenant: ctx.tenant(), owner: ctx.owner }, steps, mods, mode, agg));
+  if (r.kind === 'read') {
+    report(ctx, mode === 'countPaths' ? 'count' : mode, steps, t0, r.res.length);
+    if (r.q === null) {
+      if (mode === 'count' || mode === 'countPaths') return { q: null, res: [{ n: 0 }] };
+      if (mode === 'agg') return { q: null, res: agg?.fn === 'countBy' ? [] : [{ v: null }] };
+    }
+    return r;
+  }
+  const rows = r.rows;
+  report(ctx, mode === 'countPaths' ? 'count' : mode === 'paths' ? 'paths' : mode === 'ids' ? 'ids' : 'rows', steps, t0, rows.length);
+  // не switch: check-docs принимает case-метки этого файла за имена, которые Proxy разбирает раньше классов
+  if (mode === 'paths') return { q: null, res: rows.map((row) => ({ path: { [r.key]: row } })) };
+  if (mode === 'ids') return { q: null, res: rows.map((row) => ({ id: row.id })) };
+  if (mode === 'count' || mode === 'countPaths') return { q: null, res: [{ n: rows.length }] };
+  return { q: null, res: (mods.limit !== undefined ? rows.slice(0, mods.limit) : rows).map((row) => ({ row, done: true })) };
+}
+
+/**
+ * Чтение с блокировкой (§2.5, этап 4, п. 9): строки последнего шага блокируются for no key update
+ * в порядке id до конца явной транзакции. Сначала id шага, затем блокировка (политики правки RLS
+ * не дают заблокировать то, что править нельзя), затем то же чтение по свежим строкам: строка,
+ * которая перестала подходить под условия шага, в ответ не попадает; подходящая, но не
+ * заблокированная — acl_denied.
+ */
+async function lockedRead(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMode): Promise<{ q: BuiltQuery | null; res: unknown[] }> {
+  if (!ctx.exec.explicit) throw new LetopisError('tx_required', 'forUpdate() — только внутри db.begin(): вне явной транзакции блокировка снялась бы сразу');
+  if ((mode !== 'rows' && mode !== 'ids') || mods.asOf !== undefined || mods.withDeleted || steps.some((s) => s.deepMax !== undefined || s.op)) {
+    throw new LetopisError('lock_unsupported', 'forUpdate() — с терминалами rows, first, ids, без агрегатов, asOf, versions, withDeleted, deep и глаголов');
+  }
+  const S = `"${ctx.schema.replace(/"/g, '""')}"`;
+  const { forUpdate: _f, ...plain } = mods;
+  const idsQ = buildRead(ctx.reg, ctx.schema, steps, plain, 'ids');
+  const { limit: _l, offset: _o, after: _a, ...unbounded } = plain;
+  const rowsQ = buildRead(ctx.reg, ctx.schema, steps, unbounded, 'rows');
+  const t0 = performance.now();
+  const res = await ctx.exec.run(async (q) => {
+    const ids = ((await q.unsafe(idsQ.text, idsQ.params as never[], { prepare: true })) as unknown as { id: string }[]).map((r) => r.id);
+    if (!ids.length) return [];
+    const locked = new Set(((await q.unsafe(`select id from ${S}.entity where id = any ($1::uuid[]) order by id for no key update`, [ids] as never[], { prepare: true })) as unknown as { id: string }[]).map((r) => r.id));
+    const want = new Set(ids);
+    const fresh = ((await q.unsafe(rowsQ.text, rowsQ.params as never[], { prepare: true })) as unknown as { row: Record<string, unknown> }[])
+      .filter((r) => want.has(r.row.id as string));
+    const denied = fresh.filter((r) => !locked.has(r.row.id as string)).map((r) => r.row.id as string);
+    if (denied.length) throw new LetopisError('acl_denied', `строки видны, но заблокировать их нельзя: ${denied.join(', ')}`, { ids: denied });
+    return fresh;
+  });
+  report(ctx, mode, steps, t0, res.length);
+  return { q: rowsQ, res: mode === 'ids' ? res.map((r) => ({ id: r.row.id })) : res };
+}
+
+/** Строка ответа: из чтения — to_jsonb узла, из плана — готовая строка записи. */
+const rowOf = (r: { row: Record<string, unknown>; done?: true }): Row => (r.done ? (r.row as unknown as WriteRow) : toRow(r.row));
+
+/** Значение слота: id, список id, строка ответа или ленивая цепочка. */
+function slotValue(v: unknown): SlotValue {
+  const peek = peekPlan(v);
+  if (peek) return { plan: peek.steps, mods: peek.mods };
+  if (v === null || typeof v === 'string') return v as SlotValue;
+  if (Array.isArray(v)) return v.map((x) => (typeof x === 'string' ? x : (x as { id: string }).id));
+  if (typeof v === 'object' && typeof (v as { id?: unknown }).id === 'string') return { id: (v as { id: string }).id };
+  throw new LetopisError('invalid_query', 'значение слота — id, список id, строка ответа или цепочка');
+}
+
+function classProp(ctx: ChainCtx, name: string, found: { cls: ClassInfo; role?: string }, ownerSteps: Step[] | undefined,
+  mods: ChainMods, nodes: NodeMap): StepFn {
+  const { cls, role } = found;
+  const step = (filter?: Filter): Chain => {
+    const prev = ownerSteps?.[ownerSteps.length - 1];
+    // повтор связи в пути — возврат к её узлу
+    const node = prev && cls.kind === 'link' && !role ? pivotNodeOf(ownerSteps!, cls.name) : undefined;
+    if (node) {
+      return makeChain(ctx, [...ownerSteps!, { name, cls, filter: normalizeFilter(filter), pivotKey: node.nodeKey }], mods, nodes);
+    }
+    const next: Step = { name, cls, role, filter: normalizeFilter(filter), nodeKey: nextNodeKey() };
+    if (prev) resolveHop(ctx.reg, nodeOf(ownerSteps!, prev), next); // ранняя проверка пути
+    return makeChain(ctx, [...(ownerSteps ?? []), next], ownerSteps ? mods : {}, nodes);
+  };
+  // слот: .Роль.set(x) / .unset() / .add(x) / .remove(x) — концы версии, которую пишет глагол
+  const slot = (op: Slot['op']) => (v?: unknown): Chain => {
+    const last = ownerSteps?.[ownerSteps.length - 1];
+    const kind = last?.op?.kind;
+    if (!last || (kind !== 'create' && kind !== 'update' && kind !== 'upsert')) {
+      throw new LetopisError('invalid_query', `слот .${name}.${op}() — после create(), update() или upsert(): db.Класс(…).update(…).${name}.${op}(…)`);
+    }
+    const role = slotRole(ctx.reg, last.cls, name);
+    const end = last.cls.ends[role];
+    if ((op === 'add' || op === 'remove') && !end.many) throw new LetopisError('invalid_query', `слот .${name}.${op}(): конец ${role} одиночный — set() или unset()`);
+    if (op === 'unset' && (end.required || (end.min ?? 0) > 0)) throw new LetopisError('invalid_query', `слот .${name}.unset(): конец ${role} обязателен`);
+    if ((op === 'set' || op === 'unset') && last.slots?.some((x) => x.role === role && (x.op === 'set' || x.op === 'unset'))) {
+      throw new LetopisError('invalid_query', `слот ${role} задан дважды в одной записи`);
+    }
+    const value = op === 'unset' ? null : slotValue(v);
+    const next = ownerSteps!.slice();
+    next[next.length - 1] = { ...last, slots: [...(last.slots ?? []), { role, op, value }] };
+    if (ctx.batch?.entry) ctx.batch.entry.steps = next;
+    return makeChain(ctx, next, mods, nodes);
+  };
+  return new Proxy(step, {
+    get(t, p, r) {
+      if (p === 'set' || p === 'unset' || p === 'add' || p === 'remove') return slot(p);
+      return Reflect.get(t, p, r);
+    },
+  }) as StepFn;
+}
+
+export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: NodeMap = NO_NODES): Chain {
   const withLast = (patch: Partial<Step>): Chain => {
-    const last = steps[steps.length - 1];
-    if (last.op) {
-      throw new Error(`letopis: step modifier after ${last.op.kind}() — add a class step first`);
-    }
+    const lastOp = steps[steps.length - 1]?.op;
+    if (lastOp) throw new LetopisError('invalid_query', `модификатор шага после ${lastOp.kind}() — сначала шаг класса`);
     const next = steps.slice();
-    next[next.length - 1] = { ...last, ...patch };
-    return makeChain(ctx, next, mods, batch, nodes);
+    next[next.length - 1] = { ...steps[steps.length - 1], ...patch };
+    return makeChain(ctx, next, mods, nodes);
   };
-  const withMods = (patch: ChainMods): Chain => makeChain(ctx, steps, { ...mods, ...patch }, batch, nodes);
-
-  // END_BLOCK_STEP_MUTATORS
-  // START_BLOCK_WRITE_DISPATCH
-  /** Обновить план в батче (регистрируется на первой операции, дальше мутируется). */
+  const withMods = (patch: ChainMods): Chain => makeChain(ctx, steps, { ...mods, ...patch }, nodes);
+  /** Батч: первый глагол ставит план в очередь, следующие звенья обновляют его. */
   const syncBatch = (next: Step[]): void => {
-    if (!batch) return;
-    if (batch.entry) batch.entry.steps = next;
+    const b = ctx.batch;
+    if (!b) return;
+    if (b.entry) b.entry.steps = next;
     else {
-      batch.entry = { steps: next };
-      batch.queue.push(batch.entry);
+      b.entry = { steps: next };
+      b.queue.push(b.entry);
     }
   };
-
-  /** Операция-звено: op на последний шаг (op уже есть → self-шаг «те же сущности»); mods сбрасываются. */
+  /** Глагол — звено плана на последнем шаге (глагол уже есть — новый шаг «те же сущности»); модификаторы — его целям. */
   const withOp = (op: PlanOp): Chain => {
     const last = steps[steps.length - 1];
+    if (!last) throw new LetopisError('invalid_query', `${op.kind}() — нужен шаг класса: db.Класс(…).${op.kind}(…)`);
     const next = last.op
-      ? [...steps, { name: last.name, cls: last.cls, self: true, op, nodeKey: nextNodeKey() } as Step]
-      : [...steps.slice(0, -1), { ...last, op }];
+      ? [...steps, { name: last.name, cls: last.cls, role: last.role, aliasKey: last.aliasKey, self: true as const, op, opMods: mods, nodeKey: nextNodeKey() }]
+      : [...steps.slice(0, -1), { ...last, op, opMods: mods }];
     syncBatch(next);
-    return makeChain(ctx, next, {}, batch, nodes);
+    return makeChain(ctx, next, {}, nodes);
   };
 
-  /**
-   * Слот связи: значение конца ЗАПИСЫВАЕМОЙ версии последнего шага — только после
-   * операции записи (…create(…).Класс.set(x) / …update(…).Класс.unset()): та же версия.
-   */
-  const applySlot = (slotCls: ClassDef, value: SlotValue): Chain => {
-    const last = steps[steps.length - 1];
-    if (!last.op) {
-      throw new Error(
-        `letopis: link slot "${slotCls.alias}" needs a write — add .create(…)/.update(…) before .${slotCls.alias}.${value === null ? 'unset()' : 'set(…)'}`,
-      );
-    }
-    if (last.op.kind !== 'create' && last.op.kind !== 'update') {
-      throw new Error(`letopis: link slot after ${last.op.kind}() — slots apply to create()/update()`);
-    }
-    if (last.extraLinks && slotCls.id in last.extraLinks) {
-      throw new Error(`letopis: duplicate link slot "${slotCls.id}" in one write`);
-    }
-    const patched: Step = {
-      ...last,
-      extraLinks: { ...(last.extraLinks ?? {}), [slotCls.id]: value },
-    };
-    const next = [...steps.slice(0, -1), patched];
-    syncBatch(next);
-    return makeChain(ctx, next, mods, batch, nodes);
-  };
-
-  // END_BLOCK_WRITE_DISPATCH
-  // START_BLOCK_ENTITY_EMBED
-  /** entity(x): вклейка узла/паттерна; та же переменная повторно — возврат к её узлу. */
   const entityStep = (x: unknown): Chain => {
     const plan = peekPlan(x);
+    const prev = steps.length ? nodeOf(steps, steps[steps.length - 1]) : undefined;
+    if (plan?.steps.some((s) => s.op)) throw new LetopisError('invalid_query', 'entity() принимает читающий паттерн — цепочку с глаголами вклеить нельзя');
     if (plan) {
       const known = nodes.get(x as object);
       if (known !== undefined) {
         const lastX = plan.steps[plan.steps.length - 1];
-        const pivot: Step = { name: lastX.name, cls: lastX.cls, pivotKey: known };
-        return makeChain(ctx, [...steps, pivot], mods, batch, nodes);
+        return makeChain(ctx, [...steps, { name: lastX.name, cls: lastX.cls, pivotKey: known }], mods, nodes);
       }
-      if (plan.steps.some((s) => s.op)) {
-        throw new Error('letopis: entity() takes a read pattern — a chain with operations cannot be embedded');
-      }
-      const prev = steps[steps.length - 1];
-      if (prev && !prev.op) resolveHop(prev.cls, plan.steps[0].cls); // стык по правилам пути
+      if (prev) resolveHop(ctx.reg, prev, plan.steps[0]);
       const nodeKey = plan.steps[plan.steps.length - 1].nodeKey!;
       const nextNodes = new Map(nodes);
       nextNodes.set(x as object, nodeKey);
-      return makeChain(ctx, [...steps, ...plan.steps], mods, batch, nextNodes);
+      return makeChain(ctx, [...steps, ...plan.steps], mods, nextNodes);
     }
     if (x !== null && typeof x === 'object' && typeof (x as Row).id === 'string' && typeof (x as Row).class === 'string') {
       const row = x as Row;
-      const cls = ctx.registry.resolve(row.class);
-      const prev = steps[steps.length - 1];
-      if (prev && !prev.op) resolveHop(prev.cls, cls);
-      const next: Step = { name: cls.alias, cls, filter: row.id, nodeKey: nextNodeKey() };
-      return makeChain(ctx, [...steps, next], mods, batch, nodes);
+      const cls = ctx.reg.resolve(row.class);
+      const next: Step = { name: cls.name, cls, filter: row.id, nodeKey: nextNodeKey(), exact: true };
+      if (prev) resolveHop(ctx.reg, prev, next);
+      return makeChain(ctx, [...steps, next], mods, nodes);
     }
-    throw new Error('letopis: entity() accepts a lazy chain or a Row');
+    throw new LetopisError('invalid_query', 'entity() принимает ленивую цепочку или строку ответа');
   };
 
-  // END_BLOCK_ENTITY_EMBED
-  /** Терминал: план (есть операции) — runPlan одной транзакцией; иначе прямое чтение. */
-  const guardBatch = () => {
-    if (batch && hasOps) {
-      throw new Error('letopis: plan is queued in the batch — call batch.run()');
-    }
+  const agg = (fn: AggSpec['fn']) => async (field: string) => {
+    const { q, res } = await read<{ v?: unknown; k?: string; n?: number }>(ctx, steps, mods, 'agg', { fn, field });
+    if (fn === 'countBy') return Object.fromEntries(res.map((r) => [r.k ?? 'null', r.n]));
+    const v = res[0]?.v;
+    if (v === null || v === undefined) return null;
+    if (typeof v !== 'string') return v;
+    if (fn === 'sum' || fn === 'avg' || q?.aggLeaf === 'numeric') return Number(v);
+    return v;
   };
 
   const handler: ProxyHandler<object> = {
     get(_t, prop) {
       if (prop === PLAN) return { steps, mods } satisfies PlanPeek;
-      if (typeof prop === 'symbol' || prop === 'then') return undefined;
-
+      if (typeof prop === 'symbol') return undefined;
       switch (prop) {
-        // START_BLOCK_READ_TERMINALS
+        case 'then':
+          return undefined;
         case 'entity':
           return entityStep;
-        case 'run':
-          return () => {
-            guardBatch();
-            return hasOps ? (runPlan(ctx, steps, mods, 'paths') as Promise<Path[]>) : runPaths(ctx, steps, mods);
+        case 'paths':
+          return async () => {
+            // q === null — пути из результата глагола: строки уже готовы
+            const { q, res } = await read<{ path: Record<string, Record<string, unknown>> }>(ctx, steps, mods, 'paths');
+            return res.map((r) => Object.fromEntries(Object.entries(r.path).map(([k, v]) => [k, q === null ? (v as unknown as Row) : toRow(v)])) as Path);
           };
-        case 'execute':
-          throw new Error('letopis: execute() renamed to run() (0.11.0)');
         case 'rows':
-          return () => {
-            guardBatch();
-            return hasOps ? (runPlan(ctx, steps, mods, 'rows') as Promise<Row[]>) : runRows(ctx, steps, mods);
-          };
+          return async () => (await read<{ row: Record<string, unknown>; done?: true }>(ctx, steps, mods, 'rows')).res.map(rowOf);
         case 'first':
           return async () => {
-            guardBatch();
-            const rows = hasOps
-              ? ((await runPlan(ctx, steps, mods, 'rows')) as Row[])
-              : await runRows(ctx, steps, { ...mods, limit: 1 });
-            return rows[0] ?? null;
+            const { res } = await read<{ row: Record<string, unknown>; done?: true }>(ctx, steps, { ...mods, limit: 1 }, 'rows');
+            return res[0] ? rowOf(res[0]) : null;
           };
         case 'ids':
-          return async () => {
-            guardBatch();
-            if (hasOps) return runPlan(ctx, steps, mods, 'ids') as Promise<string[]>;
-            const q = buildRead(ctx, steps, mods, 'ids');
-            const res = await runQuery<{ id: string }>(ctx, q.text, q.params, 'ids', clsOf(steps));
-            return res.map((r) => r.id);
-          };
+          return async () => (await read<{ id: string }>(ctx, steps, mods, 'ids')).res.map((r) => r.id);
         case 'count':
-          return async () => {
-            guardBatch();
-            if (hasOps) return runPlan(ctx, steps, mods, 'count') as Promise<number>;
-            const q = buildRead(ctx, steps, mods, 'count');
-            const res = await runQuery<{ n: number }>(ctx, q.text, q.params, 'count', clsOf(steps));
-            return res[0].n;
+          return async (opts?: { paths?: boolean }) =>
+            (await read<{ n: number }>(ctx, steps, mods, opts?.paths ? 'countPaths' : 'count')).res[0].n;
+        case 'versions':
+          return async (opts?: { follow?: boolean }) => {
+            warnNoHistory(steps, 'versions');
+            const m = opts?.follow ? { ...mods, follow: true } : mods;
+            return (await read<{ row: Record<string, unknown> }>(ctx, steps, m, 'versions')).res.map((r) => toRow(r.row));
           };
-        // END_BLOCK_READ_TERMINALS
-        // START_BLOCK_READ_MODIFIERS
+        case 'sum':
+        case 'avg':
+        case 'min':
+        case 'max':
+        case 'countBy':
+          return agg(prop);
         case 'limit':
           return (n: number) => withMods({ limit: n });
         case 'offset':
           return (n: number) => withMods({ offset: n });
         case 'sort':
-          return (field: string, dir?: 'asc' | 'desc' | boolean) =>
-            withMods({ order: field, desc: dir === true || dir === 'desc' });
+          return (field: string, dir?: 'asc' | 'desc' | boolean) => withMods({ order: field, desc: dir === true || dir === 'desc' });
         case 'asOf':
           return (t: string | Date) => {
             warnNoHistory(steps, 'asOf');
             return withMods({ asOf: t instanceof Date ? t.toISOString() : t });
           };
+        case 'after':
+          return (cursor: Cursor) => withMods({ after: cursor });
         case 'withDeleted':
           return () => withMods({ withDeleted: true });
         case 'deep':
           return (max = 32) => withLast({ deepMax: max });
         case 'exact':
-          // снять полиморфизм ТЕКУЩЕГО шага: только свой класс, без потомков
-          return () => withLast({ exactClass: true });
-        // END_BLOCK_READ_MODIFIERS
-        // START_BLOCK_AGGREGATIONS
-        case 'sum':
-        case 'avg':
-        case 'min':
-        case 'max':
-          return async (field: string) => {
-            guardBatch();
-            const aggMods = { ...mods, aggFn: prop, aggField: field };
-            const res = hasOps
-              ? ((await runPlan(ctx, steps, aggMods, 'agg')) as { v: unknown }[])
-              : await (async () => {
-                  const q = buildRead(ctx, steps, aggMods, 'agg');
-                  return runQuery<{ v: unknown }>(ctx, q.text, q.params, 'agg', clsOf(steps));
-                })();
-            const v = res[0]?.v;
-            if (v === null || v === undefined) return null;
-            if (typeof v !== 'string') return v;
-            if (prop === 'sum' || prop === 'avg') return Number(v);
-            // min/max: postgres.js отдаёт numeric строкой — приводим, если лист числовой по Schema
-            const leaf = leafType(steps[steps.length - 1].cls, field.slice(5).split('.'));
-            return leaf?.kind === 'number' ? Number(v) : v;
-          };
-        case 'countBy':
-          return async (field: string) => {
-            guardBatch();
-            const aggMods = { ...mods, aggFn: 'countBy' as const, aggField: field };
-            const res = hasOps
-              ? ((await runPlan(ctx, steps, aggMods, 'agg')) as { k: string; n: number }[])
-              : await (async () => {
-                  const q = buildRead(ctx, steps, aggMods, 'agg');
-                  return runQuery<{ k: string; n: number }>(ctx, q.text, q.params, 'agg', clsOf(steps));
-                })();
-            return Object.fromEntries(res.map((r) => [r.k ?? 'null', r.n]));
-          };
-        // END_BLOCK_AGGREGATIONS
-        // START_BLOCK_VERSIONS_CURSOR
-        case 'after':
-          return (cursor: ChainMods['after']) => withMods({ after: cursor });
-        case 'versions':
-          return async () => {
-            guardBatch();
-            warnNoHistory(steps, 'versions');
-            if (hasOps) return runPlan(ctx, steps, mods, 'versions') as Promise<Row[]>;
-            const q = buildRead(ctx, steps, mods, 'versions');
-            const res = await runQuery<{ row: never }>(ctx, q.text, q.params, 'versions', clsOf(steps));
-            return res.map((r) => {
-              const raw = r.row as { deleted: string | null };
-              const row = toRow(r.row);
-              return raw.deleted ? { ...row, $deleted: true as const } : row;
-            });
-          };
-        // END_BLOCK_VERSIONS_CURSOR
-        // START_BLOCK_WRITE_TERMINALS
-        case 'create':
-          return (data: Record<string, unknown> = {}) => {
-            const last = steps[steps.length - 1];
-            if (last && !last.op) {   // после op create пишет результат — фильтр там подставит план
-              if (last.pivotKey !== undefined) {
-                throw new Error('letopis: create() on a pivot step — pivot returns to an existing node, use update()');
-              }
-              if (last.filter !== undefined && typeof last.filter !== 'string') {
-                throw new Error(`letopis: create() takes no filter — ${last.name}(id).create(…) fixes the id, searching is update()`);
-              }
-            }
-            return withOp({ kind: 'create', data, mods });
-          };
-        case 'update':
-          return (data: Record<string, unknown> = {}) => withOp({ kind: 'update', data, mods });
-        case 'set':
-          throw new Error(
-            'letopis: set() split into create()/update() (0.16.0) — create() inserts, update() versions what the path finds',
-          );
-        case 'delete':
-          return (opts?: { confirm?: boolean }) =>
-            withOp({ kind: 'delete', confirm: opts?.confirm === true, mods });
-        case 'anonymize':
-          return (fields: string[]) => withOp({ kind: 'anonymize', fields, mods });
-        case 'purge':
-          return (opts?: { confirm?: boolean }) =>
-            withOp({ kind: 'purge', confirm: opts?.confirm === true, mods });
-        // END_BLOCK_WRITE_TERMINALS
-        // START_BLOCK_COLUMN_MODS
+          return () => withLast({ exact: true });
         case 'alias':
           return (name: string) => withLast({ aliasKey: name });
         case 'tags':
           return (v: unknown) => withLast({ tagsFilter: v });
-        case 'account':
-          return (v: string | { id: string }) =>
-            withLast({ accountFilter: typeof v === 'object' ? v.id : v });
         case 'owner':
-          return (v: string | { id: string }) =>
-            withLast({ ownerFilter: typeof v === 'object' ? v.id : v });
-        // NB: охранника `case 'link'` здесь больше нет (снят в 0.20.0). Он затенял РЕАЛЬНЫЙ
-        // класс схемы: в демо-домене `link` — абстрактный корень всех связок, и шаг
-        // db.Клиент(c).link() падал migration-ошибкой вместо обхода. Обратная совместимость
-        // со снесённым в 0.15.0 методом .link() принесена в жертву достижимости класса.
-        // END_BLOCK_COLUMN_MODS
+          return (v: string | { id: string }) => withLast({ ownerFilter: typeof v === 'object' ? v.id : v });
+        // охранники снесённого API (этап 3, п. 11)
+        case 'run':
+          throw removed('run()', 'paths()');
+        case 'execute':
+          throw removed('execute()', 'paths()');
+        case 'account':
+          throw removed('account()', 'арендатор сессии и auth.switch() (этап 5)');
+        // глаголы записи — звенья плана (этап 4)
+        case 'create':
+          return (data: Record<string, unknown> = {}) => withOp({ kind: 'create', data });
+        case 'update':
+          return (data: Record<string, unknown> = {}, opts?: { rev?: number }) =>
+            withOp({ kind: 'update', data, ...(opts?.rev !== undefined ? { rev: opts.rev } : {}) });
+        case 'upsert':
+          return (data: Record<string, unknown> = {}) => withOp({ kind: 'upsert', data });
+        case 'delete':
+          return (opts?: { confirm?: boolean }) => withOp({ kind: 'delete', confirm: opts?.confirm === true });
+        case 'anonymize':
+          return (fields: string[]) => withOp({ kind: 'anonymize', fields });
+        case 'reclass':
+          return (cls: string, data?: Record<string, unknown>) => withOp({ kind: 'reclass', cls, ...(data !== undefined ? { data } : {}) });
+        case 'set': case 'unset': case 'add': case 'remove':
+          throw new LetopisError('invalid_query', `${prop}() — метод слота: db.Класс(…).update(…).Роль.${prop}(…)`);
+        case 'forUpdate':
+          return () => withMods({ forUpdate: true });
+        case 'restore':
+          return () => withOp({ kind: 'restore' });
+        case 'purge':
+          return (opts?: { confirm?: boolean }) => withOp({ kind: 'purge', confirm: opts?.confirm === true });
+        case 'rekey':
+          return (patch: Record<string, unknown>) => withOp({ kind: 'rekey', data: patch ?? {} });
+        case 'cache':
+          return (opts?: { ttl?: number }) => {
+            if (opts?.ttl !== undefined && !(opts.ttl > 0)) throw new LetopisError('invalid_query', 'cache({ ttl }): срок — положительное число секунд');
+            return withMods({ cache: opts ?? {} });
+          };
       }
-
-      // START_BLOCK_CLASS_RESOLVE
-      if (ctx.registry.has(prop)) {
-        return classProp(ctx, prop, ctx.registry.resolve(prop), steps, mods, batch, nodes, applySlot);
-      }
-      ctx.registry.resolve(prop); // неизвестный класс — понятная ошибка со списком
-      return undefined;
-      // END_BLOCK_CLASS_RESOLVE
+      const found = lookupStep(ctx.reg, prop) ?? unknownName(prop);
+      return classProp(ctx, prop, found, steps, mods, nodes);
     },
   };
   return new Proxy({}, handler) as Chain;
 }
 
-// START_CONTRACT: makeBatch
-//   PURPOSE: Собирает Proxy-батч над общей очередью планов — свойства-классы копят цепочки, run() исполняет всю очередь одной транзакцией.
-//   INPUTS: { ctx: Ctx; queue: BatchPlan[] - общая очередь планов батча }
-//   OUTPUTS: { Batch - Proxy с run/discard/size и свойствами-классами }
-//   SIDE_EFFECTS: run() исполняет и очищает очередь через M-WRITE.executeBatch; discard() очищает очередь
-//   LINKS: M-CHAIN, V-M-CHAIN
-// END_CONTRACT: makeBatch
-function makeBatch(ctx: Ctx, queue: BatchPlan[]): Batch {
-  const handler: ProxyHandler<object> = {
+/**
+ * Батч: очередь планов; каждый вызов класса — своя ссылка на очередь (свой план). run() исполняет очередь
+ * в контексте ctx (актор, арендатор, владелец, транзакция) — поэтому очередь принадлежит фасаду этого ctx
+ * и общей с другими фасадами быть не может: иначе план исполнился бы от имени чужого актора.
+ */
+export function makeBatch(ctx: ChainCtx, queue: BatchEntry[]): Batch {
+  return new Proxy({}, {
     get(_t, prop) {
       if (typeof prop === 'symbol' || prop === 'then') return undefined;
       switch (prop) {
-        // START_BLOCK_BATCH_QUEUE
         case 'run':
           return async () => {
-            const plans = queue.splice(0, queue.length);
-            return executeBatch(ctx, plans);
+            const plans = queue.splice(0, queue.length).map((x) => x.steps);
+            for (const p of plans) precheckPlan(ctx.reg, p);
+            if (!plans.length) return [];
+            return ctx.exec.run((q) => execBatch({ reg: ctx.reg, schema: ctx.schema, q, tenant: ctx.tenant(), owner: ctx.owner }, plans));
           };
         case 'execute':
-          throw new Error('letopis: batch.execute() renamed to batch.run() (0.11.0)');
+          throw removed('batch.execute()', 'batch.run()');
         case 'discard':
           return () => void queue.splice(0, queue.length);
         case 'size':
           return () => queue.length;
-        // END_BLOCK_BATCH_QUEUE
       }
-      if (ctx.registry.has(prop)) {
-        return classProp(ctx, String(prop), ctx.registry.resolve(prop), undefined, {}, { queue }, NO_NODES);
-      }
-      ctx.registry.resolve(prop);
-      return undefined;
+      return startStep({ ...ctx, batch: { queue } }, prop);
     },
-  };
-  return new Proxy({}, handler) as Batch;
+  }) as Batch;
 }
 
-// START_CONTRACT: makeDb
-//   PURPOSE: Фабрика корневого фасада EntityDb над Ctx — классы как стартовые шаги, транзакции (begin/commit/rollback/lock), батчи, watch, служебные таблицы/auth/acl, entity()-старт.
-//   INPUTS: { ctx: Ctx - контекст соединения/схемы (или TxCtx внутри begin()); root?: RootState - общее состояние батчей }
-//   OUTPUTS: { EntityDb - Proxy-фасад }
-//   SIDE_EFFECTS: begin() открывает транзакцию (M-TX.beginTx); watch() ставит LISTEN на канал = имя схемы (ctx.pgSchema); close() закрывает соединение; лениво поднимает M-TABLES/M-AUTH/M-ACL
-//   LINKS: M-CHAIN, V-M-CHAIN
-// END_CONTRACT: makeDb
-export function makeDb(ctx: Ctx, root?: RootState): EntityDb {
-  const state: RootState = root ?? { batches: new Map() };
-  let tables: Tables | undefined; // лениво, на ctx этого фасада (работает и в tr)
-  let auth: AuthApi | undefined;
-  let acl: AclApi | undefined;
+/** Старт пути от корня db: класс, алиас или роль. */
+export function startStep(ctx: ChainCtx, name: string): StepFn {
+  const found = lookupStep(ctx.reg, name) ?? unknownName(name);
+  return classProp(ctx, name, found, undefined, {}, NO_NODES);
+}
 
-  const handler: ProxyHandler<object> = {
-    get(_t, prop) {
-      if (typeof prop === 'symbol' || prop === 'then') return undefined;
-
-      // START_BLOCK_TABLES_AUTH_ACL
-      if (prop === 'accounts' || prop === 'credentials' || prop === 'resources' || prop === 'rules' || prop === 'schema') {
-        tables ??= makeTables(ctx);
-        return tables[prop];
-      }
-      if (prop === 'auth') {
-        tables ??= makeTables(ctx);
-        auth ??= makeAuth(tables);
-        return auth;
-      }
-      if (prop === 'acl') {
-        tables ??= makeTables(ctx);
-        acl ??= makeAcl(tables, ctx.registry);
-        return acl;
-      }
-      // END_BLOCK_TABLES_AUTH_ACL
-
-      switch (prop) {
-        // START_BLOCK_SCOPE_AS
-        // db.as(account): тот же пул, но вызов от имени этого арендатора. Дешёвый клон ctx
-        // (как beginTx), НЕ новое соединение. Батчи не наследуются: очередь планов, общая
-        // для разных арендаторов, — это утечка записи между ними.
-        case 'as':
-          return async (a: string | { id: string }, o?: { owner?: string }) => {
-            const account = typeof a === 'object' ? a?.id : a;
-            if (!account) throw new Error('letopis: db.as(account) requires an account id (uuid or { id })');
-            const scoped: Ctx = { ...ctx, account, owner: o?.owner, aclDecide: undefined };
-            // reloadSchema() со scope: реестр перечитывает КОРЕНЬ (единый источник), затем
-            // scope подхватывает его и перекомпилирует свой энфорсер под своего субъекта.
-            scoped.reload = async () => {
-              await ctx.reload?.();
-              scoped.registry = ctx.registry;
-              await ctx.compileAcl?.(scoped);
-            };
-            await ctx.compileAcl?.(scoped);
-            return makeDb(scoped);
-          };
-        // END_BLOCK_SCOPE_AS
-        // START_BLOCK_TX_LOCK
-        case 'begin':
-          return async () => makeDb(await beginTx(ctx), state) as EntityTx;
-        case 'commit':
-          return (tr?: EntityTx) => {
-            if (tr) return tr.commit();
-            const c = ctx as TxCtx;
-            if (typeof c.commit === 'function') return c.commit();
-            throw new Error('letopis: commit() needs a transaction: db.commit(tr) or tr.commit()');
-          };
-        case 'rollback':
-          return (tr?: EntityTx) => {
-            if (tr) return tr.rollback();
-            const c = ctx as TxCtx;
-            if (typeof c.rollback === 'function') return c.rollback();
-            throw new Error('letopis: rollback() needs a transaction: db.rollback(tr) or tr.rollback()');
-          };
-        case 'lock':
-          return (...keys: (string | number)[]) => lock(ctx, ...keys);
-        // END_BLOCK_TX_LOCK
-        // START_BLOCK_BATCH_OPEN
-        case 'batch':
-          return (name: string) => {
-            let q = state.batches.get(name);
-            if (!q) {
-              q = [];
-              state.batches.set(name, q);
-            }
-            return makeBatch(ctx, q);
-          };
-        // END_BLOCK_BATCH_OPEN
-        // START_BLOCK_WATCH_LISTEN
-        case 'watch':
-          return async (
-            a: string | ((e: WatchEvent) => void),
-            b?: ((e: WatchEvent) => void) | WatchOpts,
-            c?: WatchOpts,
-          ) => {
-            const cls = typeof a === 'string' ? ctx.registry.resolve(a).id : undefined;
-            const cb = typeof a === 'function' ? a : (b as (e: WatchEvent) => void);
-            const opts = (typeof a === 'function' ? (b as WatchOpts) : c) ?? {};
-            const listener = (payload: string) => {
-              const e = JSON.parse(payload) as WatchEvent;
-              if (e.partition !== ctx.partition) return;
-              if (cls && e.class !== cls) return;
-              // enforceAcl: отдаём только при БЕЗУСЛОВНОМ allow — payload не содержит
-              // owner/account/data, предикат строки проверить нечем (id — тоже утечка)
-              if (ctx.aclDecide) {
-                try {
-                  const d = ctx.aclDecide(ctx.registry.resolve(e.class), 'READ');
-                  if (!d.allow || d.filter) return;
-                } catch {
-                  return;
-                }
-              }
-              cb(e);
-            };
-            // postgres.js: dedicated LISTEN-соединение само переподключается (backoff) и
-            // повторяет LISTEN; onlisten зовётся на первом connect И на каждом re-listen.
-            // NOTIFY за время разрыва потеряны — onReconnect даёт точку дочитать пропущенное.
-            let first = true;
-            const onlisten = () => {
-              if (first) {
-                first = false;
-                return;
-              }
-              opts.onReconnect?.();
-            };
-            const { unlisten } = await (ctx.sql as unknown as {
-              listen(ch: string, fn: (p: string) => void, ol?: () => void): Promise<{ unlisten(): Promise<void> }>;
-            }).listen(ctx.pgSchema, listener, onlisten);
-            return unlisten;
-          };
-        // END_BLOCK_WATCH_LISTEN
-        // START_BLOCK_CLOSE_META
-        case 'close':
-          return () => (ctx.sql as unknown as { end(): Promise<void> }).end();
-        case 'reloadSchema':
-          return async () => {
-            await ctx.reload?.();
-            acl = undefined; // db.acl-фасад перестроится на свежем registry при следующем доступе
-          };
-        case 'registry':
-          return ctx.registry;
-        case 'sql':
-          return ctx.sql;
-        // END_BLOCK_CLOSE_META
-      }
-
-      // START_BLOCK_ENTITY_START
-      if (prop === 'entity') {
-        // старт пути с готового паттерна/строки: db.entity(pos).…
-        return (x: unknown) => makeChain(ctx, [], {}, undefined, NO_NODES).entity(x as Chain | Row);
-      }
-      if (ctx.registry.has(prop)) {
-        return classProp(ctx, String(prop), ctx.registry.resolve(prop), undefined, {}, undefined, NO_NODES);
-      }
-      ctx.registry.resolve(prop);
-      return undefined;
-      // END_BLOCK_ENTITY_START
-    },
-  };
-  return new Proxy({}, handler) as EntityDb;
+/** Старт пути с готового узла: db.entity(row | цепочка). */
+export function startEntity(ctx: ChainCtx, x: Chain | Row): Chain {
+  return makeChain(ctx, [], {}, NO_NODES).entity(x);
 }

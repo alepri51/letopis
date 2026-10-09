@@ -1,372 +1,495 @@
 /**
- * letopis.up(): одна точка входа — dev-контейнер (TimescaleDB + Redis), готовность БД,
- * версионная схема с сидами, connect. Идемпотентно: живой postgres на dsn → docker
- * пропускается целиком; существующая схема не трогается (fresh: true — дроп и накат).
+ * Установщик letopis 1.0 (план, этап 1, п. 2) и полный up() (этап 6, п. 9–10).
  *
- *   const db = await up({ schema: 'booking', version: 1 });   // → PG-схема "v1.booking"
+ * install() накатывает lib/sql/NN-*.sql по возрастанию номера с подстановкой имён, идемпотентно
+ * создаёт роли, выдаёт себе членство в роли-владельце `with inherit false, set true` и работает от
+ * неё только на время явного `set role`. Повторный накат ничего не меняет.
+ *
+ * up() — оркестратор без Docker: ждёт базу (удалённую — до таймаута), создаёт её, проверяет версию
+ * PostgreSQL (18+) и кодировку UTF8, ставит схему (fresh — заново), обновляет отставшую (upgrade:
+ * миграции lib/sql/migrate/ и повторный накат), кладёт сиды, выдаёт или регистрирует сервисный ключ и
+ * выполняет ANALYZE только для таблиц без статистики.
  */
-// FILE: lib/src/up.ts
-// VERSION: 1.1.0
-// START_MODULE_CONTRACT
-//   PURPOSE: Dev-bootstrap — поднять Docker-контейнер Postgres (TimescaleDB) + Redis, обеспечить базу, накатить DDL-схему и сиды, дождаться готовности и подключиться.
-//   SCOPE: валидация схемы/версии; проба postgres; docker build/run/start контейнера; создание базы; ожидание готовности PG и Redis; применение схемы + сиды; connect
-//   DEPENDS: M-CONNECT, M-CHAIN, M-TYPES
-//   LINKS: M-UP, V-M-UP
-//   ROLE: RUNTIME
-//   MAP_MODE: EXPORTS
-// END_MODULE_CONTRACT
-//
-// START_MODULE_MAP
-//   UpOpts - опции up(): dsn, schema, version, контейнер/образ, dataDir, seeds, fresh, upgrade, quiet, таймаут
-//   dockerRunArgs - чистая сборка argv для `docker run` (bind/volume, trust/пароль)
-//   RunCfg - конфиг запуска контейнера (порты, креды, база, dataDir)
-//   up - точка входа: контейнер -> база -> схема -> готовность -> connect (возвращает EntityDb)
-//   docker - (local) обёртка execFile над docker CLI (ENOENT -> понятная ошибка)
-//   ensureContainer - (local) reuse/start/build+run dev-контейнера
-//   pgPing - (local) проба postgres: ok | no-server | no-database | starting | fatal
-//   ensureDatabase - (local) создать базу, если её нет (гонка 42P04 глушится)
-//   tcpAlive - (local) TCP-проба хоста:порта (для redis)
-//   applySchema - (local) drop (fresh) | перекат ddl (upgrade) -> накат ddl+сидов с подстановкой <SCHEMA-NAME> -> ANALYZE Entity
-// END_MODULE_MAP
-//
-// START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.1.0 - applySchema делает ANALYZE Entity после наката: у гипертаблицы нет
-//     статистики родителя, и планировщик оценивает подзапрос кандидатов в 200 строк — выбирался
-//     Nested Loop, чтения были медленнее до x18 (замер в README 14.1).
-//     Ранее: Documented existing module: reverse-engineered contract + markup]
-// END_CHANGE_SUMMARY
-//
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-import { setTimeout as sleep } from 'node:timers/promises';
-import net from 'node:net';
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { join, resolve } from 'node:path';
+import { createHash, randomBytes } from 'node:crypto';
 import postgres from 'postgres';
-import { connect } from './index.js';
-import type { EntityDb } from './chain.js';
-import type { ConnectOpts } from './types.js';
+import { DDL_REVISION, RESERVED_CLASS_NAMES } from './types.js';
+import { startPglite, type PgliteOptions, type PgliteServer } from './pglite.js';
+import { hashPassword } from './auth.js';
+import { LetopisError } from './errors.js';
+import { v5Id } from './uuid.js';
 
-const exec = promisify(execFile);
+export const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
+export const SCHEMA_VERSION = 'v2';
 
-export interface UpOpts extends Omit<ConnectOpts, 'dsn' | 'schema'> {
-  /** postgres://user:pass@host:port/db. Default postgres://postgres:test@localhost:15432/letopis. */
-  dsn?: string;
-  /** Базовое имя схемы БЕЗ версии и точек (напр. 'booking'). */
+export interface InstallOptions {
+  /** Полное имя схемы с версией, например `v2.salon`. */
   schema: string;
-  /** Версия движка: итоговая PG-схема "v<N>.<schema>". Бамп руками при breaking-изменении DDL. */
-  version: number;
-  /** Имя dev-контейнера. Default 'letopis-timescale'. */
-  container?: string;
-  /** Имя docker-образа; при отсутствии соберётся из пакованного Dockerfile. Default 'letopis-db'. */
-  image?: string;
+  owner?: string;
+  app?: string;
+  /** Константа установки: разрешён ли reset (план, §2.2). По умолчанию выключен. */
+  allowReset?: boolean;
   /**
-   * Где держать данные PG: путь на хосте (bind mount, на Windows/NTFS — на свой риск)
-   * либо имя docker-volume. Default — named volume 'letopis-pgdata' (кроссплатформенно;
-   * переживает пересоздание контейнера).
+   * Константа установки: политика хранения истории для классов без своей (план, §2.11), например
+   * `{ all: '1 day', daily: '1 week', weekly: '1 month', monthly: '1 year', yearly: 'forever' }`.
+   * Не задана — история хранится вся.
    */
-  dataDir?: string;
-  /** Хост-порт Redis контейнера. Default 16379. */
-  redisPort?: number;
-  /**
-   * Сиды после ddl: массив путей — свои файлы (маркер "<SCHEMA-NAME>" в них поддержан);
-   * default — демо booking + auth. Свой сид должен дать хотя бы один класс в Schema
-   * (иначе connect в конце честно упадёт «has no classes»); false — голая структура
-   * без сидов, годится только чтобы поставить движок — connect не переживёт.
-   */
-  seeds?: string[] | false;
-  /** Дропнуть схему и накатить заново. ДАННЫЕ СХЕМЫ ТЕРЯЮТСЯ. */
-  fresh?: boolean;
-  /**
-   * Перекатить `ddl.sql` на СУЩЕСТВУЮЩУЮ схему (сиды не трогаются, данные целы).
-   * Так доезжают аддитивные правки движка: схема, накатанная старой либой, не имеет новых
-   * функций/триггеров (например `purge`/`purge_account` из 0.19.0) и падает сырым
-   * «function … does not exist». О расхождении предупреждает `connect()` (см. `DDL_REVISION`).
-   * Идемпотентно; на несуществующей схеме — обычный первый накат.
-   */
-  upgrade?: boolean;
-  /** Без console.log-прогресса. */
-  quiet?: boolean;
-  /** Максимум ожидания готовности, мс. Default 120 000 (первый запуск: pull образа + initdb). */
-  waitTimeoutMs?: number;
+  history?: HistoryPolicy;
+  /** Номер последнего накатываемого файла — для пошаговых тестов. */
+  upTo?: number;
+  /** Сиды после ядра: имена lib/sql/seed.<имя>.sql (например 'booking') или пути к своим файлам .sql. */
+  seeds?: string[];
+  /** Обновление (upgrade): ревизия схемы до наката — миграции lib/sql/migrate/ с номером выше неё. */
+  migrateFrom?: number;
+  /** Каталог миграций (по умолчанию lib/sql/migrate). */
+  migrationsDir?: string;
+  /** Свой ключ сервиса: зарегистрировать, если такого ещё нет (вместо выпуска случайного). */
+  serviceKey?: string;
 }
 
-const DEFAULT_DSN = 'postgres://postgres:test@localhost:15432/letopis';
-const qi = (s: string) => `"${s.replace(/"/g, '""')}"`;
-const pkgPath = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
-
-export interface RunCfg {
-  container: string;
-  image: string;
-  pgPort: string;
-  redisPort: number;
-  user: string;
-  password: string;
-  database: string;
-  dataDir?: string;
+/** Политика хранения истории (§2.11): сроки ярусов по возрастанию, 'forever' — бессрочно. */
+export interface HistoryPolicy {
+  all: string;
+  daily?: string;
+  weekly?: string;
+  monthly?: string;
+  yearly?: string;
+  /** Часовой пояс границ периодов (по умолчанию UTC). */
+  tz?: string;
 }
 
-/** argv для docker run (чистая функция — покрыта юнитом). dataDir: путь → bind, имя → volume. */
-// START_CONTRACT: dockerRunArgs
-//   PURPOSE: Чистая функция — собирает argv для `docker run` dev-контейнера (порты PG/Redis, том данных, режим trust либо пароль).
-//   INPUTS: { cfg: RunCfg - контейнер/образ, порты, креды, база, dataDir (путь -> bind, имя -> volume) }
-//   OUTPUTS: { string[] - аргументы командной строки docker run }
-//   SIDE_EFFECTS: none
-//   LINKS: M-UP, V-M-UP
-// END_CONTRACT: dockerRunArgs
-export function dockerRunArgs(cfg: RunCfg): string[] {
-  const args = ['run', '-d', '--name', cfg.container,
-    '-p', `${cfg.pgPort}:5432`, '-p', `${cfg.redisPort}:6379`,
-    '-v', `${cfg.dataDir ?? 'letopis-pgdata'}:/var/lib/postgresql/data`];
-  if (cfg.user && cfg.user !== 'postgres') args.push('-e', `POSTGRES_USER=${cfg.user}`);
-  // без пароля в dsn контейнер поднимается в trust-режиме (dev), иначе postgres-образ не стартует
-  args.push('-e', cfg.password ? `POSTGRES_PASSWORD=${cfg.password}` : 'POSTGRES_HOST_AUTH_METHOD=trust');
-  args.push('-e', `POSTGRES_DB=${cfg.database}`, cfg.image);
-  return args;
+export interface InstallResult {
+  schema: string;
+  owner: string;
+  app: string;
+  /** Ключ сервисного аккаунта; выдаётся только при первой установке (или зарегистрированный свой), дальше — null. */
+  serviceKey: string | null;
+  /** Применённые миграции. */
+  migrations: string[];
 }
 
-async function docker(args: string[]): Promise<{ ok: boolean; out: string; err: string }> {
+const SQL_DIR = fileURLToPath(new URL('../sql/', import.meta.url));
+const MIGRATE_DIR = join(SQL_DIR, 'migrate');
+const ROLE_NAME = /^[a-z_][a-z0-9_]{0,62}$/;
+const SCHEMA_NAME = /^v\d+\.[a-z_][a-z0-9_]{0,40}$/;
+
+export const quoteIdent = (name: string): string => `"${name.replace(/"/g, '""')}"`;
+const quoteLiteral = (s: string): string => `'${s.replace(/'/g, "''")}'`;
+
+/** Файлы ядра по номеру: `10-core.sql` … `99-revision.sql`; сиды демо-домена сюда не входят. */
+export async function engineFiles(upTo = 99): Promise<string[]> {
+  const files = (await readdir(SQL_DIR)).filter((f) => /^\d{2}-[a-z0-9.-]+\.sql$/.test(f));
+  return files.filter((f) => Number(f.slice(0, 2)) <= upTo).sort();
+}
+
+export function substitute(text: string, vars: Record<string, string>): string {
+  return text.replace(/@([A-Z_]+)@/g, (m, k: string) => {
+    if (!(k in vars)) throw new Error(`letopis.up: неизвестный маркер ${m} в SQL`);
+    return vars[k];
+  });
+}
+
+export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<InstallResult> {
+  const owner = opts.owner ?? 'letopis_owner';
+  const app = opts.app ?? 'letopis_app';
+  if (!SCHEMA_NAME.test(opts.schema)) throw new Error(`letopis.up: bad schema name "${opts.schema}" (нужно v<N>.<имя>)`);
+  for (const r of [owner, app]) if (!ROLE_NAME.test(r)) throw new Error(`letopis.up: bad role name "${r}"`);
+
+  const [{ v }] = await sql<{ v: string }[]>`select current_setting('server_version_num') as v`;
+  if (Number(v) < 180000) throw new Error(`letopis.up: нужен PostgreSQL 18 или новее, а сервер — ${v}`);
+
+  // Роли — общие для кластера; создаются идемпотентно.
+  for (const r of [owner, app]) {
+    await sql.unsafe(`do $$ begin
+      if not exists (select 1 from pg_roles where rolname = ${quoteLiteral(r)}) then
+        create role ${quoteIdent(r)} nologin;
+      end if;
+    exception when duplicate_object then null; end $$`);
+  }
+  // Установщик получает права владельца только на время set role (план, §2.9).
+  await sql.unsafe(`grant ${quoteIdent(owner)} to current_user with inherit false, set true`).catch((e: { code?: string }) => {
+    if (e.code !== '0LP01') throw e; // уже выдано циклом — нет
+  });
+
+  await sql.unsafe(`create extension if not exists pgcrypto`);
+  const [{ nsp }] = await sql<{ nsp: string }[]>`
+    select n.nspname as nsp from pg_extension e join pg_namespace n on n.oid = e.extnamespace where e.extname = 'pgcrypto'`;
+  await sql.unsafe(`grant usage on schema ${quoteIdent(nsp)} to ${quoteIdent(owner)}`);
+
+  const vars: Record<string, string> = {
+    SCHEMA: quoteIdent(opts.schema),
+    SCHEMA_NAME: opts.schema,
+    OWNER: quoteIdent(owner),
+    OWNER_NAME: owner,
+    APP: quoteIdent(app),
+    APP_NAME: app,
+    PGCRYPTO: quoteIdent(nsp),
+    SYSTEM: SYSTEM_ID,
+    ALLOW_RESET: opts.allowReset ? 'true' : 'false',
+    HISTORY_DEFAULT: quoteLiteral(JSON.stringify(opts.history ?? null)),
+    // методы цепочки — в тексте функции reserved_names() (план, §2.14)
+    RESERVED_NAMES: RESERVED_CLASS_NAMES.map(quoteLiteral).join(', '),
+  };
+
+  // Схема создаётся до set role: у владельца может не быть права CREATE в базе.
+  await sql.unsafe(`create schema if not exists ${quoteIdent(opts.schema)} authorization ${quoteIdent(owner)}`);
+
+  const files = await engineFiles(opts.upTo);
+  const migrations = opts.migrateFrom === undefined ? [] : await migrationFiles(opts.migrationsDir ?? MIGRATE_DIR, opts.migrateFrom);
+  let serviceKey: string | null = null;
+  await sql.begin(async (tx) => {
+    await tx.unsafe(`set local role ${quoteIdent(owner)}`);
+    // структурные изменения прежних ревизий — до повторного наката функций (этап 6, п. 10)
+    for (const m of migrations) {
+      try {
+        await tx.unsafe(substitute(await readFile(join(opts.migrationsDir ?? MIGRATE_DIR, m), 'utf8'), vars));
+      } catch (e) {
+        const err = e as Error;
+        err.message = `letopis.up: migrate/${m}: ${err.message}`;
+        throw err;
+      }
+    }
+    for (const f of files) {
+      const text = substitute(await readFile(join(SQL_DIR, f), 'utf8'), vars);
+      try {
+        await tx.unsafe(text);
+      } catch (e) {
+        const err = e as Error;
+        err.message = `letopis.up: ${f}: ${err.message}`;
+        throw err;
+      }
+    }
+    for (const seed of opts.seeds ?? []) {
+      // имя сида пакета или путь к своему файлу
+      const own = seed.endsWith('.sql') || /[\\/]/.test(seed);
+      if (!own && !/^[a-z0-9-]+$/.test(seed)) throw new Error(`letopis.up: bad seed name "${seed}"`);
+      const f = own ? resolve(seed) : join(SQL_DIR, `seed.${seed}.sql`);
+      try {
+        await tx.unsafe(substitute(await readFile(f, 'utf8'), vars));
+      } catch (e) {
+        const err = e as Error;
+        err.message = `letopis.up: ${own ? seed : `seed.${seed}.sql`}: ${err.message}`;
+        throw err;
+      }
+    }
+    if (opts.history && files.some((f) => f.startsWith('40-'))) {
+      // умолчание проверяется той же метасхемой, что политика класса (сроки по возрастанию, all ≥ суток)
+      await tx.unsafe(`select ${quoteIdent(opts.schema)}.class_prepare($1::jsonb, $2::uuid)`,
+        [{ name: 'HistoryDefault', kind: 'hub', history: opts.history } as never, SYSTEM_ID]).catch((e: Error) => {
+        e.message = `letopis.up: history: ${e.message}`;
+        throw e;
+      });
+    }
+    if (files.some((f) => f.startsWith('95-'))) {
+      const S = quoteIdent(opts.schema);
+      if (opts.serviceKey) {
+        // свой ключ: регистрируется, если его ещё нет (ключ хранится как sha256)
+        if (!/^lts_[0-9a-f]{32,128}$/.test(opts.serviceKey)) throw new Error('letopis.up: serviceKey — lts_ и не меньше 32 шестнадцатеричных знаков');
+        const hash = createHash('sha256').update(opts.serviceKey, 'utf8').digest();
+        const [{ n }] = await tx.unsafe(`select count(*)::int as n from ${S}.secret where kind = 'APIKEY' and material = $1 and deleted_at is null`, [hash]);
+        if (n === 0) {
+          await tx.unsafe(`select ${S}.bootstrap_service($1)`, [opts.serviceKey]);
+          serviceKey = opts.serviceKey;
+        }
+      } else {
+        const [{ n }] = await tx.unsafe(`select count(*)::int as n from ${S}.secret where kind = 'APIKEY' and deleted_at is null`);
+        if (n === 0) {
+          serviceKey = `lts_${randomBytes(32).toString('hex')}`;
+          await tx.unsafe(`select ${S}.bootstrap_service($1)`, [serviceKey]);
+        }
+      }
+    }
+  });
+  return { schema: opts.schema, owner, app, serviceKey, migrations };
+}
+
+/** Миграции с номером выше ревизии from и не выше DDL_REVISION: `0004-описание.sql`, по номеру. */
+export async function migrationFiles(dir: string, from: number): Promise<string[]> {
+  let files: string[];
   try {
-    const { stdout, stderr } = await exec('docker', args, { maxBuffer: 64 * 1024 * 1024 });
-    return { ok: true, out: stdout.trim(), err: stderr };
-  } catch (e) {
-    const x = e as { code?: string; stdout?: string; stderr?: string; message?: string };
-    if (x.code === 'ENOENT')
-      throw new Error('letopis.up: docker CLI not found — install Docker or point dsn at an already running postgres');
-    return { ok: false, out: (x.stdout ?? '').trim(), err: (x.stderr || x.message || '').trim() };
+    files = await readdir(dir);
+  } catch {
+    return [];
   }
+  return files.filter((f) => /^\d{4}-[a-z0-9.-]+\.sql$/.test(f))
+    .filter((f) => Number(f.slice(0, 4)) > from && Number(f.slice(0, 4)) <= DDL_REVISION)
+    .sort();
 }
 
-// START_CONTRACT: ensureContainer
-//   PURPOSE: Гарантирует запущенный dev-контейнер — reuse запущенного, start остановленного, иначе build образа (если нет) и run.
-//   INPUTS: { cfg: RunCfg - параметры контейнера/образа/портов; log: (m: string) => void - прогресс }
-//   OUTPUTS: { Promise<void> }
-//   SIDE_EFFECTS: вызывает docker inspect/start/build/run через execFile; бросает при неудаче start/build/run
-//   LINKS: M-UP, V-M-UP
-// END_CONTRACT: ensureContainer
-async function ensureContainer(cfg: RunCfg, log: (m: string) => void): Promise<void> {
-  const st = await docker(['container', 'inspect', '--format', '{{.State.Running}}', cfg.container]);
-  if (st.ok && st.out === 'true') {
-    log(`container ${cfg.container} is running — reused`);
-    return;
-  }
-  if (st.ok) {
-    const r = await docker(['start', cfg.container]);
-    if (!r.ok) throw new Error(`letopis.up: docker start ${cfg.container} failed: ${r.err}`);
-    log(`container ${cfg.container} started`);
-    return;
-  }
-  const img = await docker(['image', 'inspect', cfg.image]);
-  if (!img.ok) {
-    log(`building image ${cfg.image} (first time pulls the timescaledb base — may take minutes)…`);
-    const b = await docker(['build', '-t', cfg.image, pkgPath('../docker/')]);
-    if (!b.ok) throw new Error(`letopis.up: docker build ${cfg.image} failed: ${b.err}`);
-    log(`image ${cfg.image} built`);
-  }
-  const r = await docker(dockerRunArgs(cfg));
-  if (!r.ok) throw new Error(`letopis.up: docker run ${cfg.container} failed: ${r.err}`);
-  log(`container ${cfg.container} created (data: ${cfg.dataDir ?? 'volume letopis-pgdata'})`);
+// ---------------------------------------------------------------------------
+// up(): оркестратор (этап 6, п. 9)
+// ---------------------------------------------------------------------------
+
+export interface UpOptions extends Omit<InstallOptions, 'schema' | 'upTo' | 'migrateFrom'> {
+  /** Администраторская строка подключения (роль-установщик). */
+  dsn?: string;
+  /** Готовый пул postgres.js вместо dsn (база уже существует). */
+  sql?: postgres.Sql;
+  /** Схема: полное имя v2.<имя> или только <имя> — версия структуры подставится сама. */
+  schema: string;
+  /** Удалить схему и поставить заново. ДАННЫЕ СХЕМЫ ТЕРЯЮТСЯ. */
+  fresh?: boolean;
+  /** Обновить схему отставшей ревизии: миграции и повторный накат; данные сохраняются. */
+  upgrade?: boolean;
+  /** Без сообщений в консоль. */
+  quiet?: boolean;
+  /** Сколько ждать базу, мс (по умолчанию 60 000). */
+  waitTimeoutMs?: number;
+  /**
+   * База для разработки без PostgreSQL (решение 6 точки А): PGlite с pgcrypto через pglite-socket;
+   * одно соединение — connect({ dsn: r.pglite.dsn, listen: false, max: 1 }); не для гонок и CI.
+   */
+  pglite?: boolean | PgliteOptions;
+  /** Арендатор и его первый пользователь — без своего сида (createTenant). */
+  tenant?: TenantOptions;
+}
+
+export interface UpResult extends InstallResult {
+  /** Схемы не было — поставлена. */
+  created: boolean;
+  /** Схема была отставшей ревизии — обновлена. */
+  upgraded: boolean;
+  /** Ревизия движка после наката. */
+  revision: number;
+  /** Таблицы, для которых выполнен ANALYZE (статистики не было). */
+  analyzed: string[];
+  /** up({ pglite }): запущенный PGlite — строка подключения и остановка. */
+  pglite?: PgliteServer;
+  /** up({ tenant }): арендатор (и его первый пользователь с сессией). */
+  tenant?: TenantResult;
 }
 
 type Ping = { ok: true } | { ok: false; kind: 'no-server' | 'no-database' | 'starting' | 'fatal'; err: unknown };
 
-// START_CONTRACT: pgPing
-//   PURPOSE: Одноразовая проба postgres по dsn — классифицирует ответ: ok, no-database (3D000), starting (57P03), fatal (28P01/28000), no-server.
-//   INPUTS: { dsn: string - строка подключения }
-//   OUTPUTS: { Promise<Ping> - { ok: true } | { ok: false, kind, err } }
-//   SIDE_EFFECTS: открывает и закрывает разовое соединение postgres (max 1, connect_timeout 3)
-//   LINKS: M-UP, V-M-UP
-// END_CONTRACT: pgPing
-async function pgPing(dsn: string): Promise<Ping> {
+/** Проба сервера: ok | нет сервера | нет базы | запускается | роковая ошибка (неверный пароль). */
+export async function pgPing(dsn: string): Promise<Ping> {
   const sql = postgres(dsn, { max: 1, connect_timeout: 3, onnotice: () => {} });
   try {
     await sql`select 1`;
     return { ok: true };
   } catch (e) {
     const code = (e as { code?: string }).code;
-    if (code === '3D000') return { ok: false, kind: 'no-database', err: e }; // сервер жив, базы нет
-    if (code === '57P03') return { ok: false, kind: 'starting', err: e };   // initdb/recovery
-    if (code === '28P01' || code === '28000') return { ok: false, kind: 'fatal', err: e }; // ретраи бессмысленны
+    if (code === '3D000') return { ok: false, kind: 'no-database', err: e };
+    if (code === '57P03') return { ok: false, kind: 'starting', err: e };
+    if (code === '28P01' || code === '28000') return { ok: false, kind: 'fatal', err: e };
     return { ok: false, kind: 'no-server', err: e };
   } finally {
     await sql.end({ timeout: 1 }).catch(() => {});
   }
 }
 
-// START_CONTRACT: ensureDatabase
-//   PURPOSE: Создаёт целевую базу, если её ещё нет — подключаясь к служебной базе postgres (гонку параллельных up() 42P04 глушит).
-//   INPUTS: { url: URL - разобранный dsn (имя базы из pathname/username); log: (m: string) => void }
-//   OUTPUTS: { Promise<void> }
-//   SIDE_EFFECTS: подключается к базе postgres, выполняет CREATE DATABASE; закрывает соединение
-//   LINKS: M-UP, V-M-UP
-// END_CONTRACT: ensureDatabase
-async function ensureDatabase(url: URL, log: (m: string) => void): Promise<void> {
-  const dbName = decodeURIComponent(url.pathname.slice(1)) || url.username || 'postgres';
+/** Создать базу строки подключения, если её нет (гонка параллельных up() — 42P04 — не ошибка). */
+export async function ensureDatabase(dsn: string, log: (m: string) => void = () => {}): Promise<boolean> {
+  const url = new URL(dsn);
+  const name = decodeURIComponent(url.pathname.slice(1)) || decodeURIComponent(url.username) || 'postgres';
   const admin = new URL(url);
   admin.pathname = '/postgres';
   const sql = postgres(admin.toString(), { max: 1, onnotice: () => {} });
   try {
-    const rows = await sql`SELECT 1 FROM pg_database WHERE datname = ${dbName}`;
-    if (rows.length === 0) {
-      await sql.unsafe(`CREATE DATABASE ${qi(dbName)}`).catch((e) => {
-        if ((e as { code?: string }).code !== '42P04') throw e; // 42P04 — гонка параллельных up()
-      });
-      log(`database "${dbName}" created`);
-    }
+    const rows = await sql`select 1 from pg_database where datname = ${name}`;
+    if (rows.length) return false;
+    await sql.unsafe(`create database ${quoteIdent(name)} encoding 'UTF8' template template0`).catch((e: { code?: string }) => {
+      if (e.code !== '42P04') throw e;
+    });
+    log(`база ${name} создана`);
+    return true;
   } finally {
-    await sql.end();
+    await sql.end({ timeout: 1 });
   }
 }
 
-// START_CONTRACT: tcpAlive
-//   PURPOSE: TCP-проба доступности хоста:порта (готовность Redis) с таймаутом 2 с.
-//   INPUTS: { host: string; port: number }
-//   OUTPUTS: { Promise<boolean> - true если соединение установилось }
-//   SIDE_EFFECTS: открывает и сразу закрывает TCP-сокет
-//   LINKS: M-UP, V-M-UP
-// END_CONTRACT: tcpAlive
-function tcpAlive(host: string, port: number): Promise<boolean> {
-  return new Promise((res) => {
-    const s = net.connect({ host, port });
-    const done = (v: boolean) => { s.destroy(); res(v); };
-    s.once('connect', () => done(true));
-    s.once('error', () => done(false));
-    s.setTimeout(2000, () => done(false));
-  });
+/** Версия сервера и кодировка базы: PostgreSQL 18+ и UTF8 (casefold и pg_unicode_fast требуют UTF8). */
+export function checkServer(versionNum: number, encoding: string): void {
+  if (versionNum < 180000) throw new Error(`letopis.up: нужен PostgreSQL 18 или новее, а сервер — ${Math.floor(versionNum / 10000)} (${versionNum})`);
+  if (encoding.toUpperCase() !== 'UTF8') throw new Error(`letopis.up: база в кодировке ${encoding}, нужна UTF8 (casefold и коллация pg_unicode_fast)`);
 }
 
-// START_CONTRACT: applySchema
-//   PURPOSE: Применяет DDL-схему и сиды — при fresh дропает схему; если схемы нет, накатывает ddl.sql (+ дефолтные booking/auth или свои сиды), подставляя <SCHEMA-NAME>.
-//   INPUTS: { dsn: string; full: string - полное имя схемы v<N>.<schema>; seeds: string[] | false | undefined - свои пути / false (без сидов) / undefined (дефолт); fresh: boolean; upgrade: boolean - перекатить ddl на существующую схему; log: (m: string) => void }
-//   OUTPUTS: { Promise<void> }
-//   SIDE_EFFECTS: читает sql-файлы; выполняет DROP/накат схемы в postgres; закрывает соединение
-//   LINKS: M-UP, V-M-UP
-// END_CONTRACT: applySchema
-async function applySchema(
-  dsn: string, full: string, seeds: string[] | false | undefined, fresh: boolean, upgrade: boolean,
-  log: (m: string) => void,
-): Promise<void> {
-  const sql = postgres(dsn, { max: 1, onnotice: () => {} });
-  try {
-    if (fresh) {
-      await sql.unsafe(`DROP SCHEMA IF EXISTS ${qi(full)} CASCADE`);
-      log(`schema "${full}" dropped (fresh)`);
-    }
-    const have = await sql`SELECT 1 FROM information_schema.schemata WHERE schema_name = ${full}`;
-    if (have.length > 0) {
-      // START_BLOCK_UPGRADE_DDL
-      // upgrade: перекатить ТОЛЬКО ddl.sql на существующую схему. Сиды не трогаем — они
-      // вставляют данные, повторный прогон дал бы дубли смысла. Файл идемпотентен
-      // (CREATE OR REPLACE у функций, DROP IF EXISTS + CREATE у триггеров, IF NOT EXISTS
-      // у таблиц/индексов), поэтому данные целы, а аддитивные правки движка доезжают.
-      // Так закрывается разрыв: схема, накатанная старой либой, не имела новых функций
-      // (purge/purge_account из 0.19.0) и падала сырым «function … does not exist».
-      if (upgrade) {
-        const text = (await readFile(pkgPath('../sql/ddl.sql'), 'utf8')).replaceAll('<SCHEMA-NAME>', full);
-        await sql.unsafe(text);
-        await sql.unsafe(`ANALYZE ${qi(full)}."Entity"`);
-        log(`schema "${full}" upgraded (ddl re-applied, data intact)`);
-        return;
-      }
-      // END_BLOCK_UPGRADE_DDL
-      log(`schema "${full}" already exists — apply skipped`);
-      return;
-    }
-    const files = [pkgPath('../sql/ddl.sql')];
-    if (seeds === undefined) files.push(pkgPath('../sql/seed.booking.sql'), pkgPath('../sql/seed.auth.sql'));
-    else if (seeds) files.push(...seeds.map((p) => resolve(p)));
-    for (const f of files) {
-      const text = (await readFile(f, 'utf8')).replaceAll('<SCHEMA-NAME>', full);
-      await sql.unsafe(text); // multi-statement simple query
-    }
-    // START_BLOCK_ANALYZE_ENTITY
-    // ANALYZE обязателен: Entity — гипертаблица, у РОДИТЕЛЯ своих строк нет, и без статистики
-    // планировщик берёт дефолт «200 уникальных id». Ядро всех чтений либы — semi-join с
-    // подзапросом кандидатов (`e.id IN (SELECT c.id …)`), и на оценке 200 вместо сотен тысяч
-    // он выбирает Nested Loop: на полигоне 980k это давало 57 с вместо 3 с (×18).
-    // Стоит копейки на свежей схеме; после МАССОВОЙ заливки данных ANALYZE нужно повторить.
-    await sql.unsafe(`ANALYZE ${qi(full)}."Entity"`);
-    // END_BLOCK_ANALYZE_ENTITY
-    log(`schema "${full}" applied (${files.length} files, statistics collected)`);
-  } finally {
-    await sql.end();
-  }
+/** Ревизия движка схемы по комментарию 'letopis ddl_revision=N'; схемы нет — null. */
+export async function schemaRevision(sql: postgres.Sql, schema: string): Promise<number | null> {
+  const [r] = await sql`select obj_description(n.oid, 'pg_namespace') as c from pg_namespace n where n.nspname = ${schema}`;
+  if (!r) return null;
+  return Number(/ddl_revision=(\d+)/.exec(String(r.c ?? ''))?.[1] ?? 0);
 }
 
-// START_CONTRACT: up
-//   PURPOSE: Единая точка входа dev-bootstrap — валидирует схему/версию, при живом postgres пропускает docker (иначе поднимает контейнер и ждёт готовности PG+Redis), применяет схему и подключается.
-//   INPUTS: { opts: UpOpts - dsn, schema, version, контейнер/образ, dataDir, redisPort, seeds, fresh, upgrade, quiet, waitTimeoutMs + прочие ConnectOpts }
-//   OUTPUTS: { Promise<EntityDb> - подключённый фасад на схеме "v<version>.<schema>" }
-//   SIDE_EFFECTS: shell docker через M-UP.ensureContainer; TCP-пинги; чтение sql и накат схемы; console.log с префиксом [letopis.up]; connect (M-CONNECT); бросает при плохом имени схемы/версии и таймауте готовности
-//   LINKS: M-UP, V-M-UP
-// END_CONTRACT: up
-export async function up(opts: UpOpts): Promise<EntityDb> {
-  const {
-    dsn = DEFAULT_DSN, schema, version, container = 'letopis-timescale', image = 'letopis-db',
-    dataDir, redisPort = 16379, seeds, fresh, upgrade, quiet, waitTimeoutMs = 120_000, ...connectRest
-  } = opts;
-  if (!/^[a-zA-Z_][a-zA-Z0-9_$]*$/.test(schema))
-    throw new Error(`letopis.up: bad schema name "${schema}" (базовое имя без версии и точек; версию задаёт version)`);
-  if (!Number.isInteger(version) || version < 1)
-    throw new Error(`letopis.up: bad version ${version} (целое ≥ 1)`);
-  const full = `v${version}.${schema}`;
-  const url = new URL(dsn);
-  const host = url.hostname;
-  const local = host === 'localhost' || host === '127.0.0.1' || host === '::1';
-  const log = quiet ? () => {} : (m: string) => console.log(`[letopis.up] ${m}`);
-  const deadline = Date.now() + waitTimeoutMs;
-
-  let ping = await pgPing(dsn);
-  if (ping.ok || ping.kind === 'no-database') {
-    // postgres уже отвечает (свой контейнер, CI-сервис, внешняя БД) — docker не нужен
-    if (!ping.ok) await ensureDatabase(url, log);
-    log(`postgres is up at ${host}:${url.port || '5432'} — docker skipped`);
-  } else if (ping.kind === 'fatal') {
-    throw ping.err;
-  } else {
-    // START_BLOCK_ENSURE_CONTAINER
-    if (local) {
-      await ensureContainer({
-        container, image, pgPort: url.port || '5432', redisPort,
-        user: decodeURIComponent(url.username), password: decodeURIComponent(url.password),
-        database: decodeURIComponent(url.pathname.slice(1)) || url.username || 'postgres', dataDir,
-      }, log);
-    } else {
-      log(`waiting for remote postgres at ${host} (no docker for non-local dsn)…`);
-    }
-    // END_BLOCK_ENSURE_CONTAINER
-    // START_BLOCK_WAIT_READY
-    const t0 = Date.now();
+/**
+ * Поставить или обновить установку letopis. Схема есть и её ревизия совпадает — повторный накат
+ * (идемпотентный); ревизия отстала — только с upgrade: true; новее библиотеки — отказ.
+ */
+export async function up(opts: UpOptions): Promise<UpResult> {
+  const log = opts.quiet ? () => {} : (m: string) => console.log(`letopis.up: ${m}`);
+  const schema = opts.schema.includes('.') ? opts.schema : `${SCHEMA_VERSION}.${opts.schema}`;
+  if (!SCHEMA_NAME.test(schema)) throw new Error(`letopis.up: bad schema name "${opts.schema}" (нужно <имя> или v<N>.<имя>)`);
+  // опции арендатора — до подключения и наката: с неверными up() ничего не начинает
+  if (opts.tenant) checkTenant(opts.tenant);
+  let sql = opts.sql;
+  const own = !sql;
+  const lite = opts.pglite ? await startPglite(opts.pglite === true ? {} : opts.pglite) : undefined;
+  if (lite) sql = postgres(lite.dsn, { max: 1, onnotice: () => {} });
+  if (!sql) {
+    if (!opts.dsn) throw new Error('letopis.up: нужен dsn или sql');
+    const deadline = Date.now() + (opts.waitTimeoutMs ?? 60_000);
     for (;;) {
-      ping = await pgPing(dsn);
+      const ping = await pgPing(opts.dsn);
       if (ping.ok) break;
       if (ping.kind === 'fatal') throw ping.err;
       if (ping.kind === 'no-database') {
-        await ensureDatabase(url, log);
+        await ensureDatabase(opts.dsn, log);
         continue;
       }
-      if (Date.now() > deadline)
-        throw new Error(`letopis.up: postgres not ready in ${Math.round(waitTimeoutMs / 1000)} s${local ? ` — check: docker logs ${container}` : ''}`);
-      await sleep(500);
+      if (Date.now() > deadline) throw new Error(`letopis.up: база ${new URL(opts.dsn).host} не готова за ${Math.round((opts.waitTimeoutMs ?? 60_000) / 1000)} с`);
+      await new Promise((r) => setTimeout(r, 500));
     }
-    log(`postgres ready in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
-    if (local) {
-      // контейнер поднимали мы — убеждаемся, что и redis-порт жив
-      while (!(await tcpAlive(host, redisPort))) {
-        if (Date.now() > deadline)
-          throw new Error(`letopis.up: redis not ready on ${redisPort} — check: docker logs ${container}`);
-        await sleep(300);
-      }
-      log(`redis ready on ${redisPort}`);
-    }
-    // END_BLOCK_WAIT_READY
+    sql = postgres(opts.dsn, { max: 1, onnotice: () => {} });
   }
+  try {
+    const [srv] = await sql`select current_setting('server_version_num')::int as v, pg_encoding_to_char(encoding) as enc
+      from pg_database where datname = current_database()`;
+    checkServer(srv.v as number, srv.enc as string);
+    if (opts.fresh) {
+      await sql.unsafe(`drop schema if exists ${quoteIdent(schema)} cascade`);
+      log(`схема ${schema} удалена (fresh)`);
+    }
+    const before = await schemaRevision(sql, schema);
+    if (before !== null && before > DDL_REVISION) {
+      throw new Error(`letopis.up: схема ${schema} ревизии ${before}, а библиотека знает только ${DDL_REVISION} — обновите пакет`);
+    }
+    if (before !== null && before < DDL_REVISION && !opts.upgrade) {
+      throw new Error(`letopis.up: схема ${schema} ревизии ${before}, библиотека — ${DDL_REVISION}: обновите её up({ schema: '${schema}', upgrade: true })`);
+    }
+    const { dsn: _d, sql: _s, schema: _sc, fresh: _f, upgrade: _u, quiet: _q, waitTimeoutMs: _w, pglite: _p, ...rest } = opts;
+    const res = await install(sql, { ...rest, schema, ...(before !== null && before < DDL_REVISION ? { migrateFrom: before } : {}) });
+    // ANALYZE — только там, где статистики ещё нет: на повторном накате это самая дорогая часть
+    const fresh = await sql`select relname from pg_stat_user_tables
+      where schemaname = ${schema} and last_analyze is null and last_autoanalyze is null order by relname`;
+    const analyzed = fresh.map((r) => r.relname as string);
+    for (const t of analyzed) await sql.unsafe(`analyze ${quoteIdent(schema)}.${quoteIdent(t)}`);
+    const revision = (await schemaRevision(sql, schema)) ?? 0;
+    log(`${before === null ? 'схема поставлена' : before < DDL_REVISION ? `схема обновлена с ревизии ${before}` : 'повторный накат'}: ${schema}, ревизия ${revision}`);
+    const tenant = opts.tenant ? await createTenant(sql, schema, opts.tenant, opts.owner) : undefined;
+    return { ...res, created: before === null, upgraded: before !== null && before < DDL_REVISION, revision, analyzed,
+      ...(lite ? { pglite: lite } : {}), ...(tenant ? { tenant } : {}) };
+  } catch (e) {
+    if (lite) await sql.end({ timeout: 1 }).then(() => lite.close(), () => lite.close());
+    throw e;
+  } finally {
+    if (own && !lite) await sql.end({ timeout: 5 });
+    else if (lite) await sql.end({ timeout: 5 }).catch(() => {});
+  }
+}
 
-  // START_BLOCK_APPLY_SCHEMA
-  await applySchema(dsn, full, seeds, fresh ?? false, upgrade ?? false, log);
-  const db = await connect({ ...connectRest, dsn, schema: full });
-  log(`connected (schema "${full}")`);
-  // END_BLOCK_APPLY_SCHEMA
-  return db;
+// ---------------------------------------------------------------------------
+// Первый арендатор и пользователь на чистой установке (решение владельца на точке В)
+// ---------------------------------------------------------------------------
+
+export interface TenantOptions {
+  /** Имя арендатора (аккаунт в System; id — v5 от «tenant:<имя>», как у letopis import --tenant). */
+  name: string;
+  /** Правило арендатора «аутентифицированным можно всё» (READ, WRITE, DELETE; по умолчанию да). */
+  grantAll?: boolean;
+  /** Первый пользователь: аккаунт, членство в арендаторе с ролями roles, пароль и сессия в арендаторе. */
+  user?: {
+    name: string;
+    login: string;
+    password: string;
+    kind?: string;
+    ttl?: string;
+    /** Роли членства (по умолчанию ['owner']); роли уже существующего членства повтор не меняет. */
+    roles?: string[];
+  };
+}
+
+export interface TenantResult {
+  /** id аккаунта-арендатора. */
+  tenant: string;
+  /** id аккаунта пользователя (если задан). */
+  user: string | null;
+  /** Токен сессии пользователя в арендаторе: connect({ token }) (если задан пользователь). */
+  token: string | null;
+  /** Арендатор создан этим вызовом (повтор с тем же именем — false). */
+  created: boolean;
+}
+
+/**
+ * Опции арендатора до записи; возвращает роли членства пользователя (по умолчанию owner). Членство
+ * пишет sys_create от владельца — без проверки класса member, поэтому список ролей проверяется здесь:
+ * непустой, без повторов, каждая роль — имя, а не маска группы '{a,b}': не пустое, без пробелов по
+ * краям (маска их отрезает) и запятых (разделитель маски), без фигурных скобок и «!» в начале
+ * (синтаксис маски).
+ */
+function checkTenant(opts: TenantOptions): string[] {
+  if (!opts.name) throw new Error('letopis.createTenant: имя арендатора обязательно');
+  if (opts.user?.roles === undefined) return ['owner'];
+  const roles: unknown = opts.user.roles;
+  const bad = (why: string) => new LetopisError('invalid_data', `createTenant: user.roles — ${why}`);
+  if (!Array.isArray(roles) || roles.length === 0) throw bad("непустой список ролей, например ['staff']");
+  for (const r of roles) {
+    if (typeof r !== 'string') throw bad(`роль — строка, а не ${r === null ? 'null' : typeof r}`);
+    if (!r || r !== r.trim() || /[,{}]/.test(r) || r.startsWith('!')) {
+      throw bad(`роль ${JSON.stringify(r)}: нужно имя роли, а не маска группы — не пустое, без пробелов по краям, запятых, фигурных скобок и «!» в начале`);
+    }
+  }
+  if (new Set(roles).size !== roles.length) throw bad('роли повторяются');
+  return roles;
+}
+
+/**
+ * Арендатор и его первый пользователь — то, что раньше делал свой сид функциями владельца
+ * (sys_create, sys_grant_all). Нужно администраторское подключение (роль может стать владельцем);
+ * всё — одной транзакцией от владельца. Повтор с тем же именем и логином ничего не дублирует:
+ * id — v5 от имени и логина, существующие строки пропускаются (пароль и роли членства не меняются),
+ * сессия выдаётся заново. Удалённые арендатор, аккаунт пользователя или членство (строки нет, а
+ * журнал id есть) — отказ invalid_data, транзакция откатывается целиком: повтор не воскрешает то,
+ * что удалил администратор (up({ tenant }) идёт при каждом запуске), а sys_create пишет только
+ * версию 1 — её занимает история; вернуть строку — restore() цепочкой.
+ */
+export async function createTenant(sql: postgres.Sql, schema: string, opts: TenantOptions, owner = 'letopis_owner'): Promise<TenantResult> {
+  const roles = checkTenant(opts);
+  const S = quoteIdent(schema);
+  const tenant = v5Id(SYSTEM_ID, 'Account', [`tenant:${opts.name}`]);
+  const u = opts.user;
+  const user = u ? v5Id(SYSTEM_ID, 'Account', [`user:${u.login}`]) : null;
+  const hash = u ? await hashPassword(u.password) : null;
+  return sql.begin(async (tx) => {
+    await tx.unsafe(`set local role ${quoteIdent(owner)}`);
+    /** Строка есть — true, не было — false; строки нет, а журнал id есть, — удалена: отказ gone (что и как вернуть). */
+    const exists = async (id: string, cls: 'Account' | 'member', gone: string) => {
+      const [r] = await tx.unsafe(`select exists (select 1 from ${S}.entity where id = $1::uuid) as live,
+          exists (select 1 from ${S}.log where id = $1::uuid) as was`, [id]);
+      if (!r.live && r.was) throw new LetopisError('invalid_data', `createTenant: ${gone}`, { id, class: cls });
+      return r.live as boolean;
+    };
+    const why = 'а его история осталась в журнале — повтор удалённое не воскрешает';
+    const created = !(await exists(tenant, 'Account', `арендатор «${opts.name}» (${tenant}) удалён, ${why}: `
+      + 'верните его db.Account(id).restore() от имени системного администратора или выберите другое имя'));
+    if (created) {
+      await tx.unsafe(`select ${S}.sys_create($1::uuid, 'Account', $2::uuid, '{}', $3::jsonb)`,
+        [tenant, SYSTEM_ID, { name: opts.name, categories: [], enabled: true } as never]);
+      if (opts.grantAll !== false) await tx.unsafe(`select ${S}.sys_grant_all($1::uuid)`, [tenant]);
+    }
+    let token: string | null = null;
+    if (u && user) {
+      if (!(await exists(user, 'Account', `аккаунт пользователя ${u.login} (${user}) удалён, ${why}: `
+        + 'верните его db.Account(id).restore() от имени системного администратора или выберите другой логин'))) {
+        await tx.unsafe(`select ${S}.sys_create($1::uuid, 'Account', $2::uuid, '{}', $3::jsonb)`,
+          [user, SYSTEM_ID, { name: u.name, categories: ['User'], enabled: true } as never]);
+      }
+      const member = (await tx.unsafe(`select ${S}.v5_id($1::uuid, 'member', array[$2::text, $1::text]) as id`, [tenant, user]))[0].id as string;
+      // существующее членство не трогаем: повтор с другими ролями их не меняет (их правят правкой member)
+      if (!(await exists(member, 'member', `членство ${u.login} в арендаторе «${opts.name}» (${member}) удалено, ${why}: `
+        + 'верните его db.member(id).restore() в этом арендаторе или выберите другой логин'))) {
+        await tx.unsafe(`select ${S}.sys_create($1::uuid, 'member', $2::uuid, $3::jsonb, $4::jsonb)`,
+          [member, tenant, { User: user, Tenant: tenant } as never, { roles } as never]);
+      }
+      const kind = u.kind ?? 'PASSWORD';
+      await tx.unsafe(`insert into ${S}.secret (account, kind, ident, material, meta)
+        select $1::uuid, $2, $3, convert_to($4, 'UTF8'), '{"confirmed": true}'::jsonb
+        where not exists (select 1 from ${S}.secret where kind = $2 and casefold(ident) collate pg_unicode_fast = casefold($3) collate pg_unicode_fast and deleted_at is null)`,
+      [user, kind, u.login, hash]);
+      token = (await tx.unsafe(`select ${S}.new_session($1::uuid, $2::interval, $3::jsonb) as t`,
+        [user, u.ttl ?? '7 days', { tenant } as never]))[0].t as string;
+    }
+    return { tenant, user, token, created };
+  }) as Promise<TenantResult>;
 }

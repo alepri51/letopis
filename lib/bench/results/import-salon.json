@@ -1,0 +1,110 @@
+{
+  "name": "import-salon",
+  "at": "2026-10-08T20:32:39.020Z",
+  "scale": 1,
+  "server": {
+    "v": "18.6 (Debian 18.6-1.pgdg13+2)",
+    "sb": "128MB"
+  },
+  "node": "v24.15.0",
+  "rows": 980180,
+  "importMs": 192793,
+  "rowsPerSec": 5084,
+  "seed021Ms": 290080.8,
+  "verify": {
+    "ok": true,
+    "issues": 0,
+    "anchor": "8a0068c732754bf8581bcd7f3a66c8e0fd8f9249ce024a6872dba8cdd5436d35"
+  },
+  "keyless": [
+    "booking"
+  ],
+  "omitted": [
+    "Entity",
+    "link"
+  ],
+  "notes": 0,
+  "counts": {
+    "address": {
+      "objects": 360,
+      "versions": 360,
+      "live": 360
+    },
+    "booking": {
+      "objects": 440000,
+      "versions": 880000,
+      "live": 440000
+    },
+    "Complex": {
+      "objects": 120,
+      "versions": 120,
+      "live": 120
+    },
+    "compo": {
+      "objects": 360,
+      "versions": 360,
+      "live": 360
+    },
+    "content": {
+      "objects": 750,
+      "versions": 750,
+      "live": 750
+    },
+    "Customer": {
+      "objects": 40000,
+      "versions": 40000,
+      "live": 40000
+    },
+    "Folder": {
+      "objects": 150,
+      "versions": 150,
+      "live": 150
+    },
+    "Location": {
+      "objects": 60,
+      "versions": 60,
+      "live": 60
+    },
+    "Org": {
+      "objects": 30,
+      "versions": 30,
+      "live": 30
+    },
+    "price": {
+      "objects": 1020,
+      "versions": 1620,
+      "live": 1020
+    },
+    "Product": {
+      "objects": 150,
+      "versions": 150,
+      "live": 150
+    },
+    "Schedule": {
+      "objects": 360,
+      "versions": 360,
+      "live": 360
+    },
+    "Service": {
+      "objects": 600,
+      "versions": 600,
+      "live": 600
+    },
+    "skill": {
+      "objects": 1260,
+      "versions": 1260,
+      "live": 1260
+    },
+    "slot": {
+      "objects": 54000,
+      "versions": 54000,
+      "live": 54000
+    },
+    "Staff": {
+      "objects": 360,
+      "versions": 360,
+      "live": 360
+    }
+  },
+  "mismatch": []
+}

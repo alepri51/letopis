@@ -1,0 +1,44 @@
+# F-RELEASE — От коммита до пакета в npm
+Процессы: [D] разработчик/git · [N] node-скрипты `lib/scripts` · [G] GitHub Actions
+Триггер: изменение кода к выпуску. Правило (CLAUDE.md): push только в dev, в main — только merge PR на GitHub; прямой push и локальный merge в main запрещены. Выпуск — только по команде владельца.
+
+## Подготовка — dev
+1. [D] `lib/package.json#«"version"»` — бамп одним коммитом с новой верхней `## [x.y.z]` в `lib/CHANGELOG.md` и двумя строками version в `lib/package-lock.json` (корень и `packages[""]`). Предрелиз — с дефисом (`1.1.0-rc.1`).
+2. [N] `lib/scripts/gen-api-contract.mjs#«if (check)»` — `cd lib && npm run api:contract`, если менялись экспорты точек входа (`exports` в package.json), поверхность цепочки, охранники `removed` в `errors.ts` или тексты ошибок в `src/*.ts` и `sql/*.sql`; `docs/api-contract.json` коммитится.
+3. [N] `lib/scripts/check-docs.mjs` — `cd lib && npm run check:docs` (те же 9 сверок, что в CI, без БД), затем [D] `git push origin dev`.
+
+## CI — push в dev
+4. [G] `.github/workflows/ci.yml#«cancel-in-progress»` — только push в dev; новый push отменяет прежний прогон. Сервис `postgres:18` на порту 15433.
+5. [G] `.github/workflows/ci.yml#«Typecheck»` — после `npm ci`: `npm run typecheck` (tsconfig.json включает `test/` и `bench/`).
+6. [G] `.github/workflows/ci.yml#«Check docs vs code»` → [N] `lib/scripts/check-docs.mjs:checkVersion` (package.json == верхняя запись CHANGELOG == lock; копии LICENSE), `:checkLinks` (ссылки, якоря и упоминания `ИМЯ.md` в корневых документах, документах пакета `lib/*.md` и `lib/llms.txt`, трассах и карточках), `:checkText` (нет управляющих символов), `:checkTestList` (раздел «Тесты» `lib/README.md` и «Tests» `lib/README.en.md` == `test/*.test.ts`), `:checkRevision` (`sql/99-revision.sql` == `DDL_REVISION`), `:checkBench` (`node --check` скриптов бенча), `:checkApiContract` (регенерация с `--check`), `:checkReserved` (методы из `types.ts` названы в разделе «Зарезервированные имена» обеих версий README, case-метки Proxy в `chain.ts`/`index.ts` — из списка), `:checkStructure` (разделы README подряд и в оглавлении; английские версии повторяют русские); exit 1 со списком `✗`.
+7. [G] `.github/workflows/ci.yml#«Tests»` — `npm test` с `ENTITY_DSN` на сервис; схемы создаёт `lib/test/_harness.ts`, отдельного наката нет. Тест `docs` исполняет помеченные примеры README, шпаргалки и корневого README (обе версии) и сверяет обещанные результаты.
+8. [G] `.github/workflows/ci.yml#«Package check»` → [N] `lib/scripts/check-package.mjs` — `npm run build`, `npm pack`, установка тарбола в чистую папку с `--ignore-scripts`; основная точка входа грузится без peer-зависимостей; после установки peer — каждый экспорт из `docs/api-contract.json` импортируется; в пакете есть всё из `files` (обязательно README.md, CHANGELOG.md, LICENSE, AGENT-CHEATSHEET.md, llms.txt) и нет `test`, `scripts`, `bench`, `docker`, `src` и файлов тестов; `:live` — живой прогон из установленного пакета на сервисе `postgres:18` (`ENTITY_DSN`): `up({ fresh, seeds: ['booking'] })` в свежую схему `v2.pkgcheck_…`, вход сервисом, `db.load`, правило «можно всё» арендатору, `db.as(арендатор)`, запись и чтение цепочкой, схема удаляется. `LETOPIS_PKG_LIVE=1` или `--live` (так в CI и release.yml) — без базы проверка красная; не задана — прогон, если база отвечает, иначе пропуск с `⚠`; `0` или `--no-live` — без прогона.
+
+## Merge и тег — main
+9. [D] PR dev→main с телом из `lib/scripts/release-notes.mjs`, merge на GitHub. На PR и main CI не гоняется намеренно: допуск — зелёный ci последнего push в dev.
+10. [G] `.github/workflows/tag.yml#«Read package version»` — `v` + version из `lib/package.json`; такой тег уже есть → `skipped=true`, job зелёный.
+11. [G] `.github/workflows/tag.yml#«Create annotated tag»` — аннотированный тег на merge-коммите, сообщение = `git log --no-merges` от прошлого тега. Релиза и пакета не создаёт.
+
+## Публикация — Release
+12. [D] Releases → Draft a new release → тег → Publish — единственный ручной шаг к проду.
+13. [G] `.github/workflows/release.yml#«Release notes from CHANGELOG»` — checkout на теге; [N] `lib/scripts/release-notes.mjs:section` — секция версии из package.json (относительные ссылки переписаны в абсолютные на `lib/` в main) плюс ссылка на полный CHANGELOG → `gh release edit` затирает тело релиза.
+14. [G] `.github/workflows/release.yml#«Publish to npm»` — после `npm ci`: версия с дефисом → `npm publish --tag next` (не становится `latest`), иначе `npm publish`; токен NPM_TOKEN; `lib/package.json#«prepublishOnly»` — typecheck + check:docs + build.
+15. [G] `.github/workflows/release.yml#«Check the published package»` — до 30×5 с ждёт `letopis@V` в реестре, затем `check-package.mjs --registry=V` с `LETOPIS_PKG_LIVE=1` на своём сервисе `postgres:18`: те же проверки экспортов, состава и живой прогон, что в шаге 8, но на артефакте из npm.
+
+Состояние: версия в package.json + CHANGELOG + lock (dev) → тег vX.Y.Z (main) → Release published → letopis@X.Y.Z в npm под `latest` или `next`. Шаги job последовательны: упал шаг — следующие не идут.
+Сбои:
+- check-docs: `version: lib/package.json = A, верхняя запись CHANGELOG = B`; `version: lib/package-lock.json держит A, а пакет — B`; `api-contract: docs/api-contract.json устарел: выполните cd lib && npm run api:contract`; `links: … (файла нет)`.
+- check-package: `✗ letopis: экспорт X отсутствует`, `✗ в пакет попал каталог src`, `✗ letopis без peer-зависимостей не загружается: …`, `✗ живой прогон: [код] …`, `✗ живой прогон обязателен (LETOPIS_PKG_LIVE=1), а PostgreSQL по ENTITY_DSN недоступен: …`.
+- tag: `Tag vX already exists — skipping (версия не менялась?).` — зелёный job без тега.
+- release-notes: `в lib/CHANGELOG.md нет записи "## [x]"` → publish не идёт.
+- На событии release workflow читается из коммита тега, не из main: правка release.yml действует только с новым тегом.
+- Проверка из реестра падает уже после publish: версия в npm, лечится только следующей.
+
+Логи: GitHub → Actions (ci / tag / release). tag: `package=vX  previous tag=vY`, `::notice::tagged`; release: `::notice::тело релиза взято из lib/CHANGELOG.md`, `ok: N экспортов из контракта импортируются; состав пакета: …`; check-docs: итог `документация согласована с кодом`.
+Варианты:
+- Предрелиз (`1.1.0-rc.1`): тег `v1.1.0-rc.1`, в npm — под `next`; `npm i letopis` по-прежнему ставит `latest` — последний выпуск без дефиса.
+- Забытый бамп: package.json и CHANGELOG оба старые → check:docs зелёный → тег пропущен → релиза нет. Лечение — шаг 1 и путь заново.
+- CHANGELOG ≠ package.json или отставший lock: красный шаг 6; `prepublishOnly` повторяет check:docs — в npm не уйдёт.
+- Устаревший api-contract: красный шаг 6. Локально на Windows (`core.autocrlf=true`) файл после checkout бывает с CRLF — `--check` ложно красный, `npm run api:contract` чинит без diff.
+
+Проверка: `cd lib && npm run check:docs`; `cd lib && npm run check:package` — тарбол как в CI; `cd lib && node scripts/release-notes.mjs` — тело будущего релиза; `git show vX.Y.Z` — состав версии; `npm view letopis dist-tags`. Workflows тестами не покрыты.

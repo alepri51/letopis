@@ -1,0 +1,33 @@
+# F-BOOT — up() → install() → connect() (letopis 1.0, этапы 1 и 6; ревизия движка 5)
+Процессы: [N] Node-процесс (приложение, CLI или `db/apply.mjs`) · [P] PostgreSQL 18 (или PGlite)
+Триггер: `const r = await up({ dsn, schema: 'salon', seeds: ['booking'], history, allowReset })` → `connect({ dsn, schema: r.schema, apiKey: r.serviceKey })`; `node db/apply.mjs --dsn=… --schema=salon [--seed=…] [--fresh] [--upgrade] [--allow-reset]`.
+
+## Проба и база
+1. [N] `lib/src/up.ts:up` — имя без версии получает `v2.` (`SCHEMA_VERSION`); проверка `SCHEMA_NAME`. Готовый пул `opts.sql` — без пробы.
+2. [N] `lib/src/up.ts:up#«opts.pglite»` — `up({ pglite })`: `lib/src/pglite.ts:startPglite` грузит необязательные `@electric-sql/pglite` (с pgcrypto) и `@electric-sql/pglite-socket` по требованию (нет пакета — ошибка с командой установки), сокет на свободном порту `127.0.0.1`; дальше — как с обычной базой через `postgres://postgres:postgres@127.0.0.1:<порт>/postgres`, одно соединение.
+3. [N] `lib/src/up.ts:pgPing` — `select 1` раз в 500 мс до `waitTimeoutMs` (60 с): `3D000` → `ensureDatabase` (через базу `postgres`, `encoding 'UTF8' template template0`, гонка `42P04` — не ошибка), `57P03` и нет сервера → ждать, `28P01`/`28000` → сразу ошибка.
+4. [P] `lib/src/up.ts:checkServer` — `server_version_num` не ниже 180000 и кодировка базы UTF8, иначе понятный отказ.
+
+## Ревизия
+5. [P] `fresh` — `drop schema … cascade`. `lib/src/up.ts:schemaRevision` — комментарий схемы `letopis ddl_revision=N`; схемы нет → `null` (свежая установка).
+6. [N] ревизия схемы новее `DDL_REVISION` — отказ «обновите пакет»; старше без `upgrade` — отказ с командой `up({ schema, upgrade: true })`; старше с `upgrade` — `migrateFrom`.
+
+## Накат (`install`)
+7. [P] `lib/src/up.ts:install` — роли владельца и приложения идемпотентно; членство установщика `with inherit false, set true`; `create extension if not exists pgcrypto`, его схема — в подстановку `@PGCRYPTO@`; схема создаётся до `set role`.
+8. [P] одна транзакция под `set local role` владельца: миграции `lib/src/up.ts:migrationFiles` (`sql/migrate/NNNN-*.sql`, номер выше ревизии схемы и не выше `DDL_REVISION`; каталога нет — миграций нет) — до функций; затем `lib/sql/NN-*.sql` по номеру через `substitute()` (`@SCHEMA@`, роли, `@SYSTEM@`, `@ALLOW_RESET@`, `@HISTORY_DEFAULT@`, `@RESERVED_NAMES@`); последний — `lib/sql/99-revision.sql` ставит штамп `ddl_revision=5` (= `lib/src/types.ts:DDL_REVISION`, сверяет `check:docs`). Файлы идемпотентны: обновление 4 → 5 — повторный накат без миграции (`create index if not exists log_ends` в `lib/sql/10-core.sql`, `create or replace` функции `log_refs_at` и find_* в `lib/sql/70-read.sql`).
+9. [P] сиды `seeds` — имя пакета (`sql/seed.<имя>.sql`) или путь к своему файлу, с теми же подстановками; `history` — проверка умолчания метасхемой (`class_prepare`).
+10. [P] `lib/sql/95-seed.system.sql:seed_system` — системный сид (его же зовёт `reset({ all })`); ключ сервиса — `bootstrap_service`: свой `serviceKey` регистрируется, если его sha256 ещё нет; иначе новый `lts_…` выдаётся, только если в схеме нет ни одного живого `APIKEY`.
+11. [P] `lib/src/up.ts:up#«last_analyze is null»` — `ANALYZE` только таблиц схемы без статистики.
+12. [N] результат: `schema`, `owner`, `app`, `revision`, `created`, `upgraded`, `migrations`, `analyzed`, `serviceKey` (null при повторном накате), `pglite` (`dsn`, `close()`). Ошибка — PGlite останавливается.
+
+## Подключение
+13. [N] `lib/src/index.ts:connect` — снятые опции 0.21 — `removed`; пул postgres.js (`max` 10, `timestamptz` строкой ради микросекунд).
+14. [P] роль обходит RLS (суперпользователь, `BYPASSRLS`, членство в роли владельца с `USAGE` или `SET`) — `bypass_rls`, с `allowBypassRls` — предупреждение «администраторское подключение».
+15. [P] `apiKey`/`service` → `login_apikey` (ошибка базы — `fromDbError`); схемы нет — `invalid_data` «установите её: up({ schema })»; ревизия схемы меньше `DDL_REVISION` — предупреждение с командой `upgrade`, не отказ.
+16. [N] `Notifier`, `AclPasses`, `ResultCache` (`cache: false` — без кэша; `onChanged` контекста → `ResultCache.changed`); реестр классов арендатора сессии и System; LISTEN на канал схемы (`listen: false` — нет) — дальше F-WATCH; `maintain: '1h'` — `lib/src/admin.ts:scheduleMaintain`.
+17. [N] `lib/src/index.ts:makeDb` — фасад `db` → F-READ, F-WRITE, F-ACCESS.
+
+Обёртка CI: `db/apply.mjs` — в репозитории исходники через `tsx` из `lib/node_modules`, иначе `lib/dist/up.js`; печатает JSON (`schema`, `revision`, `created`, `upgraded`, `serviceKey`), ошибка — код 1, без `--dsn`/`ENTITY_DSN` и `--schema` — код 2.
+Состояние: схема `v2.<имя>` с ревизией в комментарии; роли общие для кластера; ключ сервиса — только в ответе первой установки.
+Сбои: PostgreSQL ниже 18, база не в UTF8, отставшая ревизия без `upgrade`, ошибка файла — сообщение с именем файла (`letopis.up: 60-write.sql: …`, `migrate/0005-…: …`). PGlite — одно соединение: `connect({ dsn: r.pglite.dsn, listen: false, max: 1 })`, без гонок и LISTEN.
+Проверка: `cd lib && npx tsx --test --test-force-exit test/up.test.ts` (6.10 и PGlite), `test/install.test.ts`, `test/roles.test.ts`.

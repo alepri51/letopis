@@ -1,0 +1,64 @@
+{
+  "name": "core-notify",
+  "at": "2026-10-08T08:14:33.491Z",
+  "scale": 1,
+  "server": {
+    "v": "18.6 (Debian 18.6-1.pgdg13+2)",
+    "sb": "128MB"
+  },
+  "node": "v24.15.0",
+  "connections": 20,
+  "opsPerConnection": 500,
+  "results": [
+    {
+      "variant": "inTrigger",
+      "writes": 10000,
+      "ms": 17891.8,
+      "perSec": 559,
+      "writeP50": 34.86,
+      "writeP95": 41.84,
+      "signals": 10000,
+      "signalDelayP50": 0.2,
+      "signalDelayP95": 2.2
+    },
+    {
+      "variant": "none",
+      "writes": 10000,
+      "ms": 3688,
+      "perSec": 2711,
+      "writeP50": 7.15,
+      "writeP95": 9.22,
+      "signals": 0,
+      "signalDelayP50": 0,
+      "signalDelayP95": 0
+    },
+    {
+      "variant": "deferred5",
+      "writes": 10000,
+      "ms": 3571.9,
+      "perSec": 2800,
+      "writeP50": 6.99,
+      "writeP95": 8.76,
+      "signals": 491,
+      "signalDelayP50": 6.4,
+      "signalDelayP95": 8.1,
+      "notifyTransactions": 491,
+      "notifyTxMsP50": 2.21,
+      "notifyTxMsP95": 3.39
+    },
+    {
+      "variant": "deferred20",
+      "writes": 10000,
+      "ms": 3686.8,
+      "perSec": 2712,
+      "writeP50": 7.15,
+      "writeP95": 9.11,
+      "signals": 165,
+      "signalDelayP50": 21.4,
+      "signalDelayP95": 23.5,
+      "notifyTransactions": 165,
+      "notifyTxMsP50": 2.26,
+      "notifyTxMsP95": 3.35
+    }
+  ]
+}

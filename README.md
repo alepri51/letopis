@@ -1,49 +1,58 @@
 # letopis (летопись)
 
-Темпоральное **append-only** хранилище сущностей поверх PostgreSQL 17 + TimescaleDB.
-Каждое изменение — новая строка-версия; история first-class (`asOf`, `versions`, `watch`,
-каскадные tombstone). Обход графа — dot-цепочками, схема классов живёт в таблице БД,
-auth / ACL / сессии встроены.
+[English](README.en.md)
+
+Хранилище версионированных сущностей на **PostgreSQL 18** для Node.js. Целостность, история, изоляция арендаторов
+и права проверяет сама база: триггеры и политики RLS действуют и для библиотеки, и для сырого SQL.
+Каждое изменение — версия в журнале (`versions`, `asOf`, подписка по курсору), обход графа — цепочками,
+классы описываются моделями на Zod и хранятся в базе, вход, сессии и права встроены.
 
 ```bash
-npm install letopis
+npm install letopis zod
 ```
 
+<!-- run -->
 ```ts
-import { up } from 'letopis'
+import { up, connect } from 'letopis'
 
-const db = await up({ schema: 'booking', version: 1 })   // Docker: TimescaleDB + Redis → PG-схема "v1.booking"
+const ADMIN = 'postgres://postgres:secret@localhost:5432/app'   // администратор: ставит схему
+const APP = 'postgres://app:app-secret@localhost:5432/app'      // приложение: роль-член letopis_app
 
-// db — безличный пул: изоляция арендатора включена по умолчанию, цепочки идут ОТ ИМЕНИ
-// аккаунта. В вебе scope живёт на запрос: await db.as(req.accountId)
-const [sys] = await db.accounts.find({ category: 'System' })
-const t = await db.as(sys.id)
+// схема v2.salon с демо-доменом салона (seeds), первым арендатором и его пользователем
+const r = await up({ dsn: ADMIN, schema: 'salon', seeds: ['booking'],
+  tenant: { name: 'Салон', user: { name: 'Анна', login: 'anna@salon.ru', password: 'Сирень-2026!' } } })
+const svc = await connect({ dsn: APP, schema: r.schema, apiKey: r.serviceKey! })   // r.serviceKey — ключ сервиса
+const login = await svc.auth.verifyPassword({ identifier: 'anna@salon.ru', password: 'Сирень-2026!' })
+const db = await svc.as(login!.account, { tenant: r.tenant!.tenant })             // от имени Анны в её салоне
 
-const [org] = await t.Организация().create({ name: 'BarberPro' }).rows()
-await t.Организация(org).Мастер().create({ name: 'Вася', phone: '+7 900 …' }).rows()
-await t.Мастер({ name: 'Вася' }).навык().Услуга().run()   // пути по графу
-await db.close()                                          // один раз на пул
+const [org] = await db.Org().create({ name: 'Салон на Мира' }).rows()
+const [vasya] = await db.Org(org).Staff().create({ name: 'Вася', phone: '+7 900' }).rows()
+const services = await db.Staff(vasya).skill().Service().rows()                  // пути по графу
+const earlier = await db.Org(org).Staff().asOf('2026-10-01T00:00:00Z').count()    // срез на дату
+await svc.close()
 ```
 
-ESM-only, Node 20+. Рантайм-зависимости: `postgres`, `fastest-validator`
-(Redis-клиент внешний, нужен только для сессий). Лицензия MIT.
+ESM, Node 22 и новее. Рантайм-зависимость одна — `postgres`; Zod 4 — необязательная peer-зависимость для
+описания моделей (`letopis/model`). TimescaleDB, Redis и Docker не нужны. Лицензия MIT.
 
 ## Куда идти дальше
 
 | Хочу | Файл |
 |---|---|
-| **быстро начать / я ИИ-агент** | [`AGENT-CHEATSHEET.md`](AGENT-CHEATSHEET.md) — рабочий цикл на одной странице + частые ошибки |
-| полное руководство | [`lib/README.md`](lib/README.md) — §11 API Reference, §12 каталог ошибок, §14 перф, §15 E2E |
-| машиночитаемый контракт API | [`docs/api-contract.json`](docs/api-contract.json) — экспорты, поверхность цепочки, снесённые имена (генерируется) |
-| работать над самой библиотекой | [`AGENTS.md`](AGENTS.md) — точка входа в слой документации, протокол правок |
+| **быстро начать / я ИИ-агент** | [`lib/AGENT-CHEATSHEET.md`](lib/AGENT-CHEATSHEET.md) — рабочий цикл на одной странице и частые ошибки (входит в пакет); [`lib/llms.txt`](lib/llms.txt) — указатель для языковых моделей |
+| полное руководство | [`lib/README.md`](lib/README.md) — по задачам: быстрый старт, установка, модель, запись, чтение, транзакции и деньги, загрузка, вход и права, история, подписка, эксплуатация; справочник API, ошибки, ограничения |
+| перейти с 0.21 | [`lib/MIGRATION.md`](lib/MIGRATION.md) — импорт данных и таблица замен API |
 | что изменилось | [`lib/CHANGELOG.md`](lib/CHANGELOG.md) — источник истины версии вместе с `lib/package.json` |
+| машиночитаемый контракт API | [`docs/api-contract.json`](docs/api-contract.json) — экспорты, методы цепочки, тексты ошибок, снесённые имена (генерируется) |
+| сравнение с аналогами | [`COMPARISON.md`](COMPARISON.md) |
+| работать над самой библиотекой | [`AGENTS.md`](AGENTS.md) — карта проекта для агента (atlas): модули, трассы сценариев, протокол |
 
 ## Структура репозитория
 
 ```
-lib/            ← сам npm-пакет (src, sql, scripts, docker, test, bench)
-docs/*.xml      ← машинная карта проекта (модули M-*, use cases, потоки, план проверки)
-db/             ← repo-only скрипты: apply.mjs (накат схемы), policies.mjs (Timescale-политики)
+lib/            ← сам npm-пакет (src, sql, scripts, test, bench) и его документация
+docs/atlas/     ← трассы сценариев (F-*); карточки модулей — .claude/rules/atlas/ (M-*)
+db/             ← скрипт репозитория apply.mjs — обёртка над up() для CI
 ```
 
 Пакет — это `lib/`; в корне репозитория `package.json` нет.
@@ -54,9 +63,9 @@ db/             ← repo-only скрипты: apply.mjs (накат схемы),
 cd lib
 npm ci
 npm run typecheck        # tsc --noEmit
-npm run check:docs       # сверка документации с кодом (версии, ссылки, контракт API)
-npm test                 # весь набор против живого docker (TimescaleDB pg17 + Redis)
+npm run check:docs       # сверка документации с кодом (версии, ссылки, якоря, список тестов, контракт API, имена, английские версии)
+npm test                 # весь набор против живого PostgreSQL 18, включая исполнение примеров документации
 ```
 
-Тесты интеграционные, без моков БД: `up()` сам поднимает контейнер.
-`ENTITY_DSN` / `ENTITY_REDIS` переопределяют подключения.
+Тесты интеграционные, без моков базы: обвязка сама поднимает контейнер `letopis-pg18` (`postgres:18`, порт 15433),
+если база не отвечает. `ENTITY_DSN` и `ENTITY_APP_DSN` переопределяют подключения.

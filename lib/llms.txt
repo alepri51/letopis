@@ -1,0 +1,26 @@
+# letopis
+
+> Versioned entity store for Node.js on PostgreSQL 18. Every change is a version in a journal (history, reads as of a date, cursor subscriptions). Integrity, tenant isolation and access rules are enforced by the database itself (triggers and row-level security), so they hold for raw SQL too. Data is read and written with chains like `db.Shop(shop).Product().rows()`.
+
+Key facts for writing code with letopis 1.0:
+
+- ESM package, Node 22+, PostgreSQL 18+ with pgcrypto, database encoding UTF8. Runtime dependency: `postgres`. Zod 4 is an optional peer dependency needed only by `letopis/model`.
+- Install a schema with `up({ dsn, schema })` from an admin role; the schema is named `v2.<name>`. The application connects with a LOGIN role that is a member of `letopis_app`: `connect({ dsn, schema: 'v2.<name>', token | apiKey })`. A role that bypasses RLS is refused (`bypass_rls`) unless `allowBypassRls: true`.
+- Classes are hubs (objects) and links (relations with ends), described with `hub()`/`link()` from `letopis/model` and written to the database with `syncModels()` or `letopis sync`. A class with a key gets a deterministic UUID v5 id (`db.idOf`); uniqueness is the key.
+- Verbs return a chain; a terminal (`rows`, `first`, `ids`, `count`, …) executes the whole plan in one transaction. `create` only creates (a taken key is `exists`), `update` merges and never creates, `upsert` replaces the whole object (keyed classes only), `delete()` is a preview and `delete({ confirm: true })` deletes.
+- Money and counters: `update({ balance: inc(n) })` adds inside the statement; `update(patch, { rev })` fails with `conflict` if the row changed; `forUpdate()` locks rows inside `db.begin()`.
+- Access rules are always on and deny by default; `up({ tenant })` or `createTenant()` creates a tenant with the rule "authenticated users may do everything" and its first user.
+- Errors carry a lowercase `err.code`: `exists`, `conflict`, `invalid_data` (`err.issues`), `target_not_found`, `acl_denied`, `no_session`, `removed` (0.21 API with its replacement), …
+
+## Docs
+
+- [Agent cheatsheet](AGENT-CHEATSHEET.en.md): one page for an AI agent writing code with letopis — working cycle and pitfalls
+- [Guide](README.en.md): task-based guide, API reference, errors, limitations
+- [Шпаргалка для агента](AGENT-CHEATSHEET.md): the cheatsheet in Russian (original)
+- [Руководство](README.md): the guide in Russian (original)
+
+## Optional
+
+- [Migration from 0.21](MIGRATION.md): data import with `letopis import` and the API replacement table (Russian)
+- [Changelog](CHANGELOG.md): decisions by version, BREAKING changes of 1.0 (Russian)
+- Model of a concrete installation for an agent: `letopis describe --format text --out llms.txt` or `describeText(db.describe())` — classes, keys, fields and ends of that schema

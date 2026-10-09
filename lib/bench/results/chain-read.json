@@ -1,0 +1,31 @@
+{
+  "name": "chain-read",
+  "at": "2026-10-08T11:01:13.908Z",
+  "scale": 1,
+  "server": {
+    "v": "18.6 (Debian 18.6-1.pgdg13+2)",
+    "sb": "128MB"
+  },
+  "node": "v24.15.0",
+  "stage": 3,
+  "data": {
+    "tenants": 2,
+    "orgs": 1000,
+    "masters": 100000,
+    "shifts": 1000000
+  },
+  "results": {
+    "narrow": {
+      "rows": 143,
+      "libMs": 23.57,
+      "ownerMs": 18.82,
+      "ratio": 1.25
+    },
+    "wide": {
+      "rows": 14285,
+      "libMs": 3089.03,
+      "ownerMs": 2930.61,
+      "ratio": 1.05
+    }
+  }
+}

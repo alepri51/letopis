@@ -1,226 +1,153 @@
 /**
- * SQL-билдер. Ключевая идея (замена «медленных» вью движка):
- * «последняя версия» считается ПОСЛЕ сужения по class + GIN-кандидатам, а не по всей таблице.
+ * Построитель чтения (план, этап 3, п. 2–8): цепочка шагов → один параметризованный запрос.
  *
- * Шаблон шага:
- *   SELECT * FROM (
- *     SELECT DISTINCT ON (e.id) e.* FROM Entity e
- *     WHERE e.partition=$ AND e.class=$
- *       [AND e.id = $ | e.id IN (…)]                    -- id-фильтр
- *       [AND e.id = hPrev.links->>$cls]                 -- forward-джойн (id неизменен)
- *       [AND e.id IN (SELECT c.id FROM Entity c         -- GIN-кандидаты: containment-фильтры
- *                     WHERE c.partition=$ AND c.class=$ AND c.data @> $ [AND c.links @> …])]
- *     ORDER BY e.id, e.updated DESC                     -- latest-версия кандидатов
- *   ) t
- *   WHERE t.deleted IS NULL [AND все фильтры на t]      -- перепроверка на АКТУАЛЬНОЙ версии
+ * Шаг из двух частей (§3 «Индексы под RLS»). Под RLS индексы GIN роли приложения недоступны, поэтому
+ * id находят функции владельца find_* (lib/sql/70-read.sql) — по индексам и с тем же условием
+ * видимости, что у политик, — а строки читаются по первичному ключу под RLS, где применяются
+ * остальные условия шага. Каждый шаг — пара CTE:
+ *   p<i>(src, id[, rev, depth]) — пары «откуда, куда» перехода от узла предыдущего шага;
+ *   n<i>(колонки строки, depth) — строки узла с условиями шага.
+ * Прямой переход (из концов строки) находит цели без поиска: id лежат в links. Обратный — find_hop()
+ * по развёрнутому списку id предыдущего узла (решение 5 точки А). Пути собирает соединение
+ * n0 ⋈ p1 ⋈ n1 ⋈ …; терминалы rows, ids, count и агрегаты считают сущности последнего узла.
  *
- * Кандидатное сужение — оптимизация (GIN); истина — перепроверка условий на latest.
- * Цепочка шагов соединяется JOIN LATERAL — комбинации путей сохраняются.
+ * Источник узла — текущее состояние (entity) или журнал: версии на момент asOf и надгробия
+ * удалённых (withDeleted). Строки журнала читаются по паре (id, rev).
+ *
+ * Значения всегда уходят параметрами, поэтому текст запроса зависит только от формы цепочки: его
+ * кэширует план (chain.ts), а postgres.js готовит оператор один раз на соединение.
  */
-//
-// FILE: lib/src/sql.ts
-// VERSION: 1.2.0
-// START_MODULE_CONTRACT
-//   PURPOSE: Read-side SQL-движок: Ctx, компиляция фильтров/операторов в параметризованный SQL, обход путей, исполнение с телеметрией и ретраем transient, билдеры insert/delete/closure.
-//   SCOPE: Ctx, runQuery, buildRead, Step, компиляторы фильтров/операторов/tags, resolveHop/leafType/linksTo, insert/multiInsert/delete/closure SQL, isTransient/hintTxRetry/retryDelay.
-//   DEPENDS: M-TYPES, M-OPS, M-ACL, M-SCHEMA
-//   LINKS: M-SQL, V-M-SQL
-//   ROLE: RUNTIME
-//   MAP_MODE: EXPORTS
-// END_MODULE_CONTRACT
-//
-// START_MODULE_MAP
-//   Ctx - runtime-контекст (sql/registry/pgSchema/partition/account+owner СКОУПА/enforce*/aclDecide/compileAcl/onQuery/slowMs)
-//   isTransient/hintTxRetry/RETRIES/retryDelay - классификация и ретрай transient-ошибок PG
-//   runQuery - единая точка исполнения запросов цепочек (+onQuery/slow-warn/ретрай)
-//   Step/SlotValue/nextNodeKey - модель шага цепочки и слотов связей
-//   guardScoped - гард enforceAccount: без идентичности вызова (db.as) читать/писать нельзя
-//   buildRead - компиляция шагов+модов в параметризованный read-запрос
-//   leafType/linksTo/resolveHop - навигация по Schema.links и типам полей
-//   insertSql/multiInsertSql/deleteSql/closureSql - билдеры записи/удаления
-//   entityTable/BuiltQuery/ReadMode - хелпер имени таблицы и типы результата
-// END_MODULE_MAP
-//
-// START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.2.0 - Добавлен guardScoped: при enforceAccount без идентичности вызова
-//     (безличный корень — арендатора называет db.as) чтение и запись бросают ошибку с подсказкой;
-//     Ctx получил compileAcl (энфорсер компилится под субъекта скоупа, не на connect).
-//     Ранее: ПОЛИМОРФНОЕ чтение: шаг матчит свой класс + всех потомков
-//     (class = ANY вместо равенства), идентичность сущности стала парой (class, id) —
-//     DISTINCT ON/(class,id) IN/versions-join; ключи links берутся из колонки class строки,
-//     а не из литерала (forward/reverse/deep); ACL решается ПОКЛАССНО (deny на потомке не
-//     обходится шагом по родителю), отказ шага — только если запрещено всё семейство;
-//     Step.exactClass возвращает одиночный класс и быстрый путь равенства]
-// END_CHANGE_SUMMARY
-import type { Sql } from 'postgres';
-import type { AclOp, AclDecision, ClassDef, ChainMods, FieldType, Filter, Op, QueryEvent } from './types.js';
-import { OP } from './types.js';
+import { LetopisError } from './errors.js';
 import { isOp } from './ops.js';
-import { aclDenied } from './acl.js';
-import type { Registry } from './schema.js';
-
-export interface Ctx {
-  sql: Sql;
-  registry: Registry;
-  pgSchema: string;
-  partition: string;
-  /** Арендатор ВЫЗОВА: заполнен у scoped-хендла db.as(account), пуст у корневого. */
-  account?: string;
-  /** Дефолтный owner записей этого scope (db.as(account, { owner })). Default = account. */
-  owner?: string;
-  /** System-аккаунт — fallback для NOT NULL Entity.account (загружается при connect). */
-  systemAccount?: string;
-  /** Жёсткая изоляция арендатора: все чтения фильтруются, записи пришпилены к account. */
-  enforceAccount?: boolean;
-  /** enforceAcl: скомпилированный резолвер Rule/Resource (READ/WRITE/DELETE) для account ЭТОГО ctx. */
-  aclDecide?: (cls: ClassDef, op: AclOp) => AclDecision;
-  /**
-   * enforceAcl: скомпилировать энфорсер под субъекта переданного ctx (пишет в c.aclDecide).
-   * Ставит connect(); зовут db.as() и reload. Один энфорсер = один субъект: memo в acl.ts
-   * ключуется классом+операцией БЕЗ аккаунта, переиспользование между scope — утечка решения.
-   */
-  compileAcl?: (c: Ctx) => Promise<void>;
-  /** true внутри db.begin()-транзакции (write не оборачивает в begin повторно). */
-  inTx?: boolean;
-  /** true только у db.begin()-транзакций (не у внутренних): управляет подсказкой при 40P01/40001. */
-  userTx?: boolean;
-  /** Наблюдаемость: хук на каждый запрос цепочки. */
-  onQuery?: (e: QueryEvent) => void;
-  /** Порог «медленного» запроса, мс (без onQuery — console.warn). */
-  slowMs?: number;
-  /** Перечитать определения классов из таблицы Schema: пересобрать registry (+ enforcer при enforceAcl). Ставит connect(). */
-  reload?: () => Promise<void>;
-}
-
-// START_CONTRACT: isTransient
-//   PURPOSE: Признак транзиентной ошибки PG (deadlock 40P01 / serialization failure 40001) — снимается повтором.
-//   INPUTS: { e: unknown - пойманная ошибка }
-//   OUTPUTS: { boolean }
-//   SIDE_EFFECTS: none
-//   LINKS: M-SQL, V-M-SQL
-// END_CONTRACT: isTransient
-/** Транзиентные ошибки PG — гонка, снимаемая повтором: deadlock / serialization failure. */
-export function isTransient(e: unknown): boolean {
-  const code = (e as { code?: string }).code;
-  return code === '40P01' || code === '40001';
-}
-
-/** Внутри db.begin() повтор невозможен (вся транзакция aborted) — дописываем подсказку. */
-export function hintTxRetry(e: unknown): void {
-  const err = e as { message?: string; letopisHinted?: true };
-  if (err.letopisHinted || typeof err.message !== 'string') return;
-  err.letopisHinted = true;
-  err.message += ' — letopis: transaction is aborted, retry the whole db.begin() block';
-}
-
-export const RETRIES = 3;
-export const retryDelay = (attempt: number): Promise<void> =>
-  new Promise((r) => setTimeout(r, 40 * attempt + Math.random() * 40));
-
-const READ_MODES: ReadonlySet<QueryEvent['mode']> = new Set([
-  'paths', 'rows', 'ids', 'count', 'versions', 'agg',
-]);
-
-/**
- * Единая точка исполнения запросов цепочек: sql.unsafe + событие onQuery/slowMs.
- * Чтения в автокоммите ретраят transient-ошибки (40P01/40001); внутри db.begin()
- * повтор запрещён семантикой PG — ошибка уходит наружу с подсказкой.
- * Служебные запросы (loadRegistry, tables, listen) через неё не идут.
- */
-// START_CONTRACT: runQuery
-//   PURPOSE: Единая точка исполнения запросов цепочек: sql.unsafe + событие onQuery/slow-warn + ретрай transient в автокоммите.
-//   INPUTS: { ctx: Ctx; text: string; params: unknown[]; mode: QueryEvent['mode']; classes: string[] }
-//   OUTPUTS: { Promise<T[]> - строки результата }
-//   SIDE_EFFECTS: выполняет SQL; вызывает onQuery-хук; console.warn при slowMs; ретрай до RETRIES вне транзакции
-//   LINKS: M-SQL, V-M-SQL
-// END_CONTRACT: runQuery
-export async function runQuery<T>(
-  ctx: Ctx,
-  text: string,
-  params: unknown[],
-  mode: QueryEvent['mode'],
-  classes: string[],
-): Promise<T[]> {
-  // START_BLOCK_RUN_QUERY_RETRY
-  for (let attempt = 1; ; attempt++) {
-    const t0 = performance.now();
-    try {
-      const res = (await ctx.sql.unsafe(text, params as never[])) as unknown as T[];
-      if (ctx.onQuery || ctx.slowMs !== undefined) {
-        const ms = performance.now() - t0;
-        const slow = ctx.slowMs !== undefined && ms > ctx.slowMs;
-        if (ctx.onQuery) ctx.onQuery({ mode, classes, ms, rows: res.length, slow });
-        else if (slow) console.warn(`letopis: slow query ${ms.toFixed(0)}ms — ${mode} ${classes.join('→')}`);
-      }
-      return res;
-    } catch (e) {
-      if (isTransient(e)) {
-        if (ctx.inTx) {
-          if (ctx.userTx) hintTxRetry(e);
-        } else if (READ_MODES.has(mode) && attempt < RETRIES) {
-          await retryDelay(attempt);
-          continue;
-        }
-      }
-      throw e;
-    }
-  }
-  // END_BLOCK_RUN_QUERY_RETRY
-}
-
-/** Значение слота связи: id | вложенный план | null (снять конец). */
-export type SlotValue = string | { plan: Step[]; mods?: ChainMods } | null;
-
-let nodeSeq = 0;
-/** Уникальная метка узла пути (для pivot-возвратов; переживает нарезку плана). */
-export const nextNodeKey = (): number => ++nodeSeq;
+import type { ClassInfo, LeafType, Registry } from './registry.js';
+import { OP, type ChainMods, type Cursor, type Filter, type Op, type Row } from './types.js';
 
 export interface Step {
-  /** Имя, как вызвано в цепочке (алиас или id). */
+  /** Имя, как вызвано в цепочке (класс, алиас или роль). */
   name: string;
-  cls: ClassDef;
+  /** Класс узла (для роли — первый класс её целей): типы листьев, вид hub/link. */
+  cls: ClassInfo;
+  /** Шаг вызван именем роли (конца): переход идёт именно этим концом. */
+  role?: string;
   filter?: Filter;
-  /** Метка узла (есть у каждого реального шага). */
+  /** Метка узла — у каждого реального шага. */
   nodeKey?: number;
-  /**
-   * Pivot: шаг-ВОЗВРАТ к уже введённому узлу (повтор LINK-класса / entity(та же переменная)).
-   * Не создаёт узел; его фильтры дофильтровывают узел (AND); следующий шаг ветвится от узла.
-   */
+  /** Возврат к уже введённому узлу (повтор связи, entity() той же переменной). */
   pivotKey?: number;
-  /** .alias(name) — ключ шага в путях. */
   aliasKey?: string;
-  /**
-   * .exact() — только ЭТОТ класс, без классов-потомков. По умолчанию шаг полиморфен
-   * (родитель отдаёт объединение с потомками); нужно, когда наследование в домене
-   * использовано для переиспользования attributes, а не как «is-a» для выборки
-   * (демо: `запись` наследует `окно`, но смена ≠ бронь).
-   */
-  exactClass?: boolean;
-  /** .tags(…) — фильтр по колонке tags: строка | string[] (все) | has/hasAny/hasAll. */
+  /** Только сам класс, без потомков. */
+  exact?: boolean;
   tagsFilter?: unknown;
-  /** .account(uuid|Row) — фильтр по колонке account. */
-  accountFilter?: string;
-  /** .owner(uuid|Row) — фильтр по колонке owner. */
   ownerFilter?: string;
-  /** Внутреннее (write-цепочки): containment по links — контекст-связи. */
-  linksFilter?: Record<string, string>;
-  /**
-   * Слоты связей (`.Класс.set(target)` / `.Класс.unset()`): значения концов записываемой
-   * версии БЕЗ участия в фильтре целей. string — id; {plan} — вложенная цепочка (та же
-   * транзакция, ровно одна сущность класса конца); null — снять optional-конец.
-   */
-  extraLinks?: Record<string, SlotValue>;
-  /** Внутреннее (enforceAcl): предикат WRITE/DELETE-правила — цели ищутся только среди своих. */
-  aclFilter?: Record<string, unknown>;
-  /** .deep(max): рекурсивный self-обход (дети любой глубины), только reverse того же класса. */
   deepMax?: number;
-  /** Операция записи на шаге (.create/.update/.delete/.anonymize) — исполняется терминалом плана. */
-  op?: import('./types.js').PlanOp;
-  /** Внутреннее: шаг «те же сущности» (операция сразу после операции) — цель = строки старта. */
-  self?: boolean;
+  /** Звено плана записи (этап 4): глагол на этом шаге; построитель чтения его не видит. */
+  op?: import('./write.js').PlanOp;
+  /** Модификаторы цепочки на момент глагола: limit и sort сужают цели записи. */
+  opMods?: ChainMods;
+  /** Слоты концов записываемой версии: .Роль.set/unset/add/remove. */
+  slots?: import('./write.js').Slot[];
+  /** Глагол сразу после глагола — пишет в те же сущности. */
+  self?: true;
 }
 
-/** Накопитель позиционных параметров. */
+let nodeSeq = 0;
+/** Уникальная метка узла пути. */
+export const nextNodeKey = (): number => ++nodeSeq;
+
+export type ReadMode = 'paths' | 'rows' | 'ids' | 'count' | 'countPaths' | 'versions' | 'agg';
+
+export interface AggSpec {
+  fn: 'sum' | 'avg' | 'min' | 'max' | 'countBy';
+  field: string;
+}
+
+export interface BuiltQuery {
+  text: string;
+  params: unknown[];
+  /** Ключи шагов в путях (алиасы, повторы — _2, _3). */
+  keys: string[];
+  /** Тип листа агрегата (min/max числового поля приводятся к числу). */
+  aggLeaf?: LeafType;
+}
+
+const fail = (msg: string): never => {
+  throw new LetopisError('invalid_query', msg);
+};
+
+// ---------------------------------------------------------------------------
+// Классы шага и правила переходов
+// ---------------------------------------------------------------------------
+
+const asList = (v: string | string[]): string[] => (Array.isArray(v) ? v : [v]);
+const uniq = <T>(xs: T[]): T[] => [...new Set(xs)];
+
+/** Классы, которые объявляют роль. */
+export function roleOwners(reg: Registry, role: string): ClassInfo[] {
+  return reg.all().filter((c) => c.ends[role] !== undefined);
+}
+
+/** Классы целей роли (имя конца однозначно во всей схеме — проверяет база). */
+export function roleTargets(reg: Registry, role: string): string[] {
+  const owner = roleOwners(reg, role)[0];
+  return owner ? asList(owner.ends[role].class) : [];
+}
+
+/** Конкретные классы, которые матчит шаг: класс (роль — её цели) и потомки, если не exact(). */
+export function stepClasses(reg: Registry, step: Step): string[] {
+  const base = step.role ? roleTargets(reg, step.role) : [step.cls.name];
+  if (step.exact) return base;
+  return uniq(base.flatMap((b) => (reg.has(b) ? reg.family(b).map((c) => c.name) : [b])));
+}
+
+/** Принимает ли список классов конца класс cls (с учётом его предков). */
+export const accepts = (reg: Registry, targets: string[], cls: string): boolean =>
+  (reg.find(cls)?.ancestors ?? [cls]).some((a) => targets.includes(a));
+
+/** Роли классов from, цели которых принимают хотя бы один класс to. */
+function rolesBetween(reg: Registry, from: string[], to: string[]): string[] {
+  const out = new Set<string>();
+  for (const c of from) {
+    const ci = reg.find(c);
+    if (!ci) continue;
+    for (const [role, end] of Object.entries(ci.ends)) {
+      const t = asList(end.class);
+      if (to.some((x) => accepts(reg, t, x))) out.add(role);
+    }
+  }
+  return [...out];
+}
+
+export interface Hop {
+  dir: 'forward' | 'reverse';
+  /** Только эти роли; null — любой конец (целостность ссылок гарантирует, что подходят только допустимые). */
+  roles: string[] | null;
+}
+
+/**
+ * Направление перехода между узлами (расширение resolveHop 0.21):
+ *  - шаг-роль после владельца роли — вперёд этим концом; шаг после роли — назад этим концом;
+ *  - иначе по концам всех классов обоих семейств: в своём семействе (папка → папки) — назад, к детям;
+ *    хаб → связь — назад; связь → хаб и хаб → хаб — вперёд; нет нужного — другое направление.
+ */
+export function resolveHop(reg: Registry, prev: Step, next: Step): Hop {
+  const P = stepClasses(reg, prev);
+  const N = stepClasses(reg, next);
+  if (next.role && P.some((c) => reg.find(c)?.ends[next.role!])) return { dir: 'forward', roles: [next.role] };
+  if (prev.role && N.some((c) => reg.find(c)?.ends[prev.role!])) return { dir: 'reverse', roles: [prev.role] };
+  const fwd = rolesBetween(reg, P, N);
+  const rev = rolesBetween(reg, N, P);
+  const same = P.some((c) => N.includes(c));
+  const preferRev = same || (prev.cls.kind === 'hub' && next.cls.kind === 'link');
+  for (const dir of preferRev ? (['reverse', 'forward'] as const) : (['forward', 'reverse'] as const)) {
+    if ((dir === 'forward' ? fwd : rev).length) return { dir, roles: null };
+  }
+  throw new LetopisError('no_path', `нет перехода ${prev.name} → ${next.name}: ни один класс не ссылается на другой`);
+}
+
+// ---------------------------------------------------------------------------
+// Фильтры и операторы
+// ---------------------------------------------------------------------------
+
 class Params {
   list: unknown[] = [];
   push(v: unknown): string {
@@ -229,789 +156,652 @@ class Params {
   }
 }
 
-const escId = (s: string) => `"${s.replace(/"/g, '""')}"`;
-const escLit = (s: string) => s.replace(/'/g, "''");
-export const entityTable = (pgSchema: string) => `${escId(pgSchema)}.${escId('Entity')}`;
+const lit = (s: string): string => `'${s.replace(/'/g, "''")}'`;
+type Frag = (a: string) => string;
 
-type Frag = (alias: string) => string;
+const CAST: Record<LeafType, string> = {
+  text: '', jsonb: '', numeric: '::numeric', boolean: '::boolean', timestamptz: '::timestamptz', date: '::date', uuid: '::uuid',
+};
+/** Приведение параметра: время — через text, иначе postgres.js отрезал бы микросекунды через Date. */
+const PCAST: Record<LeafType, string> = { ...CAST, timestamptz: '::text::timestamptz', date: '::text::date' };
 
-/**
- * ACL-шаблон строки Entity → WHERE-фраги: колонки равенством, jsonb/tags — containment.
- * Вливается и в кандидаты (GIN), и в перепроверку — ДО сортировки/лимита (пагинация цела).
- */
-function rowTemplateFrags(tpl: Record<string, unknown>, p: Params): Frag[] {
-  const frags: Frag[] = [];
-  for (const [k, v] of Object.entries(tpl)) {
-    if (k === 'data' || k === 'links') {
-      const ph = p.push(v);
-      frags.push((a) => `${a}.${k} @> ${ph}::jsonb`);
-    } else if (k === 'tags') {
-      const ph = p.push(Array.isArray(v) ? v : [v]);
-      frags.push((a) => `${a}.tags @> ${ph}`);
-    } else if (k === 'owner' || k === 'account') {
-      const ph = p.push(v);
-      frags.push((a) => `${a}.${k} = ${ph}::uuid`);
-    } else if (k === 'id' || k === 'partition') {
-      const ph = p.push(v);
-      frags.push((a) => `${a}.${k} = ${ph}`);
-    } else {
-      throw new Error(`letopis: acl pattern key "${k}" is not an Entity column`);
-    }
+/** Каст параметра по типу значения JS (для jsonb_build_array). */
+const jsCast = (v: unknown): string => (typeof v === 'number' ? '::numeric' : typeof v === 'boolean' ? '::boolean' : '::text');
+
+const jsonbAt = (path: string[]): Frag => (a) => `${a}.data${path.map((k) => `->${lit(k)}`).join('')}`;
+const accessor = (path: string[]): Frag => (a) => `${jsonbAt(path.slice(0, -1))(a)}->>${lit(path[path.length - 1])}`;
+
+/** Тип листа по классам шага: первый класс, где поле описано. */
+function leafOf(reg: Registry, classes: ClassInfo[], path: string[]): LeafType {
+  for (const c of classes) {
+    const t = reg.leafType(c.name, path);
+    if (t !== 'jsonb') return t;
   }
-  return frags;
+  return 'jsonb';
 }
 
-interface CompiledFilter {
-  idConds: Frag[];
-  /** containment-условия — и кандидаты (GIN), и перепроверка. */
-  candFrags: Frag[];
-  /** все условия для перепроверки на latest (containment + операторы). */
-  finalFrags: Frag[];
-}
-
-function castOf(ft: FieldType | undefined): string {
-  switch (ft?.kind) {
-    case 'number':
-      return '::numeric';
-    case 'date':
-      return '::timestamptz';
-    case 'boolean':
-      return '::boolean';
-    default:
-      return '';
-  }
-}
-
-/** Каст параметра по JS-типу (для jsonb_build_array). */
-const jsCast = (v: unknown): string =>
-  typeof v === 'number' ? '::numeric' : typeof v === 'boolean' ? '::boolean' : '::text';
-
-/** jsonb-выражение до пути (без извлечения текста): data->'a'->'b'. */
-function jsonbAt(path: string[]): Frag {
-  return (a) => `${a}.data${path.map((k) => `->'${escLit(k)}'`).join('')}`;
-}
-
-/** Текст листа по data-пути ЛЮБОЙ глубины: data->'a'->'b'->>'c'. */
-function accessor(path: string[]): Frag {
-  const head = path.slice(0, -1);
-  const last = path[path.length - 1];
-  return (a) => `${jsonbAt(head)(a)}->>'${escLit(last)}'`;
-}
-
-/** Тип листа data-пути по Schema: спуск через record (значение) и object (props). */
-// START_CONTRACT: leafType
-//   PURPOSE: Тип листа data-пути по Schema (спуск через record/object) — для SQL-каста.
-//   INPUTS: { cls: ClassDef; path: string[] - сегменты data-пути }
-//   OUTPUTS: { FieldType | undefined }
-//   SIDE_EFFECTS: none
-//   LINKS: M-SQL, V-M-SQL, type-FieldType
-// END_CONTRACT: leafType
-export function leafType(cls: ClassDef, path: string[]): FieldType | undefined {
-  let ft = cls.fieldTypes.get(path[0]);
-  for (let i = 1; i < path.length && ft; i++) {
-    ft = ft.kind === 'record' ? ft.value : ft.kind === 'object' ? ft.props.get(path[i]) : undefined;
-  }
-  return ft;
-}
-
-// START_CONTRACT: compileOp
-//   PURPOSE: Скомпилировать оператор фильтра (ne/gt/between/in/like/has*/exists/isNull/not) в SQL-фраг с кастом по типу листа.
-//   INPUTS: { path: string[]; ft?: FieldType; o: Op; p: Params }
-//   OUTPUTS: { Frag - (alias) => SQL-предикат }
-//   SIDE_EFFECTS: пушит значения в Params
-//   ERRORS: unknown operator "<name>"
-//   LINKS: M-SQL, V-M-SQL, M-OPS
-// END_CONTRACT: compileOp
-function compileOp(path: string[], ft: FieldType | undefined, o: Op, p: Params): Frag {
-  // START_BLOCK_COMPILE_OP
+function compileOp(path: string[], leaf: LeafType, o: Op, p: Params): Frag {
   const lhs = accessor(path);
-  const cast = castOf(ft);
-  // скобки обязательны: '::' сильнее '->>' (data->>'f'::ts кастил бы литерал 'f')
+  const cast = CAST[leaf];
+  const pc = PCAST[leaf];
+  // скобки обязательны: '::' сильнее '->>'
   const L: Frag = cast ? (a) => `(${lhs(a)})${cast}` : lhs;
-  const name = o[OP];
   const args = o.args;
-  switch (name) {
+  switch (o[OP]) {
     case 'ne':
-      return (a) => `${L(a)} IS DISTINCT FROM ${p.push(args[0])}${cast}`;
+      return (a) => `${L(a)} is distinct from ${p.push(args[0])}${pc}`;
     case 'gt':
     case 'gte':
     case 'lt':
     case 'lte': {
-      const sym = { gt: '>', gte: '>=', lt: '<', lte: '<=' }[name]!;
-      return (a) => `${L(a)} ${sym} ${p.push(args[0])}${cast}`;
+      const sym = { gt: '>', gte: '>=', lt: '<', lte: '<=' }[o[OP] as 'gt'];
+      const ph = p.push(args[0]);
+      return (a) => `${L(a)} ${sym} ${ph}${pc}`;
     }
-    case 'between':
-      return (a) =>
-        `${L(a)} BETWEEN ${p.push(args[0])}${cast} AND ${p.push(args[1])}${cast}`;
+    case 'between': {
+      const lo = p.push(args[0]);
+      const hi = p.push(args[1]);
+      return (a) => `${L(a)} between ${lo}${pc} and ${hi}${pc}`;
+    }
     case 'in': {
       const vs = args[0] as unknown[];
-      if (!vs.length) return () => 'FALSE';
-      return (a) => `${L(a)} IN (${vs.map((v) => p.push(v) + cast).join(', ')})`;
+      if (!vs.length) return () => 'false';
+      const ph = p.push(vs.map((v) => (v === null ? null : String(v))));
+      // список одним параметром: текст запроса не зависит от длины списка
+      return (a) => `${L(a)} = any (${ph}::text[]${cast ? `${cast}[]` : ''})`;
     }
-    case 'like':
-      return (a) => `${lhs(a)} LIKE ${p.push(args[0])}`;
-    case 'ilike':
-      return (a) => `${lhs(a)} ILIKE ${p.push(args[0])}`;
-    case 'has':
-      // jsonb_build_array с кастом по JS-типу — JS-массив postgres.js слал бы как PG-array
-      return (a) => `${jsonbAt(path)(a)} @> jsonb_build_array(${p.push(args[0])}${jsCast(args[0])})`;
+    case 'like': {
+      const ph = p.push(args[0]);
+      return (a) => `${lhs(a)} like ${ph}`;
+    }
+    case 'ilike': {
+      const ph = p.push(args[0]);
+      return (a) => `${lhs(a)} ilike ${ph}`;
+    }
+    case 'has': {
+      const ph = p.push(args[0]) + jsCast(args[0]);
+      return (a) => `${jsonbAt(path)(a)} @> jsonb_build_array(${ph})`;
+    }
     case 'hasAll': {
       const vs = args[0] as unknown[];
-      if (!vs.length) return () => 'TRUE';
-      return (a) =>
-        `${jsonbAt(path)(a)} @> jsonb_build_array(${vs.map((x) => p.push(x) + jsCast(x)).join(', ')})`;
+      if (!vs.length) return () => 'true';
+      const ph = p.push(vs);
+      return (a) => `${jsonbAt(path)(a)} @> ${ph}::jsonb`;
     }
     case 'hasAny': {
       const vs = args[0] as unknown[];
-      if (!vs.length) return () => 'FALSE';
-      return (a) =>
-        `${jsonbAt(path)(a)} ?| ARRAY[${vs.map((x) => p.push(String(x))).join(', ')}]::text[]`;
+      if (!vs.length) return () => 'false';
+      const ph = p.push(vs.map(String));
+      return (a) => `${jsonbAt(path)(a)} ?| ${ph}::text[]`;
     }
     case 'exists': {
       const holder = jsonbAt(path.slice(0, -1));
-      const last = escLit(path[path.length - 1]);
-      return args[0]
-        ? (a) => `${holder(a)} ? '${last}'`
-        : (a) => `NOT (${holder(a)} ? '${last}')`;
+      const key = lit(path[path.length - 1]);
+      return args[0] ? (a) => `${holder(a)} ? ${key}` : (a) => `not coalesce(${holder(a)} ? ${key}, false)`;
     }
     case 'isNull':
-      return (a) => `${lhs(a)} IS NULL`;
+      return (a) => `${lhs(a)} is null`;
     case 'not': {
-      const inner = isOp(args[0])
-        ? compileOp(path, ft, args[0] as Op, p)
-        : compileOp(path, ft, { [OP]: 'ne', args: [args[0]] } as Op, p);
-      return isOp(args[0]) ? (a) => `NOT (${inner(a)})` : inner; // not(скаляр) = ne
+      if (isOp(args[0])) {
+        const inner = compileOp(path, leaf, args[0] as Op, p);
+        return (a) => `not coalesce(${inner(a)}, false)`;
+      }
+      return compileOp(path, leaf, { [OP]: 'ne', args: [args[0]] } as Op, p);
     }
     default:
-      throw new Error(`letopis: unknown operator "${name}"`);
+      return fail(`неизвестный оператор ${String(o[OP])}`);
   }
-  // END_BLOCK_COMPILE_OP
 }
 
-/** Операторы на колонку tags (text[]): строка | string[] (все) | has/hasAny/hasAll. */
+/** Колонка tags: строка | список (все) | has / hasAny / hasAll. */
 function compileTags(v: unknown, p: Params): Frag {
-  if (typeof v === 'string') return (a) => `${a}.tags @> ARRAY[${p.push(v)}]::text[]`;
-  if (Array.isArray(v)) {
-    if (!v.length) return () => 'TRUE';
-    return (a) => `${a}.tags @> ARRAY[${v.map((x) => p.push(x)).join(', ')}]::text[]`;
-  }
+  const all = (xs: unknown[]): Frag => {
+    if (!xs.length) return () => 'true';
+    const ph = p.push(xs.map(String));
+    return (a) => `${a}.tags @> ${ph}::text[]`;
+  };
+  if (typeof v === 'string') return all([v]);
+  if (Array.isArray(v)) return all(v);
   if (isOp(v)) {
-    const args = v.args;
     switch (v[OP]) {
       case 'has':
-        return (a) => `${a}.tags @> ARRAY[${p.push(args[0])}]::text[]`;
+        return all([v.args[0]]);
       case 'hasAll':
-        return (a) =>
-          `${a}.tags @> ARRAY[${(args[0] as unknown[]).map((x) => p.push(x)).join(', ')}]::text[]`;
-      case 'hasAny':
-        return (a) =>
-          `${a}.tags && ARRAY[${(args[0] as unknown[]).map((x) => p.push(x)).join(', ')}]::text[]`;
+        return all(v.args[0] as unknown[]);
+      case 'hasAny': {
+        const ph = p.push((v.args[0] as unknown[]).map(String));
+        return (a) => `${a}.tags && ${ph}::text[]`;
+      }
     }
   }
-  throw new Error('letopis: $tags accepts a string or has/hasAny/hasAll');
+  return fail('tags() принимает строку, список или has/hasAny/hasAll');
 }
 
-// START_CONTRACT: compileFilter
-//   PURPOSE: Разобрать фильтр (id | string[] | or(...) | объект любой глубины) в idConds / candFrags(GIN) / finalFrags(перепроверка на latest).
-//   INPUTS: { cls: ClassDef; filter?: Filter; p: Params }
-//   OUTPUTS: { CompiledFilter }
-//   SIDE_EFFECTS: пушит значения в Params
-//   ERRORS: filter.id accepts string | string[]
-//   LINKS: M-SQL, V-M-SQL
-// END_CONTRACT: compileFilter
-function compileFilter(cls: ClassDef, filter: Filter | undefined, p: Params): CompiledFilter {
-  const out: CompiledFilter = { idConds: [], candFrags: [], finalFrags: [] };
+interface CompiledFilter {
+  /** Список id (фильтр-id). */
+  ids?: string[];
+  /** Вложение в data — и поиск по индексу, и перепроверка. */
+  eq?: Record<string, unknown>;
+  /** Цели концов — поиск по индексу ends; точная проверка ролей — во frags. */
+  ends: string[];
+  /** Условия чтения под RLS. */
+  frags: Frag[];
+}
+
+const isPlain = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v) && !isOp(v);
+
+/** Объект-строка ответа как значение: берётся id. */
+const idOfValue = (v: unknown): string | undefined =>
+  typeof v === 'string' ? v : isPlain(v) && typeof v.id === 'string' ? v.id : undefined;
+
+function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | undefined, p: Params): CompiledFilter {
+  const out: CompiledFilter = { ends: [], frags: [] };
   if (filter === undefined) return out;
 
-  // or(...фильтры): дизъюнкция под-фильтров; только перепроверка (в GIN-кандидаты не идёт)
-  if (isOp(filter) && filter[OP] === 'or') {
-    const parts = (filter.args[0] as Record<string, unknown>[]).map((f) => {
-      const sub = compileFilter(cls, f as Filter, p);
-      const frags = [...sub.idConds, ...sub.finalFrags];
-      return (a: string) => (frags.length ? `(${frags.map((fr) => fr(a)).join(' AND ')})` : 'TRUE');
+  // or(…): дизъюнкция под-фильтров — только перепроверка
+  if (isOp(filter)) {
+    if (filter[OP] !== 'or') fail(`оператор ${String(filter[OP])} на уровне фильтра шага — допустим только or(…)`);
+    const parts = (filter.args[0] as Filter[]).map((f) => {
+      const sub = compileFilter(reg, classes, f, p);
+      const frags = [...asFrags(sub, p)];
+      return (a: string) => (frags.length ? `(${frags.map((fr) => fr(a)).join(' and ')})` : 'true');
     });
-    if (parts.length) out.finalFrags.push((a) => `(${parts.map((fr) => fr(a)).join(' OR ')})`);
+    out.frags.push(parts.length ? (a) => `(${parts.map((fr) => fr(a)).join(' or ')})` : () => 'false');
     return out;
   }
-
   if (typeof filter === 'string') {
-    out.idConds.push((a) => `${a}.id = ${p.push(filter)}`);
+    out.ids = [filter];
     return out;
   }
   if (Array.isArray(filter)) {
-    if (!filter.length) out.idConds.push(() => 'FALSE');
-    else out.idConds.push((a) => `${a}.id IN (${filter.map((x) => p.push(x)).join(', ')})`);
+    out.ids = filter.map((x) => idOfValue(x) ?? fail('список id: ожидались строки'));
     return out;
   }
 
-  // START_BLOCK_COMPILE_FILTER_WALK
-  const eqData: Record<string, unknown> = {};
-  const isPlain = (v: unknown): v is Record<string, unknown> =>
-    typeof v === 'object' && v !== null && !Array.isArray(v) && !isOp(v);
+  const props = (classes[0]?.schema.properties ?? {}) as Record<string, unknown>;
+  const isRole = (k: string) => !(k in props) && classes.some((c) => c.ends[k] !== undefined);
+  const eq: Record<string, unknown> = {};
 
-  /**
-   * Рекурсивный разбор объекта фильтра на ЛЮБУЮ глубину:
-   * операторы уходят в finalFrags по своему пути (каст по типу листа из Schema),
-   * скаляры/массивы собираются в containment-поддерево (GIN).
-   * Возврат: поддерево для eqData; undefined — внутри были только операторы.
-   */
+  // разбор объекта любой глубины: операторы — по своему пути с приведением по типу листа,
+  // скаляры и списки — в поддерево вложения (индекс GIN)
   const walk = (path: string[], obj: Record<string, unknown>): Record<string, unknown> | undefined => {
-    const eq: Record<string, unknown> = {};
+    const sub: Record<string, unknown> = {};
     let hadOps = false;
     for (const [k, v] of Object.entries(obj)) {
       if (v === undefined) continue;
-      const sub = [...path, k];
+      const at = [...path, k];
       if (isOp(v)) {
-        out.finalFrags.push(compileOp(sub, leafType(cls, sub), v, p));
+        out.frags.push(compileOp(at, leafOf(reg, classes, at), v, p));
         hadOps = true;
       } else if (isPlain(v)) {
-        const nested = walk(sub, v);
-        if (nested !== undefined) eq[k] = nested;
+        const nested = walk(at, v);
+        if (nested !== undefined) sub[k] = nested;
         else hadOps = true;
-      } else {
-        eq[k] = v;
-      }
+      } else sub[k] = v;
     }
-    if (Object.keys(eq).length) return eq;
-    return hadOps ? undefined : {}; // пустой объект без операторов → containment {}
+    if (Object.keys(sub).length) return sub;
+    return hadOps ? undefined : {};
   };
 
   for (const [key, value] of Object.entries(filter)) {
     if (value === undefined) continue;
-
     if (key === 'id') {
-      if (typeof value === 'string') out.idConds.push((a) => `${a}.id = ${p.push(value)}`);
-      else if (Array.isArray(value))
-        out.idConds.push((a) => `${a}.id IN (${value.map((x) => p.push(x)).join(', ')})`);
-      else throw new Error('letopis: filter.id accepts string | string[]');
+      if (typeof value === 'string') out.ids = [value];
+      else if (Array.isArray(value)) out.ids = value.map((x) => idOfValue(x) ?? fail('filter.id: ожидались строки'));
+      else fail('filter.id принимает строку или список строк');
       continue;
     }
-
+    if (isRole(key)) {
+      const role = lit(key);
+      if (value === null) {
+        out.frags.push((a) => `coalesce(${a}.links->${role}, 'null'::jsonb) in ('null'::jsonb, '[]'::jsonb)`);
+        continue;
+      }
+      const id = idOfValue(value) ?? fail(`конец ${key}: ожидался id, строка ответа или null`);
+      out.ends.push(id);
+      const ph = p.push(id);
+      out.frags.push((a) => `@S@.role_has(${a}.links, array[${role}], ${ph}::uuid)`);
+      continue;
+    }
     if (isOp(value)) {
-      out.finalFrags.push(compileOp([key], cls.fieldTypes.get(key), value, p));
+      out.frags.push(compileOp([key], leafOf(reg, classes, [key]), value, p));
       continue;
     }
-
     if (isPlain(value)) {
       const nested = walk([key], value);
-      if (nested !== undefined) eqData[key] = nested;
+      if (nested !== undefined) eq[key] = nested;
       continue;
     }
-
-    // скаляр / массив — точное совпадение через containment (GIN)
-    eqData[key] = value;
+    eq[key] = value;
   }
-
-  if (Object.keys(eqData).length) {
-    const ph = p.push(eqData); // объектом — postgres.js сериализует в jsonb сам
-    const frag: Frag = (a) => `${a}.data @> ${ph}::jsonb`;
-    out.candFrags.push(frag);
-    out.finalFrags.push(frag);
-  }
-
-  // END_BLOCK_COMPILE_FILTER_WALK
+  if (Object.keys(eq).length) out.eq = eq;
   return out;
 }
 
-type HopMode = 'forward' | 'reverse';
-
-/** Класс target входит в какой-нибудь конец def (союзы учитываются). */
-export function linksTo(def: ClassDef, target: string): boolean {
-  return def.links.some((end) => end.classes.includes(target));
-}
-
-// START_CONTRACT: resolveHop
-//   PURPOSE: Определить направление обхода между классами (forward/reverse) по Schema.links.
-//   INPUTS: { prev: ClassDef; next: ClassDef }
-//   OUTPUTS: { HopMode - 'forward' | 'reverse' }
-//   SIDE_EFFECTS: none
-//   ERRORS: no path A→B (neither embeds the other); LINK → LINK traversal is not supported
-//   LINKS: M-SQL, V-M-SQL
-// END_CONTRACT: resolveHop
-/** Правило обхода между шагами (по реестру Schema). */
-export function resolveHop(prev: ClassDef, next: ClassDef): HopMode {
-  if (prev.category === 'HUB' && next.category === 'LINK') return 'reverse';
-  if (prev.category === 'LINK' && next.category === 'HUB') return 'forward';
-  if (prev.category === 'HUB' && next.category === 'HUB') {
-    // self-переход (Папка→Папка) = reverse: дети; родитель и так лежит в row.links
-    if (prev.id === next.id) return 'reverse';
-    if (linksTo(prev, next.id)) return 'forward';
-    if (linksTo(next, prev.id)) return 'reverse';
-    throw new Error(
-      `letopis: no path ${prev.id} → ${next.id}: neither embeds the other (Schema.links)`,
-    );
+/** Все условия фильтра как условия чтения (для or и pivot). */
+function asFrags(cf: CompiledFilter, p: Params): Frag[] {
+  const frags = [...cf.frags];
+  if (cf.ids) {
+    const ph = p.push(cf.ids);
+    frags.push((a) => `${a}.id = any (${ph}::uuid[])`);
   }
-  throw new Error(`letopis: LINK → LINK traversal is not supported (${prev.id} → ${next.id})`);
-}
-
-export type ReadMode = 'paths' | 'rows' | 'ids' | 'count' | 'versions' | 'agg';
-
-export interface BuiltQuery {
-  text: string;
-  params: unknown[];
-  /** Ключи шагов в путях (после alias/dedupe). */
-  keys: string[];
-}
-
-function sortField(alias: string, cls: ClassDef, order: string): string {
-  if (order === 'updated') return `${alias}.updated`;
-  if (order.startsWith('data.')) {
-    // data-путь любой глубины ('data.settings.booking.deposit.amount') + каст по типу листа
-    const path = order.slice(5).split('.');
-    return `(${accessor(path)(alias)})${castOf(leafType(cls, path))}`;
+  if (cf.eq) {
+    const ph = p.push(cf.eq);
+    frags.push((a) => `${a}.data @> ${ph}::jsonb`);
   }
-  throw new Error(`letopis: order must be 'updated' or 'data.<path>'`);
+  return frags;
 }
 
-function orderExpr(alias: string, cls: ClassDef, mods: ChainMods): string {
-  if (!mods.order) return '';
-  const dir = mods.desc ? ' DESC' : '';
-  // id — стабильный tiebreaker ТЕМ ЖЕ направлением: ORDER BY совпадает с кортежом afterExpr
-  // (sortExpr, id), поэтому keyset не даёт пересечения страниц при неуникальном sort-поле.
-  return ` ORDER BY ${sortField(alias, cls, mods.order)}${dir}, ${alias}.id${dir}`;
+// ---------------------------------------------------------------------------
+// Сортировка и keyset
+// ---------------------------------------------------------------------------
+
+interface SortSpec {
+  expr: Frag;
+  /** Приведение параметра курсора. */
+  pcast: string;
+  /** Поле, как названо в sort(), — для текста ошибки курсора. */
+  field: string;
+  /** Тип значения: тип листа поля данных; колонка at — timestamptz, rev — int, id — uuid. */
+  type: LeafType | 'int';
+  /** Поля данных может не быть (курсор null); колонки at, rev, id есть всегда. */
+  nullable: boolean;
 }
 
-/** Keyset-пагинация: (поле сортировки, id) строго после курсора. Требует .sort(). Выражение без WHERE. */
-function afterExpr(alias: string, cls: ClassDef, mods: ChainMods, p: Params): string | undefined {
-  if (!mods.after) return undefined;
-  if (!mods.order) throw new Error('letopis: .after(cursor) requires .sort(field)');
-  const expr = sortField(alias, cls, mods.order);
-  const cast =
-    mods.order === 'updated' ? '::timestamptz' : castOf(leafType(cls, mods.order.slice(5).split('.')));
-  const cmp = mods.desc ? '<' : '>';
-  return `(${expr}, ${alias}.id) ${cmp} (${p.push(mods.after.v)}${cast}, ${p.push(mods.after.id)})`;
+function sortSpec(order: string, leaf: (path: string[]) => LeafType): SortSpec {
+  const f = order === 'updated' ? 'at' : order;
+  const col = { field: order, nullable: false };
+  if (f === 'at') return { ...col, expr: (a) => `${a}.at`, pcast: '::text::timestamptz', type: 'timestamptz' };
+  if (f === 'rev') return { ...col, expr: (a) => `${a}.rev`, pcast: '::int', type: 'int' };
+  if (f === 'id') return { ...col, expr: (a) => `${a}.id`, pcast: '::uuid', type: 'uuid' };
+  if (f.startsWith('data.')) {
+    const path = f.slice(5).split('.');
+    const t = leaf(path);
+    return { expr: (a) => (CAST[t] ? `(${accessor(path)(a)})${CAST[t]}` : accessor(path)(a)), pcast: PCAST[t], field: order, type: t, nullable: true };
+  }
+  return fail(`sort: поле 'at', 'rev', 'id' или 'data.<путь>', а не '${order}'`);
 }
 
-const whereOf = (conds: (string | undefined)[]): string => {
-  const list = conds.filter((c): c is string => !!c);
-  return list.length ? ` WHERE ${list.join(' AND ')}` : '';
+/** Формы значений курсора — как у форматов uuid, date и date-time валидатора (validate.ts). */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const TIME_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d{1,6})?(?:Z|[+-](\d{2}):(\d{2}))$/;
+
+/** Дата (и время), которую примет приведение базы ::date / ::timestamptz: форма и смысл полей. */
+function dateOk(s: string, withTime: boolean): boolean {
+  const m = (withTime ? TIME_RE : DATE_RE).exec(s);
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+  if (y < 1 || mo < 1 || mo > 12 || d < 1 || d > [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][mo - 1]) return false;
+  if (!withTime) return true;
+  const [h, mi, se] = [Number(m[4]), Number(m[5]), Number(m[6])];
+  const frac = /[1-9]/.test(m[7] ?? '');
+  // 24:00:00 и секунду :60 база принимает, но без долей секунды; смещение — до ±15:59
+  if (h > 24 || mi > 59 || se > 60 || (h === 24 && (mi > 0 || se > 0 || frac)) || (se === 60 && frac)) return false;
+  return m[8] === undefined || (Number(m[8]) <= 15 && Number(m[9]) <= 59);
+}
+
+/** Значение курсора для параметра keyset по типу поля сортировки; undefined — не подходит. */
+function cursorValue(v: unknown, type: SortSpec['type']): unknown {
+  const text = typeof v === 'string' && !v.includes('\0'); // нулевой символ текст PostgreSQL не примет
+  switch (type) {
+    case 'numeric':
+      return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+    case 'int':
+      return Number.isInteger(v) && (v as number) >= -2147483648 && (v as number) <= 2147483647 ? v : undefined;
+    case 'boolean':
+      return typeof v === 'boolean' ? v : undefined;
+    case 'uuid':
+      return typeof v === 'string' && UUID_RE.test(v) ? v : undefined;
+    case 'timestamptz':
+    case 'date':
+      return typeof v === 'string' && dateOk(v, type === 'timestamptz') ? v : undefined;
+    case 'text':
+      return text ? v : undefined;
+    case 'jsonb':
+      // поле без описания сравнивается текстом (->>): скаляр уходит своим текстом, как его отдаёт база
+      return text || typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v)) ? String(v) : undefined;
+  }
+}
+
+/** Значение для текста ошибки: JSON, длинное — с многоточием. */
+function shown(v: unknown): string {
+  let s: string;
+  try {
+    s = typeof v === 'number' || typeof v === 'bigint' || v === undefined ? String(v) : (JSON.stringify(v) ?? String(v));
+  } catch {
+    s = String(v);
+  }
+  return s.length > 60 ? `${s.slice(0, 59)}…` : s;
+}
+
+const CURSOR_EXPECT: Record<SortSpec['type'], string> = {
+  numeric: 'число', int: 'целое число', boolean: 'true/false', text: 'строка', uuid: 'uuid строкой',
+  timestamptz: 'время строкой вида 2026-10-07T10:00:00Z', date: 'дата строкой вида 2026-10-07', jsonb: 'строка, число, true/false',
 };
 
-// START_CONTRACT: guardScoped
-//   PURPOSE: enforceAccount без идентичности вызова — фильтровать нечем, значит изоляция не гарантирована: ошибка с подсказкой на db.as().
-//   INPUTS: { ctx: Ctx }
-//   OUTPUTS: { void }
-//   SIDE_EFFECTS: бросает 'letopis: enforceAccount is on — call db.as(account)…' на безличном (корневом) хендле
-//   LINKS: M-SQL, V-M-SQL, M-CHAIN, M-WRITE
-// END_CONTRACT: guardScoped
-/** Корневой хендл при enforceAccount читать/писать не может: арендатора называет db.as(). */
-export function guardScoped(ctx: Ctx): void {
-  if (ctx.enforceAccount && !ctx.account) {
-    throw new Error(
-      'letopis: enforceAccount is on — call db.as(account) to name the tenant of this call, ' +
-        'or connect({ enforceAccount: false }) for admin access',
-    );
+/**
+ * Параметры keyset из курсора: значение проверяется по типу поля сортировки до запроса. Курсор
+ * cursorOf() по полю sort() проходит всегда; курсор другого поля или собранный вручную — invalid_query,
+ * а не ошибка приведения сервера (22P02, 22007, 42883…) и не запрос, повисший на undefined в параметре.
+ * Курсор того же типа с другого поля проверка не отличит.
+ */
+function cursorParams(c: unknown, sort: SortSpec): { v: unknown; id: string } {
+  const how = `cursorOf(строка, '${sort.field}')`;
+  if (typeof c !== 'object' || c === null || (c as Partial<Cursor>).v === undefined) return fail(`after(cursor): курсор — объект { v, id } из ${how}`);
+  const { v, id } = c as Cursor;
+  if (typeof id !== 'string' || !UUID_RE.test(id)) return fail(`after(cursor): id курсора — uuid строки, а не ${shown(id)}`);
+  const value = v === null && sort.nullable ? null : cursorValue(v, sort.type);
+  if (value === undefined) {
+    return fail(`after(cursor): значение курсора ${shown(v)} не подходит к sort('${sort.field}') — ожидалось: ${CURSOR_EXPECT[sort.type]}`
+      + `${sort.nullable ? ' или null' : ''}; курсор снят с другого поля? Нужен ${how}`);
   }
+  return { v: value, id };
 }
 
-// START_CONTRACT: buildRead
-//   PURPOSE: Скомпилировать цепочку шагов+модов в один параметризованный read-запрос (латеральный обход путей, latest-версии, asOf/versions/agg, keyset).
-//   INPUTS: { ctx: Ctx; steps: Step[]; mods: ChainMods; mode: ReadMode }
-//   OUTPUTS: { BuiltQuery - { text, params, keys } }
-//   SIDE_EFFECTS: none (строит SQL; guardScoped и ACL-проверка READ могут бросить)
-//   ERRORS: enforceAccount without db.as(); pivot node not in path; enforceAccount pin; acl denies READ; deep on non-self hop; agg needs data.<path>
-//   LINKS: M-SQL, V-M-SQL, M-ACL, M-DDL
-// END_CONTRACT: buildRead
-/** Построить читающий запрос по цепочке. */
-export function buildRead(ctx: Ctx, steps: Step[], mods: ChainMods, mode: ReadMode): BuiltQuery {
-  guardScoped(ctx);
-  const p = new Params();
-  const ent = entityTable(ctx.pgSchema);
-  const pPart = p.push(ctx.partition);
+/** Курсор keyset-пагинации из последней строки страницы. */
+export function cursorOf(row: Row, field: string): Cursor {
+  const f = field === 'updated' ? 'at' : field;
+  if (f === 'at' || f === 'rev' || f === 'id') return { v: row[f], id: row.id };
+  if (f.startsWith('data.')) {
+    let v: unknown = row.data;
+    for (const k of f.slice(5).split('.')) v = (v as Record<string, unknown> | undefined)?.[k];
+    return { v: (v ?? null) as Cursor['v'], id: row.id };
+  }
+  return fail(`cursorOf: поле 'at', 'rev', 'id' или 'data.<путь>', а не '${field}'`);
+}
 
-  // pivot: карта эффективных блоков. real[i] — индекс блока-узла шага i
-  // (pivot-шаг блока не строит, ссылается на узел по pivotKey).
-  // START_BLOCK_BUILD_PIVOT_MAP
+// ---------------------------------------------------------------------------
+// Построение запроса
+// ---------------------------------------------------------------------------
+
+const COLS = ['id', 'rev', 'class', 'tenant', 'owner', 'links', 'data', 'tags', 'at', 'author', 'agent', 'op', 'reason', 'moved'];
+const colsOf = (a: string): string => COLS.map((c) => `${a}.${c}`).join(', ');
+
+export interface BuildOptions {
+  /**
+   * Режим сверки (тест find-ids-parity): вместо функций владельца find_* — те же запросы прямо
+   * под RLS. Индексы GIN тогда не работают, зато видимость решают политики, а не row_visible().
+   */
+  direct?: boolean;
+}
+
+export function buildRead(reg: Registry, schema: string, steps: Step[], mods: ChainMods, mode: ReadMode, agg?: AggSpec,
+  opts: BuildOptions = {}): BuiltQuery {
+  if (!steps.length) fail('пустая цепочка');
+  const S = `"${schema.replace(/"/g, '""')}"`;
+  const p = new Params();
+  const cur = mods.asOf === undefined;
+  const atPh = cur ? 'null' : `${p.push(mods.asOf)}::text::timestamptz`;
+
+  // pivot: real[i] — индекс узла шага i
   const real: number[] = [];
   const byNodeKey = new Map<number, number>();
-  const tailConds: string[] = []; // дофильтры pivot-шагов (alias подставлен) — в хвостовой WHERE
-  for (let i = 0; i < steps.length; i++) {
-    const s = steps[i];
+  steps.forEach((s, i) => {
     if (s.pivotKey !== undefined) {
       const at = byNodeKey.get(s.pivotKey);
-      if (at === undefined) throw new Error(`letopis: pivot "${s.name}" — node is not in this path`);
-      real[i] = at;
+      if (at === undefined) fail(`возврат к узлу ${s.name}: узла нет в этом пути`);
+      real[i] = at!;
     } else {
       real[i] = i;
       if (s.nodeKey !== undefined) byNodeKey.set(s.nodeKey, i);
     }
-  }
+  });
+  const lastNode = real[steps.length - 1];
 
-  // END_BLOCK_BUILD_PIVOT_MAP
-  // START_BLOCK_BUILD_STEP_LOOP
-  const blocks: string[] = [];
+  const ctes: string[] = [];
+  const joins: string[] = [];
+  const tail: string[] = [];
+  const nodeClasses = new Map<number, ClassInfo[]>();
+  const rowsNode = (i: number) => nodeClasses.get(i) ?? [steps[i].cls];
+
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
+    const names = stepClasses(reg, step);
+    const infos = names.map((n) => reg.find(n)).filter((c): c is ClassInfo => !!c);
+    const typing = [step.cls, ...infos.filter((c) => c !== step.cls)];
 
-    // pivot-шаг: узел уже есть — только дофильтры (AND на алиас узла)
+    // возврат к узлу: только дофильтры
     if (step.pivotKey !== undefined) {
       const a = `h${real[i]}`;
-      const f = compileFilter(step.cls, step.filter, p);
-      for (const c of f.idConds) tailConds.push(c(a));
-      for (const fr of f.finalFrags) tailConds.push(fr(a));
-      if (step.tagsFilter !== undefined) tailConds.push(compileTags(step.tagsFilter, p)(a));
-      // .exact() на pivot: узел уже материализован полиморфно, поэтому сужаем его
-      // дофильтром по классу — иначе модификатор молча ничего не делал бы
-      if (step.exactClass) tailConds.push(`${a}.class = ${p.push(step.cls.id)}`);
+      for (const fr of asFrags(compileFilter(reg, typing, step.filter, p), p)) tail.push(fr(a));
+      if (step.tagsFilter !== undefined) tail.push(compileTags(step.tagsFilter, p)(a));
+      if (step.ownerFilter !== undefined) tail.push(`${a}.owner = ${p.push(step.ownerFilter)}::uuid`);
+      if (step.exact) tail.push(`${a}.class = any (${p.push(names)}::text[])`);
+      continue;
+    }
+    nodeClasses.set(i, typing);
+
+    const cf = compileFilter(reg, typing, step.filter, p);
+    const clsPh = `${p.push(names)}::text[]`;
+    const conds: Frag[] = [(a) => `${a}.class = any (${clsPh})`, ...asFrags(cf, p)];
+    if (step.tagsFilter !== undefined) conds.push(compileTags(step.tagsFilter, p));
+    if (step.ownerFilter !== undefined) {
+      const ph = p.push(step.ownerFilter);
+      conds.push((a) => `${a}.owner = ${ph}::uuid`);
+    }
+    const where = (a: string, extra?: string) => [extra, ...conds.map((c) => c(a))].filter(Boolean).join(' and ');
+    // параметры поиска — по первому использованию: неиспользованный параметр PostgreSQL не примет
+    const lazy = (make: () => string) => {
+      let v: string | undefined;
+      return () => (v ??= make());
+    };
+    const dataP = lazy(() => (cf.eq ? `${p.push(cf.eq)}::jsonb` : 'null'));
+    const endsP = lazy(() => (cf.ends.length ? `${p.push(cf.ends)}::uuid[]` : 'null'));
+    const idsP = lazy(() => (cf.ids ? `${p.push(cf.ids)}::uuid[]` : 'null'));
+    const dead = mods.withDeleted === true && i === lastNode;
+    const dataCond = (v: string) => (cf.eq ? ` and ${v}.data @> ${dataP()}` : '');
+    const endsCond = (col: string) => (cf.ends.length ? ` and ${col} @> ${endsP()}` : '');
+    /** Версии журнала: последняя версия каждого id не позже момента. */
+    const versionsAt = (at: string, where: string) =>
+      `(select distinct on (l.id) l.id, l.rev, l.op, l.class, l.data, l.links from ${S}.log l where ${where} `
+      + `and l.at <= coalesce(${at}, 'infinity'::timestamptz) order by l.id, l.rev desc)`;
+    /** Поиск id: find_ids() или (сверка) тот же запрос под RLS. */
+    const findIds = (ids: string | null, at: string, isDead: boolean): string => {
+      if (!opts.direct) return `${S}.find_ids(${clsPh}, ${dataP()}, ${endsP()}, ${ids ?? 'null'}, ${at}, ${isDead})`;
+      if (at === 'null' && !isDead) {
+        return `(select v.id, v.rev from ${S}.entity v where v.class = any (${clsPh})${dataCond('v')}${endsCond('v.ends')}`
+          + `${ids ? ` and v.id = any (${ids})` : ''})`;
+      }
+      return `(select v.id, v.rev from ${versionsAt(at, ids ? `l.id = any (${ids})` : `l.class = any (${clsPh})`)} v `
+        + `where v.class = any (${clsPh}) and (v.op = 'delete') = ${isDead} and v.op not in ('purge', 'trim', 'reset')${dataCond('v')}${endsCond(`${S}.link_ids(v.links)`)})`;
+    };
+    const entityPart = (src: string | undefined, depth = 'null::int', from = `${S}.entity x`) =>
+      `select ${colsOf('x')}, ${depth} as depth from ${from} where ${where('x', src)}`;
+    /**
+     * Строки текущего состояния по списку id (запрос с колонкой id): вложенный цикл по первичному
+     * ключу. Через lateral, а не id = any(…): так планировщик видит число строк узла и соединяет
+     * узлы в пути хэшем, а не перебором.
+     */
+    const entityByIds = (ids: string) =>
+      `select ${colsOf('x')}, null::int as depth from (select distinct w.id from (${ids}) w) f `
+      + `cross join lateral (select * from ${S}.entity e where e.id = f.id) x where ${where('x')}`;
+    const logPart = (pairs: string) =>
+      // версия журнала по паре (id, rev): вложенный цикл по индексу log_id_rev, без перебора журнала
+      `select ${colsOf('x')}, null::int as depth from (${pairs}) f(id, rev) `
+      + `cross join lateral (select * from ${S}.log l where l.id = f.id and l.rev = f.rev) x where ${where('x')}`;
+    const parts: string[] = [];
+
+    if (i === 0) {
+      if (step.deepMax !== undefined) fail('deep() — на шаге перехода к тому же классу, а не на первом шаге');
+      if (cur) {
+        // условие id уже в conds — первичный ключ; вложение — поиск по индексу GIN
+        parts.push(!cf.ids && (cf.eq || cf.ends.length) ? entityByIds(`select f.id from ${findIds(null, 'null', false)} f`) : entityPart(undefined));
+      } else {
+        parts.push(logPart(`select f.id, f.rev from ${findIds(cf.ids ? idsP() : null, atPh, false)} f`));
+      }
+      if (dead) parts.push(logPart(`select f.id, f.rev from ${findIds(cf.ids ? idsP() : null, atPh, true)} f`));
+      ctes.push(`n0 as (${parts.join(' union all ')})`);
       continue;
     }
 
-    // ПОЛИМОРФНОЕ чтение: шаг по родителю отдаёт объединение с потомками (descendants
-    // считает триггер schema_lineage). Запись остаётся строго по точному классу — см. M-WRITE.
-    const family = step.exactClass ? [step.cls.id] : [step.cls.id, ...step.cls.descendants];
-    /** Классы, реально попадающие в выборку: family минус запрещённые ACL. */
-    let classes = family;
-    /** Классы → их row-предикаты из ACL (у каждого потомка может быть своё правило). */
-    const aclFrags = new Map<string, Frag[]>();
-    const f = compileFilter(step.cls, step.filter, p);
+    const a = real[i - 1];
+    const hop = resolveHop(reg, steps[a], step);
+    const rolesPh = hop.roles ? `${p.push(hop.roles)}::text[]` : 'null';
+    const srcArr = `array(select distinct s.id from n${a} s)`;
+    const srcs = `(select distinct u.x as src from unnest(${srcArr}) u(x)) s`;
+    const rolesCond = (v: string, src: string) => (hop.roles ? ` and ${S}.role_has(${v}.links, ${rolesPh}, ${src})` : '');
 
-    // модификаторы шага: .tags() / .account() / .owner()
-    if (step.tagsFilter !== undefined) {
-      const frag = compileTags(step.tagsFilter, p);
-      f.candFrags.push(frag);
-      f.finalFrags.push(frag);
-    }
-    // контекст-связи write-цепочек: containment по links
-    if (step.linksFilter && Object.keys(step.linksFilter).length) {
-      const ph = p.push(step.linksFilter);
-      const frag: Frag = (a) => `${a}.links @> ${ph}::jsonb`;
-      f.candFrags.push(frag);
-      f.finalFrags.push(frag);
-    }
-    // enforceAccount: изоляция арендатора на КАЖДОМ шаге (явный .account(чужой) — ошибка)
-    let accFilter = step.accountFilter;
-    if (ctx.enforceAccount && ctx.account) {
-      if (accFilter && accFilter !== ctx.account) {
-        throw new Error(`letopis: enforceAccount is on — reads are pinned to account ${ctx.account}`);
+    if (step.deepMax !== undefined) {
+      if (hop.dir !== 'reverse' || !stepClasses(reg, steps[a]).some((c) => names.includes(c))) {
+        fail(`deep() — только на переходе к тому же классу (дети любой глубины): ${steps[a].name} → ${step.name}`);
       }
-      accFilter = ctx.account;
-    }
-    for (const [col, val] of [['account', accFilter], ['owner', step.ownerFilter]] as const) {
-      if (val === undefined) continue;
-      const ph = p.push(val);
-      const frag: Frag = (a) => `${a}.${col} = ${ph}::uuid`;
-      f.candFrags.push(frag);
-      f.finalFrags.push(frag);
-    }
-    // enforceAcl: READ-право на КАЖДЫЙ шаг. Шаг полиморфен, поэтому решение берётся по
-    // КОНКРЕТНОМУ классу каждой строки: запрещённые потомки выпадают из выборки, у каждого
-    // разрешённого свой row-предикат. Иначе deny на потомке обходился бы шагом по родителю.
-    if (ctx.aclDecide) {
-      const own = ctx.aclDecide(step.cls, 'READ');
-      const allowed: string[] = [];
-      for (const id of family) {
-        const cd = ctx.registry.find(id);
-        if (!cd) continue;
-        const d = id === step.cls.id ? own : ctx.aclDecide(cd, 'READ');
-        if (!d.allow) continue;
-        allowed.push(id);
-        if (d.filter) aclFrags.set(id, rowTemplateFrags(d.filter, p));
+      if (dead) fail('deep() и withDeleted() не сочетаются');
+      const maxPh = `${p.push(step.deepMax)}::int`;
+      let deepSrc = `${S}.find_deep(${clsPh}, ${rolesPh}, ${srcArr}, ${maxPh}, ${atPh})`;
+      if (opts.direct) {
+        // тот же обход под RLS: невидимый узел обрывает поддерево политикой
+        const node = cur ? `${S}.entity` : `(select w.id, w.rev, w.links from ${versionsAt(atPh, `l.class = any (${clsPh})`)} w where w.op not in ('delete', 'purge', 'trim', 'reset'))`;
+        const hasSrc = (v: string, src: string) => (cur ? `${v}.ends @> array[${src}]` : `${S}.link_ids(${v}.links) @> array[${src}]`);
+        const cls = (v: string) => (cur ? ` and ${v}.class = any (${clsPh})` : '');
+        deepSrc = `(with recursive d(src, id, rev, depth, seen) as (`
+          + `select s.src, v.id, v.rev, 1, array[s.src, v.id] from ${srcs} join ${node} v on ${hasSrc('v', 's.src')} where true${cls('v')}${rolesCond('v', 's.src')} `
+          + `union all select d.src, v.id, v.rev, d.depth + 1, d.seen || v.id from d join ${node} v on ${hasSrc('v', 'd.id')} `
+          + `where d.depth < ${maxPh} and not (v.id = any (d.seen))${cls('v')}${rolesCond('v', 'd.id')}) `
+          + `select distinct on (d.src, d.id) d.src, d.id, d.rev, d.depth from d order by d.src, d.id, d.depth)`;
       }
-      // ни один класс семейства не разрешён — отказ шага (как было для одиночного класса)
-      if (!allowed.length) throw aclDenied('READ', step.cls.id, own);
-      classes = allowed;
-    }
-    // предикат WRITE/DELETE-правила (поиск целей записи): только свои строки
-    if (step.aclFilter) {
-      for (const fr of rowTemplateFrags(step.aclFilter, p)) {
-        f.candFrags.push(fr);
-        f.finalFrags.push(fr);
-      }
-    }
-
-    // Условие по классу: один класс → быстрое равенство (план не меняется); семейство →
-    // OR-ветви, каждая со своим ACL-предикатом. Ставится и во внутренний WHERE, и в
-    // перепроверку на актуальной версии (finalFrags) — иначе предикат обходится версиями.
-    const poly = classes.length > 1;
-    const clsPh = new Map(classes.map((id) => [id, p.push(id)]));
-    const classFrag: Frag = (a) =>
-      classes
-        .map((id) => {
-          const preds = (aclFrags.get(id) ?? []).map((fr) => fr(a));
-          const eq = `${a}.class = ${clsPh.get(id)}`;
-          return preds.length ? `(${eq} AND ${preds.join(' AND ')})` : eq;
-        })
-        .join(' OR ');
-    const classCond: Frag = poly || aclFrags.size ? (a) => `(${classFrag(a)})` : classFrag;
-    // ТОЛЬКО в finalFrags: в candFrags нельзя — иначе кандидатный подзапрос появлялся бы
-    // на КАЖДОМ запросе (условие по классу непустое всегда), а он нужен лишь когда есть
-    // GIN-предикаты. В основной скан условие попадает через innerWhere ниже.
-    f.finalFrags.push(classCond);
-
-    const innerWhere = [`e.partition = ${pPart}`, classCond('e')];
-    if (mods.asOf !== undefined) innerWhere.push(`e.updated <= ${p.push(mods.asOf)}::timestamptz`); // «как было на T»
-    // versions/.withDeleted(): последний шаг включает и удалённые (история/tombstone видны после delete).
-    // Снимается ТОЛЬКО фильтр deleted — enforceAccount/enforceAcl/контекст-фраги ниже действуют (изоляция цела).
-    const keepDeleted = i === steps.length - 1 && (mode === 'versions' || mods.withDeleted === true);
-    const outerWhere = [keepDeleted ? 'TRUE' : 't.deleted IS NULL'];
-    const candWhere: string[] = f.candFrags.map((fr) => fr('c'));
-
-    for (const c of f.idConds) innerWhere.push(c('e'));
-    for (const fr of f.finalFrags) outerWhere.push(fr('t'));
-
-    const isDeep = step.deepMax !== undefined;
-    if (i > 0 && !isDeep) { // deep строит containment сам (recursive CTE)
-      const prev = steps[i - 1];
-      const prevAlias = `h${real[i - 1]}`; // pivot: ветвление от узла-возврата
-      const hop = resolveHop(prev.cls, step.cls);
-      // ключи Entity.links — ВСЕГДА конкретные id классов, не родительские. Поэтому при
-      // полиморфном шаге ключ берётся из колонки class самой строки, а не из литерала.
-      const prevPoly = prev.cls.descendants.length > 0;
-      if (hop === 'forward') {
-        // id неизменен — условие сразу во внутренний WHERE, перепроверка не нужна
-        innerWhere.push(
-          poly
-            ? `${prevAlias}.links @> jsonb_build_object(e.class::text, e.id)`
-            : `e.id = ${prevAlias}.links->>${p.push(step.cls.id)}`,
-        );
-      } else {
-        // reverse containment: кандидаты по GIN + перепроверка на latest
-        const key = prevPoly ? `${prevAlias}.class::text` : `${p.push(prev.cls.id)}::text`;
-        candWhere.push(`c.links @> jsonb_build_object(${key}, ${prevAlias}.id)`);
-        outerWhere.push(`t.links @> jsonb_build_object(${key}, ${prevAlias}.id)`);
-      }
-    }
-
-    if (candWhere.length) {
-      // подзапрос кандидатов нужен только при GIN-предикатах; класс добавляем здесь, а не
-      // через candFrags. При семействе id не уникален между классами → сопоставляем (class, id)
-      const cand = [classCond('c'), ...candWhere].join(' AND ');
-      innerWhere.push(
-        poly
-          ? `(e.class, e.id) IN (SELECT c.class, c.id FROM ${ent} c WHERE c.partition = ${pPart} AND ${cand})`
-          : `e.id IN (SELECT c.id FROM ${ent} c WHERE c.partition = ${pPart} AND ${cand})`,
-      );
-    }
-
-    // «актуальная версия» — по (class, id) при семействе: один id может жить в разных классах
-    const dedupe = poly ? 'e.class, e.id' : 'e.id';
-    let block =
-      `(SELECT * FROM (` +
-      `SELECT DISTINCT ON (${dedupe}) e.* FROM ${ent} e WHERE ${innerWhere.join(' AND ')} ` +
-      `ORDER BY ${dedupe}, e.updated DESC` +
-      `) t WHERE ${outerWhere.join(' AND ')}) h${i}`;
-
-    // .deep(): рекурсивный обход детей того же класса (recursive CTE поверх latest-паттерна)
-    if (isDeep) {
-      const prev = steps[i - 1];
-      if (i === 0 || prev.cls.id !== step.cls.id) {
-        throw new Error('letopis: .deep() works on a self hop (same class as previous step)');
-      }
-      const pMax = p.push(step.deepMax);
-      // latest живые дети узла ref (id-выражение родителя); refCls — класс родителя:
-      // ключ links конкретен, поэтому при семействе берём его из колонки, а не из литерала
-      const kids = (ref: string, refCls: string) => {
-        const key = poly ? `${refCls}::text` : `${p.push(step.cls.id)}::text`;
-        return (
-          `(SELECT * FROM (` +
-          `SELECT DISTINCT ON (${dedupe}) e.* FROM ${ent} e WHERE e.partition = ${pPart} AND ${classCond('e')}` +
-          (mods.asOf !== undefined ? ` AND e.updated <= ${p.push(mods.asOf)}::timestamptz` : '') +
-          ` AND e.id IN (SELECT c.id FROM ${ent} c WHERE c.partition = ${pPart} AND ${classCond('c')}` +
-          ` AND c.links @> jsonb_build_object(${key}, ${ref}))` +
-          ` ORDER BY ${dedupe}, e.updated DESC) t` +
-          ` WHERE t.deleted IS NULL AND t.links @> jsonb_build_object(${key}, ${ref}))`
-        );
+      ctes.push(`p${i} as (select q.src, q.id, q.rev, q.depth from ${deepSrc} q)`);
+      parts.push(cur
+        ? entityPart(undefined, 'd.depth', `${S}.entity x join (select q.id, min(q.depth) as depth from p${i} q group by q.id) d on d.id = x.id`)
+        : `select ${colsOf('x')}, d.depth from ${S}.log x join (select q.id, q.rev, min(q.depth) as depth from p${i} q group by q.id, q.rev) d `
+          + `on d.id = x.id and d.rev = x.rev where ${where('x')}`);
+    } else if (hop.dir === 'forward') {
+      // цели лежат в концах строк предыдущего узла
+      ctes.push(`p${i} as (select s.id as src, d.id from n${a} s cross join lateral unnest(${S}.role_ids(s.links, ${rolesPh})) d(id))`);
+      const ids = `array(select distinct q.id from p${i} q)`;
+      if (cur) parts.push(entityByIds(`select q.id from p${i} q`));
+      else parts.push(logPart(`select f.id, f.rev from ${findIds(ids, atPh, false)} f`));
+      if (dead) parts.push(logPart(`select f.id, f.rev from ${findIds(ids, atPh, true)} f`));
+    } else {
+      const hopCall = (at: string, isDead: boolean): string => {
+        if (!opts.direct) return `${S}.find_hop(${clsPh}, ${dataP()}, ${endsP()}, ${rolesPh}, ${srcArr}, ${at}, ${isDead})`;
+        if (at === 'null' && !isDead) {
+          return `(select s.src, v.id, v.rev from ${srcs} join ${S}.entity v on v.ends @> array[s.src] `
+            + `where v.class = any (${clsPh})${dataCond('v')}${endsCond('v.ends')}${rolesCond('v', 's.src')})`;
+        }
+        return `(select s.src, v.id, v.rev from ${versionsAt(at, `l.class = any (${clsPh})`)} v `
+          + `cross join lateral unnest(${S}.link_ids(v.links)) t(x) join ${srcs} on s.src = t.x `
+          + `where (v.op = 'delete') = ${isDead} and v.op not in ('purge', 'trim', 'reset')${dataCond('v')}${endsCond(`${S}.link_ids(v.links)`)}${rolesCond('v', 's.src')})`;
       };
-      const prevA = `h${real[i - 1]}`;
-      block =
-        `(WITH RECURSIVE d AS (` +
-        `SELECT k.*, 1 AS depth FROM ${kids(`${prevA}.id`, `${prevA}.class`)} k` +
-        ` UNION ALL ` +
-        `SELECT k.*, d.depth + 1 FROM d JOIN LATERAL ${kids('d.id', 'd.class')} k ON true WHERE d.depth < ${pMax}::int` +
-        `) SELECT * FROM d) h${i}`;
+      ctes.push(`p${i}a as (select q.src, q.id, q.rev from ${hopCall(atPh, false)} q)`);
+      parts.push(cur ? entityByIds(`select q.id from p${i}a q`) : logPart(`select q.id, q.rev from p${i}a q`));
+      if (dead) {
+        ctes.push(`p${i}d as (select q.src, q.id, q.rev from ${hopCall(atPh, true)} q)`);
+        parts.push(logPart(`select q.id, q.rev from p${i}d q`));
+        ctes.push(`p${i} as (select src, id from p${i}a union all select src, id from p${i}d)`);
+      } else {
+        ctes.push(`p${i} as (select src, id from p${i}a)`);
+      }
     }
-
-    blocks.push(i === 0 ? `FROM ${block}` : `JOIN LATERAL ${block} ON true`);
+    ctes.push(`n${i} as (${parts.join(' union all ')})`);
+    joins.push(`join p${i} on p${i}.src = h${a}.id join n${i} h${i} on h${i}.id = p${i}.id`);
   }
 
-  // END_BLOCK_BUILD_STEP_LOOP
-  const fromClause = blocks.join('\n');
-  const last = real[steps.length - 1]; // pivot в конце → терминал на его узле
-  const lastCls = steps[steps.length - 1].cls;
-  /** Последний шаг полиморфен (есть потомки и не снят .exact()) — уникальность по (class, id). */
-  const lastPoly = !steps[steps.length - 1].exactClass && lastCls.descendants.length > 0;
-
-  // ключи шагов в путях: alias → имя вызова; pivot узла не добавляет; дубликаты — _2, _3…
-  const keyed: { key: string; block: number }[] = [];
+  // ключи шагов в путях
+  const keyed: { key: string; node: number }[] = [];
   const seen = new Map<string, number>();
-  for (let i = 0; i < steps.length; i++) {
-    const s = steps[i];
-    if (s.pivotKey !== undefined) continue;
+  steps.forEach((s, i) => {
+    if (s.pivotKey !== undefined) return;
     const base = s.aliasKey ?? s.name;
     const n = (seen.get(base) ?? 0) + 1;
     seen.set(base, n);
-    keyed.push({ key: n === 1 ? base : `${base}_${n}`, block: i });
+    keyed.push({ key: n === 1 ? base : `${base}_${n}`, node: i });
+  });
+
+  const from = `from n0 h0${joins.length ? ' ' + joins.join(' ') : ''}`;
+  const whereOf = (conds: (string | undefined)[]) => {
+    const list = conds.filter((c): c is string => !!c);
+    return list.length ? ` where ${list.join(' and ')}` : '';
+  };
+  // Без возвратов к узлам каждая строка узла получена из строк предыдущего, уже отфильтрованного
+  // узла, поэтому последний узел — ровно сущности полных путей, и соединять узлы не нужно.
+  // Возврат ветвит путь от прежнего узла: тогда сущности последнего шага — через соединение путей.
+  const single = tail.length === 0 && !steps.some((st) => st.pivotKey !== undefined);
+  const ents = single ? `n${lastNode}` : `(select z0.* from n${lastNode} z0 where z0.id in (select h${lastNode}.id ${from}${whereOf(tail)}))`;
+  const leaf = (path: string[]) => leafOf(reg, rowsNode(lastNode), path);
+  const sort = mods.order ? sortSpec(mods.order, leaf) : undefined;
+  const dir = mods.desc ? ' desc' : '';
+  const orderBy = (a: string) => (sort ? ` order by ${sort.expr(a)}${dir}, ${a}.id${dir}` : '');
+  const after = (a: string) => {
+    if (!mods.after) return undefined;
+    if (!sort) fail('after(cursor) требует sort(поле)');
+    const c = cursorParams(mods.after, sort!);
+    if (!sort!.nullable) return `(${sort!.expr(a)}, ${a}.id) ${mods.desc ? '<' : '>'} (${p.push(c.v)}${sort!.pcast}, ${p.push(c.id)}::uuid)`;
+    // Поле данных бывает null (или его нет): order by ставит такие строки в конец при возрастании и в
+    // начало при убывании, а сравнение строк с null даёт null — одно сравнение их теряло, курсор null
+    // давал пустую страницу. Здесь null — значение после всех прочих (asc) или перед ними (desc); текст
+    // один на оба вида курсора (параметр — с явным приведением: он стоит и в is null).
+    const e = `(${sort!.expr(a)})`;
+    const v = `${p.push(c.v)}${sort!.pcast || '::text'}`;
+    const id = `${p.push(c.id)}::uuid`;
+    return mods.desc
+      ? `((${e}, ${a}.id) < (${v}, ${id}) or (${v} is null and (${e} is not null or ${a}.id < ${id})))`
+      : `((${e}, ${a}.id) > (${v}, ${id}) or (${e} is null and (${v} is not null or ${a}.id > ${id})))`;
+  };
+  const limitOffset = () =>
+    (mods.limit !== undefined ? ` limit ${p.push(mods.limit)}::bigint` : '') + (mods.offset !== undefined ? ` offset ${p.push(mods.offset)}::bigint` : '');
+  // versions({ follow: true }): id, связанные колонкой moved (reclass, rekey), в обе стороны
+  if (mode === 'versions' && mods.follow) {
+    ctes.push(`f(id) as (select z.id from ${ents} z union select x.id from f cross join lateral (`
+      + `select l.moved as id from ${S}.log l where l.id = f.id and l.moved is not null `
+      + `union select l.id from ${S}.log l where l.moved = f.id) x)`);
   }
-  const keys = keyed.map((k) => k.key);
+  const withClause = `with ${mode === 'versions' && mods.follow ? 'recursive ' : ''}${ctes.join(',\n')}\n`;
 
-  const limitOffset =
-    (mods.limit !== undefined ? ` LIMIT ${p.push(mods.limit)}` : '') +
-    (mods.offset !== undefined ? ` OFFSET ${p.push(mods.offset)}` : '');
-
-  // START_BLOCK_BUILD_MODE_SQL
   let text: string;
+  let aggLeaf: LeafType | undefined;
   switch (mode) {
     case 'paths': {
-      const obj = keyed.map(({ key, block }) => `${p.push(key)}::text, to_jsonb(h${block})`).join(', ');
-      text =
-        `SELECT jsonb_build_object(${obj}) AS path\n${fromClause}` +
-        whereOf([...tailConds, afterExpr(`h${last}`, lastCls, mods, p)]) +
-        orderExpr(`h${last}`, lastCls, mods) +
-        limitOffset;
+      const obj = keyed.map(({ key, node }) => `${lit(key)}::text, to_jsonb(h${node})`).join(', ');
+      const h = `h${lastNode}`;
+      text = `${withClause}select jsonb_build_object(${obj}) as path ${from}${whereOf([...tail, after(h)])}${orderBy(h)}${limitOffset()}`;
       break;
     }
     case 'rows':
-    case 'ids': {
-      // при полиморфном последнем шаге уникальность сущности — пара (class, id)
-      const key = lastPoly ? `h${last}.class, h${last}.id` : `h${last}.id`;
-      const inner =
-        `SELECT DISTINCT ON (${key}) h${last}.* \n${fromClause}${whereOf(tailConds)}\n` +
-        `ORDER BY ${key}, h${last}.updated DESC`;
-      const sel = mode === 'rows' ? 'to_jsonb(z) AS row' : 'z.id';
-      text =
-        `SELECT ${sel} FROM (${inner}) z` +
-        whereOf([afterExpr('z', lastCls, mods, p)]) +
-        orderExpr('z', lastCls, mods) +
-        limitOffset;
+    case 'ids':
+      text = `${withClause}select ${mode === 'rows' ? 'to_jsonb(z) as row' : 'z.id'} from ${ents} z${whereOf([after('z')])}${orderBy('z')}${limitOffset()}`;
       break;
-    }
-    case 'versions': {
-      // ВСЕ версии (включая tombstone) сущностей последнего шага, по возрастанию updated
-      // класс берём из найденной строки (а не литералом): при полиморфном шаге история
-      // собирается по КАЖДОМУ конкретному классу-потомку
-      const inner = `SELECT DISTINCT h${last}.class, h${last}.id \n${fromClause}${whereOf(tailConds)}`;
-      text =
-        `SELECT to_jsonb(v) AS row FROM (${inner}) z ` +
-        `JOIN ${ent} v ON v.partition = ${pPart} AND v.class = z.class AND v.id = z.id ` +
-        `ORDER BY v.class, v.id, v.updated` +
-        limitOffset;
-      break;
-    }
     case 'count':
-      text = `SELECT count(*)::int AS n\n${fromClause}${whereOf(tailConds)}`;
+      text = `${withClause}select count(*)::int as n from ${ents} z`;
+      break;
+    case 'countPaths':
+      text = `${withClause}select count(*)::int as n ${from}${whereOf(tail)}`;
+      break;
+    case 'versions':
+      // с follow — по времени через все связанные id; без — по id и номеру версии
+      text = mods.follow
+        ? `${withClause}select to_jsonb(v) as row from (select ${colsOf('l')}, null::int as depth from ${S}.log l `
+          + `where l.id in (select f.id from f)) v order by v.at, v.id, v.rev${limitOffset()}`
+        : `${withClause}select to_jsonb(v) as row from (select ${colsOf('l')}, null::int as depth from ${S}.log l `
+          + `where l.id in (select z.id from ${ents} z)) v order by v.id, v.rev${limitOffset()}`;
       break;
     case 'agg': {
-      const { aggFn, aggField } = mods;
-      if (!aggFn || !aggField?.startsWith('data.')) {
-        throw new Error("letopis: aggregation needs field 'data.<путь>'");
-      }
-      const path = aggField.slice(5).split('.');
-      const acc = accessor(path)(`h${last}`); // data-путь любой глубины
-      if (aggFn === 'countBy') {
-        text = `SELECT ${acc} AS k, count(*)::int AS n\n${fromClause}${whereOf(tailConds)}\nGROUP BY 1 ORDER BY 2 DESC`;
+      if (!agg || !agg.field.startsWith('data.')) fail("агрегат по полю 'data.<путь>'");
+      const path = agg!.field.slice(5).split('.');
+      const acc = accessor(path)('z');
+      aggLeaf = leaf(path);
+      if (agg!.fn === 'countBy') {
+        text = `${withClause}select ${acc} as k, count(*)::int as n from ${ents} z group by 1 order by 2 desc, 1`;
       } else {
-        // sum/avg — всегда numeric; min/max — по типу листа
-        const cast = aggFn === 'sum' || aggFn === 'avg' ? '::numeric' : castOf(leafType(lastCls, path));
-        text = `SELECT ${aggFn}((${acc})${cast}) AS v\n${fromClause}${whereOf(tailConds)}`;
+        const cast = agg!.fn === 'sum' || agg!.fn === 'avg' ? '::numeric' : CAST[aggLeaf];
+        text = `${withClause}select ${agg!.fn}((${acc})${cast}) as v from ${ents} z`;
       }
       break;
     }
   }
-
-  // END_BLOCK_BUILD_MODE_SQL
-  return { text, params: p.list, keys };
+  return { text: text!.replaceAll('@S@', S), params: p.list, keys: keyed.map((k) => k.key), aggLeaf };
 }
 
-// START_CONTRACT: insertSql
-//   PURPOSE: SQL одиночного INSERT новой версии/tombstone ($9 = updated прошлой версии, $10 = deleted).
-//   INPUTS: { pgSchema: string }
-//   OUTPUTS: { string - INSERT ... RETURNING * }
-//   SIDE_EFFECTS: none
-//   LINKS: M-SQL, V-M-SQL, M-DDL
-// END_CONTRACT: insertSql
-/** INSERT новой версии/tombstone. $9 = updated прошлой версии (или null), $10 = deleted. */
-export function insertSql(pgSchema: string): string {
-  return (
-    `INSERT INTO ${entityTable(pgSchema)} ` +
-    `(partition, id, class, data, links, tags, account, owner, updated, deleted) ` +
-    `VALUES ($1, $2, $3, $4, $5, $6, $7, $8, ` +
-    `CASE WHEN $9::timestamptz IS NULL THEN clock_timestamp() ` +
-    `ELSE GREATEST(clock_timestamp(), $9::timestamptz + interval '1 microsecond') END, $10) ` +
-    `RETURNING *`
-  );
-}
-
-/** Мульти-INSERT новых строк (батч): n строк × 8 параметров, updated/deleted по умолчанию. */
-export function multiInsertSql(pgSchema: string, n: number): string {
-  const rows: string[] = [];
-  for (let i = 0; i < n; i++) {
-    const b = i * 8;
-    rows.push(`($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4}, $${b + 5}, $${b + 6}, $${b + 7}, $${b + 8})`);
-  }
-  return (
-    `INSERT INTO ${entityTable(pgSchema)} ` +
-    `(partition, id, class, data, links, tags, account, owner) ` +
-    `VALUES ${rows.join(', ')} RETURNING *`
-  );
-}
-
-/**
- * Серверное удаление: DELETE перехватывает триггер entity_delete —
- * tombstone актуальной живой версии + рекурсивный каскад по links, всё в БД.
- * $1 partition, $2 class, дальше — id-шники.
- */
-// START_CONTRACT: deleteSql
-//   PURPOSE: SQL серверного удаления n сущностей — триггер entity_delete делает tombstone + рекурсивный каскад.
-//   INPUTS: { pgSchema: string; n: number }
-//   OUTPUTS: { string - DELETE ... WHERE id IN (...) }
-//   SIDE_EFFECTS: none
-//   LINKS: M-SQL, V-M-SQL, M-DDL
-// END_CONTRACT: deleteSql
-export function deleteSql(pgSchema: string, n: number): string {
-  const ids = Array.from({ length: n }, (_, i) => `$${i + 3}`).join(', ');
-  return `DELETE FROM ${entityTable(pgSchema)} WHERE partition = $1 AND class = $2 AND id IN (${ids})`;
-}
-
-/**
- * Замыкание удаления: цели + все живые зависимые рекурсивно (то, что каскад затомбстоунит).
- * Рекурсивный CTE; каждый узел — актуальная живая версия. $1 partition, $2 class, $3+ — ids.
- */
-// START_CONTRACT: closureSql
-//   PURPOSE: Рекурсивный CTE: цели + все живые зависимые (то, что затомбстоунит каскад entity_delete).
-//   INPUTS: { pgSchema: string; n: number }
-//   OUTPUTS: { string - WITH RECURSIVE ... }
-//   SIDE_EFFECTS: none
-//   LINKS: M-SQL, V-M-SQL, M-DDL
-// END_CONTRACT: closureSql
-export function closureSql(pgSchema: string, n: number): string {
-  const ent = entityTable(pgSchema);
-  const ids = Array.from({ length: n }, (_, i) => `$${i + 3}`).join(', ');
-  return (
-    `WITH RECURSIVE node AS (
-       SELECT * FROM (
-         SELECT DISTINCT ON (e.id) e.* FROM ${ent} e
-         WHERE e.partition = $1 AND e.class = $2 AND e.id IN (${ids})
-         ORDER BY e.id, e.updated DESC
-       ) t WHERE t.deleted IS NULL
-       UNION
-       SELECT dep.* FROM node n
-       JOIN LATERAL (
-         SELECT * FROM (
-           SELECT DISTINCT ON (e2.class, e2.id) e2.* FROM ${ent} e2
-           WHERE e2.partition = $1
-             AND (e2.class, e2.id) IN (
-               SELECT c.class, c.id FROM ${ent} c
-               WHERE c.partition = $1 AND c.links @> jsonb_build_object(n.class, n.id))
-           ORDER BY e2.class, e2.id, e2.updated DESC
-         ) x WHERE x.deleted IS NULL AND x.links @> jsonb_build_object(n.class, n.id)
-       ) dep ON true
-     )
-     SELECT DISTINCT ON (class, id) * FROM node ORDER BY class, id, updated DESC`
-  );
-}
-
-/**
- * Вызов серверной purge(): $4 dry → превью (актуальные версии замыкания, БД цела), иначе двухфазный
- * физический снос корня+поддерева. RETURNS SETOF Entity (по строке на сущность). Вся логика
- * (замыкание, двухфазность, отключение триггера через SET LOCAL) — в БД. $1 partition, $2 class, $3 id, $4 dry.
- */
-// START_CONTRACT: purgeCallSql
-//   PURPOSE: SQL-обёртка вызова серверной purge() (снос/превью) — вся логика в БД, JS лишь зовёт.
-//   INPUTS: { pgSchema: string }
-//   OUTPUTS: { string - SELECT * FROM "<schema>".purge($1,$2,$3,$4) }
-//   SIDE_EFFECTS: none
-//   LINKS: M-SQL, V-M-SQL, M-DDL, M-WRITE
-// END_CONTRACT: purgeCallSql
-export function purgeCallSql(pgSchema: string): string {
-  return `SELECT * FROM ${escId(pgSchema)}.purge($1, $2, $3, $4)`;
+/** Строка из to_jsonb(узла): служебные поля в $deleted / $depth, пустые необязательные — без ключа. */
+export function toRow(raw: Record<string, unknown>): Row {
+  const { depth, agent, reason, moved, ...rest } = raw;
+  const row = rest as unknown as Row;
+  if (agent != null) row.agent = agent as string;
+  if (reason != null) row.reason = reason as string;
+  if (moved != null) row.moved = moved as string;
+  if (row.op === 'delete') row.$deleted = true;
+  if (depth != null) row.$depth = depth as number;
+  return row;
 }

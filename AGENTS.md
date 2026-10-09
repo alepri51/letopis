@@ -1,121 +1,87 @@
-# AGENTS.md — letopis
+# letopis — карта для агента
+> Загружен автоматически через `@AGENTS.md` в CLAUDE.md — перечитывать не нужно.
+> Карта говорит, где смотреть; истина — код. Нашёл расхождение — поправь карту в том же изменении.
 
-**Annotation:** letopis — темпоральное, версионируемое хранилище сущностей поверх PostgreSQL/TimescaleDB с цепочечным graph-query API, реестром схемы из БД и встроенными auth, ACL и сессиями.
+## Паспорт
+**letopis 1.0.0 — текущий выпуск**: `main`, тег `v1.0.0`, npm `latest`; разработка — в ветке `dev`. Версия — в `lib/package.json` (= верхняя запись `lib/CHANGELOG.md`); версии с дефисом (`1.1.0-rc.1`) уходят в npm под dist-tag `next`. Выпуск — только по команде владельца. Спецификация 1.0 — `reports/PLAN-LETOPIS-1.0.md` (редакция 8, выполнена): девять этапов, контрольные точки А, Б, В.
+npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) — хранилище версионированных сущностей на PostgreSQL 18: три таблицы (`entity`, `log`, `secret`), целостность, арендаторы и права проверяет база (триггеры и RLS), поверх — цепочки `t.Класс(фильтр).Связь().rows()`. Рантайм-зависимость одна — `postgres`; необязательные peer-зависимости: Zod 4 (`letopis/model`), `@electric-sql/pglite` и `@electric-sql/pglite-socket` (`up({ pglite })` для разработки без PostgreSQL). CLI `letopis`: `sync`, `types`, `load`, `verify`, `maintain`, `describe`, `import` (`lib/src/cli.ts`).
+Код 0.21 доступен по тегу: `git show v0.21.0:lib/src/sql.ts`. Эталоны 0.21 для дифференциальных тестов — `lib/test/oracle/`; переход с 0.21 — `lib/MIGRATION.md`.
 
-**Keywords:** temporal database, versioned entities, event history, graph traversal, chainable query, schema registry, fastest-validator, acl, authentication, sessions, postgres, timescaledb, redis.
+## Протокол
+1. Модуль — по таблице «Модули»; входные файлы — сразу в Read, без обхода каталогов.
+2. «Как работает X» — сначала трасса `docs/atlas/F-*.md` (все описывают 1.0), затем код; решения и их причины — план (§2 решения, этап в §5).
+3. Карточка модуля подмешивается сама при Read его файла: инварианты, «что ещё менять», побочки, проверка.
+4. Поиск — субагентом `atlas-scout`. Если всё же Explore/Plan — вставь в промпт нужные строки «Модули» и «Омонимы»: встроенные агенты не видят CLAUDE.md.
+5. Ответ — со ссылками `путь:символ`, проверенными в этой сессии; поведение кода отделяй от планов в документах.
+6. Изменил поведение, побочки, инвариант или связь модуля — обнови его карточку и трассу в том же изменении, `synced` — на новый HEAD.
+7. Не читай «Не читать».
+8. Параллельные правки: модуль — единица write-scope; общие файлы правит один исполнитель.
 
----
+## Процессы и режимы
+| Процесс | Где | Режим | Вход |
+|---|---|---|---|
+| Тесты | `cd lib && npm test` (concurrency 1) | обвязка сама поднимает контейнер `letopis-pg18` (`postgres:18`, порт 15433); `ENTITY_DSN`, `ENTITY_APP_DSN`; схема `v2.t_<файл>` на тестовый файл | `lib/test/_harness.ts` |
+| Сверка документов | `cd lib && npm run check:docs` | без БД: версия, ссылки и якоря, управляющие символы, раздел «Тесты» README (ru, en), ревизия, бенч, контракт API, зарезервированные имена, структура и английские версии | `lib/scripts/check-docs.mjs` |
+| Проверка пакета | `cd lib && npm run check:package` | собирает тарбол, ставит в чистую папку, импортирует экспорты из контракта, живой прогон на `ENTITY_DSN` (`LETOPIS_PKG_LIVE=1` — обязателен) | `lib/scripts/check-package.mjs` |
+| Импорт полигона 0.21 | `cd lib && npm run test:import-salon` | засевка 0.21, `up({ fresh })` 1.0, импорт, сверка объектов и версий, `verify()`; код 1 при расхождении | `lib/bench/import-salon.mjs` |
+| Бенч против 0.21 | `cd lib && npx tsx bench/compare.bench.mjs` (`BENCH_SCALE=0.1` — быстро) | 0.21 — dev-зависимость `letopis-0` (`npm:letopis@0.21.0`) на контейнере `letopis-timescale`, порт 15432; итог — `bench/results/compare.md` | `lib/bench/compare.bench.mjs` |
+| GitHub Actions | `.github/workflows/` | ci — push в dev (typecheck, check:docs, тесты на `postgres:18`, check:package); tag — push в main; release — published (npm, dist-tag `next` для версий с дефисом, проверка пакета из реестра) | `docs/atlas/F-RELEASE.md` |
 
-## Documentation layer (codescribe)
+## Модули
+Набор 1.0 (план §4). Карточка — `.claude/rules/atlas/<ID>.md`.
+| ID | Суть | Вход | Этапы |
+|---|---|---|---|
+| M-ENGINE | таблицы, роли, триггеры, классы, `merge`, `inc`, каскад, `reclass`, журнал, хэши, `verify`, коды ошибок, ревизия движка | `lib/sql/10-core.sql`, `lib/sql/15-errors.sql`, `lib/sql/40-class.sql`, `lib/sql/60-write.sql`, `lib/sql/99-revision.sql` | 1 |
+| M-VALIDATE | v5, JSON Schema → jsonpath, валидатор на TypeScript | `lib/sql/30-validate.sql`, `lib/src/validate.ts`, `lib/src/jsonschema.ts` | 1, 2 |
+| M-ACCESS | контекст, сессии, RLS, ACL, креды, вход | `lib/sql/20-context.sql`, `lib/sql/50-acl.sql`, `lib/sql/80-auth.sql`, `lib/src/auth.ts`, `lib/src/acl.ts` | 1, 5 |
+| M-MODEL | `letopis/model`, реестр, CLI | `lib/src/model.ts`, `lib/src/registry.ts`, `lib/src/sync.ts`, `lib/src/cli.ts`, `lib/src/uuid.ts` | 2 |
+| M-QUERY | `find_ids()`, срез `log_refs_at`, построитель чтения | `lib/sql/70-read.sql`, `lib/src/sql.ts`, `lib/src/ops.ts` | 3, 6 |
+| M-WRITE | планы, батч, транзакции, загрузчик | `lib/src/write.ts`, `lib/src/tx.ts`, `lib/src/load.ts` | 4 |
+| M-API | `connect`, Proxy цепочек, ошибки, охранники, типы цепочек | `lib/src/index.ts`, `lib/src/chain.ts`, `lib/src/errors.ts`, `lib/src/typed.ts` | 2–4 |
+| M-TIME | история, хранение, подписка, кэш результатов, `reset`, `maintain` | `lib/sql/90-time.sql`, `lib/src/watch.ts`, `lib/src/admin.ts`, `lib/src/cache.ts` | 6 |
+| M-BOOTSTRAP | установщик, `up()`, PGlite | `lib/src/up.ts`, `lib/src/pglite.ts` | 1, 6 |
+| M-SEEDS | системный сид, демо-домен | `lib/sql/95-seed.system.sql`, `lib/src/demo/booking.ts`, `lib/sql/seed.booking.sql`, `lib/scripts/gen-seed-booking.mjs` | 1, 2, 5 |
+| M-IMPORT | импорт из 0.21 | `lib/src/import.ts`, `lib/test/fixtures/gen-v021.mjs` | 7 |
+| M-RELEASE | CI, тег, релиз, check-docs, check-package, контракт API | `lib/scripts/check-docs.mjs`, `lib/scripts/check-package.mjs`, `lib/scripts/gen-api-contract.mjs`, `.github/workflows/` | 0, 8 |
+| M-TESTS | обвязка и наборы | `lib/test/_harness.ts`, `lib/test/_engine.ts` | все |
+| M-BENCH | замеры точки А и бенч против 0.21 | `lib/bench/` | 1, 7 |
 
-Этот репозиторий несёт **codescribe**-слой документации: он делает библиотеку навигируемой для LLM между сессиями. Слой из двух половин.
+## Омонимы
+Слова, сменившие смысл в 1.0 (в 0.21, MIGRATION и старых отчётах — прежний).
+- `count()` — число сущностей последнего шага; число путей — `count({ paths: true })` (`lib/src/chain.ts:ChainCore`).
+- `history` — свойство класса: `true`/`false` (вести ли журнал) или политика хранения по уровням (`lib/sql/40-class.sql`); обрезка вручную — `db.trimHistory`, `compact()` снят.
+- `purge()` — глагол цепочки: стирание истории уже удалённой сущности (сначала `delete()`, иначе `not_deleted`; удалённые цепочка находит сама — `lib/src/write.ts:deletedTargets`, `:purgeOp`); удаление аккаунта — `db.auth.purgeAccount`.
+- `partition` — нет: опция `connect({ partition })` снята, установки разделяются схемами `v2.<имя>` (`lib/src/index.ts:REMOVED_OPTIONS`); `--partition` остался только у `letopis import` — раздел источника 0.21.
+- `account` — арендатор сессии (вход и `auth.switch()`); шаг цепочки `.account()` снят охранником (`lib/src/chain.ts`).
+- Новое: `db.load()` — массовая загрузка (`lib/src/load.ts`); `upsert()` — создать или заменить целиком по ключу; `cache` — кэш результатов (`.cache()` в цепочке, `connect({ cache })`, `db.cache`, свойство класса `cache { ttl }`); `meta` — свободные метаданные класса и связи в реестре, база их не толкует.
 
-### 1. Shared artifacts — `docs/*.xml`
-Публичная карта проекта. Читай их ПЕРЕД работой с кодом.
+## Общие файлы
+- `lib/src/types.ts` — общие типы, списки методов цепочки, корня и батча (`CHAIN_METHODS`, `DB_METHODS`, `BATCH_METHODS`), `DDL_REVISION`; правит один исполнитель.
+- `lib/package.json` — версия (обязана совпадать с верхней записью CHANGELOG и `package-lock.json`), scripts, `files`, `exports`; `lib/tsconfig.json` (проверка типов, включая тесты), `lib/tsconfig.build.json` (сборка `src`).
+- `.gitignore`, `.gitattributes`, `LICENSE` == `lib/LICENSE`.
 
-> **`VERSION` в `docs/*.xml` и в шапках файлов — версия СЛОЯ ДОКУМЕНТАЦИИ, не пакета.**
-> semver библиотеки живёт ровно в двух местах: `lib/package.json` и верхняя запись
-> `lib/CHANGELOG.md` (их совпадение проверяет `lib/scripts/check-docs.mjs`).
+## Сквозные правила
+- Деплой (CLAUDE.md): пуш только в dev → PR dev→main → merge → тег (tag.yml) → публикация Release → npm. Выпуск — только по команде владельца.
+- Утверждения о поведении — только по коду и тестам; планы — в `reports/PLAN-LETOPIS-1.0.md`.
+- В одном коммите с кодом обновляются карточка модуля, трасса, список тестов в разделе «Тесты» `lib/README.md` и `lib/README.en.md` и контракт API (`cd lib && npm run api:contract`), если изменились экспорты, методы или тексты ошибок; связность ловит `cd lib && npm run check:docs`.
+- Документация пакета двуязычная: правка `lib/README.md` или `lib/AGENT-CHEATSHEET.md` — та же правка в `.en.md`; помеченные примеры (`<!-- run -->`) исполняет тест `docs`.
 
-| Файл | Что внутри |
-|---|---|
-| `docs/requirements.xml` | Акторы, use cases (UC-*), non-goals, constraints, risks — **намерение** |
-| `docs/technology.xml` | Runtime, язык, зависимости, тесты, наблюдаемость — из манифестов/импортов |
-| `docs/knowledge-graph.xml` | Карта модулей: узлы `M-*`, публичные аннотации, `CrossLink` зависимостей |
-| `docs/development-plan.xml` | Контракты модулей, `DataFlow` (DF-*), порядок реализации |
-| `docs/verification-plan.xml` | Проверка по модулям (`V-M-*`), критические потоки (VF-*), гейты |
-| `docs/operational-packets.xml` | Канонические шаблоны controller↔worker (project-agnostic) |
+## Трассы
+`docs/atlas/F-*.md` — все описывают 1.0: F-READ (чтение), F-WRITE и F-DELETE (запись и удаление), F-ACCESS и F-AUTH (права и вход), F-WATCH (подписка, кэш), F-BOOT (установка и `up()`), F-RELEASE (от коммита до npm).
 
-### 2. File-local markup — семантические маркеры в исходниках
-Приватный навигационный слой внутри каждого governed-файла (комментариями):
-- `FILE` / `VERSION` — шапка файла;
-- `START_MODULE_CONTRACT … END_MODULE_CONTRACT` — PURPOSE / SCOPE / DEPENDS / LINKS / ROLE / MAP_MODE;
-- `START_MODULE_MAP … END_MODULE_MAP` — карта публичных/локальных символов;
-- `START_CONTRACT: fn … END_CONTRACT: fn` — контракт значимой функции (PURPOSE/INPUTS/OUTPUTS/SIDE_EFFECTS/LINKS);
-- `START_BLOCK_<NAME> … END_BLOCK_<NAME>` — навигационные срезы логики (~500 токенов, уникальны в файле);
-- `START_CHANGE_SUMMARY … END_CHANGE_SUMMARY` — след последнего изменения.
-
-Синтаксис комментария подстраивается под язык: `//` (TS/JS/mjs), `--` (SQL), `#` (Dockerfile/shell).
-
----
-
-## Governed scope
-
-Документацией покрыта **только библиотека `lib/`** (по команде владельца):
-- **Governed:** `lib/src/*.ts` (14 модулей), `lib/sql/*.sql` (ddl + 2 seed), `lib/scripts/*.mjs` (gen-types, schema-sync, check-docs, gen-api-contract), `lib/docker/*` (Dockerfile, start.sh).
-- **Вне scope (не трогать):** `lib/test/**` (тесты), `lib/bench/**` (демо/бенчи), корневые `db/`, README/CHANGELOG.
-
-## Корневые документы — статус
-
-Ничего из этого не читается кодом; статус важен, чтобы не принять устаревшее за истину.
-
-| Файл | Статус | Что это |
+## Документы
+| Документ | Что это | Как читать |
 |---|---|---|
-| `README.md` (корень) | active | короткая точка входа: install, куда идти дальше |
-| `AGENT-CHEATSHEET.md` | active | минимальный рабочий цикл + частые ошибки — читать ПЕРЕД `lib/README.md` |
-| `lib/README.md` | active | полное руководство: §11 API Reference, §12 каталог ошибок |
-| `lib/CHANGELOG.md` | active | Keep a Changelog; вместе с `lib/package.json` — источник истины semver |
-| `docs/api-contract.json` | active, **генерируемый** | машиночитаемый контракт API (`scripts/gen-api-contract.mjs`) |
-| `BACKLOG.md` | active | идея порта на Python |
-| `COMPARISON.md` | active | сравнение с ORM/темпоральными БД |
-| `RESEARCH.md` | **historical** | написано под старым именем проекта `entity-chain` |
+| `reports/PLAN-LETOPIS-1.0.md` | план и спецификация 1.0, редакция 8 (решения точки А — в шапке) | по разделам: §2 решения, §5 этапы, §7 тест-планы |
+| `reports/PROPOSAL-SVOD.md` | предложение «Свод», основание плана | по разделам |
+| `lib/README.md` | руководство 1.0 по задачам; английская версия — `lib/README.en.md` | по оглавлению; «Справочник API» (в нём «Зарезервированные имена»), «Ошибки», «Тесты» |
+| `lib/MIGRATION.md` | переход с 0.21 на 1.0 | по заголовку |
+| `lib/AGENT-CHEATSHEET.md` | шпаргалка для агента-пользователя пакета (входит в пакет); английская — `lib/AGENT-CHEATSHEET.en.md` | целиком |
+| `lib/llms.txt` | указатель пакета для языковых моделей (входит в пакет) | целиком |
+| `lib/CHANGELOG.md` | решения по версиям; версия = `lib/package.json` | grep `## \[` |
+| `docs/api-contract.json` | машинный контракт API, генерируется | grep имени |
+| `docs/checkpoint-a.md` | замеры точки А | по серии |
+| `BACKLOG.md`, `COMPARISON.md` | бэклог и сравнение с аналогами (0.19–0.21) | по заголовку |
 
-Единственный источник истины по демо-домену — сид `lib/sql/seed.booking.sql`. Ранние
-дизайн-файлы `schema.booking.md` / `.json` удалены в 0.20.0, чтобы их нельзя было принять
-за схему проекта.
-
-## Module index (`M-*` → файл)
-
-| Module | Файл | TYPE |
-|---|---|---|
-| M-TYPES | lib/src/types.ts | UTILITY |
-| M-UUID | lib/src/uuid.ts | UTILITY |
-| M-OPS | lib/src/ops.ts | UTILITY |
-| M-SESSIONS | lib/src/sessions.ts | CORE_LOGIC |
-| M-SCHEMA | lib/src/schema.ts | CORE_LOGIC |
-| M-ACL | lib/src/acl.ts | CORE_LOGIC |
-| M-TABLES | lib/src/tables.ts | DATA_LAYER |
-| M-AUTH | lib/src/auth.ts | CORE_LOGIC |
-| M-SQL | lib/src/sql.ts | DATA_LAYER |
-| M-WRITE | lib/src/write.ts | DATA_LAYER |
-| M-TX | lib/src/tx.ts | DATA_LAYER |
-| M-CHAIN | lib/src/chain.ts | CORE_LOGIC |
-| M-CONNECT | lib/src/index.ts | ENTRY_POINT |
-| M-UP | lib/src/up.ts | INTEGRATION |
-| M-DDL | lib/sql/ddl.sql | DATA_LAYER |
-| M-SEED-AUTH | lib/sql/seed.auth.sql | DATA_LAYER |
-| M-SEED-BOOKING | lib/sql/seed.booking.sql | DATA_LAYER |
-| M-GEN-TYPES | lib/scripts/gen-types.mjs | UTILITY |
-| M-SCHEMA-SYNC | lib/scripts/schema-sync.mjs | UTILITY |
-| M-GEN-API-CONTRACT | lib/scripts/gen-api-contract.mjs | UTILITY |
-| M-CHECK-DOCS | lib/scripts/check-docs.mjs | UTILITY |
-| M-DOCKER | lib/docker/Dockerfile (+ start.sh) | INTEGRATION |
-
----
-
-## Protocol for agents
-
-1. **Contract before code.** Прежде чем менять governed-файл — прочитай его `MODULE_CONTRACT` и соответствующий `M-*` в `knowledge-graph.xml`.
-2. **Keep the graph current.** Меняешь публичный интерфейс/импорты — обнови `knowledge-graph.xml` (аннотации + `CrossLink`) и `development-plan.xml`.
-3. **Public/private split.** В `docs/*.xml` — только публичная граница модуля. Приватные хелперы живут лишь в file-local markup.
-4. **Grounded in reality.** Контракты/аннотации отражают то, что код делает; STATUS = `implemented`/`done`; ничего не выдумывать.
-5. **Match the file.** Markup аддитивен: только комментарии в синтаксисе файла, логику не трогать. `<SCHEMA-NAME>` в SQL — плейсхолдер, не изменять.
-6. **Integrity (grep-проверки §9):** число `START_BLOCK_` = `END_BLOCK_` (и по остальным парам маркеров) в каждом файле; каждый `M-*` указывает на файл с `START_MODULE_CONTRACT` и наоборот; у каждого `M-*` есть `V-M-*`; `<depends>` совпадают с реальными импортами и имеют `CrossLink`.
-7. **Обновление слоя.** После изменений кода прогоняй `codescribe-update` (git-driven): он синхронизирует `docs/*.xml` и markup затронутых модулей.
-
-## Build / test
-
-```
-cd lib && npm run typecheck      # tsc --noEmit
-cd lib && npm run build          # tsc → dist/
-cd lib && npm test               # tsx --test --test-concurrency=1 --test-force-exit test/*.test.ts
-```
-
-Тесты бутстрапят dev-БД через `letopis.up()` (Docker: TimescaleDB pg17 + Redis). Наблюдаемость: `[letopis.up]` (bootstrap), `letopis: slow query …` (медленный read), хук `onQuery(QueryEvent)`, `pg_notify` → `db.watch()`.
-
-## Coverage gaps (см. verification-plan.xml)
-
-- **M-ACL** — покрыт `lib/test/acl.test.ts` (+ `bench/acl.bench.mjs` мерит оверхед); риск не в покрытии, а в том, что правила компилятся в memo-энфорсер на подключение.
-- **M-DDL** — plpgsql-триггеры проверяются только косвенно через интеграционные тесты; дублируют инварианты `M-WRITE.validate` (риск дрейфа).
-- **M-SEED-BOOKING** — нет своего теста; правится руками, поэтому число классов в заголовке файла сверяет `lib/scripts/check-docs.mjs`.
-- Тесты (`lib/test/**`) исключены из scope и не анализировались — сценарии в `V-M-*` выведены из публичного поведения.
+## Не читать
+`lib/node_modules/`, `lib/dist/` (сборка), `lib/package-lock.json`, `reports/` кроме `PLAN-LETOPIS-1.0.md`, `PROPOSAL-SVOD.md`, `PROPOSAL-SVITOK.md`, `ZAPIS-CONCEPT.md` (остальное — снимок оценки от 2026-09-24, не источник истины), `.env` (секреты другого проекта), `RESEARCH.md` (исторический, проект под старым именем entity-chain).

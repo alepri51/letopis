@@ -1,0 +1,29 @@
+{
+  "name": "core-delete",
+  "at": "2026-10-08T06:18:39.019Z",
+  "scale": 1,
+  "server": {
+    "v": "18.6 (Debian 18.6-1.pgdg13+2)",
+    "sb": "128MB"
+  },
+  "node": "v24.15.0",
+  "measure": 9,
+  "results": [
+    {
+      "cascaded": 100000,
+      "ms": 22967.3,
+      "perRowUs": 229.7,
+      "tempMB": 79.4,
+      "left": 0,
+      "tombs": 100001
+    },
+    {
+      "cascaded": 1000000,
+      "ms": 247443.6,
+      "perRowUs": 247.4,
+      "tempMB": 801.4,
+      "left": 0,
+      "tombs": 1000001
+    }
+  ]
+}

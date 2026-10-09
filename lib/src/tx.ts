@@ -1,90 +1,349 @@
 /**
- * Транзакции: db.begin() → tr (тот же API на выделенном соединении),
- * db.commit(tr) / db.rollback(tr) / tr.commit() / tr.rollback().
- * tr.lock(...) — pg_advisory_xact_lock (сериализация гонок, напр. двойная бронь).
+ * Клиентский контекст (план, §2.5, §2.9, этап 2, п. 5; этап 4, п. 9; этап 5): каждая операция
+ * библиотеки — транзакция `read committed`, первые операторы которой выставляют `letopis.token` (и при
+ * необходимости `letopis.account`, `letopis.tenant`, `letopis.reason`) через set_config(…, true) —
+ * настройки живут до конца транзакции, соединение в пуле чужой токен не унесёт.
+ *
+ * Пропуск прав (`letopis.acl`, этап 5): подписанный базой план прав актора. Без него база считает
+ * план на каждый запрос (сотни микросекунд); с ним — проверяет подпись. Пропуск кэшируется на
+ * подключение по токену, актору и арендатору; нет пропуска — первая же операция берёт его тем же
+ * конвейером. Устаревший пропуск база не принимает и считает план сама — кэш влияет на скорость,
+ * а не на права; библиотека сбрасывает его по сигналам изменений прав и через минуту.
+ *
+ * Исполнитель (Executor) — общий вход цепочек: операция из пула — отдельная транзакция с повтором
+ * при 40P01, 40001 и конфликте журнала (план повторяется целиком); явная транзакция db.begin() —
+ * одно зарезервированное соединение, повторы — дело приложения. Любая ошибка внутри явной
+ * транзакции её ломает: rollback() проходит, commit() откатывает, возвращает соединение и бросает
+ * исходную ошибку — при каждом вызове. Обрыв связи во время COMMIT — commit_unknown, без повтора.
+ *
+ * Сигналы (решение 9 точки А): транзакции библиотеки помечены `letopis.notify = 'deferred'` —
+ * триггер не шлёт NOTIFY, а копит имена изменённых классов в `letopis.changed`; после фиксации
+ * их забирает нотификатор процесса и раз в интервал (по умолчанию 100 мс) отправляет одной
+ * транзакцией без данных: такая фиксация не ждёт диск и не задерживает чужие записи.
  */
+import type postgres from 'postgres';
+import { LetopisError, fromDbError } from './errors.js';
 
-// FILE: lib/src/tx.ts
-// VERSION: 1.0.0
-// START_MODULE_CONTRACT
-//   PURPOSE: Ручные транзакции и advisory-локи поверх зарезервированного pg-соединения.
-//   SCOPE: beginTx, lock
-//   DEPENDS: M-SQL
-//   LINKS: M-TX, V-M-TX
-//   ROLE: RUNTIME
-//   MAP_MODE: EXPORTS
-// END_MODULE_CONTRACT
-//
-// START_MODULE_MAP
-//   TxCtx - Ctx транзакции с методами commit()/rollback()
-//   beginTx - резервирует соединение, шлёт BEGIN, возвращает TxCtx
-//   lock - pg_advisory_xact_lock на составной ключ (только внутри транзакции)
-// END_MODULE_MAP
-//
-// START_CHANGE_SUMMARY
-//   LAST_CHANGE: [v1.0.0 - Documented existing module: reverse-engineered contract + markup]
-// END_CHANGE_SUMMARY
+type Sql = postgres.Sql<Record<string, unknown>>;
+export type Tx = postgres.TransactionSql<Record<string, unknown>>;
 
-import { hintTxRetry, isTransient, type Ctx } from './sql.js';
-
-export interface TxCtx extends Ctx {
-  commit(): Promise<void>;
-  rollback(): Promise<void>;
+/** Транзиентные ошибки PG, которые снимает повтор: взаимная блокировка, сериализация. */
+export function isTransient(e: unknown): boolean {
+  const code = (e as { code?: string }).code;
+  return code === '40P01' || code === '40001';
 }
 
-// START_CONTRACT: beginTx
-//   PURPOSE: Начать ручную транзакцию на зарезервированном соединении и вернуть TxCtx.
-//   INPUTS: { ctx: Ctx - базовый контекст с пулом sql }
-//   OUTPUTS: { Promise<TxCtx> - контекст с sql на резерве + commit()/rollback() }
-//   SIDE_EFFECTS: reserve() соединения из пула и BEGIN; commit/rollback шлют COMMIT/ROLLBACK и release() (идемпотентно через флаг done)
-//   LINKS: M-TX, V-M-TX, M-SQL
-// END_CONTRACT: beginTx
-export async function beginTx(ctx: Ctx): Promise<TxCtx> {
-  const reserved = await (ctx.sql as unknown as { reserve(): Promise<never> }).reserve();
-  const r = reserved as unknown as {
-    unsafe(q: string, p?: never[]): Promise<unknown>;
-    release(): void;
-  };
-  await r.unsafe('BEGIN');
-  let done = false;
-  const finish = async (cmd: 'COMMIT' | 'ROLLBACK') => {
-    if (done) return;
-    done = true;
-    try {
-      await r.unsafe(cmd);
-    } finally {
-      r.release();
+/** Конфликт пары «id, номер версии» в журнале — параллельные удаление и создание одного id (§2.5). */
+export function isLogConflict(e: unknown): boolean {
+  const err = e as { code?: string; constraint_name?: string };
+  return err.code === '23505' && err.constraint_name === 'log_id_rev';
+}
+
+/** Обрыв связи: сокет закрыт или серверный процесс завершён (FATAL) — исход отправленного неизвестен. */
+export function isConnectionError(e: unknown): boolean {
+  const err = e as { code?: string; severity?: string };
+  if (err?.severity) return err.severity === 'FATAL' || err.severity === 'PANIC';
+  const code = String(err?.code ?? '');
+  return code.startsWith('CONNECTION_') || ['ECONNRESET', 'EPIPE', 'ECONNREFUSED', 'ETIMEDOUT', 'ECONNABORTED'].includes(code);
+}
+
+/**
+ * Вернуть зарезервированное соединение в пул. После обрыва сокета пул postgres.js уже перевёл
+ * соединение в закрытые (onclose); release() вернул бы его в открытые, и следующая операция
+ * писала бы в сокет null — необработанный TypeError роняет процесс.
+ */
+function release(conn: { release(): void }, err: unknown): void {
+  const e = err as { code?: string; severity?: string } | null;
+  if (e && !e.severity && isConnectionError(e)) return;
+  conn.release();
+}
+
+const commitUnknown = (cause: unknown): LetopisError =>
+  Object.assign(new LetopisError('commit_unknown', 'связь оборвалась во время commit: транзакция могла зафиксироваться — '
+    + 'проверьте исход повтором той же операции с тем же ключом'), { cause });
+
+/** Взаимная блокировка в явной транзакции: повторить нужно весь блок (подсказка, как hintTxRetry 0.21). */
+function hintTxRetry(e: unknown): unknown {
+  if (isTransient(e) && e instanceof Error && !e.message.includes('db.begin()')) {
+    e.message += ' — откатите транзакцию и повторите весь блок db.begin()';
+  }
+  return e;
+}
+
+export const RETRIES = 3;
+export const retryDelay = (attempt: number): Promise<void> =>
+  new Promise((r) => setTimeout(r, 40 * attempt + Math.random() * 40));
+
+/** Нотификатор процесса: копит имена классов и отправляет их пачкой раз в интервал. */
+export class Notifier {
+  private queue = new Set<string>();
+  private timer: NodeJS.Timeout | null = null;
+  private stopped = false;
+  private flushing: Promise<void> = Promise.resolve();
+
+  constructor(private sql: Sql, private channel: string, private intervalMs: number, private onError: (e: unknown) => void = () => {}) {}
+
+  /** Добавить классы из letopis.changed (строка через запятую). */
+  add(changed: string | null | undefined): void {
+    if (!changed || this.stopped) return;
+    for (const c of changed.split(',')) if (c) this.queue.add(c);
+    if (!this.timer && this.queue.size) this.timer = setTimeout(() => void this.flush(), this.intervalMs);
+  }
+
+  /** Отправить накопленное сейчас (вызывается по таймеру и при закрытии). */
+  flush(): Promise<void> {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
     }
-  };
-  return {
-    ...ctx,
-    sql: reserved,
-    inTx: true,
-    userTx: true,
-    commit: () => finish('COMMIT'),
-    rollback: () => finish('ROLLBACK'),
-  };
+    if (!this.queue.size) return this.flushing;
+    const classes = [...this.queue];
+    this.queue.clear();
+    this.flushing = this.flushing.then(() =>
+      this.sql`select pg_notify(${this.channel}, c) from unnest(${classes}::text[]) as c`.then(() => undefined, this.onError));
+    return this.flushing;
+  }
+
+  async close(): Promise<void> {
+    this.stopped = true;
+    await this.flush();
+  }
 }
 
-/** Advisory-lock на составной ключ; живёт до конца транзакции. */
-// START_CONTRACT: lock
-//   PURPOSE: Взять pg_advisory_xact_lock на составной ключ (сериализация гонок; живёт до конца транзакции).
-//   INPUTS: { ctx: Ctx - контекст (должен быть inTx); keys: (string|number)[] - части составного ключа }
-//   OUTPUTS: { Promise<void> }
-//   SIDE_EFFECTS: SELECT pg_advisory_xact_lock(hashtextextended(...)); вне транзакции бросает 'letopis: lock() works only inside db.begin() transaction'; на transient-ошибке (напр. deadlock 40P01) вызывает hintTxRetry и пробрасывает
-//   LINKS: M-TX, V-M-TX, M-SQL
-// END_CONTRACT: lock
-export async function lock(ctx: Ctx, ...keys: (string | number)[]): Promise<void> {
-  if (!ctx.inTx) {
-    throw new Error('letopis: lock() works only inside db.begin() transaction (pg_advisory_xact_lock)');
+/** Кэш подписанных пропусков прав одного подключения: по токену, актору и арендатору. */
+export class AclPasses {
+  private map = new Map<string, { pass: string; at: number }>();
+
+  /** schema — имя схемы в кавычках (для вызова acl_token). */
+  constructor(readonly schema: string, private ttlMs = 60_000, private max = 10_000) {}
+
+  private key(c: TxContext): string {
+    return `${c.token ?? ''}\u0001${c.account ?? ''}\u0001${c.tenant ?? ''}`;
   }
-  // START_BLOCK_ADVISORY_LOCK
-  try {
-    await ctx.sql.unsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [keys.join('|')] as never[]);
-  } catch (e) {
-    // встречный порядок lock() двух транзакций → deadlock 40P01 (PG убивает одну)
-    if (isTransient(e)) hintTxRetry(e);
-    throw e;
+
+  get(c: TxContext): string | null {
+    const v = this.map.get(this.key(c));
+    if (!v) return null;
+    if (Date.now() - v.at > this.ttlMs) {
+      this.map.delete(this.key(c));
+      return null;
+    }
+    return v.pass;
   }
-  // END_BLOCK_ADVISORY_LOCK
+
+  set(c: TxContext, pass: string | null | undefined): void {
+    if (!pass) return;
+    if (this.map.size >= this.max) this.map.delete(this.map.keys().next().value as string);
+    this.map.set(this.key(c), { pass, at: Date.now() });
+  }
+
+  /** Права изменились (сигнал строк прав, auth.switch): все пропуска — заново. */
+  clear(): void {
+    this.map.clear();
+  }
+}
+
+export interface TxContext {
+  sql: Sql;
+  token: string | null;
+  notifier: Notifier | null;
+  /** Имперсонация: аккаунт, от имени которого действует сервис (letopis.account, этап 5). */
+  account?: string;
+  /** Рабочий арендатор (letopis.tenant): собственный или по членству; база проверяет членство. */
+  tenant?: string;
+  reason?: string;
+  /** Кэш пропусков прав подключения (letopis.acl). */
+  passes?: AclPasses;
+  /** После успешной операции (продление сессии раз в минуту). */
+  after?: () => void;
+  /**
+   * После фиксации записи: имена из letopis.changed (классы, session:<тег>) — кэш результатов
+   * сбрасывает свои ответы сразу (§2.12); raw — запись через db.sql.
+   */
+  onChanged?: (names: string[], raw: boolean) => void;
+}
+
+const changedList = (changed: string | null): string[] => (changed ? changed.split(',').filter(Boolean) : []);
+
+/** Служебные настройки транзакции одним оператором (уходит конвейером с первым запросом). */
+const setupSql = (q: Tx, ctx: TxContext, pass: string | null) =>
+  q`select set_config('letopis.token', ${ctx.token ?? ''}, true),
+           set_config('letopis.account', ${ctx.account ?? ''}, true),
+           set_config('letopis.tenant', ${ctx.tenant ?? ''}, true),
+           set_config('letopis.acl', ${pass ?? ''}, true),
+           set_config('letopis.notify', 'deferred', true),
+           set_config('letopis.reason', ${ctx.reason ?? ''}, true),
+           set_config('TimeZone', 'UTC', true)`;
+
+/** Пропуска нет — взять его в этой же транзакции (им пользуются и её запросы). */
+const passSql = (q: Tx, ctx: TxContext) =>
+  q.unsafe(`select set_config('letopis.acl', coalesce(${ctx.passes!.schema}.acl_token(), ''), true) as p`);
+
+/**
+ * Операция одной транзакцией с контекстом сессии и повтором при транзиентных ошибках и конфликте
+ * журнала. Ошибки базы переводятся в LetopisError. read — операция только читает: сигналы не собираются.
+ */
+export async function runTx<T>(ctx: TxContext, fn: (tx: Tx) => Promise<T>,
+  opts: { retries?: number; read?: boolean; raw?: boolean } = {}): Promise<T> {
+  const retries = opts.retries ?? RETRIES;
+  for (let attempt = 1; ; attempt++) {
+    let bodyDone = false;
+    let dead = false;
+    let failure: unknown = null;
+    // своё зарезервированное соединение, а не sql.begin: после гибели серверного процесса
+    // postgres.js 3.4 шлёт rollback в закрытый сокет и роняет процесс необработанным TypeError
+    const conn = await ctx.sql.reserve();
+    try {
+      let changed: string | null = null;
+      // begin, служебный оператор и первый запрос операции уходят конвейером (§2.9); время — в UTC;
+      // execute(): запросы postgres.js ленивые — без него первый запрос fn ушёл бы раньше настроек
+      const begin = conn.unsafe('begin isolation level read committed').execute();
+      const pass = ctx.passes?.get(ctx) ?? null;
+      const setup = setupSql(conn as unknown as Tx, ctx, pass).execute();
+      const fetch = !pass && ctx.passes && ctx.token ? passSql(conn as unknown as Tx, ctx).execute() : null;
+      const [, , got, out] = await Promise.all([begin, setup, fetch, fn(conn as unknown as Tx)]);
+      if (got) ctx.passes!.set(ctx, (got as unknown as { p: string }[])[0]?.p);
+      bodyDone = true;
+      // чтение letopis.changed и COMMIT — одним конвейером: порядок на соединении сохраняется (чтение
+      // идёт до фиксации), а круг до базы на запись — один (бенч этапа 7: −0,8 мс на запись)
+      if (opts.read) {
+        await conn.unsafe('commit');
+      } else {
+        const [rows] = await Promise.all([conn`select current_setting('letopis.changed', true) as changed`, conn.unsafe('commit')]);
+        changed = (rows[0]?.changed as string | null) ?? null;
+      }
+      ctx.notifier?.add(changed);
+      if (changed) ctx.onChanged?.(changedList(changed), opts.raw === true);
+      ctx.after?.();
+      return out as T;
+    } catch (e) {
+      failure = e;
+      dead = isConnectionError(e);
+      if (!dead) await conn.unsafe('rollback').catch(() => {});
+      // обрыв во время COMMIT: транзакция могла зафиксироваться — не повторяем (§2.5)
+      if (bodyDone && !opts.read && dead) throw commitUnknown(e);
+      if (attempt <= retries && (isTransient(e) || isLogConflict(e))) {
+        await retryDelay(attempt);
+        continue;
+      }
+      throw fromDbError(e);
+    } finally {
+      release(conn, failure);
+    }
+  }
+}
+
+/** Вход цепочек: где исполнить операцию — отдельной транзакцией из пула или в явной транзакции. */
+export interface Executor {
+  /** Операция одной транзакцией; в явной транзакции — в ней, без повторов. raw — сырой SQL (db.sql). */
+  run<T>(fn: (tx: Tx) => Promise<T>, opts?: { read?: boolean; raw?: boolean }): Promise<T>;
+  /** Внутри db.begin(). */
+  readonly explicit: boolean;
+}
+
+/** Исполнитель пула: каждая операция — своя транзакция с повторами. */
+export function poolExecutor(ctx: TxContext): Executor {
+  return { explicit: false, run: (fn, opts) => runTx(ctx, fn, opts) };
+}
+
+/**
+ * Явная транзакция db.begin() (этап 4, п. 9): одно зарезервированное соединение, read committed.
+ * Ошибка любого запроса ломает транзакцию (правило §2.5): дальше каждый вызов бросает исходную
+ * ошибку, rollback() проходит, commit() откатывает и бросает её же. Ответ ROLLBACK на COMMIT
+ * (PostgreSQL так фиксирует сломанную транзакцию) — тоже ошибка.
+ */
+export class ExplicitTx implements Executor {
+  readonly explicit = true;
+  private broken: unknown = null;
+  private done = false;
+  private failure: unknown = null;
+  /** В транзакции был сырой SQL (db.sql): после фиксации — весь кэш. */
+  private raw = false;
+
+  private constructor(private ctx: TxContext, private conn: postgres.ReservedSql<Record<string, unknown>>) {}
+
+  static async open(ctx: TxContext): Promise<ExplicitTx> {
+    const conn = await ctx.sql.reserve();
+    try {
+      await conn.unsafe('begin isolation level read committed');
+      const pass = ctx.passes?.get(ctx) ?? null;
+      await setupSql(conn as unknown as Tx, ctx, pass);
+      if (!pass && ctx.passes && ctx.token) ctx.passes.set(ctx, ((await passSql(conn as unknown as Tx, ctx)) as unknown as { p: string }[])[0]?.p);
+    } catch (e) {
+      await conn.unsafe('rollback').catch(() => {});
+      conn.release();
+      throw fromDbError(e);
+    }
+    return new ExplicitTx(ctx, conn);
+  }
+
+  /** Транзакция ещё открыта (не зафиксирована и не откачена). */
+  get active(): boolean {
+    return !this.done;
+  }
+
+  async run<T>(fn: (tx: Tx) => Promise<T>, opts?: { read?: boolean; raw?: boolean }): Promise<T> {
+    if (this.done) throw new LetopisError('tx_required', 'транзакция db.begin() уже завершена');
+    if (this.broken) throw this.broken;
+    if (opts?.raw) this.raw = true;
+    try {
+      return await fn(this.conn as unknown as Tx);
+    } catch (e) {
+      const err = fromDbError(hintTxRetry(e));
+      this.broken = err;
+      throw err;
+    }
+  }
+
+  /** Advisory-блокировка до конца транзакции (отдельное от блокировок семейств пространство ключей). */
+  async lock(...keys: (string | number)[]): Promise<void> {
+    if (this.done) throw new LetopisError('tx_required', 'lock(): транзакция db.begin() уже завершена');
+    await this.run((q) => q.unsafe('select pg_advisory_xact_lock(hashtextextended($1, 0))', [keys.join('|')]));
+  }
+
+  async commit(): Promise<void> {
+    if (this.done) {
+      if (this.failure) throw this.failure;
+      return;
+    }
+    this.done = true;
+    if (this.broken) {
+      if (!isConnectionError(this.broken)) await this.conn.unsafe('rollback').catch(() => {});
+      release(this.conn, this.broken);
+      this.failure = this.broken;
+      throw this.broken;
+    }
+    let changed: string | null = null;
+    try {
+      // чтение letopis.changed и COMMIT — одним конвейером (как в runTx); обрыв — исход неизвестен
+      const [rows, res] = await Promise.all([this.conn.unsafe(`select current_setting('letopis.changed', true) as changed`), this.conn.unsafe('commit')]);
+      changed = (rows[0]?.changed as string | null) ?? null;
+      if ((res as unknown as { command?: string }).command === 'ROLLBACK') {
+        this.failure = new LetopisError('tx_rolled_back', 'commit: PostgreSQL откатил транзакцию (в ней была ошибка)');
+        throw this.failure;
+      }
+    } catch (e) {
+      this.failure ??= isConnectionError(e) ? commitUnknown(e) : fromDbError(e);
+      release(this.conn, e);
+      throw this.failure;
+    }
+    this.conn.release();
+    this.ctx.notifier?.add(changed);
+    if (changed) this.ctx.onChanged?.(changedList(changed), this.raw);
+    this.ctx.after?.();
+  }
+
+  async rollback(): Promise<void> {
+    if (this.done) return;
+    this.done = true;
+    try {
+      // соединение, оборванное ошибкой, не трогаем: postgres.js уронил бы процесс записью в закрытый сокет
+      if (!isConnectionError(this.broken)) await this.conn.unsafe('rollback');
+    } catch (e) {
+      // соединение могло оборваться — транзакция откатится сама
+      release(this.conn, e);
+      return;
+    }
+    release(this.conn, this.broken);
+  }
 }

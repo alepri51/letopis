@@ -16,21 +16,17 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # letopis 1.0 — только PostgreSQL 18 и новее (план, §2.1). После выхода 19 сюда
+    # добавляется матрица с postgres:19.
     services:
-      timescale:
-        image: timescale/timescaledb:latest-pg17
+      postgres:
+        image: postgres:18
         env:
           POSTGRES_PASSWORD: test
-          POSTGRES_DB: clockz
-        ports: ['15432:5432']
+          POSTGRES_DB: letopis
+        ports: ['15433:5432']
         options: >-
-          --health-cmd "pg_isready -U postgres -d clockz"
-          --health-interval 5s --health-timeout 5s --health-retries 20
-      redis:
-        image: redis:7-alpine
-        ports: ['16379:6379']
-        options: >-
-          --health-cmd "redis-cli ping"
+          --health-cmd "pg_isready -U postgres -d letopis"
           --health-interval 5s --health-timeout 5s --health-retries 20
     steps:
       - uses: actions/checkout@v4
@@ -44,28 +40,32 @@ jobs:
         working-directory: lib
         run: npm ci
 
-      - name: Apply engine + seeds (booking schema)
-        run: node db/apply.mjs --dsn='postgres://postgres:test@localhost:15432/clockz' --schema=booking --version=1
-
+      # Тесты тоже входят в проверку типов (tsconfig.json включает test/ и bench/).
       - name: Typecheck
         working-directory: lib
-        run: npx tsc --noEmit
+        run: npm run typecheck
 
       # гвард против дрейфа документации: версии, мёртвые ссылки, список тестов,
-      # счётчики сидов, codescribe-целостность, актуальность docs/api-contract.json,
-      # зарезервированные имена классов, импорты bench-демо. БД не нужна.
+      # ревизия движка, актуальность docs/api-contract.json, зарезервированные имена. БД не нужна.
       - name: Check docs vs code
         working-directory: lib
         run: npm run check:docs
 
+      # Схемы создаёт тестовая обвязка (lib/test/_harness.ts): отдельный накат не нужен.
       - name: Tests
         working-directory: lib
         env:
-          ENTITY_DSN: postgres://postgres:test@localhost:15432/clockz
-          ENTITY_REDIS: redis://localhost:16379
+          ENTITY_DSN: postgres://postgres:test@localhost:15433/letopis
         run: npm test
 
-# Сборку тарбола здесь НЕ делаем. Раньше стояли `npm run build` + `npm pack` с выгрузкой
-# артефакта — его никто не забирал: release.yml публикует сам (свой npm ci, а prepublishOnly
-# гоняет typecheck + build перед публикацией), а сам артефакт проверяется смоуком уже ИЗ
-# реестра. Компиляция при этом дублировала шаг Typecheck. Итого — минус два шага на каждый пуш.
+      # Тот же скрипт, что в release.yml: собирает тарбол, ставит его в чистую папку,
+      # импортирует каждый экспорт из docs/api-contract.json, сверяет состав с полем files и
+      # делает живой прогон на сервисе postgres:18 (up, вход сервисом, загрузка, запись, чтение;
+      # LETOPIS_PKG_LIVE=1 — без базы проверка красная). Так ошибка упаковки ловится на dev,
+      # а не после npm publish.
+      - name: Package check
+        working-directory: lib
+        env:
+          ENTITY_DSN: postgres://postgres:test@localhost:15433/letopis
+          LETOPIS_PKG_LIVE: '1'
+        run: npm run check:package

@@ -1,188 +1,301 @@
 /**
- * up(): одна точка входа — docker + готовность + схема + connect.
- * Живые сцены идут по probe-ветке (postgres уже отвечает → docker skipped),
- * docker-ветка покрыта юнитом на dockerRunArgs (сборку/запуск контейнера тестам не дёргаем:
- * в CI порты заняты service-контейнерами, локально — рабочим letopis-timescale).
+ * up — полный установщик (план, этап 6, п. 9–10; тест-план §7.8 №6.10): свежая установка, повторный
+ * накат, свои сиды, автосоздание базы, база не в UTF8, проверка версии с подставленным номером 17,
+ * отставшая ревизия — только с upgrade (миграции), connect() предупреждает об отставшем движке.
  */
-import { test, after } from 'node:test';
+import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { writeFile, rm } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import postgres from 'postgres';
-import { up, connect } from '../src/index.js';
-import { dockerRunArgs } from '../src/up.js';
-import { DDL_REVISION } from '../src/types.js';
+import { ensureDatabase as harnessDb, ADMIN_DSN, adminSql, ident, appDsn, ensureAppRole, type Sql } from './_harness.js';
+import { up, checkServer, createTenant, SYSTEM_ID } from '../src/up.js';
+import { connect, DDL_REVISION } from '../src/index.js';
 
-const DSN = process.env.ENTITY_DSN ?? 'postgres://postgres:test@localhost:15432/clockz';
-const seedFile = join(tmpdir(), `letopis-up-seed-${process.pid}.sql`);
+let sql: Sql;
+const SCHEMA = 'v2.t_up';
+const dsnFor = (db: string) => {
+  const u = new URL(ADMIN_DSN);
+  u.pathname = `/${db}`;
+  return u.toString();
+};
+
+before(async () => {
+  await harnessDb();
+  sql = adminSql();
+  await sql.unsafe(`drop schema if exists ${ident(SCHEMA)} cascade`);
+});
 
 after(async () => {
-  const admin = postgres(DSN, { max: 1, onnotice: () => {} });
-  for (const s of ['v1.uptest', 'v1.uptest_bare', 'v1.uptest_seeded'])
-    await admin.unsafe(`DROP SCHEMA IF EXISTS "${s}" CASCADE`);
-  await admin.unsafe('DROP DATABASE IF EXISTS "uptest_db"');
-  await admin.end();
-  await rm(seedFile, { force: true });
+  await sql.unsafe(`drop schema if exists ${ident(SCHEMA)} cascade`);
+  await sql.end({ timeout: 5 });
 });
 
-test('dockerRunArgs: volume по умолчанию, dataDir → bind, порты/env из dsn', () => {
-  const base = { container: 'letopis-timescale', image: 'letopis-db', pgPort: '15432', redisPort: 16379, user: 'postgres', password: 'test', database: 'letopis' };
-  assert.deepEqual(dockerRunArgs(base), [
-    'run', '-d', '--name', 'letopis-timescale',
-    '-p', '15432:5432', '-p', '16379:6379',
-    '-v', 'letopis-pgdata:/var/lib/postgresql/data',
-    '-e', 'POSTGRES_PASSWORD=test', '-e', 'POSTGRES_DB=letopis', 'letopis-db',
-  ]);
-  // bind mount путём + кастомный юзер + пустой пароль → trust-режим
-  const custom = dockerRunArgs({ ...base, dataDir: 'C:/data/pg', user: 'app', password: '', database: 'mydb' });
-  assert.ok(custom.includes('C:/data/pg:/var/lib/postgresql/data'));
-  assert.ok(custom.includes('POSTGRES_USER=app'));
-  assert.ok(custom.includes('POSTGRES_HOST_AUTH_METHOD=trust'));
-  assert.ok(!custom.some((a) => a.startsWith('POSTGRES_PASSWORD')));
-});
-
-test('up(): живой postgres → docker skipped, схема применяется, db работает', async () => {
-  const db = await up({ enforceAccount: false, dsn: DSN, schema: 'uptest', version: 1, quiet: true });
-  const [аня] = await db.Клиент().create({ name: 'Уп-Аня', phone: '+7 900' }).rows();
-  assert.equal(аня.data.name, 'Уп-Аня');
+test('6.10 свежая установка и повторный накат: данные целы, ключ выдаётся один раз, ANALYZE — только без статистики', async () => {
+  const r1 = await up({ dsn: ADMIN_DSN, schema: 't_up', quiet: true, allowReset: true });
+  assert.equal(r1.schema, SCHEMA);
+  assert.equal(r1.created, true);
+  assert.equal(r1.revision, DDL_REVISION);
+  assert.match(r1.serviceKey ?? '', /^lts_/);
+  assert.deepEqual(r1.analyzed.sort(), ['entity', 'log', 'secret']);
+  const [{ n }] = await sql.unsafe(`select count(*)::int as n from ${ident(SCHEMA)}.entity`);
+  const r2 = await up({ dsn: ADMIN_DSN, schema: SCHEMA, quiet: true, allowReset: true });
+  assert.equal(r2.created, false);
+  assert.equal(r2.serviceKey, null);
+  assert.deepEqual(r2.analyzed, [], 'статистика уже есть');
+  const [{ n: n2 }] = await sql.unsafe(`select count(*)::int as n from ${ident(SCHEMA)}.entity`);
+  assert.equal(n2, n);
+  // ключ сервиса работает
+  const db = await connect({ dsn: ADMIN_DSN, schema: SCHEMA, apiKey: r1.serviceKey!, allowBypassRls: true, max: 1 });
   await db.close();
 });
 
-test('up() идемпотентен: повторный вызов не пересоздаёт схему', async () => {
-  const db = await up({ enforceAccount: false, dsn: DSN, schema: 'uptest', version: 1, quiet: true });
-  assert.equal(await db.Клиент({ name: 'Уп-Аня' }).count(), 1); // данные первого вызова живы
-  await db.close();
-});
-
-test('fresh: true — дроп и накат заново', async () => {
-  const db = await up({ enforceAccount: false, dsn: DSN, schema: 'uptest', version: 1, fresh: true, quiet: true });
-  assert.equal(await db.Клиент({ name: 'Уп-Аня' }).count(), 0);
-  await db.close();
-});
-
-test('up(): статистика планировщика собрана — ANALYZE прошёл при накате', async () => {
-  // Без статистики родителя гипертаблицы планировщик берёт дефолт «200 уникальных id» и на
-  // подзапросе кандидатов (его строит КАЖДОЕ чтение либы) выбирает Nested Loop вместо
-  // Merge Semi Join: замерено 57 с против 3 с на 980k строк (README §14.1). Проверяем не
-  // тайминг, а факт — что pg_stats по Entity заполнен (схему только что пересоздал тест выше).
-  // NB: pg_stats у пустой таблицы пуст по определению — статистике не по чему собираться,
-  // поэтому проверяем ФАКТ запуска (last_analyze), а заодно что на непустых данных
-  // статистика действительно появляется.
-  const db = await up({ enforceAccount: false, dsn: DSN, schema: 'uptest', version: 1, quiet: true });
+test('6.10 свои сиды файлом и fresh; регистрация своего ключа сервиса', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'letopis-up-'));
   try {
-    const [{ last_analyze }] = (await db.sql.unsafe(
-      `SELECT last_analyze FROM pg_stat_all_tables WHERE schemaname = $1 AND relname = 'Entity'`,
-      ['v1.uptest'],
-    )) as unknown as { last_analyze: string | null }[];
-    assert.ok(last_analyze, 'ANALYZE по "v1.uptest"."Entity" не выполнялся при накате схемы');
+    const f = join(dir, 'my.sql');
+    await writeFile(f, `select @SCHEMA@.sys_create(@SCHEMA@.v5_id('@SYSTEM@'::uuid, 'Class', array['Gadget']), 'Class', '@SYSTEM@'::uuid, '{}',
+      '{"name": "Gadget", "kind": "hub", "fields": {"properties": {"n": {"type": "integer"}}}}');`);
+    const key = `lts_${'ab'.repeat(32)}`;
+    const r = await up({ dsn: ADMIN_DSN, schema: SCHEMA, fresh: true, seeds: [f, 'booking'], serviceKey: key, quiet: true });
+    assert.equal(r.created, true, 'fresh — схема поставлена заново');
+    assert.equal(r.serviceKey, key);
+    const cls = await sql.unsafe(`select data->>'name' as name from ${ident(SCHEMA)}.entity where class = 'Class' and data->>'name' in ('Gadget', 'Org')`);
+    assert.deepEqual(cls.map((x) => x.name).sort(), ['Gadget', 'Org']);
+    const db = await connect({ dsn: ADMIN_DSN, schema: SCHEMA, apiKey: key, allowBypassRls: true, max: 1 });
+    await db.close();
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
 
-    // и на данных: после ANALYZE у ключевых колонок есть n_distinct — то, без чего
-    // планировщик берёт дефолт «200 уникальных id» и рушит подзапрос кандидатов
-    await db.Клиент().create({ name: 'Стат-Аня', phone: '+7 901' }).rows();
-    await db.sql.unsafe('ANALYZE "v1.uptest"."Entity"');
-    const строки = (await db.sql.unsafe(
-      `SELECT attname FROM pg_stats WHERE schemaname = $1 AND tablename = 'Entity'`,
-      ['v1.uptest'],
-    )) as unknown as { attname: string }[];
-    const колонки = строки.map((r) => r.attname);
-    for (const c of ['id', 'class', 'partition']) {
-      assert.ok(колонки.includes(c), `нет статистики по колонке ${c}: ${колонки.join(', ') || 'пусто'}`);
+test('6.10 отставшая ревизия: без upgrade — отказ, с upgrade — миграции и накат; connect() предупреждает', async () => {
+  await sql.unsafe(`comment on schema ${ident(SCHEMA)} is 'letopis ddl_revision=${DDL_REVISION - 1}'`);
+  const warns: string[] = [];
+  const warn = console.warn;
+  console.warn = (m: string) => warns.push(String(m));
+  try {
+    const db = await connect({ dsn: ADMIN_DSN, schema: SCHEMA, allowBypassRls: true, max: 1 });
+    await db.close();
+  } finally {
+    console.warn = warn;
+  }
+  assert.ok(warns.some((w) => /ревизии \d+, библиотека ждёт/.test(w)), warns.join('\n'));
+  await assert.rejects(up({ dsn: ADMIN_DSN, schema: SCHEMA, quiet: true }), /upgrade: true/);
+  const dir = await mkdtemp(join(tmpdir(), 'letopis-mig-'));
+  try {
+    await writeFile(join(dir, `${String(DDL_REVISION).padStart(4, '0')}-marker.sql`), `comment on table @SCHEMA@.secret is 'migrated';`);
+    await writeFile(join(dir, `${String(DDL_REVISION - 1).padStart(4, '0')}-old.sql`), `select 1/0;`);
+    const r = await up({ dsn: ADMIN_DSN, schema: SCHEMA, upgrade: true, migrationsDir: dir, quiet: true });
+    assert.equal(r.upgraded, true);
+    assert.deepEqual(r.migrations, [`${String(DDL_REVISION).padStart(4, '0')}-marker.sql`], 'только миграции новее ревизии схемы');
+    assert.equal(r.revision, DDL_REVISION);
+    const [{ c }] = await sql.unsafe(`select obj_description($1::regclass, 'pg_class') as c`, [`${ident(SCHEMA)}.secret`]);
+    assert.equal(c, 'migrated');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('6.10 автосоздание базы; база не в UTF8 — понятный отказ; версия 17 — понятный отказ', async () => {
+  const name = 'letopis_up_auto';
+  await sql.unsafe(`drop database if exists ${name} with (force)`);
+  try {
+    const r = await up({ dsn: dsnFor(name), schema: 'auto', quiet: true });
+    assert.equal(r.created, true);
+    const [{ enc }] = await sql`select pg_encoding_to_char(encoding) as enc from pg_database where datname = ${name}`;
+    assert.equal(enc, 'UTF8');
+  } finally {
+    await sql.unsafe(`drop database if exists ${name} with (force)`);
+  }
+  const ascii = 'letopis_up_ascii';
+  await sql.unsafe(`drop database if exists ${ascii} with (force)`);
+  await sql.unsafe(`create database ${ascii} encoding 'SQL_ASCII' lc_collate 'C' lc_ctype 'C' template template0`);
+  try {
+    await assert.rejects(up({ dsn: dsnFor(ascii), schema: 'x', quiet: true }), /кодировке SQL_ASCII, нужна UTF8/);
+  } finally {
+    await sql.unsafe(`drop database if exists ${ascii} with (force)`);
+  }
+  assert.throws(() => checkServer(170005, 'UTF8'), /нужен PostgreSQL 18 или новее, а сервер — 17/);
+  assert.doesNotThrow(() => checkServer(180006, 'UTF8'));
+  void postgres;
+});
+
+test('up({ pglite }): база для разработки без PostgreSQL — установка, вход сервисом, запись и чтение (решение 6 точки А)', async () => {
+  const r = await up({ pglite: true, schema: 'dev', quiet: true });
+  try {
+    assert.equal(r.revision, DDL_REVISION);
+    const db = await connect({ dsn: r.pglite!.dsn, schema: 'v2.dev', apiKey: r.serviceKey!, allowBypassRls: true, listen: false, max: 1 });
+    try {
+      assert.ok(db.describe().classes.some((c) => c.name === 'Class'));
+      const v = await db.verify({ data: true });
+      assert.equal(v.ok, true);
+    } finally {
+      await db.close();
     }
   } finally {
-    await db.close();
+    await r.pglite!.close();
   }
 });
 
-test('отставший движок: connect предупреждает, upgrade перекатывает ddl без потери данных', async () => {
-  // Схема, накатанная более старой либой, не получает аддитивных правок ddl.sql — так в 0.19.0
-  // появились purge/purge_closure/purge_account, и приложение узнавало об этом из сырого
-  // PostgresError. Имитируем «старую» схему: сносим новые функции и метку ревизии.
-  const db0 = await up({ enforceAccount: false, dsn: DSN, schema: 'uptest', version: 1, quiet: true });
-  const [клиент] = await db0.Клиент().create({ name: 'До-апгрейда', phone: '+7 902' }).rows();
-  await db0.sql.unsafe(`
-    DROP FUNCTION IF EXISTS "v1.uptest".purge(text, text, text, boolean);
-    DROP FUNCTION IF EXISTS "v1.uptest".purge_closure(text, text, text[]);
-    DROP FUNCTION IF EXISTS "v1.uptest".purge_account(uuid);
-    COMMENT ON SCHEMA "v1.uptest" IS NULL`);
-  await db0.close();
-
-  const было = console.warn;
-  const предупреждения: string[] = [];
-  console.warn = (...a: unknown[]) => void предупреждения.push(a.join(' '));
+test('up({ tenant }) и createTenant: первый арендатор и пользователь без своего сида — вход, запись, пароль, повтор, изоляция', async () => {
+  const schema = 'v2.t_up_tenant';
+  await ensureAppRole(sql);
+  const r = await up({ dsn: ADMIN_DSN, schema, fresh: true, seeds: ['booking'], quiet: true,
+    tenant: { name: 'Салон', user: { name: 'Ольга', login: 'olga@salon.ru', password: 'пароль-Ольги-1' } } });
   try {
-    const db1 = await connect({ enforceAccount: false, dsn: DSN, schema: 'v1.uptest' });
-    await db1.close();
+    const t = r.tenant!;
+    assert.equal(t.created, true);
+    assert.match(t.token ?? '', /^[0-9a-f]{64}$/);
+    // сессия пользователя — в арендаторе: правило «можно всё» и членство с ролью owner
+    const olga = await connect({ dsn: appDsn(), schema, token: t.token!, max: 1, listen: false });
+    try {
+      await olga.Org().create({ name: 'Салон на Тверской' }).rows();
+      const [org] = await olga.Org().rows();
+      assert.equal(org.tenant, t.tenant);
+      assert.equal(org.data.name, 'Салон на Тверской');
+    } finally {
+      await olga.close();
+    }
+    // вход по паролю — сервисом: настоящий пароль даёт сессию, неверный — нет
+    const svc = await connect({ dsn: ADMIN_DSN, schema, apiKey: r.serviceKey!, allowBypassRls: true, max: 1, listen: false });
+    try {
+      const ok = await svc.auth.verifyPassword({ identifier: 'olga@salon.ru', password: 'пароль-Ольги-1' });
+      assert.equal(ok?.account, t.user);
+      assert.equal(await svc.auth.verifyPassword({ identifier: 'olga@salon.ru', password: 'неверный' }), null);
+    } finally {
+      await svc.close();
+    }
+    // повтор: те же id, ничего не дублируется, новая сессия
+    const again = await createTenant(sql, schema, { name: 'Салон', user: { name: 'Ольга', login: 'olga@salon.ru', password: 'другой' } });
+    assert.deepEqual([again.created, again.tenant, again.user], [false, t.tenant, t.user]);
+    assert.notEqual(again.token, t.token);
+    const [{ n }] = await sql.unsafe(`select count(*)::int as n from ${ident(schema)}.secret where kind = 'PASSWORD'`);
+    assert.equal(n, 1, 'пароль не задублирован и не заменён');
+    // другой арендатор данных Салона не видит
+    const other = await createTenant(sql, schema, { name: 'Чужой', user: { name: 'Пётр', login: 'petr@other.ru', password: 'пароль-Петра-1' } });
+    const petr = await connect({ dsn: appDsn(), schema, token: other.token!, max: 1, listen: false });
+    try {
+      assert.equal(await petr.Org().count(), 0);
+    } finally {
+      await petr.close();
+    }
   } finally {
-    console.warn = было;
+    await sql.unsafe(`drop schema if exists ${ident(schema)} cascade`);
   }
-  const про = предупреждения.filter((m) => m.includes('движок схемы'));
-  assert.equal(про.length, 1, `ожидалось одно предупреждение о ревизии, получено: ${предупреждения.length}`);
-  assert.match(про[0], /отстал/);
-  assert.match(про[0], /upgrade: true/);
+});
 
-  // апгрейд: ddl перекатывается, функции возвращаются, метка встаёт, данные целы
-  const db2 = await up({ enforceAccount: false, dsn: DSN, schema: 'uptest', version: 1, upgrade: true, quiet: true });
+test('createTenant и up({ tenant }): роли членства — user.roles (по умолчанию owner); неверные — invalid_data до записи; повтор роли не меняет', async () => {
+  const schema = 'v2.t_up_roles';
+  const S = ident(schema);
+  await ensureAppRole(sql);
+  const r = await up({ dsn: ADMIN_DSN, schema, fresh: true, quiet: true,
+    tenant: { name: 'Салон', user: { name: 'Ольга', login: 'olga@salon.ru', password: 'пароль-Ольги-1' } } });
   try {
-    const фн = (await db2.sql.unsafe(
-      `SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-       WHERE n.nspname = 'v1.uptest' AND p.proname LIKE 'purge%' ORDER BY 1`,
-    )) as unknown as { proname: string }[];
-    assert.deepEqual(фн.map((r) => r.proname), ['purge', 'purge_account', 'purge_closure']);
-    const [{ c }] = (await db2.sql.unsafe(
-      `SELECT obj_description(n.oid, 'pg_namespace') AS c FROM pg_namespace n WHERE n.nspname = 'v1.uptest'`,
-    )) as unknown as { c: string | null }[];
-    assert.equal(c, `letopis ddl_revision=${DDL_REVISION}`);  // актуальная ревизия либы, не литерал
-    assert.equal(await db2.Клиент({ name: 'До-апгрейда' }).count(), 1); // данные не пострадали
-    await db2.Клиент(клиент.id).delete({ confirm: true }).rows();
+    const salon = r.tenant!.tenant;
+    /** Роли членства пользователя в Салоне — та строка member, по которой ctx() даёт роли сессии. */
+    const rolesOf = async (user: string) => (await sql.unsafe(`select data->'roles' as r from ${S}.entity
+      where class = 'member' and id = ${S}.v5_id($2::uuid, 'member', array[$1::text, $2::text])`, [user, salon]))[0]?.r;
+    // без roles — owner
+    assert.deepEqual(await rolesOf(r.tenant!.user!), ['owner']);
+    // сотрудник с ролью staff в том же арендаторе: создаётся только пользователь
+    const vera = await createTenant(sql, schema, { name: 'Салон',
+      user: { name: 'Вера', login: 'vera@salon.ru', password: 'пароль-Веры-1', roles: ['staff'] } });
+    assert.equal(vera.created, false);
+    assert.deepEqual(await rolesOf(vera.user!), ['staff']);
+    const db = await connect({ dsn: appDsn(), schema, token: vera.token!, max: 1, listen: false });
+    try {
+      assert.deepEqual((await db.auth.tenants()).find((x) => x.tenant === salon)?.roles, ['staff'], 'роль — в сессии сотрудника');
+    } finally {
+      await db.close();
+    }
+    // повтор с другими ролями существующее членство не меняет (роли правят правкой member)
+    await createTenant(sql, schema, { name: 'Салон',
+      user: { name: 'Вера', login: 'vera@salon.ru', password: 'другой', roles: ['owner', 'staff'] } });
+    assert.deepEqual(await rolesOf(vera.user!), ['staff']);
+    // неверные роли — invalid_data до записи: ни арендатора, ни пользователя, ни пароля, ни сессии
+    const rows = async () => (await sql.unsafe(`select (select count(*) from ${S}.entity)::int + (select count(*) from ${S}.secret)::int as n`))[0].n as number;
+    const before = await rows();
+    const petr = { name: 'Пётр', login: 'petr@new.ru', password: 'пароль-Петра-1' };
+    const invalid = (err: { code?: string }) => err.code === 'invalid_data';
+    for (const roles of [[], [''], [' staff'], ['a,b'], ['{staff}'], ['!staff'], ['staff', 'staff'], [1], [null], 'staff']) {
+      await assert.rejects(createTenant(sql, schema, { name: 'Новый', user: { ...petr, roles: roles as never } }), invalid, JSON.stringify(roles));
+    }
+    await assert.rejects(up({ dsn: ADMIN_DSN, schema, quiet: true, tenant: { name: 'Новый', user: { ...petr, roles: [] } } }), invalid);
+    assert.equal(await rows(), before, 'ничего не записано');
   } finally {
-    await db2.close();
+    await sql.unsafe(`drop schema if exists ${S} cascade`);
   }
 });
 
-test('seeds: false — голая структура без классов; connect честно падает', async () => {
-  // контракт connect: реестр не пуст — up() доводит до родной ошибки, структура при этом создана
-  await assert.rejects(
-    () => up({ dsn: DSN, schema: 'uptest_bare', version: 1, seeds: false, quiet: true }),
-    /has no classes/,
-  );
-  const sql = postgres(DSN, { max: 1 });
-  const [{ classes }] = await sql.unsafe('SELECT count(*)::int AS classes FROM "v1.uptest_bare"."Schema"') as unknown as { classes: number }[];
-  const [{ accounts }] = await sql.unsafe('SELECT count(*)::int AS accounts FROM "v1.uptest_bare"."Account"') as unknown as { accounts: number }[];
-  await sql.end();
-  assert.equal(classes, 0);
-  assert.equal(accounts, 0);
-});
+test('createTenant после удаления: членство, аккаунт пользователя, арендатор — invalid_data с объяснением вместо 23505, ничего не записано; restore() возвращает строку, повтор проходит', async () => {
+  const schema = 'v2.t_up_gone';
+  const S = ident(schema);
+  await ensureAppRole(sql);
+  const r = await up({ dsn: ADMIN_DSN, schema, fresh: true, quiet: true,
+    tenant: { name: 'Салон', user: { name: 'Ольга', login: 'olga@salon.ru', password: 'пароль-Ольги-1' } } });
+  try {
+    const salon = r.tenant!.tenant;
+    const vera = { name: 'Вера', login: 'vera@salon.ru', password: 'пароль-Веры-1', roles: ['staff'] };
+    const v = await createTenant(sql, schema, { name: 'Салон', user: vera });
+    const [{ id: veraMember }] = await sql.unsafe(`select ${S}.v5_id($2::uuid, 'member', array[$1::text, $2::text]) as id`, [v.user, salon]);
+    /** Всё записанное: строки, версии, секреты (сессии и пароли). */
+    const rows = async () => (await sql.unsafe(`select (select count(*) from ${S}.entity)::int + (select count(*) from ${S}.log)::int
+      + (select count(*) from ${S}.secret)::int as n`))[0].n as number;
+    /** Отказ createTenant об удалённой строке: код, текст (что, id, почему, как вернуть), detail. */
+    const gone = (re: RegExp, detail?: unknown) => (err: { code?: string; message?: string; detail?: unknown }) => {
+      assert.equal(err.code, 'invalid_data', err.message);
+      assert.match(err.message ?? '', re);
+      assert.match(err.message ?? '', /, а его история осталась в журнале — повтор удалённое не воскрешает: верните его /);
+      if (detail) assert.deepEqual(err.detail, detail);
+      return true;
+    };
 
-test('seeds: свои файлы с маркером "<SCHEMA-NAME>" вместо демо', async () => {
-  await writeFile(
-    seedFile,
-    `INSERT INTO "<SCHEMA-NAME>"."Schema" (partition, id, alias, category, ancestor, attributes, meta, links, "order", ancestors) VALUES
-       ('entity', 'Item', 'Штука', 'HUB', NULL, '{"id":"uuid","name":"string"}'::jsonb, '{}'::jsonb, '[]'::jsonb, 100, '{"Item"}'::text[]);
-     INSERT INTO "<SCHEMA-NAME>"."Account" (categories, data) VALUES ('{System}', '{"name":"UpSeed"}');`,
-    'utf8',
-  );
-  const db = await up({ enforceAccount: false, dsn: DSN, schema: 'uptest_seeded', version: 1, seeds: [seedFile], quiet: true });
-  assert.equal(await db.Штука().count(), 0); // свой класс виден реестру
-  const [шт] = await db.Штука().create({ name: 'первая' }).rows(); // System-аккаунт из сида позволяет писать
-  assert.equal(шт.data.name, 'первая');
-  const sql = postgres(DSN, { max: 1 });
-  const rows = await sql.unsafe('SELECT data->>\'name\' AS name FROM "v1.uptest_seeded"."Account"') as unknown as { name: string }[];
-  await sql.end();
-  assert.deepEqual(rows.map((r) => r.name), ['UpSeed']); // демо-сиды НЕ применялись
-  await db.close();
-});
+    // членство удалено (владелец арендатора убрал сотрудницу): повтор — отказ, а не 23505 log_id_rev
+    const olga = await connect({ dsn: appDsn(), schema, token: r.tenant!.token!, max: 1, listen: false });
+    try {
+      await olga.member(veraMember).delete({ confirm: true }).rows();
+      const before = await rows();
+      await assert.rejects(createTenant(sql, schema, { name: 'Салон', user: vera }),
+        gone(/^letopis: invalid_data: createTenant: членство vera@salon\.ru в арендаторе «Салон» \([0-9a-f-]{36}\) удалено, .*db\.member\(id\)\.restore\(\) в этом арендаторе или выберите другой логин$/,
+          { id: veraMember, class: 'member' }));
+      assert.equal(await rows(), before, 'ничего не записано: ни строк, ни сессии');
+      // совет из текста работает: restore() возвращает членство с прежними ролями, повтор проходит
+      await olga.member(veraMember).restore().rows();
+      const again = await createTenant(sql, schema, { name: 'Салон', user: vera });
+      assert.deepEqual([again.created, again.user], [false, v.user]);
+      assert.match(again.token ?? '', /^[0-9a-f]{64}$/);
+    } finally {
+      await olga.close();
+    }
 
-test('несуществующая база на живом сервере создаётся автоматически', async () => {
-  const url = new URL(DSN);
-  url.pathname = '/uptest_db';
-  const db = await up({ enforceAccount: false, dsn: url.toString(), schema: 'uptest', version: 1, quiet: true });
-  assert.ok(await db.Клиент().count() >= 0); // схема в свежей базе работает
-  await db.close();
-});
-
-test('валидация: имя схемы с точкой/версией и кривая version — ошибки', async () => {
-  await assert.rejects(() => up({ dsn: DSN, schema: 'v1.uptest', version: 1 }), /bad schema name/);
-  await assert.rejects(() => up({ dsn: DSN, schema: 'uptest', version: 0 }), /bad version/);
-  await assert.rejects(() => up({ dsn: DSN, schema: 'uptest', version: 1.5 }), /bad version/);
+    // аккаунт пользователя и арендатора удаляет системный администратор (член System с ролью admin)
+    const adminId = randomUUID();
+    await sql.begin(async (tx) => {
+      await tx.unsafe('set local role letopis_owner');
+      await tx.unsafe(`select ${S}.sys_create($1::uuid, 'Account', $2::uuid, '{}', $3::jsonb)`,
+        [adminId, SYSTEM_ID, { name: 'Админ', categories: [], enabled: true } as never]);
+      await tx.unsafe(`select ${S}.sys_create(${S}.v5_id($2::uuid, 'member', array[$1::text, $2::text]), 'member', $2::uuid,
+        jsonb_build_object('User', $1::uuid, 'Tenant', $2::uuid), '{"roles": ["admin"]}')`, [adminId, SYSTEM_ID]);
+    });
+    const [{ tok }] = await sql.unsafe(`select ${S}.new_session($1::uuid, '1 hour', $2::jsonb) as tok`, [adminId, { tenant: SYSTEM_ID } as never]);
+    const admin = await connect({ dsn: appDsn(), schema, token: tok as string, max: 1, listen: false });
+    try {
+      await admin.Account(v.user!).delete({ confirm: true }).rows();
+      await assert.rejects(createTenant(sql, schema, { name: 'Салон', user: vera }),
+        gone(/createTenant: аккаунт пользователя vera@salon\.ru \([0-9a-f-]{36}\) удалён, .*db\.Account\(id\)\.restore\(\) от имени системного администратора или выберите другой логин$/));
+      const empty = await createTenant(sql, schema, { name: 'Пустой' });
+      await admin.Account(empty.tenant).delete({ confirm: true }).rows();
+      const before = await rows();
+      await assert.rejects(createTenant(sql, schema, { name: 'Пустой' }),
+        gone(/createTenant: арендатор «Пустой» \([0-9a-f-]{36}\) удалён, .*или выберите другое имя$/));
+      assert.equal(await rows(), before, 'ничего не записано');
+    } finally {
+      await admin.close();
+    }
+  } finally {
+    await sql.unsafe(`drop schema if exists ${S} cascade`);
+  }
 });
