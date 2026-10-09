@@ -1,6 +1,6 @@
 {
   "name": "letopis",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Letopis (летопись): versioned entity store on PostgreSQL 18 — integrity, history, tenants and access control enforced by the database itself, dot-notation chains on top",
   "keywords": [
     "postgres",

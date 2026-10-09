@@ -70,8 +70,10 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       # Проверка АРТЕФАКТА из реестра тем же скриптом, что на dev: каждый экспорт из
-      # docs/api-contract.json импортируется, состав тарбола совпадает с полем files, живой
-      # прогон на сервисе postgres:18 (up, вход сервисом, загрузка, запись, чтение) обязателен.
+      # docs/api-contract.json импортируется, команда letopis из node_modules/.bin печатает справку,
+      # состав тарбола совпадает с полем files, живой прогон на сервисе postgres:18 (up, вход
+      # сервисом, загрузка, запись, чтение) обязателен. `npm view` видит свежую версию раньше,
+      # чем `npm install`, поэтому установку из реестра скрипт сам повторяет до ~5 минут.
       - name: Check the published package
         working-directory: lib
         env:
@@ -82,7 +84,7 @@ jobs:
           V="$(node -p "require('./package.json').version")"
           echo "ждём появления letopis@$V в реестре…"
           for i in $(seq 1 30); do
-            npm view "letopis@$V" version >/dev/null 2>&1 && break
+            npm view "letopis@$V" version --prefer-online >/dev/null 2>&1 && break
             sleep 5
           done
           node scripts/check-package.mjs --registry="$V"

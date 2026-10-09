@@ -7,7 +7,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import postgres from 'postgres';
@@ -389,4 +389,22 @@ test('этап 7: $tags и $owner строки; режим истории с exi
   assert.equal((await db.Org({ name: 'tg-1' }).first())!.rev, 1, 'существующий объект не тронут');
   assert.deepEqual((await db.Org({ name: 'tg-new' }).first())!.tags, ['h']);
   await assert.rejects(adm.load(hist, { withHistory: true, existing: 'update' }), code('invalid_data'));
+});
+
+test('CLI через симлинк — так его запускают node_modules/.bin и npx на Linux и macOS (1.0.1)', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'letopis-bin-'));
+  try {
+    const link = join(dir, 'letopis.ts');
+    try {
+      await symlink(join(import.meta.dirname, '../src/cli.ts'), link);
+    } catch (x) {
+      // Windows без режима разработчика симлинк не создаёт; npm там запускает CLI обёрткой по реальному пути
+      t.skip(`симлинк недоступен: ${(x as NodeJS.ErrnoException).code}`);
+      return;
+    }
+    const out = execFileSync(process.execPath, ['--import', 'tsx', link, '--help'], { stdio: 'pipe' }).toString();
+    assert.match(out, /letopis sync/, 'через симлинк CLI молча ничего не делал (1.0.0)');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
