@@ -3,7 +3,7 @@
 > Карта говорит, где смотреть; истина — код. Нашёл расхождение — поправь карту в том же изменении.
 
 ## Паспорт
-**letopis 1.0.0 готовится к выпуску** в ветке `dev` (этап 8 плана); версия — в `lib/package.json` (= верхняя запись `lib/CHANGELOG.md`); версии с дефисом (`1.0.0-rc.1`) уходят в npm под dist-tag `next`. `main` и `latest` в npm остаются на 0.21.0 (тег `v0.21.0`) до выпуска 1.0.0 — только по команде владельца. Спецификация — `reports/PLAN-LETOPIS-1.0.md` (редакция 8): девять этапов, контрольные точки А, Б, В.
+**letopis 1.0.0 — текущий выпуск**: `main`, тег `v1.0.0`, npm `latest`; разработка — в ветке `dev`. Версия — в `lib/package.json` (= верхняя запись `lib/CHANGELOG.md`); версии с дефисом (`1.1.0-rc.1`) уходят в npm под dist-tag `next`. Выпуск — только по команде владельца. Спецификация 1.0 — `reports/PLAN-LETOPIS-1.0.md` (редакция 8, выполнена): девять этапов, контрольные точки А, Б, В.
 npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) — хранилище версионированных сущностей на PostgreSQL 18: три таблицы (`entity`, `log`, `secret`), целостность, арендаторы и права проверяет база (триггеры и RLS), поверх — цепочки `t.Класс(фильтр).Связь().rows()`. Рантайм-зависимость одна — `postgres`; необязательные peer-зависимости: Zod 4 (`letopis/model`), `@electric-sql/pglite` и `@electric-sql/pglite-socket` (`up({ pglite })` для разработки без PostgreSQL). CLI `letopis`: `sync`, `types`, `load`, `verify`, `maintain`, `describe`, `import` (`lib/src/cli.ts`).
 Код 0.21 доступен по тегу: `git show v0.21.0:lib/src/sql.ts`. Эталоны 0.21 для дифференциальных тестов — `lib/test/oracle/`; переход с 0.21 — `lib/MIGRATION.md`.
 
@@ -61,7 +61,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 - `.gitignore`, `.gitattributes`, `LICENSE` == `lib/LICENSE`.
 
 ## Сквозные правила
-- Деплой (CLAUDE.md): пуш только в dev → PR dev→main → merge → тег (tag.yml) → публикация Release → npm. Выпуск 1.0.0 — только по команде владельца.
+- Деплой (CLAUDE.md): пуш только в dev → PR dev→main → merge → тег (tag.yml) → публикация Release → npm. Выпуск — только по команде владельца.
 - Утверждения о поведении — только по коду и тестам; планы — в `reports/PLAN-LETOPIS-1.0.md`.
 - В одном коммите с кодом обновляются карточка модуля, трасса, список тестов в разделе «Тесты» `lib/README.md` и `lib/README.en.md` и контракт API (`cd lib && npm run api:contract`), если изменились экспорты, методы или тексты ошибок; связность ловит `cd lib && npm run check:docs`.
 - Документация пакета двуязычная: правка `lib/README.md` или `lib/AGENT-CHEATSHEET.md` — та же правка в `.en.md`; помеченные примеры (`<!-- run -->`) исполняет тест `docs`.

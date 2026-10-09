@@ -59,7 +59,7 @@ jobs:
       - name: Install
         working-directory: lib
         run: npm ci
-      # Версии с дефисом (1.0.0-rc.1 и т.п.) уходят под dist-tag next, чтобы не стать latest.
+      # Версии с дефисом (1.1.0-rc.1 и т.п.) уходят под dist-tag next, чтобы не стать latest.
       - name: Publish to npm
         working-directory: lib
         run: |
