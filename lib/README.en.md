@@ -1490,7 +1490,8 @@ const modelText = describeText(model) // the same as text: for the application's
 ```
 
 `db.describe()` returns a description of the classes available to the session: fields, ends, keys, policies and
-metadata. From the command line: `letopis describe --format text --out llms.txt`.
+metadata, plus the multi-field conditions `anyOf` and `oneOf` with inheritance applied, when a class has them. From
+the command line: `letopis describe --format text --out llms.txt`.
 
 ### Raw SQL
 

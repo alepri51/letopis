@@ -1452,8 +1452,9 @@ const model = db.describe()           // { schema, tenant, classes: [...], metho
 const modelText = describeText(model) // то же текстом — для llms.txt приложения или подсказки ИИ-агенту
 ```
 
-`db.describe()` отдаёт описание классов, доступных сессии: поля, концы, ключи, политики и метаданные. Из
-командной строки — `letopis describe --format text --out llms.txt`.
+`db.describe()` отдаёт описание классов, доступных сессии: поля, концы, ключи, политики и метаданные, а также
+условия по нескольким полям `anyOf` и `oneOf` с учётом наследования, если они заданы. Из командной строки —
+`letopis describe --format text --out llms.txt`.
 
 ### Сырой SQL
 
