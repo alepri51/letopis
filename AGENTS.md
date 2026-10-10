@@ -85,6 +85,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 | `lib/CHANGELOG.md` | решения по версиям; версия = `lib/package.json` | grep `## \[` |
 | `docs/api-contract.json` | машинный контракт API, генерируется | grep имени |
 | `docs/checkpoint-a.md` | замеры точки А | по серии |
+| `docs/checkpoint-1.1.md` | замеры плана 1.1: `blame` и `diff` (этап 1), затем точка А | по этапу |
 | `BACKLOG.md`, `COMPARISON.md` | бэклог и сравнение с аналогами (0.19–0.21) | по заголовку |
 
 ## Не читать

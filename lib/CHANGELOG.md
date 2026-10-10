@@ -40,6 +40,8 @@
   `restore`, `purge`, `rekey`; `db.begin({ reason })` и `db.batch(имя, { reason })` — для всех операций блока.
   В 1.0 причину мог задать только сырой SQL настройкой `letopis.reason`.
 - Зарезервированные имена `diff` и `blame`.
+- Замер `bench/history.bench.mjs` (`docs/checkpoint-1.1.md`): `blame` по 1000 версиям — около 0,26–0,29 с, по
+  10 000 — 1,5 с; `diff` — 4–12 мс.
 
 ### Tests — этап 1
 - `history` (план 1.1, §7.2 №1–9); `roles` — новые функции приложения в белом списке.
