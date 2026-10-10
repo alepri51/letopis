@@ -174,7 +174,8 @@ test('№14: чужой арендатор — пустая выборка, но
   assert.equal((await as(a, `select * from ${S}.entity where id = $1`, [theirs.id])).length, 0);
   assert.equal((await as(a, `update ${S}.entity set data = data where id = $1 returning id`, [theirs.id])).length, 0);
   assert.equal((await as(a, `delete from ${S}.entity where id = $1 returning id`, [theirs.id])).length, 0);
-  assert.equal((await as(a, `select * from ${S}.log where id = $1`, [theirs.id])).length, 0);
+  // журнал — по колонкам: select * приложению недоступен (колонка changed не выдана, ревью №1 точки А)
+  assert.equal((await as(a, `select id, rev from ${S}.log where id = $1`, [theirs.id])).length, 0);
   await assert.rejects(as(a, `insert into ${S}.entity (class, tenant, data) values ('Org', $1, '{"name": "x"}')`, [b.id]), lt('tenant_denied'));
 });
 
@@ -448,8 +449,7 @@ test('№32 (план 1.1, этап 2): заливка канала поддел
     };
     const before = await db.Org().cache().rows();
     const sig = db.cache.stats().signals;
-    // сброс, класс данных, все сессии, чужой токен, мусор — каждый своей транзакцией (без склейки); поддельный
-    // Class перечитывает реестр сразу, как настоящий, но не больше одного перечитывания одновременно
+    // сброс, класс данных, все сессии, чужой токен, мусор — каждый своей транзакцией (без склейки)
     const fakes = ['*', 'Org', 'session:*', `${'ab'.repeat(12)}@${'cd'.repeat(12)}`, 'не класс!'];
     const t0 = Date.now();
     for (let i = 0; i < 600; i++) await e.app.unsafe('select pg_notify($1, $2)', [e.schema, fakes[i % fakes.length]]);
@@ -458,6 +458,16 @@ test('№32 (план 1.1, этап 2): заливка канала поддел
     assert.equal(db.cache.stats().signals, sig + 600, 'все поддельные сигналы дошли');
     assert.ok(loads <= Math.floor(ms / 5000) + 1, `перечитываний реестра ${loads} за ${ms} мс`);
     assert.deepEqual(await db.Org().cache().rows(), before, 'данные те же: поддельный сигнал только сбрасывает кэш');
+    // поддельный Class: три перечитывания подряд — сразу, дальше не чаще раза в 5 с (ревью №1 точки А); запас — на
+    // отложенное перечитывание после сброса из первой части
+    loads = 0;
+    const sig2 = db.cache.stats().signals;
+    const t1 = Date.now();
+    for (let i = 0; i < 300; i++) await e.app.unsafe('select pg_notify($1, $2)', [e.schema, 'Class']);
+    for (let i = 0; i < 1500 && db.cache.stats().signals < sig2 + 300; i++) await sleep(20);
+    const ms1 = Date.now() - t1;
+    assert.equal(db.cache.stats().signals, sig2 + 300, 'все поддельные Class дошли');
+    assert.ok(loads <= 3 + Math.floor(ms1 / 5000) + 2, `перечитываний реестра по Class ${loads} за ${ms1} мс`);
   } finally {
     await db.close();
   }

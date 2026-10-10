@@ -250,6 +250,24 @@ test('№13 гонка запроса и сигнала: ответ, начат�
   assert.equal(c.stats().raced, 2);
 });
 
+test('№17 (ревью №1 точки А): заливка разными поддельными именами — счётчиков сигналов не больше предела, настоящий сигнал сбрасывает', () => {
+  const c = new ResultCache();
+  c.listen();
+  const tok = c.token(['Item'], 's');
+  for (let i = 0; i < 200_000; i++) {
+    c.signal(`C${i}`);
+    c.signal(`session:${i.toString(16).padStart(16, '0')}`);
+    c.signal({ kind: 'class', cls: `T${i}`, tenant: 'ab'.repeat(12) });
+  }
+  const m = c as unknown as Record<'classEpoch' | 'sessionEpoch' | 'pairEpoch' | 'anyEpoch', Map<string, number>>;
+  for (const k of ['classEpoch', 'sessionEpoch', 'pairEpoch', 'anyEpoch'] as const) assert.ok(m[k].size <= 100_000, `${k}: ${m[k].size}`);
+  assert.equal(c.set('k', [1], ['Item'], 's', tok, 60_000, null), false, 'снимок, взятый до переполнения, устарел');
+  const tok2 = c.token(['Item'], 's');
+  assert.equal(c.set('k', [1], ['Item'], 's', tok2, 60_000, null), true);
+  c.signal('Item');
+  assert.equal(c.get('k'), undefined, 'настоящий сигнал по-прежнему сбрасывает ответ');
+});
+
 test('№14 каскад и смена класса: сразу после фиксации сброшены ответы всех задетых классов', async () => {
   const [it] = await db.Item().create({ n: 140 }).rows();
   await db.Item(it.id).Part().create({ n: 1 }).rows();

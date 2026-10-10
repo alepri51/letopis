@@ -1431,11 +1431,16 @@ await db.Order(id).blame({ at: '2026-10-01', limit: 200 })  // the version at a 
   multi-valued end and tags element by element. If the object did not exist at `from`, every path is `added`; if it
   was deleted at `to`, `to.deleted` is `true`.
 - `blame()` returns `{ id, class, rev, complete, fields }`: for every leaf, the version that changed it last,
-  `author`, `agent`, `op`, `reason` and `exact`. `exact: false` means the history before that version is incomplete
-  (thinned, trimmed or partly invisible), so the real change may be older. `complete: true` means the whole history
-  was scanned without gaps; by default at most the 1000 latest versions are scanned.
+  `author`, `agent`, `op`, `reason` and `exact`. `exact: false` means there are gaps between the current version and
+  that one (the history is thinned, trimmed or partly invisible): a missing version may have changed the leaf too.
+  `complete: true` means the whole history was scanned without gaps; by default at most the 1000 latest versions are
+  scanned.
 - The database computes both with the caller's rights: raw SQL gets the same, `select "v2.shop".blame('<id>')`,
   `select "v2.shop".diff_versions('<id>')`.
+- The journal column `changed` (the paths changed by a version, which make `blame` fast) is not granted to the
+  application: the paths describe the difference from the previous version, and the reader may not see that one.
+  So `select * from log` does not work for the application — list the columns; `blame` gets the paths through a
+  database function only when both versions are visible.
 
 ### Trimming history
 
@@ -1999,7 +2004,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # chain-write — writing with chains: create, update, upsert, delete with preview, anonymize, reclass, slots, inc, { rev }, fan-out, plan rollback (stage 4)
 # demo — the booking demo domain on Zod: seed from models, writing data, id by key, agreement between Zod and the database (stage 2)
 # docs — documentation examples are executed: the marked blocks of the README and the cheatsheet (Russian and English) run as scenarios against PostgreSQL 18 (stage 8)
-# engine-attacks — raw SQL attacks from the application role: the rows of §7.3.1 for stages 1 and 3 with specific outcomes; the signal key without permission, flooding with fake signals (stages 1, 3; plan 1.1, stage 2)
+# engine-attacks — raw SQL attacks from the application role: the rows of §7.3.1 for stages 1 and 3 with specific outcomes; the signal key without permission, flooding with fake signals, Class included (stages 1, 3; plan 1.1, stage 2 and checkpoint A)
 # engine-class — classes as entities: metaschema, inheritance, recomputing descendants, tightening, metadata (stage 1)
 # engine-write — the write pipeline in raw SQL: v5 ids, defaults, merge, inc, deletion, resurrection, journal, signals (stage 1)
 # engine-races — races on two connections in both orders, without timed pauses (stage 1)
@@ -2013,7 +2018,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # member — memberships: working in a tenant by roles, auth.switch, leaving with ownership transfer, system rows, tenant roles without System permissions (stage 5)
 # model — Zod models, the JSON Schema normalizer, pattern translation, agreement with the database metaschema (stage 2)
 # load — the loader: several classes, cycles, $key and $ext, repeats, existing, portions, history mode, the query for targets outside the load, CLI (stage 4)
-# roles — roles and privileges: installation without a superuser, owner functions, triggers by catalog (stage 1)
+# roles — roles and privileges: installation without a superuser, owner functions, triggers by catalog, the log without the changed column (stage 1; plan 1.1, checkpoint A)
 # write-races — write races: 20 concurrent edits of different fields without losses and strict rev, concurrent add/remove on a multiple end, the loader versus class tightening and versus a concurrent edit (existing: update) in both orders (stage 4)
 # validator-parity — the TypeScript validator versus the database check: the official suite, 10,000 random documents, defaults (stage 2)
 # scenario-barbershop — end-to-end barbershop scenario: 9 scenes from 0.21 (integration) on 1.0 chains — catalog, free slots in a batch, bookings under lock, multi-slot and multi-specialist, versions, cancellation and booking again on the same id, closing a month with restrict (stage 4)
@@ -2029,12 +2034,12 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # verify — legitimate gaps and tampering, verify({ data: true }): data, ends, tenants, id by key; permissions and CLI (stage 6)
 # retention — retention policy: tiers, a finite term, special versions, deleted rows, asOf, cursor_expired, time zone, catch-up run, inheritance and default — versus a reference in TypeScript (stage 6)
 # watch — cursor subscription: commit order, a long transaction, resuming, listener drop, two tenants (stage 6)
-# cache — result cache: hits, own and others' writes, the key with the user, permissions, revoked sessions, listener drop, ttl, class marking, without LISTEN, a race, db.sql (stage 6)
+# cache — result cache: hits, own and others' writes, the key with the user, permissions, revoked sessions, listener drop, ttl, class marking, without LISTEN, a race, db.sql, the limit of signal counters (stage 6; plan 1.1, checkpoint A)
 # maintain — maintenance: expired sessions and codes, permissions, one process under a lock, schedule (stage 6)
 # up — the full installer: fresh installation, re-apply, custom seeds, automatic database creation, UTF8, version 17, upgrade with migrations, PGlite, the first tenant and user (up({ tenant }), createTenant) (stages 6, 8)
 # scenario-salon — end-to-end salon scenario: 21 acts from 0.21 (salon) with a coverage matrix of the 1.0 API (stage 6)
 # telemetry — onQuery and slowMs, describe() and class metadata with inheritance, describeText (stage 6)
-# history — diff and blame over the log, the reason of a change for verbs, db.begin() and batches (plan 1.1, stage 1)
+# history — diff and blame over the log, the reason of a change for verbs, db.begin() and batches; a version hidden by an ACL condition, the changed column, a missing version, row_changes over 20 thousand targets (plan 1.1, stage 1 and checkpoint A)
 # signals — signal modes: the payload seen by a foreign role, cache precision per tenant, System, permission classes, a process without the key, the loader, subscriptions, the key, none, coalescing, the server version, a class change, a resend, the mode after up() and reset({ all }) (plan 1.1, stage 2)
 # initial-load — the initial load: equality with the regular loader, structure and trigger modes, system rows, a non-empty schema, an insert during the start, rollback, MULTI_INSERT in WAL, commitEvery, import --initial (plan 1.1, stage 3)
 # import — import from 0.21 with a fixture of a real 0.21: key violation, --keyless, per-class counters, verify, self-reference, repeat, ids without a key, a dangling reference, $$strict and fields starting with $, update, credentials, CLI (stage 7)

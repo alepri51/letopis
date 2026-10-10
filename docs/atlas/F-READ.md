@@ -22,7 +22,7 @@
 ## diff и blame (план 1.1, этап 1)
 - `lib/src/chain.ts` — терминалы `diff()`/`blame()`: номера и моменты проверяются до запроса, параметры — `ChainMods.hist`.
 - `lib/src/sql.ts:buildRead` — режимы `diff`/`blame` поверх множества сущностей последнего шага: `select S.diff_versions(z.id, …)` / `S.blame(z.id, …)` по одному документу на объект.
-- `lib/sql/75-history.sql:diff_versions`, `:blame` — журнал под RLS вызывающего (`log_select`); различия — `version_changes` и `jsonb_changes`, листья — `version_leaves`.
+- `lib/sql/75-history.sql:diff_versions`, `:blame` — журнал под RLS вызывающего (`log_select`); различия — `row_changes` и `jsonb_changes`, листья — `row_leaves`; пути колонки `changed` — `version_paths` (функция владельца: только когда видны обе версии пары; колонка приложению не выдана).
 
 ## Исполнение
 14. [N] `lib/src/chain.ts:exec` — с кэшем (`cacheTtl`) — F-WATCH «Кэш результатов»; иначе `ctx.exec.run(…, { read: true })`.

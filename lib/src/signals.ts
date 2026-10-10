@@ -123,6 +123,37 @@ export class Signals {
  * Не чаще раза в ms: первый вызов — сразу, вызовы внутри окна — один раз в его конце. Так заливка
  * канала сигналами (в том числе поддельными) не превращается в поток перечитываний реестра.
  */
+/**
+ * Ведро жетонов: count вызовов подряд — сразу, дальше не чаще раза в ms (жетон возвращается раз в ms); вызовы
+ * в ожидании сливаются в один. Короткая серия проходит без задержки, заливка — с заданной частотой.
+ */
+export function bucket(fn: () => void, count: number, ms: number): (() => void) & { stop(): void } {
+  let tokens = count;
+  let at = Date.now();
+  let timer: NodeJS.Timeout | null = null;
+  const call = (): void => {
+    if (timer) return;
+    const now = Date.now();
+    tokens = Math.min(count, tokens + (now - at) / ms);
+    at = now;
+    if (tokens >= 1) {
+      tokens -= 1;
+      return fn();
+    }
+    timer = setTimeout(() => {
+      timer = null;
+      call();
+    }, Math.ceil((1 - tokens) * ms));
+    timer.unref?.();
+  };
+  return Object.assign(call, {
+    stop: () => {
+      if (timer) clearTimeout(timer);
+      timer = null;
+    },
+  });
+}
+
 export function throttle(fn: () => void, ms: number): (() => void) & { stop(): void } {
   let last = -Infinity;
   let timer: NodeJS.Timeout | null = null;

@@ -128,7 +128,11 @@ revoke all on @SCHEMA@.entity, @SCHEMA@.log, @SCHEMA@.secret from public, @APP@;
 grant select, delete on @SCHEMA@.entity to @APP@;
 grant insert (id, tenant, class, links, data, tags, owner) on @SCHEMA@.entity to @APP@;
 grant update (class, links, data, tags) on @SCHEMA@.entity to @APP@;
-grant select on @SCHEMA@.log to @APP@;
+-- журнал — без колонки changed (ревью №1 точки А плана 1.1): её пути описывают разницу с предыдущей версией, а та
+-- читателю может быть не видна (условие ACL скрыло её и пропустило следующую); blame получает пути через
+-- version_paths, которая проверяет видимость обеих версий (75-history.sql)
+grant select (seq, tx, id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash, hash)
+  on @SCHEMA@.log to @APP@;
 alter table @SCHEMA@.entity enable row level security;
 alter table @SCHEMA@.log enable row level security;
 alter table @SCHEMA@.secret enable row level security;

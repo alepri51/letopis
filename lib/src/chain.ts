@@ -411,6 +411,9 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
   const withOp = (op: PlanOp): Chain => {
     const last = steps[steps.length - 1];
     if (!last) throw new LetopisError('invalid_query', `${op.kind}() — нужен шаг класса: db.Класс(…).${op.kind}(…)`);
+    // батч: причина db.batch(имя, { reason }) — при постановке в очередь, а не при run(): очередь общая по имени, и
+    // run() может позвать фасад без причины или с другой (ревью №1 точки А плана 1.1)
+    if (ctx.batch && op.reason === undefined && ctx.reason !== undefined) op = { ...op, reason: ctx.reason };
     const next = last.op
       ? [...steps, { name: last.name, cls: last.cls, role: last.role, aliasKey: last.aliasKey, self: true as const, op, opMods: mods, nodeKey: nextNodeKey() }]
       : [...steps.slice(0, -1), { ...last, op, opMods: mods }];

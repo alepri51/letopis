@@ -21,7 +21,7 @@ import type { QueryEvent, Row } from './types.js';
 import { DDL_REVISION } from './types.js';
 import { ACL_CLASSES, ResultCache, type CacheOptions, type CacheStats } from './cache.js';
 import { Subscription, type WatchOptions } from './watch.js';
-import { SIGNAL_MODES, Signals, throttle, type Signal, type SignalMode } from './signals.js';
+import { SIGNAL_MODES, Signals, bucket, throttle, type Signal, type SignalMode } from './signals.js';
 import {
   describe as describeModel, maintain as runMaintain, rekeyClass as runRekeyClass, reset as runReset, scheduleMaintain,
   trimHistory as runTrim, verify as runVerify, type AdminCtx, type MaintainOptions, type MaintainReport, type ModelDescription,
@@ -473,14 +473,13 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
       passes.clear();
       void fetchKey().then(refresh).catch(() => {});
     }, 5000);
-    // сигнал Class — реестр сразу, как в 1.0: пока идёт перечитывание, новые сигналы сливаются в одно следующее
+    // сигнал Class — реестр сразу, как в 1.0: правка описания доходит без задержки; пока идёт перечитывание, новые
+    // сигналы сливаются в одно следующее. Три перечитывания подряд — сразу, дальше не чаще раза в 5 с: заливка
+    // канала, в том числе поддельными Class, не становится потоком перечитываний (план 1.1, §7.7 №32; ревью №1
+    // точки А)
     let reloading = false;
     let again = false;
-    const reload = (): void => {
-      if (reloading) {
-        again = true;
-        return;
-      }
+    const startReload = bucket(() => {
       reloading = true;
       void refresh().catch(() => {}).finally(() => {
         reloading = false;
@@ -489,6 +488,13 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
           reload();
         }
       });
+    }, 3, 5000);
+    const reload = (): void => {
+      if (reloading) {
+        again = true;
+        return;
+      }
+      startReload();
     };
     // строки прав — пропуска заново; кэш результатов и подписки — по классу и арендатору сигнала;
     // (пере)подключение слушателя — кэш целиком, после обрыва — и ключ с реестром (сигналы потеряны)
@@ -542,6 +548,7 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
       async close() {
         stopMaintain?.();
         resync.stop();
+        startReload.stop();
         if (stamper) clearInterval(stamper);
         await notifier.close();
         await listener?.unlisten();

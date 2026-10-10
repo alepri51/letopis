@@ -124,6 +124,10 @@ test('7.3.8 №4: перечень функций владельца — search_
     delete_preview: async () => {
       assert.deepEqual([...await e.as(null, (tx) => tx.unsafe(`select * from ${S}.delete_preview(array[$1::uuid])`, [t.id]))], []);
     },
+    // пути колонки changed (ревью №1 точки А плана 1.1): без сессии — ничего
+    version_paths: async () => {
+      assert.deepEqual([...await e.as(null, (tx) => tx.unsafe(`select * from ${S}.version_paths(array[$1::uuid], array[2])`, [t.id]))], []);
+    },
     reclass: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.reclass(gen_random_uuid(), 'Doc')`)), lt('no_session')),
     verify: () => assert.rejects(q(`select ${S}.verify()`), lt('acl_denied')),
     // этап 6: история и эксплуатация
@@ -205,7 +209,8 @@ test('права по каталогу: функции приложения — 
     'auth_verify_totp', 'blame', 'change_paths', 'class_stamp', 'ctx', 'ctx_account', 'ctx_tenant', 'delete_preview', 'diff_versions', 'error_catalog', 'find_deep', 'find_hop', 'find_ids',
     'history_default', 'history_iv', 'history_policy', 'inc', 'issue_session', 'jsonb_changes', 'link_ids', 'links_patch', 'login_apikey', 'login_keysecret',
     'login_otp', 'maintain', 'merge', 'purge', 'reclass', 'rekey', 'rekey_class', 'reserved_names', 'reset', 'restore', 'role_has', 'role_ids', 'row_changes',
-    'session_expires', 'signal_key', 'signal_mode', 'snapshot', 'trim_history', 'uuid_v5', 'v5_id', 'v5_name', 'verify', 'version_changes', 'version_hash', 'version_leaves', 'watch_head', 'watch_read',
+    'row_leaves', 'session_expires', 'signal_key', 'signal_mode', 'snapshot', 'trim_history', 'uuid_v5', 'v5_id', 'v5_name', 'verify', 'version_hash',
+    'version_paths', 'watch_head', 'watch_read',
   ]);
   const pubFns = await e.sql.unsafe(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = $1 and has_function_privilege('public', p.oid, 'execute')`, [e.schema]);
@@ -221,4 +226,9 @@ test('права по каталогу: функции приложения — 
     from pg_attribute a where a.attrelid = $1::regclass and a.attnum > 0 and not a.attisdropped order by a.attnum`, [`${S}.entity`]);
   assert.deepEqual(cols.filter((c) => c.ins).map((c) => c.attname).sort(), ['class', 'data', 'id', 'links', 'owner', 'tags', 'tenant']);
   assert.deepEqual(cols.filter((c) => c.upd).map((c) => c.attname).sort(), ['class', 'data', 'links', 'tags']);
+  // журнал — все колонки, кроме changed: её пути описывают разницу с предыдущей версией, а та читателю может быть
+  // не видна (ревью №1 точки А плана 1.1)
+  const logCols = await e.sql.unsafe(`select a.attname, has_column_privilege('letopis_app', a.attrelid, a.attnum, 'SELECT') as sel
+    from pg_attribute a where a.attrelid = $1::regclass and a.attnum > 0 and not a.attisdropped order by a.attnum`, [`${S}.log`]);
+  assert.deepEqual(logCols.filter((c) => !c.sel).map((c) => c.attname), ['changed']);
 });

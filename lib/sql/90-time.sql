@@ -949,7 +949,10 @@ begin
         message = 'letopis: cursor_expired: курсор подписки старше яруса all — события могли проредиться, перечитайте текущее состояние';
     end if;
   end if;
-  return query select l.* from @SCHEMA@.log l
+  -- колонки — явно: changed приложению не выдана (ревью №1 точки А плана 1.1), в ответе подписки она null
+  return query select l.seq, l.tx, l.id, l.rev, l.class, l.cv, l.tenant, l.owner, l.links, l.data, l.tags, l.at, l.author,
+      l.agent, l.op, l.reason, l.moved, l.prev_hash, l.hash, null::jsonb
+    from @SCHEMA@.log l
     where (l.tx, l.seq) > (p_tx, p_seq) and l.tx < horizon and (p_classes is null or l.class = any (p_classes))
       and (p_snap is null or not pg_visible_in_snapshot(l.tx, p_snap))
     order by l.tx, l.seq limit p_limit;

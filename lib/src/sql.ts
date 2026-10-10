@@ -518,6 +518,9 @@ export function cursorOf(row: Row, field: string): Cursor {
 // ---------------------------------------------------------------------------
 
 const COLS = ['id', 'rev', 'class', 'tenant', 'owner', 'links', 'data', 'tags', 'at', 'author', 'agent', 'op', 'reason', 'moved'];
+/** Колонки журнала, выданные приложению: все, кроме changed (ревью №1 точки А плана 1.1, 10-core.sql). */
+const LOG_COLS = ['seq', 'tx', 'id', 'rev', 'class', 'cv', 'tenant', 'owner', 'links', 'data', 'tags', 'at', 'author', 'agent', 'op', 'reason',
+  'moved', 'prev_hash', 'hash'].map((c) => 'l.' + c).join(', ');
 const colsOf = (a: string): string => COLS.map((c) => `${a}.${c}`).join(', ');
 
 export interface BuildOptions {
@@ -621,7 +624,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
     const logPart = (pairs: string) =>
       // версия журнала по паре (id, rev): вложенный цикл по индексу log_id_rev, без перебора журнала
       `select ${colsOf('x')}, null::int as depth from (${pairs}) f(id, rev) `
-      + `cross join lateral (select * from ${S}.log l where l.id = f.id and l.rev = f.rev) x where ${where('x')}`;
+      + `cross join lateral (select ${LOG_COLS} from ${S}.log l where l.id = f.id and l.rev = f.rev) x where ${where('x')}`;
     const parts: string[] = [];
 
     if (i === 0) {

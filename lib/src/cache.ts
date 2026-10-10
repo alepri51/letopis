@@ -24,6 +24,9 @@ import { Signals, type Signal } from './signals.js';
 /** Классы, строки которых меняют права и схему: их сигнал сбрасывает весь кэш. */
 export const ACL_CLASSES: ReadonlySet<string> = new Set(ACL_CLASS_NAMES);
 
+/** Счётчиков сигналов в каждой карте не больше: имена в нагрузке присылает любая роль базы. */
+const EPOCH_MAX = 100_000;
+
 export interface CacheOptions {
   /** Срок ответа по умолчанию, секунды (60). */
   ttl?: number;
@@ -153,28 +156,35 @@ export class ResultCache {
   invalidate(classes: Iterable<string>): void {
     const set = new Set(classes);
     if (!set.size) return;
-    for (const c of set) this.classEpoch.set(c, (this.classEpoch.get(c) ?? 0) + 1);
+    for (const c of set) this.bump(this.classEpoch, c);
     for (const [k, e] of this.map) if (e.classes.some((c) => set.has(c))) this.map.delete(k);
   }
 
   /** Сбросить ответы класса в арендаторе (токен) и ответы без арендатора; null — во всех. */
   private invalidateIn(cls: string, tenant: string | null): void {
     if (tenant === null) return this.invalidate([cls]);
-    // пар бывает сколько угодно: при переполнении снимки в полёте устаревают целиком (epoch)
-    if (this.pairEpoch.size >= 100_000) {
-      this.pairEpoch.clear();
-      this.epoch++;
-    }
-    const k = `${cls}@${tenant}`;
-    this.pairEpoch.set(k, (this.pairEpoch.get(k) ?? 0) + 1);
-    this.anyEpoch.set(cls, (this.anyEpoch.get(cls) ?? 0) + 1);
+    this.bump(this.pairEpoch, `${cls}@${tenant}`);
+    this.bump(this.anyEpoch, cls);
     for (const [key, e] of this.map) if ((e.tenant === null || e.tenant === tenant) && e.classes.includes(cls)) this.map.delete(key);
   }
 
   /** Сбросить ответы сессии (тег — начало sha256 токена). */
   invalidateSession(tag: string): void {
-    this.sessionEpoch.set(tag, (this.sessionEpoch.get(tag) ?? 0) + 1);
+    this.bump(this.sessionEpoch, tag);
     for (const [k, e] of this.map) if (e.session === tag) this.map.delete(k);
+  }
+
+  /**
+   * Счётчик сигналов по ключу (класс, пара «класс, арендатор», сессия). Ключи приходят в нагрузке сигнала, а её
+   * может прислать любая роль базы: при переполнении карта очищается, и снимки в полёте устаревают целиком
+   * (epoch), — иначе заливка разными именами копила бы счётчики без предела (ревью №1 точки А плана 1.1).
+   */
+  private bump(m: Map<string, number>, k: string): void {
+    if (m.size >= EPOCH_MAX && !m.has(k)) {
+      m.clear();
+      this.epoch++;
+    }
+    m.set(k, (m.get(k) ?? 0) + 1);
   }
 
   /** Весь кэш. */
