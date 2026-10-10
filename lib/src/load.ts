@@ -9,6 +9,9 @@
  *   await db.load({ Org: orgs, Staff: staff })            // объект «класс → строки»
  *   await db.load(rows)                                    // массив или поток строк с полем $class
  *
+ * Первая заливка (план 1.1, §2.3, этап 3) — load(rows, { initial: true }) и initialSession: пустая схема,
+ * одна транзакция, без индексов и триггеров на время COPY (FREEZE), перестройка в конце.
+ *
  * Строка — объект: поля данных и роли концов на верхнем уровне; $class — класс строки, $ext —
  * внешний ключ класса без ключа (повторяемый импорт), $tags — теги, $owner — владелец (аккаунт; не
  * с { as }: там владелец по ownerDefault). Значение конца — id, { $key: [...] } или { $ext: '…' }, у
@@ -56,6 +59,12 @@ export interface LoadOptions {
    * existing: 'update' — прежние) значения строк; цели ссылок ему видны; владелец — по ownerDefault.
    */
   as?: string;
+  /**
+   * Первая заливка (план 1.1, §2.3): только в пустую схему (кроме строк системных классов — иначе
+   * not_empty), одной транзакцией; на время загрузки схема закрыта, индексы и триггеры сняты и
+   * перестраиваются в конце. Без commitEvery, existing (кроме 'error') и { as }.
+   */
+  initial?: boolean;
 }
 
 export interface LoadReport {
@@ -98,6 +107,53 @@ export interface LoadEnv {
   /** Подключение может стать владельцем (set role) — иначе admin_required. */
   admin: boolean;
   ownerRole: string;
+  /** Сессия первой заливки (initialSession): загрузка идёт на её соединении и в её транзакции. */
+  session?: InitialState;
+}
+
+/** Классы, строки которых первая заливка сохраняет и возвращает: описания классов, аккаунты, членства, права. */
+const SYSTEM_CLASSES = ['Class', 'Account', 'member', 'Resource', 'rule'];
+
+/** Внутренние настройки первой заливки — для разбивки замера (bench/initial-load.mjs); в публичные типы не входят. */
+export interface InitialTuning {
+  /** COPY … FREEZE (по умолчанию да). */
+  freeze?: boolean;
+  /** Оставить триггеры (BEFORE ROW делает COPY построчным). */
+  keepTriggers?: boolean;
+  /** Оставить первичный ключ и уникальные ограничения. */
+  keepKeys?: boolean;
+  /** Оставить индексы GIN. */
+  keepGin?: boolean;
+}
+
+/** Проверки загрузки, отложенные до конца первой заливки: по перестроенным индексам. */
+interface Pending {
+  reg: Registry;
+  tenant: string;
+  external: Map<string, { line: number; role: string; allowed: string[] }>;
+  owners: Map<string, number>;
+  /** verify: true — id записанных строк. */
+  verify: string[] | null;
+}
+
+/** Состояние сессии первой заливки. */
+export interface InitialState {
+  conn: Sql;
+  /** id строк системных классов и объектов, уже записанных сессией: первичного ключа на время загрузки нет. */
+  ids: Set<string>;
+  pending: Pending[];
+  /** Арендатор → классы записанных строк: сигнал в конце сессии. */
+  touched: Map<string, Set<string>>;
+  freeze: boolean;
+}
+
+/** Первая заливка для нескольких загрузок (импорт): соединение и транзакция сессии. */
+export interface InitialSession {
+  /** Соединение сессии (роль владельца): свои операторы импорта — в той же транзакции. */
+  readonly sql: Sql;
+  load(input: LoadInput, opts?: LoadOptions): Promise<LoadReport>;
+  /** id уже есть в схеме: строка системного класса или объект, записанный этой сессией. */
+  taken(id: string): boolean;
 }
 
 const esc = (v: unknown): string => {
@@ -318,10 +374,15 @@ function classGroups(reg: Registry, names: string[]): string[][] {
   return groups;
 }
 
+/** Строки COPY уходят кусками примерно такой длины: postgres.js шлёт каждую запись в поток отдельным CopyData. */
+const COPY_CHUNK = 262144;
+
 /**
  * COPY … from stdin. postgres.js 3.4 теряет ошибку сервера, пришедшую после конца потока: запрос
  * уже разрешён потоком, а колбэк завершения не вызывается — промис повис бы. Поэтому reject
- * запроса перехватывается до начала потока и отклоняет ожидание.
+ * запроса перехватывается до начала потока и отклоняет ожидание. Строки склеиваются в куски до
+ * COPY_CHUNK символов: запись в сокет на каждую строку стоила дороже подготовки самой строки
+ * (замер первой заливки, план 1.1, этап 3), а границы сообщений протокол COPY не связывает со строками.
  */
 async function copyLines(conn: Sql, text: string, lines: string[]): Promise<void> {
   if (!lines.length) return;
@@ -342,7 +403,9 @@ async function copyLines(conn: Sql, text: string, lines: string[]): Promise<void
     let i = 0;
     const pump = (): void => {
       while (i < lines.length) {
-        if (!w.write(lines[i++])) {
+        let chunk = lines[i++];
+        while (i < lines.length && chunk.length < COPY_CHUNK) chunk += lines[i++];
+        if (!w.write(chunk)) {
           w.once('drain', pump);
           return;
         }
@@ -351,6 +414,18 @@ async function copyLines(conn: Sql, text: string, lines: string[]): Promise<void
     };
     pump();
   });
+}
+
+/** verify: true — загруженные строки перепроверяет проверка базы (данные и цели концов); нарушения — в to. */
+async function verifyIds(conn: Sql, S: string, ids: string[], to: Issues): Promise<void> {
+  const bad = await conn.unsafe(`select e.id, e.class, ${S}.validate_data(c.data->'resolved'->'rules', c.validator, c.data->'resolved'->'vars', e.data) as issues
+    from ${S}.entity e cross join lateral ${S}.class_row(e.class, e.tenant) c
+    where e.id = any ($1::uuid[]) and ${S}.validate_data(c.data->'resolved'->'rules', c.validator, c.data->'resolved'->'vars', e.data) <> '[]'::jsonb limit ${ISSUES_LIMIT}`, [ids]);
+  for (const r of bad) to.add({ line: 0, code: 'invalid_data', message: `проверка базы: строка ${r.id} не проходит описание класса ${r.class}`, id: r.id as string, issues: r.issues as Issue[] });
+  if (bad.length >= ISSUES_LIMIT) to.unchecked.add(`проверка базы называет не больше ${ISSUES_LIMIT} строк`);
+  const [t] = await conn.unsafe(`select ${S}.targets_bad((select jsonb_agg(jsonb_build_object('class', e.class, 'tenant', e.tenant, 'links', e.links))
+    from ${S}.entity e where e.id = any ($1::uuid[]) and e.links <> '{}'::jsonb), false) as role`, [ids]);
+  if (t?.role) to.add({ line: 0, code: 'target_not_found', message: `проверка базы: цель конца ${t.role} не найдена` });
 }
 
 /**
@@ -366,6 +441,13 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
   if (asAcc !== undefined && (typeof asAcc !== 'string' || !UUID.test(asAcc))) throw new LetopisError('invalid_data', 'load({ as }): id аккаунта');
   if (asAcc !== undefined && opts.withHistory) throw new LetopisError('invalid_data', 'load({ as }) и режим истории несовместимы: историю импортирует администратор');
   if (opts.withHistory && opts.existing === 'update') throw new LetopisError('invalid_data', "режим истории: existing — 'error' или 'skip' (новую версию существующего объекта пишет загрузка без истории)");
+  const ini = env.session ?? null;
+  if (opts.initial || ini) {
+    // снятые индексы и TRUNCATE — одна транзакция; в пустой схеме пропускать и обновлять нечего
+    if (opts.commitEvery) throw new LetopisError('invalid_data', 'первая заливка (initial) несовместима с commitEvery: снятые индексы и TRUNCATE требуют одной транзакции');
+    if (opts.existing !== undefined && opts.existing !== 'error') throw new LetopisError('invalid_data', "первая заливка (initial): existing — только 'error', в пустой схеме пропускать и обновлять нечего");
+    if (asAcc !== undefined) throw new LetopisError('invalid_data', 'первая заливка (initial) — от администратора, без { as }');
+  }
   const tenant = opts.tenant ?? asAcc ?? env.tenant;
   if (!tenant) throw new LetopisError('invalid_data', 'load(): нет арендатора — сессия без арендатора и не задан { tenant }');
   const dupMode = opts.duplicates ?? 'error';
@@ -378,6 +460,13 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
   const rows = await toList(input, opts.class);
   const report: LoadReport = { rows: rows.length, loaded: 0, updated: 0, skipped: 0, duplicates: 0, byClass: {}, external: 0, portions: 0, ms: 0 };
   if (!rows.length) return report;
+  // первая заливка одной загрузкой — своя сессия; вход уже прочитан (поток второй раз не читается)
+  if (opts.initial && !ini) {
+    const r = await initialSession(env, (sess) => sess.load(rows, opts));
+    // время — вместе с перестройкой, отложенными проверками и ANALYZE сессии
+    r.ms = performance.now() - t0;
+    return r;
+  }
 
   const readRegistry = async (q: Sql): Promise<Registry> => {
     const reg = new Registry();
@@ -395,7 +484,8 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
   const targets = new Map<string, { line: number; role: string }>();
   /** Владельцы ($owner) порции, кроме арендатора: id → первая строка; сверяются запросом в конце. */
   const owners = new Map<string, number>();
-  const reg0 = await readRegistry(env.sql);
+  // в первой заливке таблицы заблокированы сессией: читать — на её соединении
+  const reg0 = await readRegistry(ini?.conn ?? env.sql);
   const p1: (Plan1 | null)[] = new Array(rows.length);
   const lineOf = new Map<string, number>();
   const chosen = new Set<number>();
@@ -423,6 +513,12 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     const id = idOfRow(reg0, tenant, cls, raw);
     if (typeof id !== 'string') {
       issues.add({ line, code: 'invalid_data', message: id.error, class: cls.name });
+      p1[i] = null;
+      continue;
+    }
+    // первая заливка: первичного ключа нет — повтор id со строками системных классов и прошлых загрузок сессии ловит проход 1
+    if (ini?.ids.has(id)) {
+      issues.add({ line, code: 'exists', message: 'объект уже есть в схеме: строка системного класса или запись этой же первой заливки', id, class: cls.name });
       p1[i] = null;
       continue;
     }
@@ -503,13 +599,16 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     owners.clear();
     issues.unchecked.clear();
     laterUnchecked(portion, issues);
-    const conn = await env.sql.reserve();
+    // первая заливка: транзакцию, роль и пояс поставила сессия, фиксирует и откатывает тоже она
+    const conn: Awaited<ReturnType<Sql['reserve']>> = ini ? (ini.conn as unknown as Awaited<ReturnType<Sql['reserve']>>) : await env.sql.reserve();
     const written: string[] = [];
     let failed: unknown = null;
     try {
-      await conn.unsafe('begin isolation level read committed');
-      await conn.unsafe(`set local role ${`"${env.ownerRole.replace(/"/g, '""')}"`}`);
-      await conn.unsafe(`select set_config('TimeZone', 'UTC', true)`);
+      if (!ini) {
+        await conn.unsafe('begin isolation level read committed');
+        await conn.unsafe(`set local role ${`"${env.ownerRole.replace(/"/g, '""')}"`}`);
+        await conn.unsafe(`select set_config('TimeZone', 'UTC', true)`);
+      }
       // описания классов под разделяемыми блокировками семейств, затем — свежие
       const roots = [...new Set(portion.map((i) => p1[i]!.cls.ancestors[p1[i]!.cls.ancestors.length - 1]))].sort();
       // ключ блокировки — арендатор корневого класса и имя корня (корень из System — ключ System)
@@ -569,7 +668,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       }
 
       if (opts.withHistory) {
-        await historyWrite(conn as unknown as Sql, reg, todo, inLoad, external, xid as string, classesTouched);
+        await historyWrite(conn as unknown as Sql, reg, todo, inLoad, external, xid as string, classesTouched, written);
       } else {
         for (let b = 0; b < portion.length; b += batch) {
           const part = portion.slice(b, b + batch);
@@ -577,6 +676,16 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
         }
       }
       if (issues.any) issues.fail();
+      if (ini) {
+        // цели, владельцы, арендатор и проверка базы — в конце сессии, по перестроенным индексам
+        report.external += external.size;
+        ini.pending.push({ reg, tenant: tenant!, external, owners: new Map(owners), verify: opts.verify ? written : null });
+        for (const id of inLoad.keys()) ini.ids.add(id);
+        let set = ini.touched.get(tenant!);
+        if (!set) ini.touched.set(tenant!, (set = new Set()));
+        for (const c of classesTouched) set.add(c);
+        return;
+      }
       // цели вне загрузки — один запрос в конце с блокировкой до фиксации (§2.6, п. 7)
       const ext = [...external.keys()].sort();
       report.external += ext.length;
@@ -614,7 +723,10 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       const [acc] = await conn.unsafe(`select coalesce((data->>'enabled')::boolean, true) as enabled from ${S}.entity where id = $1::uuid and class = 'Account'`, [tenant]);
       if (!acc || !acc.enabled) issues.add({ line: portion.length ? portion[0] + 1 : 0, code: 'tenant_denied', message: `арендатор ${tenant} не найден или отключён` });
       if (issues.any) issues.fail();
-      if (opts.verify && written.length) await verifyRows(conn as unknown as Sql, reg, written);
+      if (opts.verify && written.length) {
+        await verifyIds(conn as unknown as Sql, S, written, issues);
+        if (issues.any) issues.fail();
+      }
       // сигнал — функцией базы, как у триггеров: нагрузка по режиму сигналов установки (план 1.1)
       if (classesTouched.size) {
         const touched = [...classesTouched];
@@ -626,13 +738,13 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       await conn.unsafe('commit');
     } catch (e) {
       failed = e;
-      await conn.unsafe('rollback').catch(() => {});
+      if (!ini) await conn.unsafe('rollback').catch(() => {});
     } finally {
-      conn.release();
+      if (!ini) conn.release();
     }
     if (failed) {
       const err = failed as { code?: string; constraint_name?: string };
-      if (err.code === '23505' && (err.constraint_name === 'entity_pkey' || err.constraint_name === 'log_id_rev')) {
+      if (!ini && err.code === '23505' && (err.constraint_name === 'entity_pkey' || err.constraint_name === 'log_id_rev')) {
         await explainTaken(portion);
       }
       throw fromDbError(failed);
@@ -780,8 +892,9 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       }
       if (issues.any) return;
     }
-    await copyLines(conn, `copy ${S}.entity (${ENTITY_COLS}) from stdin`, ent);
-    await copyLines(conn, `copy ${S}.log (${LOG_COLS}) from stdin`, log);
+    // первая заливка: FREEZE — таблицы опустошены этой же транзакцией
+    await copyLines(conn, `copy ${S}.entity (${ENTITY_COLS}) from stdin${ini?.freeze ? ' with (freeze)' : ''}`, ent);
+    await copyLines(conn, `copy ${S}.log (${LOG_COLS}) from stdin${ini?.freeze ? ' with (freeze)' : ''}`, log);
     if (updates.length) {
       // новая версия из заблокированных значений — одним оператором; без изменений — без версии
       const res = await conn.unsafe(`with u as (select * from jsonb_to_recordset($1::jsonb) as x(id uuid, data jsonb, links jsonb, tags text[])),
@@ -808,7 +921,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
 
   /** Режим истории: версии волнами — после каждой волны база отдаёт хэши, они prev_hash следующей. */
   async function historyWrite(conn: Sql, reg: Registry, portion: number[], inLoad: Map<string, { cls: string; alive: boolean }>,
-    external: Map<string, { line: number; role: string; allowed: string[] }>, xid: string, touched: Set<string>): Promise<void> {
+    external: Map<string, { line: number; role: string; allowed: string[] }>, xid: string, touched: Set<string>, written: string[]): Promise<void> {
     const byId = new Map<string, number[]>();
     for (const i of portion) {
       const id = p1[i]!.id;
@@ -877,21 +990,138 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
         rows[l[0]].$at, SYSTEM_ID, agent, op, null, null, hex(cur.history === false ? null : lastPrev.get(id) ?? null), null].map(esc).join('\t') + '\n');
       report.loaded++;
       report.byClass[cls.name] = (report.byClass[cls.name] ?? 0) + 1;
+      // verify: true проверяет и строки режима истории (в 1.0.1 список был пуст — проверка не шла)
+      written.push(id);
     }
-    await copyLines(conn, `copy ${S}.entity (${ENTITY_COLS}) from stdin`, ent);
+    await copyLines(conn, `copy ${S}.entity (${ENTITY_COLS}) from stdin${ini?.freeze ? ' with (freeze)' : ''}`, ent);
   }
+}
 
-  /** verify: true — загруженные строки перепроверяет проверка базы (данные и цели концов). */
-  async function verifyRows(conn: Sql, reg: Registry, ids: string[]): Promise<void> {
-    const bad = await conn.unsafe(`select e.id, e.class, ${S}.validate_data(c.data->'resolved'->'rules', c.validator, c.data->'resolved'->'vars', e.data) as issues
-      from ${S}.entity e cross join lateral ${S}.class_row(e.class, e.tenant) c
-      where e.id = any ($1::uuid[]) and ${S}.validate_data(c.data->'resolved'->'rules', c.validator, c.data->'resolved'->'vars', e.data) <> '[]'::jsonb limit ${ISSUES_LIMIT}`, [ids]);
-    for (const r of bad) issues.add({ line: 0, code: 'invalid_data', message: `проверка базы: строка ${r.id} не проходит описание класса ${r.class}`, id: r.id as string, issues: r.issues as Issue[] });
-    if (bad.length >= ISSUES_LIMIT) issues.unchecked.add(`проверка базы называет не больше ${ISSUES_LIMIT} строк`);
-    const [t] = await conn.unsafe(`select ${S}.targets_bad((select jsonb_agg(jsonb_build_object('class', e.class, 'tenant', e.tenant, 'links', e.links))
-      from ${S}.entity e where e.id = any ($1::uuid[]) and e.links <> '{}'::jsonb), false) as role`, [ids]);
-    if (t?.role) issues.add({ line: 0, code: 'target_not_found', message: `проверка базы: цель конца ${t.role} не найдена` });
-    void reg;
+/** Определения из каталога: ограничения (первичный ключ, уникальные), прочие индексы, триггеры с режимом, колонки. */
+async function catalogOf(conn: Sql, S: string) {
+  const rels = [`${S}.entity`, `${S}.log`];
+  const sel = `(select x::regclass from unnest($1::text[]) x)`;
+  const constraints = await conn.unsafe(`select conname as name, conrelid::regclass::text as tbl, pg_get_constraintdef(oid) as def
+    from pg_constraint where conrelid in ${sel} and contype in ('p', 'u') order by conrelid, conname`, [rels]);
+  const indexes = await conn.unsafe(`select i.indexrelid::regclass::text as name, pg_get_indexdef(i.indexrelid) as def
+    from pg_index i where i.indrelid in ${sel}
+      and not exists (select 1 from pg_constraint c where c.conindid = i.indexrelid and c.conrelid = i.indrelid and c.contype in ('p', 'u', 'x'))
+    order by i.indrelid, i.indexrelid`, [rels]);
+  const triggers = await conn.unsafe(`select tgname as name, tgrelid::regclass::text as tbl, pg_get_triggerdef(oid) as def, tgenabled::text as enabled
+    from pg_trigger where tgrelid in ${sel} and not tgisinternal order by tgrelid, tgname`, [rels]);
+  // колонки без генерируемых: их значения считает база
+  const cols = async (rel: string) => ((await conn.unsafe(`select string_agg(quote_ident(attname), ', ' order by attnum) as c from pg_attribute
+    where attrelid = $1::regclass and attnum > 0 and not attisdropped and attgenerated = ''`, [rel]))[0].c as string);
+  return {
+    constraints: constraints as unknown as { name: string; tbl: string; def: string }[],
+    indexes: indexes as unknown as { name: string; def: string }[],
+    triggers: triggers as unknown as { name: string; tbl: string; def: string; enabled: string }[],
+    entityCols: await cols(rels[0]),
+    logCols: await cols(rels[1]),
+  };
+}
+
+/**
+ * Первая заливка (план 1.1, §2.3): загрузки fn — одной транзакцией в пустую схему. Блокировка таблиц до
+ * проверки; в схеме только строки системных классов и записи reset (иначе not_empty); они (с seq и tx
+ * журнала) и определения ограничений, индексов и триггеров из каталога (с режимом включения tgenabled:
+ * pg_get_triggerdef его не передаёт) сохраняются в памяти; TRUNCATE; триггеры, ограничения и индексы
+ * снимаются — BEFORE ROW делает COPY построчным одним своим наличием, триггеры после оператора копят
+ * переходные таблицы; системные строки возвращаются (seq журнала — generated always: overriding system
+ * value); загрузки пишут COPY FREEZE. В конце — ограничения (дубликат найдёт сортировка), индексы,
+ * триггеры с прежним режимом, отложенные проверки загрузок, сигнал, счётчик прав и ANALYZE. Любая ошибка
+ * откатывает всё: DDL в PostgreSQL транзакционен.
+ */
+export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) => Promise<T>, tune: InitialTuning = {}): Promise<T> {
+  if (!env.admin) throw new LetopisError('admin_required', 'загрузчику нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы)');
+  const S = `"${env.schema.replace(/"/g, '""')}"`;
+  const ident = (n: string) => `"${n.replace(/"/g, '""')}"`;
+  const conn = await env.sql.reserve();
+  const q = (text: string, params: unknown[] = []) => conn.unsafe(text, params as never[]);
+  try {
+    await q('begin isolation level read committed');
+    await q(`set local role ${ident(env.ownerRole)}`);
+    await q(`select set_config('TimeZone', 'UTC', true)`);
+    // 1. блокировка — до проверки: строка, вставленная между проверкой и TRUNCATE, пропала бы молча
+    await q(`lock table ${S}.entity, ${S}.log in access exclusive mode`);
+    // 2. пустая схема: кроме строк системных классов и записей reset — ничего
+    const [busy] = await q(`select exists (select 1 from ${S}.entity where class <> all ($1::text[]))
+        or exists (select 1 from ${S}.log where class <> all ($2::text[])) as b`, [SYSTEM_CLASSES, [...SYSTEM_CLASSES, '#reset']]);
+    if (busy.b) {
+      throw new LetopisError('not_empty', 'первая заливка — только в пустую схему: в entity и log, кроме строк системных классов (Class, Account, member, Resource, rule) и записей reset, ничего быть не должно');
+    }
+    // 3. системные строки и определения из каталога — в память процесса (так режим не повторяет 10-core.sql)
+    const [sys] = await q(`select coalesce((select jsonb_agg(to_jsonb(e)) from ${S}.entity e), '[]') as ent,
+        coalesce((select jsonb_agg(to_jsonb(l)) from ${S}.log l), '[]') as log`);
+    const ids = new Set<string>([...(sys.ent as { id: string }[]), ...(sys.log as { id: string }[])].map((r) => r.id));
+    const cat = await catalogOf(conn as unknown as Sql, S);
+    const triggers = tune.keepTriggers ? [] : cat.triggers;
+    const keys = tune.keepKeys ? [] : cat.constraints;
+    const indexes = cat.indexes.filter((i) => !(tune.keepGin && /\busing gin\b/i.test(i.def)));
+    // 4. TRUNCATE; триггеры, ограничения и индексы — снять
+    await q(`truncate ${S}.entity, ${S}.log`);
+    for (const t of triggers) await q(`drop trigger ${ident(t.name)} on ${t.tbl}`);
+    for (const c of keys) await q(`alter table ${c.tbl} drop constraint ${ident(c.name)}`);
+    for (const i of indexes) await q(`drop index ${i.name}`);
+    // 5. системные строки — обратно, с прежними seq и tx
+    await q(`insert into ${S}.entity (${cat.entityCols}) select ${cat.entityCols} from jsonb_populate_recordset(null::${S}.entity, $1::jsonb)`, [sys.ent]);
+    await q(`insert into ${S}.log (${cat.logCols}) overriding system value select ${cat.logCols} from jsonb_populate_recordset(null::${S}.log, $1::jsonb)`, [sys.log]);
+    const state: InitialState = { conn: conn as unknown as Sql, ids, pending: [], touched: new Map(), freeze: tune.freeze !== false };
+    const out = await fn({
+      sql: conn as unknown as Sql,
+      load: (input, opts = {}) => load({ ...env, session: state }, input, opts),
+      taken: (id) => state.ids.has(id.toLowerCase()),
+    });
+    // 7. ограничения, затем индексы; память и параллельные исполнители сборки — не меньше серверных
+    await q(`select set_config('maintenance_work_mem', (greatest(pg_size_bytes(current_setting('maintenance_work_mem')), 268435456) / 1024)::bigint || 'kB', true),
+      set_config('max_parallel_maintenance_workers', greatest(current_setting('max_parallel_maintenance_workers')::int,
+        least(current_setting('max_parallel_workers')::int, 4))::text, true)`);
+    for (const c of keys) await q(`alter table ${c.tbl} add constraint ${ident(c.name)} ${c.def}`);
+    for (const i of indexes) await q(i.def);
+    // 8. триггеры — с прежним режимом включения (ENABLE ALWAYS работает и при session_replication_role = replica)
+    for (const t of triggers) {
+      await q(t.def);
+      const mode = t.enabled === 'A' ? 'enable always' : t.enabled === 'R' ? 'enable replica' : t.enabled === 'D' ? 'disable' : null;
+      if (mode) await q(`alter table ${t.tbl} ${mode} trigger ${ident(t.name)}`);
+    }
+    // 10. отложенные проверки загрузок, сигнал, счётчик прав
+    const issues = new Issues();
+    for (const p of state.pending) {
+      const ext = [...p.external.keys()].sort();
+      if (ext.length) {
+        const found = new Map((await q(`select e.id, e.tenant, e.class from ${S}.entity e where e.id = any ($1::uuid[])`, [ext]))
+          .map((r) => [r.id as string, r as unknown as { tenant: string; class: string }]));
+        for (const id of ext) {
+          const ref = p.external.get(id)!;
+          const f = found.get(id);
+          if (!f || (f.tenant !== p.tenant && f.tenant !== SYSTEM_ID) || !accepts(p.reg, ref.allowed, f.class)) {
+            issues.add({ line: ref.line, code: 'target_not_found', message: `цель конца ${ref.role} не найдена`, id });
+          }
+        }
+      }
+      if (p.owners.size) {
+        const own = [...p.owners.keys()].sort();
+        const found = new Set((await q(`select e.id from ${S}.entity e where e.id = any ($1::uuid[]) and e.class = 'Account'`, [own])).map((r) => r.id as string));
+        for (const id of own) if (!found.has(id)) issues.add({ line: p.owners.get(id)!, code: 'target_not_found', message: `владелец ${id} не найден`, id });
+      }
+      const [acc] = await q(`select coalesce((data->>'enabled')::boolean, true) as enabled from ${S}.entity where id = $1::uuid and class = 'Account'`, [p.tenant]);
+      if (!acc || !acc.enabled) issues.add({ line: 0, code: 'tenant_denied', message: `арендатор ${p.tenant} не найден или отключён` });
+      if (p.verify?.length) await verifyIds(conn as unknown as Sql, S, p.verify, issues);
+    }
     if (issues.any) issues.fail();
+    const pairs = [...state.touched].flatMap(([t, cs]) => [...cs].map((c) => [c, t] as const));
+    if (pairs.length) await q(`select ${S}.signal($1::text[], $2::uuid[])`, [pairs.map((x) => x[0]), pairs.map((x) => x[1])]);
+    if (pairs.some(([c]) => ACL_CLASS_NAMES.includes(c))) await q(`select ${S}.acl_bump()`);
+    // ANALYZE обязателен: в PostgreSQL до 18.6 параллельная сборка GIN могла записать неверный reltuples (вплоть
+    // до бесконечности), и автоочистка переставала обрабатывать таблицу
+    await q(`analyze ${S}.entity`);
+    await q(`analyze ${S}.log`);
+    await q('commit');
+    return out;
+  } catch (e) {
+    await q('rollback').catch(() => {});
+    throw e instanceof LetopisError ? e : fromDbError(e);
+  } finally {
+    conn.release();
   }
 }

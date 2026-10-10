@@ -23,6 +23,7 @@
 - Чтение с блокировкой: `lib/src/chain.ts:lockedRead` — id шага, `for no key update` в порядке id, повторное чтение по свежим строкам.
 - Загрузчик: `lib/src/load.ts:load` — только администраторское подключение (`admin_required`); проверки в коде, `COPY` от владельца, запрос по целям вне загрузки (§2.6); сигнал — `signal(классы, арендатор загрузки)` базы, как у триггеров. Служебные поля строки: `$tags` — теги, `$owner` — владелец-аккаунт (не с `{ as }`; сверяется запросом в конце, `for key share`). Режим истории (`withHistory`): `existing: 'skip'` пропускает объект со всей историей, если у id уже есть строка или журнал; `'update'` — отказ.
 - Импорт из 0.21: `lib/src/import.ts:import021` пишет через загрузчик с `existing: 'skip'` (данные — в режиме истории).
+- Первая заливка (план 1.1, этап 3): `lib/src/load.ts:initialSession` — пустая схема одной транзакцией: блокировка, `not_empty`, системные строки и определения из каталога, TRUNCATE, снятие индексов, ограничений и триггеров, `COPY … FREEZE`, перестройка, триггеры с прежним режимом, отложенные проверки, сигнал, `ANALYZE`; `letopis import --initial` — все шаги в одной сессии.
 
 Состояние: `entity` (новые и изменённые строки), `log` (версии), сигнал по режиму установки.
 Сбои: `invalid_data` (с `issues`), `target_not_found`, `undeclared_end`, `exists`, `immutable_key`, `conflict`, `rev_ambiguous`, `acl_denied`, `no_key`, `invalid_query` (построение), `tx_required`, `lock_unsupported`, `commit_unknown`, `tx_rolled_back`.

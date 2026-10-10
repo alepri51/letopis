@@ -209,10 +209,14 @@ const rep = await adm.load({
 }, { existing: 'skip' })   // duplicates 'error'|'first'|'last', existing 'error'|'skip'|'update', commitEvery, withHistory, verify, tenant, as
 // rep: { rows, loaded, updated, skipped, duplicates, byClass, external, portions, ms }
 ```
+Initial load: `adm.load(rows, { initial: true })`, `letopis load --initial`, `letopis import --initial` — only into an
+empty schema (otherwise `not_empty`), in one transaction; about 1.6 times faster than a regular load on a million
+objects; no `commitEvery`, `existing` or `{ as }`.
+
 NDJSON files (one object per line; all files form one load):
 ```sh
 npx letopis load shops.ndjson wallets.ndjson --dsn "$ADMIN" --schema v2.myapp --token "$TOKEN" [--class Wallet] \
-  [--duplicates first] [--existing skip] [--commit-every 100000] [--verify]
+  [--duplicates first] [--existing skip] [--commit-every 100000] [--verify] [--initial]
 # {"$class":"Shop","name":"South"}
 # {"$class":"Wallet","number":"W-10","Shop":{"$key":["South"]}}
 # {"$class":"Note","text":"x","$ext":"n1"}         ← $ext is the row's external key for references { "$ext": "n1" }

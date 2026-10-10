@@ -6,12 +6,13 @@
  *   letopis sync <модуль моделей> --dsn … --schema v2.x (--token … | --api-key …) [--apply]
  *   letopis types --dsn … --schema v2.x (--token … | --api-key …) [--out types.d.ts]
  *   letopis load <файлы NDJSON…> --dsn … --schema v2.x (--token … | --api-key …) [--class C]
- *     [--duplicates error|first|last] [--existing error|skip|update] [--commit-every N] [--verify]
+ *     [--duplicates error|first|last] [--existing error|skip|update] [--commit-every N] [--verify] [--initial]
  *   letopis verify --dsn … --schema v2.x [--token … | --api-key …] [--data]   — код 1 при находках
  *   letopis maintain --dsn … --schema v2.x [--token … | --api-key …] [--batches N]
  *   letopis describe --dsn … --schema v2.x (--token … | --api-key …) [--format json|text] [--out файл]
  *   letopis import --from <строка 0.21> --from-schema v1.x --dsn … --schema v2.x [--tenant <имя>] [--keyless C]…
- *     [--rename Старое=Новое]… [--update] [--commit-every N] [--partition p]   — код 1, если verify нашёл расхождения
+ *     [--rename Старое=Новое]… [--update] [--commit-every N] [--partition p] [--initial]   — код 1, если verify нашёл расхождения
+ *   --initial — первая заливка (план 1.1, §2.3): пустая схема, одна транзакция, индексы и триггеры — после загрузки
  */
 import { parseArgs } from 'node:util';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -26,12 +27,12 @@ import type { AnyModel } from './model.js';
 const USAGE = `letopis sync <модуль> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--apply]
 letopis types --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--out <файл>]
 letopis load <файлы…> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--class <Класс>]
-  [--duplicates error|first|last] [--existing error|skip|update] [--commit-every <N>] [--verify]
+  [--duplicates error|first|last] [--existing error|skip|update] [--commit-every <N>] [--verify] [--initial]
 letopis verify --dsn <строка> --schema <v2.имя> [--token <токен> | --api-key <ключ>] [--data]
 letopis maintain --dsn <строка> --schema <v2.имя> [--token <токен> | --api-key <ключ>] [--batches <N>]
 letopis describe --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--format json|text] [--out <файл>]
 letopis import --from <строка 0.21> --from-schema <v1.имя> --dsn <строка> --schema <v2.имя> [--tenant <имя>] [--keyless <Класс>]…
-  [--rename <Старое>=<Новое>]… [--update] [--commit-every <N>] [--partition <имя>]`;
+  [--rename <Старое>=<Новое>]… [--update] [--commit-every <N>] [--partition <имя>] [--initial]`;
 
 const isModel = (v: unknown): v is AnyModel => typeof v === 'object' && v !== null && typeof (v as AnyModel).describe === 'function' && typeof (v as AnyModel).name === 'string';
 
@@ -47,6 +48,7 @@ export async function main(argv: string[]): Promise<number> {
       format: { type: 'string' },
       from: { type: 'string' }, 'from-schema': { type: 'string' }, tenant: { type: 'string' }, partition: { type: 'string' },
       keyless: { type: 'string', multiple: true }, rename: { type: 'string', multiple: true }, update: { type: 'boolean' },
+      initial: { type: 'boolean' },
     },
   });
   const [cmd, arg] = positionals;
@@ -66,7 +68,7 @@ export async function main(argv: string[]): Promise<number> {
     const r = await import021({
       from: values.from, fromSchema: values['from-schema'], dsn: values.dsn, schema: values.schema, tenant: values.tenant,
       partition: values.partition, keyless: values.keyless, rename, update: values.update,
-      commitEvery: values['commit-every'] ? Number(values['commit-every']) : undefined,
+      commitEvery: values['commit-every'] ? Number(values['commit-every']) : undefined, initial: values.initial,
     });
     console.log(JSON.stringify(r, null, 2));
     return r.verify.ok ? 0 : 1;
@@ -103,6 +105,7 @@ export async function main(argv: string[]): Promise<number> {
         existing: values.existing as 'error' | 'skip' | 'update' | undefined,
         commitEvery: values['commit-every'] ? Number(values['commit-every']) : undefined,
         verify: values.verify,
+        initial: values.initial,
       });
       console.log(JSON.stringify(r));
       return 0;

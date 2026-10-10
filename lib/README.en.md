@@ -1101,6 +1101,23 @@ regular write: the tenant is available to the user, write permission on each cla
 the visibility of reference targets, the owner per `ownerDefault`. Without `tenant`, the rows go to the user's own
 tenant. This is how a loading process can accept files sent by users.
 
+### Initial load
+
+```ts
+const r = await adm.load(rows, { initial: true })   // empty schema: one transaction, indexes and triggers at the end
+```
+
+`db.load(rows, { initial: true })` (`letopis load --initial`) loads data into an empty schema faster than the regular
+loader — about 1.6 times on a million objects: everything goes in one transaction, the tables are closed for reading and
+writing during the load, indexes, constraints and triggers are dropped and rebuilt at the end, and rows are written with
+`COPY … FREEZE`. Empty means that the schema has nothing besides the rows of system classes (class descriptions,
+accounts, memberships, resources, rules) and `reset` records; otherwise you get `not_empty` before any change. The mode
+is incompatible with `commitEvery`, `existing` (other than `'error'`) and `{ as }`; an error in any row rolls
+everything back, indexes and triggers included. `letopis import --initial` runs the whole import this way: in one
+transaction, without `--update` and `--commit-every`. WAL is written here too (it is skipped only with
+`wal_level = minimal`), but the indexes are built once, so there is almost three times less of it; after `FREEZE`, the
+first read and the first vacuum do not rewrite the table.
+
 ### Command line
 
 ```sh
@@ -1571,12 +1588,12 @@ application.
 letopis sync <module> --dsn <dsn> --schema <v2.name> (--token <token> | --api-key <key>) [--apply]
 letopis types --dsn <dsn> --schema <v2.name> (--token <token> | --api-key <key>) [--out <file>]
 letopis load <files…> --dsn <dsn> --schema <v2.name> (--token <token> | --api-key <key>) [--class <Class>]
-  [--duplicates error|first|last] [--existing error|skip|update] [--commit-every <N>] [--verify]
+  [--duplicates error|first|last] [--existing error|skip|update] [--commit-every <N>] [--verify] [--initial]
 letopis verify --dsn <dsn> --schema <v2.name> [--token <token> | --api-key <key>] [--data]
 letopis maintain --dsn <dsn> --schema <v2.name> [--token <token> | --api-key <key>] [--batches <N>]
 letopis describe --dsn <dsn> --schema <v2.name> (--token <token> | --api-key <key>) [--format json|text] [--out <file>]
 letopis import --from <0.21 dsn> --from-schema <v1.name> --dsn <dsn> --schema <v2.name> [--tenant <name>] [--keyless <Class>]…
-  [--rename <Old>=<New>]… [--update] [--commit-every <N>] [--partition <name>]
+  [--rename <Old>=<New>]… [--update] [--commit-every <N>] [--partition <name>] [--initial]
 ```
 
 ### Monitoring
@@ -1780,6 +1797,7 @@ Library codes:
 | `no_path` | there is no hop between the classes of neighboring steps |
 | `invalid_query` | the chain or the API is used incorrectly (a step modifier `deep`, `exact`, `alias`, `tags` or `owner` after a verb, a slot not after a verb, an `after()` cursor with a value of a different type than the `sort` field, without `v` or with an `id` that is not a uuid, and so on) |
 | `admin_required` | the loader needs an admin connection |
+| `not_empty` | the initial load (`initial`) goes only into an empty schema |
 | `class_not_loadable` | the loader does not accept `Class` rows |
 | `bypass_rls` | `connect()` with a role that bypasses RLS, without `allowBypassRls` |
 | `removed` | a removed 0.21 API; the text gives the replacement |
@@ -1818,6 +1836,12 @@ database from every write (row-by-row writes: 119 → 128–147 rows/s in differ
 12–18% slower than 0.21 (the measurements vary): most of the time goes to the check triggers in the database and to the
 commit with a disk write.
 
+Initial load (`cd lib && npx tsx bench/initial-load.mjs`, 2026-10-10, median of three rounds): the regular loader
+writes 1.07 million objects of the salon dataset without history in 182 s (5,895 rows/s, 4.0 GB of WAL), the initial
+load in 113 s (9,479 rows/s, 1.4 GB of WAL). Most of the difference comes from the GIN indexes: maintaining them during
+the load costs 36 s, building them at the end about 5 s. More than half of the initial load's time goes into preparing
+rows in the loader itself (checks, ends, ids), which this mode does not speed up.
+
 ## 18. Limitations
 
 This section lists what letopis 1.0 deliberately does not do or does with caveats, and where you need to watch the
@@ -1837,6 +1861,9 @@ behavior.
 - The NUL character (`\u0000`) is impossible in data strings: PostgreSQL does not store it in `jsonb`; such data is
   rejected already when the JSON is parsed (in the official JSON-Schema-Test-Suite, the "nul characters" groups are
   skipped).
+- On PostgreSQL before 18.6, a parallel GIN index build could write a wrong row count into the table statistics
+  (`pg_class.reltuples`), after which autovacuum stopped processing the table. That is why the initial load always ends
+  with `ANALYZE`, but it is better to upgrade the server to 18.6 or newer.
 
 **Writing and integrity**
 
@@ -1846,6 +1873,10 @@ behavior.
   transactions always open at this level.
 - PostgreSQL does not run `COPY` into tables under RLS; bulk loading works only through the loader on an admin
   connection.
+- The initial load closes the schema's tables for the whole load, for writing and for reading: it is meant for an
+  empty schema (seeding, migration, import), not for a running system. Its gain is in the database (indexes and
+  constraints are built once); it does not speed up the row preparation in the loader, so on a million objects it is
+  about 1.6 times faster than the regular load.
 - The database trusts the loader: the data, ends and ids of loaded rows are checked by the library code (the TypeScript
   validator), not by the triggers; the database checks only the targets outside the load, the tenants and the owners,
   with one query at the end. The safeguards: the loader is available only to an admin, differential tests of the
@@ -2005,6 +2036,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # telemetry — onQuery and slowMs, describe() and class metadata with inheritance, describeText (stage 6)
 # history — diff and blame over the log, the reason of a change for verbs, db.begin() and batches (plan 1.1, stage 1)
 # signals — signal modes: the payload seen by a foreign role, cache precision per tenant, System, permission classes, a process without the key, the loader, subscriptions, the key, none, coalescing, the server version, a class change, a resend, the mode after up() and reset({ all }) (plan 1.1, stage 2)
+# initial-load — the initial load: equality with the regular loader, structure and trigger modes, system rows, a non-empty schema, an insert during the start, rollback, MULTI_INSERT in WAL, commitEvery, import --initial (plan 1.1, stage 3)
 # import — import from 0.21 with a fixture of a real 0.21: key violation, --keyless, per-class counters, verify, self-reference, repeat, ids without a key, a dangling reference, $$strict and fields starting with $, update, credentials, CLI (stage 7)
 # security-final — the final security review (stage 8, §7.10 No. 8.4): a family lock by the tenant of the root, account_purge without permission and restore/purge of a foreign id give neither a leak nor a lock; the functions of stage 6, log_refs_at, journal-based find_* reads and watch_read stay within their own tenant; NOTIFY carries only names or mode tokens; the cache key distinguishes the token, the actor and the tenant (stage 8)
 ```

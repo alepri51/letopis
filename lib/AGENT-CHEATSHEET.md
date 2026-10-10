@@ -203,10 +203,14 @@ const rep = await adm.load({
 }, { existing: 'skip' })   // duplicates 'error'|'first'|'last', existing 'error'|'skip'|'update', commitEvery, withHistory, verify, tenant, as
 // rep: { rows, loaded, updated, skipped, duplicates, byClass, external, portions, ms }
 ```
+Первая заливка: `adm.load(rows, { initial: true })`, `letopis load --initial`, `letopis import --initial` — только в пустую
+схему (иначе `not_empty`), одной транзакцией; на миллионе объектов — примерно в 1,6 раза быстрее обычной загрузки;
+без `commitEvery`, `existing` и `{ as }`.
+
 Файлы NDJSON (объект на строку, все файлы — одна загрузка):
 ```sh
 npx letopis load shops.ndjson wallets.ndjson --dsn "$ADMIN" --schema v2.myapp --token "$TOKEN" [--class Wallet] \
-  [--duplicates first] [--existing skip] [--commit-every 100000] [--verify]
+  [--duplicates first] [--existing skip] [--commit-every 100000] [--verify] [--initial]
 # {"$class":"Shop","name":"Юг"}
 # {"$class":"Wallet","number":"W-10","Shop":{"$key":["Юг"]}}
 # {"$class":"Note","text":"x","$ext":"n1"}         ← $ext — внешний ключ строки для ссылок { "$ext": "n1" }

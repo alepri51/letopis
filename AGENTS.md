@@ -45,7 +45,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 | M-IMPORT | импорт из 0.21 | `lib/src/import.ts`, `lib/test/fixtures/gen-v021.mjs` | 7 |
 | M-RELEASE | CI, тег, релиз, check-docs, check-package, контракт API | `lib/scripts/check-docs.mjs`, `lib/scripts/check-package.mjs`, `lib/scripts/gen-api-contract.mjs`, `.github/workflows/` | 0, 8 |
 | M-TESTS | обвязка и наборы | `lib/test/_harness.ts`, `lib/test/_engine.ts` | все |
-| M-BENCH | замеры точки А, бенч против 0.21 и против 1.0.1 | `lib/bench/` | 1, 7; план 1.1: 0 |
+| M-BENCH | замеры точки А, бенч против 0.21 и против 1.0.1 | `lib/bench/` | 1, 7; план 1.1: 0–3 |
 | M-DERIVED | агрегаты в базе и проекторы из журнала — заготовка, кода ещё нет (план 1.1, §2.4) | `lib/sql/88-derived.sql`, `lib/src/project.ts` (появятся на этапе 4) | план 1.1: 4 |
 | M-MCP | инструменты MCP: `letopis/mcp`, `letopis mcp` — заготовка, кода ещё нет (план 1.1, §2.5) | `lib/src/mcp.ts` (появится на этапе 5) | план 1.1: 5 |
 
@@ -85,7 +85,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 | `lib/CHANGELOG.md` | решения по версиям; версия = `lib/package.json` | grep `## \[` |
 | `docs/api-contract.json` | машинный контракт API, генерируется | grep имени |
 | `docs/checkpoint-a.md` | замеры точки А | по серии |
-| `docs/checkpoint-1.1.md` | замеры плана 1.1: `blame` и `diff` (этап 1), режимы сигналов (этап 2), затем точка А | по этапу |
+| `docs/checkpoint-1.1.md` | замеры плана 1.1: `blame` и `diff` (этап 1), режимы сигналов (этап 2), первая заливка (этап 3), затем точка А | по этапу |
 | `BACKLOG.md`, `COMPARISON.md` | бэклог и сравнение с аналогами (0.19–0.21) | по заголовку |
 
 ## Не читать
