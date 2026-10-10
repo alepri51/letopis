@@ -39,7 +39,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 | M-QUERY | `find_ids()`, срез `log_refs_at`, построитель чтения, `diff` и `blame` | `lib/sql/70-read.sql`, `lib/sql/75-history.sql`, `lib/src/sql.ts`, `lib/src/ops.ts` | 3, 6 |
 | M-WRITE | планы, батч, транзакции, загрузчик | `lib/src/write.ts`, `lib/src/tx.ts`, `lib/src/load.ts` | 4 |
 | M-API | `connect`, Proxy цепочек, ошибки, охранники, типы цепочек | `lib/src/index.ts`, `lib/src/chain.ts`, `lib/src/errors.ts`, `lib/src/typed.ts` | 2–4 |
-| M-TIME | история, хранение, подписка, кэш результатов, `reset`, `maintain` | `lib/sql/90-time.sql`, `lib/src/watch.ts`, `lib/src/admin.ts`, `lib/src/cache.ts` | 6 |
+| M-TIME | история, хранение, подписка, кэш результатов, режимы сигналов, `reset`, `maintain` | `lib/sql/90-time.sql`, `lib/src/watch.ts`, `lib/src/admin.ts`, `lib/src/cache.ts`, `lib/src/signals.ts` | 6; план 1.1: 2 |
 | M-BOOTSTRAP | установщик, `up()`, PGlite | `lib/src/up.ts`, `lib/src/pglite.ts` | 1, 6 |
 | M-SEEDS | системный сид, демо-домен | `lib/sql/95-seed.system.sql`, `lib/src/demo/booking.ts`, `lib/sql/seed.booking.sql`, `lib/scripts/gen-seed-booking.mjs` | 1, 2, 5 |
 | M-IMPORT | импорт из 0.21 | `lib/src/import.ts`, `lib/test/fixtures/gen-v021.mjs` | 7 |
@@ -85,7 +85,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 | `lib/CHANGELOG.md` | решения по версиям; версия = `lib/package.json` | grep `## \[` |
 | `docs/api-contract.json` | машинный контракт API, генерируется | grep имени |
 | `docs/checkpoint-a.md` | замеры точки А | по серии |
-| `docs/checkpoint-1.1.md` | замеры плана 1.1: `blame` и `diff` (этап 1), затем точка А | по этапу |
+| `docs/checkpoint-1.1.md` | замеры плана 1.1: `blame` и `diff` (этап 1), режимы сигналов (этап 2), затем точка А | по этапу |
 | `BACKLOG.md`, `COMPARISON.md` | бэклог и сравнение с аналогами (0.19–0.21) | по заголовку |
 
 ## Не читать

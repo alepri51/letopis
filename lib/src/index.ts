@@ -21,6 +21,7 @@ import type { QueryEvent, Row } from './types.js';
 import { DDL_REVISION } from './types.js';
 import { ACL_CLASSES, ResultCache, type CacheOptions, type CacheStats } from './cache.js';
 import { Subscription, type WatchOptions } from './watch.js';
+import { SIGNAL_MODES, Signals, throttle, type Signal, type SignalMode } from './signals.js';
 import {
   describe as describeModel, maintain as runMaintain, rekeyClass as runRekeyClass, reset as runReset, scheduleMaintain,
   trimHistory as runTrim, verify as runVerify, type AdminCtx, type MaintainOptions, type MaintainReport, type ModelDescription,
@@ -45,6 +46,7 @@ export type { ModelLike, AnyModelLike, RowOf, FilterOf, FieldFilterOf, TypedChai
 export type { Row, Path, Filter, FieldFilter, Cursor, ChainMods, QueryEvent, Op, Scalar } from './types.js';
 export type { DiffChange, DiffResult, DiffOptions, BlameField, BlameResult, BlameOptions } from './types.js';
 export type { CacheOptions, CacheStats } from './cache.js';
+export type { SignalMode } from './signals.js';
 export type { WatchOptions, WatchEvent, Subscription } from './watch.js';
 export type { VerifyResult, VerifyIssue, MaintainOptions, MaintainReport, ResetOptions, ResetResult, ModelDescription } from './admin.js';
 export { describeText } from './admin.js';
@@ -95,7 +97,8 @@ export interface ConnectOptions {
   /**
    * Слушать сигналы базы (LISTEN, по умолчанию да). false — пул в режиме транзакций (PgBouncer):
    * реестр перечитывается через db.refresh(), подписка опрашивает журнал, кэш результатов выключен
-   * (с cache: { ttlOnly: true } — работает только по сроку).
+   * (с cache: { ttlOnly: true } — работает только по сроку). В установке с up({ signals: 'none' })
+   * слушателя нет всегда, а реестр раз в 5 с сверяет отпечаток классов.
    */
   listen?: boolean;
   /** Кэш результатов (§2.12): срок по умолчанию, размер, ttlOnly; false — выключен. */
@@ -224,8 +227,12 @@ interface Shared {
   ownerRole: string;
   /** Кэш результатов (null — выключен опцией). */
   cache: ResultCache | null;
+  /** Режим сигналов установки и ключ подключения (токены классов и арендаторов). */
+  sig: Signals;
+  /** Подключение в обход RLS: видит строки всех арендаторов — кэш и подписка без точности по арендатору. */
+  allTenants: boolean;
   /** Подписчики сигналов базы (подписки watch). */
-  signals: Set<(name: string) => void>;
+  signals: Set<(s: Signal) => void>;
   /** LISTEN включён. */
   listen: boolean;
   close: () => Promise<void>;
@@ -287,7 +294,10 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
       const classes = o.classes ? [...new Set(o.classes.flatMap((c) => reg.family(c).map((x) => x.name)))] : null;
       return new Subscription({
         S: sh.S, exec: poolExecutor(txc), classes,
-        ...(sh.listen ? { onSignal: (fn: (name: string) => void) => { sh.signals.add(fn); return () => void sh.signals.delete(fn); } } : {}),
+        ...(sh.listen ? {
+          onSignal: (fn: (s: Signal) => void) => { sh.signals.add(fn); return () => void sh.signals.delete(fn); },
+          tenant: () => (sh.allTenants ? null : sh.sig.tenantToken(scope.tenant())),
+        } : {}),
       }, o);
     },
     cache: {
@@ -390,11 +400,20 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
     const rev = Number(/ddl_revision=(\d+)/.exec(String(rv?.c ?? ''))?.[1] ?? 0);
     if (!rv) throw new LetopisError('invalid_data', `connect: схемы ${opts.schema} нет — установите её: up({ schema })`);
     if (rev < DDL_REVISION) console.warn(`letopis: движок схемы ${opts.schema} ревизии ${rev}, библиотека ждёт ${DDL_REVISION} — обновите: up({ schema: '${opts.schema}', upgrade: true })`);
+    // режим сигналов установки (план 1.1, §2.2); схема, накатанная до него (нет signal_mode()), — class
+    const [sm] = await sql.unsafe(`select ${S}.signal_mode() as m`).catch((e: { code?: string }) => {
+      if (e.code === '42883') return [{ m: 'class' }];
+      throw fromDbError(e);
+    });
+    const mode: SignalMode = SIGNAL_MODES.includes(sm?.m as SignalMode) ? (sm.m as SignalMode) : 'class';
+    const sig = new Signals(mode);
     const notifier = new Notifier(sql, opts.schema, opts.notifyIntervalMs ?? 100);
     const passes = new AclPasses(S);
-    const listen = opts.listen !== false;
-    const cache = opts.cache === false ? null : new ResultCache(opts.cache ?? {});
-    const signals = new Set<(name: string) => void>();
+    // режим none: сигналов нет — без LISTEN, кэш только по сроку (ttlOnly), подписка опрашивает журнал
+    const listen = opts.listen !== false && mode !== 'none';
+    // подключение в обход RLS видит строки всех арендаторов: его ответы сбрасывает сигнал из любого
+    const cache = opts.cache === false ? null : new ResultCache(opts.cache ?? {}, sig, Boolean(bypass));
+    const signals = new Set<(s: Signal) => void>();
     // продление сессии (§2.9): отдельным вызовом не чаще раза в минуту; ошибка (реплика,
     // транзакции только для чтения) не мешает работе
     let refreshedAt = Date.now();
@@ -403,11 +422,15 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
       refreshedAt = Date.now();
       void runTx({ sql, token, notifier: null }, (q) => q.unsafe(`select ${S}.auth_refresh()`), { retries: 0 }).catch(() => {});
     };
-    const ctx: TxContext = { sql, token, notifier, passes, after: touch, ...(cache ? { onChanged: (names, raw) => cache.changed(names, raw) } : {}) };
+    // в режиме none нотификатор не отправляет: letopis.changed своей транзакции сбрасывает только свой кэш
+    const ctx: TxContext = { sql, token, notifier: mode === 'none' ? null : notifier, passes, after: touch,
+      ...(cache ? { onChanged: (names, raw) => cache.changed(names, raw) } : {}) };
     const root = { tenant: null as string | null, registry: new Registry() };
     const loadClasses = (txc: TxContext) => runTx(txc, (q) =>
       q.unsafe(`select tenant, rev, data from ${S}.entity where class = 'Class' and tenant in (${S}.ctx_tenant(), '${SYSTEM_ID}')`), { read: true });
     const others = new Map<string, { registry: Registry; txc: TxContext }>();
+    // токены классов (режим opaque) — по именам всех реестров подключения
+    const tokens = () => sig.setClasses([root.registry, ...[...others.values()].map((o) => o.registry)].flatMap((r) => r.all().map((c) => c.name)));
     const refresh = async () => {
       const rows = await runTx(ctx, async (q) => {
         const [t] = await q.unsafe(`select ${S}.ctx_tenant() as t`);
@@ -416,6 +439,7 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
       });
       root.registry.load(rows as never);
       for (const o of others.values()) o.registry.load(await loadClasses(o.txc).catch(() => []) as never);
+      tokens();
     };
     const registryFor = async (tenant: string, txc: TxContext): Promise<Registry> => {
       if (tenant === root.tenant) return root.registry;
@@ -424,33 +448,101 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
       const registry = new Registry();
       registry.load(await loadClasses(txc) as never);
       others.set(tenant, { registry, txc });
+      tokens();
       return registry;
     };
-    await refresh();
-    // описания классов меняются — реестр перечитывается по сигналу; строки прав — пропуска заново;
-    // кэш результатов и подписки — по именам классов; (пере)подключение слушателя — кэш целиком
-    const onSignal = (cls: string) => {
-      if (ACL_CLASSES.has(cls) || cls === '*') passes.clear();
-      if (cls === 'Class' || cls === '*') void refresh().catch(() => {});
-      cache?.signal(cls);
-      for (const fn of signals) fn(cls);
+    // ключ сигналов (режимы tenant и opaque) — сессии с правом letopis.signals; без права процесс
+    // работает без ключа: арендатора (а в opaque — и класса) в сигнале не различает
+    const fetchKey = async (): Promise<void> => {
+      if (mode !== 'tenant' && mode !== 'opaque') return;
+      const key = await runTx(ctx, (q) => q.unsafe(`select ${S}.signal_key() as k`), { read: true }).then(
+        (r) => (r[0]?.k as string | null) ?? null,
+        (e: unknown) => {
+          if (e instanceof LetopisError && (e.code === 'acl_denied' || e.code === 'no_session')) return null;
+          throw e;
+        });
+      // ключ сменился (reset({ all })): ответы с токенами старого ключа сигналы больше не узнают
+      if (sig.setKey(key)) cache?.clear();
     };
+    await fetchKey();
+    await refresh();
+    // ключ, реестр и пропуска прав — заново по *, незнакомому токену, нагрузке не по режиму, а у процесса
+    // без ключа в режиме opaque — по любому сигналу; не чаще раза в 5 с: заливка канала (в том числе
+    // поддельными сигналами) не становится потоком перечитываний
+    const resync = throttle(() => {
+      passes.clear();
+      void fetchKey().then(refresh).catch(() => {});
+    }, 5000);
+    // сигнал Class — реестр сразу, как в 1.0: пока идёт перечитывание, новые сигналы сливаются в одно следующее
+    let reloading = false;
+    let again = false;
+    const reload = (): void => {
+      if (reloading) {
+        again = true;
+        return;
+      }
+      reloading = true;
+      void refresh().catch(() => {}).finally(() => {
+        reloading = false;
+        if (again) {
+          again = false;
+          reload();
+        }
+      });
+    };
+    // строки прав — пропуска заново; кэш результатов и подписки — по классу и арендатору сигнала;
+    // (пере)подключение слушателя — кэш целиком, после обрыва — и ключ с реестром (сигналы потеряны)
+    const onSignal = (payload: string) => {
+      const s = sig.parse(payload);
+      if (s.kind === 'class' && ACL_CLASSES.has(s.cls)) passes.clear();
+      if (s.kind === 'class' && s.cls === 'Class') reload();
+      else if (s.kind === 'all' || s.kind === 'opaque' || s.kind === 'unknown' || s.kind === 'foreign') resync();
+      cache?.signal(s);
+      for (const fn of signals) fn(s);
+    };
+    let listened = false;
     const listener = listen
       ? await sql.listen(opts.schema, onSignal, () => {
+        if (listened) resync();
+        listened = true;
         cache?.listen();
-        for (const fn of signals) fn('*');
+        for (const fn of signals) fn({ kind: 'all' });
       })
       : null;
+    // режим none: о новых и изменённых классах сигнала нет — отпечаток классов раз в 5 с
+    let stamper: NodeJS.Timeout | null = null;
+    if (mode === 'none') {
+      const stampOf = (txc: TxContext) => runTx(txc, (q) => q.unsafe(`select ${S}.class_stamp() as s`), { read: true }).then((r) => String(r[0]?.s ?? ''));
+      const stamp = async () => [await stampOf(ctx), ...(await Promise.all([...others.values()].map((o) => stampOf(o.txc).catch(() => ''))))].join('|');
+      let last = await stamp();
+      let busy = false;
+      stamper = setInterval(() => {
+        if (busy) return;
+        busy = true;
+        void stamp().then(async (cur) => {
+          if (cur === last) return;
+          last = cur;
+          await refresh();
+        }).catch(() => {}).finally(() => {
+          busy = false;
+        });
+      }, 5000);
+      stamper.unref?.();
+    }
     let stopMaintain: (() => void) | null = null;
     const shared: Shared = {
       sql, schema: opts.schema, S, notifier, passes, root, registryFor, refresh, onQuery: opts.onQuery, slowMs: opts.slowMs,
       admin: Boolean(bypass && (role.rolsuper || role.can_set)),
       ownerRole: owner,
       cache,
+      sig,
+      allTenants: Boolean(bypass),
       signals,
       listen,
       async close() {
         stopMaintain?.();
+        resync.stop();
+        if (stamper) clearInterval(stamper);
         await notifier.close();
         await listener?.unlisten();
         if (own) await sql.end({ timeout: 5 });

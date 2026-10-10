@@ -1,5 +1,5 @@
 /**
- * engine-attacks — атаки сырым SQL от прикладной роли (план, §7.3.1, строки этапа 1).
+ * engine-attacks — атаки сырым SQL от прикладной роли (план, §7.3.1, строки этапа 1; план 1.1, §7.7 №31–32).
  * Каждая попытка проверяет конкретный исход: код ошибки, пустую выборку, ноль строк или находку verify().
  */
 import { test, before, after } from 'node:test';
@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import postgres from 'postgres';
 import { engine, lt, waitForLock, SYSTEM_ID, type Engine, type Tenant } from './_engine.js';
 import { appDsn } from './_harness.js';
+import { connect } from '../src/index.js';
 
 let e: Engine;
 let a: Tenant;
@@ -426,4 +427,38 @@ test('№30 (этап 5): видимую, но неправимую строку
   await e.asOwner((tx) => tx.unsafe(`update ${S}.entity set tags = '{x}' where id = $1`, [tver]));
   await held.finish(false);
   assert.equal((await as(user, `select id from ${S}.entity where id = $1 for update`, [tver])).length, 0);
+});
+
+test('№31 (план 1.1, этап 2): ключ сигналов без права letopis.signals — отказ', async () => {
+  await assert.rejects(as(a, `select ${S}.signal_key()`), lt('acl_denied'));
+  await assert.rejects(as(null, `select ${S}.signal_key()`), lt('acl_denied'));
+});
+
+test('№32 (план 1.1, этап 2): заливка канала поддельными сигналами — лишние сбросы кэша, реестр по сбросу и чужим токенам не чаще раза в 5 с, данных не раскрыто', async () => {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const db = await connect({ dsn: appDsn(), schema: e.schema, token: a.token, max: 2 });
+  try {
+    for (let i = 0; i < 250 && !db.cache.stats().enabled; i++) await sleep(20);
+    const reg = db.registry;
+    const load = reg.load.bind(reg);
+    let loads = 0;
+    reg.load = (rows: Parameters<typeof load>[0]) => {
+      loads++;
+      load(rows);
+    };
+    const before = await db.Org().cache().rows();
+    const sig = db.cache.stats().signals;
+    // сброс, класс данных, все сессии, чужой токен, мусор — каждый своей транзакцией (без склейки); поддельный
+    // Class перечитывает реестр сразу, как настоящий, но не больше одного перечитывания одновременно
+    const fakes = ['*', 'Org', 'session:*', `${'ab'.repeat(12)}@${'cd'.repeat(12)}`, 'не класс!'];
+    const t0 = Date.now();
+    for (let i = 0; i < 600; i++) await e.app.unsafe('select pg_notify($1, $2)', [e.schema, fakes[i % fakes.length]]);
+    for (let i = 0; i < 1500 && db.cache.stats().signals < sig + 600; i++) await sleep(20);
+    const ms = Date.now() - t0;
+    assert.equal(db.cache.stats().signals, sig + 600, 'все поддельные сигналы дошли');
+    assert.ok(loads <= Math.floor(ms / 5000) + 1, `перечитываний реестра ${loads} за ${ms} мс`);
+    assert.deepEqual(await db.Org().cache().rows(), before, 'данные те же: поддельный сигнал только сбрасывает кэш');
+  } finally {
+    await db.close();
+  }
 });

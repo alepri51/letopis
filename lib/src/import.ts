@@ -667,7 +667,8 @@ export async function import021(opts: ImportOptions): Promise<ImportReport> {
         });
         report.classes.created.push(c.name);
       }
-      await tx.unsafe(`select pg_notify($1, 'Class')`, [opts.schema]);
+      // сигнал — функцией базы: нагрузка по режиму сигналов установки (план 1.1)
+      await tx.unsafe(`select ${S}.signal(array['Class'], array[$1::uuid])`, [SYSTEM_ID]);
     });
     log(`классы: создано ${report.classes.created.length}, уже были ${report.classes.existing.length}, опущено ${b.omitted.length}`);
 

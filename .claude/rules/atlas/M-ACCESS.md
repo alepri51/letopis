@@ -18,11 +18,12 @@ synced: 3033e57
 - Вход с TOTP (`auth.ts:makeAuthCore`, `login`): `verifyPassword`/`lookup` с `totp` после первой проверки зовут `auth_verify_totp(account, code, 1)` — право `auth.totp`, окно ±1 шаг, повтор шага, счётчик неудач и блокировка общие с `verifyTotp`; удача включает неподтверждённый фактор и даёт сессию `issue_session` со способами `[вид, 'TOTP']`, неудача (и аккаунт без TOTP) — null. Без `totp` код не проверяется; секрет из базы не выходит.
 - Ключи сервиса: свои `APIKEY`/`KEYSECRET` сервис выпускает и отзывает сам — `auth_service_self` (актор — сам сервис, не имперсонация, категория `Service`, сессия открыта ключом: `methods` ∋ APIKEY|KEYSECRET); прочие свои креды и чужие ключи — `auth_can_manage`. Сессия по ключу хранит id ключа в `meta.cred` (`login_apikey`, `auth_login_apikey`, `login_keysecret`). `auth_revoke_credential`: ключ гасит только свои сессии и сессии того же вида без `cred` (`auth_kill_cred`), прочие креды — остальные сессии аккаунта (`auth_kill`), текущая — по `keepCurrent`; последний действующий ключ сервиса не отзывается никем (`acl_denied`; ключи аккаунта — под `for update`, два параллельных отзыва не снимут оба).
 - Вес правила арендатора в `acl_rules` — не больше 999: веса от 1000 только у правил System (административный слой).
+- Ключ сигналов (план 1.1, этап 2): `signal_key()` (`90-time.sql`) — функция владельца, `letopis_allowed('letopis.signals')` (правило System «сервисам» из сида, администраторское подключение), отдаёт производный ключ HMAC(ключ строки KEY, `'letopis:signals'`), а не ключ строки — им подписаны пропуска прав. Негативный тест — `roles` №4, атака — `engine-attacks` №31.
 
 **Что ещё менять вместе**
 - Новая функция владельца (security definer): негативный тест и белый список в `roles.test.ts` №4.
 - Смена правил видимости: `row_visible()`, политики `entity_*`/`log_select`, таблица §2.2 плана, `find-ids-parity`, `acl`.
-- Новый класс прав или изменение того, что входит в план: список классов `acl_bump` в триггерах, `sys_create`, `load.ts` (`ACL_CLASSES`), `index.ts` (`ACL_CLASSES`).
+- Новый класс прав или изменение того, что входит в план: список классов `acl_bump` в триггерах, `sys_create`, `types.ts` (`ACL_CLASS_NAMES` — его берут `cache.ts`, `load.ts`, `signals.ts`).
 
 **Проверка**
 - `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `acl`, `acl-parity`, `auth`, `impersonation`, `member`, `system-classes`, `access-rest`, `engine-attacks`, `roles`, `context`.

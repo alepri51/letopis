@@ -23,10 +23,9 @@ import { accepts } from './sql.js';
 import { v5Id } from './uuid.js';
 import { applyDefaults } from './validate.js';
 import { isInc } from './write.js';
+import { ACL_CLASS_NAMES } from './types.js';
 
 const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
-/** Классы, строки которых меняют права: загрузка их строк повышает счётчик изменений прав. */
-const ACL_CLASSES = ['rule', 'Resource', 'member', 'Account', 'Class'];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Sql = postgres.Sql<Record<string, unknown>>;
@@ -616,9 +615,13 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       if (!acc || !acc.enabled) issues.add({ line: portion.length ? portion[0] + 1 : 0, code: 'tenant_denied', message: `арендатор ${tenant} не найден или отключён` });
       if (issues.any) issues.fail();
       if (opts.verify && written.length) await verifyRows(conn as unknown as Sql, reg, written);
-      if (classesTouched.size) await conn.unsafe(`select pg_notify($1, c) from unnest($2::text[]) c`, [env.schema, [...classesTouched]]);
+      // сигнал — функцией базы, как у триггеров: нагрузка по режиму сигналов установки (план 1.1)
+      if (classesTouched.size) {
+        const touched = [...classesTouched];
+        await conn.unsafe(`select ${S}.signal($1::text[], $2::uuid[])`, [touched, touched.map(() => tenant)]);
+      }
       // строки прав меняют планы: пропуска прав клиентов — заново
-      if ([...classesTouched].some((c) => ACL_CLASSES.includes(c))) await conn.unsafe(`select ${S}.acl_bump()`);
+      if ([...classesTouched].some((c) => ACL_CLASS_NAMES.includes(c))) await conn.unsafe(`select ${S}.acl_bump()`);
       if (portion.length >= 10000) await conn.unsafe(`analyze ${S}.entity; analyze ${S}.log`);
       await conn.unsafe('commit');
     } catch (e) {

@@ -227,7 +227,7 @@ async function exec<T>(ctx: ChainCtx, q: BuiltQuery, mode: QueryEvent['mode'], s
     const hit = store.get(key);
     if (hit) return hit as T[];
     const tag = sessionTag(who.token);
-    const tok = store.token(classes, tag);
+    const tok = store.token(classes, tag, who.tenant);
     const t0 = performance.now();
     const S = `"${ctx.schema.replace(/"/g, '""')}"`;
     const [res, exp] = await ctx.exec.run((tx) => Promise.all([

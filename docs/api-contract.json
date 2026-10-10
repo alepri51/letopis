@@ -118,6 +118,7 @@
         "Row",
         "RowOf",
         "Scalar",
+        "SignalMode",
         "StepFn",
         "StepsOf",
         "Subscription",

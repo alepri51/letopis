@@ -191,10 +191,23 @@ is built from the journal.
 
 ### Signals
 
-A write reports the changed classes through `NOTIFY`. Raw SQL sends the signal from a trigger, and PostgreSQL delivers
-it on commit. Library transactions defer their signals: the process notifier sends them every 100 ms
-(`notifyIntervalMs`). A signal carries only a class name or the start of the token hash of a revoked session: no ids,
-no data. On signals, the class registry is re-read, the result cache is cleared and subscriptions wake up.
+A write reports changes through `NOTIFY` on the schema channel. Raw SQL sends the signal from a trigger, and PostgreSQL
+delivers it on commit. Library transactions defer their signals: the process notifier sends them every 100 ms
+(`notifyIntervalMs`) and retries the ones that failed to send. What a write signal carries is set by the installation
+mode `up({ signals })`:
+
+| Mode | Write signal | What any role that can connect to the database sees |
+|---|---|---|
+| `class` (default) | the class name: `Booking` | class names and write times |
+| `tenant` | the class name and a tenant token: `Booking@3f9c…` | also tenant pseudonyms |
+| `opaque` | a class token and a tenant token | only write times and frequency per pseudonym |
+| `none` | no signals | nothing |
+
+A revoked session sends `session:<start of the token hash>`, a reset sends `*`; signals carry no ids and no data. A
+token is a keyed HMAC: only a process with the signal key can match a pseudonym to a name, and the key is given to
+services (the `letopis.signals` permission). On signals, the class registry is re-read, the result cache is cleared
+and subscriptions wake up; what the mode changes for the cache and subscriptions is in
+[section 12](#12-change-subscription-and-cache).
 
 ## 3. Installation and connection
 
@@ -213,6 +226,7 @@ functions and the system seed. On the first installation, it issues a service ke
 | `history` | the history retention policy for classes without their own ([section 11](#11-history-and-point-in-time-reads)) |
 | `serviceKey` | your own service key instead of a random one: `lts_` and 32–128 hexadecimal characters |
 | `allowReset` | allow `db.reset()` ([section 13](#13-operations)); off by default |
+| `signals` | the signal mode: `'class'` (default), `'tenant'`, `'opaque'` or `'none'` (["Signals"](#signals)); the mode is stored in the schema — `up()` without the option keeps it |
 | `fresh` | drop the schema and install it again — **the schema data is lost** |
 | `upgrade` | upgrade a schema of an older revision: migrations and a re-apply |
 | `pglite` | a database for development without PostgreSQL (see below) |
@@ -221,7 +235,17 @@ functions and the system seed. On the first installation, it issues a service ke
 
 Result: `schema` (the full name), `serviceKey` (on the first installation, and on a re-run when the installation has no
 valid API key left; otherwise `null`), `created`, `upgraded`, `revision`, `migrations`, `analyzed`, `owner`, `app`,
-and also `tenant` and `pglite` if they were requested.
+`signals` (the signal mode of the installation), `warnings` (without `quiet` they are printed), and also `tenant` and
+`pglite` if they were requested. On PostgreSQL below 18.2, `up()` warns: such a server could truncate CLOG that unread
+signals still need — upgrade it.
+
+To hide class names from signals, use the `opaque` mode (or `tenant` if the names are not secret but you want the
+cache to be precise per tenant); after changing the mode, restart the application processes — they read the mode on
+connect:
+
+```ts
+await up({ dsn: ADMIN, schema: 'shop', signals: 'opaque' })   // later up({ dsn, schema }) keeps the mode
+```
 
 <!-- run: guide -->
 ```ts
@@ -1464,11 +1488,21 @@ stays correct:
 - the result key includes the query, the parameters, the session, the actor and the tenant, so one user never gets the
   result of another user;
 - your own writes clear the results of the changed classes right after commit (including the cascade classes); other
-  writers' changes clear them on a database signal;
+  writers' changes clear them on a database signal. In the `tenant` and `opaque` modes, a process with the signal key
+  clears a class only in the tenant of the write (System rows — in all tenants); a process without the key clears it
+  in all tenants, and in the `opaque` mode any signal clears its whole cache;
 - changes of permissions and classes, writes through `db.sql`, a revoked session and a listener reconnect clear the
   whole cache or the results of the session;
 - the default term is 60 seconds; the cache does not work inside `db.begin()`;
-- without `LISTEN` the cache is off, and `connect({ cache: { ttlOnly: true } })` enables it by term only.
+- without `LISTEN` and in the `none` mode the cache is off, and `connect({ cache: { ttlOnly: true } })` enables it by
+  term only.
+
+A process re-reads the class registry right away on a class change signal (one re-read at a time), and the registry
+and the signal key on `*`, on an unknown token and on a payload of another mode (and without the key in the `opaque`
+mode — on any signal) not more often than once in 5 seconds: a stream of signals, fake ones included, does not turn
+into a stream of queries. In the `none` mode, the registry checks the class
+fingerprint every 5 seconds, and subscriptions poll the log. A subscription wakes up only for its own classes and its
+own tenant, and without the key — for any signal; it always reads the events from the log, so nothing is lost.
 
 Between processes, the cache goes stale for the signal sending interval (`notifyIntervalMs`, 100 ms) plus delivery;
 `db.flushSignals()` sends the accumulated signals at once. `db.cache.clear()` clears the cache.
@@ -1884,16 +1918,26 @@ behavior.
 - The journal has no partitions: thinning deletes versions in batches, and the table file does not shrink by itself
   (new versions take the space after autovacuum); to return the space to the system, use `VACUUM FULL` or `pg_repack`
   in a maintenance window.
-- Signals reveal activity: PostgreSQL lets any role listen to a channel, and the class names in signals show when and
-  to which classes writes happen (a signal has no ids, no tenant and no data). A fake signal only clears the cache one
-  extra time.
+- Signals reveal activity: PostgreSQL lets any role listen to a channel. In the `class` mode one sees when and to which
+  classes writes happen; `tenant` adds tenant pseudonyms; `opaque` hides what was written but not when: the write
+  time and frequency per pseudonym stay visible, and a deterministic token is the basis of frequency attacks. Write
+  times are visible without signals too: `pg_stat_all_tables` and `pg_locks` are open to PUBLIC. The `none` mode
+  removes signals, but then a revoked session leaves the cache of other processes only by term, and a new class
+  appears in their registry within 5 seconds. Real protection from foreign roles is a separate database. A fake
+  signal only clears the cache one extra time: on `*` and unknown tokens the registry is re-read not more often than
+  once in 5 seconds, and a fake class change signal re-reads it like a real one, but with at most one re-read at a
+  time.
+- The signal mode is changed by `up({ signals })`, and the processes have to be restarted after that: a process reads
+  the mode and the signal key on connect (it treats a payload of another mode as foreign and clears the whole cache).
+- PostgreSQL below 18.2 could truncate CLOG that unread signals still need: `up()` warns about it.
 - The `NOTIFY` queue (8 GB) is shared by the whole cluster: a stuck listener fills it up, and then transactions with
   `NOTIFY` fail on commit. The library reads signals right away, and `maintain()` warns when the queue is more than
   half full.
 - The subscription horizon is shared by the whole cluster: a long write transaction delays the events of all
   subscribers (`sub.lag()`); long operations are better done in batches.
 - Between processes, the result cache goes stale for the signal sending interval (100 ms) plus delivery, and for the
-  time of a listener reconnect; the `ttl` term is a safeguard.
+  time of a listener reconnect: postgres.js does not report a broken listener connection, so the cache works until the
+  reconnect and is cleared completely after it. The `ttl` term is a safeguard.
 - A "from now" subscription cursor carries a snapshot of the subscription moment until it passes that boundary: such a
   cursor is longer than a regular one.
 
@@ -1924,7 +1968,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # chain-write — writing with chains: create, update, upsert, delete with preview, anonymize, reclass, slots, inc, { rev }, fan-out, plan rollback (stage 4)
 # demo — the booking demo domain on Zod: seed from models, writing data, id by key, agreement between Zod and the database (stage 2)
 # docs — documentation examples are executed: the marked blocks of the README and the cheatsheet (Russian and English) run as scenarios against PostgreSQL 18 (stage 8)
-# engine-attacks — raw SQL attacks from the application role: the rows of §7.3.1 for stages 1 and 3 with specific outcomes (stages 1, 3)
+# engine-attacks — raw SQL attacks from the application role: the rows of §7.3.1 for stages 1 and 3 with specific outcomes; the signal key without permission, flooding with fake signals (stages 1, 3; plan 1.1, stage 2)
 # engine-class — classes as entities: metaschema, inheritance, recomputing descendants, tightening, metadata (stage 1)
 # engine-write — the write pipeline in raw SQL: v5 ids, defaults, merge, inc, deletion, resurrection, journal, signals (stage 1)
 # engine-races — races on two connections in both orders, without timed pauses (stage 1)
@@ -1960,6 +2004,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # scenario-salon — end-to-end salon scenario: 21 acts from 0.21 (salon) with a coverage matrix of the 1.0 API (stage 6)
 # telemetry — onQuery and slowMs, describe() and class metadata with inheritance, describeText (stage 6)
 # history — diff and blame over the log, the reason of a change for verbs, db.begin() and batches (plan 1.1, stage 1)
+# signals — signal modes: the payload seen by a foreign role, cache precision per tenant, System, permission classes, a process without the key, the loader, subscriptions, the key, none, coalescing, the server version, a class change, a resend, the mode after up() and reset({ all }) (plan 1.1, stage 2)
 # import — import from 0.21 with a fixture of a real 0.21: key violation, --keyless, per-class counters, verify, self-reference, repeat, ids without a key, a dangling reference, $$strict and fields starting with $, update, credentials, CLI (stage 7)
-# security-final — the final security review (stage 8, §7.10 No. 8.4): a family lock by the tenant of the root, account_purge without permission and restore/purge of a foreign id give neither a leak nor a lock; the functions of stage 6, log_refs_at, journal-based find_* reads and watch_read stay within their own tenant; NOTIFY carries only names; the cache key distinguishes the token, the actor and the tenant (stage 8)
+# security-final — the final security review (stage 8, §7.10 No. 8.4): a family lock by the tenant of the root, account_purge without permission and restore/purge of a foreign id give neither a leak nor a lock; the functions of stage 6, log_refs_at, journal-based find_* reads and watch_read stay within their own tenant; NOTIFY carries only names or mode tokens; the cache key distinguishes the token, the actor and the tenant (stage 8)
 ```

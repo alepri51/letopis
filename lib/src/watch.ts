@@ -8,8 +8,9 @@
  * транзакций (pg_snapshot_xmin) — транзакцию с меньшим номером, зафиксированную позже, курсор уже
  * не обгонит, поэтому событий нет ни потерянных, ни повторных. Поток стоит, пока открыта более
  * старая пишущая транзакция (горизонт общий для кластера); метрика — lag(). Чтение идёт под RLS
- * журнала: каждый видит только своё. Сигнал базы с именем класса только будит подписку (чужие
- * классы — не будят); без LISTEN и на случай потери сигнала — запасной опрос.
+ * журнала: каждый видит только своё. Сигнал базы только будит подписку: свои классы и свой арендатор
+ * (чужие — не будят; процесс без ключа сигналов арендатора не различает, в режиме opaque — и класса);
+ * без LISTEN и на случай потери сигнала — запасной опрос.
  *
  * Курсор подписчика старше яруса all политики хранения его классов — cursor_expired: события могли
  * проредиться, нужно перечитать текущее состояние и подписаться заново.
@@ -18,6 +19,7 @@ import { LetopisError } from './errors.js';
 import { toRow } from './sql.js';
 import type { Executor } from './tx.js';
 import type { Row } from './types.js';
+import type { Signal } from './signals.js';
 
 export interface WatchOptions {
   /** Откуда: курсор события, 'now' (по умолчанию — изменения после подписки) или 'start' (весь журнал). */
@@ -72,8 +74,30 @@ export interface WatchCtx {
   exec: Executor;
   /** Классы подписки с потомками (null — все). */
   classes: string[] | null;
-  /** Подписка на сигналы базы; возвращает отписку. */
-  onSignal?: (fn: (name: string) => void) => () => void;
+  /** Подписка на сигналы базы (разобранные); возвращает отписку. */
+  onSignal?: (fn: (s: Signal) => void) => () => void;
+  /** Токен арендатора подписки (null — процесс без ключа или режим без токенов). */
+  tenant?: () => string | null;
+}
+
+/**
+ * Будит ли сигнал подписку: свои классы (watched; null — все) и свой арендатор (mine — токен; null —
+ * любой); сессии не будят; *, opaque без ключа и нагрузка не по режиму — будят. Незнакомый токен класса
+ * будит только подписку на все классы: классы подписки с перечнем есть в реестре, их токены известны.
+ */
+export function wakes(s: Signal, watched: ReadonlySet<string> | null, mine: string | null): boolean {
+  const ours = (t: string | null) => t === null || mine === null || t === mine;
+  switch (s.kind) {
+    case 'session':
+    case 'sessions':
+      return false;
+    case 'class':
+      return (!watched || watched.has(s.cls)) && ours(s.tenant);
+    case 'unknown':
+      return !watched && ours(s.tenant);
+    default:
+      return true;
+  }
 }
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -104,9 +128,8 @@ export class Subscription implements AsyncIterable<WatchEvent> {
     }
     if (ctx.onSignal) {
       const watched = ctx.classes ? new Set(ctx.classes) : null;
-      this.off = ctx.onSignal((name) => {
-        if (name === '' || name.startsWith('session:')) return;
-        if (watched && name !== '*' && !watched.has(name)) return;
+      this.off = ctx.onSignal((s) => {
+        if (!wakes(s, watched, ctx.tenant?.() ?? null)) return;
         this.dirty = true;
         this.wake?.();
       });

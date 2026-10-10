@@ -15,7 +15,8 @@ synced: 8b04c59
 - Батч `db.batch(имя)` (`makeBatch`): у каждого вызова класса своя `BatchRef`; первый глагол ставит план в очередь, следующие звенья и слоты его обновляют; терминал на плане из очереди — `invalid_query`; `run()` — `execBatch` одной транзакцией. Очереди — свои у фасада (локальная `batches` в `makeDb`, `Shared` их не держит): `run()` исполняет очередь в контексте того же `chainCtx`, чужих планов в ней нет (тест `tx`); очереди корня переживают `auth.switch()`.
 - Охранники снесённого API — `removed()` (код `removed`, «снят в 1.0.0 — замена»); `notYet()` (код `not_implemented`) — заготовка для имён будущих этапов, сейчас вызовов нет.
 - Типы по моделям — `typed.ts` (`TypedDb`, `TypedChain`, `PatchOf` — `inc()` только у числовых полей) через структурный `ModelLike`: основная точка входа не импортирует Zod даже в типах.
-- Реестр перечитывается по сигналу класса `Class`; классы — собственные арендатора и системные.
+- Реестр перечитывается по сигналу класса `Class` сразу (`reload`: одно перечитывание за раз, сигналы во время него — одно следующее); классы — собственные арендатора и системные.
+- Сигналы (план 1.1, этап 2): `connect()` читает `signal_mode()` (нет функции — `class`), в режимах `tenant`/`opaque` — `signal_key()` (`acl_denied`, `no_session` → процесс без ключа; ключ сменился после `reset({ all })` — кэш целиком: ответы с токенами старого ключа сигналы не узнают); `Shared.sig` (`Signals`) — разбор нагрузки, токены арендаторов (`tenantToken`), карта токенов классов по всем реестрам (`tokens()` после `refresh` и `registryFor`). `onSignal`: класс прав → `passes.clear()`; `Class` → `reload`; `*`, незнакомый токен, нагрузка не по режиму, opaque без ключа → `resync` (`throttle` 5 с: пропуска, ключ, реестр); затем `cache.signal(s)` и подписчики (разобранный `Signal`); переподключение слушателя — ещё `resync`. Режим none: без LISTEN и без нотификатора в контексте, `class_stamp()` раз в 5 с (корень и реестры `db.as()`). Подключение в обход RLS (`Shared.allTenants`) — кэш и подписка без точности по арендатору (`ResultCache(…, allTenants)`, `WatchCtx.tenant` → null); иначе подписке — токен арендатора фасада.
 - Тексты ошибок — `letopis: <код>: …`; новый код базы — `LT_NAMES` в `errors.ts` и `error_catalog()` в `lib/sql/15-errors.sql`. Нарушение условия ACL на новых значениях (42501, `routine = ExecWithCheckOptions`, без `USING`) → `acl_denied`; upsert на чужую строку («USING expression») остаётся 42501 — признак по функции сервера, не по тексту.
 - Этап 6: `db.verify`, `maintain`, `reset`, `trimHistory`, `rekeyClass`, `describe` — `admin.ts`; `db.watch` — `watch.ts` (подписчики сигналов — `Shared.signals`); `db.cache` — `cache.ts` (`ChainCtx.cache`, сброс своих записей — `TxContext.onChanged`, `db.sql` — `raw`); `connect({ listen, cache, maintain })`; ревизия схемы старше библиотеки — предупреждение в `connect()`.
 - Сигнал классов прав (`rule`, `Resource`, `member`, `Account`, `Class`) сбрасывает пропуска прав подключения; сессия продлевается `auth_refresh()` раз в минуту после успешных операций (`connect({ refreshSession: false })` — нет).
@@ -25,7 +26,7 @@ synced: 8b04c59
 - Новое свойство корня db — `DB_METHODS` (`types.ts`) и раздел «Зарезервированные имена» README (обе версии).
 
 **Проверка**
-- `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `connect`, `chain-read`, `chain-write`, `chain-api`, `chain-types`, `tx`.
+- `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `connect`, `chain-read`, `chain-write`, `chain-api`, `chain-types`, `tx`, `signals`.
 
 **Точки входа**
 - `lib/src/index.ts:connect` — подключение

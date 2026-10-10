@@ -41,6 +41,12 @@ const r = await up({ dsn: ADMIN, schema: 'myapp',                  // schema 'v2
   policy), `allowReset`, `serviceKey`, `quiet`, `pglite: true` (a database for development without PostgreSQL; then
   `connect({ dsn: r.pglite.dsn, listen: false, max: 1, allowBypassRls: true, … })` — a superuser connection, RLS
   does not apply on it).
+- `signals` — what `NOTIFY` signals show to any role that can connect to the database: `'class'` (default — class
+  names), `'tenant'` (the class name and a tenant token; the cache is cleared only in the tenant of the write),
+  `'opaque'` (tokens only), `'none'` (no signals: the cache works only with `ttlOnly`, subscriptions poll the log).
+  The mode is stored in the schema: `up()` without the option keeps it; after a change, restart the processes. The
+  signal key (precise cache clearing) goes to services — the `letopis.signals` permission. The `up()` result also has
+  `signals` and `warnings` (PostgreSQL below 18.2 — upgrade).
 - `tenant` — the first tenant and user without a seed of your own: the tenant gets the rule "authenticated users may
   do everything" (`grantAll`, on by default, weight 10); the user gets a membership with the roles `user.roles`
   (`['owner']` by default), a password for signing in with the login `login`, and a session in the tenant. Repeating

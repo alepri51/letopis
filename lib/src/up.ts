@@ -20,6 +20,7 @@ import { startPglite, type PgliteOptions, type PgliteServer } from './pglite.js'
 import { hashPassword } from './auth.js';
 import { LetopisError } from './errors.js';
 import { v5Id } from './uuid.js';
+import { SIGNAL_MODES, type SignalMode } from './signals.js';
 
 export const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
 export const SCHEMA_VERSION = 'v2';
@@ -47,6 +48,12 @@ export interface InstallOptions {
   migrationsDir?: string;
   /** Свой ключ сервиса: зарегистрировать, если такого ещё нет (вместо выпуска случайного). */
   serviceKey?: string;
+  /**
+   * Режим сигналов NOTIFY (план 1.1, §2.2): 'class' (по умолчанию, как в 1.0) — имена классов; 'tenant' —
+   * имя класса и токен арендатора; 'opaque' — только токены; 'none' — сигналов нет. Режим хранится в
+   * схеме: накат без опции его не меняет, reset({ all }) — сохраняет.
+   */
+  signals?: SignalMode;
 }
 
 /** Политика хранения истории (§2.11): сроки ярусов по возрастанию, 'forever' — бессрочно. */
@@ -68,6 +75,8 @@ export interface InstallResult {
   serviceKey: string | null;
   /** Применённые миграции. */
   migrations: string[];
+  /** Режим сигналов установки после наката. */
+  signals: SignalMode;
 }
 
 const SQL_DIR = fileURLToPath(new URL('../sql/', import.meta.url));
@@ -96,6 +105,9 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
   const app = opts.app ?? 'letopis_app';
   if (!SCHEMA_NAME.test(opts.schema)) throw new Error(`letopis.up: bad schema name "${opts.schema}" (нужно v<N>.<имя>)`);
   for (const r of [owner, app]) if (!ROLE_NAME.test(r)) throw new Error(`letopis.up: bad role name "${r}"`);
+  if (opts.signals !== undefined && !SIGNAL_MODES.includes(opts.signals)) {
+    throw new Error(`letopis.up: signals — ${SIGNAL_MODES.join(', ')}, а не ${String(opts.signals)}`);
+  }
 
   const [{ v }] = await sql<{ v: string }[]>`select current_setting('server_version_num') as v`;
   if (Number(v) < 180000) throw new Error(`letopis.up: нужен PostgreSQL 18 или новее, а сервер — ${v}`);
@@ -131,6 +143,8 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
     HISTORY_DEFAULT: quoteLiteral(JSON.stringify(opts.history ?? null)),
     // методы цепочки — в тексте функции reserved_names() (план, §2.14)
     RESERVED_NAMES: RESERVED_CLASS_NAMES.map(quoteLiteral).join(', '),
+    // режим сигналов — после set role: сохранённый режим лежит в строке ключа secret владельца
+    SIGNALS: 'class',
   };
 
   // Схема создаётся до set role: у владельца может не быть права CREATE в базе.
@@ -139,8 +153,18 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
   const files = await engineFiles(opts.upTo);
   const migrations = opts.migrateFrom === undefined ? [] : await migrationFiles(opts.migrationsDir ?? MIGRATE_DIR, opts.migrateFrom);
   let serviceKey: string | null = null;
+  let signals: SignalMode = 'class';
   await sql.begin(async (tx) => {
     await tx.unsafe(`set local role ${quoteIdent(owner)}`);
+    // режим сигналов (план 1.1, §2.6): опция, иначе сохранённый в схеме (meta строки ключа), иначе class
+    let saved: SignalMode | null = null;
+    const [reg] = await tx.unsafe(`select to_regclass($1) is not null as ok`, [`${quoteIdent(opts.schema)}.secret`]);
+    if (reg?.ok) {
+      const [k] = await tx.unsafe(`select meta->>'signals' as m from ${quoteIdent(opts.schema)}.secret where id = $1::uuid and kind = 'KEY'`, [SYSTEM_ID]);
+      if (SIGNAL_MODES.includes(k?.m as SignalMode)) saved = k.m as SignalMode;
+    }
+    signals = opts.signals ?? saved ?? 'class';
+    vars.SIGNALS = signals;
     // структурные изменения прежних ревизий — до повторного наката функций (этап 6, п. 10)
     for (const m of migrations) {
       try {
@@ -202,7 +226,7 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
       }
     }
   });
-  return { schema: opts.schema, owner, app, serviceKey, migrations };
+  return { schema: opts.schema, owner, app, serviceKey, migrations, signals };
 }
 
 /** Миграции с номером выше ревизии from и не выше DDL_REVISION: `0004-описание.sql`, по номеру. */
@@ -259,6 +283,8 @@ export interface UpResult extends InstallResult {
   pglite?: PgliteServer;
   /** up({ tenant }): арендатор (и его первый пользователь с сессией). */
   tenant?: TenantResult;
+  /** Предупреждения (версия сервера); без quiet каждое уже напечатано через console.warn. */
+  warnings: string[];
 }
 
 type Ping = { ok: true } | { ok: false; kind: 'no-server' | 'no-database' | 'starting' | 'fatal'; err: unknown };
@@ -300,10 +326,20 @@ export async function ensureDatabase(dsn: string, log: (m: string) => void = () 
   }
 }
 
-/** Версия сервера и кодировка базы: PostgreSQL 18+ и UTF8 (casefold и pg_unicode_fast требуют UTF8). */
-export function checkServer(versionNum: number, encoding: string): void {
+/**
+ * Версия сервера и кодировка базы: PostgreSQL 18+ и UTF8 (casefold и pg_unicode_fast требуют UTF8) —
+ * иначе отказ. Возвращает предупреждения: с чем установка работает, но рискует.
+ */
+export function checkServer(versionNum: number, encoding: string): string[] {
   if (versionNum < 180000) throw new Error(`letopis.up: нужен PostgreSQL 18 или новее, а сервер — ${Math.floor(versionNum / 10000)} (${versionNum})`);
   if (encoding.toUpperCase() !== 'UTF8') throw new Error(`letopis.up: база в кодировке ${encoding}, нужна UTF8 (casefold и коллация pg_unicode_fast)`);
+  const warnings: string[] = [];
+  // план 1.1, этап 2: исправлено в 18.2
+  if (versionNum < 180002) {
+    warnings.push(`PostgreSQL ${Math.floor(versionNum / 10000)}.${versionNum % 10000}: до 18.2 сервер мог усечь CLOG, который ещё нужен `
+      + 'непрочитанным сигналам NOTIFY; обновите сервер до 18.2 или новее');
+  }
+  return warnings;
 }
 
 /** Ревизия движка схемы по комментарию 'letopis ddl_revision=N'; схемы нет — null. */
@@ -346,7 +382,8 @@ export async function up(opts: UpOptions): Promise<UpResult> {
   try {
     const [srv] = await sql`select current_setting('server_version_num')::int as v, pg_encoding_to_char(encoding) as enc
       from pg_database where datname = current_database()`;
-    checkServer(srv.v as number, srv.enc as string);
+    const warnings = checkServer(srv.v as number, srv.enc as string);
+    if (!opts.quiet) for (const w of warnings) console.warn(`letopis.up: ${w}`);
     if (opts.fresh) {
       await sql.unsafe(`drop schema if exists ${quoteIdent(schema)} cascade`);
       log(`схема ${schema} удалена (fresh)`);
@@ -368,7 +405,7 @@ export async function up(opts: UpOptions): Promise<UpResult> {
     const revision = (await schemaRevision(sql, schema)) ?? 0;
     log(`${before === null ? 'схема поставлена' : before < DDL_REVISION ? `схема обновлена с ревизии ${before}` : 'повторный накат'}: ${schema}, ревизия ${revision}`);
     const tenant = opts.tenant ? await createTenant(sql, schema, opts.tenant, opts.owner) : undefined;
-    return { ...res, created: before === null, upgraded: before !== null && before < DDL_REVISION, revision, analyzed,
+    return { ...res, created: before === null, upgraded: before !== null && before < DDL_REVISION, revision, analyzed, warnings,
       ...(lite ? { pglite: lite } : {}), ...(tenant ? { tenant } : {}) };
   } catch (e) {
     if (lite) await sql.end({ timeout: 1 }).then(() => lite.close(), () => lite.close());
