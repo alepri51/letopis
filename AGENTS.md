@@ -25,10 +25,11 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 | Проверка пакета | `cd lib && npm run check:package` | собирает тарбол, ставит в чистую папку, импортирует экспорты из контракта, живой прогон на `ENTITY_DSN` (`LETOPIS_PKG_LIVE=1` — обязателен) | `lib/scripts/check-package.mjs` |
 | Импорт полигона 0.21 | `cd lib && npm run test:import-salon` | засевка 0.21, `up({ fresh })` 1.0, импорт, сверка объектов и версий, `verify()`; код 1 при расхождении | `lib/bench/import-salon.mjs` |
 | Бенч против 0.21 | `cd lib && npx tsx bench/compare.bench.mjs` (`BENCH_SCALE=0.1` — быстро) | 0.21 — dev-зависимость `letopis-0` (`npm:letopis@0.21.0`) на контейнере `letopis-timescale`, порт 15432; итог — `bench/results/compare.md` | `lib/bench/compare.bench.mjs` |
+| Бенч против 1.0.1 | `cd lib && npx tsx bench/vs-101.bench.mjs` (`BENCH_SCALE=0.1` — быстро) | 1.0.1 — dev-зависимость `letopis-1` (`npm:letopis@1.0.1`), обе стороны на `letopis-pg18` в схемах `v2.vs101_old` и `v2.vs101_new`; итог — `bench/results/vs-101.md` | `lib/bench/vs-101.bench.mjs` |
 | GitHub Actions | `.github/workflows/` | ci — push в dev (typecheck, check:docs, тесты на `postgres:18`, check:package); tag — push в main; release — published (npm, dist-tag `next` для версий с дефисом, проверка пакета из реестра) | `docs/atlas/F-RELEASE.md` |
 
 ## Модули
-Набор 1.0 (план §4). Карточка — `.claude/rules/atlas/<ID>.md`.
+Набор 1.0 (план §4) и модули плана 1.1 (§4 плана 1.1). Карточка — `.claude/rules/atlas/<ID>.md`.
 | ID | Суть | Вход | Этапы |
 |---|---|---|---|
 | M-ENGINE | таблицы, роли, триггеры, классы, `merge`, `inc`, каскад, `reclass`, журнал, хэши, `verify`, коды ошибок, ревизия движка | `lib/sql/10-core.sql`, `lib/sql/15-errors.sql`, `lib/sql/40-class.sql`, `lib/sql/60-write.sql`, `lib/sql/99-revision.sql` | 1 |
@@ -44,7 +45,9 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 | M-IMPORT | импорт из 0.21 | `lib/src/import.ts`, `lib/test/fixtures/gen-v021.mjs` | 7 |
 | M-RELEASE | CI, тег, релиз, check-docs, check-package, контракт API | `lib/scripts/check-docs.mjs`, `lib/scripts/check-package.mjs`, `lib/scripts/gen-api-contract.mjs`, `.github/workflows/` | 0, 8 |
 | M-TESTS | обвязка и наборы | `lib/test/_harness.ts`, `lib/test/_engine.ts` | все |
-| M-BENCH | замеры точки А и бенч против 0.21 | `lib/bench/` | 1, 7 |
+| M-BENCH | замеры точки А, бенч против 0.21 и против 1.0.1 | `lib/bench/` | 1, 7; план 1.1: 0 |
+| M-DERIVED | агрегаты в базе и проекторы из журнала — заготовка, кода ещё нет (план 1.1, §2.4) | `lib/sql/88-derived.sql`, `lib/src/project.ts` (появятся на этапе 4) | план 1.1: 4 |
+| M-MCP | инструменты MCP: `letopis/mcp`, `letopis mcp` — заготовка, кода ещё нет (план 1.1, §2.5) | `lib/src/mcp.ts` (появится на этапе 5) | план 1.1: 5 |
 
 ## Омонимы
 Слова, сменившие смысл в 1.0 (в 0.21, MIGRATION и старых отчётах — прежний).
