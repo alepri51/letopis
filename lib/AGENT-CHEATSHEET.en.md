@@ -272,6 +272,8 @@ const was = await db.Wallet(w).asOf('2026-10-01T00:00:00Z').first()   // as it w
 await db.Shop(shop).Wallet().asOf(new Date('2026-10-01')).rows()
 const history = await db.Wallet(w).versions()                         // all versions; the deletion version has $deleted
 await db.Wallet(w200).versions({ follow: true })                      // also across id changes (reclass, rekey)
+await db.Wallet(w).diff()                                             // what changed: previous version → latest
+await db.Wallet(w).blame()                                            // who, when and why (verb option reason) changed fields
 ```
 A class with `history: false` does not provide `versions`, `asOf`, `restore` or subscription events.
 

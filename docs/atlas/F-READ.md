@@ -19,6 +19,11 @@
 12. [N] `lib/src/sql.ts:buildRead#«entityByIds»` — строки узла по первичному ключу под RLS + условия шага; журнал — `logPart` по (id, rev).
 13. [N] `lib/src/sql.ts:buildRead#«const single»` — без pivot rows/ids/count/агрегаты/versions читают последний узел; paths и pivot — соединение `n0 ⋈ p1 ⋈ n1 …` с дофильтрами возвратов.
 
+## diff и blame (план 1.1, этап 1)
+- `lib/src/chain.ts` — терминалы `diff()`/`blame()`: номера и моменты проверяются до запроса, параметры — `ChainMods.hist`.
+- `lib/src/sql.ts:buildRead` — режимы `diff`/`blame` поверх множества сущностей последнего шага: `select S.diff_versions(z.id, …)` / `S.blame(z.id, …)` по одному документу на объект.
+- `lib/sql/75-history.sql:diff_versions`, `:blame` — журнал под RLS вызывающего (`log_select`); различия — `version_changes` и `jsonb_changes`, листья — `version_leaves`.
+
 ## Исполнение
 14. [N] `lib/src/chain.ts:exec` — с кэшем (`cacheTtl`) — F-WATCH «Кэш результатов»; иначе `ctx.exec.run(…, { read: true })`.
 15. [P] `lib/src/tx.ts:runTx` — транзакция `read committed`: `begin`, `set_config` (токен, пропуск прав, UTC) и запрос (`prepare: true`) одним конвейером; чтение фиксируется без опроса `letopis.changed`; 40P01/40001 — до 3 повторов. В `db.begin()` — `ExplicitTx.run`, без повторов. `onQuery {mode, classes, ms, rows, slow}`.

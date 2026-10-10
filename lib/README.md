@@ -1294,8 +1294,9 @@ const followed = await db.Product(mug2).versions({ follow: true }) // и чер�
 ```
 
 У каждой версии — автор, агент, время, номер, вид операции (`create`, `update`, `delete`, `reclass`, `rekey`,
-`restore`, `purge`, `trim`, `reset`) и причина (`reason`) — если её задала настройка `letopis.reason` транзакции;
-отдельного API для причины нет. Версия удаления — с `$deleted`.
+`restore`, `purge`, `trim`, `reset`) и причина (`reason`). Причину задаёт опция `reason` глагола (`update(patch, { reason })`, `create(data, { reason })`,
+`delete({ confirm, reason })` и других), для всех операций блока — `db.begin({ reason })` и
+`db.batch(имя, { reason })`; сырой SQL — настройка `letopis.reason` транзакции. Версия удаления — с `$deleted`.
 
 ### Срез на дату
 
@@ -1338,6 +1339,28 @@ history: { all: '1 day', daily: '1 week', weekly: '1 month', monthly: '1 year', 
 - Прореживает `maintain()` пачками по 10 000 версий ([раздел 13](#13-эксплуатация)).
 - В прореженной части срез показывает последнюю сохранённую версию до момента, то есть его точность равна
   периоду яруса. Подписчик, отставший дольше яруса `all`, получает `cursor_expired`.
+
+### Что изменилось и кто: `diff` и `blame`
+
+```ts
+const [d] = await db.Order(id).diff()                       // предыдущая версия → последняя
+await db.Order(id).diff({ from: 3, to: 7 })                 // по номерам версий
+await db.Order(id).diff({ from: '2026-10-01' })             // состояние на момент → последнее
+await db.Order(id).diff({ follow: true })                   // через смену id (reclass, rekey)
+const [b] = await db.Order(id).blame()                      // каждое поле последней версии
+await db.Order(id).blame({ at: '2026-10-01', limit: 200 })  // версия на момент; просмотреть 200 версий
+```
+
+- `diff()` — по объекту шага: `{ id, class, from, to, changes }`, где изменение — `{ path, kind, before, after }`,
+  `kind` — `added`, `removed` или `changed`, а путь начинается с раздела строки: `data`, `links`, `tags`, `owner`,
+  `class`. Объекты данных сравниваются по ключам, массивы — целиком; множественный конец и теги — по элементам.
+  Если на момент `from` объекта не было, все пути — `added`; если на момент `to` он удалён — `to.deleted: true`.
+- `blame()` — `{ id, class, rev, complete, fields }`: у каждого листа — версия, которая последней его изменила,
+  `author`, `agent`, `op`, `reason` и `exact`. `exact: false` — до этой версии история неполная (прорежена,
+  обрезана или часть версий не видна), и настоящее изменение могло быть раньше. `complete: true` — история
+  просмотрена целиком и без пропусков; по умолчанию просматривается не больше 1000 последних версий.
+- Считает база с правами вызывающего: сырой SQL получает то же — `select "v2.shop".blame('<id>')`,
+  `select "v2.shop".diff_versions('<id>')`.
 
 ### Обрезка истории
 
@@ -1629,7 +1652,7 @@ npx letopis import --from postgres://…/old --from-schema v1.salon --dsn postgr
 - методы цепочки: `then`, `entity`, `paths`, `rows`, `first`, `ids`, `count`, `limit`, `offset`, `sort`, `asOf`,
   `withDeleted`, `deep`, `exact`, `sum`, `avg`, `min`, `max`, `countBy`, `after`, `versions`, `create`, `update`,
   `upsert`, `set`, `unset`, `add`, `remove`, `delete`, `anonymize`, `reclass`, `restore`, `purge`, `alias`, `tags`,
-  `owner`, `forUpdate`, `cache`, `rekey`; охранники снесённого API — `run`, `execute`, `account`;
+  `owner`, `forUpdate`, `cache`, `rekey`, `diff`, `blame`; охранники снесённого API — `run`, `execute`, `account`;
 - корень `db`: `as`, `begin`, `commit`, `rollback`, `lock`, `batch`, `watch`, `close`, `registry`, `sql`, `load`,
   `verify`, `maintain`, `reset`, `describe`, `auth`, `acl`, `idOf`, `refresh`, `transaction`, `flushSignals`,
   `schema`, `token`, `tenant`, `trimHistory`, `rekeyClass`, `cache`; охранники — `reloadSchema`, `accounts`,
@@ -1881,6 +1904,7 @@ npx letopis import --from postgres://…/old --from-schema v1.salon --dsn postgr
 # up — полный установщик: свежая установка, повторный накат, свои сиды, автосоздание базы, UTF8, версия 17, upgrade с миграциями, PGlite, первый арендатор и пользователь (up({ tenant }), createTenant) (этапы 6, 8)
 # scenario-salon — сквозной сценарий салона: 21 акт 0.21 (salon) с матрицей покрытия API 1.0 (этап 6)
 # telemetry — onQuery и slowMs, describe() и метаданные классов с наследованием, describeText (этап 6)
+# history — diff и blame по журналу, причина изменения у глаголов, db.begin() и батча (план 1.1, этап 1)
 # import — импорт из 0.21 по фикстуре настоящей 0.21: нарушение ключа, --keyless, счётчики по классам, verify, самоссылка, повтор, id без ключа, висячая ссылка, $$strict и поля на $, update, креды, CLI (этап 7)
 # security-final — итоговое ревью безопасности (этап 8, §7.10 №8.4): блокировка семейства по арендатору корня, account_purge без права и restore/purge чужого id не дают ни утечки, ни блокировки; функции этапа 6, log_refs_at, срезы find_* по журналу и watch_read не выходят за свой арендатор; NOTIFY несёт только имена; ключ кэша различает токен, актора и арендатора (этап 8)
 ```

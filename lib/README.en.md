@@ -1324,8 +1324,10 @@ const followed = await db.Product(mug2).versions({ follow: true }) // also acros
 ```
 
 Every version has an author, an agent, a time, a number, a kind of operation (`create`, `update`, `delete`, `reclass`,
-`rekey`, `restore`, `purge`, `trim`, `reset`) and a reason (`reason`), if the `letopis.reason` setting of the
-transaction set one; there is no separate API for the reason. A deletion version has `$deleted`.
+`rekey`, `restore`, `purge`, `trim`, `reset`) and a reason (`reason`). The reason comes from the `reason` option of a verb
+(`update(patch, { reason })`, `create(data, { reason })`, `delete({ confirm, reason })` and others); for every
+operation of a block, from `db.begin({ reason })` and `db.batch(name, { reason })`; in raw SQL, from the
+`letopis.reason` setting of the transaction. A deletion version has `$deleted`.
 
 ### Point-in-time read
 
@@ -1370,6 +1372,29 @@ period boundaries are in the `tz` time zone (UTC by default).
 - `maintain()` does the thinning in batches of 10,000 versions ([section 13](#13-operations)).
 - In the thinned part, a point-in-time read shows the last kept version before the moment, so its precision equals the
   period of the tier. A subscriber that lags behind by more than the `all` tier gets `cursor_expired`.
+
+### What changed and who: `diff` and `blame`
+
+```ts
+const [d] = await db.Order(id).diff()                       // previous version → latest
+await db.Order(id).diff({ from: 3, to: 7 })                 // by version numbers
+await db.Order(id).diff({ from: '2026-10-01' })             // state at a moment → latest
+await db.Order(id).diff({ follow: true })                   // across id changes (reclass, rekey)
+const [b] = await db.Order(id).blame()                      // every field of the latest version
+await db.Order(id).blame({ at: '2026-10-01', limit: 200 })  // the version at a moment; scan 200 versions
+```
+
+- `diff()` returns one item per object of the step: `{ id, class, from, to, changes }`, where a change is
+  `{ path, kind, before, after }`, `kind` is `added`, `removed` or `changed`, and the path starts with the section of
+  the row: `data`, `links`, `tags`, `owner`, `class`. Data objects are compared by keys, arrays as a whole; a
+  multi-valued end and tags element by element. If the object did not exist at `from`, every path is `added`; if it
+  was deleted at `to`, `to.deleted` is `true`.
+- `blame()` returns `{ id, class, rev, complete, fields }`: for every leaf, the version that changed it last,
+  `author`, `agent`, `op`, `reason` and `exact`. `exact: false` means the history before that version is incomplete
+  (thinned, trimmed or partly invisible), so the real change may be older. `complete: true` means the whole history
+  was scanned without gaps; by default at most the 1000 latest versions are scanned.
+- The database computes both with the caller's rights: raw SQL gets the same, `select "v2.shop".blame('<id>')`,
+  `select "v2.shop".diff_versions('<id>')`.
 
 ### Trimming history
 
@@ -1670,7 +1695,7 @@ database does not accept a link with such a name (`reserved_names()`; the instal
 - chain methods: `then`, `entity`, `paths`, `rows`, `first`, `ids`, `count`, `limit`, `offset`, `sort`, `asOf`,
   `withDeleted`, `deep`, `exact`, `sum`, `avg`, `min`, `max`, `countBy`, `after`, `versions`, `create`, `update`,
   `upsert`, `set`, `unset`, `add`, `remove`, `delete`, `anonymize`, `reclass`, `restore`, `purge`, `alias`, `tags`,
-  `owner`, `forUpdate`, `cache`, `rekey`; guards of the removed API: `run`, `execute`, `account`;
+  `owner`, `forUpdate`, `cache`, `rekey`, `diff`, `blame`; guards of the removed API: `run`, `execute`, `account`;
 - the `db` root: `as`, `begin`, `commit`, `rollback`, `lock`, `batch`, `watch`, `close`, `registry`, `sql`, `load`,
   `verify`, `maintain`, `reset`, `describe`, `auth`, `acl`, `idOf`, `refresh`, `transaction`, `flushSignals`,
   `schema`, `token`, `tenant`, `trimHistory`, `rekeyClass`, `cache`; guards: `reloadSchema`, `accounts`,
@@ -1934,6 +1959,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # up — the full installer: fresh installation, re-apply, custom seeds, automatic database creation, UTF8, version 17, upgrade with migrations, PGlite, the first tenant and user (up({ tenant }), createTenant) (stages 6, 8)
 # scenario-salon — end-to-end salon scenario: 21 acts from 0.21 (salon) with a coverage matrix of the 1.0 API (stage 6)
 # telemetry — onQuery and slowMs, describe() and class metadata with inheritance, describeText (stage 6)
+# history — diff and blame over the log, the reason of a change for verbs, db.begin() and batches (plan 1.1, stage 1)
 # import — import from 0.21 with a fixture of a real 0.21: key violation, --keyless, per-class counters, verify, self-reference, repeat, ids without a key, a dangling reference, $$strict and fields starting with $, update, credentials, CLI (stage 7)
 # security-final — the final security review (stage 8, §7.10 No. 8.4): a family lock by the tenant of the root, account_purge without permission and restore/purge of a foreign id give neither a leak nor a lock; the functions of stage 6, log_refs_at, journal-based find_* reads and watch_read stay within their own tenant; NOTIFY carries only names; the cache key distinguishes the token, the actor and the tenant (stage 8)
 ```

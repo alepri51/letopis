@@ -2,11 +2,13 @@
 paths:
   - 'lib/sql/70-read.sql'
   - 'lib/src/{sql,ops}.ts'
+  - 'lib/sql/75-history.sql'
 synced: 3033e57
 ---
 # M-QUERY — поиск id под RLS (find_*) и построитель чтения
 
 **Инварианты и грабли**
+- История (план 1.1, этап 1; `lib/sql/75-history.sql`): `diff_versions` и `blame` — plpgsql с правами вызывающего, журнал читают под `log_select`; помощники `jsonb_changes`, `version_changes`, `version_leaves` — чистые функции на стандартном синтаксисе SQL (тела проверяются при создании: ссылаться на `90-time.sql` нельзя). Терминалы `diff()`/`blame()` — режимы `buildRead` поверх множества сущностей последнего шага (`ents`): по одному jsonb-документу на объект (`select S.blame(z.id, …) from (select distinct z.id from ents z) z`). Порядок версий — `(at, seq)`: `seq` различает версии разных id при `follow` и переносе id; надгробие переноса (`op = 'delete'`, `moved` не null) — не версия объекта. `blame` идёт назад по `moved` первой версии `reclass`/`rekey`; пропуск номера версии в паре одного id — `exact: false`; лист без изменений — самой старой просмотренной версии (`exact` только при версии 1 и без обрезки `limit`). Тест — `history`.
 - Видимость в `find_*` (этап 5): `row_visible(…, owner, tags, data, links, c_tenant, c_account, c_plan)` с планом `acl_actor('READ')` (пропуск `letopis.acl` или расчёт); подзапросы `find_*` выбирают эти колонки.
 - Под RLS индексы GIN приложению недоступны (`@>` не leakproof). Шаг из двух частей: функции владельца `find_ids()`, `find_hop()`, `find_deep()` ищут id по индексам без RLS и сами применяют видимость `row_visible()` — копию условия политик `entity_select`/`log_select` (`50-acl.sql`); строки читаются по первичному ключу под RLS. Менять видимость — в обоих местах; расхождение ловит `find-ids-parity`.
 - `find_hop`/`find_deep` пробуют `entity_ends` на каждый id через `lateral (… offset 0)`, а класс, видимость, data и роли проверяют после пробы. Без `offset 0` подзапрос поднимается в общий план, и планировщик по плохой оценке меняет пробы на перебор таблицы; пересечение пробы с индексами (class, tenant) или data перебирает весь класс (замер `bench/chain-read.mjs`).
@@ -31,4 +33,6 @@ synced: 3033e57
 **Точки входа**
 - `lib/sql/70-read.sql:find_hop` — обратный переход
 - `lib/src/sql.ts:buildRead` — запрос цепочки
+- `lib/sql/75-history.sql:blame` — кто и почему менял поля
+- `lib/sql/75-history.sql:diff_versions` — различия версий
 - `lib/src/sql.ts:resolveHop` — направление перехода

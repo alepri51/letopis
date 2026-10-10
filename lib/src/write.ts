@@ -54,7 +54,8 @@ export const isInc = (v: unknown): v is IncMarker =>
 // Модель плана
 // ---------------------------------------------------------------------------
 
-export type PlanOp =
+/** Глагол плана; reason — причина изменения этого глагола (план 1.1, §2.1). */
+export type PlanOp = (
   | { kind: 'create'; data: Record<string, unknown> }
   | { kind: 'update'; data: Record<string, unknown>; rev?: number }
   | { kind: 'upsert'; data: Record<string, unknown> }
@@ -63,7 +64,16 @@ export type PlanOp =
   | { kind: 'reclass'; cls: string; data?: Record<string, unknown> }
   | { kind: 'restore' }
   | { kind: 'purge'; confirm: boolean }
-  | { kind: 'rekey'; data: Record<string, unknown> };
+  | { kind: 'rekey'; data: Record<string, unknown> }
+) & { reason?: string };
+
+/** Причина изменения: строка до 1000 символов без NUL (её не принимает set_config). */
+export function checkReason(v: unknown, where: string): string {
+  if (typeof v !== 'string' || v.length > 1000 || v.includes('\0')) {
+    throw new LetopisError('invalid_query', `${where}: reason — строка до 1000 символов`);
+  }
+  return v;
+}
 
 /** Значение слота: id, список id, строка ответа или ленивая цепочка (в той же транзакции). */
 export type SlotValue = string | string[] | { id: string } | null | { plan: Step[]; mods: ChainMods };
@@ -163,6 +173,7 @@ export function precheckPlan(reg: Registry, steps: Step[]): void {
       continue;
     }
     const verb = op.kind;
+    if (op.reason !== undefined) checkReason(op.reason, `${verb}()`);
     const m = s.opMods ?? {};
     if (m.asOf !== undefined) fail('invalid_query', `${verb}(): asOf описывает прошлое — записывать в него нельзя`);
     // restore и purge сами ищут удалённые объекты шага
@@ -226,7 +237,19 @@ export interface WriteCtx {
   tenant: string | null;
   /** Владелец новых строк по умолчанию (db.as(…, { owner })). */
   owner?: string;
+  /** Причина по умолчанию для глаголов плана и та, что стоит в транзакции; cur — выставленная сейчас. */
+  reason?: string;
+  txReason?: string;
+  cur?: string;
 }
+
+/** letopis.reason перед оператором глагола — только если причина меняется (план 1.1, §2.1). */
+async function useReason(w: WriteCtx, want: string): Promise<void> {
+  if (want === (w.cur ?? w.txReason ?? '')) return;
+  await query(w, `select set_config('letopis.reason', $1, true)`, [want]);
+  w.cur = want;
+}
+const reasonFor = (w: WriteCtx, s: Step): string => s.op?.reason ?? w.reason ?? '';
 
 const quoteId = (name: string): string => `"${name.replace(/"/g, '""')}"`;
 
@@ -613,7 +636,8 @@ async function rekeyOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteR
   return res.map((r) => toRow(r.row));
 }
 
-function opCall(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {
+async function opCall(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {
+  await useReason(w, reasonFor(w, opStep));
   switch (opStep.op!.kind) {
     case 'create': return createOp(w, steps, opStep, false);
     case 'upsert': return createOp(w, steps, opStep, true);
@@ -696,9 +720,11 @@ export async function execPlan(w: WriteCtx, steps: Step[], mods: ChainMods, mode
       : kind === 'purge' ? [] : last;
     prevOp = opStep;
   }
+  // причина глагола не переходит на следующие операторы транзакции
+  await useReason(w, w.reason ?? '');
   const opStep = segments[segments.length - 1].steps.at(-1)!;
   const key = opStep.aliasKey ?? opStep.name;
-  if (tail.length || mode === 'versions' || mode === 'agg') {
+  if (tail.length || mode === 'versions' || mode === 'agg' || mode === 'diff' || mode === 'blame') {
     if (!start.length) return { kind: 'read', q: null, res: [] };
     const { q, res } = await readIn(w, [fromRows(opStep, start.map((r) => r.id)), ...tail], mods, mode, agg);
     return { kind: 'read', q, res };
@@ -749,7 +775,10 @@ export async function execBatch(w: WriteCtx, plans: Step[][]): Promise<WriteRow[
       const group: { at: number; s: Step; id: string }[] = [];
       const seen = new Set<string>();
       let j = i;
-      while (j < plans.length && pureKind(plans[j]) === 'keyed' && plans[j][0].op!.kind === verb && plans[j][0].cls.name === head.cls.name) {
+      // одна причина на оператор: другая причина режет группу
+      const why = reasonFor(w, head);
+      while (j < plans.length && pureKind(plans[j]) === 'keyed' && plans[j][0].op!.kind === verb && plans[j][0].cls.name === head.cls.name
+        && reasonFor(w, plans[j][0]) === why) {
         const s = plans[j][0];
         const id = idFor(s);
         if (!id || (verb === 'upsert' && seen.has(id))) break;
@@ -757,6 +786,7 @@ export async function execBatch(w: WriteCtx, plans: Step[][]): Promise<WriteRow[
         group.push({ at: j, s, id });
         j++;
       }
+      await useReason(w, why);
       const input = group.map((g) => ({ d: (g.s.op as { data: unknown }).data, t: tagsValue(g.s), o: g.s.ownerFilter ?? w.owner ?? null }));
       const conflict = verb === 'upsert'
         ? 'on conflict (id) do update set data = excluded.data, links = excluded.links, tags = excluded.tags'
@@ -777,8 +807,10 @@ export async function execBatch(w: WriteCtx, plans: Step[][]): Promise<WriteRow[
       i = j;
     } else if (kind === 'keyless') {
       let j = i;
-      while (j < plans.length && pureKind(plans[j]) === 'keyless') j++;
-      // однострочные вставки без ожидания ответа каждой — postgres.js шлёт их конвейером
+      const why = reasonFor(w, head);
+      while (j < plans.length && pureKind(plans[j]) === 'keyless' && reasonFor(w, plans[j][0]) === why) j++;
+      // причина — до конвейера; однострочные вставки без ожидания ответа каждой — postgres.js шлёт их конвейером
+      await useReason(w, why);
       const rows = await Promise.all(plans.slice(i, j).map((p) => createOp(w, p, p[0], false)));
       rows.forEach((r, k) => (out[i + k] = r));
       i = j;
@@ -788,5 +820,6 @@ export async function execBatch(w: WriteCtx, plans: Step[][]): Promise<WriteRow[
       i++;
     }
   }
+  await useReason(w, w.txReason ?? '');
   return out;
 }

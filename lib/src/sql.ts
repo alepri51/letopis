@@ -54,7 +54,7 @@ let nodeSeq = 0;
 /** Уникальная метка узла пути. */
 export const nextNodeKey = (): number => ++nodeSeq;
 
-export type ReadMode = 'paths' | 'rows' | 'ids' | 'count' | 'countPaths' | 'versions' | 'agg';
+export type ReadMode = 'paths' | 'rows' | 'ids' | 'count' | 'countPaths' | 'versions' | 'agg' | 'diff' | 'blame';
 
 export interface AggSpec {
   fn: 'sum' | 'avg' | 'min' | 'max' | 'countBy';
@@ -777,6 +777,18 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
         : `${withClause}select to_jsonb(v) as row from (select ${colsOf('l')}, null::int as depth from ${S}.log l `
           + `where l.id in (select z.id from ${ents} z)) v order by v.id, v.rev${limitOffset()}`;
       break;
+    case 'diff':
+    case 'blame': {
+      // план 1.1, §2.1: функции базы считают по журналу под RLS — по одному документу на объект шага
+      const h = mods.hist ?? {};
+      const num = (v: unknown) => (typeof v === 'number' ? `${p.push(v)}::int` : 'null');
+      const ts = (v: unknown) => (typeof v === 'string' ? `${p.push(v)}::text::timestamptz` : 'null');
+      const call = mode === 'diff'
+        ? `${S}.diff_versions(z.id, ${num(h.from)}, ${num(h.to)}, ${ts(h.from)}, ${ts(h.to)}, ${h.follow ? 'true' : 'false'})`
+        : `${S}.blame(z.id, ${ts(h.at)}, ${num(h.limit)})`;
+      text = `${withClause}select ${call} as row from (select distinct z.id from ${ents} z) z order by z.id`;
+      break;
+    }
     case 'agg': {
       if (!agg || !agg.field.startsWith('data.')) fail("агрегат по полю 'data.<путь>'");
       const path = agg!.field.slice(5).split('.');

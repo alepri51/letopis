@@ -11,6 +11,7 @@ import postgres from 'postgres';
 import { LetopisError, fromDbError, removed } from './errors.js';
 import { Registry } from './registry.js';
 import { AclPasses, ExplicitTx, Notifier, poolExecutor, runTx, type Executor, type Tx, type TxContext } from './tx.js';
+import { checkReason } from './write.js';
 import { makeAuth, type AuthApi } from './auth.js';
 import { makeAcl, type AclApi } from './acl.js';
 import { idOf as idOfClass } from './uuid.js';
@@ -42,6 +43,7 @@ export type { LoadOptions, LoadReport, LoadIssue, LoadInput } from './load.js';
 export type { Chain, ChainCore, StepFn, BatchEntry } from './chain.js';
 export type { ModelLike, AnyModelLike, RowOf, FilterOf, FieldFilterOf, TypedChain, StepsOf, PatchOf } from './typed.js';
 export type { Row, Path, Filter, FieldFilter, Cursor, ChainMods, QueryEvent, Op, Scalar } from './types.js';
+export type { DiffChange, DiffResult, DiffOptions, BlameField, BlameResult, BlameOptions } from './types.js';
 export type { CacheOptions, CacheStats } from './cache.js';
 export type { WatchOptions, WatchEvent, Subscription } from './watch.js';
 export type { VerifyResult, VerifyIssue, MaintainOptions, MaintainReport, ResetOptions, ResetResult, ModelDescription } from './admin.js';
@@ -162,7 +164,8 @@ export interface DbCore {
    */
   as(account: string | { id: string } | null, opts?: { owner?: string; tenant?: string }): Promise<Db>;
   /** Явная транзакция read committed: те же цепочки, commit(), rollback(), lock(), forUpdate(). */
-  begin(): Promise<DbTx>;
+  /** Явная транзакция; reason — причина изменения для всех операций блока (план 1.1). */
+  begin(opts?: { reason?: string }): Promise<DbTx>;
   /**
    * Загрузчик (§2.6): строки любых классов — проверки в коде, COPY от роли владельца, один запрос по
    * целям вне загрузки. Только на администраторском подключении (иначе admin_required).
@@ -172,7 +175,7 @@ export interface DbCore {
    * Именованная очередь планов фасада: batch.Класс(…).create(…); batch.run() — одной транзакцией. У корня,
    * у каждого db.as() и у каждой db.begin() очереди свои: план исполняется от имени фасада, который его поставил.
    */
-  batch(name: string): Batch;
+  batch(name: string, opts?: { reason?: string }): Batch;
   /** Advisory-блокировка до конца транзакции — только в db.begin() (иначе tx_required). */
   lock(...keys: (string | number)[]): Promise<void>;
   /** Зафиксировать транзакцию tr (то же, что tr.commit()). */
@@ -233,6 +236,7 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
   const txc = scope.txc;
   const chainCtx: ChainCtx = {
     reg: scope.registry(), schema: sh.schema, exec, tenant: scope.tenant, owner, onQuery: sh.onQuery, slowMs: sh.slowMs,
+    reason: txc.reason ?? '', txReason: txc.reason ?? '',
     ...(sh.cache ? { cache: { store: sh.cache, who: () => ({ token: txc.token, account: txc.account, tenant: scope.tenant() }) } } : {}),
   };
   // реестр корня меняется после auth.switch — цепочки берут действующий
@@ -306,19 +310,21 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
       const registry = await sh.registryFor(tenant, scoped);
       return makeDb(sh, { txc: scoped, tenant: () => tenant, registry: () => registry, root: false }, poolExecutor(scoped), nextOwner);
     },
-    begin: async () => {
+    begin: async (o) => {
       if (tx) throw new LetopisError('invalid_query', 'вложенных транзакций нет: db.begin() внутри db.begin()');
-      const t = await ExplicitTx.open(txc);
-      return makeDb(sh, scope, t, owner, t) as DbTx;
+      // причина блока ставится в начале транзакции (setupSql) и действует на все её операции
+      const btx: TxContext = o?.reason !== undefined ? { ...txc, reason: checkReason(o.reason, 'db.begin()') } : txc;
+      const t = await ExplicitTx.open(btx);
+      return makeDb(sh, btx === txc ? scope : { ...scope, txc: btx }, t, owner, t) as DbTx;
     },
     load: async (input, o) => {
       if (tx) throw new LetopisError('invalid_query', 'load() — своей транзакцией, не внутри db.begin()');
       return load({ sql: sh.sql, schema: sh.schema, tenant: scope.tenant(), admin: sh.admin, ownerRole: sh.ownerRole }, input, o);
     },
-    batch: (name) => {
+    batch: (name, o) => {
       let q = batches.get(name);
       if (!q) batches.set(name, (q = []));
-      return makeBatch(chainCtx, q);
+      return makeBatch(o?.reason !== undefined ? { ...chainCtx, reason: checkReason(o.reason, 'db.batch()') } : chainCtx, q);
     },
     lock: async (...keys) => (tx ? tx.lock(...keys) : noTx('lock()')),
     commit: async (tr) => (tr ? tr.commit() : tx ? tx.commit() : noTx('commit()')),

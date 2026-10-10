@@ -36,7 +36,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 | M-VALIDATE | v5, JSON Schema → jsonpath, валидатор на TypeScript | `lib/sql/30-validate.sql`, `lib/src/validate.ts`, `lib/src/jsonschema.ts` | 1, 2 |
 | M-ACCESS | контекст, сессии, RLS, ACL, креды, вход | `lib/sql/20-context.sql`, `lib/sql/50-acl.sql`, `lib/sql/80-auth.sql`, `lib/src/auth.ts`, `lib/src/acl.ts` | 1, 5 |
 | M-MODEL | `letopis/model`, реестр, CLI | `lib/src/model.ts`, `lib/src/registry.ts`, `lib/src/sync.ts`, `lib/src/cli.ts`, `lib/src/uuid.ts` | 2 |
-| M-QUERY | `find_ids()`, срез `log_refs_at`, построитель чтения | `lib/sql/70-read.sql`, `lib/src/sql.ts`, `lib/src/ops.ts` | 3, 6 |
+| M-QUERY | `find_ids()`, срез `log_refs_at`, построитель чтения, `diff` и `blame` | `lib/sql/70-read.sql`, `lib/sql/75-history.sql`, `lib/src/sql.ts`, `lib/src/ops.ts` | 3, 6 |
 | M-WRITE | планы, батч, транзакции, загрузчик | `lib/src/write.ts`, `lib/src/tx.ts`, `lib/src/load.ts` | 4 |
 | M-API | `connect`, Proxy цепочек, ошибки, охранники, типы цепочек | `lib/src/index.ts`, `lib/src/chain.ts`, `lib/src/errors.ts`, `lib/src/typed.ts` | 2–4 |
 | M-TIME | история, хранение, подписка, кэш результатов, `reset`, `maintain` | `lib/sql/90-time.sql`, `lib/src/watch.ts`, `lib/src/admin.ts`, `lib/src/cache.ts` | 6 |

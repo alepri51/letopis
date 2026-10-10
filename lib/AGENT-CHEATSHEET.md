@@ -264,6 +264,8 @@ const was = await db.Wallet(w).asOf('2026-10-01T00:00:00Z').first()   // как 
 await db.Shop(shop).Wallet().asOf(new Date('2026-10-01')).rows()
 const history = await db.Wallet(w).versions()                         // все версии; версия удаления — $deleted
 await db.Wallet(w200).versions({ follow: true })                      // и через смену id (reclass, rekey)
+await db.Wallet(w).diff()                                             // что изменилось: предыдущая версия → последняя
+await db.Wallet(w).blame()                                            // кто, когда и почему (опция reason глагола) менял поля
 ```
 Класс с `history: false` не даёт `versions`, `asOf`, `restore` и событий подписки.
 
