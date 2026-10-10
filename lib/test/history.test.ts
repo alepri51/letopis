@@ -152,3 +152,17 @@ test('7.2 №9: длинная история — время и предел', a
   await assert.rejects(db.Item(it.id).blame({ limit: 0 }), /invalid_query/);
   await assert.rejects(db.Item(it.id).diff({ from: 'вчера' }), /invalid_query/);
 });
+
+test('план 1.1, 1б: log.changed — пути изменения от триггера; blame одинаков с колонкой и с досчётом', async () => {
+  const [c1] = await db.Cat().create({ name: 'k' }).rows();
+  const [it] = await db.Item().tags(['a']).create({ name: 'c', price: { amount: 1, cur: 'RUB' } }).rows();
+  await db.Item(it.id).update({ price: { amount: 2 } }).Rel.add([c1.id]).rows();
+  await e.as(t.token, (q) => q.unsafe(`update ${e.S}.entity set tags = '{b}' where id = $1`, [it.id]));
+  const log = await e.sql.unsafe(`select changed from ${e.S}.log where id = $1 order by rev`, [it.id]);
+  assert.deepEqual(log.map((r) => r.changed), [null, [['data', 'price', 'amount'], ['links', 'Rel', c1.id]], [['tags', 'a'], ['tags', 'b']]]);
+  const [withCol] = await db.Item(it.id).blame();
+  await e.asOwner((q) => q.unsafe(`update ${e.S}.log set changed = null where id = $1`, [it.id]));
+  const [noCol] = await db.Item(it.id).blame();
+  assert.deepEqual(noCol, withCol);
+  assert.equal(withCol.fields.find((f) => f.path.join('.') === `links.Rel.${c1.id}`)?.rev, 2);
+});

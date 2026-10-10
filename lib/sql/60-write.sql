@@ -295,10 +295,17 @@ create or replace function @SCHEMA@.log_version(e @SCHEMA@.entity) returns void
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
+declare
+  p @SCHEMA@.log;
 begin
   if @SCHEMA@.history_on(e.class, e.tenant) then
-    insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
-    values (e.id, e.rev, e.class, e.cv, e.tenant, e.owner, e.links, e.data, e.tags, e.at, e.author, e.agent, e.op, e.reason, e.moved, e.prev_hash);
+    -- пути изменения: против предыдущей версии id, у первой версии переноса — против прежнего id (moved)
+    select l.* into p from @SCHEMA@.log l
+    where l.id = case when e.rev > 1 then e.id else e.moved end and l.op not in ('purge', 'trim', 'reset')
+    order by l.rev desc limit 1;
+    insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash, changed)
+    values (e.id, e.rev, e.class, e.cv, e.tenant, e.owner, e.links, e.data, e.tags, e.at, e.author, e.agent, e.op, e.reason, e.moved, e.prev_hash,
+            case when p.id is not null then @SCHEMA@.change_paths(p.data, p.links, p.tags, p.owner, p.class, e.data, e.links, e.tags, e.owner, e.class) end);
   end if;
   perform @SCHEMA@.signal(array[e.class]);
 end $$;
@@ -751,8 +758,9 @@ begin
   if bad is not null then
     perform @SCHEMA@.lt_fail('target_not_found', format('цель конца %s не найдена', bad));
   end if;
-  insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
-  select n.id, n.rev, n.class, n.cv, n.tenant, n.owner, n.links, n.data, n.tags, n.at, n.author, n.agent, n.op, n.reason, n.moved, n.prev_hash
+  insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash, changed)
+  select n.id, n.rev, n.class, n.cv, n.tenant, n.owner, n.links, n.data, n.tags, n.at, n.author, n.agent, n.op, n.reason, n.moved, n.prev_hash,
+         @SCHEMA@.change_paths(o.data, o.links, o.tags, o.owner, o.class, n.data, n.links, n.tags, n.owner, n.class)
   from new_rows n
   join old_rows o on o.id = n.id and o.rev <> n.rev
   join (select k.class, k.tenant from (select distinct a.class, a.tenant from new_rows a) k
@@ -913,9 +921,9 @@ begin
   end loop;
   v_author := coalesce(c.author, '@SYSTEM@'::uuid);
   -- надгробия: последний снимок следующей версией с видом delete — одной вставкой на уровень
-  insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
+  insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash, changed)
   select g.id, g.rev + 1, g.class, g.cv, g.tenant, g.owner, g.links, g.data, g.tags,
-         greatest(@SCHEMA@.now_ts(), g.at + interval '1 microsecond'), v_author, c.agent, 'delete', v_reason, null, g.hash
+         greatest(@SCHEMA@.now_ts(), g.at + interval '1 microsecond'), v_author, c.agent, 'delete', v_reason, null, g.hash, '[]'::jsonb
   from gone g
   join (select d.class, d.tenant from (select distinct x.class, x.tenant from gone x) d
         where @SCHEMA@.history_on(d.class, d.tenant)) h on h.class = g.class and h.tenant = g.tenant;
@@ -944,9 +952,9 @@ begin
       where x.id in (select y.id from @SCHEMA@.entity y where y.id = any (casc) order by y.id for update)
       returning x.*
     ), t as (
-      insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
+      insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash, changed)
       select d.id, d.rev + 1, d.class, d.cv, d.tenant, d.owner, d.links, d.data, d.tags,
-             greatest(@SCHEMA@.now_ts(), d.at + interval '1 microsecond'), v_author, c.agent, 'delete', v_reason, null, d.hash
+             greatest(@SCHEMA@.now_ts(), d.at + interval '1 microsecond'), v_author, c.agent, 'delete', v_reason, null, d.hash, '[]'::jsonb
       from d
       join (select dd.class, dd.tenant from (select distinct x.class, x.tenant from d x) dd
             where @SCHEMA@.history_on(dd.class, dd.tenant)) h on h.class = d.class and h.tenant = d.tenant

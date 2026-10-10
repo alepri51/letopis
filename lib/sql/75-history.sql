@@ -37,46 +37,69 @@ begin atomic
   order by 1;
 end;
 
--- Различия версий по разделам: data — jsonb_changes с путём от 'data'; одиночный конец — значение
--- целиком; множественный конец и теги — множества: added и removed по каждому элементу; owner и
--- class — значение. p_a — null (объекта не было): всё added.
-create or replace function @SCHEMA@.version_changes(p_a @SCHEMA@.log, p_b @SCHEMA@.log)
-returns table (path text[], kind text, before jsonb, after jsonb)
+-- Различия двух снимков строки по разделам: data — jsonb_changes с путём от 'data'; одиночный конец —
+-- значение целиком; множественный конец и теги — множества: added и removed по каждому элементу (elem —
+-- сам элемент); owner и class — значение. Снимок «до» пуст (объекта не было): всё added.
+create or replace function @SCHEMA@.row_changes(a_data jsonb, a_links jsonb, a_tags text[], a_owner uuid, a_class text,
+  b_data jsonb, b_links jsonb, b_tags text[], b_owner uuid, b_class text)
+returns table (path text[], kind text, before jsonb, after jsonb, elem text)
 language sql immutable parallel safe
 begin atomic
   with r as (
-    select k.key, p_a.links -> k.key as a, p_b.links -> k.key as b
-    from (select jsonb_object_keys(coalesce(p_a.links, '{}'::jsonb)) as key
-          union select jsonb_object_keys(coalesce(p_b.links, '{}'::jsonb))) k
+    select k.key, a_links -> k.key as a, b_links -> k.key as b
+    from (select jsonb_object_keys(coalesce(a_links, '{}'::jsonb)) as key
+          union select jsonb_object_keys(coalesce(b_links, '{}'::jsonb))) k
   )
-  select c.path, c.kind, c.before, c.after from @SCHEMA@.jsonb_changes(p_a.data, p_b.data, '{data}') c
+  select c.path, c.kind, c.before, c.after, null::text from @SCHEMA@.jsonb_changes(a_data, b_data, '{data}') c
   union all
-  select array['links', r.key], case when r.a is null then 'added' when r.b is null then 'removed' else 'changed' end, r.a, r.b
+  select array['links', r.key], case when r.a is null then 'added' when r.b is null then 'removed' else 'changed' end, r.a, r.b, null::text
   from r
   where r.a is distinct from r.b
     and not ((r.a is null or jsonb_typeof(r.a) = 'array') and (r.b is null or jsonb_typeof(r.b) = 'array'))
   union all
-  select array['links', r.key], 'added', null::jsonb, e.v
+  select array['links', r.key], 'added', null::jsonb, e.v, e.v #>> '{}'
   from r cross join lateral jsonb_array_elements(case when jsonb_typeof(r.b) = 'array' then r.b else '[]'::jsonb end) e(v)
   where (r.a is null or jsonb_typeof(r.a) = 'array') and not coalesce(r.a @> jsonb_build_array(e.v), false)
   union all
-  select array['links', r.key], 'removed', e.v, null::jsonb
+  select array['links', r.key], 'removed', e.v, null::jsonb, e.v #>> '{}'
   from r cross join lateral jsonb_array_elements(case when jsonb_typeof(r.a) = 'array' then r.a else '[]'::jsonb end) e(v)
   where (r.b is null or jsonb_typeof(r.b) = 'array') and not coalesce(r.b @> jsonb_build_array(e.v), false)
   union all
-  select array['tags'], 'added', null::jsonb, to_jsonb(t.t) from unnest(coalesce(p_b.tags, '{}'::text[])) t(t)
-  where not (t.t = any (coalesce(p_a.tags, '{}'::text[])))
+  select array['tags'], 'added', null::jsonb, to_jsonb(t.t), t.t from unnest(coalesce(b_tags, '{}'::text[])) t(t)
+  where not (t.t = any (coalesce(a_tags, '{}'::text[])))
   union all
-  select array['tags'], 'removed', to_jsonb(t.t), null::jsonb from unnest(coalesce(p_a.tags, '{}'::text[])) t(t)
-  where not (t.t = any (coalesce(p_b.tags, '{}'::text[])))
+  select array['tags'], 'removed', to_jsonb(t.t), null::jsonb, t.t from unnest(coalesce(a_tags, '{}'::text[])) t(t)
+  where not (t.t = any (coalesce(b_tags, '{}'::text[])))
   union all
-  select array['owner'], case when p_a.owner is null then 'added' when p_b.owner is null then 'removed' else 'changed' end,
-         to_jsonb(p_a.owner), to_jsonb(p_b.owner)
-  where p_a.owner is distinct from p_b.owner
+  select array['owner'], case when a_owner is null then 'added' when b_owner is null then 'removed' else 'changed' end,
+         to_jsonb(a_owner), to_jsonb(b_owner), null::text
+  where a_owner is distinct from b_owner
   union all
-  select array['class'], case when p_a.class is null then 'added' when p_b.class is null then 'removed' else 'changed' end,
-         to_jsonb(p_a.class), to_jsonb(p_b.class)
-  where p_a.class is distinct from p_b.class;
+  select array['class'], case when a_class is null then 'added' when b_class is null then 'removed' else 'changed' end,
+         to_jsonb(a_class), to_jsonb(b_class), null::text
+  where a_class is distinct from b_class;
+end;
+
+
+-- Различия двух версий журнала (diff, blame): row_changes по их снимкам.
+drop function if exists @SCHEMA@.version_changes(@SCHEMA@.log, @SCHEMA@.log);
+create or replace function @SCHEMA@.version_changes(p_a @SCHEMA@.log, p_b @SCHEMA@.log)
+returns table (path text[], kind text, before jsonb, after jsonb, elem text)
+language sql immutable parallel safe
+begin atomic
+  select * from @SCHEMA@.row_changes(p_a.data, p_a.links, p_a.tags, p_a.owner, p_a.class, p_b.data, p_b.links, p_b.tags, p_b.owner, p_b.class);
+end;
+
+-- Пути изменения для колонки log.changed (ревизия 6): пути row_changes, у элемента множества — с самим
+-- элементом в конце (['links', роль, id], ['tags', тег]). Пишут триггер правки и log_version.
+create or replace function @SCHEMA@.change_paths(a_data jsonb, a_links jsonb, a_tags text[], a_owner uuid, a_class text,
+  b_data jsonb, b_links jsonb, b_tags text[], b_owner uuid, b_class text)
+returns jsonb
+language sql immutable parallel safe
+begin atomic
+  select coalesce(jsonb_agg(to_jsonb(c.path || case when c.elem is not null then array[c.elem] else '{}'::text[] end)
+                            order by c.path, c.elem), '[]'::jsonb)
+  from @SCHEMA@.row_changes(a_data, a_links, a_tags, a_owner, a_class, b_data, b_links, b_tags, b_owner, b_class) c;
 end;
 
 -- Листья версии для blame: скаляры, массивы и пустые объекты data; роль одиночного конца; каждый id
@@ -116,6 +139,9 @@ create or replace function @SCHEMA@.diff_versions(p_id uuid, p_from int default 
 returns jsonb
 language plpgsql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
+-- JIT: оценка стоимости запроса по журналу завышена (jsonb_array_elements — 100 строк на вызов), и компиляция
+-- JIT занимала бы больше секунды при исполнении в миллисекунды (замер этапа 1б)
+set jit = off
 as $$
 declare
   ids uuid[] := array[p_id];
@@ -180,6 +206,9 @@ create or replace function @SCHEMA@.blame(p_id uuid, p_at timestamptz default nu
 returns jsonb
 language plpgsql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
+-- JIT: оценка стоимости запроса по журналу завышена (jsonb_array_elements — 100 строк на вызов), и компиляция
+-- JIT занимала бы больше секунды при исполнении в миллисекунды (замер этапа 1б)
+set jit = off
 as $$
 declare
   ids uuid[] := array[p_id];
@@ -199,30 +228,37 @@ begin
     ids := ids || prev;
   end loop;
   with v as (
-    select l as r, l.id, l.rev, l.at, l.seq, l.op, l.author, l.agent, l.reason,
-           row_number() over (order by l.at desc, l.seq desc) as n
+    -- соседняя более старая версия — окном (lead), а не соединением CTE с собой: соединение шло бы вложенным
+    -- циклом по квадрату числа версий
+    select l as r, l.id, l.rev, l.at, l.seq, l.op, l.author, l.agent, l.reason, l.changed,
+           row_number() over o as n, lead(l.id) over o as o_id, lead(l.rev) over o as o_rev, lead(l) over o as o_r
     from @SCHEMA@.log l
     where l.id = any (ids) and l.op not in ('purge', 'trim', 'reset') and not (l.op = 'delete' and l.moved is not null)
       and (l.at, l.seq) <= (t.at, t.seq)
+    window o as (order by l.at desc, l.seq desc)
     order by l.at desc, l.seq desc limit lim + 1
   ), w as (
     select * from v where v.n <= lim
   ), gaps as (
-    select nw.n from w nw join w od on od.n = nw.n + 1 where nw.id = od.id and nw.rev - od.rev > 1
+    select w.n from w where w.o_id = w.id and w.rev - w.o_rev > 1
+  ), bare as materialized (
+    -- пары, у новой версии которых путей нет (создание, загрузчик, импорт): только их сравнивать
+    select w.n, w.o_r as o, w.r from w where w.changed is null and w.o_id is not null
   ), ch as (
-    select nw.n, c.path, c.kind, c.after
-    from w nw join w od on od.n = nw.n + 1 cross join lateral @SCHEMA@.version_changes(od.r, nw.r) c
+    -- пути изменения версии из колонки changed (ревизия 6); версия без них — сравнение с соседней
+    select nw.n, array(select jsonb_array_elements_text(c.p)) as path
+    from w nw cross join lateral jsonb_array_elements(nw.changed) c(p)
+    where nw.changed is not null
+    union all
+    select z.n, c.path || case when c.elem is not null then array[c.elem] else '{}'::text[] end
+    from bare z cross join lateral @SCHEMA@.version_changes(z.o, z.r) c
   ), leaves as (
     select x as path from @SCHEMA@.version_leaves(t) x
   ), hit as (
     select lv.path, min(ch.n) as n
-    from leaves lv join ch on
-      (ch.path[1] = 'data' and lv.path[1] = 'data'
-       and (lv.path[1:cardinality(ch.path)] = ch.path or ch.path[1:cardinality(lv.path)] = lv.path))
-      or (ch.path[1] = 'links' and lv.path[1] = 'links' and lv.path[2] = ch.path[2]
-          and (cardinality(lv.path) = 2 or ch.kind = 'changed' or (ch.kind = 'added' and lv.path[3] = ch.after #>> '{}')))
-      or (ch.path[1] = 'tags' and lv.path[1] = 'tags' and ch.kind = 'added' and lv.path[2] = ch.after #>> '{}')
-      or (ch.path[1] in ('owner', 'class') and lv.path = ch.path)
+    -- лист и путь изменения совпадают по префиксу в любую сторону: изменён сам лист, объект над ним или
+    -- лист внутри (пустой объект стал непустым); элемент множества — по пути с элементом
+    from leaves lv join ch on lv.path[1:cardinality(ch.path)] = ch.path or ch.path[1:cardinality(lv.path)] = lv.path
     group by lv.path
   ), oldest as (
     select w.n, w.rev from w order by w.n desc limit 1
@@ -253,6 +289,8 @@ declare f text;
 begin
   foreach f in array array[
     'jsonb_changes(jsonb, jsonb, text[])', 'version_changes(@SCHEMA@.log, @SCHEMA@.log)', 'version_leaves(@SCHEMA@.log)',
+    'row_changes(jsonb, jsonb, text[], uuid, text, jsonb, jsonb, text[], uuid, text)',
+    'change_paths(jsonb, jsonb, text[], uuid, text, jsonb, jsonb, text[], uuid, text)',
     'diff_versions(uuid, int, int, timestamptz, timestamptz, boolean)', 'blame(uuid, timestamptz, int)'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);
     execute format('revoke all on function @SCHEMA@.%s from public', f);
@@ -260,6 +298,8 @@ begin
 end $$;
 -- терминалы diff() и blame() вызывают их от приложения; сырой SQL — так же, под RLS журнала
 grant execute on function @SCHEMA@.jsonb_changes(jsonb, jsonb, text[]),
+  @SCHEMA@.row_changes(jsonb, jsonb, text[], uuid, text, jsonb, jsonb, text[], uuid, text),
+  @SCHEMA@.change_paths(jsonb, jsonb, text[], uuid, text, jsonb, jsonb, text[], uuid, text),
   @SCHEMA@.version_changes(@SCHEMA@.log, @SCHEMA@.log), @SCHEMA@.version_leaves(@SCHEMA@.log),
   @SCHEMA@.diff_versions(uuid, int, int, timestamptz, timestamptz, boolean),
   @SCHEMA@.blame(uuid, timestamptz, int) to @APP@;

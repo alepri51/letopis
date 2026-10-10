@@ -808,7 +808,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
 
 /** Строка из to_jsonb(узла): служебные поля в $deleted / $depth, пустые необязательные — без ключа. */
 export function toRow(raw: Record<string, unknown>): Row {
-  const { depth, agent, reason, moved, ...rest } = raw;
+  const { depth, agent, reason, moved, changed: _changed, ...rest } = raw;
   const row = rest as unknown as Row;
   if (agent != null) row.agent = agent as string;
   if (reason != null) row.reason = reason as string;

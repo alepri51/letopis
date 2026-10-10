@@ -86,6 +86,9 @@ create table if not exists @SCHEMA@.log (
   prev_hash  bytea,
   hash       bytea generated always as (@SCHEMA@.version_hash(prev_hash,
                @SCHEMA@.snapshot(id, rev, class, tenant, owner, links, data, tags, at, author, agent, op, reason, moved))) stored,
+  -- пути изменения против предыдущей версии (план 1.1, ревизия 6): производные, в снимок и хэш не входят;
+  -- null — не посчитано (создание, загрузчик, импорт), blame досчитывает сравнением
+  changed    jsonb,
   constraint log_id_rev unique (id, rev)
 );
 create index if not exists log_class_at on @SCHEMA@.log (class, at);
