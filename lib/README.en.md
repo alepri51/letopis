@@ -1108,7 +1108,7 @@ const r = await adm.load(rows, { initial: true })   // empty schema: one transac
 ```
 
 `db.load(rows, { initial: true })` (`letopis load --initial`) loads data into an empty schema faster than the regular
-loader — about 1.6 times on a million objects: everything goes in one transaction, the tables are closed for reading and
+loader — about 2.2 times on a million objects: everything goes in one transaction, the tables are closed for reading and
 writing during the load, indexes, constraints and triggers are dropped and rebuilt at the end, and rows are written with
 `COPY … FREEZE`. Empty means that the schema has nothing besides the rows of system classes (class descriptions,
 accounts, memberships, resources, rules) and `reset` records; otherwise you get `not_empty` before any change. The mode
@@ -1841,11 +1841,11 @@ database from every write (row-by-row writes: 119 → 128–147 rows/s in differ
 12–18% slower than 0.21 (the measurements vary): most of the time goes to the check triggers in the database and to the
 commit with a disk write.
 
-Initial load (`cd lib && npx tsx bench/initial-load.mjs`, 2026-10-10, median of three rounds): the regular loader
-writes 1.07 million objects of the salon dataset without history in 182 s (5,895 rows/s, 4.0 GB of WAL), the initial
-load in 113 s (9,479 rows/s, 1.4 GB of WAL). Most of the difference comes from the GIN indexes: maintaining them during
-the load costs 36 s, building them at the end about 5 s. More than half of the initial load's time goes into preparing
-rows in the loader itself (checks, ends, ids), which this mode does not speed up.
+Initial load (`cd lib && npx tsx bench/initial-load.mjs`, 2026-10-11, median of three rounds): the regular loader
+writes 1.07 million objects of the salon dataset without history in 169 s (6,351 rows/s, 4.0 GB of WAL), the initial
+load in 77 s (13,902 rows/s, 1.4 GB of WAL). Most of the difference comes from the GIN indexes: maintaining them during
+the load costs 36 s, building them at the end about 5 s. Preparing rows in the loader itself (checks, ends, ids) runs
+alongside the `COPY` of the previous batch and now sets the pace: about 60 s of the 77.
 
 ## 18. Limitations
 
@@ -1880,8 +1880,8 @@ behavior.
   connection.
 - The initial load closes the schema's tables for the whole load, for writing and for reading: it is meant for an
   empty schema (seeding, migration, import), not for a running system. Its gain is in the database (indexes and
-  constraints are built once); it does not speed up the row preparation in the loader, so on a million objects it is
-  about 1.6 times faster than the regular load.
+  constraints are built once); it does not speed up the row preparation in the loader, only runs it alongside `COPY`,
+  so on a million objects it is about 2.2 times faster than the regular load.
 - The database trusts the loader: the data, ends and ids of loaded rows are checked by the library code (the TypeScript
   validator), not by the triggers; the database checks only the targets outside the load, the tenants and the owners,
   with one query at the end. The safeguards: the loader is available only to an admin, differential tests of the

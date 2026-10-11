@@ -204,7 +204,7 @@ const rep = await adm.load({
 // rep: { rows, loaded, updated, skipped, duplicates, byClass, external, portions, ms }
 ```
 Первая заливка: `adm.load(rows, { initial: true })`, `letopis load --initial`, `letopis import --initial` — только в пустую
-схему (иначе `not_empty`), одной транзакцией; на миллионе объектов — примерно в 1,6 раза быстрее обычной загрузки;
+схему (иначе `not_empty`), одной транзакцией; на миллионе объектов — примерно в 2,2 раза быстрее обычной загрузки;
 без `commitEvery`, `existing` и `{ as }`.
 
 Файлы NDJSON (объект на строку, все файлы — одна загрузка):

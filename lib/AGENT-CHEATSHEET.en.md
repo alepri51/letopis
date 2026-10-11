@@ -210,7 +210,7 @@ const rep = await adm.load({
 // rep: { rows, loaded, updated, skipped, duplicates, byClass, external, portions, ms }
 ```
 Initial load: `adm.load(rows, { initial: true })`, `letopis load --initial`, `letopis import --initial` — only into an
-empty schema (otherwise `not_empty`), in one transaction; about 1.6 times faster than a regular load on a million
+empty schema (otherwise `not_empty`), in one transaction; about 2.2 times faster than a regular load on a million
 objects; no `commitEvery`, `existing` or `{ as }`.
 
 NDJSON files (one object per line; all files form one load):

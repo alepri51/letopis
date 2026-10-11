@@ -377,6 +377,9 @@ function classGroups(reg: Registry, names: string[]): string[][] {
 /** Строки COPY уходят кусками примерно такой длины: postgres.js шлёт каждую запись в поток отдельным CopyData. */
 const COPY_CHUNK = 262144;
 
+/** Уступить циклу событий: запись в сокет и колбэки потока COPY идут в нём же. */
+const tick = (): Promise<void> => new Promise((r) => setImmediate(r));
+
 /**
  * COPY … from stdin. postgres.js 3.4 теряет ошибку сервера, пришедшую после конца потока: запрос
  * уже разрешён потоком, а колбэк завершения не вызывается — промис повис бы. Поэтому reject
@@ -669,6 +672,8 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
 
       if (opts.withHistory) {
         await historyWrite(conn as unknown as Sql, reg, todo, inLoad, external, xid as string, classesTouched, written);
+      } else if (ini) {
+        await pipeline(conn as unknown as Sql, reg, portion, inLoad, external, ts as string, xid as string, classesTouched, written, live, past);
       } else {
         for (let b = 0; b < portion.length; b += batch) {
           const part = portion.slice(b, b + batch);
@@ -830,14 +835,65 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     return sh;
   }
 
+  /** Пачка, подготовленная к записи: строки COPY, правки существующих объектов, строки для условий ACL. */
+  type Prepared = {
+    ent: string[];
+    log: string[];
+    updates: { id: string; data: Raw; links: Raw; tags: string[] | null; line: number }[];
+    rowsAcl: { i: number; class: string; id: string; owner: string; tags: string[]; data: Raw; links: Raw }[];
+  };
+
+  /** Пачка — подготовка и запись по очереди. */
   async function writeBatch(conn: Sql, reg: Registry, part: number[], inLoad: Map<string, { cls: string; alive: boolean }>,
     external: Map<string, { line: number; role: string; allowed: string[] }>, ts: string, xid: string, touched: Set<string>, written: string[],
     live: Set<string>, past: Map<string, { rev: number; hash: Buffer; at: string }>): Promise<void> {
+    const p = await prepareBatch(reg, part, inLoad, external, ts, xid, touched, written, live, past, 0);
+    if (p) await flushBatch(conn, p, ts, touched, written);
+  }
+
+  /**
+   * Первая заливка — конвейером (решение точки А плана 1.1): следующая пачка готовится, пока база пишет текущую.
+   * Подготовка уступает циклу событий каждые 256 строк — иначе COPY в полёте не получал бы следующих кусков, пока
+   * идёт синхронная работа. Отказ записи до её await ловит пустой обработчик (иначе — необработанный отказ
+   * процесса); при ошибке подготовки запись в полёте доходит до конца, и откат идёт по готовому соединению.
+   */
+  async function pipeline(conn: Sql, reg: Registry, portion: number[], inLoad: Map<string, { cls: string; alive: boolean }>,
+    external: Map<string, { line: number; role: string; allowed: string[] }>, ts: string, xid: string, touched: Set<string>, written: string[],
+    live: Set<string>, past: Map<string, { rev: number; hash: Buffer; at: string }>): Promise<void> {
+    let flushing: Promise<void> | null = null;
+    try {
+      for (let b = 0; b < portion.length; b += batch) {
+        const p = await prepareBatch(reg, portion.slice(b, b + batch), inLoad, external, ts, xid, touched, written, live, past, 256);
+        const prev: Promise<void> | null = flushing;
+        flushing = null;
+        if (prev) await prev;
+        if (!p || issues.any) return;
+        flushing = flushBatch(conn, p, ts, touched, written);
+        flushing.catch(() => {});
+      }
+      const last: Promise<void> | null = flushing;
+      flushing = null;
+      if (last) await last;
+    } catch (e) {
+      if (flushing) await (flushing as Promise<void>).catch(() => {});
+      throw e;
+    }
+  }
+
+  /**
+   * Подготовка пачки без запросов к базе: проверки, id, концы, строки COPY. yieldEvery — уступать циклу событий
+   * каждые столько строк (конвейер первой заливки). Нарушения — null.
+   */
+  async function prepareBatch(reg: Registry, part: number[], inLoad: Map<string, { cls: string; alive: boolean }>,
+    external: Map<string, { line: number; role: string; allowed: string[] }>, ts: string, xid: string, touched: Set<string>, written: string[],
+    live: Set<string>, past: Map<string, { rev: number; hash: Buffer; at: string }>, yieldEvery: number): Promise<Prepared | null> {
     const ent: string[] = [];
     const log: string[] = [];
-    const updates: { id: string; data: Raw; links: Raw; tags: string[] | null; line: number }[] = [];
-    const rowsAcl: { i: number; class: string; id: string; owner: string; tags: string[]; data: Raw; links: Raw }[] = [];
+    const updates: Prepared['updates'] = [];
+    const rowsAcl: Prepared['rowsAcl'] = [];
+    let n = 0;
     for (const i of part) {
+      if (yieldEvery && ++n % yieldEvery === 0) await tick();
       const { id, cls } = p1[i]!;
       if (existing === 'skip' && (live.has(id) || past.has(id))) {
         report.skipped++;
@@ -868,8 +924,14 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     }
     if (issues.any) {
       if (aclRan) issues.unchecked.add('условия ACL следующих пачек не проверялись');
-      return;
+      return null;
     }
+    return { ent, log, updates, rowsAcl };
+  }
+
+  /** Запись подготовленной пачки: условия ACL ({ as }) — запросом на пачку, COPY в entity и log, правки существующих. */
+  async function flushBatch(conn: Sql, p: Prepared, ts: string, touched: Set<string>, written: string[]): Promise<void> {
+    const { ent, log, updates, rowsAcl } = p;
     if (acl) {
       aclRan = true;
       // условия ACL на строки — одним запросом на пачку: файл пользователя — не доверенные данные
