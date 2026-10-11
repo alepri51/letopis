@@ -54,7 +54,7 @@ let nodeSeq = 0;
 /** Уникальная метка узла пути. */
 export const nextNodeKey = (): number => ++nodeSeq;
 
-export type ReadMode = 'paths' | 'rows' | 'ids' | 'count' | 'countPaths' | 'versions' | 'agg';
+export type ReadMode = 'paths' | 'rows' | 'ids' | 'count' | 'countPaths' | 'versions' | 'agg' | 'diff' | 'blame';
 
 export interface AggSpec {
   fn: 'sum' | 'avg' | 'min' | 'max' | 'countBy';
@@ -518,6 +518,9 @@ export function cursorOf(row: Row, field: string): Cursor {
 // ---------------------------------------------------------------------------
 
 const COLS = ['id', 'rev', 'class', 'tenant', 'owner', 'links', 'data', 'tags', 'at', 'author', 'agent', 'op', 'reason', 'moved'];
+/** Колонки журнала, выданные приложению: все, кроме changed (ревью №1 точки А плана 1.1, 10-core.sql). */
+const LOG_COLS = ['seq', 'tx', 'id', 'rev', 'class', 'cv', 'tenant', 'owner', 'links', 'data', 'tags', 'at', 'author', 'agent', 'op', 'reason',
+  'moved', 'prev_hash', 'hash'].map((c) => 'l.' + c).join(', ');
 const colsOf = (a: string): string => COLS.map((c) => `${a}.${c}`).join(', ');
 
 export interface BuildOptions {
@@ -621,7 +624,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
     const logPart = (pairs: string) =>
       // версия журнала по паре (id, rev): вложенный цикл по индексу log_id_rev, без перебора журнала
       `select ${colsOf('x')}, null::int as depth from (${pairs}) f(id, rev) `
-      + `cross join lateral (select * from ${S}.log l where l.id = f.id and l.rev = f.rev) x where ${where('x')}`;
+      + `cross join lateral (select ${LOG_COLS} from ${S}.log l where l.id = f.id and l.rev = f.rev) x where ${where('x')}`;
     const parts: string[] = [];
 
     if (i === 0) {
@@ -777,6 +780,18 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
         : `${withClause}select to_jsonb(v) as row from (select ${colsOf('l')}, null::int as depth from ${S}.log l `
           + `where l.id in (select z.id from ${ents} z)) v order by v.id, v.rev${limitOffset()}`;
       break;
+    case 'diff':
+    case 'blame': {
+      // план 1.1, §2.1: функции базы считают по журналу под RLS — по одному документу на объект шага
+      const h = mods.hist ?? {};
+      const num = (v: unknown) => (typeof v === 'number' ? `${p.push(v)}::int` : 'null');
+      const ts = (v: unknown) => (typeof v === 'string' ? `${p.push(v)}::text::timestamptz` : 'null');
+      const call = mode === 'diff'
+        ? `${S}.diff_versions(z.id, ${num(h.from)}, ${num(h.to)}, ${ts(h.from)}, ${ts(h.to)}, ${h.follow ? 'true' : 'false'})`
+        : `${S}.blame(z.id, ${ts(h.at)}, ${num(h.limit)})`;
+      text = `${withClause}select ${call} as row from (select distinct z.id from ${ents} z) z order by z.id`;
+      break;
+    }
     case 'agg': {
       if (!agg || !agg.field.startsWith('data.')) fail("агрегат по полю 'data.<путь>'");
       const path = agg!.field.slice(5).split('.');
@@ -796,7 +811,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
 
 /** Строка из to_jsonb(узла): служебные поля в $deleted / $depth, пустые необязательные — без ключа. */
 export function toRow(raw: Record<string, unknown>): Row {
-  const { depth, agent, reason, moved, ...rest } = raw;
+  const { depth, agent, reason, moved, changed: _changed, ...rest } = raw;
   const row = rest as unknown as Row;
   if (agent != null) row.agent = agent as string;
   if (reason != null) row.reason = reason as string;

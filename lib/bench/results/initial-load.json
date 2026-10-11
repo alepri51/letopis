@@ -1,0 +1,148 @@
+{
+  "name": "initial-load",
+  "at": "2026-10-11T09:08:57.575Z",
+  "scale": 1,
+  "server": {
+    "v": "18.6 (Debian 18.6-1.pgdg13+2)",
+    "sb": "128MB"
+  },
+  "node": "v24.15.0",
+  "polygonScale": 2,
+  "rounds": 3,
+  "objects": 1073580,
+  "settings": {
+    "data_checksums": "on",
+    "maintenance_work_mem": "64MB",
+    "max_parallel_maintenance_workers": "2",
+    "max_parallel_workers": "8",
+    "max_wal_size": "1GB",
+    "synchronous_commit": "on",
+    "wal_level": "replica"
+  },
+  "runs": {
+    "regular": {
+      "ms": 169047.9,
+      "rowsPerSec": 6351,
+      "nodeCpuMs": 66735,
+      "walMb": 3997.6,
+      "indexMb": 211,
+      "tableMb": 1324.4,
+      "read": {
+        "ms": 2821.6,
+        "walMb": 1269.9
+      },
+      "vacuum": {
+        "ms": 5360.1,
+        "walMb": 1311.7
+      },
+      "msAll": [
+        169047.9,
+        164880.6,
+        221563
+      ]
+    },
+    "initial": {
+      "ms": 77225.5,
+      "rowsPerSec": 13902,
+      "nodeCpuMs": 59437,
+      "walMb": 1395.2,
+      "loadMs": 68103.5,
+      "restMs": 9122,
+      "indexMb": 194.5,
+      "tableMb": 1357,
+      "read": {
+        "ms": 178.7,
+        "walMb": 0
+      },
+      "vacuum": {
+        "ms": 72.1,
+        "walMb": 0.6
+      },
+      "msAll": [
+        79889.9,
+        77225.5,
+        70308.2
+      ]
+    },
+    "noFreeze": {
+      "ms": 74680.1,
+      "rowsPerSec": 14376,
+      "nodeCpuMs": 51922,
+      "walMb": 1384.5,
+      "loadMs": 64938.5,
+      "restMs": 9741.7,
+      "indexMb": 194.5,
+      "tableMb": 1357,
+      "read": {
+        "ms": 5601.9,
+        "walMb": 1269.9
+      },
+      "vacuum": {
+        "ms": 12133.3,
+        "walMb": 1274.8
+      },
+      "msAll": [
+        74680.1,
+        76891.6,
+        72104.7
+      ]
+    },
+    "keepTriggers": {
+      "ms": 75822.9,
+      "rowsPerSec": 14159,
+      "nodeCpuMs": 44875,
+      "walMb": 1435.6,
+      "loadMs": 66308.5,
+      "restMs": 9514.3,
+      "indexMb": 194.5,
+      "tableMb": 1374.5,
+      "msAll": [
+        75822.9,
+        77457.2,
+        74498
+      ]
+    },
+    "keepKeys": {
+      "ms": 83067.5,
+      "rowsPerSec": 12924,
+      "nodeCpuMs": 47702,
+      "walMb": 1600.6,
+      "loadMs": 74416.9,
+      "restMs": 8650.6,
+      "indexMb": 215.1,
+      "tableMb": 1357,
+      "msAll": [
+        83067.5,
+        137780.2,
+        79627.2
+      ]
+    },
+    "keepGin": {
+      "ms": 113161.8,
+      "rowsPerSec": 9487,
+      "nodeCpuMs": 55828,
+      "walMb": 3369.7,
+      "loadMs": 109499.5,
+      "restMs": 3662.3,
+      "indexMb": 191.4,
+      "tableMb": 1357,
+      "msAll": [
+        113161.8,
+        175104.4,
+        112042.7
+      ]
+    }
+  },
+  "speedup": 2.19,
+  "keepCostMs": {
+    "triggers": -1402.6,
+    "keys": 5842,
+    "gin": 35936.3
+  },
+  "freeze": {
+    "loadCostMs": 2545.4,
+    "loadWalCostMb": 10.7,
+    "afterSavedMs": 17484.4,
+    "afterSavedWalMb": 2544.1
+  }
+}

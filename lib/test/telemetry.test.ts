@@ -81,3 +81,22 @@ test('6.14 describe(): классы с метаданными и наследо�
   assert.match(text, /## Staff \(Мастер\)/);
   assert.match(text, /концы: .*Org/);
 });
+
+test('план 1.1, 0.1 describe(): условия anyOf и oneOf с наследованием; describeText', async () => {
+  const props = { a: { type: 'string' }, b: { type: 'string' }, c: { type: 'string' } };
+  const anyOf = [{ required: ['a'] }, { required: ['b'] }];
+  const oneOf = [{ required: ['b'] }, { required: ['c'] }];
+  await e.defineClass(t, { name: 'Cond', kind: 'hub', abstract: true, fields: { properties: props, anyOf, oneOf } });
+  await e.defineClass(t, { name: 'CondKid', kind: 'hub', parent: 'Cond' });
+  // свои условия потомка заменяют оба ключа предка целиком (class_resolve)
+  await e.defineClass(t, { name: 'CondOwn', kind: 'hub', parent: 'Cond', fields: { anyOf: [{ required: ['c'] }] } });
+  await db.refresh();
+  const by = (n: string) => db.describe().classes.find((c) => c.name === n)!;
+  assert.deepEqual([by('Cond').anyOf, by('Cond').oneOf], [anyOf, oneOf]);
+  assert.deepEqual([by('CondKid').anyOf, by('CondKid').oneOf], [anyOf, oneOf], 'унаследованы');
+  assert.deepEqual([by('CondOwn').anyOf, by('CondOwn').oneOf], [[{ required: ['c'] }], undefined]);
+  assert.equal('anyOf' in by('Staff'), false, 'у класса без условий ключей нет');
+  const text = describeText(db.describe());
+  assert.match(text, /## CondKid\n[\s\S]*?- условия anyOf \(хотя бы одно\): \[\{"required":\["a"\]\},\{"required":\["b"\]\}\]/);
+  assert.match(text, /- условия oneOf \(ровно одно\): \[\{"required":\["b"\]\},\{"required":\["c"\]\}\]/);
+});

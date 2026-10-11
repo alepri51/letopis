@@ -69,12 +69,17 @@ declare
   o_api uuid;
   o_auth uuid;
   o_letopis uuid;
+  o_signals uuid;
   op text;
 begin
-  -- Ключ подписи пропуска прав и счётчик изменений прав (50-acl.sql: acl_token, acl_bump).
-  insert into @SCHEMA@.secret (id, account, kind, material, meta)
-  values ('@SYSTEM@'::uuid, '@SYSTEM@'::uuid, 'KEY', @PGCRYPTO@.gen_random_bytes(32), '{"v": 0}')
-  on conflict (id) do nothing;
+  -- Ключ подписи пропуска прав и счётчик изменений прав (50-acl.sql: acl_token, acl_bump); от ключа же
+  -- выводится ключ сигналов. Режим сигналов (up({ signals })) хранится в meta этой строки: установщик
+  -- читает его перед накатом, поэтому повторный up() без опции режим не меняет, а reset({ all }) кладёт
+  -- его заново из константы установки.
+  insert into @SCHEMA@.secret as k (id, account, kind, material, meta)
+  values ('@SYSTEM@'::uuid, '@SYSTEM@'::uuid, 'KEY', @PGCRYPTO@.gen_random_bytes(32), '{"v": 0, "signals": "@SIGNALS@"}')
+  on conflict (id) do update set meta = k.meta || '{"signals": "@SIGNALS@"}'
+  where k.meta->>'signals' is distinct from '@SIGNALS@';
 
   perform @SCHEMA@.sys_create('@SYSTEM@'::uuid, 'Account', '@SYSTEM@'::uuid, '{}',
     '{"name": "System", "categories": ["System"], "enabled": true}');
@@ -124,8 +129,11 @@ begin
   o_api := @SCHEMA@.sys_resource(sys, 'any:API', 'API', null);
   o_auth := @SCHEMA@.sys_resource(sys, 'auth:API', 'API', '{"endpoint": "auth.*"}');
   o_letopis := @SCHEMA@.sys_resource(sys, 'letopis:API', 'API', '{"endpoint": "letopis.*"}');
+  o_signals := @SCHEMA@.sys_resource(sys, 'signals:API', 'API', '{"endpoint": "letopis.signals"}');
   perform @SCHEMA@.sys_rule(sys, g_any, o_api, 'deny', 0, '{"code": 403, "message": "Доступ запрещён по умолчанию"}');
   perform @SCHEMA@.sys_rule(sys, g_svc, o_auth, 'allow', 100);
+  -- ключ сигналов (signal_key(), план 1.1): сервисы узнают токены классов и арендаторов в нагрузке
+  perform @SCHEMA@.sys_rule(sys, g_svc, o_signals, 'allow', 100);
   perform @SCHEMA@.sys_rule(sys, g_admin, o_auth, 'allow', 100);
   perform @SCHEMA@.sys_rule(sys, g_admin, o_letopis, 'allow', 100);
   foreach op in array array['READ', 'WRITE', 'DELETE'] loop

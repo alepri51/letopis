@@ -5,7 +5,7 @@
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { engine, type Engine, type Tenant } from './_engine.js';
+import { engine, watchStarted, type Engine, type Tenant } from './_engine.js';
 import { appDsn } from './_harness.js';
 import { connect, type Db, type WatchEvent } from '../src/index.js';
 
@@ -33,6 +33,13 @@ after(async () => {
   await e?.close();
 });
 
+/**
+ * next(), оставшийся незавершённым после таймаута take: следующий take ждёт его, а не зовёт next()
+ * второй раз — Subscription.next() не рассчитан на параллельные вызовы (событие ушло бы брошенному
+ * вызову или прочиталось дважды).
+ */
+const pending = new WeakMap<AsyncIterator<WatchEvent>, Promise<IteratorResult<WatchEvent>>>();
+
 /** Следующие n событий (не дольше ms). */
 async function take(it: AsyncIterator<WatchEvent>, n: number, ms = 10_000): Promise<WatchEvent[]> {
   const out: WatchEvent[] = [];
@@ -40,8 +47,11 @@ async function take(it: AsyncIterator<WatchEvent>, n: number, ms = 10_000): Prom
   while (out.length < n) {
     const left = until - Date.now();
     if (left <= 0) throw new Error(`take: за ${ms} мс получено ${out.length} из ${n}`);
-    const r = await Promise.race([it.next(), new Promise<'timeout'>((res) => setTimeout(() => res('timeout'), left))]);
+    let next = pending.get(it);
+    if (!next) pending.set(it, (next = it.next()));
+    const r = await Promise.race([next, new Promise<'timeout'>((res) => setTimeout(() => res('timeout'), left))]);
     if (r === 'timeout') throw new Error(`take: за ${ms} мс получено ${out.length} из ${n}`);
+    pending.delete(it);
     if (r.done) break;
     out.push(r.value);
   }
@@ -54,6 +64,7 @@ const ins = (token: string, n: number, cls = 'Ev') =>
 test('6.5 события по порядку фиксации, курсор, фильтр по классам; другой арендатор не виден', async () => {
   const sub = db.watch({ from: 'now', classes: ['Ev'] });
   try {
+    await watchStarted(sub);
     await ins(t.token, 1);
     await ins(t.token, 2, 'Other');
     await ins(u.token, 100);
@@ -70,6 +81,7 @@ test('6.5 события по порядку фиксации, курсор, ф�
 test('6.5 фиксация не по порядку и долгая пишущая транзакция: поток ждёт её, затем отдаёт всё без потерь', async () => {
   const sub = db.watch({ from: 'now', classes: ['Ev'] });
   try {
+    await watchStarted(sub);
     // A начинает раньше (меньший номер транзакции) и держит транзакцию; B фиксируется первой
     const a = await e.hold(t.token, (tx) => tx.unsafe(`insert into ${e.S}.entity (class, data) values ('Ev', '{"n": 10}')`));
     await ins(t.token, 11);
@@ -87,6 +99,7 @@ test('6.5 фиксация не по порядку и долгая пишуща
 
 test('6.5 возобновление по курсору: без потерь и повторов; обрыв соединения подписки', async () => {
   const sub = db.watch({ from: 'now', classes: ['Ev'] });
+  await watchStarted(sub);
   await ins(t.token, 20);
   const [first] = await take(sub, 1);
   sub.close();
@@ -124,6 +137,8 @@ test('6.5 «now» — изменения после подписки: зафик
   const sub = db.watch({ from: 'now', classes: ['Ev'] });
   try {
     assert.ok(sub.cursor === null || /~/.test(sub.cursor ?? ''), 'курсор «now» несёт снимок');
+    // снимок начальной точки взят, пока A открыта: A фиксируется уже после подписки
+    await watchStarted(sub);
     await a.finish(true);
     await ins(t.token, 32);
     const evs = await take(sub, 2);

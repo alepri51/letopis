@@ -1,4 +1,4 @@
-# letopis 1.0
+# letopis 1.1
 
 **letopis** is a Node.js library: a store of versioned entities on PostgreSQL 18. Every change is saved as a version
 in a journal. So every object has a history, a state as of any date and a change subscription. The database itself
@@ -191,10 +191,23 @@ is built from the journal.
 
 ### Signals
 
-A write reports the changed classes through `NOTIFY`. Raw SQL sends the signal from a trigger, and PostgreSQL delivers
-it on commit. Library transactions defer their signals: the process notifier sends them every 100 ms
-(`notifyIntervalMs`). A signal carries only a class name or the start of the token hash of a revoked session: no ids,
-no data. On signals, the class registry is re-read, the result cache is cleared and subscriptions wake up.
+A write reports changes through `NOTIFY` on the schema channel. Raw SQL sends the signal from a trigger, and PostgreSQL
+delivers it on commit. Library transactions defer their signals: the process notifier sends them every 100 ms
+(`notifyIntervalMs`) and retries the ones that failed to send. What a write signal carries is set by the installation
+mode `up({ signals })`:
+
+| Mode | Write signal | What any role that can connect to the database sees |
+|---|---|---|
+| `class` (default) | the class name: `Booking` | class names and write times |
+| `tenant` | the class name and a tenant token: `Booking@3f9c…` | also tenant pseudonyms |
+| `opaque` | a class token and a tenant token | only write times and frequency per pseudonym |
+| `none` | no signals | nothing |
+
+A revoked session sends `session:<start of the token hash>`, a reset sends `*`; signals carry no ids and no data. A
+token is a keyed HMAC: only a process with the signal key can match a pseudonym to a name, and the key is given to
+services (the `letopis.signals` permission). On signals, the class registry is re-read, the result cache is cleared
+and subscriptions wake up; what the mode changes for the cache and subscriptions is in
+[section 12](#12-change-subscription-and-cache).
 
 ## 3. Installation and connection
 
@@ -213,6 +226,7 @@ functions and the system seed. On the first installation, it issues a service ke
 | `history` | the history retention policy for classes without their own ([section 11](#11-history-and-point-in-time-reads)) |
 | `serviceKey` | your own service key instead of a random one: `lts_` and 32–128 hexadecimal characters |
 | `allowReset` | allow `db.reset()` ([section 13](#13-operations)); off by default |
+| `signals` | the signal mode: `'class'` (default), `'tenant'`, `'opaque'` or `'none'` (["Signals"](#signals)); the mode is stored in the schema — `up()` without the option keeps it |
 | `fresh` | drop the schema and install it again — **the schema data is lost** |
 | `upgrade` | upgrade a schema of an older revision: migrations and a re-apply |
 | `pglite` | a database for development without PostgreSQL (see below) |
@@ -221,7 +235,17 @@ functions and the system seed. On the first installation, it issues a service ke
 
 Result: `schema` (the full name), `serviceKey` (on the first installation, and on a re-run when the installation has no
 valid API key left; otherwise `null`), `created`, `upgraded`, `revision`, `migrations`, `analyzed`, `owner`, `app`,
-and also `tenant` and `pglite` if they were requested.
+`signals` (the signal mode of the installation), `warnings` (without `quiet` they are printed), and also `tenant` and
+`pglite` if they were requested. On PostgreSQL below 18.2, `up()` warns: such a server could truncate CLOG that unread
+signals still need — upgrade it.
+
+To hide class names from signals, use the `opaque` mode (or `tenant` if the names are not secret but you want the
+cache to be precise per tenant); after changing the mode, restart the application processes — they read the mode on
+connect:
+
+```ts
+await up({ dsn: ADMIN, schema: 'shop', signals: 'opaque' })   // later up({ dsn, schema }) keeps the mode
+```
 
 <!-- run: guide -->
 ```ts
@@ -1077,6 +1101,23 @@ regular write: the tenant is available to the user, write permission on each cla
 the visibility of reference targets, the owner per `ownerDefault`. Without `tenant`, the rows go to the user's own
 tenant. This is how a loading process can accept files sent by users.
 
+### Initial load
+
+```ts
+const r = await adm.load(rows, { initial: true })   // empty schema: one transaction, indexes and triggers at the end
+```
+
+`db.load(rows, { initial: true })` (`letopis load --initial`) loads data into an empty schema faster than the regular
+loader — about 2.2 times on a million objects: everything goes in one transaction, the tables are closed for reading and
+writing during the load, indexes, constraints and triggers are dropped and rebuilt at the end, and rows are written with
+`COPY … FREEZE`. Empty means that the schema has nothing besides the rows of system classes (class descriptions,
+accounts, memberships, resources, rules) and `reset` records; otherwise you get `not_empty` before any change. The mode
+is incompatible with `commitEvery`, `existing` (other than `'error'`) and `{ as }`; an error in any row rolls
+everything back, indexes and triggers included. `letopis import --initial` runs the whole import this way: in one
+transaction, without `--update` and `--commit-every`. WAL is written here too (it is skipped only with
+`wal_level = minimal`), but the indexes are built once, so there is almost three times less of it; after `FREEZE`, the
+first read and the first vacuum do not rewrite the table.
+
 ### Command line
 
 ```sh
@@ -1324,8 +1365,10 @@ const followed = await db.Product(mug2).versions({ follow: true }) // also acros
 ```
 
 Every version has an author, an agent, a time, a number, a kind of operation (`create`, `update`, `delete`, `reclass`,
-`rekey`, `restore`, `purge`, `trim`, `reset`) and a reason (`reason`), if the `letopis.reason` setting of the
-transaction set one; there is no separate API for the reason. A deletion version has `$deleted`.
+`rekey`, `restore`, `purge`, `trim`, `reset`) and a reason (`reason`). The reason comes from the `reason` option of a verb
+(`update(patch, { reason })`, `create(data, { reason })`, `delete({ confirm, reason })` and others); for every
+operation of a block, from `db.begin({ reason })` and `db.batch(name, { reason })`; in raw SQL, from the
+`letopis.reason` setting of the transaction. A deletion version has `$deleted`.
 
 ### Point-in-time read
 
@@ -1370,6 +1413,34 @@ period boundaries are in the `tz` time zone (UTC by default).
 - `maintain()` does the thinning in batches of 10,000 versions ([section 13](#13-operations)).
 - In the thinned part, a point-in-time read shows the last kept version before the moment, so its precision equals the
   period of the tier. A subscriber that lags behind by more than the `all` tier gets `cursor_expired`.
+
+### What changed and who: `diff` and `blame`
+
+```ts
+const [d] = await db.Order(id).diff()                       // previous version → latest
+await db.Order(id).diff({ from: 3, to: 7 })                 // by version numbers
+await db.Order(id).diff({ from: '2026-10-01' })             // state at a moment → latest
+await db.Order(id).diff({ follow: true })                   // across id changes (reclass, rekey)
+const [b] = await db.Order(id).blame()                      // every field of the latest version
+await db.Order(id).blame({ at: '2026-10-01', limit: 200 })  // the version at a moment; scan 200 versions
+```
+
+- `diff()` returns one item per object of the step: `{ id, class, from, to, changes }`, where a change is
+  `{ path, kind, before, after }`, `kind` is `added`, `removed` or `changed`, and the path starts with the section of
+  the row: `data`, `links`, `tags`, `owner`, `class`. Data objects are compared by keys, arrays as a whole; a
+  multi-valued end and tags element by element. If the object did not exist at `from`, every path is `added`; if it
+  was deleted at `to`, `to.deleted` is `true`.
+- `blame()` returns `{ id, class, rev, complete, fields }`: for every leaf, the version that changed it last,
+  `author`, `agent`, `op`, `reason` and `exact`. `exact: false` means there are gaps between the current version and
+  that one (the history is thinned, trimmed or partly invisible): a missing version may have changed the leaf too.
+  `complete: true` means the whole history was scanned without gaps; by default at most the 1000 latest versions are
+  scanned.
+- The database computes both with the caller's rights: raw SQL gets the same, `select "v2.shop".blame('<id>')`,
+  `select "v2.shop".diff_versions('<id>')`.
+- The journal column `changed` (the paths changed by a version, which make `blame` fast) is not granted to the
+  application: the paths describe the difference from the previous version, and the reader may not see that one.
+  So `select * from log` does not work for the application — list the columns; `blame` gets the paths through a
+  database function only when both versions are visible.
 
 ### Trimming history
 
@@ -1439,11 +1510,21 @@ stays correct:
 - the result key includes the query, the parameters, the session, the actor and the tenant, so one user never gets the
   result of another user;
 - your own writes clear the results of the changed classes right after commit (including the cascade classes); other
-  writers' changes clear them on a database signal;
+  writers' changes clear them on a database signal. In the `tenant` and `opaque` modes, a process with the signal key
+  clears a class only in the tenant of the write (System rows — in all tenants); a process without the key clears it
+  in all tenants, and in the `opaque` mode any signal clears its whole cache;
 - changes of permissions and classes, writes through `db.sql`, a revoked session and a listener reconnect clear the
   whole cache or the results of the session;
 - the default term is 60 seconds; the cache does not work inside `db.begin()`;
-- without `LISTEN` the cache is off, and `connect({ cache: { ttlOnly: true } })` enables it by term only.
+- without `LISTEN` and in the `none` mode the cache is off, and `connect({ cache: { ttlOnly: true } })` enables it by
+  term only.
+
+A process re-reads the class registry right away on a class change signal (one re-read at a time), and the registry
+and the signal key on `*`, on an unknown token and on a payload of another mode (and without the key in the `opaque`
+mode — on any signal) not more often than once in 5 seconds: a stream of signals, fake ones included, does not turn
+into a stream of queries. In the `none` mode, the registry checks the class
+fingerprint every 5 seconds, and subscriptions poll the log. A subscription wakes up only for its own classes and its
+own tenant, and without the key — for any signal; it always reads the events from the log, so nothing is lost.
 
 Between processes, the cache goes stale for the signal sending interval (`notifyIntervalMs`, 100 ms) plus delivery;
 `db.flushSignals()` sends the accumulated signals at once. `db.cache.clear()` clears the cache.
@@ -1490,7 +1571,8 @@ const modelText = describeText(model) // the same as text: for the application's
 ```
 
 `db.describe()` returns a description of the classes available to the session: fields, ends, keys, policies and
-metadata. From the command line: `letopis describe --format text --out llms.txt`.
+metadata, plus the multi-field conditions `anyOf` and `oneOf` with inheritance applied, when a class has them. From
+the command line: `letopis describe --format text --out llms.txt`.
 
 ### Raw SQL
 
@@ -1511,12 +1593,12 @@ application.
 letopis sync <module> --dsn <dsn> --schema <v2.name> (--token <token> | --api-key <key>) [--apply]
 letopis types --dsn <dsn> --schema <v2.name> (--token <token> | --api-key <key>) [--out <file>]
 letopis load <files…> --dsn <dsn> --schema <v2.name> (--token <token> | --api-key <key>) [--class <Class>]
-  [--duplicates error|first|last] [--existing error|skip|update] [--commit-every <N>] [--verify]
+  [--duplicates error|first|last] [--existing error|skip|update] [--commit-every <N>] [--verify] [--initial]
 letopis verify --dsn <dsn> --schema <v2.name> [--token <token> | --api-key <key>] [--data]
 letopis maintain --dsn <dsn> --schema <v2.name> [--token <token> | --api-key <key>] [--batches <N>]
 letopis describe --dsn <dsn> --schema <v2.name> (--token <token> | --api-key <key>) [--format json|text] [--out <file>]
 letopis import --from <0.21 dsn> --from-schema <v1.name> --dsn <dsn> --schema <v2.name> [--tenant <name>] [--keyless <Class>]…
-  [--rename <Old>=<New>]… [--update] [--commit-every <N>] [--partition <name>]
+  [--rename <Old>=<New>]… [--update] [--commit-every <N>] [--partition <name>] [--initial]
 ```
 
 ### Monitoring
@@ -1669,7 +1751,7 @@ database does not accept a link with such a name (`reserved_names()`; the instal
 - chain methods: `then`, `entity`, `paths`, `rows`, `first`, `ids`, `count`, `limit`, `offset`, `sort`, `asOf`,
   `withDeleted`, `deep`, `exact`, `sum`, `avg`, `min`, `max`, `countBy`, `after`, `versions`, `create`, `update`,
   `upsert`, `set`, `unset`, `add`, `remove`, `delete`, `anonymize`, `reclass`, `restore`, `purge`, `alias`, `tags`,
-  `owner`, `forUpdate`, `cache`, `rekey`; guards of the removed API: `run`, `execute`, `account`;
+  `owner`, `forUpdate`, `cache`, `rekey`, `diff`, `blame`; guards of the removed API: `run`, `execute`, `account`;
 - the `db` root: `as`, `begin`, `commit`, `rollback`, `lock`, `batch`, `watch`, `close`, `registry`, `sql`, `load`,
   `verify`, `maintain`, `reset`, `describe`, `auth`, `acl`, `idOf`, `refresh`, `transaction`, `flushSignals`,
   `schema`, `token`, `tenant`, `trimHistory`, `rekeyClass`, `cache`; guards: `reloadSchema`, `accounts`,
@@ -1720,6 +1802,7 @@ Library codes:
 | `no_path` | there is no hop between the classes of neighboring steps |
 | `invalid_query` | the chain or the API is used incorrectly (a step modifier `deep`, `exact`, `alias`, `tags` or `owner` after a verb, a slot not after a verb, an `after()` cursor with a value of a different type than the `sort` field, without `v` or with an `id` that is not a uuid, and so on) |
 | `admin_required` | the loader needs an admin connection |
+| `not_empty` | the initial load (`initial`) goes only into an empty schema |
 | `class_not_loadable` | the loader does not accept `Class` rows |
 | `bypass_rls` | `connect()` with a role that bypasses RLS, without `allowBypassRls` |
 | `removed` | a removed 0.21 API; the text gives the replacement |
@@ -1758,9 +1841,15 @@ database from every write (row-by-row writes: 119 → 128–147 rows/s in differ
 12–18% slower than 0.21 (the measurements vary): most of the time goes to the check triggers in the database and to the
 commit with a disk write.
 
+Initial load (`cd lib && npx tsx bench/initial-load.mjs`, 2026-10-11, median of three rounds): the regular loader
+writes 1.07 million objects of the salon dataset without history in 169 s (6,351 rows/s, 4.0 GB of WAL), the initial
+load in 77 s (13,902 rows/s, 1.4 GB of WAL). Most of the difference comes from the GIN indexes: maintaining them during
+the load costs 36 s, building them at the end about 5 s. Preparing rows in the loader itself (checks, ends, ids) runs
+alongside the `COPY` of the previous batch and now sets the pace: about 60 s of the 77.
+
 ## 18. Limitations
 
-This section lists what letopis 1.0 deliberately does not do or does with caveats, and where you need to watch the
+This section lists what letopis 1.1 deliberately does not do or does with caveats, and where you need to watch the
 behavior.
 
 **Platform**
@@ -1777,6 +1866,9 @@ behavior.
 - The NUL character (`\u0000`) is impossible in data strings: PostgreSQL does not store it in `jsonb`; such data is
   rejected already when the JSON is parsed (in the official JSON-Schema-Test-Suite, the "nul characters" groups are
   skipped).
+- On PostgreSQL before 18.6, a parallel GIN index build could write a wrong row count into the table statistics
+  (`pg_class.reltuples`), after which autovacuum stopped processing the table. That is why the initial load always ends
+  with `ANALYZE`, but it is better to upgrade the server to 18.6 or newer.
 
 **Writing and integrity**
 
@@ -1786,6 +1878,10 @@ behavior.
   transactions always open at this level.
 - PostgreSQL does not run `COPY` into tables under RLS; bulk loading works only through the loader on an admin
   connection.
+- The initial load closes the schema's tables for the whole load, for writing and for reading: it is meant for an
+  empty schema (seeding, migration, import), not for a running system. Its gain is in the database (indexes and
+  constraints are built once); it does not speed up the row preparation in the loader, only runs it alongside `COPY`,
+  so on a million objects it is about 2.2 times faster than the regular load.
 - The database trusts the loader: the data, ends and ids of loaded rows are checked by the library code (the TypeScript
   validator), not by the triggers; the database checks only the targets outside the load, the tenants and the owners,
   with one query at the end. The safeguards: the loader is available only to an admin, differential tests of the
@@ -1858,16 +1954,26 @@ behavior.
 - The journal has no partitions: thinning deletes versions in batches, and the table file does not shrink by itself
   (new versions take the space after autovacuum); to return the space to the system, use `VACUUM FULL` or `pg_repack`
   in a maintenance window.
-- Signals reveal activity: PostgreSQL lets any role listen to a channel, and the class names in signals show when and
-  to which classes writes happen (a signal has no ids, no tenant and no data). A fake signal only clears the cache one
-  extra time.
+- Signals reveal activity: PostgreSQL lets any role listen to a channel. In the `class` mode one sees when and to which
+  classes writes happen; `tenant` adds tenant pseudonyms; `opaque` hides what was written but not when: the write
+  time and frequency per pseudonym stay visible, and a deterministic token is the basis of frequency attacks. Write
+  times are visible without signals too: `pg_stat_all_tables` and `pg_locks` are open to PUBLIC. The `none` mode
+  removes signals, but then a revoked session leaves the cache of other processes only by term, and a new class
+  appears in their registry within 5 seconds. Real protection from foreign roles is a separate database. A fake
+  signal only clears the cache one extra time: on `*` and unknown tokens the registry is re-read not more often than
+  once in 5 seconds, and a fake class change signal re-reads it like a real one, but with at most one re-read at a
+  time.
+- The signal mode is changed by `up({ signals })`, and the processes have to be restarted after that: a process reads
+  the mode and the signal key on connect (it treats a payload of another mode as foreign and clears the whole cache).
+- PostgreSQL below 18.2 could truncate CLOG that unread signals still need: `up()` warns about it.
 - The `NOTIFY` queue (8 GB) is shared by the whole cluster: a stuck listener fills it up, and then transactions with
   `NOTIFY` fail on commit. The library reads signals right away, and `maintain()` warns when the queue is more than
   half full.
 - The subscription horizon is shared by the whole cluster: a long write transaction delays the events of all
   subscribers (`sub.lag()`); long operations are better done in batches.
 - Between processes, the result cache goes stale for the signal sending interval (100 ms) plus delivery, and for the
-  time of a listener reconnect; the `ttl` term is a safeguard.
+  time of a listener reconnect: postgres.js does not report a broken listener connection, so the cache works until the
+  reconnect and is cleared completely after it. The `ttl` term is a safeguard.
 - A "from now" subscription cursor carries a snapshot of the subscription moment until it passes that boundary: such a
   cursor is longer than a regular one.
 
@@ -1898,7 +2004,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # chain-write — writing with chains: create, update, upsert, delete with preview, anonymize, reclass, slots, inc, { rev }, fan-out, plan rollback (stage 4)
 # demo — the booking demo domain on Zod: seed from models, writing data, id by key, agreement between Zod and the database (stage 2)
 # docs — documentation examples are executed: the marked blocks of the README and the cheatsheet (Russian and English) run as scenarios against PostgreSQL 18 (stage 8)
-# engine-attacks — raw SQL attacks from the application role: the rows of §7.3.1 for stages 1 and 3 with specific outcomes (stages 1, 3)
+# engine-attacks — raw SQL attacks from the application role: the rows of §7.3.1 for stages 1 and 3 with specific outcomes; the signal key without permission, flooding with fake signals, Class included (stages 1, 3; plan 1.1, stage 2 and checkpoint A)
 # engine-class — classes as entities: metaschema, inheritance, recomputing descendants, tightening, metadata (stage 1)
 # engine-write — the write pipeline in raw SQL: v5 ids, defaults, merge, inc, deletion, resurrection, journal, signals (stage 1)
 # engine-races — races on two connections in both orders, without timed pauses (stage 1)
@@ -1912,7 +2018,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # member — memberships: working in a tenant by roles, auth.switch, leaving with ownership transfer, system rows, tenant roles without System permissions (stage 5)
 # model — Zod models, the JSON Schema normalizer, pattern translation, agreement with the database metaschema (stage 2)
 # load — the loader: several classes, cycles, $key and $ext, repeats, existing, portions, history mode, the query for targets outside the load, CLI (stage 4)
-# roles — roles and privileges: installation without a superuser, owner functions, triggers by catalog (stage 1)
+# roles — roles and privileges: installation without a superuser, owner functions, triggers by catalog, the log without the changed column (stage 1; plan 1.1, checkpoint A)
 # write-races — write races: 20 concurrent edits of different fields without losses and strict rev, concurrent add/remove on a multiple end, the loader versus class tightening and versus a concurrent edit (existing: update) in both orders (stage 4)
 # validator-parity — the TypeScript validator versus the database check: the official suite, 10,000 random documents, defaults (stage 2)
 # scenario-barbershop — end-to-end barbershop scenario: 9 scenes from 0.21 (integration) on 1.0 chains — catalog, free slots in a batch, bookings under lock, multi-slot and multi-specialist, versions, cancellation and booking again on the same id, closing a month with restrict (stage 4)
@@ -1928,11 +2034,14 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # verify — legitimate gaps and tampering, verify({ data: true }): data, ends, tenants, id by key; permissions and CLI (stage 6)
 # retention — retention policy: tiers, a finite term, special versions, deleted rows, asOf, cursor_expired, time zone, catch-up run, inheritance and default — versus a reference in TypeScript (stage 6)
 # watch — cursor subscription: commit order, a long transaction, resuming, listener drop, two tenants (stage 6)
-# cache — result cache: hits, own and others' writes, the key with the user, permissions, revoked sessions, listener drop, ttl, class marking, without LISTEN, a race, db.sql (stage 6)
+# cache — result cache: hits, own and others' writes, the key with the user, permissions, revoked sessions, listener drop, ttl, class marking, without LISTEN, a race, db.sql, the limit of signal counters (stage 6; plan 1.1, checkpoint A)
 # maintain — maintenance: expired sessions and codes, permissions, one process under a lock, schedule (stage 6)
 # up — the full installer: fresh installation, re-apply, custom seeds, automatic database creation, UTF8, version 17, upgrade with migrations, PGlite, the first tenant and user (up({ tenant }), createTenant) (stages 6, 8)
 # scenario-salon — end-to-end salon scenario: 21 acts from 0.21 (salon) with a coverage matrix of the 1.0 API (stage 6)
 # telemetry — onQuery and slowMs, describe() and class metadata with inheritance, describeText (stage 6)
+# history — diff and blame over the log, the reason of a change for verbs, db.begin() and batches; a version hidden by an ACL condition, the changed column, a missing version, row_changes over 20 thousand targets (plan 1.1, stage 1 and checkpoint A)
+# signals — signal modes: the payload seen by a foreign role, cache precision per tenant, System, permission classes, a process without the key, the loader, subscriptions, the key, none, coalescing, the server version, a class change, a resend, the mode after up() and reset({ all }) (plan 1.1, stage 2)
+# initial-load — the initial load: equality with the regular loader, structure and trigger modes, system rows, a non-empty schema, an insert during the start, rollback, MULTI_INSERT in WAL, commitEvery, import --initial (plan 1.1, stage 3)
 # import — import from 0.21 with a fixture of a real 0.21: key violation, --keyless, per-class counters, verify, self-reference, repeat, ids without a key, a dangling reference, $$strict and fields starting with $, update, credentials, CLI (stage 7)
-# security-final — the final security review (stage 8, §7.10 No. 8.4): a family lock by the tenant of the root, account_purge without permission and restore/purge of a foreign id give neither a leak nor a lock; the functions of stage 6, log_refs_at, journal-based find_* reads and watch_read stay within their own tenant; NOTIFY carries only names; the cache key distinguishes the token, the actor and the tenant (stage 8)
+# security-final — the final security review (stage 8, §7.10 No. 8.4): a family lock by the tenant of the root, account_purge without permission and restore/purge of a foreign id give neither a leak nor a lock; the functions of stage 6, log_refs_at, journal-based find_* reads and watch_read stay within their own tenant; NOTIFY carries only names or mode tokens; the cache key distinguishes the token, the actor and the tenant (stage 8)
 ```

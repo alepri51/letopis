@@ -3,7 +3,7 @@
 > Карта говорит, где смотреть; истина — код. Нашёл расхождение — поправь карту в том же изменении.
 
 ## Паспорт
-**letopis 1.0 выпущена**: `main` — последний выпуск (тег `v` + версия из `lib/package.json`, npm `latest`); разработка — в ветке `dev`. Версия — в `lib/package.json` (= верхняя запись `lib/CHANGELOG.md`); версии с дефисом (`1.1.0-rc.1`) уходят в npm под dist-tag `next`. Выпуск — только по команде владельца. Спецификация 1.0 — `reports/PLAN-LETOPIS-1.0.md` (редакция 8, выполнена): девять этапов, контрольные точки А, Б, В.
+**letopis 1.0 выпущена**: `main` — последний выпуск (тег `v` + версия из `lib/package.json`, npm `latest`); разработка — в ветке `dev`. Версия — в `lib/package.json` (= верхняя запись `lib/CHANGELOG.md`); версии с дефисом (`1.1.0-rc.1`) уходят в npm под dist-tag `next`. Выпуск — только по команде владельца. Спецификация 1.0 — `reports/PLAN-LETOPIS-1.0.md` (редакция 8, выполнена): девять этапов, контрольные точки А, Б, В. План 1.1 и 1.2 (раздел 13 плана 1.0, пункты 2, 4, 5, 7–9) — `reports/PLAN-LETOPIS-1.1.md` (редакция 5), утверждён владельцем 10 октября 2026 года; этапы — по его команде; совместимость с 1.0 не требуется. Этапы 0–3 выполнены, точка А пройдена 11 октября (решения — в шапке плана, материалы — `docs/checkpoint-1.1.md`).
 npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) — хранилище версионированных сущностей на PostgreSQL 18: три таблицы (`entity`, `log`, `secret`), целостность, арендаторы и права проверяет база (триггеры и RLS), поверх — цепочки `t.Класс(фильтр).Связь().rows()`. Рантайм-зависимость одна — `postgres`; необязательные peer-зависимости: Zod 4 (`letopis/model`), `@electric-sql/pglite` и `@electric-sql/pglite-socket` (`up({ pglite })` для разработки без PostgreSQL). CLI `letopis`: `sync`, `types`, `load`, `verify`, `maintain`, `describe`, `import` (`lib/src/cli.ts`).
 Код 0.21 доступен по тегу: `git show v0.21.0:lib/src/sql.ts`. Эталоны 0.21 для дифференциальных тестов — `lib/test/oracle/`; переход с 0.21 — `lib/MIGRATION.md`.
 
@@ -25,26 +25,29 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 | Проверка пакета | `cd lib && npm run check:package` | собирает тарбол, ставит в чистую папку, импортирует экспорты из контракта, живой прогон на `ENTITY_DSN` (`LETOPIS_PKG_LIVE=1` — обязателен) | `lib/scripts/check-package.mjs` |
 | Импорт полигона 0.21 | `cd lib && npm run test:import-salon` | засевка 0.21, `up({ fresh })` 1.0, импорт, сверка объектов и версий, `verify()`; код 1 при расхождении | `lib/bench/import-salon.mjs` |
 | Бенч против 0.21 | `cd lib && npx tsx bench/compare.bench.mjs` (`BENCH_SCALE=0.1` — быстро) | 0.21 — dev-зависимость `letopis-0` (`npm:letopis@0.21.0`) на контейнере `letopis-timescale`, порт 15432; итог — `bench/results/compare.md` | `lib/bench/compare.bench.mjs` |
+| Бенч против 1.0.1 | `cd lib && npx tsx bench/vs-101.bench.mjs` (`BENCH_SCALE=0.1` — быстро) | 1.0.1 — dev-зависимость `letopis-1` (`npm:letopis@1.0.1`), обе стороны на `letopis-pg18` в схемах `v2.vs101_old` и `v2.vs101_new`; итог — `bench/results/vs-101.md` | `lib/bench/vs-101.bench.mjs` |
 | GitHub Actions | `.github/workflows/` | ci — push в dev (typecheck, check:docs, тесты на `postgres:18`, check:package); tag — push в main; release — published (npm, dist-tag `next` для версий с дефисом, проверка пакета из реестра) | `docs/atlas/F-RELEASE.md` |
 
 ## Модули
-Набор 1.0 (план §4). Карточка — `.claude/rules/atlas/<ID>.md`.
+Набор 1.0 (план §4) и модули плана 1.1 (§4 плана 1.1). Карточка — `.claude/rules/atlas/<ID>.md`.
 | ID | Суть | Вход | Этапы |
 |---|---|---|---|
 | M-ENGINE | таблицы, роли, триггеры, классы, `merge`, `inc`, каскад, `reclass`, журнал, хэши, `verify`, коды ошибок, ревизия движка | `lib/sql/10-core.sql`, `lib/sql/15-errors.sql`, `lib/sql/40-class.sql`, `lib/sql/60-write.sql`, `lib/sql/99-revision.sql` | 1 |
 | M-VALIDATE | v5, JSON Schema → jsonpath, валидатор на TypeScript | `lib/sql/30-validate.sql`, `lib/src/validate.ts`, `lib/src/jsonschema.ts` | 1, 2 |
 | M-ACCESS | контекст, сессии, RLS, ACL, креды, вход | `lib/sql/20-context.sql`, `lib/sql/50-acl.sql`, `lib/sql/80-auth.sql`, `lib/src/auth.ts`, `lib/src/acl.ts` | 1, 5 |
 | M-MODEL | `letopis/model`, реестр, CLI | `lib/src/model.ts`, `lib/src/registry.ts`, `lib/src/sync.ts`, `lib/src/cli.ts`, `lib/src/uuid.ts` | 2 |
-| M-QUERY | `find_ids()`, срез `log_refs_at`, построитель чтения | `lib/sql/70-read.sql`, `lib/src/sql.ts`, `lib/src/ops.ts` | 3, 6 |
+| M-QUERY | `find_ids()`, срез `log_refs_at`, построитель чтения, `diff` и `blame` | `lib/sql/70-read.sql`, `lib/sql/75-history.sql`, `lib/src/sql.ts`, `lib/src/ops.ts` | 3, 6 |
 | M-WRITE | планы, батч, транзакции, загрузчик | `lib/src/write.ts`, `lib/src/tx.ts`, `lib/src/load.ts` | 4 |
 | M-API | `connect`, Proxy цепочек, ошибки, охранники, типы цепочек | `lib/src/index.ts`, `lib/src/chain.ts`, `lib/src/errors.ts`, `lib/src/typed.ts` | 2–4 |
-| M-TIME | история, хранение, подписка, кэш результатов, `reset`, `maintain` | `lib/sql/90-time.sql`, `lib/src/watch.ts`, `lib/src/admin.ts`, `lib/src/cache.ts` | 6 |
+| M-TIME | история, хранение, подписка, кэш результатов, режимы сигналов, `reset`, `maintain` | `lib/sql/90-time.sql`, `lib/src/watch.ts`, `lib/src/admin.ts`, `lib/src/cache.ts`, `lib/src/signals.ts` | 6; план 1.1: 2 |
 | M-BOOTSTRAP | установщик, `up()`, PGlite | `lib/src/up.ts`, `lib/src/pglite.ts` | 1, 6 |
 | M-SEEDS | системный сид, демо-домен | `lib/sql/95-seed.system.sql`, `lib/src/demo/booking.ts`, `lib/sql/seed.booking.sql`, `lib/scripts/gen-seed-booking.mjs` | 1, 2, 5 |
 | M-IMPORT | импорт из 0.21 | `lib/src/import.ts`, `lib/test/fixtures/gen-v021.mjs` | 7 |
 | M-RELEASE | CI, тег, релиз, check-docs, check-package, контракт API | `lib/scripts/check-docs.mjs`, `lib/scripts/check-package.mjs`, `lib/scripts/gen-api-contract.mjs`, `.github/workflows/` | 0, 8 |
 | M-TESTS | обвязка и наборы | `lib/test/_harness.ts`, `lib/test/_engine.ts` | все |
-| M-BENCH | замеры точки А и бенч против 0.21 | `lib/bench/` | 1, 7 |
+| M-BENCH | замеры точки А, бенч против 0.21 и против 1.0.1 | `lib/bench/` | 1, 7; план 1.1: 0–3 |
+| M-DERIVED | агрегаты в базе и проекторы из журнала — заготовка, кода ещё нет (план 1.1, §2.4) | `lib/sql/88-derived.sql`, `lib/src/project.ts` (появятся на этапе 4) | план 1.1: 4 |
+| M-MCP | инструменты MCP: `letopis/mcp`, `letopis mcp` — заготовка, кода ещё нет (план 1.1, §2.5) | `lib/src/mcp.ts` (появится на этапе 5) | план 1.1: 5 |
 
 ## Омонимы
 Слова, сменившие смысл в 1.0 (в 0.21, MIGRATION и старых отчётах — прежний).
@@ -62,7 +65,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 
 ## Сквозные правила
 - Деплой (CLAUDE.md): пуш только в dev → PR dev→main → merge → тег (tag.yml) → публикация Release → npm. Выпуск — только по команде владельца.
-- Утверждения о поведении — только по коду и тестам; планы — в `reports/PLAN-LETOPIS-1.0.md`.
+- Утверждения о поведении — только по коду и тестам; планы — в `reports/PLAN-LETOPIS-1.0.md` и `reports/PLAN-LETOPIS-1.1.md`.
 - В одном коммите с кодом обновляются карточка модуля, трасса, список тестов в разделе «Тесты» `lib/README.md` и `lib/README.en.md` и контракт API (`cd lib && npm run api:contract`), если изменились экспорты, методы или тексты ошибок; связность ловит `cd lib && npm run check:docs`.
 - Документация пакета двуязычная: правка `lib/README.md` или `lib/AGENT-CHEATSHEET.md` — та же правка в `.en.md`; помеченные примеры (`<!-- run -->`) исполняет тест `docs`.
 
@@ -73,6 +76,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 | Документ | Что это | Как читать |
 |---|---|---|
 | `reports/PLAN-LETOPIS-1.0.md` | план и спецификация 1.0, редакция 8 (решения точки А — в шапке) | по разделам: §2 решения, §5 этапы, §7 тест-планы |
+| `reports/PLAN-LETOPIS-1.1.md` | план 1.1 и 1.2: diff/blame, сигналы, первая заливка, производные представления, MCP; редакция 5, утверждён | по разделам: §2 решения со сравнением с другими системами, §5 этапы, §6 контрольные точки, §7 тест-планы |
 | `reports/PROPOSAL-SVOD.md` | предложение «Свод», основание плана | по разделам |
 | `lib/README.md` | руководство 1.0 по задачам; английская версия — `lib/README.en.md` | по оглавлению; «Справочник API» (в нём «Зарезервированные имена»), «Ошибки», «Тесты» |
 | `lib/MIGRATION.md` | переход с 0.21 на 1.0 | по заголовку |
@@ -81,7 +85,8 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 | `lib/CHANGELOG.md` | решения по версиям; версия = `lib/package.json` | grep `## \[` |
 | `docs/api-contract.json` | машинный контракт API, генерируется | grep имени |
 | `docs/checkpoint-a.md` | замеры точки А | по серии |
+| `docs/checkpoint-1.1.md` | замеры плана 1.1: `blame` и `diff` (этап 1), режимы сигналов (этап 2), первая заливка (этап 3); точка А — бенч против 1.0.1, ревью безопасности №1, конвейер первой заливки, решения владельца | по этапу |
 | `BACKLOG.md`, `COMPARISON.md` | бэклог и сравнение с аналогами (0.19–0.21) | по заголовку |
 
 ## Не читать
-`lib/node_modules/`, `lib/dist/` (сборка), `lib/package-lock.json`, `reports/` кроме `PLAN-LETOPIS-1.0.md`, `PROPOSAL-SVOD.md`, `PROPOSAL-SVITOK.md`, `ZAPIS-CONCEPT.md` (остальное — снимок оценки от 2026-09-24, не источник истины), `.env` (секреты другого проекта), `RESEARCH.md` (исторический, проект под старым именем entity-chain).
+`lib/node_modules/`, `lib/dist/` (сборка), `lib/package-lock.json`, `reports/` кроме `PLAN-LETOPIS-1.0.md`, `PLAN-LETOPIS-1.1.md`, `PROPOSAL-SVOD.md`, `PROPOSAL-SVITOK.md`, `ZAPIS-CONCEPT.md` (остальное — снимок оценки от 2026-09-24, не источник истины), `.env` (секреты другого проекта), `RESEARCH.md` (исторический, проект под старым именем entity-chain).

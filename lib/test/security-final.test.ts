@@ -158,7 +158,7 @@ test('подписка watch_read — с правами вызывающего: 
   assert.ok(rows.every((r) => r.tenant === a.id || r.tenant === SYSTEM_ID), 'только свой арендатор и системные классы');
 });
 
-test('сигнал NOTIFY несёт только имя класса или тег сессии: без id, данных и арендатора', async () => {
+test('сигнал NOTIFY несёт только имя класса, токены режима и тег сессии: без id, данных и арендатора', async () => {
   const got: string[] = [];
   const { unlisten } = await e.sql.listen(e.schema, (p) => got.push(p));
   try {
@@ -169,7 +169,8 @@ test('сигнал NOTIFY несёт только имя класса или т�
     while (!(got.includes('Note') && got.some((g) => g.startsWith('session:'))) && Date.now() < until) await new Promise((r) => setTimeout(r, 20));
     assert.ok(got.includes('Note'), JSON.stringify(got));
     for (const g of got) {
-      assert.match(g, /^(\*|session:(\*|[0-9a-f]{16})|[A-Za-z][A-Za-z0-9_.]*)$/, g);
+      // режимы установки (план 1.1, §2.2): имя класса; «класс@токен»; «токен@токен» — test/signals.test.ts
+      assert.match(g, /^(\*|session:(\*|[0-9a-f]{16})|[A-Za-z][A-Za-z0-9_.]*(@[0-9a-f]{24})?|[0-9a-f]{24}@[0-9a-f]{24})$/, g);
       assert.ok(!g.includes(row.id) && !g.includes(a.id) && !g.includes('secret-text'), g);
     }
   } finally {

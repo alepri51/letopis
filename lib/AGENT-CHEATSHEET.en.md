@@ -1,4 +1,4 @@
-# letopis 1.0 — agent cheatsheet
+# letopis 1.1 — agent cheatsheet
 
 One page instead of [README.en.md](README.en.md), for an AI agent that writes code on top of the package. It ships in
 the package next to the README; in Russian: [Русская версия](AGENT-CHEATSHEET.md). Migration from 0.21:
@@ -41,6 +41,12 @@ const r = await up({ dsn: ADMIN, schema: 'myapp',                  // schema 'v2
   policy), `allowReset`, `serviceKey`, `quiet`, `pglite: true` (a database for development without PostgreSQL; then
   `connect({ dsn: r.pglite.dsn, listen: false, max: 1, allowBypassRls: true, … })` — a superuser connection, RLS
   does not apply on it).
+- `signals` — what `NOTIFY` signals show to any role that can connect to the database: `'class'` (default — class
+  names), `'tenant'` (the class name and a tenant token; the cache is cleared only in the tenant of the write),
+  `'opaque'` (tokens only), `'none'` (no signals: the cache works only with `ttlOnly`, subscriptions poll the log).
+  The mode is stored in the schema: `up()` without the option keeps it; after a change, restart the processes. The
+  signal key (precise cache clearing) goes to services — the `letopis.signals` permission. The `up()` result also has
+  `signals` and `warnings` (PostgreSQL below 18.2 — upgrade).
 - `tenant` — the first tenant and user without a seed of your own: the tenant gets the rule "authenticated users may
   do everything" (`grantAll`, on by default, weight 10); the user gets a membership with the roles `user.roles`
   (`['owner']` by default), a password for signing in with the login `login`, and a session in the tenant. Repeating
@@ -203,10 +209,14 @@ const rep = await adm.load({
 }, { existing: 'skip' })   // duplicates 'error'|'first'|'last', existing 'error'|'skip'|'update', commitEvery, withHistory, verify, tenant, as
 // rep: { rows, loaded, updated, skipped, duplicates, byClass, external, portions, ms }
 ```
+Initial load: `adm.load(rows, { initial: true })`, `letopis load --initial`, `letopis import --initial` — only into an
+empty schema (otherwise `not_empty`), in one transaction; about 2.2 times faster than a regular load on a million
+objects; no `commitEvery`, `existing` or `{ as }`.
+
 NDJSON files (one object per line; all files form one load):
 ```sh
 npx letopis load shops.ndjson wallets.ndjson --dsn "$ADMIN" --schema v2.myapp --token "$TOKEN" [--class Wallet] \
-  [--duplicates first] [--existing skip] [--commit-every 100000] [--verify]
+  [--duplicates first] [--existing skip] [--commit-every 100000] [--verify] [--initial]
 # {"$class":"Shop","name":"South"}
 # {"$class":"Wallet","number":"W-10","Shop":{"$key":["South"]}}
 # {"$class":"Note","text":"x","$ext":"n1"}         ← $ext is the row's external key for references { "$ext": "n1" }
@@ -272,6 +282,8 @@ const was = await db.Wallet(w).asOf('2026-10-01T00:00:00Z').first()   // as it w
 await db.Shop(shop).Wallet().asOf(new Date('2026-10-01')).rows()
 const history = await db.Wallet(w).versions()                         // all versions; the deletion version has $deleted
 await db.Wallet(w200).versions({ follow: true })                      // also across id changes (reclass, rekey)
+await db.Wallet(w).diff()                                             // what changed: previous version → latest
+await db.Wallet(w).blame()                                            // who, when and why (verb option reason) changed fields
 ```
 A class with `history: false` does not provide `versions`, `asOf`, `restore` or subscription events.
 

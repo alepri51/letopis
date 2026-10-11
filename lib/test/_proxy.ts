@@ -2,6 +2,9 @@
  * TCP-прокси между библиотекой и базой для тестов обрыва связи (план, §7.1): рвёт соединение
  * в заданной точке — не передав COMMIT базе ('before') или передав его и проглотив ответ ('after').
  * COMMIT узнаётся по тексту оператора в сообщении клиента (простой или расширенный протокол).
+ * 'after' рвёт, когда база уже исполнила COMMIT: не на первом куске ответа (это может быть ответ на
+ * запрос конвейера перед COMMIT, а сам COMMIT ещё не исполнен), а на ReadyForQuery со статусом «вне
+ * транзакции» — его сервер шлёт после фиксации, когда транзакция уже видна другим сеансам.
  */
 import net from 'node:net';
 
@@ -25,6 +28,13 @@ function hasCommit(buf: Buffer): boolean {
   return /(^|[\0\s])commit\0/i.test(buf.toString('latin1'));
 }
 
+/**
+ * ReadyForQuery со статусом I (транзакция завершена): тип 'Z', длина 5, статус 'I'. В ответах
+ * конвейера фиксации (чтение letopis.changed и COMMIT) больше нигде такой последовательности нет:
+ * текст в строках данных не содержит нулевых байтов.
+ */
+const IDLE = Buffer.from('Z\0\0\0\x05I', 'latin1');
+
 export async function commitProxy(targetPort: number, targetHost = '127.0.0.1'): Promise<CommitProxy> {
   let armed: CutPoint | null = null;
   let cuts = 0;
@@ -34,6 +44,7 @@ export async function commitProxy(targetPort: number, targetHost = '127.0.0.1'):
     sockets.add(client);
     sockets.add(db);
     let swallow = false;
+    let tail = Buffer.alloc(0); // конец предыдущего куска: ReadyForQuery может прийти разрезанным на два
     const cut = () => {
       cuts++;
       client.destroy();
@@ -49,8 +60,11 @@ export async function commitProxy(targetPort: number, targetHost = '127.0.0.1'):
       db.write(chunk);
     });
     db.on('data', (chunk) => {
-      if (swallow) return cut();
-      client.write(chunk);
+      if (!swallow) return void client.write(chunk);
+      // после COMMIT клиенту ничего не идёт; рвём, когда база завершила транзакцию
+      const seen = tail.length ? Buffer.concat([tail, chunk]) : chunk;
+      if (seen.includes(IDLE)) return cut();
+      tail = seen.subarray(-(IDLE.length - 1));
     });
     const end = () => {
       client.destroy();

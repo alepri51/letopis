@@ -1,5 +1,5 @@
 /**
- * engine-attacks — атаки сырым SQL от прикладной роли (план, §7.3.1, строки этапа 1).
+ * engine-attacks — атаки сырым SQL от прикладной роли (план, §7.3.1, строки этапа 1; план 1.1, §7.7 №31–32).
  * Каждая попытка проверяет конкретный исход: код ошибки, пустую выборку, ноль строк или находку verify().
  */
 import { test, before, after } from 'node:test';
@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import postgres from 'postgres';
 import { engine, lt, waitForLock, SYSTEM_ID, type Engine, type Tenant } from './_engine.js';
 import { appDsn } from './_harness.js';
+import { connect } from '../src/index.js';
 
 let e: Engine;
 let a: Tenant;
@@ -173,7 +174,8 @@ test('№14: чужой арендатор — пустая выборка, но
   assert.equal((await as(a, `select * from ${S}.entity where id = $1`, [theirs.id])).length, 0);
   assert.equal((await as(a, `update ${S}.entity set data = data where id = $1 returning id`, [theirs.id])).length, 0);
   assert.equal((await as(a, `delete from ${S}.entity where id = $1 returning id`, [theirs.id])).length, 0);
-  assert.equal((await as(a, `select * from ${S}.log where id = $1`, [theirs.id])).length, 0);
+  // журнал — по колонкам: select * приложению недоступен (колонка changed не выдана, ревью №1 точки А)
+  assert.equal((await as(a, `select id, rev from ${S}.log where id = $1`, [theirs.id])).length, 0);
   await assert.rejects(as(a, `insert into ${S}.entity (class, tenant, data) values ('Org', $1, '{"name": "x"}')`, [b.id]), lt('tenant_denied'));
 });
 
@@ -426,4 +428,47 @@ test('№30 (этап 5): видимую, но неправимую строку
   await e.asOwner((tx) => tx.unsafe(`update ${S}.entity set tags = '{x}' where id = $1`, [tver]));
   await held.finish(false);
   assert.equal((await as(user, `select id from ${S}.entity where id = $1 for update`, [tver])).length, 0);
+});
+
+test('№31 (план 1.1, этап 2): ключ сигналов без права letopis.signals — отказ', async () => {
+  await assert.rejects(as(a, `select ${S}.signal_key()`), lt('acl_denied'));
+  await assert.rejects(as(null, `select ${S}.signal_key()`), lt('acl_denied'));
+});
+
+test('№32 (план 1.1, этап 2): заливка канала поддельными сигналами — лишние сбросы кэша, реестр по сбросу и чужим токенам не чаще раза в 5 с, данных не раскрыто', async () => {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const db = await connect({ dsn: appDsn(), schema: e.schema, token: a.token, max: 2 });
+  try {
+    for (let i = 0; i < 250 && !db.cache.stats().enabled; i++) await sleep(20);
+    const reg = db.registry;
+    const load = reg.load.bind(reg);
+    let loads = 0;
+    reg.load = (rows: Parameters<typeof load>[0]) => {
+      loads++;
+      load(rows);
+    };
+    const before = await db.Org().cache().rows();
+    const sig = db.cache.stats().signals;
+    // сброс, класс данных, все сессии, чужой токен, мусор — каждый своей транзакцией (без склейки)
+    const fakes = ['*', 'Org', 'session:*', `${'ab'.repeat(12)}@${'cd'.repeat(12)}`, 'не класс!'];
+    const t0 = Date.now();
+    for (let i = 0; i < 600; i++) await e.app.unsafe('select pg_notify($1, $2)', [e.schema, fakes[i % fakes.length]]);
+    for (let i = 0; i < 1500 && db.cache.stats().signals < sig + 600; i++) await sleep(20);
+    const ms = Date.now() - t0;
+    assert.equal(db.cache.stats().signals, sig + 600, 'все поддельные сигналы дошли');
+    assert.ok(loads <= Math.floor(ms / 5000) + 1, `перечитываний реестра ${loads} за ${ms} мс`);
+    assert.deepEqual(await db.Org().cache().rows(), before, 'данные те же: поддельный сигнал только сбрасывает кэш');
+    // поддельный Class: три перечитывания подряд — сразу, дальше не чаще раза в 5 с (ревью №1 точки А); запас — на
+    // отложенное перечитывание после сброса из первой части
+    loads = 0;
+    const sig2 = db.cache.stats().signals;
+    const t1 = Date.now();
+    for (let i = 0; i < 300; i++) await e.app.unsafe('select pg_notify($1, $2)', [e.schema, 'Class']);
+    for (let i = 0; i < 1500 && db.cache.stats().signals < sig2 + 300; i++) await sleep(20);
+    const ms1 = Date.now() - t1;
+    assert.equal(db.cache.stats().signals, sig2 + 300, 'все поддельные Class дошли');
+    assert.ok(loads <= 3 + Math.floor(ms1 / 5000) + 2, `перечитываний реестра по Class ${loads} за ${ms1} мс`);
+  } finally {
+    await db.close();
+  }
 });

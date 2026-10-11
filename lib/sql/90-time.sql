@@ -119,6 +119,36 @@ begin
   return (select s.expires_at from @SCHEMA@.secret s where s.id = c.session);
 end $$;
 
+-- ========================= сигналы (план 1.1, §2.2) =========================
+
+-- Режим сигналов установки — константа up({ signals }): class, tenant, opaque, none.
+create or replace function @SCHEMA@.signal_mode() returns text
+language sql immutable parallel safe
+return '@SIGNALS@';
+
+-- Ключ сигналов (hex) для сессии с правом letopis.signals по правилам System (сид выдаёт его сервисам) или
+-- администраторского подключения: по нему процесс узнаёт в нагрузке токены классов и арендаторов.
+-- Отдаётся производный ключ HMAC(ключ строки KEY, 'letopis:signals'), а не сам ключ: им подписаны пропуска прав.
+create or replace function @SCHEMA@.signal_key() returns text
+language plpgsql stable security definer
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+begin
+  if not @SCHEMA@.letopis_allowed('letopis.signals') then
+    perform @SCHEMA@.lt_fail('acl_denied', 'нет права letopis.signals');
+  end if;
+  return (select encode(@PGCRYPTO@.hmac(convert_to('letopis:signals', 'UTF8'), s.material, 'sha256'), 'hex')
+          from @SCHEMA@.secret s where s.id = '@SYSTEM@'::uuid and s.kind = 'KEY');
+end $$;
+
+-- Отпечаток описаний классов, видимых сессии (свои и System): в режиме сигналов none реестр библиотеки
+-- сверяет его раз в 5 секунд вместо сигнала Class. Под RLS — тот же набор строк, что читает реестр.
+create or replace function @SCHEMA@.class_stamp() returns text
+language sql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+return (select encode(sha256(convert_to(coalesce(string_agg(e.id::text || ':' || e.rev::text, ',' order by e.id), ''), 'UTF8')), 'hex')
+        from @SCHEMA@.entity e where e.class = 'Class' and e.tenant in (@SCHEMA@.ctx_tenant(), '@SYSTEM@'::uuid));
+
 -- ========================= restore, purge, обрезка истории =========================
 
 -- Последняя запись журнала id под блокировкой, если она видна актору в его арендаторе: параллельные
@@ -256,7 +286,7 @@ begin
   if exists (select 1 from @SCHEMA@.entity e where e.id = p_id) then
     perform @SCHEMA@.lt_fail('not_deleted', 'объект восстановлен во время purge');
   end if;
-  perform @SCHEMA@.signal(array[l.class]);
+  perform @SCHEMA@.signal(array[l.class], array[l.tenant]);
   return jsonb_build_object('id', p_id, 'class', l.class, 'versions', n, 'purged', true);
 end $$;
 
@@ -330,7 +360,7 @@ begin
     total := total + k - case when first.op = 'trim' then 1 else 0 end;
     classes := classes || r.class;
   end loop;
-  perform @SCHEMA@.signal(array(select distinct x from unnest(classes) x));
+  perform @SCHEMA@.signal(array_agg(d.x), array_agg(c.tenant)) from (select distinct x from unnest(classes) x) d;
   return total;
 end $$;
 
@@ -566,7 +596,9 @@ begin
   perform @SCHEMA@.tombstone(a);
   perform @SCHEMA@.auth_kill(p_account, null);
   delete from @SCHEMA@.secret s where s.account = p_account;
-  perform @SCHEMA@.signal(array(select distinct x from unnest(classes || array['Account', 'member']) x));
+  -- данные арендатора-цели — его парами; Account и member — классы прав, их сигнал сбрасывает всё
+  perform @SCHEMA@.signal(classes || array['Account', 'member'],
+    array(select p_account from unnest(classes)) || array['@SYSTEM@'::uuid, '@SYSTEM@'::uuid]);
   perform @SCHEMA@.acl_bump();
   return jsonb_build_object('account', p_account, 'rows', n_rows, 'versions', n_log, 'memberships', n_mem, 'owned', n_own);
 end $$;
@@ -615,7 +647,7 @@ begin
       with d as (delete from @SCHEMA@.secret s where s.kind = 'SESSION' and s.id is distinct from c.session returning 1)
       select count(*)::int into n from d;
       perform @SCHEMA@.reset_mark('@SYSTEM@'::uuid, p_level, c.author);
-      perform @SCHEMA@.signal(array['session:*']);
+      perform @SCHEMA@.signal_raw(array['session:*']);
       return jsonb_build_object('level', p_level, 'sessions', n);
     when 'tenant' then
       t := coalesce(p_tenant, c.tenant);
@@ -635,7 +667,7 @@ begin
         return jsonb_build_object('level', p_level, 'tenant', t, 'rows', n, 'versions', m, 'done', false);
       end if;
       perform @SCHEMA@.reset_mark(t, p_level, c.author);
-      perform @SCHEMA@.signal(array['*']);
+      perform @SCHEMA@.signal_raw(array['*']);
       perform @SCHEMA@.acl_bump();
       return jsonb_build_object('level', p_level, 'tenant', t, 'rows', n, 'versions', m, 'done', true);
     when 'all' then
@@ -644,7 +676,7 @@ begin
       perform @SCHEMA@.seed_system();
       key := 'lts_' || encode(@PGCRYPTO@.gen_random_bytes(32), 'hex');
       perform @SCHEMA@.bootstrap_service(key);
-      perform @SCHEMA@.signal(array['*', 'Class', 'session:*']);
+      perform @SCHEMA@.signal_raw(array['*', 'session:*']);
       return jsonb_build_object('level', p_level, 'serviceKey', key);
     else
       perform @SCHEMA@.lt_fail('invalid_data', format('уровень сброса %s: sessions, tenant или all', p_level));
@@ -917,7 +949,10 @@ begin
         message = 'letopis: cursor_expired: курсор подписки старше яруса all — события могли проредиться, перечитайте текущее состояние';
     end if;
   end if;
-  return query select l.* from @SCHEMA@.log l
+  -- колонки — явно: changed приложению не выдана (ревью №1 точки А плана 1.1), в ответе подписки она null
+  return query select l.seq, l.tx, l.id, l.rev, l.class, l.cv, l.tenant, l.owner, l.links, l.data, l.tags, l.at, l.author,
+      l.agent, l.op, l.reason, l.moved, l.prev_hash, l.hash, null::jsonb
+    from @SCHEMA@.log l
     where (l.tx, l.seq) > (p_tx, p_seq) and l.tx < horizon and (p_classes is null or l.class = any (p_classes))
       and (p_snap is null or not pg_visible_in_snapshot(l.tx, p_snap))
     order by l.tx, l.seq limit p_limit;
@@ -940,7 +975,7 @@ declare f text;
 begin
   foreach f in array array[
     'history_default()', 'history_policy(jsonb)', 'history_iv(text)', 'history_horizon(jsonb)',
-    'history_keep(jsonb, timestamp, timestamp, timestamp)', 'admin_role()', 'letopis_allowed(text)', 'session_expires()',
+    'history_keep(jsonb, timestamp, timestamp, timestamp)', 'admin_role()', 'letopis_allowed(text)', 'session_expires()', 'signal_mode()', 'signal_key()', 'class_stamp()',
     'last_version_visible(uuid, uuid, jsonb)', 'restore(uuid)', 'purge(uuid, boolean)', 'trim_history(uuid[], text[], timestamptz)',
     'rekey(uuid, jsonb, jsonb)', 'rekey_class(text, jsonb)', 'account_purge(uuid)', 'reset_mark(uuid, text, uuid)',
     'reset(text, text, uuid, int)', 'thin_batch(timestamptz, int)', 'maintain(timestamptz, int)', 'verify(boolean)',
@@ -954,4 +989,5 @@ grant execute on function @SCHEMA@.restore(uuid), @SCHEMA@.purge(uuid, boolean),
   @SCHEMA@.rekey(uuid, jsonb, jsonb), @SCHEMA@.rekey_class(text, jsonb), @SCHEMA@.account_purge(uuid),
   @SCHEMA@.reset(text, text, uuid, int), @SCHEMA@.maintain(timestamptz, int), @SCHEMA@.verify(boolean),
   @SCHEMA@.session_expires(), @SCHEMA@.watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot), @SCHEMA@.watch_head(),
-  @SCHEMA@.history_default(), @SCHEMA@.history_policy(jsonb), @SCHEMA@.history_iv(text) to @APP@;
+  @SCHEMA@.history_default(), @SCHEMA@.history_policy(jsonb), @SCHEMA@.history_iv(text),
+  @SCHEMA@.signal_mode(), @SCHEMA@.signal_key(), @SCHEMA@.class_stamp() to @APP@;

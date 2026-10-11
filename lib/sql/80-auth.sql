@@ -165,7 +165,7 @@ begin
     where s.account = p_account and s.kind = 'SESSION' and s.deleted_at is null and s.id is distinct from p_except
     returning s.material)
   select array_agg('session:' || left(encode(k.material, 'hex'), 16)) into sig from k;
-  perform @SCHEMA@.signal(sig);
+  perform @SCHEMA@.signal_raw(sig);
   return coalesce(cardinality(sig), 0);
 end $$;
 
@@ -185,7 +185,7 @@ begin
       and (s.meta->>'cred' = p_cred::text or (not s.meta ? 'cred' and coalesce(s.meta->'methods', '[]'::jsonb) ? p_kind))
     returning s.material)
   select array_agg('session:' || left(encode(k.material, 'hex'), 16)) into sig from k;
-  perform @SCHEMA@.signal(sig);
+  perform @SCHEMA@.signal_raw(sig);
   return coalesce(cardinality(sig), 0);
 end $$;
 
@@ -721,7 +721,7 @@ begin
   select * into c from @SCHEMA@.ctx();
   perform @SCHEMA@.auth_session_required(c.account);
   update @SCHEMA@.secret s set deleted_at = clock_timestamp() where s.id = c.session and s.deleted_at is null returning s.material into m;
-  perform @SCHEMA@.signal(array['session:' || left(encode(m, 'hex'), 16)]);
+  perform @SCHEMA@.signal_raw(array['session:' || left(encode(m, 'hex'), 16)]);
   return m is not null;
 end $$;
 

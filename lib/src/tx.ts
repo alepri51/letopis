@@ -17,9 +17,10 @@
  * исходную ошибку — при каждом вызове. Обрыв связи во время COMMIT — commit_unknown, без повтора.
  *
  * Сигналы (решение 9 точки А): транзакции библиотеки помечены `letopis.notify = 'deferred'` —
- * триггер не шлёт NOTIFY, а копит имена изменённых классов в `letopis.changed`; после фиксации
- * их забирает нотификатор процесса и раз в интервал (по умолчанию 100 мс) отправляет одной
- * транзакцией без данных: такая фиксация не ждёт диск и не задерживает чужие записи.
+ * триггер не шлёт NOTIFY, а копит готовые нагрузки (по режиму сигналов установки, план 1.1) в
+ * `letopis.changed`; после фиксации их забирает нотификатор процесса и раз в интервал (по умолчанию
+ * 100 мс) отправляет одной транзакцией без данных: такая фиксация не ждёт диск и не задерживает чужие
+ * записи. Неотправленное (ошибка отправки) остаётся в очереди до следующего интервала.
  */
 import type postgres from 'postgres';
 import { LetopisError, fromDbError } from './errors.js';
@@ -74,7 +75,7 @@ export const RETRIES = 3;
 export const retryDelay = (attempt: number): Promise<void> =>
   new Promise((r) => setTimeout(r, 40 * attempt + Math.random() * 40));
 
-/** Нотификатор процесса: копит имена классов и отправляет их пачкой раз в интервал. */
+/** Нотификатор процесса: копит нагрузки сигналов и отправляет их пачкой раз в интервал. */
 export class Notifier {
   private queue = new Set<string>();
   private timer: NodeJS.Timeout | null = null;
@@ -83,11 +84,15 @@ export class Notifier {
 
   constructor(private sql: Sql, private channel: string, private intervalMs: number, private onError: (e: unknown) => void = () => {}) {}
 
-  /** Добавить классы из letopis.changed (строка через запятую). */
+  /** Добавить нагрузки из letopis.changed (строка через запятую). */
   add(changed: string | null | undefined): void {
     if (!changed || this.stopped) return;
     for (const c of changed.split(',')) if (c) this.queue.add(c);
-    if (!this.timer && this.queue.size) this.timer = setTimeout(() => void this.flush(), this.intervalMs);
+    this.schedule();
+  }
+
+  private schedule(): void {
+    if (!this.timer && this.queue.size && !this.stopped) this.timer = setTimeout(() => void this.flush(), this.intervalMs);
   }
 
   /** Отправить накопленное сейчас (вызывается по таймеру и при закрытии). */
@@ -97,10 +102,16 @@ export class Notifier {
       this.timer = null;
     }
     if (!this.queue.size) return this.flushing;
-    const classes = [...this.queue];
+    const payloads = [...this.queue];
     this.queue.clear();
     this.flushing = this.flushing.then(() =>
-      this.sql`select pg_notify(${this.channel}, c) from unnest(${classes}::text[]) as c`.then(() => undefined, this.onError));
+      this.sql`select pg_notify(${this.channel}, c) from unnest(${payloads}::text[]) as c`.then(() => undefined, (e: unknown) => {
+        // не отправлено (обрыв связи, отказ базы) — обратно в очередь: уйдёт следующим интервалом
+        // (в 1.0.1 такие сигналы терялись, и кэш других процессов устаревал до срока)
+        for (const c of payloads) this.queue.add(c);
+        this.schedule();
+        this.onError(e);
+      }));
     return this.flushing;
   }
 
@@ -157,8 +168,8 @@ export interface TxContext {
   /** После успешной операции (продление сессии раз в минуту). */
   after?: () => void;
   /**
-   * После фиксации записи: имена из letopis.changed (классы, session:<тег>) — кэш результатов
-   * сбрасывает свои ответы сразу (§2.12); raw — запись через db.sql.
+   * После фиксации записи: нагрузки из letopis.changed (сигналы записи, session:<тег>) — кэш
+   * результатов сбрасывает свои ответы сразу (§2.12); raw — запись через db.sql.
    */
   onChanged?: (names: string[], raw: boolean) => void;
 }

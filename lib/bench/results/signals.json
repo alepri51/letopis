@@ -1,0 +1,82 @@
+{
+  "name": "signals",
+  "at": "2026-10-10T17:38:28.005Z",
+  "scale": 1,
+  "server": {
+    "v": "18.6 (Debian 18.6-1.pgdg13+2)",
+    "sb": "128MB"
+  },
+  "node": "v24.15.0",
+  "n": 2000,
+  "k": 300,
+  "modes": {
+    "class": {
+      "rawInsertMs": {
+        "p50": 5.167,
+        "p95": 8.575,
+        "opsPerSec": 194
+      },
+      "libCreateMs": {
+        "p50": 5.393,
+        "p95": 8.79,
+        "opsPerSec": 185
+      },
+      "signalCallUs": 15.91,
+      "cacheHitsPct": {
+        "writer": 0,
+        "other": 0
+      }
+    },
+    "tenant": {
+      "rawInsertMs": {
+        "p50": 4.813,
+        "p95": 7.848,
+        "opsPerSec": 208
+      },
+      "libCreateMs": {
+        "p50": 4.555,
+        "p95": 6.88,
+        "opsPerSec": 220
+      },
+      "signalCallUs": 31.34,
+      "cacheHitsPct": {
+        "writer": 0,
+        "other": 100
+      }
+    },
+    "opaque": {
+      "rawInsertMs": {
+        "p50": 5.289,
+        "p95": 7.839,
+        "opsPerSec": 189
+      },
+      "libCreateMs": {
+        "p50": 5.314,
+        "p95": 7.461,
+        "opsPerSec": 188
+      },
+      "signalCallUs": 42.3,
+      "cacheHitsPct": {
+        "writer": 0,
+        "other": 100
+      }
+    },
+    "none": {
+      "rawInsertMs": {
+        "p50": 5.269,
+        "p95": 7.783,
+        "opsPerSec": 190
+      },
+      "libCreateMs": {
+        "p50": 4.304,
+        "p95": 6.642,
+        "opsPerSec": 232
+      },
+      "signalCallUs": 16.41,
+      "cacheHitsPct": {
+        "writer": 100,
+        "other": 100
+      }
+    }
+  }
+}

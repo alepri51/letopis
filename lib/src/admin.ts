@@ -82,6 +82,10 @@ export interface ModelDescription {
     system: boolean;
     fields: Record<string, unknown>;
     required: string[];
+    /** Условия по нескольким полям (`fields.anyOf` описания с учётом наследования): хотя бы одно должно выполняться. */
+    anyOf?: unknown[];
+    /** Условия по нескольким полям (`fields.oneOf`): ровно одно должно выполняться. */
+    oneOf?: unknown[];
     ends: Record<string, unknown>;
     key: string[];
     history: unknown;
@@ -238,6 +242,8 @@ export function describe(a: AdminCtx): ModelDescription {
     system: SYSTEM_CLASSES.has(c.name),
     fields: (c.schema.properties ?? {}) as Record<string, unknown>,
     required: (c.schema.required ?? []) as string[],
+    ...(Array.isArray(c.schema.anyOf) ? { anyOf: c.schema.anyOf as unknown[] } : {}),
+    ...(Array.isArray(c.schema.oneOf) ? { oneOf: c.schema.oneOf as unknown[] } : {}),
     ends: c.ends as Record<string, unknown>,
     key: c.key,
     history: c.history,
@@ -262,6 +268,8 @@ export function describeText(d: ModelDescription): string {
       return `${k}${c.required.includes(k) ? '*' : ''}: ${Array.isArray(t) ? t.join('|') : (t as string | undefined) ?? 'any'}`;
     });
     if (fields.length) out.push(`- поля: ${fields.join(', ')}`);
+    if (c.anyOf) out.push(`- условия anyOf (хотя бы одно): ${JSON.stringify(c.anyOf)}`);
+    if (c.oneOf) out.push(`- условия oneOf (ровно одно): ${JSON.stringify(c.oneOf)}`);
     const ends = Object.entries(c.ends).map(([k, v]) => {
       const e = v as { class: string | string[]; many?: boolean; required?: boolean };
       return `${k}${e.required ? '*' : ''} → ${Array.isArray(e.class) ? e.class.join('|') : e.class}${e.many ? '[]' : ''}`;

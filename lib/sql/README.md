@@ -16,6 +16,7 @@
 | `@ALLOW_RESET@` | `true` или `false` — константа установки |
 | `@HISTORY_DEFAULT@` | политика хранения по умолчанию `up({ history })` литералом JSON или `'null'` — константа установки |
 | `@RESERVED_NAMES@` | методы цепочки — `RESERVED_CLASS_NAMES` из `lib/src/types.ts`, литералами через запятую |
+| `@SIGNALS@` | режим сигналов `class`, `tenant`, `opaque` или `none` (план 1.1, §2.2): опция `up({ signals })`, иначе сохранённый в `meta.signals` строки ключа `secret`, иначе `class` — константа установки |
 
 ## Колонки снимка версии
 

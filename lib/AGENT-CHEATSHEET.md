@@ -1,4 +1,4 @@
-# letopis 1.0 — шпаргалка для агента
+# letopis 1.1 — шпаргалка для агента
 
 Одна страница вместо [README.md](README.md) — для ИИ-агента, который пишет код поверх пакета. Лежит в пакете рядом с
 README; английская версия — [AGENT-CHEATSHEET.en.md](AGENT-CHEATSHEET.en.md). Переход с 0.21 — [MIGRATION.md](MIGRATION.md);
@@ -38,6 +38,12 @@ const r = await up({ dsn: ADMIN, schema: 'myapp',                  // схема
   `'booking'` — демо-домен, или путь к своему `.sql`), `history` (политика хранения), `allowReset`, `serviceKey`,
   `quiet`, `pglite: true` (база для разработки без PostgreSQL; затем `connect({ dsn: r.pglite.dsn, listen: false,
   max: 1, allowBypassRls: true, … })` — подключение суперпользователя, RLS на нём не действует).
+- `signals` — что видно в сигналах `NOTIFY` любой роли, способной подключиться к базе: `'class'` (по умолчанию —
+  имена классов), `'tenant'` (имя класса и токен арендатора; кэш сбрасывается только в арендаторе записи),
+  `'opaque'` (только токены), `'none'` (сигналов нет: кэш — только `ttlOnly`, подписка опрашивает журнал). Режим
+  хранится в схеме: `up()` без опции его не меняет; после смены — перезапуск процессов. Ключ сигналов (точный сброс
+  кэша) получают сервисы — право `letopis.signals`. Результат `up()`: ещё `signals` и `warnings` (PostgreSQL ниже
+  18.2 — обновить).
 - `tenant` — первый арендатор и пользователь без своего сида: арендатор получает правило «аутентифицированным можно
   всё» (`grantAll`, по умолчанию да, вес 10), пользователь — членство с ролями `user.roles` (по умолчанию `['owner']`),
   пароль для входа по логину `login` и сессию в арендаторе. Повтор с тем же именем и логином ничего не дублирует и роли
@@ -197,10 +203,14 @@ const rep = await adm.load({
 }, { existing: 'skip' })   // duplicates 'error'|'first'|'last', existing 'error'|'skip'|'update', commitEvery, withHistory, verify, tenant, as
 // rep: { rows, loaded, updated, skipped, duplicates, byClass, external, portions, ms }
 ```
+Первая заливка: `adm.load(rows, { initial: true })`, `letopis load --initial`, `letopis import --initial` — только в пустую
+схему (иначе `not_empty`), одной транзакцией; на миллионе объектов — примерно в 2,2 раза быстрее обычной загрузки;
+без `commitEvery`, `existing` и `{ as }`.
+
 Файлы NDJSON (объект на строку, все файлы — одна загрузка):
 ```sh
 npx letopis load shops.ndjson wallets.ndjson --dsn "$ADMIN" --schema v2.myapp --token "$TOKEN" [--class Wallet] \
-  [--duplicates first] [--existing skip] [--commit-every 100000] [--verify]
+  [--duplicates first] [--existing skip] [--commit-every 100000] [--verify] [--initial]
 # {"$class":"Shop","name":"Юг"}
 # {"$class":"Wallet","number":"W-10","Shop":{"$key":["Юг"]}}
 # {"$class":"Note","text":"x","$ext":"n1"}         ← $ext — внешний ключ строки для ссылок { "$ext": "n1" }
@@ -264,6 +274,8 @@ const was = await db.Wallet(w).asOf('2026-10-01T00:00:00Z').first()   // как 
 await db.Shop(shop).Wallet().asOf(new Date('2026-10-01')).rows()
 const history = await db.Wallet(w).versions()                         // все версии; версия удаления — $deleted
 await db.Wallet(w200).versions({ follow: true })                      // и через смену id (reclass, rekey)
+await db.Wallet(w).diff()                                             // что изменилось: предыдущая версия → последняя
+await db.Wallet(w).blame()                                            // кто, когда и почему (опция reason глагола) менял поля
 ```
 Класс с `history: false` не даёт `versions`, `asOf`, `restore` и событий подписки.
 

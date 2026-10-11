@@ -260,32 +260,72 @@ language sql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 return coalesce((@SCHEMA@.class_row(p_class, p_tenant)).data->'resolved'->>'history', 'true') <> 'false';
 
--- Сигнал с именами изменённых классов (§2.12, решение 9 точки А). Транзакция с NOTIFY фиксируется
--- под общей блокировкой кластера вместе с fsync, поэтому библиотека помечает свои транзакции
--- letopis.notify = 'deferred': имена копятся в letopis.changed, а библиотека после фиксации
--- отправляет их одной транзакцией без данных. Сырой SQL шлёт NOTIFY здесь же, вместе с фиксацией.
-create or replace function @SCHEMA@.signal(p_classes text[]) returns void
+-- Сигналы (план 1.1, §2.2): канал — имя схемы, нагрузка — по режиму установки '@SIGNALS@'
+-- (up({ signals })): class — имя класса; tenant — «Класс@токен арендатора»; opaque — «токен класса@токен
+-- арендатора»; none — сигналов нет. Сессии — session:<16 hex>, сброс — * (кроме none). Токен — первые
+-- 96 бит HMAC-SHA256 от «назначение:значение» на ключе сигналов (HMAC ключа строки KEY по
+-- 'letopis:signals', его отдаёт signal_key()): без ключа псевдоним не сопоставить с именем, а
+-- нагрузка детерминирована — PostgreSQL склеивает одинаковые сигналы транзакции.
+-- до плана 1.1 сигнал принимал только имена классов
+drop function if exists @SCHEMA@.signal(text[]);
+
+create or replace function @SCHEMA@.signal_token(p_purpose text, p_value text, p_key bytea) returns text
+language sql immutable parallel safe
+return left(encode(@PGCRYPTO@.hmac(convert_to(p_purpose || ':' || p_value, 'UTF8'), p_key, 'sha256'), 'hex'), 24);
+
+-- Готовые нагрузки: сигналы записи от signal(), сессии и сброс. Транзакция с NOTIFY фиксируется под
+-- общей блокировкой кластера вместе с fsync, поэтому библиотека помечает свои транзакции
+-- letopis.notify = 'deferred': нагрузки копятся в letopis.changed, а библиотека после фиксации
+-- сбрасывает по ним свой кэш и отправляет их одной транзакцией без данных (в режиме none — не
+-- отправляет). Сырой SQL шлёт NOTIFY здесь же, вместе с фиксацией; в режиме none — ничего.
+create or replace function @SCHEMA@.signal_raw(p_payloads text[]) returns void
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 declare
   acc text[];
-  cl text;
+  pl text;
 begin
-  if p_classes is null or cardinality(p_classes) = 0 then
+  p_payloads := array(select distinct x from unnest(p_payloads) x where x <> '' order by x);
+  if cardinality(p_payloads) = 0 then
     return;
   end if;
   if coalesce(current_setting('letopis.notify', true), '') = 'deferred' then
     acc := coalesce(string_to_array(nullif(current_setting('letopis.changed', true), ''), ','), '{}');
-    if not (acc @> p_classes) then
+    if not (acc @> p_payloads) then
       perform set_config('letopis.changed',
-        array_to_string(array(select distinct x from unnest(acc || p_classes) x order by x), ','), true);
+        array_to_string(array(select distinct x from unnest(acc || p_payloads) x order by x), ','), true);
     end if;
-  else
-    foreach cl in array p_classes loop
-      perform pg_notify('@SCHEMA_NAME@', cl);
+  elsif '@SIGNALS@' <> 'none' then
+    foreach pl in array p_payloads loop
+      perform pg_notify('@SCHEMA_NAME@', pl);
     end loop;
   end if;
+end $$;
+
+-- Сигнал записи: пары «класс, арендатор» изменённых строк (арендатор null — System) → нагрузки по
+-- режиму. Одинаковые пары склеиваются: транзакция, записавшая тысячу строк одного класса одного
+-- арендатора, посылает один сигнал.
+create or replace function @SCHEMA@.signal(p_classes text[], p_tenants uuid[]) returns void
+language plpgsql volatile
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  k bytea;
+begin
+  if p_classes is null or cardinality(p_classes) = 0 then
+    return;
+  end if;
+  if '@SIGNALS@' in ('tenant', 'opaque') then
+    select @PGCRYPTO@.hmac(convert_to('letopis:signals', 'UTF8'), s.material, 'sha256') into k
+    from @SCHEMA@.secret s where s.id = '@SYSTEM@'::uuid and s.kind = 'KEY';
+  end if;
+  perform @SCHEMA@.signal_raw(array(
+    select case '@SIGNALS@'
+             when 'tenant' then p.c || '@' || @SCHEMA@.signal_token('tenant', p.t::text, k)
+             when 'opaque' then @SCHEMA@.signal_token('class', p.c, k) || '@' || @SCHEMA@.signal_token('tenant', p.t::text, k)
+             else p.c end
+    from (select distinct u.c, coalesce(u.t, '@SYSTEM@'::uuid) as t from unnest(p_classes, p_tenants) u(c, t) where u.c is not null) p));
 end $$;
 
 -- Версия одной строки в журнал и сигнал — для функций владельца, которые пишут строку сами
@@ -295,12 +335,19 @@ create or replace function @SCHEMA@.log_version(e @SCHEMA@.entity) returns void
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
+declare
+  p @SCHEMA@.log;
 begin
   if @SCHEMA@.history_on(e.class, e.tenant) then
-    insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
-    values (e.id, e.rev, e.class, e.cv, e.tenant, e.owner, e.links, e.data, e.tags, e.at, e.author, e.agent, e.op, e.reason, e.moved, e.prev_hash);
+    -- пути изменения: против предыдущей версии id, у первой версии переноса — против прежнего id (moved)
+    select l.* into p from @SCHEMA@.log l
+    where l.id = case when e.rev > 1 then e.id else e.moved end and l.op not in ('purge', 'trim', 'reset')
+    order by l.rev desc limit 1;
+    insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash, changed)
+    values (e.id, e.rev, e.class, e.cv, e.tenant, e.owner, e.links, e.data, e.tags, e.at, e.author, e.agent, e.op, e.reason, e.moved, e.prev_hash,
+            case when p.id is not null then @SCHEMA@.change_paths(p.data, p.links, p.tags, p.owner, p.class, e.data, e.links, e.tags, e.owner, e.class) end);
   end if;
-  perform @SCHEMA@.signal(array[e.class]);
+  perform @SCHEMA@.signal(array[e.class], array[e.tenant]);
 end $$;
 
 -- Новая версия строки от имени владельца (пересчёт описаний потомков, снятие конца при удалении):
@@ -704,7 +751,8 @@ language plpgsql security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 declare
-  cls text[];
+  sc text[];
+  st uuid[];
   bad text;
 begin
   if exists (select 1 from added n where n.links <> '{}'::jsonb) then
@@ -719,9 +767,10 @@ begin
   from added n
   join (select k.class, k.tenant from (select distinct a.class, a.tenant from added a) k
         where @SCHEMA@.history_on(k.class, k.tenant)) h on h.class = n.class and h.tenant = n.tenant;
-  select array_agg(distinct a.class) into cls from added a;
-  perform @SCHEMA@.signal(cls);
-  if cls && array['rule', 'Resource', 'member', 'Account', 'Class'] then
+  -- сигнал — по паре «класс, арендатор»
+  select array_agg(k.class), array_agg(k.tenant) into sc, st from (select distinct a.class, a.tenant from added a) k;
+  perform @SCHEMA@.signal(sc, st);
+  if sc && array['rule', 'Resource', 'member', 'Account', 'Class'] then
     perform @SCHEMA@.acl_bump();
   end if;
   return null;
@@ -735,7 +784,8 @@ language plpgsql security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 declare
-  cls text[];
+  sc text[];
+  st uuid[];
   o_row @SCHEMA@.entity;
   n_row @SCHEMA@.entity;
   cid uuid;
@@ -751,15 +801,20 @@ begin
   if bad is not null then
     perform @SCHEMA@.lt_fail('target_not_found', format('цель конца %s не найдена', bad));
   end if;
-  insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
-  select n.id, n.rev, n.class, n.cv, n.tenant, n.owner, n.links, n.data, n.tags, n.at, n.author, n.agent, n.op, n.reason, n.moved, n.prev_hash
+  insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash, changed)
+  select n.id, n.rev, n.class, n.cv, n.tenant, n.owner, n.links, n.data, n.tags, n.at, n.author, n.agent, n.op, n.reason, n.moved, n.prev_hash,
+         @SCHEMA@.change_paths(o.data, o.links, o.tags, o.owner, o.class, n.data, n.links, n.tags, n.owner, n.class)
   from new_rows n
   join old_rows o on o.id = n.id and o.rev <> n.rev
   join (select k.class, k.tenant from (select distinct a.class, a.tenant from new_rows a) k
         where @SCHEMA@.history_on(k.class, k.tenant)) h on h.class = n.class and h.tenant = n.tenant;
-  select array_agg(distinct n.class) into cls from new_rows n join old_rows o on o.id = n.id and o.rev <> n.rev;
-  perform @SCHEMA@.signal(cls);
-  if cls && array['rule', 'Resource', 'member', 'Account', 'Class'] then
+  -- сигнал — по парам нового и прежнего класса: при смене класса без ключа ответы прежнего класса в
+  -- кэше других процессов устарели бы (в 1.0.1 сигнал шёл только по новому)
+  select array_agg(k.class), array_agg(k.tenant) into sc, st
+  from (select distinct v.class, v.tenant from new_rows n join old_rows o on o.id = n.id and o.rev <> n.rev
+        cross join lateral (values (n.class, n.tenant), (o.class, o.tenant)) v(class, tenant)) k;
+  perform @SCHEMA@.signal(sc, st);
+  if sc && array['rule', 'Resource', 'member', 'Account', 'Class'] then
     perform @SCHEMA@.acl_bump();
   end if;
   for cid in select n.id from new_rows n join old_rows o on o.id = n.id and o.rev <> n.rev
@@ -883,6 +938,8 @@ declare
   unsets uuid[];
   classes text[];
   lvl_classes text[];
+  pairs text[];
+  lvl_pairs text[];
   v_author uuid;
   v_reason text := nullif(current_setting('letopis.reason', true), '');
   newlinks jsonb;
@@ -913,16 +970,18 @@ begin
   end loop;
   v_author := coalesce(c.author, '@SYSTEM@'::uuid);
   -- надгробия: последний снимок следующей версией с видом delete — одной вставкой на уровень
-  insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
+  insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash, changed)
   select g.id, g.rev + 1, g.class, g.cv, g.tenant, g.owner, g.links, g.data, g.tags,
-         greatest(@SCHEMA@.now_ts(), g.at + interval '1 microsecond'), v_author, c.agent, 'delete', v_reason, null, g.hash
+         greatest(@SCHEMA@.now_ts(), g.at + interval '1 microsecond'), v_author, c.agent, 'delete', v_reason, null, g.hash, '[]'::jsonb
   from gone g
   join (select d.class, d.tenant from (select distinct x.class, x.tenant from gone x) d
         where @SCHEMA@.history_on(d.class, d.tenant)) h on h.class = g.class and h.tenant = g.tenant;
+  -- пары «класс, арендатор» для сигнала — строкой «класс арендатор» (пробела нет ни в имени, ни в uuid)
   select coalesce(array_agg(g.id), '{}'), coalesce(array_agg(distinct g.class), '{}'),
+         coalesce(array_agg(distinct g.class || ' ' || g.tenant::text), '{}'),
          coalesce(array_agg(g.id) filter (where g.class = 'Account'), '{}'),
          coalesce(jsonb_agg(jsonb_build_object('tenant', g.tenant, 'user', g.links->>'User')) filter (where g.class = 'member'), '[]'::jsonb)
-    into lvl, classes, accs, mems from gone g;
+    into lvl, classes, pairs, accs, mems from gone g;
   all_ids := lvl;
   while cardinality(lvl) > 0 loop
     -- кто ссылается на уровень: действие по правилам концов (общее с превью)
@@ -944,24 +1003,26 @@ begin
       where x.id in (select y.id from @SCHEMA@.entity y where y.id = any (casc) order by y.id for update)
       returning x.*
     ), t as (
-      insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
+      insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash, changed)
       select d.id, d.rev + 1, d.class, d.cv, d.tenant, d.owner, d.links, d.data, d.tags,
-             greatest(@SCHEMA@.now_ts(), d.at + interval '1 microsecond'), v_author, c.agent, 'delete', v_reason, null, d.hash
+             greatest(@SCHEMA@.now_ts(), d.at + interval '1 microsecond'), v_author, c.agent, 'delete', v_reason, null, d.hash, '[]'::jsonb
       from d
       join (select dd.class, dd.tenant from (select distinct x.class, x.tenant from d x) dd
             where @SCHEMA@.history_on(dd.class, dd.tenant)) h on h.class = d.class and h.tenant = d.tenant
     )
     select coalesce(array_agg(d.id), '{}'), coalesce(array_agg(distinct d.class), '{}'),
+           coalesce(array_agg(distinct d.class || ' ' || d.tenant::text), '{}'),
            min(d.class) filter (where not @SCHEMA@.acl_row_ok(dplan, d.class, d.id, d.owner, d.tenant, d.tags, d.data, d.links)),
            coalesce(array_agg(d.id) filter (where d.class = 'Account'), '{}'),
            coalesce(jsonb_agg(jsonb_build_object('tenant', d.tenant, 'user', d.links->>'User')) filter (where d.class = 'member'), '[]'::jsonb)
-      into lvl, lvl_classes, denied, lvl_accs, lvl_mems from d;
+      into lvl, lvl_classes, lvl_pairs, denied, lvl_accs, lvl_mems from d;
     if denied is not null then
       perform @SCHEMA@.lt_fail('acl_denied', format('нет права DELETE на класс %s в каскаде удаления', denied));
     end if;
     accs := accs || lvl_accs;
     mems := mems || lvl_mems;
     classes := classes || lvl_classes;
+    pairs := pairs || lvl_pairs;
     -- unset: снять конец, новая версия
     for r in select x.* from @SCHEMA@.entity x where x.id = any (unsets) order by x.id for update loop
       if not @SCHEMA@.acl_row_ok(wplan, r.class, r.id, r.owner, r.tenant, r.tags, r.data, r.links) then
@@ -990,7 +1051,8 @@ begin
     perform @SCHEMA@.auth_kill(r.acc, null);
     update @SCHEMA@.secret x set deleted_at = clock_timestamp() where x.account = r.acc and x.deleted_at is null;
   end loop;
-  perform @SCHEMA@.signal(array(select distinct x from unnest(classes) x));
+  perform @SCHEMA@.signal(array_agg(split_part(x.p, ' ', 1)), array_agg(split_part(x.p, ' ', 2)::uuid))
+  from (select distinct p from unnest(pairs) p) x;
   if classes && array['rule', 'Resource', 'member', 'Account', 'Class'] then
     perform @SCHEMA@.acl_bump();
   end if;
@@ -1359,7 +1421,7 @@ begin
     'links_replace(jsonb, uuid, uuid)', 'move_row(@SCHEMA@.entity, uuid, text, jsonb, jsonb, text)', 'reclass(uuid, text, jsonb)',
     'incoming_conflicts(uuid, text, uuid)', 'visible_detail(jsonb, uuid)', 'class_change_safe(jsonb, jsonb)',
     'family_conflicts(text[], uuid, boolean)', 'reserved_names()', 'class_admit(jsonb, uuid)',
-    'trg_entity_bi()', 'trg_entity_bu()', 'trg_entity_ai()', 'trg_entity_au()', 'history_on(text, uuid)', 'signal(text[])', 'class_evolve(@SCHEMA@.entity, @SCHEMA@.entity)',
+    'trg_entity_bi()', 'trg_entity_bu()', 'trg_entity_ai()', 'trg_entity_au()', 'history_on(text, uuid)', 'signal_token(text, text, bytea)', 'signal_raw(text[])', 'signal(text[], uuid[])', 'class_evolve(@SCHEMA@.entity, @SCHEMA@.entity)',
     'trg_entity_bd()', 'trg_entity_ad()', 'owner_to_tenant(uuid, uuid)', 'ref_action(jsonb, jsonb, uuid[])', 'delete_preview(uuid[])', 'merge(jsonb, jsonb)', 'inc(jsonb, text[], numeric, numeric)', 'links_patch(jsonb, jsonb)'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);
     execute format('revoke all on function @SCHEMA@.%s from public', f);

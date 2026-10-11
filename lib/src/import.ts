@@ -26,7 +26,7 @@ import { normalizeSchema, type JsonSchema } from './jsonschema.js';
 import { RESERVED_CLASS_NAMES } from './types.js';
 import { base32Decode } from './auth.js';
 import { v5Id } from './uuid.js';
-import type { LoadIssue } from './load.js';
+import { initialSession, type LoadIssue, type LoadOptions, type LoadReport } from './load.js';
 
 const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
 const SYSTEM_CLASSES = new Set(['Class', 'Account', 'member', 'Resource', 'rule']);
@@ -58,6 +58,12 @@ export interface ImportOptions {
   update?: boolean;
   /** Порции загрузчика (§2.6, п. 8). */
   commitEvery?: number;
+  /**
+   * Первая заливка (план 1.1, §2.3): весь импорт — одной транзакцией в пустую схему, индексы и триггеры —
+   * после загрузки; несовместимо с update и commitEvery. Строки, уже лежащие в схеме (системный сид:
+   * ресурсы, правила), пропускаются, как без флага.
+   */
+  initial?: boolean;
   /** Без сообщений в консоль. */
   quiet?: boolean;
 }
@@ -529,6 +535,9 @@ const quote = (s: string) => `"${s.replace(/"/g, '""')}"`;
 export async function import021(opts: ImportOptions): Promise<ImportReport> {
   const t0 = performance.now();
   const log = opts.quiet ? () => {} : (m: string) => console.log(`letopis.import: ${m}`);
+  if (opts.initial && (opts.update || opts.commitEvery)) {
+    throw new LetopisError('invalid_data', 'import --initial несовместим с --update и --commit-every: первая заливка — одна транзакция в пустую схему');
+  }
   const partition = opts.partition ?? 'entity';
   const owner = opts.owner ?? 'letopis_owner';
   const src = typeof opts.from === 'string' ? postgres(opts.from, { max: 2, onnotice: () => {} }) as Sql : opts.from;
@@ -649,9 +658,16 @@ export async function import021(opts: ImportOptions): Promise<ImportReport> {
       uuidFields: {}, droppedFields: {}, ownerLost: 0, verify: { ok: false, issues: 0, anchor: '' }, ms: 0,
     };
 
+    // шаги 1–5: операторы владельца (begin) и загрузки (load); первая заливка — всё одной транзакцией
+    interface Exec {
+      begin<T>(fn: (tx: Sql) => Promise<T>): Promise<T>;
+      load(rows: Raw[], o: LoadOptions): Promise<LoadReport>;
+      /** id уже в схеме (первая заливка: строки системного сида — пропускаются, как existing: 'skip'). */
+      taken(id: string): boolean;
+    }
+    const steps = async (x: Exec): Promise<Map<string, Obj[]>> => {
     // --- шаг 1: классы (System, от владельца), предки раньше потомков ---
-    await dst.begin(async (tx) => {
-      await tx.unsafe(`set local role ${quote(owner)}`);
+    await x.begin(async (tx) => {
       for (const r of schemaRows) {
         const c = b.classes.get(r.id);
         if (!c) continue;
@@ -667,7 +683,8 @@ export async function import021(opts: ImportOptions): Promise<ImportReport> {
         });
         report.classes.created.push(c.name);
       }
-      await tx.unsafe(`select pg_notify($1, 'Class')`, [opts.schema]);
+      // сигнал — функцией базы: нагрузка по режиму сигналов установки (план 1.1)
+      await tx.unsafe(`select ${S}.signal(array['Class'], array[$1::uuid])`, [SYSTEM_ID]);
     });
     log(`классы: создано ${report.classes.created.length}, уже были ${report.classes.existing.length}, опущено ${b.omitted.length}`);
 
@@ -681,8 +698,9 @@ export async function import021(opts: ImportOptions): Promise<ImportReport> {
     }
     if (sysTenant) accRows.push({ $class: 'Account', $ext: `tenant:${opts.tenant}`, name: opts.tenant, categories: [], enabled: true });
     if (accRows.length) {
-      const r = await db.load(accRows, { tenant: SYSTEM_ID, existing: 'skip', agent: 'letopis import' });
-      report.accounts = { loaded: r.loaded, skipped: r.skipped };
+      const fresh = accRows.filter((row) => !x.taken(v5Id(SYSTEM_ID, 'Account', [String(row.$ext)])));
+      const r = fresh.length ? await x.load(fresh, { tenant: SYSTEM_ID, existing: 'skip', agent: 'letopis import' }) : null;
+      report.accounts = { loaded: r?.loaded ?? 0, skipped: (r?.skipped ?? 0) + accRows.length - fresh.length };
     }
 
     // --- шаг 3: креды → secret (от владельца; хэши как есть); совпадение без учёта регистра — первым идёт
@@ -705,8 +723,7 @@ export async function import021(opts: ImportOptions): Promise<ImportReport> {
       else secretRows.push({ account, kind, ident: c.identifier as string, material: null, meta: { ...m, confirmed } });
     }
     if (secretRows.length) {
-      await dst.begin(async (tx) => {
-        await tx.unsafe(`set local role ${quote(owner)}`);
+      await x.begin(async (tx) => {
         for (const s of secretRows) {
           const [dup] = await tx.unsafe(`select account::text as account from ${S}.secret
             where kind = $1 and casefold(ident) collate pg_unicode_fast = casefold($2) collate pg_unicode_fast and deleted_at is null`, [s.kind, s.ident]);
@@ -735,8 +752,9 @@ export async function import021(opts: ImportOptions): Promise<ImportReport> {
         ...(typeof meta.description === 'string' ? { description: meta.description } : {}) };
     });
     if (resRows.length) {
-      const r = await db.load(resRows, { tenant: SYSTEM_ID, existing: 'skip', agent: 'letopis import' });
-      report.resources = { loaded: r.loaded, skipped: r.skipped };
+      const fresh = resRows.filter((row) => !x.taken(v5Id(SYSTEM_ID, 'Resource', [String(row.alias)])));
+      const r = fresh.length ? await x.load(fresh, { tenant: SYSTEM_ID, existing: 'skip', agent: 'letopis import' }) : null;
+      report.resources = { loaded: r?.loaded ?? 0, skipped: (r?.skipped ?? 0) + resRows.length - fresh.length };
     }
     const rules = await src.unsafe(`select account, resource, permission, weight, meta, enabled from ${F}."Rule" order by account, resource`);
     const ruleRows = rules.map((r) => {
@@ -747,8 +765,10 @@ export async function import021(opts: ImportOptions): Promise<ImportReport> {
         ...(typeof meta.description === 'string' ? { description: meta.description } : {}) };
     });
     if (ruleRows.length) {
-      const r = await db.load(ruleRows, { tenant: SYSTEM_ID, existing: 'skip', agent: 'letopis import' });
-      report.rules = { loaded: r.loaded, skipped: r.skipped };
+      const res = (alias: unknown) => v5Id(SYSTEM_ID, 'Resource', [String(alias)]);
+      const fresh = ruleRows.filter((row) => !x.taken(v5Id(SYSTEM_ID, 'rule', [res(row.Group.$key[0]), res(row.Object.$key[0])])));
+      const r = fresh.length ? await x.load(fresh, { tenant: SYSTEM_ID, existing: 'skip', agent: 'letopis import' }) : null;
+      report.rules = { loaded: r?.loaded ?? 0, skipped: (r?.skipped ?? 0) + ruleRows.length - fresh.length };
     }
 
     // --- шаг 5: данные по арендаторам — загрузчик в режиме истории ---
@@ -809,11 +829,11 @@ export async function import021(opts: ImportOptions): Promise<ImportReport> {
         });
       }
       try {
-        const r = await db.load(rows, { tenant, withHistory: true, existing: 'skip', agent: 'letopis import', ...(opts.commitEvery ? { commitEvery: opts.commitEvery } : {}) });
+        const r = await x.load(rows, { tenant, withHistory: true, existing: 'skip', agent: 'letopis import', ...(opts.commitEvery ? { commitEvery: opts.commitEvery } : {}) });
         report.objects.loaded += r.loaded;
         report.objects.skipped += r.skipped;
         if (opts.update && lastRows.length) {
-          const u = await db.load(lastRows, { tenant, existing: 'update', agent: 'letopis import' });
+          const u = await x.load(lastRows, { tenant, existing: 'update', agent: 'letopis import' });
           report.objects.updated += u.updated;
         }
       } catch (e) {
@@ -828,6 +848,20 @@ export async function import021(opts: ImportOptions): Promise<ImportReport> {
       }
       log(`арендатор ${tenant}: объектов ${list.length}, версий ${rows.length}`);
     }
+    return byTenant;
+    };
+    const byTenant = opts.initial
+      // existing в первой заливке — только 'error': строки сида отфильтрованы taken(), прочих объектов в схеме нет
+      ? await initialSession({ sql: dst, schema: opts.schema, tenant: null, admin: true, ownerRole: owner },
+        (sess) => steps({ begin: (fn) => fn(sess.sql), load: (rows, o) => sess.load(rows, { ...o, existing: undefined }), taken: (id) => sess.taken(id) }))
+      : await steps({
+        begin: (fn) => dst.begin(async (tx) => {
+          await tx.unsafe(`set local role ${quote(owner)}`);
+          return fn(tx as unknown as Sql);
+        }) as never,
+        load: (rows, o) => db!.load(rows, o),
+        taken: () => false,
+      });
 
     // --- шаг 6: проверка — счётчики и verify() ---
     const tenants = [...byTenant.keys()];

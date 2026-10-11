@@ -20,7 +20,7 @@ import {
   type AggSpec, type BuiltQuery, type ReadMode, type Step,
 } from './sql.js';
 import type { Executor } from './tx.js';
-import type { ChainMods, Cursor, Filter, Path, QueryEvent, Row } from './types.js';
+import type { BlameOptions, BlameResult, ChainMods, Cursor, DiffOptions, DiffResult, Filter, Path, QueryEvent, Row } from './types.js';
 import { execBatch, execPlan, precheckPlan, slotRole, type PlanOp, type PlanResult, type Slot, type SlotValue, type WriteRow } from './write.js';
 
 export interface ChainCtx {
@@ -36,6 +36,9 @@ export interface ChainCtx {
   readonly slowMs?: number;
   /** Цепочка из батча: план копится в очереди до batch.run(). */
   readonly batch?: BatchRef;
+  /** Причина изменения по умолчанию для глаголов (db.batch(имя, { reason })) и та, что стоит в транзакции (db.begin({ reason })). */
+  readonly reason?: string;
+  readonly txReason?: string;
   /** Кэш результатов подключения и тот, кто спрашивает (ключ ответа, §2.12). */
   readonly cache?: { store: ResultCache; who(): { token: string | null; account?: string; tenant?: string | null } };
 }
@@ -67,6 +70,10 @@ export interface ChainCore {
    * { follow: true } — и через смену id при reclass и rekey, по времени.
    */
   versions(opts?: { follow?: boolean }): Promise<Row[]>;
+  /** Что изменилось между двумя версиями или моментами (по умолчанию — предыдущая версия → последняя), план 1.1. */
+  diff(opts?: DiffOptions): Promise<DiffResult[]>;
+  /** Кто, когда и почему последним изменил каждое поле версии (по умолчанию текущей), план 1.1. */
+  blame(opts?: BlameOptions): Promise<BlameResult[]>;
   /** Агрегаты по полю последнего шага ('data.<путь>') — по сущностям, считает база. */
   sum(field: string): Promise<number | null>;
   avg(field: string): Promise<number | null>;
@@ -96,25 +103,25 @@ export interface ChainCore {
   /** Вставить узел: ленивая цепочка-паттерн или строка ответа; та же переменная повторно — возврат к её узлу. */
   entity(x: Chain | Row): Chain;
   /** Создать объект: концы — из пути и слотов; занятый ключ — ошибка exists с id. */
-  create(data?: Record<string, unknown>): Chain;
+  create(data?: Record<string, unknown>, opts?: { reason?: string }): Chain;
   /** Новая версия каждой цели шага: слияние патча в базе; inc(n) — приращение; { rev } — строгий режим. */
-  update(patch?: Record<string, unknown>, opts?: { rev?: number }): Chain;
+  update(patch?: Record<string, unknown>, opts?: { rev?: number; reason?: string }): Chain;
   /** Создать или заменить целиком (класс с ключом); строка ответа несёт $upsert. */
-  upsert(data: Record<string, unknown>): Chain;
+  upsert(data: Record<string, unknown>, opts?: { reason?: string }): Chain;
   /** Удалить цели шага с каскадом; без { confirm: true } — превью замыкания ($action). */
-  delete(opts?: { confirm?: boolean }): Chain;
+  delete(opts?: { confirm?: boolean; reason?: string }): Chain;
   /** Затереть строковые поля ('[erased]') и пометить тегом anonymized. */
-  anonymize(fields: string[]): Chain;
+  anonymize(fields: string[], opts?: { reason?: string }): Chain;
   /** Сменить класс: у класса с ключом — новый id и перевод ссылок. */
-  reclass(cls: string, data?: Record<string, unknown>): Chain;
+  reclass(cls: string, data?: Record<string, unknown>, opts?: { reason?: string }): Chain;
   /** Чтение с блокировкой строк последнего шага до конца db.begin() (rows, first, ids). */
   forUpdate(): Chain;
   /** Восстановить удалённые объекты шага: последний снимок новой версией (id прежний). */
-  restore(): Chain;
+  restore(opts?: { reason?: string }): Chain;
   /** Стереть историю удалённых объектов шага; без { confirm: true } — превью ($versions). */
-  purge(opts?: { confirm?: boolean }): Chain;
+  purge(opts?: { confirm?: boolean; reason?: string }): Chain;
   /** Новое значение ключа: строка с новым id, ссылки переведены (поля — данные, роли — концы). */
-  rekey(patch: Record<string, unknown>): Chain;
+  rekey(patch: Record<string, unknown>, opts?: { reason?: string }): Chain;
   /** Кэш результатов (§2.12): ответ хранится в памяти процесса ttl секунд (по умолчанию 60). */
   cache(opts?: { ttl?: number }): Chain;
 }
@@ -177,7 +184,7 @@ function pivotNodeOf(steps: Step[], cls: string): Step | undefined {
 }
 
 const noHistoryWarned = new Set<string>();
-function warnNoHistory(steps: Step[], method: 'versions' | 'asOf'): void {
+function warnNoHistory(steps: Step[], method: 'versions' | 'asOf' | 'diff' | 'blame'): void {
   const cls = steps[steps.length - 1]?.cls;
   if (!cls || cls.history !== false) return;
   const key = `${cls.name}|${method}`;
@@ -220,7 +227,7 @@ async function exec<T>(ctx: ChainCtx, q: BuiltQuery, mode: QueryEvent['mode'], s
     const hit = store.get(key);
     if (hit) return hit as T[];
     const tag = sessionTag(who.token);
-    const tok = store.token(classes, tag);
+    const tok = store.token(classes, tag, who.tenant);
     const t0 = performance.now();
     const S = `"${ctx.schema.replace(/"/g, '""')}"`;
     const [res, exp] = await ctx.exec.run((tx) => Promise.all([
@@ -256,7 +263,7 @@ async function read<T>(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: Read
 async function plan(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMode, agg?: AggSpec): Promise<{ q: BuiltQuery | null; res: unknown[] }> {
   precheckPlan(ctx.reg, steps);
   const t0 = performance.now();
-  const r: PlanResult = await ctx.exec.run((q) => execPlan({ reg: ctx.reg, schema: ctx.schema, q, tenant: ctx.tenant(), owner: ctx.owner }, steps, mods, mode, agg));
+  const r: PlanResult = await ctx.exec.run((q) => execPlan({ reg: ctx.reg, schema: ctx.schema, q, tenant: ctx.tenant(), owner: ctx.owner, ...reasons(ctx) }, steps, mods, mode, agg));
   if (r.kind === 'read') {
     report(ctx, mode === 'countPaths' ? 'count' : mode, steps, t0, r.res.length);
     if (r.q === null) {
@@ -305,6 +312,25 @@ async function lockedRead(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: R
   });
   report(ctx, mode, steps, t0, res.length);
   return { q: rowsQ, res: mode === 'ids' ? res.map((r) => ({ id: r.row.id })) : res };
+}
+
+/** Причины для плана: по умолчанию у глаголов (у батча — своя) и та, что стоит в транзакции. */
+const reasons = (ctx: ChainCtx) => ({ reason: ctx.reason ?? ctx.txReason ?? '', txReason: ctx.txReason ?? '' });
+/** Опция reason глагола (план 1.1, §2.1): проверяет precheckPlan. */
+const reasonOf = (o?: { reason?: unknown }): { reason?: string } => (o?.reason !== undefined ? { reason: o.reason as string } : {});
+
+/** diff({ from, to }): номер версии (целое ≥ 1) или момент (ISO-строка, Date). */
+function versionRef(v: unknown, what: string, moments = true): number | string {
+  if (typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 2147483647) return v;
+  if (moments && v instanceof Date && !Number.isNaN(+v)) return v.toISOString();
+  if (moments && typeof v === 'string' && !Number.isNaN(Date.parse(v))) return v;
+  throw new LetopisError('invalid_query', `${what}: номер версии (целое ≥ 1)${moments ? ' или момент (ISO-строка, Date)' : ''}`);
+}
+/** blame({ at }): момент (ISO-строка, Date). */
+function momentOf(v: unknown, what: string): string {
+  if (v instanceof Date && !Number.isNaN(+v)) return v.toISOString();
+  if (typeof v === 'string' && !Number.isNaN(Date.parse(v))) return v;
+  throw new LetopisError('invalid_query', `${what}: момент — ISO-строка или Date`);
 }
 
 /** Строка ответа: из чтения — to_jsonb узла, из плана — готовая строка записи. */
@@ -385,6 +411,9 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
   const withOp = (op: PlanOp): Chain => {
     const last = steps[steps.length - 1];
     if (!last) throw new LetopisError('invalid_query', `${op.kind}() — нужен шаг класса: db.Класс(…).${op.kind}(…)`);
+    // батч: причина db.batch(имя, { reason }) — при постановке в очередь, а не при run(): очередь общая по имени, и
+    // run() может позвать фасад без причины или с другой (ревью №1 точки А плана 1.1)
+    if (ctx.batch && op.reason === undefined && ctx.reason !== undefined) op = { ...op, reason: ctx.reason };
     const next = last.op
       ? [...steps, { name: last.name, cls: last.cls, role: last.role, aliasKey: last.aliasKey, self: true as const, op, opMods: mods, nodeKey: nextNodeKey() }]
       : [...steps.slice(0, -1), { ...last, op, opMods: mods }];
@@ -461,6 +490,28 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
             const m = opts?.follow ? { ...mods, follow: true } : mods;
             return (await read<{ row: Record<string, unknown> }>(ctx, steps, m, 'versions')).res.map((r) => toRow(r.row));
           };
+        case 'diff':
+          return async (opts: DiffOptions = {}) => {
+            warnNoHistory(steps, 'diff');
+            const hist = {
+              ...(opts.from !== undefined ? { from: versionRef(opts.from, 'diff({ from })') } : {}),
+              ...(opts.to !== undefined ? { to: versionRef(opts.to, 'diff({ to })') } : {}),
+              ...(opts.follow ? { follow: true } : {}),
+            };
+            return (await read<{ row: DiffResult }>(ctx, steps, { ...mods, hist }, 'diff')).res.map((r) => r.row);
+          };
+        case 'blame':
+          return async (opts: BlameOptions = {}) => {
+            warnNoHistory(steps, 'blame');
+            if (opts.limit !== undefined) versionRef(opts.limit, 'blame({ limit })', false);
+            const hist = {
+              ...(opts.at !== undefined ? { at: momentOf(opts.at, 'blame({ at })') } : {}),
+              ...(opts.limit !== undefined ? { limit: opts.limit } : {}),
+            };
+            // null — объекта на момент at не было (или он не виден)
+            return (await read<{ row: BlameResult | null }>(ctx, steps, { ...mods, hist }, 'blame')).res
+              .map((r) => r.row).filter((x): x is BlameResult => x !== null);
+          };
         case 'sum':
         case 'avg':
         case 'min':
@@ -501,28 +552,29 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
           throw removed('account()', 'арендатор сессии и auth.switch() (этап 5)');
         // глаголы записи — звенья плана (этап 4)
         case 'create':
-          return (data: Record<string, unknown> = {}) => withOp({ kind: 'create', data });
+          return (data: Record<string, unknown> = {}, opts?: { reason?: string }) => withOp({ kind: 'create', data, ...reasonOf(opts) });
         case 'update':
-          return (data: Record<string, unknown> = {}, opts?: { rev?: number }) =>
-            withOp({ kind: 'update', data, ...(opts?.rev !== undefined ? { rev: opts.rev } : {}) });
+          return (data: Record<string, unknown> = {}, opts?: { rev?: number; reason?: string }) =>
+            withOp({ kind: 'update', data, ...(opts?.rev !== undefined ? { rev: opts.rev } : {}), ...reasonOf(opts) });
         case 'upsert':
-          return (data: Record<string, unknown> = {}) => withOp({ kind: 'upsert', data });
+          return (data: Record<string, unknown> = {}, opts?: { reason?: string }) => withOp({ kind: 'upsert', data, ...reasonOf(opts) });
         case 'delete':
-          return (opts?: { confirm?: boolean }) => withOp({ kind: 'delete', confirm: opts?.confirm === true });
+          return (opts?: { confirm?: boolean; reason?: string }) => withOp({ kind: 'delete', confirm: opts?.confirm === true, ...reasonOf(opts) });
         case 'anonymize':
-          return (fields: string[]) => withOp({ kind: 'anonymize', fields });
+          return (fields: string[], opts?: { reason?: string }) => withOp({ kind: 'anonymize', fields, ...reasonOf(opts) });
         case 'reclass':
-          return (cls: string, data?: Record<string, unknown>) => withOp({ kind: 'reclass', cls, ...(data !== undefined ? { data } : {}) });
+          return (cls: string, data?: Record<string, unknown>, opts?: { reason?: string }) =>
+            withOp({ kind: 'reclass', cls, ...(data !== undefined ? { data } : {}), ...reasonOf(opts) });
         case 'set': case 'unset': case 'add': case 'remove':
           throw new LetopisError('invalid_query', `${prop}() — метод слота: db.Класс(…).update(…).Роль.${prop}(…)`);
         case 'forUpdate':
           return () => withMods({ forUpdate: true });
         case 'restore':
-          return () => withOp({ kind: 'restore' });
+          return (opts?: { reason?: string }) => withOp({ kind: 'restore', ...reasonOf(opts) });
         case 'purge':
-          return (opts?: { confirm?: boolean }) => withOp({ kind: 'purge', confirm: opts?.confirm === true });
+          return (opts?: { confirm?: boolean; reason?: string }) => withOp({ kind: 'purge', confirm: opts?.confirm === true, ...reasonOf(opts) });
         case 'rekey':
-          return (patch: Record<string, unknown>) => withOp({ kind: 'rekey', data: patch ?? {} });
+          return (patch: Record<string, unknown>, opts?: { reason?: string }) => withOp({ kind: 'rekey', data: patch ?? {}, ...reasonOf(opts) });
         case 'cache':
           return (opts?: { ttl?: number }) => {
             if (opts?.ttl !== undefined && !(opts.ttl > 0)) throw new LetopisError('invalid_query', 'cache({ ttl }): срок — положительное число секунд');
@@ -551,7 +603,7 @@ export function makeBatch(ctx: ChainCtx, queue: BatchEntry[]): Batch {
             const plans = queue.splice(0, queue.length).map((x) => x.steps);
             for (const p of plans) precheckPlan(ctx.reg, p);
             if (!plans.length) return [];
-            return ctx.exec.run((q) => execBatch({ reg: ctx.reg, schema: ctx.schema, q, tenant: ctx.tenant(), owner: ctx.owner }, plans));
+            return ctx.exec.run((q) => execBatch({ reg: ctx.reg, schema: ctx.schema, q, tenant: ctx.tenant(), owner: ctx.owner, ...reasons(ctx) }, plans));
           };
         case 'execute':
           throw removed('batch.execute()', 'batch.run()');

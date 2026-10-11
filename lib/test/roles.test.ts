@@ -124,6 +124,10 @@ test('7.3.8 №4: перечень функций владельца — search_
     delete_preview: async () => {
       assert.deepEqual([...await e.as(null, (tx) => tx.unsafe(`select * from ${S}.delete_preview(array[$1::uuid])`, [t.id]))], []);
     },
+    // пути колонки changed (ревью №1 точки А плана 1.1): без сессии — ничего
+    version_paths: async () => {
+      assert.deepEqual([...await e.as(null, (tx) => tx.unsafe(`select * from ${S}.version_paths(array[$1::uuid], array[2])`, [t.id]))], []);
+    },
     reclass: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.reclass(gen_random_uuid(), 'Doc')`)), lt('no_session')),
     verify: () => assert.rejects(q(`select ${S}.verify()`), lt('acl_denied')),
     // этап 6: история и эксплуатация
@@ -142,6 +146,8 @@ test('7.3.8 №4: перечень функций владельца — search_
     },
     reset: () => assert.rejects(q(`select ${S}.reset('sessions', $1)`, [e.schema]), lt('acl_denied')),
     maintain: () => assert.rejects(q(`select ${S}.maintain()`), lt('acl_denied')),
+    // ключ сигналов (план 1.1, этап 2): только с правом letopis.signals по правилам System
+    signal_key: () => assert.rejects(q(`select ${S}.signal_key()`), lt('acl_denied')),
     trg_entity_bi: () => assert.rejects(q(`select ${S}.trg_entity_bi()`), lt('42501')),
     trg_entity_bu: () => assert.rejects(q(`select ${S}.trg_entity_bu()`), lt('42501')),
     trg_entity_ai: () => assert.rejects(q(`select ${S}.trg_entity_ai()`), lt('42501')),
@@ -200,10 +206,11 @@ test('права по каталогу: функции приложения — 
     'account_purge', 'acl_all', 'acl_check', 'acl_check_data', 'acl_ok', 'acl_plan', 'acl_token', 'auth_credentials', 'auth_enroll_totp', 'auth_issue_apikey',
     'auth_issue_keysecret', 'auth_issue_otp', 'auth_link', 'auth_login_apikey', 'auth_logout', 'auth_logout_all', 'auth_lookup', 'auth_password_get',
     'auth_refresh', 'auth_revoke_credential', 'auth_set_flags', 'auth_set_password', 'auth_switch', 'auth_tenants', 'auth_totp_enabled',
-    'auth_verify_totp', 'ctx', 'ctx_account', 'ctx_tenant', 'delete_preview', 'error_catalog', 'find_deep', 'find_hop', 'find_ids',
-    'history_default', 'history_iv', 'history_policy', 'inc', 'issue_session', 'link_ids', 'links_patch', 'login_apikey', 'login_keysecret',
-    'login_otp', 'maintain', 'merge', 'purge', 'reclass', 'rekey', 'rekey_class', 'reserved_names', 'reset', 'restore', 'role_has', 'role_ids',
-    'session_expires', 'snapshot', 'trim_history', 'uuid_v5', 'v5_id', 'v5_name', 'verify', 'version_hash', 'watch_head', 'watch_read',
+    'auth_verify_totp', 'blame', 'change_paths', 'class_stamp', 'ctx', 'ctx_account', 'ctx_tenant', 'delete_preview', 'diff_versions', 'error_catalog', 'find_deep', 'find_hop', 'find_ids',
+    'history_default', 'history_iv', 'history_policy', 'inc', 'issue_session', 'jsonb_changes', 'link_ids', 'links_patch', 'login_apikey', 'login_keysecret',
+    'login_otp', 'maintain', 'merge', 'purge', 'reclass', 'rekey', 'rekey_class', 'reserved_names', 'reset', 'restore', 'role_has', 'role_ids', 'row_changes',
+    'row_leaves', 'session_expires', 'signal_key', 'signal_mode', 'snapshot', 'trim_history', 'uuid_v5', 'v5_id', 'v5_name', 'verify', 'version_hash',
+    'version_paths', 'watch_head', 'watch_read',
   ]);
   const pubFns = await e.sql.unsafe(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = $1 and has_function_privilege('public', p.oid, 'execute')`, [e.schema]);
@@ -219,4 +226,9 @@ test('права по каталогу: функции приложения — 
     from pg_attribute a where a.attrelid = $1::regclass and a.attnum > 0 and not a.attisdropped order by a.attnum`, [`${S}.entity`]);
   assert.deepEqual(cols.filter((c) => c.ins).map((c) => c.attname).sort(), ['class', 'data', 'id', 'links', 'owner', 'tags', 'tenant']);
   assert.deepEqual(cols.filter((c) => c.upd).map((c) => c.attname).sort(), ['class', 'data', 'links', 'tags']);
+  // журнал — все колонки, кроме changed: её пути описывают разницу с предыдущей версией, а та читателю может быть
+  // не видна (ревью №1 точки А плана 1.1)
+  const logCols = await e.sql.unsafe(`select a.attname, has_column_privilege('letopis_app', a.attrelid, a.attnum, 'SELECT') as sel
+    from pg_attribute a where a.attrelid = $1::regclass and a.attnum > 0 and not a.attisdropped order by a.attnum`, [`${S}.log`]);
+  assert.deepEqual(logCols.filter((c) => !c.sel).map((c) => c.attname), ['changed']);
 });

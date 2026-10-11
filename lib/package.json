@@ -1,6 +1,6 @@
 {
   "name": "letopis",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Letopis (летопись): versioned entity store on PostgreSQL 18 — integrity, history, tenants and access control enforced by the database itself, dot-notation chains on top",
   "keywords": [
     "postgres",
@@ -90,6 +90,7 @@
     "@electric-sql/pglite-socket": "^0.2.11",
     "@types/node": "^22.20.5",
     "letopis-0": "npm:letopis@0.21.0",
+    "letopis-1": "npm:letopis@1.0.1",
     "tsx": "^4.23.15",
     "typescript": "~5.9.3",
     "zod": "4.6.5"

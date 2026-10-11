@@ -25,7 +25,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { engine, type Engine, type Tenant } from './_engine.js';
+import { engine, watchStarted, type Engine, type Tenant } from './_engine.js';
 import { appDsn, ADMIN_DSN, ident } from './_harness.js';
 import { account, member, session, sqlAs, sysadmin, type Acc } from './_access.js';
 import {
@@ -583,6 +583,9 @@ test('Акт 15. Подписка: watch ловит новые версии; п�
   const клиенты = db.watch({ from: 'now', classes: ['Клиент'] });
   let продолжение: ReturnType<Db['watch']> | null = null;
   try {
+    // момент «now» подписка берёт первым запросом к базе: записи — после него
+    await watchStarted(всё);
+    await watchStarted(клиенты);
     const [гость] = await db.Организация(S.org).Клиент().create({ name: 'Гость', phone: '+7 911 004' }).rows();
     const [салон] = await db.Организация(S.org.id).update({ address: 'Тверская, 7' }).rows();
     await db.flushSignals();
@@ -898,6 +901,8 @@ const GUARDS: Record<string, string> = {
 };
 /** Имена, которых сценарий осознанно не касается как методов, — с причиной. */
 const NOT_TOUCHED: Record<string, string> = {
+  diff: 'план 1.1, этап 1: проверен набором history (§7.2), акты сценария 1.0 его не используют',
+  blame: 'план 1.1, этап 1: проверен набором history (§7.2), акты сценария 1.0 его не используют',
   then: 'не метод: цепочка нарочно не thenable (А21 проверяет, что then === undefined)',
 };
 

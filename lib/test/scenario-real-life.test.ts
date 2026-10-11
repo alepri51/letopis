@@ -10,7 +10,7 @@
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { engine, type Engine, type Tenant } from './_engine.js';
+import { engine, waitForLock, type Engine, type Tenant } from './_engine.js';
 import { appDsn } from './_harness.js';
 import { connect, type Db, type Row, type Chain } from '../src/index.js';
 
@@ -149,8 +149,11 @@ async function bookVisit(req: VisitReq): Promise<Row> {
   }
 }
 
-/** Перенос: id держит (мастер, старт) — смена времени или мастера есть пересоздание. */
-async function reschedule(запись: Row, master: Row, startHour: number): Promise<Row | false> {
+/**
+ * Перенос: id держит (мастер, старт) — смена времени или мастера есть пересоздание. пауза — перед
+ * фиксацией: сцена гонки держит транзакцию переноса открытой.
+ */
+async function reschedule(запись: Row, master: Row, startHour: number, пауза?: () => Promise<void>): Promise<Row | false> {
   const tr = await db.begin();
   try {
     const мастера = [...new Set([запись.links.Staff as string, master.id])].sort(); // один порядок блокировок
@@ -170,12 +173,18 @@ async function reschedule(запись: Row, master: Row, startHour: number): Pr
       await tr.rollback();
       return false; // цель занята или вне смены
     }
-    const снято = await tr.запись(тек.id).delete({ confirm: true }).rows(); // старая пара (мастер, старт) свободна
+    // старая пара (мастер, старт) свободна; target_not_found — запись нашлась, но параллельная отмена
+    // удалила её, пока удаление переноса ждало строку (правило числа строк, §2.5)
+    const снято = await tr.запись(тек.id).delete({ confirm: true }).rows().catch((err: { code?: string }) => {
+      if (err.code === 'target_not_found') return [];
+      throw err;
+    });
     if (!снято.length) {
       await tr.rollback();
       return false; // запись отменили между чтением и удалением
     }
     const [новая] = await визит(tr, master, предмет, клиент, startIso, endIso, тек.data.notes).rows();
+    await пауза?.();
     await tr.commit();
     return новая;
   } catch (err) {
@@ -184,10 +193,10 @@ async function reschedule(запись: Row, master: Row, startHour: number): Pr
   }
 }
 
-/** Отмена — удаление с надгробием (история в versions). Идемпотентна: false — записи уже нет. */
-async function cancel(запись: Row): Promise<boolean> {
+/** Отмена — удаление с надгробием (история в versions). Идемпотентна: false — записи уже нет. q — пул или db.begin(). */
+async function cancel(запись: Row, q: Db = db): Promise<boolean> {
   try {
-    const gone = await db.запись(запись.id).delete({ confirm: true }).rows();
+    const gone = await q.запись(запись.id).delete({ confirm: true }).rows();
     return gone.length > 0;
   } catch (err) {
     // запись нашлась, но параллельный перенос успел её удалить (правило числа строк, §2.5)
@@ -352,15 +361,32 @@ test('С14. Отказ: бронь вне смены (16:00 при смене д
 });
 
 test('С15. Гонка: отмена против переноса одной записи — согласованный исход', async () => {
-  const запись = S.зПроигравшего; // 10:00 Марины
-  const [отменилось, перенеслось] = await Promise.all([cancel(запись), reschedule(запись, S.света, 15)]);
-  assert.ok(отменилось || перенеслось !== false, 'хотя бы одна операция прошла');
-  assert.equal(await db.запись(запись.id).count(), 0, 'старого id нет в любом исходе');
-  if (перенеслось !== false) {
-    S.зПроигравшего = перенеслось;
-    assert.equal(час(S.зПроигравшего), 15);
-    assert.equal(await db.запись(S.зПроигравшего.id).count(), 1);
-  }
+  // порядок задают блокировки, а не скорость машины (§7.1): вторая операция ждёт строку, которую
+  // удалила незафиксированная первая (waitForLock), и только потом первая фиксируется
+  // 1) перенос первым: запись 10:00 Марины удалена и пересоздана у Светы в 15:00, отмена ждёт строку
+  const запись = S.зПроигравшего;
+  let отмена: Promise<boolean> | undefined;
+  const перенеслось = await reschedule(запись, S.света, 15, async () => {
+    отмена = cancel(запись);
+    await waitForLock(e.sql);
+  });
+  assert.ok(перенеслось, 'перенос прошёл');
+  assert.equal(await отмена, false, 'отмена опоздала: запись уже перенесена');
+  assert.equal(await db.запись(запись.id).count(), 0, 'старого id нет');
+  S.зПроигравшего = перенеслось;
+  assert.equal(час(S.зПроигравшего), 15);
+  assert.equal(await db.запись(S.зПроигравшего.id).count(), 1);
+
+  // 2) отмена первой: её транзакция удалила запись и не зафиксирована, удаление переноса ждёт строку
+  const тр = await db.begin();
+  assert.equal(await cancel(S.зПроигравшего, тр), true);
+  const перенос = reschedule(S.зПроигравшего, S.марина, 15);
+  await waitForLock(e.sql);
+  await тр.commit();
+  assert.equal(await перенос, false, 'перенос опоздал: запись уже отменена');
+  assert.equal(await db.запись(S.зПроигравшего.id).count(), 0, 'отменённой записи нет');
+  assert.equal(await db.запись(bookingId(S.марина, iso(15))).count(), 0, 'на 15:00 Марины ничего не создано');
+  assert.equal(await reschedule(S.зПроигравшего, S.марина, 15), false, 'отменённую запись не перенести');
 });
 
 test('С16. Конец дня: отчёты и сквозные инварианты', async () => {

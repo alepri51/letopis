@@ -6,19 +6,26 @@
  * запрос разным пользователям отдаёт разные строки. Сброс:
  *   - свои записи — сразу после фиксации, по классам из letopis.changed (туда попадают и классы
  *     каскада, unset, смены класса и ключа); запись через db.sql — весь кэш;
- *   - чужие записи — по сигналу базы с именем класса; классы прав и схемы (rule, Resource, member,
- *     Account, Class) и «*» — весь кэш; `session:<16 hex>` — ответы погашенной сессии, `session:*` — все;
- *   - гонка запроса и сигнала: счётчики сигналов по классам и сессиям снимаются до запроса, ответ
- *     кладётся, только если они не изменились;
+ *   - чужие записи — по сигналу базы (нагрузка по режиму установки, signals.ts): класс в арендаторе
+ *     сигнала (ответ помнит токен арендатора запроса; сигнал System и процесс без ключа — во всех), в режиме
+ *     opaque без ключа — весь кэш; классы прав и схемы (rule, Resource, member, Account, Class) и «*» —
+ *     весь кэш; `session:<16 hex>` — ответы погашенной сессии, `session:*` — все;
+ *   - гонка запроса и сигнала: счётчики сигналов по классам, парам «класс, арендатор» и сессиям
+ *     снимаются до запроса, ответ кладётся, только если они не изменились;
  *   - (пере)подключение слушателя сигналов — весь кэш: сигналы за время обрыва потеряны; без слушателя
  *     кэш выключен (с ttlOnly — работает только по сроку);
  *   - срок (по умолчанию 60 с) — предохранитель; ответы истёкшей сессии не используются.
  * Внутри db.begin() и в db.sql кэш не работает.
  */
 import { createHash } from 'node:crypto';
+import { ACL_CLASS_NAMES } from './types.js';
+import { Signals, type Signal } from './signals.js';
 
 /** Классы, строки которых меняют права и схему: их сигнал сбрасывает весь кэш. */
-export const ACL_CLASSES: ReadonlySet<string> = new Set(['rule', 'Resource', 'member', 'Account', 'Class']);
+export const ACL_CLASSES: ReadonlySet<string> = new Set(ACL_CLASS_NAMES);
+
+/** Счётчиков сигналов в каждой карте не больше: имена в нагрузке присылает любая роль базы. */
+const EPOCH_MAX = 100_000;
 
 export interface CacheOptions {
   /** Срок ответа по умолчанию, секунды (60). */
@@ -47,14 +54,18 @@ export interface CacheStats {
 /** Снимок счётчиков до запроса: ответ кладётся, только если они не изменились. */
 export interface CacheToken {
   epoch: number;
-  classes: [string, number][];
+  /** Класс, его счётчик и счётчик пары «класс, арендатор» (без арендатора — сигналов класса в любом). */
+  classes: [string, number, number][];
   session: number;
+  /** Токен арендатора запроса; null — ответ сбрасывается сигналом класса из любого арендатора. */
+  tenant: string | null;
 }
 
 interface Entry {
   value: unknown[];
   classes: string[];
   session: string;
+  tenant: string | null;
   expires: number;
   sessionExpires: number | null;
 }
@@ -66,6 +77,9 @@ export const sessionTag = (token: string | null): string =>
 export class ResultCache {
   private map = new Map<string, Entry>();
   private classEpoch = new Map<string, number>();
+  /** Сигналы класса в арендаторе: по паре и по классу в любом арендаторе (для ответов без арендатора). */
+  private pairEpoch = new Map<string, number>();
+  private anyEpoch = new Map<string, number>();
   private sessionEpoch = new Map<string, number>();
   private epoch = 0;
   private listening = false;
@@ -74,7 +88,11 @@ export class ResultCache {
   readonly ttlOnly: boolean;
   private max: number;
 
-  constructor(opts: CacheOptions = {}) {
+  /**
+   * sig — режим сигналов и ключ подключения (разбор нагрузки, токены арендаторов); allTenants —
+   * подключение видит строки всех арендаторов (обходит RLS): ответ сбрасывается сигналом из любого.
+   */
+  constructor(opts: CacheOptions = {}, private sig: Signals = new Signals(), private allTenants = false) {
     this.ttlMs = (opts.ttl ?? 60) * 1000;
     this.ttlOnly = opts.ttlOnly === true;
     this.max = opts.max ?? 10_000;
@@ -90,13 +108,19 @@ export class ResultCache {
     return JSON.stringify([text, params, who.token ?? '', who.account ?? '', who.tenant ?? '']);
   }
 
-  /** Снимок счётчиков классов и сессии — до запроса. */
-  token(classes: readonly string[], session: string): CacheToken {
+  /** Снимок счётчиков классов, пар с арендатором запроса (id) и сессии — до запроса. */
+  token(classes: readonly string[], session: string, tenantId?: string | null): CacheToken {
+    const tenant = this.allTenants ? null : this.sig.tenantToken(tenantId);
     return {
       epoch: this.epoch,
-      classes: classes.map((c) => [c, this.classEpoch.get(c) ?? 0]),
+      classes: classes.map((c) => [c, this.classEpoch.get(c) ?? 0, this.pairCount(c, tenant)]),
       session: this.sessionEpoch.get(session) ?? 0,
+      tenant,
     };
+  }
+
+  private pairCount(cls: string, tenant: string | null): number {
+    return (tenant === null ? this.anyEpoch.get(cls) : this.pairEpoch.get(`${cls}@${tenant}`)) ?? 0;
   }
 
   get(key: string): unknown[] | undefined {
@@ -117,29 +141,50 @@ export class ResultCache {
     if (!this.enabled) return false;
     const stale = tok.epoch !== this.epoch
       || tok.session !== (this.sessionEpoch.get(session) ?? 0)
-      || tok.classes.some(([c, n]) => (this.classEpoch.get(c) ?? 0) !== n);
+      || tok.classes.some(([c, n, m]) => (this.classEpoch.get(c) ?? 0) !== n || this.pairCount(c, tok.tenant) !== m);
     if (stale) {
       this.st.raced++;
       return false;
     }
     if (this.map.size >= this.max) this.map.delete(this.map.keys().next().value as string);
-    this.map.set(key, { value, classes: [...classes], session, expires: Date.now() + ttlMs, sessionExpires });
+    this.map.set(key, { value, classes: [...classes], session, tenant: tok.tenant, expires: Date.now() + ttlMs, sessionExpires });
     this.st.stores++;
     return true;
   }
 
-  /** Сбросить ответы, читавшие эти классы. */
+  /** Сбросить ответы, читавшие эти классы (во всех арендаторах). */
   invalidate(classes: Iterable<string>): void {
     const set = new Set(classes);
     if (!set.size) return;
-    for (const c of set) this.classEpoch.set(c, (this.classEpoch.get(c) ?? 0) + 1);
+    for (const c of set) this.bump(this.classEpoch, c);
     for (const [k, e] of this.map) if (e.classes.some((c) => set.has(c))) this.map.delete(k);
+  }
+
+  /** Сбросить ответы класса в арендаторе (токен) и ответы без арендатора; null — во всех. */
+  private invalidateIn(cls: string, tenant: string | null): void {
+    if (tenant === null) return this.invalidate([cls]);
+    this.bump(this.pairEpoch, `${cls}@${tenant}`);
+    this.bump(this.anyEpoch, cls);
+    for (const [key, e] of this.map) if ((e.tenant === null || e.tenant === tenant) && e.classes.includes(cls)) this.map.delete(key);
   }
 
   /** Сбросить ответы сессии (тег — начало sha256 токена). */
   invalidateSession(tag: string): void {
-    this.sessionEpoch.set(tag, (this.sessionEpoch.get(tag) ?? 0) + 1);
+    this.bump(this.sessionEpoch, tag);
     for (const [k, e] of this.map) if (e.session === tag) this.map.delete(k);
+  }
+
+  /**
+   * Счётчик сигналов по ключу (класс, пара «класс, арендатор», сессия). Ключи приходят в нагрузке сигнала, а её
+   * может прислать любая роль базы: при переполнении карта очищается, и снимки в полёте устаревают целиком
+   * (epoch), — иначе заливка разными именами копила бы счётчики без предела (ревью №1 точки А плана 1.1).
+   */
+  private bump(m: Map<string, number>, k: string): void {
+    if (m.size >= EPOCH_MAX && !m.has(k)) {
+      m.clear();
+      this.epoch++;
+    }
+    m.set(k, (m.get(k) ?? 0) + 1);
   }
 
   /** Весь кэш. */
@@ -148,34 +193,40 @@ export class ResultCache {
     this.map.clear();
   }
 
+  /** Сброс по разобранному сигналу. */
+  apply(s: Signal): void {
+    switch (s.kind) {
+      case 'session':
+        return this.invalidateSession(s.tag);
+      case 'class':
+        return ACL_CLASSES.has(s.cls) ? this.clear() : this.invalidateIn(s.cls, s.tenant);
+      case 'unknown':
+        // класса нет в реестрах процесса — и ответов с ним нет
+        return;
+      default:
+        // *, session:*, opaque без ключа, нагрузка не по режиму
+        return this.clear();
+    }
+  }
+
   /**
-   * Имена из сигнала или из letopis.changed своей транзакции: классы, `*`, `session:<тег>`,
-   * `session:*`. raw — запись через db.sql: весь кэш.
+   * Нагрузки из letopis.changed своей транзакции (те же, что уйдут сигналом). raw — запись через db.sql:
+   * весь кэш.
    */
   changed(names: Iterable<string>, raw = false): void {
-    const classes: string[] = [];
     let any = false;
     for (const n of names) {
       if (!n) continue;
       any = true;
-      if (n === '*' || n === 'session:*' || ACL_CLASSES.has(n)) {
-        this.clear();
-        return;
-      }
-      if (n.startsWith('session:')) this.invalidateSession(n.slice(8));
-      else classes.push(n);
+      if (!raw) this.apply(this.sig.parse(n));
     }
-    if (raw && any) {
-      this.clear();
-      return;
-    }
-    this.invalidate(classes);
+    if (raw && any) this.clear();
   }
 
-  /** Сигнал от базы. */
-  signal(name: string): void {
+  /** Сигнал от базы: нагрузка или уже разобранный. */
+  signal(s: string | Signal): void {
     this.st.signals++;
-    this.changed([name]);
+    this.apply(typeof s === 'string' ? this.sig.parse(s) : s);
   }
 
   /** Слушатель (пере)подключился: сигналы за время обрыва потеряны — весь кэш. */
