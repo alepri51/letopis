@@ -53,7 +53,9 @@ before(async () => {
   u.port = String(proxy.port);
   // prepare: false — commit уходит с текстом в каждом Parse, иначе прокси не узнал бы его по имени оператора
   proxyPool = postgres(u.toString(), { max: 2, prepare: false, onnotice: () => {} });
-  viaProxy = await connect({ sql: proxyPool as never, schema: e.schema, token: t.token });
+  // без продления сессии: его фоновая транзакция (раз в минуту после удачной операции) шла бы через тот же
+  // прокси, и взведённый обрыв мог достаться её COMMIT, а не COMMIT проверяемой операции
+  viaProxy = await connect({ sql: proxyPool as never, schema: e.schema, token: t.token, refreshSession: false });
 });
 
 after(async () => {
