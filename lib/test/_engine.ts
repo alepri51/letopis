@@ -147,7 +147,8 @@ export async function watchStarted(sub: Subscription): Promise<void> {
 
 /** Ошибка letopis с заданным именем (`letopis: <имя>:`) или кодом SQLSTATE. */
 export function lt(nameOrCode: string) {
-  return (e: { message?: string; code?: string }) => {
+  return (e: { message?: string; code?: string } | null | undefined) => {
+    if (e == null) throw new Error(`ожидалась ошибка ${nameOrCode}, а операция прошла`);
     if (/^[0-9A-Z]{5}$/.test(nameOrCode)) {
       if (e.code === nameOrCode) return true;
     } else if (e.message?.startsWith(`letopis: ${nameOrCode}:`)) {

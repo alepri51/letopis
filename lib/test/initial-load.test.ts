@@ -127,11 +127,16 @@ test('7.4 №5: вставка во время запуска — раньше �
   await emptyB();
   let release!: () => void;
   const gate = new Promise<void>((r) => (release = r));
+  let inserted!: () => void;
+  const ready = new Promise<void>((r) => (inserted = r));
   const early = e.sql.begin(async (tx) => {
     await tx.unsafe('set local role letopis_owner');
     await tx.unsafe(`select ${SB}.sys_create(${SB}.v5_id($1::uuid, 'Org', array['early']), 'Org', $1::uuid, '{}', '{"name": "early"}')`, [T]);
+    inserted();
     await gate;
   });
+  // загрузка — только после вставки: иначе она могла взять блокировку первой, и ждала бы уже вставка
+  await ready;
   const l1 = b.load(rows(20, 'e'), { initial: true, tenant: T }).then(() => null, (x: unknown) => x);
   await waitForLock(e.sql);
   release();
