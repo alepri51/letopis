@@ -319,6 +319,19 @@ await p.run({ once: true })   // догнать журнал; run() — след
 разберите `op`. Другая `version` — `rebuild_required`; курсор старше яруса `all` — `cursor_expired`
 (`onExpired: 'rebuild'` перестраивает сам). Источник с `history: false` не подходит.
 
+### 13. Агрегаты в базе
+
+Сумму или счётчик строк источника держит сама база — для итогов, которые обязаны совпадать и для сырого SQL:
+```ts
+const Wallet = hub('Wallet', { number: z.string(), balance: z.number().int().min(0) }, {
+  key: ['number'], aggregate: { balance: { sum: 'amount', of: 'Payment', via: 'Wallet' } } })   // или count: true; where — JSON Schema
+await db.Wallet(w).Payment().create({ opId: 'op-9', amount: 500 }).rows()   // баланс вырос сам, без inc
+```
+Поле пересчитывает триггер после каждого оператора (библиотека, сырой SQL, каскад, `restore`, `reclass`, `rekey`,
+загрузчик); уход ниже `minimum` — `invalid_data`, каждое изменение — версия цели. Считаются живые строки того же
+арендатора (строка System — нет). Ремонт — `adm.rebuildAggregates('Wallet')`, расхождения — `verify({ data: true })`.
+Горячий счётчик (тысячи записей в секунду на объект) — проектор со свёрткой пачкой, а не агрегат.
+
 ### Эксплуатация
 
 `db.verify({ data: true })` и `letopis verify` — цепочки хэшей, якорь; `db.maintain()` и `connect({ maintain: '1h' })` —
@@ -381,3 +394,5 @@ await adm.close(); await db.close(); await svc.close()
     разные очереди; план исполняется от имени того, кто его поставил. Копите планы через один объект фасада.
 19. **Строки производного класса пишет только его проектор.** Приложение, сырой SQL и загрузчик получат
     `derived_class`; ссылаться на такие строки концами тоже нельзя. Пересчитать их — `rebuild()` проектора.
+20. **Агрегатное поле пишет только база.** Значение в `create`, `update`, `upsert`, `rekey`, `reclass` и сыром SQL —
+    `aggregate_field`; не передавайте его. Сырой upsert цели — `set data = excluded.data - array['balance']`.

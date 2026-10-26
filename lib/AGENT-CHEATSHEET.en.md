@@ -327,6 +327,20 @@ start rebuilds the projection from the current state. `purge`, `trim` and `reset
 Another `version` gives `rebuild_required`; a cursor older than the `all` tier gives `cursor_expired`
 (`onExpired: 'rebuild'` rebuilds by itself). A source with `history: false` does not fit.
 
+### 13. Aggregates in the database
+
+The database itself keeps a sum or a count of source rows — for totals that must match even for raw SQL:
+```ts
+const Wallet = hub('Wallet', { number: z.string(), balance: z.number().int().min(0) }, {
+  key: ['number'], aggregate: { balance: { sum: 'amount', of: 'Payment', via: 'Wallet' } } })   // or count: true; where is a JSON Schema
+await db.Wallet(w).Payment().create({ opId: 'op-9', amount: 500 }).rows()   // the balance grew by itself, no inc
+```
+A trigger recalculates the field after every statement (the library, raw SQL, a cascade, `restore`, `reclass`,
+`rekey`, the loader); going below `minimum` is `invalid_data`, every change is a version of the target. Live rows of
+the same tenant are counted (a System row is not). Repair: `adm.rebuildAggregates('Wallet')`; discrepancies:
+`verify({ data: true })`. A hot counter (thousands of writes per second per object) is a projector that folds a batch,
+not an aggregate.
+
 ### Operations
 
 `db.verify({ data: true })` and `letopis verify` — hash chains, the anchor; `db.maintain()` and
@@ -395,3 +409,5 @@ await adm.close(); await db.close(); await svc.close()
     object.
 19. **Only its projector writes the rows of a derived class.** The application, raw SQL and the loader get
     `derived_class`; ends may not refer to such rows either. To recompute them, use the projector's `rebuild()`.
+20. **Only the database writes an aggregate field.** A value in `create`, `update`, `upsert`, `rekey`, `reclass` and raw
+    SQL is `aggregate_field`; do not pass it. A raw upsert of a target: `set data = excluded.data - array['balance']`.

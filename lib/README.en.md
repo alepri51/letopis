@@ -501,6 +501,51 @@ name of the class for a chain step, for example a name in another language.
   `onDelete: 'cascade'` or `'unset'`: a derived row does not prevent deleting its target. Nothing refers to the rows
   of a derived class. The application, raw SQL and the loader do not write to such a class: writing, editing and
   deleting its rows gives `derived_class`.
+- `aggregate: { field: { sum | count, of, via, where } }`: an aggregate in the database: the database itself keeps
+  the sum or count of source rows ([Aggregates in the database](#aggregates-in-the-database)).
+
+### Aggregates in the database
+
+An aggregate is a field that the database itself maintains: the sum of a field or the number of live rows of a
+source class whose end leads to the row. It is needed where the total must match the source even for raw SQL: a
+wallet balance, the number of order lines.
+
+```ts
+const Wallet = hub('Wallet', { number: z.string(), balance: z.number().int().min(0), deposits: z.number().int().optional() }, {
+  key: ['number'],
+  aggregate: {
+    balance: { sum: 'amount', of: 'Movement', via: 'Wallet' },                                        // sum of movements
+    deposits: { count: true, of: 'Movement', via: 'Wallet', where: { properties: { amount: { minimum: 1 } } } },  // number of top-ups
+  },
+})
+const Movement = link('Movement', { amount: z.number().int() }, { ends: { Wallet } })
+```
+
+- `sum: 'field'` is the sum of a numeric field of the source, `count: true` is the number of rows. `of` is the source
+  class together with its descendants, `via` is its single end that leads to the target row. `where` is a JSON Schema
+  over the source data: rows that do not pass it are not counted.
+- Only live rows of the same tenant as the target are counted. A reference to a System row is not counted: a shared
+  directory does not count the data of all tenants.
+- A trigger recalculates the field after every statement: writes by the library, raw SQL, a delete cascade,
+  `restore`, `reclass`, `rekey`, the loader, account deletion. The operations of one statement add up to one increment
+  of the target, and the class rule (`min(0)`) is checked on the total: an operation that would take the balance below
+  zero is rejected with `invalid_data`. Every change of the target is its new version with the author and reason of
+  the operation.
+- Only the database writes the field. A value in `create`, `update`, `upsert`, `rekey`, `reclass` or raw SQL is an
+  `aggregate_field` error. A new row gets the total of already existing sources, usually 0. Replacing the data as a
+  whole without the field keeps the previous value. The loader does not write a passed value. No permission to write
+  the target is needed: the permission to write the source is enough.
+- The database checks the description (`invalid_class`): the field is in the schema, it is numeric and not part of the
+  key; the `via` end is single and accepts the target class; the `sum` field is a number; aggregates do not form a
+  cycle; the target and the source are not system or derived classes. A source described after the target is checked
+  when it appears.
+- The option is inherited, and a descendant replaces it as a whole. Adding or changing an aggregate is a tightening:
+  writes to the target and to the sources wait while the field is recalculated for all rows.
+- `db.rebuildAggregates(class)` recalculates the field from the current rows, for repair. A version is written only
+  where the value has changed. `db.verify({ data: true })` shows discrepancies. It needs an admin connection.
+- A raw `INSERT … ON CONFLICT DO UPDATE SET data = excluded.data` for a target is rejected: the insert trigger has
+  already set the field in `excluded.data`. Write `excluded.data - array['balance']`, and the field stays as it was;
+  the library's `upsert` does this itself.
 
 ### Writing the model to the database
 
@@ -641,6 +686,12 @@ without reads or locks in the application. Rules:
 - the path goes only through existing objects;
 - an `inc` marker cannot come from JSON: `{ "$inc": 5 }` that came from the network stays data;
 - store money as an integer number of minor units (cents), no greater than 2^53 − 1.
+
+A counter that must match the source even for raw SQL is easier to keep as an aggregate
+([Aggregates in the database](#aggregates-in-the-database)): the database recalculates it itself, and you cannot forget
+an `inc`. An aggregate and `inc` cost the same: operations on one object go one after another under the lock of its
+row, and each writes its version. For hot counters, thousands of writes per second to one object, use a projector that
+folds a batch ([Projectors](#projectors)): the total lags behind the source, but writers do not wait for each other.
 
 ### Protection against concurrent edits: `{ rev }`
 
@@ -1776,6 +1827,7 @@ Removed 0.21 names (`uuidv7`, `LETOPIS_NS` and the methods listed below) throw `
 | `batch(name)` | a queue of plans: `run()`, `discard()`, `size()` |
 | `load(input, options)` | the loader ([section 9](#9-bulk-loading)) |
 | `projector(name, options)` | a projector from the journal: `run()`, `rebuild()`, `status()`, `stop()`, `close()` ([Projectors](#projectors)) |
+| `rebuildAggregates(class)` | repair of aggregates: the field anew from live sources, a version only for corrected rows ([Aggregates in the database](#aggregates-in-the-database)) |
 | `watch(options)`, `cache` | subscription; result cache (`clear()`, `stats()`) |
 | `` sql`…` ``, `transaction(fn)` | raw SQL under the session and RLS |
 | `idOf(class, key)` | the id of an object of a class with a key, in the session tenant |
@@ -1845,7 +1897,7 @@ database does not accept a link with such a name (`reserved_names()`; the instal
   `owner`, `forUpdate`, `cache`, `rekey`, `diff`, `blame`; guards of the removed API: `run`, `execute`, `account`;
 - the `db` root: `as`, `begin`, `commit`, `rollback`, `lock`, `batch`, `watch`, `close`, `registry`, `sql`, `load`,
   `verify`, `maintain`, `reset`, `describe`, `auth`, `acl`, `idOf`, `refresh`, `transaction`, `flushSignals`,
-  `schema`, `token`, `tenant`, `trimHistory`, `rekeyClass`, `cache`, `projector`; guards: `reloadSchema`,
+  `schema`, `token`, `tenant`, `trimHistory`, `rekeyClass`, `cache`, `projector`, `rebuildAggregates`; guards: `reloadSchema`,
   `accounts`, `credentials`, `resources`, `rules`, `compact`;
 - batch: `discard`, `size`.
 
@@ -1877,6 +1929,7 @@ Database codes. Raw SQL gets them too: SQLSTATE class `LT`, the details are JSON
 | `reset_disabled` | LT019 | reset is disabled in the installation (`allowReset`) |
 | `confirm_mismatch` | LT020 | the reset confirmation does not match the schema name |
 | `derived_class` | LT021 | a row of a derived class (`derivedBy`) is written, edited or deleted by someone other than its projector; an end leads to such a row or to a derived class; a projector writes to a class outside its `into` |
+| `aggregate_field` | LT022 | the application passed or changed an aggregate field (`aggregate`): the database calculates it |
 
 Library codes:
 
@@ -2081,6 +2134,16 @@ behavior.
 - Thinning the journal older than the `all` tier leads to a rebuild: a projector that lags behind by more than that
   tier gets `cursor_expired` or, with `onExpired: 'rebuild'`, rebuilds itself.
 
+**Aggregates in the database**
+
+- An aggregate queues the writers of one object: every operation locks the target row and writes its version. For hot
+  counters, use a projector that folds a batch.
+- `reclass` and `rekey` accumulate contributions until the end of the move, while a delete cascade and the loader apply
+  them per statement: the class rule is checked on the total of each cascade statement and of each loader batch. So a
+  load in which debits come in a batch before top-ups gets `invalid_data`, although the total of the whole load is
+  valid. Every batch that touches a target writes its version.
+- A tenant aggregate does not count rows of a System class, and the field of a System row counts only System sources.
+
 **Import from 0.21**
 
 - 1.0 is a new major version, not a continuation of 0.21: `count()`, `paths()`, `create`, roles, multiple ends and
@@ -2098,6 +2161,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # connect — connecting under a session, refusing roles that bypass RLS, the registry, the deferred signal, error translation (stage 2)
 # context — sessions, service sign-in by key, the RLS policies of stage 1 (stage 1)
 # access-rest — the remaining rows of stage 5: loading on behalf of a user, balance No. 20, 22, 29, upsert and { rev } under ACL, inlining of acl_ok (stage 5)
+# aggregate — aggregates in the database: 20 writers of one wallet, raw SQL, a cascade, reclass, restore, the loader, account deletion, restore and rekey of the target, a description change under writes and race No. 18, aggregate_field, repair and verify, a System row (plan 1.1, stage 4b)
 # acl — ACL permissions: the 0.21 suite ported, row conditions, weight and default deny, cascade, deny on a descendant, deep, an invisible target, raw SQL versus the library (stage 5)
 # acl-parity — 1000 random rule sets: the database permission plan and endpoint decisions versus decide from 0.21 (stage 5)
 # auth — credentials (password, key, key + secret, OTP, TOTP, identity), timing equalization, case, session revocation, recent sign-in (stage 5)
@@ -2145,7 +2209,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # telemetry — onQuery and slowMs, describe() and class metadata with inheritance, describeText (stage 6)
 # history — diff and blame over the log, the reason of a change for verbs, db.begin() and batches; a version hidden by an ACL condition, the changed column, a missing version, row_changes over 20 thousand targets (plan 1.1, stage 1 and checkpoint A)
 # signals — signal modes: the payload seen by a foreign role, cache precision per tenant, System, permission classes, a process without the key, the loader, subscriptions, the key, none, coalescing, the server version, a class change, a resend, the mode after up() and reset({ all }) (plan 1.1, stage 2)
-# initial-load — the initial load: equality with the regular loader, structure and trigger modes, system rows, a non-empty schema, an insert during the start, rollback, MULTI_INSERT in WAL, commitEvery, import --initial (plan 1.1, stage 3)
+# initial-load — the initial load: equality with the regular loader, structure and trigger modes, system rows, a non-empty schema, an insert during the start, rollback, MULTI_INSERT in WAL, commitEvery, import --initial, aggregates (agg_fill) (plan 1.1, stages 3 and 4b)
 # projector — projectors from the journal: catching up, exactly once on a break, one writer, a long transaction, a transaction on the boundary of the rebuild snapshot, no writes to derived classes and no references to them, the bounds of out, atomic and batch rebuilds during source writes, purge of a source, lag and cursor_expired, the credential functions; the version, the name, an admin connection; a race of two processes (plan 1.1, stage 4a)
 # import — import from 0.21 with a fixture of a real 0.21: key violation, --keyless, per-class counters, verify, self-reference, repeat, ids without a key, a dangling reference, $$strict and fields starting with $, update, credentials, CLI (stage 7)
 # security-final — the final security review (stage 8, §7.10 No. 8.4): a family lock by the tenant of the root, account_purge without permission and restore/purge of a foreign id give neither a leak nor a lock; the functions of stage 6, log_refs_at, journal-based find_* reads and watch_read stay within their own tenant; NOTIFY carries only names or mode tokens; the cache key distinguishes the token, the actor and the tenant (stage 8)

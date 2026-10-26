@@ -13,7 +13,11 @@
 --   history   true | false | политика хранения (§2.11)
 --   ownerDefault 'tenant' | 'actor';  cache { ttl };  meta {…} до 64 КБ
 --   derivedBy имя проектора (план 1.1, §2.4): строки класса пишет только он; наследуется, потомок не меняет
---   resolved  развёрнутое описание с учётом предков — пишет триггер, присланное значение перезаписывается
+--   aggregate { <поле>: { sum: <поле источника> | count: true, of: <класс-источник>, via: <роль>, where?: JSON Schema } }
+--             агрегаты в базе (план 1.1, §2.4): поле держит триггер по живым строкам источника; наследуется,
+--             потомок заменяет целиком
+--   resolved  развёрнутое описание с учётом предков — пишет триггер, присланное значение перезаписывается; у
+--             источника агрегатов в нём ещё метка aggregatedBy — какие цели считают его строки (88-derived.sql)
 -- Скомпилированная проверка данных класса лежит в колонке validator строки Class.
 
 create or replace function @SCHEMA@.class_metaschema() returns jsonb
@@ -71,6 +75,22 @@ return $json${
     "cache": {"type": "object"},
     "meta": {"type": "object"},
     "derivedBy": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_.:-]{0,63}$"},
+    "aggregate": {
+      "type": "object",
+      "propertyNames": {"type": "string", "pattern": "^[^$]"},
+      "additionalProperties": {
+        "type": "object",
+        "required": ["of", "via"],
+        "additionalProperties": false,
+        "properties": {
+          "sum": {"type": "string", "pattern": "^[^$]"},
+          "count": {"type": "boolean", "enum": [true]},
+          "of": {"type": "string", "pattern": "^[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё0-9_]{0,62}$"},
+          "via": {"type": "string", "pattern": "^[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё0-9_]{0,62}$"},
+          "where": {"type": "object"}
+        }
+      }
+    },
     "resolved": {"type": "object"}
   }
 }$json$::jsonb;
@@ -117,6 +137,7 @@ declare
   od text;
   cache jsonb;
   der text;
+  agg jsonb;
   comp jsonb := '{}';
   i int;
   v jsonb;
@@ -154,6 +175,8 @@ begin
       end if;
       der := v->>'derivedBy';
     end if;
+    -- агрегаты (план 1.1, §2.4): потомок заменяет описание предка целиком, {} — снимает унаследованное
+    if v ? 'aggregate' then agg := v->'aggregate'; end if;
     for m in select * from jsonb_each(coalesce(v->'meta', '{}')) loop
       if m.value = 'null'::jsonb then meta := meta - m.key; else meta := meta || jsonb_build_object(m.key, m.value); end if;
     end loop;
@@ -169,8 +192,9 @@ begin
     'history', coalesce(hist, 'true'),
     'ownerDefault', coalesce(od, 'tenant'),
     'cache', cache,
-    -- ключ только у производных: у описаний до 1.2 его нет, и сравнение «было — стало» их не задевает
-    'meta', meta) || case when der is not null then jsonb_build_object('derivedBy', der) else '{}'::jsonb end;
+    -- ключи только у производных и у целей агрегатов: у описаний до 1.2 их нет, и сравнение «было — стало» их не задевает
+    'meta', meta) || case when der is not null then jsonb_build_object('derivedBy', der) else '{}'::jsonb end
+                  || case when agg is not null and agg <> '{}'::jsonb then jsonb_build_object('aggregate', agg) else '{}'::jsonb end;
 end $$;
 
 -- Проверка описания класса: метасхема, правила ключа (§2.3), правило unset (§2.10), размер meta.
@@ -268,6 +292,12 @@ begin
       end if;
     end loop;
   end if;
+  -- агрегаты (план 1.1, §2.4; 88-derived.sql): цель — поля, источники, цикл, условия where; источник — метка
+  -- aggregatedBy и та же сверка против агрегатов, которые считают его строки (источник часто описывают после цели)
+  if res ? 'aggregate' then
+    res := @SCHEMA@.agg_prepare(res, data, p_tenant);
+  end if;
+  res := @SCHEMA@.agg_source(res, p_tenant);
   select * into c from @SCHEMA@.compile_validator(res->'schema');
   data := data || jsonb_build_object('resolved', res || jsonb_build_object('rules', c.rules, 'vars', c.vars));
   validator := c.validator;

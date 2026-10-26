@@ -215,3 +215,36 @@ test('7.4 №9: letopis import --initial — одной транзакцией, 
   const [{ txs }] = await e.sql.unsafe(`select count(distinct tx)::int as txs from ${ident(DST)}.log where agent = 'letopis import'`);
   assert.equal(txs, 1, 'весь импорт — одна транзакция');
 });
+
+test('7.4 №10: агрегаты — первая заливка операций в схему с агрегатом: итог равен сумме загруженных операций', async () => {
+  await emptyB();
+  const purse = { name: 'Purse', kind: 'hub', key: ['code'],
+    fields: { properties: { code: { type: 'string' }, total: { type: 'integer', minimum: 0 }, n: { type: 'integer' } }, required: ['code', 'total'] },
+    aggregate: { total: { sum: 'amount', of: 'Spend', via: 'Purse' }, n: { count: true, of: 'Spend', via: 'Purse' } } };
+  const spend = { name: 'Spend', kind: 'link', fields: { properties: { amount: { type: 'integer' } }, required: ['amount'] },
+    ends: { Purse: { class: 'Purse', required: true, onDelete: 'cascade' } } };
+  await e.sql.begin(async (tx) => {
+    await tx.unsafe('set local role letopis_owner');
+    for (const c of [purse, spend]) {
+      await tx.unsafe(`select ${SB}.sys_create(${SB}.v5_id($1::uuid, 'Class', array[$2]), 'Class', $1::uuid, '{}', $3::jsonb)`, [SYSTEM_ID, c.name, c as never]);
+    }
+  });
+  // переданное значение агрегатного поля загрузчик не пишет: итог считает база (agg_fill)
+  const purses = Array.from({ length: 50 }, (_, i) => ({ $class: 'Purse', code: `p${i}`, total: 999 }));
+  const spends = Array.from({ length: 5000 }, (_, i) => ({ $class: 'Spend', amount: (i % 7) + 1, Purse: { $key: [`p${i % 50}`] } }));
+  const r = await b.load([...purses, ...spends], { initial: true, tenant: T, batch: 1000 });
+  assert.equal(r.loaded, 5050);
+  const got = await e.sql.unsafe(`select p.data->>'code' as code, (p.data->>'total')::int as total, (p.data->>'n')::int as n, p.rev, p.data,
+      (select coalesce(sum((s.data->>'amount')::int), 0)::int from ${SB}.entity s where s.class = 'Spend' and s.links->>'Purse' = p.id::text) as want,
+      (select count(*)::int from ${SB}.entity s where s.class = 'Spend' and s.links->>'Purse' = p.id::text) as cnt,
+      (select l.data from ${SB}.log l where l.id = p.id order by l.rev desc limit 1) as last
+    from ${SB}.entity p where p.class = 'Purse' and p.tenant = $1 order by 1`, [T]);
+  assert.equal(got.length, 50);
+  for (const g of got) {
+    assert.deepEqual([g.total, g.n], [g.want, g.cnt], g.code as string);
+    assert.equal(g.rev, 1, 'одна версия: значение — в ней же');
+    assert.deepEqual(g.last, g.data, 'версия журнала — с тем же значением, что строка');
+  }
+  const v = await b.verify({ data: true });
+  assert.equal(v.ok, true, JSON.stringify(v.issues.slice(0, 5)));
+});

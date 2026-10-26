@@ -24,8 +24,8 @@ import { Subscription, type WatchOptions } from './watch.js';
 import { Projector, type ProjectorOptions } from './project.js';
 import { SIGNAL_MODES, Signals, bucket, throttle, type Signal, type SignalMode } from './signals.js';
 import {
-  describe as describeModel, maintain as runMaintain, rekeyClass as runRekeyClass, reset as runReset, scheduleMaintain,
-  trimHistory as runTrim, verify as runVerify, type AdminCtx, type MaintainOptions, type MaintainReport, type ModelDescription,
+  describe as describeModel, maintain as runMaintain, rebuildAggregates as runRebuildAggregates, rekeyClass as runRekeyClass,
+  reset as runReset, scheduleMaintain, trimHistory as runTrim, verify as runVerify, type AdminCtx, type MaintainOptions, type MaintainReport, type ModelDescription,
   type ResetOptions, type ResetResult, type VerifyResult,
 } from './admin.js';
 import type { AnyModelLike, StepsOf } from './typed.js';
@@ -33,7 +33,7 @@ import type { AnyModelLike, StepsOf } from './typed.js';
 export { DDL_REVISION } from './types.js';
 export { uuidv5, v5Name, v5Id, idOf, type KeyedClass } from './uuid.js';
 export { LetopisError, ValidationError, fromDbError, type Issue } from './errors.js';
-export { Registry, type ClassInfo, type EndInfo, type LeafType } from './registry.js';
+export { Registry, type AggregateInfo, type ClassInfo, type EndInfo, type LeafType } from './registry.js';
 export { compileValidator, applyDefaults, type Validator } from './validate.js';
 export { syncModels, generateTypes, schemaToTs, type SyncResult } from './sync.js';
 export { ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends, has, hasAny, hasAll, exists, isNull, not, or, isOp } from './ops.js';
@@ -182,6 +182,12 @@ export interface DbCore {
    * Только на администраторском подключении (иначе admin_required).
    */
   projector(name: string, opts: ProjectorOptions): Projector;
+  /**
+   * Ремонт агрегатов в базе (план 1.1, §2.4): поля класса (с потомками) во всех арендаторах — заново из живых строк
+   * источников, под исключительными блокировками; версия — только у исправленных. Возвращает их число. Только на
+   * администраторском подключении (иначе admin_required).
+   */
+  rebuildAggregates(cls: string): Promise<number>;
   /**
    * Именованная очередь планов фасада: batch.Класс(…).create(…); batch.run() — одной транзакцией. У корня,
    * у каждого db.as() и у каждой db.begin() очереди свои: план исполняется от имени фасада, который его поставил.
@@ -346,6 +352,11 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
         sql: sh.sql, schema: sh.schema, S: sh.S, ownerRole: sh.ownerRole,
         ...(sh.listen ? { onSignal: (fn: (s: Signal) => void) => { sh.signals.add(fn); return () => void sh.signals.delete(fn); } } : {}),
       }, name, o);
+    },
+    rebuildAggregates: async (cls) => {
+      if (tx) throw new LetopisError('invalid_query', 'rebuildAggregates() — своей транзакцией, не внутри db.begin()');
+      if (!sh.admin) throw new LetopisError('admin_required', 'ремонту агрегатов нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы)');
+      return runRebuildAggregates({ sql: sh.sql, S: sh.S, ownerRole: sh.ownerRole }, cls);
     },
     batch: (name, o) => {
       let q = batches.get(name);

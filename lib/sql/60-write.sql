@@ -385,6 +385,11 @@ begin
          cv = coalesce((@SCHEMA@.class_row(coalesce(p_class, x.class), x.tenant)).rev, x.cv)
    where x.id = p_id
   returning x.* into e;
+  -- смена класса: агрегатные поля новой цели триггер после правки посчитал в эту же версию (план 1.1, §2.4) —
+  -- в журнал идёт строка таблицы, а не returning
+  if p_class is not null then
+    select x.* into e from @SCHEMA@.entity x where x.id = p_id;
+  end if;
   perform @SCHEMA@.log_version(e);
   return e;
 end $$;
@@ -444,14 +449,15 @@ end $$;
 
 -- Безопасно ли изменение описания класса (этап 1, п. 10): новые необязательные поля и концы,
 -- метаданные, алиас, политика истории, кэш. Всё остальное — ужесточение с проверкой строк, в том числе
--- любая правка условий anyOf и oneOf (1.0.1: прежде они не сравнивались, и строки не перепроверялись)
--- и признака производного класса derivedBy (план 1.1, §2.6).
+-- любая правка условий anyOf и oneOf (1.0.1: прежде они не сравнивались, и строки не перепроверялись),
+-- признака производного класса derivedBy и описания агрегатов aggregate (план 1.1, §2.6).
 create or replace function @SCHEMA@.class_change_safe(o jsonb, n jsonb) returns boolean
 language sql immutable
 return
   o->'key' = n->'key'
   and o->'ancestors' = n->'ancestors'
   and o->'derivedBy' is not distinct from n->'derivedBy'
+  and o->'aggregate' is not distinct from n->'aggregate'
   and (o->'abstract' = n->'abstract' or n->>'abstract' = 'false')
   and o->'schema'->'anyOf' is not distinct from n->'schema'->'anyOf'
   and o->'schema'->'oneOf' is not distinct from n->'schema'->'oneOf'
@@ -653,6 +659,15 @@ begin
   if NEW.class = 'Class' then
     select a.data, a.validator into NEW.data, NEW.validator from @SCHEMA@.class_admit(coalesce(NEW.data, '{}'::jsonb), NEW.tenant) a;
   else
+    -- агрегатное поле считает база (план 1.1, §2.4): переданное значение — отказ, новое — 0 до умолчаний и
+    -- проверки; итог из живых источников ставит триггер после оператора
+    if res ? 'aggregate' then
+      if coalesce(NEW.data, '{}'::jsonb) ?| @SCHEMA@.agg_fields(res) then
+        perform @SCHEMA@.lt_fail('aggregate_field', format('поля %s класса %s считает база (aggregate) — их не передают',
+          array_to_string(array(select x from unnest(@SCHEMA@.agg_fields(res)) x where NEW.data ? x), ', '), NEW.class));
+      end if;
+      NEW.data := @SCHEMA@.agg_zero(res, coalesce(NEW.data, '{}'::jsonb));
+    end if;
     NEW.data := @SCHEMA@.apply_defaults(res->'schema', coalesce(NEW.data, '{}'::jsonb));
     bad := @SCHEMA@.validate_data(res->'rules', cls.validator, res->'vars', NEW.data);
     if bad <> '[]'::jsonb then
@@ -772,6 +787,11 @@ begin
   if NEW.class = 'Class' then
     select a.data, a.validator into NEW.data, NEW.validator from @SCHEMA@.class_admit(NEW.data, OLD.tenant) a;
   else
+    -- агрегатное поле (план 1.1, §2.4): изменить его нельзя, без поля (замена данных целиком) — прежнее значение;
+    -- при смене класса — прежнее число или 0, итог посчитает триггер после оператора
+    if res ? 'aggregate' then
+      NEW.data := @SCHEMA@.agg_guard(res, OLD.data, NEW.data, NEW.class <> OLD.class);
+    end if;
     NEW.data := @SCHEMA@.apply_defaults(res->'schema', NEW.data);
     bad := @SCHEMA@.validate_data(res->'rules', cls.validator, res->'vars', NEW.data);
     if bad <> '[]'::jsonb then
@@ -799,6 +819,11 @@ begin
     -- ужесточение: исключительная блокировка корня семейства (и нового корня при смене родителя)
     perform @SCHEMA@.family_lock(OLD, true);
     perform @SCHEMA@.family_lock(NEW, true);
+    -- смена агрегатов — ещё семейства источников (план 1.1, §2.4): операция, зафиксированная до пересчёта, в него
+    -- войдёт, а ожидающая допишет вклад уже по новому описанию
+    if OLD.data->'resolved'->'aggregate' is distinct from NEW.data->'resolved'->'aggregate' then
+      perform @SCHEMA@.agg_lock_sources(OLD.data->'resolved', NEW.data->'resolved', OLD.tenant);
+    end if;
   end if;
   NEW.rev := OLD.rev + 1;
   NEW.prev_hash := OLD.hash;
@@ -842,6 +867,11 @@ begin
   perform @SCHEMA@.signal(sc, st);
   if sc && array['rule', 'Resource', 'member', 'Account', 'Class'] then
     perform @SCHEMA@.acl_bump();
+  end if;
+  -- новая цель агрегатов (план 1.1, §2.4): метки её источников (aggregatedBy) — заново
+  if 'Class' = any (sc) then
+    perform @SCHEMA@.agg_mark(n.tenant, @SCHEMA@.agg_of(n.data->'resolved'))
+    from added n where n.class = 'Class' and n.data->'resolved' ? 'aggregate';
   end if;
   return null;
 end $$;
@@ -914,7 +944,15 @@ declare
   classes text[] := array[n.data->>'name'];
   conflicts jsonb;
   c record;
+  -- агрегаты (план 1.1, §2.4): источники, чьи метки пересчитываются; цели, поле которых считается заново
+  agg_names text[] := '{}';
+  agg_own text[] := '{}';
+  agg_other text[] := @SCHEMA@.agg_marked(o.data->'resolved', n.data->'resolved');
 begin
+  if o.data->'resolved'->'aggregate' is distinct from n.data->'resolved'->'aggregate' then
+    agg_names := @SCHEMA@.agg_of(o.data->'resolved') || @SCHEMA@.agg_of(n.data->'resolved');
+    agg_own := agg_own || (n.data->>'name');
+  end if;
   -- потомки: описание resolved и validator пересчитываются, каждый пересчёт — версия класса в журнале
   for d in select x.* from @SCHEMA@.entity x
            where x.class = 'Class' and x.id <> n.id
@@ -926,7 +964,23 @@ begin
       perform @SCHEMA@.sys_update(d.id, prep.data, d.links, prep.validator, 'update');
     end if;
     classes := classes || (d.data->>'name');
+    if d.data->'resolved'->'aggregate' is distinct from prep.data->'resolved'->'aggregate' then
+      agg_names := agg_names || @SCHEMA@.agg_of(d.data->'resolved') || @SCHEMA@.agg_of(prep.data->'resolved');
+      agg_own := agg_own || (d.data->>'name');
+    end if;
+    agg_other := agg_other || @SCHEMA@.agg_marked(d.data->'resolved', prep.data->'resolved');
   end loop;
+  -- агрегаты семейства изменились: метки источников заново и поле у всех целей — из живых источников (строки
+  -- проверит ужесточение ниже); у источника сменились предки — заново цели, которые его считают
+  if cardinality(agg_names) > 0 then
+    perform @SCHEMA@.agg_mark(n.tenant, agg_names);
+  end if;
+  if cardinality(agg_own) > 0 then
+    perform @SCHEMA@.agg_refresh(agg_own, n.tenant, false);
+  end if;
+  if cardinality(agg_other) > 0 then
+    perform @SCHEMA@.agg_refresh(agg_other, n.tenant, true);
+  end if;
   if not @SCHEMA@.class_change_safe(o.data->'resolved', n.data->'resolved') then
     conflicts := @SCHEMA@.family_conflicts(classes, n.tenant, o.data->'resolved'->'ancestors' is distinct from n.data->'resolved'->'ancestors');
     if conflicts <> '[]'::jsonb then
@@ -1046,6 +1100,9 @@ begin
       perform @SCHEMA@.lt_fail('invalid_class', format('у класса %s есть строки или потомки', r.name));
     end if;
   end loop;
+  -- удалена цель агрегатов (план 1.1, §2.4): метки её источников — уже без неё
+  perform @SCHEMA@.agg_mark(g.tenant, @SCHEMA@.agg_of(g.data->'resolved'))
+  from gone g where g.class = 'Class' and g.data->'resolved' ? 'aggregate';
   v_author := coalesce(c.author, '@SYSTEM@'::uuid);
   -- надгробия: последний снимок следующей версией с видом delete — одной вставкой на уровень
   insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash, changed)
@@ -1243,6 +1300,9 @@ return (
 -- нового id и ссылается на старый (moved), ссылки переводятся — если переведённый конец входит
 -- в ключ ссылающейся строки, её id тоже меняется, и перевод идёт дальше рекурсивно; старая строка
 -- удаляется с надгробием, которое ссылается на новый id. Проверки делает вызывающая функция.
+-- Агрегаты (план 1.1, §2.4): перенос — несколько операторов (новая строка, перевод ссылок, удаление старой), и
+-- триггер агрегатов на это время только копит их вклады (agg_hold_begin), а в конце применяет одним итогом: сумма
+-- не проходит через промежуточные значения, новая цель считается целиком из живых источников.
 create or replace function @SCHEMA@.move_row(o @SCHEMA@.entity, p_new_id uuid, p_class text, p_data jsonb, p_links jsonb, p_op text)
 returns @SCHEMA@.entity
 language plpgsql volatile
@@ -1256,6 +1316,7 @@ declare
   r @SCHEMA@.entity;
   nl jsonb;
   rid uuid;
+  held boolean := @SCHEMA@.agg_hold_begin('acc');
 begin
   select * into c from @SCHEMA@.ctx();
   select l.rev, l.hash, l.at into last from @SCHEMA@.log l where l.id = p_new_id order by l.rev desc limit 1 for update;
@@ -1278,6 +1339,9 @@ begin
   delete from @SCHEMA@.entity x where x.id = o.id returning x.* into r;
   -- надгробие всегда вида delete (по нему срез на момент отличает удалённый id), moved — новый id
   perform @SCHEMA@.tombstone(r, 'delete', p_new_id);
+  if held then
+    perform @SCHEMA@.agg_hold_end(true);
+  end if;
   return n;
 end $$;
 
@@ -1335,7 +1399,16 @@ begin
   if res ? 'derivedBy' or (@SCHEMA@.class_row(o.class, o.tenant)).data->'resolved' ? 'derivedBy' then
     perform @SCHEMA@.lt_fail('derived_class', 'строки производного класса пишет только его проектор');
   end if;
-  d := @SCHEMA@.apply_defaults(res->'schema', coalesce(p_data, o.data));
+  d := coalesce(p_data, o.data);
+  -- агрегатные поля нового класса считает база (план 1.1, §2.4): в данных их не передают; прежнее число остаётся
+  -- до пересчёта, иначе 0
+  if res ? 'aggregate' then
+    if p_data ?| @SCHEMA@.agg_fields(res) then
+      perform @SCHEMA@.lt_fail('aggregate_field', format('агрегатные поля класса %s считает база — в данных reclass их не передают', p_class));
+    end if;
+    d := @SCHEMA@.agg_zero(res, d);
+  end if;
+  d := @SCHEMA@.apply_defaults(res->'schema', d);
   bad := @SCHEMA@.validate_data(res->'rules', cls.validator, res->'vars', d);
   if bad <> '[]'::jsonb then
     perform @SCHEMA@.lt_fail('invalid_data', format('данные не проходят описание класса %s', p_class), jsonb_build_object('issues', bad));

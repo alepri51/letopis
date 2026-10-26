@@ -28,7 +28,7 @@ export const DB_METHODS = [
   'as', 'begin', 'commit', 'rollback', 'lock', 'batch', 'watch', 'close', 'registry', 'sql', 'load', 'verify',
   'maintain', 'reset', 'describe', 'auth', 'acl', 'idOf', 'refresh', 'transaction', 'flushSignals', 'schema',
   'token', 'tenant', 'reloadSchema', 'accounts', 'credentials', 'resources', 'rules', 'compact',
-  'trimHistory', 'rekeyClass', 'cache', 'projector',
+  'trimHistory', 'rekeyClass', 'cache', 'projector', 'rebuildAggregates',
 ] as const;
 
 /** Свойства батча db.batch(name). */

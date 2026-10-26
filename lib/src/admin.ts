@@ -4,8 +4,8 @@
  * сами сверяют права (letopis.* — системный администратор или администраторское подключение).
  */
 import type postgres from 'postgres';
-import { LetopisError } from './errors.js';
-import type { Registry } from './registry.js';
+import { LetopisError, fromDbError } from './errors.js';
+import type { AggregateInfo, Registry } from './registry.js';
 import { runTx, type Executor, type TxContext } from './tx.js';
 import { CHAIN_METHODS, DB_METHODS } from './types.js';
 
@@ -94,6 +94,8 @@ export interface ModelDescription {
     meta: Record<string, unknown>;
     /** Производный класс: строки пишет только проектор с этим именем (план 1.1, §2.4). */
     derivedBy?: string;
+    /** Агрегатные поля: сумма или число живых строк класса-источника, их считает база (план 1.1, §2.4). */
+    aggregate?: Record<string, AggregateInfo>;
   }[];
   methods: { chain: readonly string[]; db: readonly string[] };
 }
@@ -232,6 +234,25 @@ export async function rekeyClass(a: AdminCtx, cls: string, key: string[]): Promi
   return r.n;
 }
 
+/**
+ * Ремонт агрегатов (план 1.1, §2.4): поля класса и его потомков во всех арендаторах — заново из живых источников,
+ * под исключительными блокировками семейств целей и источников (запись в них ждёт). Версия пишется только там, где
+ * значение изменилось; возвращает число исправленных строк. Функция владельца — от его роли (set local role), как
+ * загрузчик; подключение проверил вызывающий (admin_required).
+ */
+export async function rebuildAggregates(env: { sql: Sql; S: string; ownerRole: string }, cls: string): Promise<number> {
+  if (typeof cls !== 'string' || !cls) throw new LetopisError('invalid_data', 'rebuildAggregates(класс): имя класса');
+  const role = `"${env.ownerRole.replace(/"/g, '""')}"`;
+  return (env.sql.begin(async (q) => {
+    await q.unsafe(`set local role ${role}`);
+    await q.unsafe(`select set_config('letopis.reason', 'rebuildAggregates', true)`);
+    const [{ n }] = await q.unsafe(`select ${env.S}.rebuild_aggregates($1) as n`, [cls]);
+    return n as number;
+  }) as Promise<number>).catch((e: unknown) => {
+    throw fromDbError(e);
+  });
+}
+
 /** Машинное описание модели арендатора вместе с метаданными классов (этап 6, п. 12). */
 export function describe(a: AdminCtx): ModelDescription {
   const classes = a.registry().all().map((c) => ({
@@ -253,6 +274,7 @@ export function describe(a: AdminCtx): ModelDescription {
     ...(c.cache ? { cache: c.cache } : {}),
     meta: c.meta,
     ...(c.derivedBy ? { derivedBy: c.derivedBy } : {}),
+    ...(c.aggregate ? { aggregate: c.aggregate } : {}),
   })).sort((x, y) => Number(x.system) - Number(y.system) || x.name.localeCompare(y.name));
   return { schema: a.schema, tenant: a.tenant(), classes, methods: { chain: CHAIN_METHODS, db: DB_METHODS } };
 }
@@ -279,6 +301,10 @@ export function describeText(d: ModelDescription): string {
     });
     if (ends.length) out.push(`- концы: ${ends.join(', ')}`);
     if (c.derivedBy) out.push(`- производный: строки пишет проектор ${c.derivedBy}, приложение только читает`);
+    for (const [field, a] of Object.entries(c.aggregate ?? {})) {
+      const what = a.sum !== undefined ? `сумма ${a.sum}` : 'число';
+      out.push(`- агрегат ${field} = ${what} строк ${a.of} по концу ${a.via}${a.where ? `, условие ${JSON.stringify(a.where)}` : ''}; поле считает база, приложение его не пишет`);
+    }
     out.push('');
   }
   return out.join('\n');

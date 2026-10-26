@@ -21,7 +21,7 @@ import { randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
 import { LetopisError, fromDbError, removed, type Issue } from './errors.js';
 import { isOp } from './ops.js';
-import { Registry, type ClassInfo, type EndInfo } from './registry.js';
+import { Registry, aggregateFields, type ClassInfo, type EndInfo } from './registry.js';
 import { accepts } from './sql.js';
 import { v5Id } from './uuid.js';
 import { applyDefaults } from './validate.js';
@@ -279,6 +279,9 @@ function shape(reg: Registry, tenant: string, cls: ClassInfo, raw: Raw, check: b
       data[k] = v;
     }
   }
+  // агрегатные поля считает база (план 1.1, §2.4): переданное значение не пишется — 0, итог посчитает триггер
+  // после оператора, а первая заливка — agg_fill
+  for (const f of aggregateFields(cls)) data[f] = 0;
   if (!check) return { data, links };
   const scan = (v: unknown, path: string): string | null => {
     if (isInc(v)) return `inc() — только в update() (${path})`;
@@ -964,12 +967,15 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       }
       if (issues.any) return;
     }
-    // первая заливка: FREEZE — таблицы опустошены этой же транзакцией
-    await copyLines(conn, `copy ${S}.entity (${ENTITY_COLS}) from stdin${ini?.freeze ? ' with (freeze)' : ''}`, ent);
+    // первая заливка: FREEZE — таблицы опустошены этой же транзакцией. Журнал — раньше строк: агрегатные поля новой
+    // цели триггер после COPY досчитывает в ту же версию — и в entity, и в уже записанную версию журнала (план 1.1, §2.4)
     await copyLines(conn, `copy ${S}.log (${LOG_COLS}) from stdin${ini?.freeze ? ' with (freeze)' : ''}`, log);
+    await copyLines(conn, `copy ${S}.entity (${ENTITY_COLS}) from stdin${ini?.freeze ? ' with (freeze)' : ''}`, ent);
     if (updates.length) {
-      // новая версия из заблокированных значений — одним оператором; без изменений — без версии
-      const res = await conn.unsafe(`with u as (select * from jsonb_to_recordset($1::jsonb) as x(id uuid, data jsonb, links jsonb, tags text[])),
+      // новая версия из заблокированных значений — одним оператором; без изменений — без версии; агрегатные поля —
+      // прежние (agg_keep): их считает база
+      const res = await conn.unsafe(`with u as (select x.id, ${S}.agg_keep(e.class, e.tenant, e.data, x.data) as data, x.links, x.tags
+            from jsonb_to_recordset($1::jsonb) as x(id uuid, data jsonb, links jsonb, tags text[]) join ${S}.entity e on e.id = x.id),
           up as (
             update ${S}.entity e set data = u.data, links = u.links, tags = coalesce(u.tags, e.tags), rev = e.rev + 1, prev_hash = e.hash,
               at = greatest($2::timestamptz, e.at + interval '1 microsecond'), author = $3::uuid, agent = $4::text, op = 'update',
@@ -1144,6 +1150,9 @@ export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) =>
       load: (input, opts = {}) => load({ ...env, session: state }, input, opts),
       taken: (id) => state.ids.has(id.toLowerCase()),
     });
+    // 6. агрегаты в базе (план 1.1, §2.4): триггеров нет — поле целей считает agg_fill, одним оператором на агрегат, и
+    // пишет его в ту же (последнюю) версию в entity и log: строки ещё никто не видел, хэши — генерируемые колонки
+    await q(`select ${S}.agg_fill()`);
     // 7. ограничения, затем индексы; память и параллельные исполнители сборки — не меньше серверных
     await q(`select set_config('maintenance_work_mem', (greatest(pg_size_bytes(current_setting('maintenance_work_mem')), 268435456) / 1024)::bigint || 'kB', true),
       set_config('max_parallel_maintenance_workers', greatest(current_setting('max_parallel_maintenance_workers')::int,

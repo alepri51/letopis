@@ -68,6 +68,7 @@
         "AclDataDecision",
         "AclDecision",
         "AclOp",
+        "AggregateInfo",
         "AnyModelLike",
         "AuthApi",
         "Batch",
@@ -155,6 +156,7 @@
         "translatePattern"
       ],
       "types": [
+        "AggregateDef",
         "AnyModel",
         "ClassDef",
         "ClassDescription",
@@ -234,6 +236,7 @@
     "lock",
     "maintain",
     "projector",
+    "rebuildAggregates",
     "refresh",
     "registry",
     "rekeyClass",
@@ -366,6 +369,10 @@
     {
       "module": "15-errors",
       "message": "letopis: acl_denied: отказ по правилам доступа"
+    },
+    {
+      "module": "15-errors",
+      "message": "letopis: aggregate_field: агрегатное поле считает база"
     },
     {
       "module": "15-errors",

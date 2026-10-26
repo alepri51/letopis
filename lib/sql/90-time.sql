@@ -242,6 +242,9 @@ begin
   values (p_id, l.rev + 1, l.class, cls.rev, l.tenant, own, lk.links, d, l.tags, ts, ts, c.author, c.agent, 'restore',
           nullif(current_setting('letopis.reason', true), ''), null, l.hash, null)
   returning * into n;
+  -- агрегатные поля восстановленной цели триггер после вставки посчитал из живых источников в эту же версию, а не
+  -- взял из надгробия (план 1.1, §2.4): в журнал идёт строка таблицы
+  select x.* into n from @SCHEMA@.entity x where x.id = p_id;
   perform @SCHEMA@.log_version(n);
   if l.class in ('rule', 'Resource', 'member', 'Account') then
     perform @SCHEMA@.acl_bump();
@@ -418,6 +421,9 @@ begin
   end if;
   if jsonb_array_length(coalesce(res->'key', '[]'::jsonb)) = 0 then
     perform @SCHEMA@.lt_fail('invalid_class', format('у класса %s нет ключа: id выдаёт база, менять нечего', o.class));
+  end if;
+  if res ? 'aggregate' and coalesce(p_data, '{}'::jsonb) ?| @SCHEMA@.agg_fields(res) then
+    perform @SCHEMA@.lt_fail('aggregate_field', format('агрегатные поля класса %s считает база — в rekey их не передают', o.class));
   end if;
   d := @SCHEMA@.apply_defaults(res->'schema', @SCHEMA@.merge(o.data, coalesce(p_data, '{}'::jsonb)));
   bad := @SCHEMA@.validate_data(res->'rules', cls.validator, res->'vars', d);
@@ -642,6 +648,7 @@ declare
   n int;
   m int;
   key text;
+  held boolean;
 begin
   if not @ALLOW_RESET@ then
     perform @SCHEMA@.lt_fail('reset_disabled', 'reset выключен в этой установке (up({ allowReset }))');
@@ -668,9 +675,15 @@ begin
       if not exists (select 1 from @SCHEMA@.entity a where a.id = t and a.class = 'Account' and a.tenant = '@SYSTEM@'::uuid) then
         perform @SCHEMA@.lt_fail('target_not_found', 'арендатор не найден');
       end if;
+      -- строки арендатора стираются пачками в любом порядке: агрегаты его целей (план 1.1, §2.4) не пересчитываются —
+      -- цели уходят вместе с источниками, а промежуточный итог пачки мог бы выйти за правило класса
+      held := @SCHEMA@.agg_hold_begin('off');
       with d as (delete from @SCHEMA@.entity x where x.id in (
           select y.id from @SCHEMA@.entity y where y.tenant = t limit coalesce(p_limit, 2147483647)) returning 1)
       select count(*)::int into n from d;
+      if held then
+        perform @SCHEMA@.agg_hold_end(false);
+      end if;
       with d as (delete from @SCHEMA@.log x where x.seq in (
           select y.seq from @SCHEMA@.log y where y.tenant = t limit coalesce(p_limit, 2147483647)) returning 1)
       select count(*)::int into m from d;
@@ -816,7 +829,8 @@ end $$;
 -- прореживание — пропуск после версии старше яруса all класса, у которого есть (или была) политика
 -- хранения — своя или умолчание установки (метка default_policy в строке ключа). p_data — ещё и все строки: данные по проверке класса, концы (цель существует, её
 -- арендатор — тот же или System, класс принимается концом), арендатор и владелец существуют, id
--- класса с ключом — v5 от ключа. Возвращает находки и якорь — хэш всех голов цепочек. Только
+-- класса с ключом — v5 от ключа, агрегатные поля равны итогу живых источников (план 1.1, §2.4; ремонт —
+-- rebuild_aggregates). Возвращает находки и якорь — хэш всех голов цепочек. Только
 -- системный администратор (право letopis.verify) или администраторское подключение.
 create or replace function @SCHEMA@.verify(p_data boolean default false) returns jsonb
 language plpgsql stable security definer
@@ -924,6 +938,11 @@ begin
                        from @SCHEMA@.entity k2
                        where k2.class = 'Class' and k2.data->>'name' = t.class and k2.tenant in (t.tenant, '@SYSTEM@'::uuid)
                        order by k2.tenant = '@SYSTEM@'::uuid limit 1), '{}')))
+      union all
+      select jsonb_build_object('id', a.id, 'class', a.class, 'field', a.field, 'stored', a.stored, 'expected', a.expected,
+               'problem', format('агрегат %s не равен итогу живых источников: в строке %s, по источникам %s — ремонт rebuildAggregates',
+                 a.field, coalesce(a.stored::text, 'нет значения'), a.expected::text))
+        from @SCHEMA@.agg_issues() a
     )
     select coalesce(jsonb_agg(f), '[]'::jsonb) into data_issues from found;
   end if;

@@ -110,7 +110,18 @@ export interface ClassDef<S extends z.ZodRawShape = z.ZodRawShape, E extends End
   meta?: ClassMeta;
   /** Производный класс (план 1.1, §2.4): строки пишет только проектор с этим именем; наследуется. */
   derivedBy?: string;
+  /**
+   * Агрегаты в базе (план 1.1, §2.4): поле — сумма поля (`sum`) или число (`count: true`) живых строк класса `of` того
+   * же арендатора, чей одиночный конец `via` ведёт на строку; `where` — JSON Schema над данными строки-источника.
+   * Поле считает база, приложение его не пишет. Наследуется, потомок заменяет целиком.
+   */
+  aggregate?: Record<string, AggregateDef>;
 }
+
+/** Описание одного агрегатного поля: `sum` или `count: true`; `of` — класс-источник (имя или модель). */
+export type AggregateDef =
+  | { sum: string; count?: never; of: string | { readonly name: string }; via: string; where?: JsonSchema }
+  | { count: true; sum?: never; of: string | { readonly name: string }; via: string; where?: JsonSchema };
 
 /** Описание класса в строке `Class` (метасхема `class_metaschema()` в lib/sql/40-class.sql). */
 export interface ClassDescription {
@@ -127,6 +138,7 @@ export interface ClassDescription {
   cache?: { ttl?: number };
   meta?: ClassMeta;
   derivedBy?: string;
+  aggregate?: Record<string, { sum?: string; count?: true; of: string; via: string; where?: JsonSchema }>;
 }
 
 /** Правило refine, которое не попадёт в базу: проверяется только в библиотеке. */
@@ -237,6 +249,11 @@ function makeModel<N extends string>(kind: 'hub' | 'link', name: N, defArg: unkn
       throw new LetopisError('invalid_class', `${name}: onDelete unset недопустим для обязательного конца ${role}`);
     }
   }
+  // агрегаты (план 1.1, §2.4): остальное — роль, поле суммы, цикл — сверяет база по описаниям источников
+  for (const [field, a] of Object.entries(def.aggregate ?? {})) {
+    if (!(field in shape)) throw new LetopisError('invalid_class', `${name}: агрегатного поля ${field} нет среди полей класса`);
+    if ((a.sum === undefined) === (a.count === undefined)) throw new LetopisError('invalid_class', `${name}: агрегат ${field} — ровно одно из sum и count: true`);
+  }
   // строгий верхний уровень — как в базе (resolved.schema: additionalProperties false)
   const schema = z.strictObject(shape);
 
@@ -288,6 +305,14 @@ function makeModel<N extends string>(kind: 'hub' | 'link', name: N, defArg: unkn
       if (def.cache) desc.cache = def.cache;
       if (def.meta) desc.meta = def.meta;
       if (def.derivedBy) desc.derivedBy = def.derivedBy;
+      if (def.aggregate) {
+        desc.aggregate = Object.fromEntries(Object.entries(def.aggregate).map(([field, a]) => [field, {
+          ...(a.sum !== undefined ? { sum: a.sum } : { count: true as const }),
+          of: typeof a.of === 'string' ? a.of : a.of.name,
+          via: a.via,
+          ...(a.where ? { where: a.where } : {}),
+        }]));
+      }
       return desc;
     },
     lostRules(): LostRule[] {
