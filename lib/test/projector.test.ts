@@ -374,3 +374,17 @@ test('ревью: одноимённый класс без derivedBy у друг
   await vdb.close();
   p.close();
 });
+
+test('ревью: имя производного класса одного арендатора не выключает одноимённый источник другого', async () => {
+  const w = await e.tenant('proj-w');
+  await e.defineClass(w, { name: 'DayTotal', kind: 'hub', key: ['day'], derivedBy: 'daily', history: false,
+    fields: { properties: { day: { type: 'string' }, total: { type: 'integer' }, count: { type: 'integer' } }, required: ['day'] } });
+  await e.defineClass(w, { name: 'Gift', kind: 'hub', parent: 'DayTotal', fields: { properties: {} } });
+  await e.defineClass(w, { name: 'Sale', kind: 'hub', fields: { properties: { day: { type: 'string' }, amount: { type: 'integer' } }, required: ['day', 'amount'] } });
+  await e.defineClass(t, { name: 'Gift', kind: 'hub', parent: 'Sale', fields: { properties: {} } });
+  await e.as(t.token, (tx) => tx.unsafe(`insert into ${e.S}.entity (class, data) values ('Gift', '{"day": "gift", "amount": 3}')`));
+  const p = adm.projector('daily', dailyDef({ version: 2 }));
+  await p.run({ once: true });
+  assert.deepEqual((await totals(db)).gift, { total: 3, count: 1 }, 'Gift арендатора t — источник');
+  p.close();
+});

@@ -189,7 +189,7 @@ class Out implements ProjectorOut {
   constructor(private p: Projector, private q: Conn, private tenants: ReadonlySet<string>, private rep: ProjectorReport) {}
 
   private check(cls: string, tenant: string | undefined): string {
-    if (!this.p.into.has(cls)) {
+    if (typeof tenant === 'string' && this.tenants.has(tenant) && !this.p.intoOf(tenant, cls)) {
       throw new LetopisError('derived_class', `проектор ${this.p.name}: класс ${cls} не входит в into`);
     }
     if (typeof tenant !== 'string' || !this.tenants.has(tenant)) {
@@ -247,8 +247,8 @@ class Out implements ProjectorOut {
 
 export class Projector {
   readonly name: string;
-  /** Производные классы с потомками (по строкам Class всех арендаторов). */
-  into = new Set<string>();
+  /** Области арендаторов проектора: свои семейства from и into. */
+  private scopes = new Map<string, { from: Set<string>; into: Set<string> }>();
   private from: string[] = [];
   /** Арендаторы проектора: каждый класс into у них помечен его derivedBy. */
   private tenants: string[] = [];
@@ -433,18 +433,27 @@ export class Projector {
     if (!tenants.length) {
       throw new LetopisError('derived_class', `проектор ${this.name}: ни у одного арендатора классы ${wanted.join(', ')} не помечены derivedBy: '${this.name}'`);
     }
-    const family = async (names: string[]): Promise<string[]> => (await q.unsafe(`select distinct x.data->>'name' as n from ${S}.entity x
-      where x.class = 'Class' and x.tenant = any ($2::uuid[]) and x.data->'resolved'->'ancestors' ?| $1::text[]`, [names, tenants]))
-      .map((r) => r.n as string);
-    const into = await family(this.def.into);
-    const from = (await family(this.def.from)).filter((n) => !into.includes(n));
+    // области — по арендатору: у каждого свои семейства from и into (имена классов у арендаторов свои)
+    const scopes = new Map<string, { from: Set<string>; into: Set<string> }>(tenants.map((x) => [x, { from: new Set(), into: new Set() }]));
+    const rows = await q.unsafe(`select x.tenant::text as t, x.data->>'name' as n,
+        x.data->'resolved'->'ancestors' ?| $2::text[] as is_into, x.data->'resolved'->'ancestors' ?| $1::text[] as is_from
+      from ${S}.entity x
+      where x.class = 'Class' and x.tenant = any ($3::uuid[]) and x.data->'resolved'->'ancestors' ?| ($1::text[] || $2::text[])`,
+    [this.def.from, this.def.into, tenants]);
+    for (const r of rows) {
+      const sc = scopes.get(r.t as string)!;
+      // результат проектора источником не бывает: свой вывод он не читает
+      if (r.is_into) sc.into.add(r.n as string);
+      else if (r.is_from) sc.from.add(r.n as string);
+    }
+    const from = [...new Set([...scopes.values()].flatMap((s) => [...s.from]))];
     if (!from.length) throw new LetopisError('invalid_class', `проектор ${this.name}: классов ${this.def.from.join(', ')} нет у арендаторов проектора`);
     const [lim] = await q.unsafe(`select (extract(epoch from min(${S}.history_iv(p.p->>'all'))) * 1000)::float8 as ms
       from ${S}.entity x cross join lateral (select ${S}.history_policy(x.data->'resolved') as p) p
       where x.class = 'Class' and p.p is not null and x.data->>'name' = any ($1::text[]) and x.tenant = any ($2::uuid[])`, [from, tenants]);
     this.limMs = lim?.ms == null ? null : Number(lim.ms);
     this.from = from;
-    this.into = new Set(into);
+    this.scopes = scopes;
     this.tenants = tenants;
     this.stale = false;
   }
@@ -477,7 +486,7 @@ export class Projector {
         const snap = keepSnap(cur.snap, r.tx as string);
         pos = { tx: r.tx as string, seq: r.seq as string, ...(snap ? { snap } : {}) };
         const row = toRow(r.row as Record<string, unknown>);
-        if (!this.tenants.includes(row.tenant)) continue;
+        if (!this.ours(row)) continue;
         if (meta.chunks && seen(meta.chunks, row.id, pos.tx)) continue;
         changes.push(change(row, enc(pos)));
       }
@@ -548,6 +557,17 @@ export class Projector {
     return c;
   }
 
+  /** Изменение — из семейства from своего арендатора (сброс арендатора — тоже). */
+  private ours(row: Row): boolean {
+    const sc = this.scopes.get(row.tenant);
+    return sc !== undefined && (sc.from.has(row.class) || row.class === '#reset');
+  }
+
+  /** Класс результата в арендаторе — из его семейства into. */
+  intoOf(tenant: string, cls: string): boolean {
+    return this.scopes.get(tenant)?.into.has(cls) ?? false;
+  }
+
   private busy(): LetopisError {
     return new LetopisError('projector_busy', `проектор ${this.name} работает в другом процессе`);
   }
@@ -571,7 +591,7 @@ export class Projector {
         const rows = await q.unsafe(`fetch ${this.batch} from letopis_rebuild`);
         if (!rows.length) break;
         head ??= { tx: rows[0].xmin as string, seq: '0', snap: rows[0].snap as string };
-        const changes = rows.filter((r) => r.row).map((r) => this.rebuildChange(r.row as Record<string, unknown>));
+        const changes = rows.filter((r) => r.row).map((r) => this.rebuildChange(r.row as Record<string, unknown>)).filter((c) => this.ours(c.row));
         if (changes.length) {
           await this.apply(q, changes, rep);
           rep.changes += changes.length;
@@ -618,7 +638,7 @@ export class Projector {
           rep.rebuilds++;
           return true;
         }
-        const changes = real.map((r) => this.rebuildChange(r.row as Record<string, unknown>));
+        const changes = real.map((r) => this.rebuildChange(r.row as Record<string, unknown>)).filter((c) => this.ours(c.row));
         await this.apply(q, changes, rep);
         rep.changes += changes.length;
         const last = changes[changes.length - 1].id;
