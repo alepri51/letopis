@@ -472,3 +472,36 @@ test('№32 (план 1.1, этап 2): заливка канала поддел
     await db.close();
   }
 });
+
+test('№33 (план 1.1, этап 4): запись в производный класс и ссылка на него — derived_class; описание со ссылкой отклонено', async () => {
+  await e.defineClass(a, { name: 'Rollup', kind: 'hub', key: ['k'], derivedBy: 'rollup', history: false,
+    fields: { properties: { k: { type: 'string' } }, required: ['k'] } });
+  const q = (sql: string, p: unknown[] = []) => e.as(a.token, (tx) => tx.unsafe(sql, p as never[]));
+  await assert.rejects(q(`insert into ${S}.entity (class, data) values ('Rollup', '{"k": "x"}')`), lt('derived_class'));
+  const [r] = await e.asOwner((tx) => tx.unsafe(`select ${S}.derived_apply('rollup', $1::text::jsonb) as r`,
+    [JSON.stringify([{ op: 'upsert', class: 'Rollup', tenant: a.id, row: { k: 'own' } }])]));
+  assert.equal(r.r.created, 1, 'проектор (роль владельца) пишет');
+  const [row] = await e.sql.unsafe(`select id from ${S}.entity where class = 'Rollup' and tenant = $1`, [a.id]);
+  await assert.rejects(q(`update ${S}.entity set data = '{"k": "own", "n": 1}' where id = $1`, [row.id]), lt('derived_class'));
+  await assert.rejects(q(`delete from ${S}.entity where id = $1`, [row.id]), lt('derived_class'));
+  await assert.rejects(q(`select ${S}.reclass($1::uuid, 'Org')`, [row.id]), lt('derived_class'));
+  await assert.rejects(e.defineClass(a, { name: 'RollupRef', kind: 'hub', fields: { properties: {} }, ends: { R: { class: 'Rollup' } } }), lt('derived_class'));
+  // другой проектор и другой арендатор — мимо
+  await assert.rejects(e.asOwner((tx) => tx.unsafe(`select ${S}.derived_apply('other', $1::text::jsonb)`,
+    [JSON.stringify([{ op: 'upsert', class: 'Rollup', tenant: a.id, row: { k: 'z' } }])])), lt('derived_class'));
+  await assert.rejects(e.asOwner((tx) => tx.unsafe(`select ${S}.derived_apply('rollup', $1::text::jsonb)`,
+    [JSON.stringify([{ op: 'upsert', class: 'Rollup', tenant: b.id, row: { k: 'z' } }])])), lt('invalid_class'));
+});
+
+test('№34 (план 1.1, этап 4): чекпоинт проектора через функции кредов — строк нет в ответах, изменить нельзя', async () => {
+  const [cp] = await e.asOwner((tx) => tx.unsafe(`select ${S}.projector_state('attack') as m`));
+  assert.deepEqual(cp.m, {});
+  const [{ id }] = await e.sql.unsafe(`select id from ${S}.secret where kind = 'PROJECTOR' and ident = 'attack'`);
+  const svc = (sql: string, p: unknown[] = []) => e.as(a.token, (tx) => tx.unsafe(sql, p as never[]));
+  assert.equal((await svc(`select ${S}.auth_revoke_credential($1::uuid) as ok`, [id]))[0].ok, false);
+  await assert.rejects(svc(`select ${S}.auth_set_flags($1::uuid, true, false)`, [id]), lt('acl_denied'));
+  const listed = await svc(`select * from ${S}.auth_credentials($1::uuid)`, [SYSTEM_ID]).catch(() => []);
+  assert.equal((listed as { kind: string }[]).filter((c) => c.kind === 'PROJECTOR').length, 0);
+  await assert.rejects(svc(`select * from ${S}.secret`), lt('42501'));
+  assert.equal((await e.sql.unsafe(`select count(*)::int as n from ${S}.secret where kind = 'PROJECTOR' and deleted_at is null`))[0].n, 1, 'чекпоинт цел');
+});

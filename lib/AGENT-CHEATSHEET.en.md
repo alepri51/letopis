@@ -312,6 +312,21 @@ npx letopis import --from "$ADMIN" --from-schema v1.fixture --dsn "$ADMIN" --sch
   `credentials`, `resources`, `rules`, `objects`, `uuidFields`, `droppedFields`, `ownerLost`, `verify`, `ms`; the exit
   code is 1 if `verify` failed. Repeating the import adds what is missing, without duplicates.
 
+### 12. Projectors
+
+A projector builds rows of derived classes from the journal: summaries, cards, anything that may be computed with a
+lag. A derived class is marked with `derivedBy: 'projector-name'`, and only this projector writes its rows.
+```ts
+const p = adm.projector('daily', { from: ['Payment'], into: ['DayTotal'], version: 1, withBefore: true,
+  handle(changes, out) { /* out.inc, out.upsert, out.delete, await out.get: into classes, { tenant: c.tenant } */ } })
+await p.run({ once: true })   // catch up with the journal; run() follows it until stop(); rebuild(), status(), close()
+```
+Only an admin connection (otherwise `admin_required`). A batch is one transaction, every change is applied exactly
+once, there is one writer (`rebuild()` while another process writes a batch gives `projector_busy`). The first
+start rebuilds the projection from the current state. `purge`, `trim` and `reset` come as changes with `rev` 1, so check `op` first.
+Another `version` gives `rebuild_required`; a cursor older than the `all` tier gives `cursor_expired`
+(`onExpired: 'rebuild'` rebuilds by itself). A source with `history: false` does not fit.
+
 ### Operations
 
 `db.verify({ data: true })` and `letopis verify` — hash chains, the anchor; `db.maintain()` and
@@ -378,3 +393,5 @@ await adm.close(); await db.close(); await svc.close()
 18. **A batch queue belongs to its facade.** `db.batch('x')` on the root, on each `await db.as(…)` and on each
     `db.begin()` are different queues; a plan runs on behalf of whoever queued it. Collect plans through one facade
     object.
+19. **Only its projector writes the rows of a derived class.** The application, raw SQL and the loader get
+    `derived_class`; ends may not refer to such rows either. To recompute them, use the projector's `rebuild()`.

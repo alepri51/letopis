@@ -428,7 +428,9 @@ async function verifyIds(conn: Sql, S: string, ids: string[], to: Issues): Promi
   if (bad.length >= ISSUES_LIMIT) to.unchecked.add(`проверка базы называет не больше ${ISSUES_LIMIT} строк`);
   const [t] = await conn.unsafe(`select ${S}.targets_bad((select jsonb_agg(jsonb_build_object('class', e.class, 'tenant', e.tenant, 'links', e.links))
     from ${S}.entity e where e.id = any ($1::uuid[]) and e.links <> '{}'::jsonb), false) as role`, [ids]);
-  if (t?.role) to.add({ line: 0, code: 'target_not_found', message: `проверка базы: цель конца ${t.role} не найдена` });
+  const role = t?.role as string | null | undefined;
+  if (role?.startsWith('!')) to.add({ line: 0, code: 'derived_class', message: `проверка базы: конец ${role.slice(1)} ведёт на строку производного класса` });
+  else if (role) to.add({ line: 0, code: 'target_not_found', message: `проверка базы: цель конца ${role} не найдена` });
 }
 
 /**
@@ -510,6 +512,12 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     }
     if (cls.abstract) {
       issues.add({ line, code: 'invalid_class', message: `класс ${cls.name} абстрактный`, class: cls.name });
+      p1[i] = null;
+      continue;
+    }
+    // строки производного класса пишет только его проектор (план 1.1, §2.4)
+    if (cls.derivedBy) {
+      issues.add({ line, code: 'derived_class', message: `класс ${cls.name} производный: его строки пишет проектор ${cls.derivedBy}`, class: cls.name });
       p1[i] = null;
       continue;
     }
@@ -702,6 +710,8 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
           const f = found.get(id);
           if (!f || (f.tenant !== tenant && f.tenant !== SYSTEM_ID) || !accepts(reg, ref.allowed, f.class)) {
             issues.add({ line: ref.line, code: 'target_not_found', message: `цель конца ${ref.role} не найдена`, id });
+          } else if (reg.find(f.class)?.derivedBy) {
+            issues.add({ line: ref.line, code: 'derived_class', message: `цель конца ${ref.role} — строка производного класса ${f.class}`, id });
           }
         }
       }
@@ -1158,6 +1168,8 @@ export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) =>
           const f = found.get(id);
           if (!f || (f.tenant !== p.tenant && f.tenant !== SYSTEM_ID) || !accepts(p.reg, ref.allowed, f.class)) {
             issues.add({ line: ref.line, code: 'target_not_found', message: `цель конца ${ref.role} не найдена`, id });
+          } else if (p.reg.find(f.class)?.derivedBy) {
+            issues.add({ line: ref.line, code: 'derived_class', message: `цель конца ${ref.role} — строка производного класса ${f.class}`, id });
           }
         }
       }

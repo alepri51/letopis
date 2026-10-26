@@ -21,6 +21,7 @@ import type { QueryEvent, Row } from './types.js';
 import { DDL_REVISION } from './types.js';
 import { ACL_CLASSES, ResultCache, type CacheOptions, type CacheStats } from './cache.js';
 import { Subscription, type WatchOptions } from './watch.js';
+import { Projector, type ProjectorOptions } from './project.js';
 import { SIGNAL_MODES, Signals, bucket, throttle, type Signal, type SignalMode } from './signals.js';
 import {
   describe as describeModel, maintain as runMaintain, rekeyClass as runRekeyClass, reset as runReset, scheduleMaintain,
@@ -48,6 +49,7 @@ export type { DiffChange, DiffResult, DiffOptions, BlameField, BlameResult, Blam
 export type { CacheOptions, CacheStats } from './cache.js';
 export type { SignalMode } from './signals.js';
 export type { WatchOptions, WatchEvent, Subscription } from './watch.js';
+export type { Projector, ProjectorOptions, ProjectorChange, ProjectorOut, ProjectorRow, ProjectorReport, ProjectorStatus } from './project.js';
 export type { VerifyResult, VerifyIssue, MaintainOptions, MaintainReport, ResetOptions, ResetResult, ModelDescription } from './admin.js';
 export { describeText } from './admin.js';
 export { up, createTenant, type UpOptions, type UpResult, type HistoryPolicy, type TenantOptions, type TenantResult } from './up.js';
@@ -174,6 +176,12 @@ export interface DbCore {
    * целям вне загрузки. Только на администраторском подключении (иначе admin_required).
    */
   load(input: LoadInput, opts?: LoadOptions): Promise<LoadReport>;
+  /**
+   * Проектор из журнала (план 1.1, §2.4): строит строки производных классов (derivedBy: имя) из изменений
+   * классов from; run() — догнать журнал и следовать за ним, rebuild() — перестроить с текущего состояния.
+   * Только на администраторском подключении (иначе admin_required).
+   */
+  projector(name: string, opts: ProjectorOptions): Projector;
   /**
    * Именованная очередь планов фасада: batch.Класс(…).create(…); batch.run() — одной транзакцией. У корня,
    * у каждого db.as() и у каждой db.begin() очереди свои: план исполняется от имени фасада, который его поставил.
@@ -330,6 +338,14 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
     load: async (input, o) => {
       if (tx) throw new LetopisError('invalid_query', 'load() — своей транзакцией, не внутри db.begin()');
       return load({ sql: sh.sql, schema: sh.schema, tenant: scope.tenant(), admin: sh.admin, ownerRole: sh.ownerRole }, input, o);
+    },
+    projector: (name, o) => {
+      if (tx) throw new LetopisError('invalid_query', 'projector() — от корня подключения, а не внутри db.begin()');
+      if (!sh.admin) throw new LetopisError('admin_required', 'проектору нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы)');
+      return new Projector({
+        sql: sh.sql, schema: sh.schema, S: sh.S, ownerRole: sh.ownerRole,
+        ...(sh.listen ? { onSignal: (fn: (s: Signal) => void) => { sh.signals.add(fn); return () => void sh.signals.delete(fn); } } : {}),
+      }, name, o);
     },
     batch: (name, o) => {
       let q = batches.get(name);

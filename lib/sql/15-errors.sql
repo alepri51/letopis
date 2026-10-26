@@ -25,7 +25,8 @@ as $$
     ('LT017', 'delete_restricted',      'letopis: delete_restricted: удалению мешают ссылающиеся строки'),
     ('LT018', 'not_deleted',            'letopis: not_deleted: объект не удалён — restore и purge только для удалённых'),
     ('LT019', 'reset_disabled',         'letopis: reset_disabled: reset выключен в этой установке'),
-    ('LT020', 'confirm_mismatch',       'letopis: confirm_mismatch: подтверждение не совпадает с именем схемы')
+    ('LT020', 'confirm_mismatch',       'letopis: confirm_mismatch: подтверждение не совпадает с именем схемы'),
+    ('LT021', 'derived_class',          'letopis: derived_class: строки производного класса пишет только его проектор')
 $$;
 
 create or replace function @SCHEMA@.lt_raise(p_code text, p_name text, p_msg text, p_detail jsonb default null)

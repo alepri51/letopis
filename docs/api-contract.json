@@ -112,6 +112,13 @@
         "Op",
         "PatchOf",
         "Path",
+        "Projector",
+        "ProjectorChange",
+        "ProjectorOptions",
+        "ProjectorOut",
+        "ProjectorReport",
+        "ProjectorRow",
+        "ProjectorStatus",
         "QueryEvent",
         "ResetOptions",
         "ResetResult",
@@ -226,6 +233,7 @@
     "load",
     "lock",
     "maintain",
+    "projector",
     "refresh",
     "registry",
     "rekeyClass",
@@ -370,6 +378,10 @@
     {
       "module": "15-errors",
       "message": "letopis: delete_restricted: удалению мешают ссылающиеся строки"
+    },
+    {
+      "module": "15-errors",
+      "message": "letopis: derived_class: строки производного класса пишет только его проектор"
     },
     {
       "module": "15-errors",

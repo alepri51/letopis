@@ -213,6 +213,9 @@ begin
   if coalesce((res->>'abstract')::boolean, false) then
     perform @SCHEMA@.lt_fail('invalid_class', format('класс %s абстрактный', l.class));
   end if;
+  if res ? 'derivedBy' then
+    perform @SCHEMA@.lt_fail('derived_class', format('класс %s производный: его строки пишет проектор %s', l.class, res->>'derivedBy'));
+  end if;
   d := @SCHEMA@.apply_defaults(res->'schema', l.data);
   bad := @SCHEMA@.validate_data(res->'rules', cls.validator, res->'vars', d);
   if bad <> '[]'::jsonb then
@@ -410,6 +413,9 @@ begin
   perform @SCHEMA@.family_lock(cls, false);
   cls := @SCHEMA@.class_row(o.class, o.tenant);
   res := cls.data->'resolved';
+  if res ? 'derivedBy' then
+    perform @SCHEMA@.lt_fail('derived_class', format('класс %s производный: его строки пишет проектор %s', o.class, res->>'derivedBy'));
+  end if;
   if jsonb_array_length(coalesce(res->'key', '[]'::jsonb)) = 0 then
     perform @SCHEMA@.lt_fail('invalid_class', format('у класса %s нет ключа: id выдаёт база, менять нечего', o.class));
   end if;

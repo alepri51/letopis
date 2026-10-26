@@ -169,7 +169,8 @@ end $$;
 -- При p_acl ({tenant, account, plan} — план READ актора) цель ещё и должна быть видна актору (этап 5,
 -- п. 6): строку, которую он не видит, нельзя использовать как цель — ответ тот же, что для
 -- несуществующей. Цели-аккаунты (Account) не проверяются: на них ссылаются членства и владельцы.
--- Возвращает роль первой непрошедшей цели или null.
+-- Возвращает роль первой непрошедшей цели или null; цель — строка производного класса: «!роль»
+-- (вызывающий отвечает derived_class).
 create or replace function @SCHEMA@.targets_bad(p_rows jsonb, p_lock boolean, p_acl jsonb default null) returns text
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -200,21 +201,31 @@ begin
     left join lateral jsonb_array_elements(case jsonb_typeof(k.value) when 'array' then k.value else '[]'::jsonb end) a on true
     where jsonb_typeof(k.value) = 'string' or a.value is not null
   )
-  select p.role into bad
-  from p
-  join c on c.cls = p.cls and c.tenant = p.tenant and c.ends is not distinct from coalesce(p.ends, c.ends)
-  left join @SCHEMA@.entity t on t.id = p.tid
-  where t.id is null
-     or t.tenant not in (p.tenant, '@SYSTEM@'::uuid)
-     or not coalesce(@SCHEMA@.class_set(c.ends->p.role->'class') ? t.class
-             or @SCHEMA@.class_set(c.ends->p.role->'class') ?|
-                (select array(select jsonb_array_elements_text(k.data->'resolved'->'ancestors'))
-                 from @SCHEMA@.entity k
-                 where k.class = 'Class' and k.data->>'name' = t.class and k.tenant in (t.tenant, '@SYSTEM@'::uuid)
-                 order by k.tenant = '@SYSTEM@'::uuid limit 1), false)
-     or (p_acl is not null and t.class <> 'Account'
-         and not @SCHEMA@.row_visible(t.tenant, t.class, t.id, t.owner, t.tags, t.data, t.links,
-                                      (p_acl->>'tenant')::uuid, (p_acl->>'account')::uuid, p_acl->'plan'))
+  select case when x.miss then x.role else '!' || x.role end into bad
+  from (
+    select p.role,
+           t.id is null
+           or t.tenant not in (p.tenant, '@SYSTEM@'::uuid)
+           or not coalesce(@SCHEMA@.class_set(c.ends->p.role->'class') ? t.class
+                   or @SCHEMA@.class_set(c.ends->p.role->'class') ?| array(select jsonb_array_elements_text(kr.res->'ancestors')), false)
+           or (p_acl is not null and t.class <> 'Account'
+               and not @SCHEMA@.row_visible(t.tenant, t.class, t.id, t.owner, t.tags, t.data, t.links,
+                                            (p_acl->>'tenant')::uuid, (p_acl->>'account')::uuid, p_acl->'plan')) as miss,
+           coalesce(kr.res ? 'derivedBy', false) as derived
+    from p
+    join c on c.cls = p.cls and c.tenant = p.tenant and c.ends is not distinct from coalesce(p.ends, c.ends)
+    left join @SCHEMA@.entity t on t.id = p.tid
+    -- описание класса цели — только когда класс не назван в конце прямо: тогда нужны его предки, а цель
+    -- производного класса (конец, названный предком; план 1.1, §2.4) не проходит — прямо назвать производный
+    -- класс в конце не даёт описание (class_admit)
+    left join lateral (
+      select case when t.id is null or @SCHEMA@.class_set(c.ends->p.role->'class') ? t.class then null
+             else (select k.data->'resolved' from @SCHEMA@.entity k
+                   where k.class = 'Class' and k.data->>'name' = t.class and k.tenant in (t.tenant, '@SYSTEM@'::uuid)
+                   order by k.tenant = '@SYSTEM@'::uuid limit 1) end as res
+    ) kr on true
+  ) x
+  where x.miss or x.derived
   limit 1;
   return bad;
 end $$;
@@ -239,7 +250,9 @@ begin
   end if;
   bad := @SCHEMA@.targets_bad(jsonb_build_array(jsonb_build_object(
     'class', p_res->>'name', 'tenant', p_tenant, 'links', links, 'ends', coalesce(p_res->'ends', '{}'::jsonb))), p_lock, p_acl);
-  if bad is not null then
+  if bad like '!%' then
+    code := 'derived_class'; msg := format('конец %s ведёт на строку производного класса', substr(bad, 2));
+  elsif bad is not null then
     code := 'target_not_found'; msg := format('цель конца %s не найдена', bad);
   end if;
 end $$;
@@ -431,12 +444,14 @@ end $$;
 
 -- Безопасно ли изменение описания класса (этап 1, п. 10): новые необязательные поля и концы,
 -- метаданные, алиас, политика истории, кэш. Всё остальное — ужесточение с проверкой строк, в том числе
--- любая правка условий anyOf и oneOf (1.0.1: прежде они не сравнивались, и строки не перепроверялись).
+-- любая правка условий anyOf и oneOf (1.0.1: прежде они не сравнивались, и строки не перепроверялись)
+-- и признака производного класса derivedBy (план 1.1, §2.6).
 create or replace function @SCHEMA@.class_change_safe(o jsonb, n jsonb) returns boolean
 language sql immutable
 return
   o->'key' = n->'key'
   and o->'ancestors' = n->'ancestors'
+  and o->'derivedBy' is not distinct from n->'derivedBy'
   and (o->'abstract' = n->'abstract' or n->>'abstract' = 'false')
   and o->'schema'->'anyOf' is not distinct from n->'schema'->'anyOf'
   and o->'schema'->'oneOf' is not distinct from n->'schema'->'oneOf'
@@ -516,6 +531,8 @@ as $$
 declare
   e record;
   o record;
+  dname text;
+  drole text;
 begin
   if p_tenant <> '@SYSTEM@'::uuid then
     if (p_data->>'name') = any (array['Class', 'Account', 'member', 'Resource', 'rule']) then
@@ -545,6 +562,36 @@ begin
       perform @SCHEMA@.lt_fail('invalid_class', format('конец %s в классе %s ведёт на другой класс', e.key, o.name));
     end if;
   end loop;
+  -- на строки производного класса (план 1.1, §2.4) не ссылаются: проектор удаляет и строит их заново
+  for e in select key, value from jsonb_each(coalesce(data->'resolved'->'ends', '{}'::jsonb)) loop
+    dname := null;
+    select x.data->>'name' into dname
+    from @SCHEMA@.entity x
+    where x.class = 'Class' and x.tenant in (p_tenant, '@SYSTEM@'::uuid) and x.data->>'name' <> data->>'name'
+      and @SCHEMA@.class_set(e.value->'class') ? (x.data->>'name') and x.data->'resolved' ? 'derivedBy'
+    limit 1;
+    if dname is null and data->'resolved' ? 'derivedBy' and @SCHEMA@.class_set(e.value->'class') ? (data->>'name') then
+      dname := data->>'name';
+    end if;
+    if dname is not null then
+      perform @SCHEMA@.lt_fail('derived_class', format('конец %s ведёт на производный класс %s', e.key, dname));
+    end if;
+  end loop;
+  if data->'resolved' ? 'derivedBy' then
+    -- класс становится производным, а на него или его потомков уже ссылаются концы других классов
+    select x.data->>'name', k.key into dname, drole
+    from @SCHEMA@.entity x
+    cross join lateral jsonb_each(coalesce(x.data->'resolved'->'ends', '{}'::jsonb)) k
+    where x.class = 'Class' and x.tenant in (p_tenant, '@SYSTEM@'::uuid) and x.data->>'name' <> data->>'name'
+      and @SCHEMA@.class_set(k.value->'class') ?| (array[data->>'name'] || array(
+        select y.data->>'name' from @SCHEMA@.entity y
+        where y.class = 'Class' and y.tenant in (p_tenant, '@SYSTEM@'::uuid) and y.data->'resolved'->'ancestors' ? (data->>'name')))
+    limit 1;
+    if dname is not null then
+      perform @SCHEMA@.lt_fail('derived_class', format('класс %s не может стать производным: на него ссылается конец %s класса %s',
+        data->>'name', drole, dname));
+    end if;
+  end if;
 end $$;
 
 -- ========================= триггеры =========================
@@ -585,6 +632,9 @@ begin
   res := cls.data->'resolved';
   if coalesce((res->>'abstract')::boolean, false) then
     perform @SCHEMA@.lt_fail('invalid_class', format('класс %s абстрактный', NEW.class));
+  end if;
+  if res ? 'derivedBy' then
+    perform @SCHEMA@.lt_fail('derived_class', format('класс %s производный: его строки пишет проектор %s', NEW.class, res->>'derivedBy'));
   end if;
   if NEW.class = 'Class' then
     select a.data, a.validator into NEW.data, NEW.validator from @SCHEMA@.class_admit(coalesce(NEW.data, '{}'::jsonb), NEW.tenant) a;
@@ -682,6 +732,10 @@ begin
   if coalesce((res->>'abstract')::boolean, false) then
     perform @SCHEMA@.lt_fail('invalid_class', format('класс %s абстрактный', NEW.class));
   end if;
+  if res ? 'derivedBy' or (NEW.class <> OLD.class and (@SCHEMA@.class_row(OLD.class, OLD.tenant)).data->'resolved' ? 'derivedBy') then
+    perform @SCHEMA@.lt_fail('derived_class', format('класс %s производный: его строки пишет проектор',
+      case when res ? 'derivedBy' then NEW.class else OLD.class end));
+  end if;
   if NEW.class <> OLD.class then
     -- смена класса (этап 1, п. 9): только read committed, только для классов без ключа
     if current_setting('transaction_isolation') <> 'read committed' then
@@ -759,7 +813,9 @@ begin
     bad := @SCHEMA@.targets_bad((select jsonb_agg(jsonb_build_object('class', n.class, 'tenant', n.tenant, 'links', n.links))
                                  from added n where n.links <> '{}'::jsonb), true, @SCHEMA@.acl_actor('READ'));
   end if;
-  if bad is not null then
+  if bad like '!%' then
+    perform @SCHEMA@.lt_fail('derived_class', format('конец %s ведёт на строку производного класса', substr(bad, 2)));
+  elsif bad is not null then
     perform @SCHEMA@.lt_fail('target_not_found', format('цель конца %s не найдена', bad));
   end if;
   insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
@@ -798,7 +854,9 @@ begin
                                  from new_rows n join old_rows o on o.id = n.id and o.rev <> n.rev
                                  where n.links <> '{}'::jsonb and (n.links <> o.links or n.class <> o.class)), true, @SCHEMA@.acl_actor('READ'));
   end if;
-  if bad is not null then
+  if bad like '!%' then
+    perform @SCHEMA@.lt_fail('derived_class', format('конец %s ведёт на строку производного класса', substr(bad, 2)));
+  elsif bad is not null then
     perform @SCHEMA@.lt_fail('target_not_found', format('цель конца %s не найдена', bad));
   end if;
   insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash, changed)
@@ -960,6 +1018,12 @@ begin
   wplan := @SCHEMA@.acl_plan('WRITE');
   if exists (select 1 from @SCHEMA@.entity x join gone g on g.id = x.id) then
     perform @SCHEMA@.lt_fail('recreated_in_statement', 'id удалён и создан заново одним оператором');
+  end if;
+  -- строки производного класса удаляет только проектор (каскад функции владельца сюда не доходит)
+  select d.class into denied from (select distinct g.class, g.tenant from gone g) d
+  where (@SCHEMA@.class_row(d.class, d.tenant)).data->'resolved' ? 'derivedBy' limit 1;
+  if denied is not null then
+    perform @SCHEMA@.lt_fail('derived_class', format('класс %s производный: его строки удаляет проектор', denied));
   end if;
   for r in select g.id, g.tenant, g.data->>'name' as name from gone g where g.class = 'Class' loop
     if exists (select 1 from @SCHEMA@.entity x where x.class = r.name and (x.tenant = r.tenant or r.tenant = '@SYSTEM@'::uuid))
@@ -1253,6 +1317,9 @@ begin
   res := cls.data->'resolved';
   if coalesce((res->>'abstract')::boolean, false) then
     perform @SCHEMA@.lt_fail('invalid_class', format('класс %s абстрактный', p_class));
+  end if;
+  if res ? 'derivedBy' or (@SCHEMA@.class_row(o.class, o.tenant)).data->'resolved' ? 'derivedBy' then
+    perform @SCHEMA@.lt_fail('derived_class', 'строки производного класса пишет только его проектор');
   end if;
   d := @SCHEMA@.apply_defaults(res->'schema', coalesce(p_data, o.data));
   bad := @SCHEMA@.validate_data(res->'rules', cls.validator, res->'vars', d);

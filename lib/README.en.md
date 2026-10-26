@@ -495,6 +495,12 @@ name of the class for a chain step, for example a name in another language.
 - `meta`: free-form metadata for the application: a title, an icon, a color, an order in a menu. Up to 64 KB,
   inherited key by key (`null` removes an inherited value), visible to anyone who has a session. For an end, use
   `.meta()`.
+- `derivedBy: 'projector-name'`: a derived class: only this projector writes its rows ([Projectors](#projectors)).
+  The name is lowercase Latin letters, digits and `_.:-` (the first character is a letter or a digit), up to 64
+  characters. The option is inherited, and a descendant does not change it. The ends of a derived class are only
+  `onDelete: 'cascade'` or `'unset'`: a derived row does not prevent deleting its target. Nothing refers to the rows
+  of a derived class. The application, raw SQL and the loader do not write to such a class: writing, editing and
+  deleting its rows gives `derived_class`.
 
 ### Writing the model to the database
 
@@ -1138,7 +1144,8 @@ problem. Its `detail`: `rows` is the first 100 violations with the row number, c
 `limit` is the list limit (100), `complete` means the checks that found violations went through all rows. Row codes:
 the codes of the database checks, and also `duplicate` (a repeated id), `exists` (the object already exists), `deleted`
 (an object with this id existed before) and `class_not_loadable` (the loader does not accept `Class` rows: classes are
-set by `syncModels`).
+set by `syncModels`). The loader rejects rows of derived classes and references to them with the code
+`derived_class`: only a projector writes such rows.
 
 Violations are searched for in stages: parsing the rows (classes, ids, repeats), permissions on classes
 (`load({ as })`), data and ends in batches, and at the end of a portion the targets outside the load, owners and the
@@ -1496,6 +1503,86 @@ for await (const ev of sub) {             // ev: { cursor, row, id, class, op, r
 - A subscription without losses is a saved cursor: store `ev.cursor` of the last processed event and resume from it
   after a restart.
 
+### Projectors
+
+A projector builds rows of derived classes from the journal: summaries, denormalized cards and anything else that may
+be computed with a lag behind the writes. The application writes the source classes (`from`), and only the projector
+writes the rows of the `into` classes. Each `into` class is marked with the option `derivedBy` holding the projector
+name ([Class settings](#class-settings)). In the example below, the projector counts product sales from the order
+lines `line`.
+
+```ts
+const ProductSales = hub('ProductSales', { qty: z.number().int(), revenue: z.number().int() }, {
+  ends: { Product: one(Product).onDelete('cascade') }, key: ['Product'], derivedBy: 'product-sales', history: false,
+})                                               // the derived class is in the model, like the others (syncModels)
+
+const sales = adm.projector('product-sales', {   // adm is an admin connection
+  from: ['line'],                                // source classes with descendants; they must keep a journal
+  into: ['ProductSales'],                        // the derived classes of this projector
+  version: 1,                                    // the handle logic changed: a new version and a rebuild
+  withBefore: true,                              // c.before is the previous version of the object or null
+  handle(changes, out) {
+    for (const c of changes) {
+      if (c.op === 'purge' || c.op === 'trim' || c.op === 'reset') continue   // service changes, not versions
+      const was = c.before                       // the previous version of the order line: subtract it
+      const now = c.row.$deleted ? null : c.row  // the new version: add it; a deletion has none
+      if (was) out.inc('ProductSales', { Product: was.links.Product },
+        { qty: -Number(was.data.qty), revenue: -Number(was.data.qty) * Number(was.data.price) }, { tenant: c.tenant })
+      if (now) out.inc('ProductSales', { Product: now.links.Product },
+        { qty: Number(now.data.qty), revenue: Number(now.data.qty) * Number(now.data.price) }, { tenant: c.tenant })
+    }
+  },
+})
+const report = await sales.run({ once: true })  // catch up with the journal: { batches, changes, created, updated, … }
+const state = await sales.status()               // { name, state, version, cursor, at, lag }
+await sales.rebuild()                            // rebuild from the current state; { chunked: true } works in batches
+void sales.run()                                 // follow the journal until stop(); source signals wake it up
+sales.close()                                    // stop() after the current batch and unsubscribe from signals
+```
+
+- A projector needs an admin connection: `connect({ allowBypassRls: true })` with a role that may become the owner of
+  the schema. Otherwise you get `admin_required`, and inside `db.begin()` you get `invalid_query`. The projector reads
+  the journal of all tenants.
+- The first `run()` rebuilds the projection from the current state: the journal is thinned by the retention policy
+  and cut by `purge`, so the projection cannot be assembled from the start of the journal.
+- Each batch is one transaction: the journal changes, `handle`, the written results and the cursor move are committed
+  together. A break in the middle of a batch rolls the whole batch back, and the retry starts from the same cursor, so
+  every change is applied exactly once. A projector has one writer: a second process of the same projector skips the
+  batch (the `skipped` counter of the report), and `rebuild()` started while another process writes a batch gives
+  `projector_busy`.
+- A change (`ProjectorChange`) is `cursor`, `id`, `class`, `tenant`, `op`, `rev`, `at`, `author`, `agent`, `reason`,
+  `moved` and `row`, the version from the journal (for a deletion, a tombstone with `$deleted`). With `withBefore`,
+  `before` is added: the previous version of the object. For the first version after `reclass` and `rekey`, it is the
+  last version of the former id, and if there is no previous version, it is `null`. During a rebuild, the changes are
+  rows of the current state: `rebuild: true`, `op` is `create`, `cursor` is empty.
+- The service journal records `purge`, `trim` and `reset` also come as changes, and their `rev` is 1. So check `op`
+  first, and only then compare `rev`.
+- `out.upsert(class, row, { tenant })` creates a row or replaces it entirely by the class key.
+  `out.inc(class, row, deltas, { tenant })` creates a row or completes it and adds the numbers without reading the row
+  (missing fields count from 0). `out.delete(class, key or id, { tenant })` deletes a row and does nothing if there is
+  none. `await out.get(class, key or id, { tenant })` reads the current row together with the writes of the batch.
+  `out` writes only to the `into` classes and only to the tenants of the batch changes; otherwise you get
+  `derived_class` or `tenant_denied`, and the batch is rolled back.
+- A row for `out` is in the loader format: fields and end roles at the top level, the service keys `$tags`, `$owner`
+  and `$id` (`$id` is needed only by a class without a key). The value of a role is the id of the target. An edit that
+  changes nothing gives no version. Versions of derived rows are written by System with the agent
+  `letopis projector <name>`; the journal is kept according to the `history` of the class, and the change signal is
+  always sent.
+- `rebuild()` rebuilds the projection atomically, in one transaction: until it commits, readers see the previous rows,
+  but the subscription horizon stands still. `rebuild({ chunked: true })` works in batches: the derived rows are
+  deleted at once, the data stays incomplete until the rebuild ends, and `status().state` is `'rebuilding'`. The next
+  start continues an interrupted batch rebuild.
+- `version` is the version of the `handle` logic. If the projection was built by another version, `run()` throws
+  `rebuild_required`, and a rebuild with `rebuild()` is needed.
+- If the cursor is older than the `all` tier of the retention policy of the sources and there are changes after it,
+  `run()` throws `cursor_expired`: some changes may have been thinned out. With `onExpired: 'rebuild'`, the projector
+  rebuilds itself. A projector without new changes does not expire. `status().lag` is the age of the oldest
+  unprocessed change in ms.
+- Sources must keep a journal: a class with `history: false` in `from` is refused (`invalid_class`). A class cannot be
+  a source and a result at the same time.
+- `batch` is how many changes go into a batch (500), `pollMs` is fallback polling (1000 ms): source signals wake the
+  projector earlier.
+
 ### Result cache
 
 <!-- run: guide -->
@@ -1685,6 +1772,7 @@ Removed 0.21 names (`uuidv7`, `LETOPIS_NS` and the methods listed below) throw `
 | `begin()`, `commit(tr)`, `rollback(tr)`, `lock(…keys)` | an explicit transaction ([section 8](#8-transactions-batches-and-money)) |
 | `batch(name)` | a queue of plans: `run()`, `discard()`, `size()` |
 | `load(input, options)` | the loader ([section 9](#9-bulk-loading)) |
+| `projector(name, options)` | a projector from the journal: `run()`, `rebuild()`, `status()`, `stop()`, `close()` ([Projectors](#projectors)) |
 | `watch(options)`, `cache` | subscription; result cache (`clear()`, `stats()`) |
 | `` sql`…` ``, `transaction(fn)` | raw SQL under the session and RLS |
 | `idOf(class, key)` | the id of an object of a class with a key, in the session tenant |
@@ -1754,8 +1842,8 @@ database does not accept a link with such a name (`reserved_names()`; the instal
   `owner`, `forUpdate`, `cache`, `rekey`, `diff`, `blame`; guards of the removed API: `run`, `execute`, `account`;
 - the `db` root: `as`, `begin`, `commit`, `rollback`, `lock`, `batch`, `watch`, `close`, `registry`, `sql`, `load`,
   `verify`, `maintain`, `reset`, `describe`, `auth`, `acl`, `idOf`, `refresh`, `transaction`, `flushSignals`,
-  `schema`, `token`, `tenant`, `trimHistory`, `rekeyClass`, `cache`; guards: `reloadSchema`, `accounts`,
-  `credentials`, `resources`, `rules`, `compact`;
+  `schema`, `token`, `tenant`, `trimHistory`, `rekeyClass`, `cache`, `projector`; guards: `reloadSchema`,
+  `accounts`, `credentials`, `resources`, `rules`, `compact`;
 - batch: `discard`, `size`.
 
 ## 16. Errors
@@ -1780,11 +1868,12 @@ Database codes. Raw SQL gets them too: SQLSTATE class `LT`, the details are JSON
 | `tightening_conflict` | LT013 | rows prevent tightening the description |
 | `isolation_level` | LT014 | deleting, changing the class and changing the key work only in `read committed` |
 | `recreated_in_statement` | LT015 | an id was deleted and created again in one statement |
-| `cursor_expired` | LT016 | the subscription cursor is older than the `all` tier of the retention policy |
+| `cursor_expired` | LT016 | the cursor of a subscription or a projector is older than the `all` tier of the retention policy |
 | `delete_restricted` | LT017 | referencing rows prevent the deletion (`onDelete: 'restrict'`) |
 | `not_deleted` | LT018 | `restore` and `purge` work only for deleted objects |
 | `reset_disabled` | LT019 | reset is disabled in the installation (`allowReset`) |
 | `confirm_mismatch` | LT020 | the reset confirmation does not match the schema name |
+| `derived_class` | LT021 | a row of a derived class (`derivedBy`) is written, edited or deleted by someone other than its projector; an end leads to such a row or to a derived class; a projector writes to a class outside its `into` |
 
 Library codes:
 
@@ -1801,7 +1890,9 @@ Library codes:
 | `no_key` | `upsert`, `rekey` or `idOf` on a class without a key |
 | `no_path` | there is no hop between the classes of neighboring steps |
 | `invalid_query` | the chain or the API is used incorrectly (a step modifier `deep`, `exact`, `alias`, `tags` or `owner` after a verb, a slot not after a verb, an `after()` cursor with a value of a different type than the `sort` field, without `v` or with an `id` that is not a uuid, and so on) |
-| `admin_required` | the loader needs an admin connection |
+| `admin_required` | the loader and a projector need an admin connection |
+| `rebuild_required` | the projection was built by another version of the projector (`version`): a rebuild with `rebuild()` is needed |
+| `projector_busy` | a rebuild cannot start: the projector is running in another process right now |
 | `not_empty` | the initial load (`initial`) goes only into an empty schema |
 | `class_not_loadable` | the loader does not accept `Class` rows |
 | `bypass_rls` | `connect()` with a role that bypasses RLS, without `allowBypassRls` |
@@ -1977,6 +2068,16 @@ behavior.
 - A "from now" subscription cursor carries a snapshot of the subscription moment until it passes that boundary: such a
   cursor is longer than a regular one.
 
+**Projectors**
+
+- An atomic rebuild is one long write transaction: while it runs, the subscription horizon stands still, and events
+  are delayed for the subscribers and projectors of all processes.
+- A batch rebuild does not hold the horizon, but the derived data is incomplete until it ends: the rows are deleted at
+  once and reappear as the rebuild goes on.
+- A projector sees only the changes from the journal, so a class with `history: false` cannot be a source.
+- Thinning the journal older than the `all` tier leads to a rebuild: a projector that lags behind by more than that
+  tier gets `cursor_expired` or, with `onExpired: 'rebuild'`, rebuilds itself.
+
 **Import from 0.21**
 
 - 1.0 is a new major version, not a continuation of 0.21: `count()`, `paths()`, `create`, roles, multiple ends and
@@ -2004,7 +2105,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # chain-write — writing with chains: create, update, upsert, delete with preview, anonymize, reclass, slots, inc, { rev }, fan-out, plan rollback (stage 4)
 # demo — the booking demo domain on Zod: seed from models, writing data, id by key, agreement between Zod and the database (stage 2)
 # docs — documentation examples are executed: the marked blocks of the README and the cheatsheet (Russian and English) run as scenarios against PostgreSQL 18 (stage 8)
-# engine-attacks — raw SQL attacks from the application role: the rows of §7.3.1 for stages 1 and 3 with specific outcomes; the signal key without permission, flooding with fake signals, Class included (stages 1, 3; plan 1.1, stage 2 and checkpoint A)
+# engine-attacks — raw SQL attacks from the application role: the rows of §7.3.1 for stages 1 and 3 with specific outcomes; the signal key without permission, flooding with fake signals, Class included; writing to a derived class and a reference to it, a projector checkpoint through the credential functions (stages 1, 3; plan 1.1, stages 2, 4a and checkpoint A)
 # engine-class — classes as entities: metaschema, inheritance, recomputing descendants, tightening, metadata (stage 1)
 # engine-write — the write pipeline in raw SQL: v5 ids, defaults, merge, inc, deletion, resurrection, journal, signals (stage 1)
 # engine-races — races on two connections in both orders, without timed pauses (stage 1)
@@ -2042,6 +2143,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # history — diff and blame over the log, the reason of a change for verbs, db.begin() and batches; a version hidden by an ACL condition, the changed column, a missing version, row_changes over 20 thousand targets (plan 1.1, stage 1 and checkpoint A)
 # signals — signal modes: the payload seen by a foreign role, cache precision per tenant, System, permission classes, a process without the key, the loader, subscriptions, the key, none, coalescing, the server version, a class change, a resend, the mode after up() and reset({ all }) (plan 1.1, stage 2)
 # initial-load — the initial load: equality with the regular loader, structure and trigger modes, system rows, a non-empty schema, an insert during the start, rollback, MULTI_INSERT in WAL, commitEvery, import --initial (plan 1.1, stage 3)
+# projector — projectors from the journal: catching up, exactly once on a break, one writer, a long transaction, a transaction on the boundary of the rebuild snapshot, no writes to derived classes and no references to them, the bounds of out, atomic and batch rebuilds during source writes, purge of a source, lag and cursor_expired, the credential functions; the version, the name, an admin connection; a race of two processes (plan 1.1, stage 4a)
 # import — import from 0.21 with a fixture of a real 0.21: key violation, --keyless, per-class counters, verify, self-reference, repeat, ids without a key, a dangling reference, $$strict and fields starting with $, update, credentials, CLI (stage 7)
 # security-final — the final security review (stage 8, §7.10 No. 8.4): a family lock by the tenant of the root, account_purge without permission and restore/purge of a foreign id give neither a leak nor a lock; the functions of stage 6, log_refs_at, journal-based find_* reads and watch_read stay within their own tenant; NOTIFY carries only names or mode tokens; the cache key distinguishes the token, the actor and the tenant (stage 8)
 ```

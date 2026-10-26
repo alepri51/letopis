@@ -108,6 +108,8 @@ export interface ClassDef<S extends z.ZodRawShape = z.ZodRawShape, E extends End
   ownerDefault?: 'tenant' | 'actor';
   cache?: { ttl?: number };
   meta?: ClassMeta;
+  /** Производный класс (план 1.1, §2.4): строки пишет только проектор с этим именем; наследуется. */
+  derivedBy?: string;
 }
 
 /** Описание класса в строке `Class` (метасхема `class_metaschema()` в lib/sql/40-class.sql). */
@@ -124,6 +126,7 @@ export interface ClassDescription {
   ownerDefault?: 'tenant' | 'actor';
   cache?: { ttl?: number };
   meta?: ClassMeta;
+  derivedBy?: string;
 }
 
 /** Правило refine, которое не попадёт в базу: проверяется только в библиотеке. */
@@ -284,6 +287,7 @@ function makeModel<N extends string>(kind: 'hub' | 'link', name: N, defArg: unkn
       if (def.ownerDefault) desc.ownerDefault = def.ownerDefault;
       if (def.cache) desc.cache = def.cache;
       if (def.meta) desc.meta = def.meta;
+      if (def.derivedBy) desc.derivedBy = def.derivedBy;
       return desc;
     },
     lostRules(): LostRule[] {

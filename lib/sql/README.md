@@ -51,7 +51,8 @@
 | LT018 | `not_deleted` | `restore` и `purge` — только для удалённых объектов (этап 6) |
 | LT019 | `reset_disabled` | флаг `allowReset` установки выключен: `reset` и `maintain(now)` недоступны (этап 6) |
 | LT020 | `confirm_mismatch` | подтверждение сброса не совпадает с именем схемы (этап 6) |
+| LT021 | `derived_class` | строки производного класса (`derivedBy`) пишет и удаляет только его проектор; на них не ссылаются концы (план 1.1, §2.4) |
 
 ## Порядок файлов
 
-`10-core` → `15-errors` → `20-context` → `30-validate` → `40-class` → `50-acl` → `60-write` → `70-read` → `80-auth` → `90-time` → `95-seed.system` → `99-revision`. Миграции между ревизиями — `migrate/NNNN-*.sql` (номер — ревизия, к которой ведёт), их применяет `up({ upgrade: true })` до повторного наката.
+`10-core` → `15-errors` → `20-context` → `30-validate` → `40-class` → `50-acl` → `60-write` → `70-read` → `75-history` → `80-auth` → `88-derived` → `90-time` → `95-seed.system` → `99-revision`. Миграции между ревизиями — `migrate/NNNN-*.sql` (номер — ревизия, к которой ведёт), их применяет `up({ upgrade: true })` до повторного наката.

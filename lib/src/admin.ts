@@ -92,6 +92,8 @@ export interface ModelDescription {
     ownerDefault: string;
     cache?: { ttl?: number };
     meta: Record<string, unknown>;
+    /** Производный класс: строки пишет только проектор с этим именем (план 1.1, §2.4). */
+    derivedBy?: string;
   }[];
   methods: { chain: readonly string[]; db: readonly string[] };
 }
@@ -250,6 +252,7 @@ export function describe(a: AdminCtx): ModelDescription {
     ownerDefault: c.ownerDefault,
     ...(c.cache ? { cache: c.cache } : {}),
     meta: c.meta,
+    ...(c.derivedBy ? { derivedBy: c.derivedBy } : {}),
   })).sort((x, y) => Number(x.system) - Number(y.system) || x.name.localeCompare(y.name));
   return { schema: a.schema, tenant: a.tenant(), classes, methods: { chain: CHAIN_METHODS, db: DB_METHODS } };
 }
@@ -275,6 +278,7 @@ export function describeText(d: ModelDescription): string {
       return `${k}${e.required ? '*' : ''} → ${Array.isArray(e.class) ? e.class.join('|') : e.class}${e.many ? '[]' : ''}`;
     });
     if (ends.length) out.push(`- концы: ${ends.join(', ')}`);
+    if (c.derivedBy) out.push(`- производный: строки пишет проектор ${c.derivedBy}, приложение только читает`);
     out.push('');
   }
   return out.join('\n');

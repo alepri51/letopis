@@ -12,6 +12,7 @@
 --   key       [<поле или роль>…] — из них вычисляется id (§2.3); [] — класс без ключа
 --   history   true | false | политика хранения (§2.11)
 --   ownerDefault 'tenant' | 'actor';  cache { ttl };  meta {…} до 64 КБ
+--   derivedBy имя проектора (план 1.1, §2.4): строки класса пишет только он; наследуется, потомок не меняет
 --   resolved  развёрнутое описание с учётом предков — пишет триггер, присланное значение перезаписывается
 -- Скомпилированная проверка данных класса лежит в колонке validator строки Class.
 
@@ -69,6 +70,7 @@ return $json${
     "ownerDefault": {"type": "string", "enum": ["tenant", "actor"]},
     "cache": {"type": "object"},
     "meta": {"type": "object"},
+    "derivedBy": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_.:-]{0,63}$"},
     "resolved": {"type": "object"}
   }
 }$json$::jsonb;
@@ -114,6 +116,7 @@ declare
   hist jsonb;
   od text;
   cache jsonb;
+  der text;
   comp jsonb := '{}';
   i int;
   v jsonb;
@@ -143,6 +146,14 @@ begin
     if v ? 'history' then hist := v->'history'; end if;
     if v ? 'ownerDefault' then od := v->>'ownerDefault'; end if;
     if v ? 'cache' then cache := v->'cache'; end if;
+    -- производный класс (план 1.1, §2.4): проектор задаёт предок, потомок его не меняет
+    if v ? 'derivedBy' then
+      if der is not null and der <> v->>'derivedBy' then
+        perform @SCHEMA@.lt_raise('LT010', 'invalid_class',
+          format('derivedBy класса %s (%s) не совпадает с предком (%s)', v->>'name', v->>'derivedBy', der));
+      end if;
+      der := v->>'derivedBy';
+    end if;
     for m in select * from jsonb_each(coalesce(v->'meta', '{}')) loop
       if m.value = 'null'::jsonb then meta := meta - m.key; else meta := meta || jsonb_build_object(m.key, m.value); end if;
     end loop;
@@ -158,7 +169,8 @@ begin
     'history', coalesce(hist, 'true'),
     'ownerDefault', coalesce(od, 'tenant'),
     'cache', cache,
-    'meta', meta);
+    -- ключ только у производных: у описаний до 1.2 его нет, и сравнение «было — стало» их не задевает
+    'meta', meta) || case when der is not null then jsonb_build_object('derivedBy', der) else '{}'::jsonb end;
 end $$;
 
 -- Проверка описания класса: метасхема, правила ключа (§2.3), правило unset (§2.10), размер meta.
@@ -242,6 +254,19 @@ begin
     if res->'history' ? 'tz' and not exists (select 1 from pg_timezone_names where name = res->'history'->>'tz') then
       perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('history: неизвестный часовой пояс %s', res->'history'->>'tz'));
     end if;
+  end if;
+  -- производный класс (план 1.1, §2.4): системным не бывает; его строки проектор удаляет и строит заново,
+  -- поэтому они не мешают удалять строки, на которые ссылаются (onDelete только cascade или unset)
+  if res ? 'derivedBy' then
+    if coalesce((data->>'system')::boolean, false) then
+      perform @SCHEMA@.lt_raise('LT010', 'invalid_class', 'системный класс не бывает производным');
+    end if;
+    for e in select key, value from jsonb_each(res->'ends') loop
+      if coalesce(e.value->>'onDelete', 'restrict') not in ('cascade', 'unset') then
+        perform @SCHEMA@.lt_raise('LT010', 'invalid_class',
+          format('конец %s производного класса — onDelete cascade или unset: производная строка не мешает удалять цель', e.key));
+      end if;
+    end loop;
   end if;
   select * into c from @SCHEMA@.compile_validator(res->'schema');
   data := data || jsonb_build_object('resolved', res || jsonb_build_object('rules', c.rules, 'vars', c.vars));

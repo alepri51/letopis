@@ -36,6 +36,8 @@ export interface ClassInfo {
   ownerDefault: 'tenant' | 'actor';
   cache?: { ttl?: number };
   meta: Record<string, unknown>;
+  /** Производный класс: строки пишет только проектор с этим именем (план 1.1, §2.4). */
+  derivedBy?: string;
   /** Валидатор на TypeScript (компилируется при первом обращении). */
   validator(): Validator;
 }
@@ -68,6 +70,7 @@ export class Registry {
         ownerDefault: (res.ownerDefault ?? 'tenant') as 'tenant' | 'actor',
         cache: (res.cache ?? undefined) as { ttl?: number } | undefined,
         meta: (res.meta ?? {}) as Record<string, unknown>,
+        ...(typeof res.derivedBy === 'string' ? { derivedBy: res.derivedBy } : {}),
         validator: () => (compiled ??= compileValidator(res.schema as JsonSchema)),
       };
       this.byName.set(info.name, info);

@@ -304,6 +304,21 @@ npx letopis import --from "$ADMIN" --from-schema v1.fixture --dsn "$ADMIN" --sch
   `objects`, `uuidFields`, `droppedFields`, `ownerLost`, `verify`, `ms`; код выхода 1, если `verify` не прошёл.
   Повтор импорта дописывает недостающее без дублей.
 
+### 12. Проекторы
+
+Проектор строит строки производных классов из журнала: сводки, карточки, всё, что можно считать с отставанием.
+Производный класс помечен `derivedBy: 'имя-проектора'`, и его строки пишет только этот проектор.
+```ts
+const p = adm.projector('daily', { from: ['Payment'], into: ['DayTotal'], version: 1, withBefore: true,
+  handle(changes, out) { /* out.inc, out.upsert, out.delete, await out.get — классы into, { tenant: c.tenant } */ } })
+await p.run({ once: true })   // догнать журнал; run() — следовать за ним до stop(); rebuild(), status(), close()
+```
+Только администраторское подключение (иначе `admin_required`). Пачка — одна транзакция, каждое изменение
+применяется ровно один раз, писатель один (`rebuild()`, пока другой процесс пишет пачку, — `projector_busy`).
+Первый запуск перестраивает проекцию с текущего состояния. `purge`, `trim` и `reset` приходят изменениями с `rev` 1 — сначала
+разберите `op`. Другая `version` — `rebuild_required`; курсор старше яруса `all` — `cursor_expired`
+(`onExpired: 'rebuild'` перестраивает сам). Источник с `history: false` не подходит.
+
 ### Эксплуатация
 
 `db.verify({ data: true })` и `letopis verify` — цепочки хэшей, якорь; `db.maintain()` и `connect({ maintain: '1h' })` —
@@ -364,3 +379,5 @@ await adm.close(); await db.close(); await svc.close()
     `Wallet`, а не созданной операции; нужна операция — заканчивайте цепочку на ней.
 18. **Очередь батча — своя у фасада.** `db.batch('x')` у корня, у каждого `await db.as(…)` и у каждой `db.begin()` —
     разные очереди; план исполняется от имени того, кто его поставил. Копите планы через один объект фасада.
+19. **Строки производного класса пишет только его проектор.** Приложение, сырой SQL и загрузчик получат
+    `derived_class`; ссылаться на такие строки концами тоже нельзя. Пересчитать их — `rebuild()` проектора.

@@ -903,6 +903,7 @@ const GUARDS: Record<string, string> = {
 const NOT_TOUCHED: Record<string, string> = {
   diff: 'план 1.1, этап 1: проверен набором history (§7.2), акты сценария 1.0 его не используют',
   blame: 'план 1.1, этап 1: проверен набором history (§7.2), акты сценария 1.0 его не используют',
+  projector: 'план 1.1, этап 4а: проверен набором projector (§7.5), акты сценария 1.0 его не используют',
   then: 'не метод: цепочка нарочно не thenable (А21 проверяет, что then === undefined)',
 };
 

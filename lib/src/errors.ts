@@ -47,7 +47,7 @@ const LT_NAMES: Record<string, string> = {
   LT006: 'acl_denied', LT007: 'id_mismatch', LT008: 'id_from_db', LT009: 'immutable_key', LT010: 'invalid_class',
   LT011: 'use_reclass', LT012: 'reclass_denied', LT013: 'tightening_conflict', LT014: 'isolation_level',
   LT015: 'recreated_in_statement', LT016: 'cursor_expired', LT017: 'delete_restricted', LT018: 'not_deleted',
-  LT019: 'reset_disabled', LT020: 'confirm_mismatch',
+  LT019: 'reset_disabled', LT020: 'confirm_mismatch', LT021: 'derived_class',
 };
 
 /**
