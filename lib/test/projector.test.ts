@@ -358,3 +358,19 @@ test('гонка №19 (§7.8): два процесса одного проек�
   p1.close();
   p2.close();
 });
+
+test('ревью: одноимённый класс без derivedBy у другого арендатора не останавливает проектор — его изменения пропускаются', async () => {
+  const v = await e.tenant('proj-c');
+  await e.defineClass(v, { name: 'Sale', kind: 'hub', fields: { properties: { day: { type: 'string' }, amount: { type: 'integer' } }, required: ['day', 'amount'] } });
+  await e.defineClass(v, { name: 'DayTotal', kind: 'hub', key: ['day'],
+    fields: { properties: { day: { type: 'string' }, total: { type: 'integer' }, count: { type: 'integer' } }, required: ['day'] } });
+  await insSale(v.token, { day: 'foreign', amount: 7 });
+  await insSale(t.token, { day: 'own', amount: 7 });
+  const p = adm.projector('daily', dailyDef({ version: 2 }));
+  await p.run({ once: true });
+  assert.deepEqual((await totals(db)).own, { total: 7, count: 1 }, 'свой арендатор — обработан');
+  const vdb = await connect({ dsn: appDsn(), schema: e.schema, token: v.token, max: 1 });
+  assert.equal((await vdb.DayTotal().rows()).length, 0, 'чужой арендатор — пропущен, его DayTotal не тронут');
+  await vdb.close();
+  p.close();
+});

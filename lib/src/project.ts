@@ -250,6 +250,8 @@ export class Projector {
   /** Производные классы с потомками (по строкам Class всех арендаторов). */
   into = new Set<string>();
   private from: string[] = [];
+  /** Арендаторы проектора: каждый класс into у них помечен его derivedBy. */
+  private tenants: string[] = [];
   /** Самый короткий ярус all политик хранения источников, мс (null — предела нет). */
   private limMs: number | null = null;
   private stale = true;
@@ -340,9 +342,9 @@ export class Projector {
       if (meta.cursor) {
         const p = dec(meta.cursor);
         const [l] = await q.unsafe(`select coalesce(extract(epoch from clock_timestamp() - min(l.at)) * 1000, 0)::float8 as ms
-          from ${this.env.S}.log l where (l.tx, l.seq) > ($1::text::xid8, $2::bigint) and l.class = any ($3::text[])
+          from ${this.env.S}.log l where (l.tx, l.seq) > ($1::text::xid8, $2::bigint) and l.class = any ($3::text[]) and l.tenant = any ($5::uuid[])
             and ($4::text is null or not pg_visible_in_snapshot(l.tx, $4::text::pg_snapshot))`,
-        [p.tx, p.seq, [...this.from, '#reset'], p.snap ?? null]);
+        [p.tx, p.seq, [...this.from, '#reset'], p.snap ?? null, this.tenants]);
         lag = Number(l?.ms ?? 0);
       }
       return {
@@ -412,8 +414,11 @@ export class Projector {
   }
 
   /**
-   * Классы по строкам Class всех арендаторов (реестр администраторского подключения без сессии видит
-   * только System): from и into с потомками, into — производные этого проектора, from — с журналом.
+   * Арендаторы и классы по строкам Class всех арендаторов (реестр администраторского подключения без сессии
+   * видит только System). Проектор работает с арендаторами, у которых каждый класс into помечен его
+   * derivedBy; изменения остальных арендаторов пропускаются — иначе любой арендатор, заведя одноимённый
+   * класс без пометки, остановил бы проектор для всех. Источники — семейства from у этих арендаторов, кроме
+   * собственных результатов.
    */
   private async resolve(q: Conn): Promise<void> {
     const S = this.env.S;
@@ -421,29 +426,26 @@ export class Projector {
     if (rev !== DDL_REVISION) {
       throw new LetopisError('invalid_data', `проектор ${this.name}: движок схемы ревизии ${String(rev)}, библиотека — ${DDL_REVISION}: обновите схему up({ upgrade: true })`);
     }
-    const family = async (names: string[]): Promise<string[]> => (await q.unsafe(`select distinct x.data->>'name' as n from ${S}.entity x
-      where x.class = 'Class' and x.data->'resolved'->'ancestors' ?| $1::text[]`, [names])).map((r) => r.n as string);
-    const from = await family(this.def.from);
-    const into = await family(this.def.into);
-    for (const [list, got] of [[this.def.from, from], [this.def.into, into]] as const) {
-      const miss = list.find((n) => !got.includes(n));
-      if (miss) throw new LetopisError('invalid_class', `проектор ${this.name}: класс ${miss} не найден`);
+    const wanted = [...new Set(this.def.into)];
+    const tenants = (await q.unsafe(`select x.tenant::text as t from ${S}.entity x
+      where x.class = 'Class' and x.data->>'name' = any ($1::text[]) and x.data->'resolved'->>'derivedBy' = $2
+      group by x.tenant having count(distinct x.data->>'name') = $3`, [wanted, this.name, wanted.length])).map((r) => r.t as string);
+    if (!tenants.length) {
+      throw new LetopisError('derived_class', `проектор ${this.name}: ни у одного арендатора классы ${wanted.join(', ')} не помечены derivedBy: '${this.name}'`);
     }
-    const both = from.find((n) => into.includes(n));
-    if (both) throw new LetopisError('invalid_query', `проектор ${this.name}: класс ${both} — и источник, и результат`);
-    const [notDerived] = await q.unsafe(`select x.data->>'name' as n from ${S}.entity x
-      where x.class = 'Class' and x.data->'resolved'->'ancestors' ?| $1::text[] and x.data->'resolved'->>'derivedBy' is distinct from $2 limit 1`,
-    [this.def.into, this.name]);
-    if (notDerived) throw new LetopisError('derived_class', `проектор ${this.name}: класс ${notDerived.n as string} не помечен derivedBy: '${this.name}'`);
-    const [noLog] = await q.unsafe(`select x.data->>'name' as n from ${S}.entity x
-      where x.class = 'Class' and x.data->>'name' = any ($1::text[]) and x.data->'resolved'->'history' = 'false'::jsonb limit 1`, [from]);
-    if (noLog) throw new LetopisError('invalid_class', `проектор ${this.name}: класс ${noLog.n as string} без журнала (history: false) — проектор его изменений не увидит`);
+    const family = async (names: string[]): Promise<string[]> => (await q.unsafe(`select distinct x.data->>'name' as n from ${S}.entity x
+      where x.class = 'Class' and x.tenant = any ($2::uuid[]) and x.data->'resolved'->'ancestors' ?| $1::text[]`, [names, tenants]))
+      .map((r) => r.n as string);
+    const into = await family(this.def.into);
+    const from = (await family(this.def.from)).filter((n) => !into.includes(n));
+    if (!from.length) throw new LetopisError('invalid_class', `проектор ${this.name}: классов ${this.def.from.join(', ')} нет у арендаторов проектора`);
     const [lim] = await q.unsafe(`select (extract(epoch from min(${S}.history_iv(p.p->>'all'))) * 1000)::float8 as ms
       from ${S}.entity x cross join lateral (select ${S}.history_policy(x.data->'resolved') as p) p
-      where x.class = 'Class' and p.p is not null and x.data->>'name' = any ($1::text[])`, [from]);
+      where x.class = 'Class' and p.p is not null and x.data->>'name' = any ($1::text[]) and x.tenant = any ($2::uuid[])`, [from, tenants]);
     this.limMs = lim?.ms == null ? null : Number(lim.ms);
     this.from = from;
     this.into = new Set(into);
+    this.tenants = tenants;
     this.stale = false;
   }
 
@@ -475,6 +477,7 @@ export class Projector {
         const snap = keepSnap(cur.snap, r.tx as string);
         pos = { tx: r.tx as string, seq: r.seq as string, ...(snap ? { snap } : {}) };
         const row = toRow(r.row as Record<string, unknown>);
+        if (!this.tenants.includes(row.tenant)) continue;
         if (meta.chunks && seen(meta.chunks, row.id, pos.tx)) continue;
         changes.push(change(row, enc(pos)));
       }
@@ -561,8 +564,8 @@ export class Projector {
       await q.unsafe(`declare letopis_rebuild no scroll cursor for
         with s as (select pg_current_snapshot() as snap)
         select s.snap::text as snap, pg_snapshot_xmin(s.snap)::text as xmin, case when e.id is null then null else ${rowJson('e')} end as row
-        from s left join ${this.env.S}.entity e on e.class = any ($1::text[])
-        order by e.id`, [this.from]);
+        from s left join ${this.env.S}.entity e on e.class = any ($1::text[]) and e.tenant = any ($2::uuid[])
+        order by e.id`, [this.from, this.tenants]);
       let head: Pos | null = null;
       for (;;) {
         const rows = await q.unsafe(`fetch ${this.batch} from letopis_rebuild`);
@@ -605,8 +608,9 @@ export class Projector {
         const rows = await q.unsafe(`with s as (select pg_current_snapshot()::text as snap)
           select s.snap, case when e.id is null then null else ${rowJson('e')} end as row
           from s left join lateral (select x.* from ${this.env.S}.entity x
-            where x.class = any ($1::text[]) and ($2::uuid is null or x.id > $2::uuid) order by x.id limit $3) e on true`,
-        [this.from, rb.last, this.batch]);
+            where x.class = any ($1::text[]) and x.tenant = any ($4::uuid[]) and ($2::uuid is null or x.id > $2::uuid)
+            order by x.id limit $3) e on true`,
+        [this.from, rb.last, this.batch, this.tenants]);
         const real = rows.filter((r) => r.row);
         if (!real.length) {
           await this.advance(q, meta.cursor, { cursor: rb.start, at: await this.now(q), version: this.def.version, state: 'running',

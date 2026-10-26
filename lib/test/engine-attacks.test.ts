@@ -486,6 +486,7 @@ test('№33 (план 1.1, этап 4): запись в производный �
   await assert.rejects(q(`delete from ${S}.entity where id = $1`, [row.id]), lt('derived_class'));
   await assert.rejects(q(`select ${S}.reclass($1::uuid, 'Org')`, [row.id]), lt('derived_class'));
   await assert.rejects(e.defineClass(a, { name: 'RollupRef', kind: 'hub', fields: { properties: {} }, ends: { R: { class: 'Rollup' } } }), lt('derived_class'));
+  await assert.rejects(q(`select ${S}.rekey_class('Rollup', '["k"]'::jsonb)`), lt('derived_class'));
   // другой проектор и другой арендатор — мимо
   await assert.rejects(e.asOwner((tx) => tx.unsafe(`select ${S}.derived_apply('other', $1::text::jsonb)`,
     [JSON.stringify([{ op: 'upsert', class: 'Rollup', tenant: a.id, row: { k: 'z' } }])])), lt('derived_class'));

@@ -672,7 +672,8 @@ const [vip] = await db.Customer(olga).reclass('Vip', { name: 'Olga', email: 'olg
 - `rekey(patch)` sets a new key value: a row with a new id, all references moved, the old row deleted. If a referencing
   row includes this end in its own key, its id changes too, and the move goes on. The journal links the old and the new
   id (`moved`).
-- `db.rekeyClass(class, key)` sets a new key for all rows of the family, in one transaction.
+- `db.rekeyClass(class, key)` sets a new key for all rows of the family, in one transaction. For a derived class —
+  `derived_class`: only its projector writes its rows.
 - `reclass(class, data)` changes the class; the data is optional, and if given, it is given whole. If the new class has
   no key, the id is kept (as for `vip` above); if it has one, the id is computed anew and the references are moved.
   The roles of referencing rows must accept the new class, otherwise `reclass_denied`. A raw `UPDATE … SET class`
@@ -1578,8 +1579,10 @@ sales.close()                                    // stop() after the current bat
   `run()` throws `cursor_expired`: some changes may have been thinned out. With `onExpired: 'rebuild'`, the projector
   rebuilds itself. A projector without new changes does not expire. `status().lag` is the age of the oldest
   unprocessed change in ms.
-- Sources must keep a journal: a class with `history: false` in `from` is refused (`invalid_class`). A class cannot be
-  a source and a result at the same time.
+- A projector works with the tenants in which every `into` class is marked with its `derivedBy`; it skips the changes
+  of other tenants, so a class with the same name and no mark in another tenant does not get in its way. No such tenant
+  at all — `derived_class`. The sources are the `from` families of these tenants; a class cannot be a source and a
+  result at the same time. A projector does not see the changes of a class with `history: false`: it has no journal.
 - `batch` is how many changes go into a batch (500), `pollMs` is fallback polling (1000 ms): source signals wake the
   projector earlier.
 

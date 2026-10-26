@@ -533,6 +533,7 @@ declare
   o record;
   dname text;
   drole text;
+  tc @SCHEMA@.entity;
 begin
   if p_tenant <> '@SYSTEM@'::uuid then
     if (p_data->>'name') = any (array['Class', 'Account', 'member', 'Resource', 'rule']) then
@@ -562,8 +563,14 @@ begin
       perform @SCHEMA@.lt_fail('invalid_class', format('конец %s в классе %s ведёт на другой класс', e.key, o.name));
     end if;
   end loop;
-  -- на строки производного класса (план 1.1, §2.4) не ссылаются: проектор удаляет и строит их заново
+  -- на строки производного класса (план 1.1, §2.4) не ссылаются: проектор удаляет и строит их заново.
+  -- Классы целей — под разделяемой блокировкой семейства, а класс, который становится производным, — под
+  -- исключительной: описание со ссылкой и пометка derivedBy не проходят параллельно мимо друг друга
   for e in select key, value from jsonb_each(coalesce(data->'resolved'->'ends', '{}'::jsonb)) loop
+    for tc in select c.* from jsonb_array_elements_text(@SCHEMA@.class_set(e.value->'class')) n(name)
+              cross join lateral @SCHEMA@.class_row(n.name, p_tenant) c where c.id is not null order by c.id loop
+      perform @SCHEMA@.family_lock(tc, false);
+    end loop;
     dname := null;
     select x.data->>'name' into dname
     from @SCHEMA@.entity x
@@ -578,14 +585,21 @@ begin
     end if;
   end loop;
   if data->'resolved' ? 'derivedBy' then
-    -- класс становится производным, а на него или его потомков уже ссылаются концы других классов
+    tc := @SCHEMA@.class_row(data->>'name', p_tenant);
+    if tc.id is not null then
+      perform @SCHEMA@.family_lock(tc, true);
+    end if;
+    -- класс становится производным, а на него или его потомков уже ссылаются концы других классов (класс
+    -- System видят все арендаторы — его ссылки ищутся во всех)
     select x.data->>'name', k.key into dname, drole
     from @SCHEMA@.entity x
     cross join lateral jsonb_each(coalesce(x.data->'resolved'->'ends', '{}'::jsonb)) k
-    where x.class = 'Class' and x.tenant in (p_tenant, '@SYSTEM@'::uuid) and x.data->>'name' <> data->>'name'
+    where x.class = 'Class' and (x.tenant in (p_tenant, '@SYSTEM@'::uuid) or p_tenant = '@SYSTEM@'::uuid)
+      and x.data->>'name' <> data->>'name'
       and @SCHEMA@.class_set(k.value->'class') ?| (array[data->>'name'] || array(
         select y.data->>'name' from @SCHEMA@.entity y
-        where y.class = 'Class' and y.tenant in (p_tenant, '@SYSTEM@'::uuid) and y.data->'resolved'->'ancestors' ? (data->>'name')))
+        where y.class = 'Class' and (y.tenant in (p_tenant, '@SYSTEM@'::uuid) or p_tenant = '@SYSTEM@'::uuid)
+          and y.data->'resolved'->'ancestors' ? (data->>'name')))
     limit 1;
     if dname is not null then
       perform @SCHEMA@.lt_fail('derived_class', format('класс %s не может стать производным: на него ссылается конец %s класса %s',

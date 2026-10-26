@@ -484,6 +484,11 @@ begin
   if coalesce((cr.data->>'system')::boolean, false) then
     perform @SCHEMA@.lt_fail('invalid_class', 'ключ системного класса не меняется');
   end if;
+  -- строки производного класса (и его потомков) переносит только владелец: ключ меняют в описании, а строки
+  -- строит заново проектор (rebuild)
+  if cr.data->'resolved' ? 'derivedBy' then
+    perform @SCHEMA@.lt_fail('derived_class', format('класс %s производный: его строки пишет проектор %s', p_class, cr.data->'resolved'->>'derivedBy'));
+  end if;
   if not @SCHEMA@.acl_row_ok(wplan, 'Class', cr.id, cr.owner, cr.tenant, cr.tags, cr.data, cr.links) then
     perform @SCHEMA@.lt_fail('acl_denied', 'нет права WRITE на класс Class');
   end if;
