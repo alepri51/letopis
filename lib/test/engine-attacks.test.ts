@@ -679,3 +679,37 @@ test('№39 (доработки после точки Б): rekeyClass непро
   const [cls] = await e.sql.unsafe(`select data->'resolved'->'key' as key from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = 'KeyBase'`, [a.id]);
   assert.deepEqual(cls.key, ['k'], 'ключ предка прежний');
 });
+
+test('№40 (доработки после точки Б, остаток Н2): удалить класс с историей строк и создать заново под другим parent — отказ', async () => {
+  // Master пользователю закрыт; удалённые строки Master остались в журнале. Удалить пустой класс и создать его заново
+  // потомком Note (Note пользователь читает) — значит подставить историю Master под правила Note
+  const { org, user } = await aclTenant();
+  const { resource, rule, sysRes } = await import('./_access.js');
+  const g = await sysRes(e, 'authenticated:ACCOUNT');
+  for (const op of ['WRITE', 'DELETE'] as const) {
+    await rule(e, org, g, await resource(e, org, `class:${op}`, op, { class: 'Class' }), 'allow', 10);
+  }
+  const tver = await ownerIns(org, 'Org', { name: 'Т40', city: 'Тверь' });
+  const m = await ownerIns(org, 'Master', { name: 'Секрет' }, { Org: tver });
+  await e.asOwner((tx) => tx.unsafe(`insert into ${S}.log (id, rev, class, tenant, owner, links, data, tags, at, author, op)
+    select id, rev, class, tenant, owner, links, data, tags, at, author, op from ${S}.entity where id = $1`, [m]));
+  await e.asOwner((tx) => tx.unsafe(`delete from ${S}.entity where id = $1`, [m]));
+  const classRow = async () => (await e.sql.unsafe(`select id, rev from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = 'Master'`, [org]))[0];
+  const was = await classRow();
+  await assert.rejects(as(user, `delete from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = 'Master'`, [org]), lt('invalid_class'));
+  await assert.rejects(as(user, `delete from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = 'Master'`, [org]), /история строк/);
+  assert.deepEqual(await classRow(), was, 'класс на месте');
+  // класс, удалённый с историей раньше (до 1.2): надгробие строки Class хранит прежнее описание
+  await e.asOwner(async (tx) => {
+    await tx.unsafe(`insert into ${S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, op, prev_hash, changed)
+      select id, rev + 1, class, cv, tenant, owner, links, data, tags, now(), author, 'delete', hash, '[]' from ${S}.entity where id = $1`, [was.id]);
+    await tx.unsafe(`delete from ${S}.entity where id = $1`, [was.id]);
+  });
+  const master = CLASSES.find((c) => c.name === 'Master')!;
+  await assert.rejects(as(user, `insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [{ ...master, parent: 'Note' }]), /удалён, но журнал хранит историю/);
+  await assert.rejects(as(user, `insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [{ ...master, alias: 'Мастер' }]), lt('invalid_class'));
+  assert.deepEqual((await as(user, `select id from ${S}.log where class = 'Master'`)).length, 0, 'история Master пользователю не видна');
+  // с прежним описанием — можно: история остаётся под прежними правилами
+  await as(user, `insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [master]);
+  assert.deepEqual((await as(user, `select id from ${S}.log where class = 'Master'`)).length, 0);
+});
