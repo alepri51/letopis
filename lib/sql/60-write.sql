@@ -695,6 +695,14 @@ begin
           or prevd->'resolved'->'derivedBy' is distinct from data->'resolved'->'derivedBy') then
     perform @SCHEMA@.class_acl_admit(data->>'name', p_tenant);
   end if;
+  -- политика хранения истории (доработки после точки Б): по ней maintain() прореживает журнал строк класса, а
+  -- history: false выключает журнал. Одним правом WRITE на Class автор правки стирал бы аудит строк, на которые у него
+  -- нет прав, поэтому смена развёрнутой history существующего класса требует права READ и DELETE без условий на все
+  -- строки класса и его потомков своего арендатора — как trimHistory требует их на каждую цель
+  if prevd is not null and prevd->'resolved'->'history' is distinct from data->'resolved'->'history' then
+    perform @SCHEMA@.class_rows_admit(data->>'name', p_tenant, array['READ', 'DELETE'],
+      format('класс %s меняет политику хранения истории', data->>'name'));
+  end if;
   for e in select key, value from jsonb_each(coalesce(data->'resolved'->'ends', '{}'::jsonb)) loop
     select x.data->>'name' as name into o
     from @SCHEMA@.entity x

@@ -778,3 +778,20 @@ test('№42 (доработки после точки Б): reclass без пра
   const [h] = await e.sql.unsafe(`select links from ${S}.entity where id = $1`, [kh.id]);
   assert.equal(h.links.S, ks.id, 'невидимая строка не переписана');
 });
+
+test('№43 (доработки после точки Б): политику хранения истории не задать одним правом WRITE на Class — maintain() не сотрёт чужой аудит', async () => {
+  const { org, user } = await aclTenant();
+  const { resource, rule, sysRes } = await import('./_access.js');
+  const g = await sysRes(e, 'authenticated:ACCOUNT');
+  await rule(e, org, g, await resource(e, org, 'class43:WRITE', 'WRITE', { class: 'Class' }), 'allow', 10);
+  const setHistory = (h: unknown) => as(user, `update ${S}.entity set data = data || jsonb_build_object('history', $1::text::jsonb)
+    where class = 'Class' and tenant = $2 and data->>'name' = 'Note' returning id`, [JSON.stringify(h), org]);
+  const rev = async () => (await e.sql.unsafe(`select rev from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = 'Note'`, [org]))[0].rev;
+  const was = await rev();
+  // Note пользователь читает и пишет, но не удаляет
+  await assert.rejects(setHistory({ all: '1 day' }), /меняет политику хранения истории: нужно право DELETE на все строки класса Note/);
+  await assert.rejects(setHistory(false), lt('acl_denied'));
+  assert.equal(await rev(), was, 'описание не изменилось');
+  await rule(e, org, g, await resource(e, org, 'note43:DELETE', 'DELETE', { class: 'Note' }), 'allow', 10);
+  assert.equal((await setHistory({ all: '1 day' })).length, 1, 'с правом DELETE — можно');
+});

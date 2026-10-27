@@ -504,7 +504,9 @@ name of the class for a chain step, for example a name in another language.
 
 - `history: false`: no journal is kept for the class: no versions, no point-in-time reads, no restore and no
   subscription events. A retention policy is `history: { all: '1 day', daily: '3 months', … }`
-  ([section 11](#11-history-and-point-in-time-reads)).
+  ([section 11](#11-history-and-point-in-time-reads)). Only someone with the `READ` and `DELETE` permissions without
+  conditions on all rows of the class and its descendants may change `history` of an existing class: `maintain()` thins
+  the journal by the policy, and `false` turns it off.
 - `ownerDefault: 'actor'`: the owner of new rows is the user, not the tenant (the default is `'tenant'`). This is
   useful for the rule "everyone sees their own records".
 - `cache: { ttl }`: reads of this class alone are cached without `.cache()` ([section 12](#12-change-subscription-and-cache)).
@@ -2669,7 +2671,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # chain-write — writing with chains: create, update, upsert, delete with preview, anonymize, reclass, slots, inc, { rev }, fan-out, plan rollback (stage 4)
 # demo — the booking demo domain on Zod: seed from models, writing data, id by key, agreement between Zod and the database (stage 2)
 # docs — documentation examples are executed: the marked blocks of the README and the cheatsheet (Russian and English) run as scenarios against PostgreSQL 18 (stage 8)
-# engine-attacks — raw SQL attacks from the application role: the rows of §7.3.1 for stages 1 and 3 with specific outcomes; the signal key without permission, flooding with fake signals, Class included; writing to a derived class and a reference to it, a projector checkpoint through the credential functions; an agent through MCP without --write and without a human confirmation; a change of parent, alias and derivedBy of a class with the WRITE permission on Class alone, deleting and re-creating a class with a history of rows, a trial tightening as an oracle, reclass without DELETE and rewriting references deeper than the first level; an agent through MCP grants a membership or a rule, a system administrator session; a tenant user creates a derived class on their own, `rekeyClass` of an ancestor of a derived class (stages 1, 3; plan 1.1, stages 2, 4a, 5, checkpoint A, security review No. 2, checkpoint B and the work after it)
+# engine-attacks — raw SQL attacks from the application role: the rows of §7.3.1 for stages 1 and 3 with specific outcomes; the signal key without permission, flooding with fake signals, Class included; writing to a derived class and a reference to it, a projector checkpoint through the credential functions; an agent through MCP without --write and without a human confirmation; a change of parent, alias and derivedBy of a class with the WRITE permission on Class alone, deleting and re-creating a class with a history of rows, a trial tightening as an oracle, reclass without DELETE and rewriting references deeper than the first level, a retention policy with the WRITE permission on Class alone; an agent through MCP grants a membership or a rule, a system administrator session; a tenant user creates a derived class on their own, `rekeyClass` of an ancestor of a derived class (stages 1, 3; plan 1.1, stages 2, 4a, 5, checkpoint A, security review No. 2, checkpoint B and the work after it)
 # engine-class — classes as entities: metaschema, inheritance, recomputing descendants, tightening, metadata; a class with a history of rows is deleted only after purge() (stage 1; the work after checkpoint B)
 # engine-write — the write pipeline in raw SQL: v5 ids, defaults, merge, inc, deletion, resurrection, journal, signals (stage 1)
 # engine-races — races on two connections in both orders, without timed pauses (stage 1)
