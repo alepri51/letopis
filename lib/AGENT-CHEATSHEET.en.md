@@ -1,4 +1,4 @@
-# letopis 1.1 — agent cheatsheet
+# letopis 1.2 — agent cheatsheet
 
 One page instead of [README.en.md](README.en.md), for an AI agent that writes code on top of the package. It ships in
 the package next to the README; in Russian: [Русская версия](AGENT-CHEATSHEET.md). Migration from 0.21:
