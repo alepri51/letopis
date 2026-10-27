@@ -463,6 +463,9 @@ test('ревью коммита этапа 4б: агрегат задаёт то
   const grant = async (alias: string, cat: string, pattern: Record<string, unknown>, weight: number, perm: 'allow' | 'deny' = 'allow') =>
     rule(e, x.id, auth, await resource(e, x.id, alias, cat, pattern), perm, weight);
   await grant('class:WRITE', 'WRITE', { class: 'Class' }, 10);
+  // описание агрегата — ужесточение цели: оно проверяет её строки и требует права READ на все строки Shop (доработки
+  // после точки Б); здесь проверяются права на источники
+  await grant('shop:READ', 'READ', { class: 'Shop' }, 10);
   await e.defineClass(x, { name: 'Shop', kind: 'hub', key: ['code'],
     fields: { properties: { code: { type: 'string' }, total: { type: 'integer' }, big: { type: 'integer' } }, required: ['code'] } });
   await e.defineClass(x, { name: 'Sale', kind: 'link', fields: { properties: { amount: { type: 'integer' } }, required: ['amount'] },

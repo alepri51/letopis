@@ -720,3 +720,28 @@ test('№40 (доработки после точки Б, остаток Н2): �
     /журнал хранит историю строк класса Phantom/);
   await assert.rejects(as(user, `insert into ${S}.entity (class, data) values ('Class', '{"name": "Phantom", "kind": "hub"}')`), lt('invalid_class'));
 });
+
+test('№41 (доработки после точки Б): ужесточение класса — не оракул по невидимым строкам; без права READ на все строки — отказ до проверки строк', async () => {
+  const { org, user } = await aclTenant();
+  const { resource, rule, sysRes } = await import('./_access.js');
+  const g = await sysRes(e, 'authenticated:ACCOUNT');
+  await rule(e, org, g, await resource(e, org, 'class41:WRITE', 'WRITE', { class: 'Class' }), 'allow', 10);
+  await ownerIns(org, 'Org', { name: 'Т41', city: 'Тверь', phone: '1' });
+  await ownerIns(org, 'Org', { name: 'М41', city: 'Москва', phone: '999' });
+  const tighten = (max: number) => as(user, `update ${S}.entity set data = jsonb_set(data, '{fields,properties,phone}', $1::jsonb)
+    where class = 'Class' and tenant = $2 and data->>'name' = 'Org' returning id`, [{ type: 'string', maxLength: max }, org]);
+  // Org читается только из Твери: пробное ужесточение отвечало бы числом невидимых нарушающих строк
+  const err = await tighten(1).then(() => null, (x) => x);
+  lt('acl_denied')(err);
+  assert.match(err.message, /ужесточение класса Org: нужно право READ на все строки класса Org/);
+  assert.ok(!/rows|others/.test(err.detail ?? ''), `ни строк, ни их числа: ${err.detail}`);
+  // смена ключа проверяет строки так же
+  await assert.rejects(as(user, `select ${S}.rekey_class('Org', '["name", "city"]'::jsonb)`), /смена ключа класса Org: нужно право READ на все строки класса Org/);
+  // READ без условий — обычный отказ с перечнем, невидимых строк нет
+  await rule(e, org, g, await resource(e, org, 'org41:READ', 'READ', { class: 'Org' }), 'allow', 10);
+  const err2 = await tighten(1).then(() => null, (x) => x);
+  lt('tightening_conflict')(err2);
+  const d = JSON.parse(err2.detail);
+  assert.equal(d.others, 0);
+  assert.ok(d.rows.length >= 1 && d.rows.every((r: { class: string }) => r.class === 'Org'), 'строки перечислены — все видны');
+});

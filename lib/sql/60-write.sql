@@ -485,6 +485,8 @@ declare
   problem text;
   inc jsonb;
   outv jsonb := '[]'::jsonb;
+  a jsonb := @SCHEMA@.acl_actor('READ');
+  vis boolean;
 begin
   for r in select e.* from @SCHEMA@.entity e
            where e.class = any (p_classes) and (e.tenant = p_tenant or p_tenant = '@SYSTEM@'::uuid)
@@ -510,7 +512,13 @@ begin
     if problem is null and p_incoming then
       inc := @SCHEMA@.incoming_conflicts(r.id, r.class, r.tenant);
       if inc <> '[]'::jsonb then
-        problem := format('на строку ссылается роль %s строки %s, которая не принимает класс', inc->0->>'role', inc->0->>'id');
+        -- id ссылающейся строки — только если актор её видит (доработки после точки Б)
+        select @SCHEMA@.row_visible(x.tenant, x.class, x.id, x.owner, x.tags, x.data, x.links,
+                                    (a->>'tenant')::uuid, (a->>'account')::uuid, a->'plan') into vis
+        from @SCHEMA@.entity x where x.id = (inc->0->>'id')::uuid;
+        problem := case when coalesce(vis, false)
+          then format('на строку ссылается роль %s строки %s, которая не принимает класс', inc->0->>'role', inc->0->>'id')
+          else format('на строку ссылается роль %s строки, которой актор не видит, и она не принимает класс', inc->0->>'role') end;
       end if;
     end if;
     if problem is not null then
@@ -538,23 +546,35 @@ create or replace function @SCHEMA@.class_acl_admit(p_class text, p_tenant uuid)
 language plpgsql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
+begin
+  perform @SCHEMA@.class_rows_admit(p_class, p_tenant, array['READ', 'WRITE', 'DELETE'],
+    format('класс %s меняет предков, алиас или derivedBy', p_class));
+end $$;
+
+-- Право актора на все строки класса p_class и каждого его потомка арендатора p_tenant: по каждой операции p_ops —
+-- без условий, иначе acl_denied с текстом «<p_what>: нужно право <op> на все строки класса <класс>». Сам класс первым,
+-- потомки — по глубине и имени; потомков у арендаторов класса System план сессии System не видит — они пропускаются.
+-- Зовут class_acl_admit (смена предков, алиаса, derivedBy), ужесточение (class_evolve, rekey_class) и смена политики
+-- хранения истории (class_admit; доработки после точки Б).
+create or replace function @SCHEMA@.class_rows_admit(p_class text, p_tenant uuid, p_ops text[], p_what text) returns void
+language plpgsql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
 declare
   c text;
   op text;
   chk jsonb;
 begin
-  -- сам класс первым, потомки — по глубине и имени
   for c in select p_class
            union all
            (select x.data->>'name' from @SCHEMA@.entity x
             where x.class = 'Class' and x.tenant = p_tenant and x.data->>'name' <> p_class
               and x.data->'resolved'->'ancestors' ? p_class
             order by jsonb_array_length(x.data->'resolved'->'ancestors'), x.data->>'name') loop
-    foreach op in array array['READ', 'WRITE', 'DELETE'] loop
+    foreach op in array p_ops loop
       chk := @SCHEMA@.acl_check_data(c, op);
       if not coalesce((chk->>'allow')::boolean, false) or chk ? 'filter' then
-        perform @SCHEMA@.lt_fail('acl_denied', format('класс %s меняет предков, алиас или derivedBy: нужно право %s на все строки класса %s',
-          p_class, op, c));
+        perform @SCHEMA@.lt_fail('acl_denied', format('%s: нужно право %s на все строки класса %s', p_what, op, c));
       end if;
     end loop;
   end loop;
@@ -1127,6 +1147,11 @@ begin
     perform @SCHEMA@.agg_refresh(agg_other, n.tenant, true);
   end if;
   if not @SCHEMA@.class_change_safe(o.data->'resolved', n.data->'resolved') then
+    -- ужесточение проверяет все строки семейства, в том числе невидимые актору, и отвечает их числом: пробное
+    -- ужесточение (maximum, enum, pattern…) было оракулом по чужим строкам (доработки после точки Б). Нужно право READ
+    -- без условий на все строки класса и потомков своего арендатора; строки других арендаторов (класс System) —
+    -- уровень установки, их число остаётся в others
+    perform @SCHEMA@.class_rows_admit(n.data->>'name', n.tenant, array['READ'], format('ужесточение класса %s', n.data->>'name'));
     conflicts := @SCHEMA@.family_conflicts(classes, n.tenant, o.data->'resolved'->'ancestors' is distinct from n.data->'resolved'->'ancestors');
     if conflicts <> '[]'::jsonb then
       select * into c from @SCHEMA@.ctx();
@@ -1728,7 +1753,7 @@ begin
     'log_version(@SCHEMA@.entity)', 'sys_update(uuid, jsonb, jsonb, jsonpath, text, text)', 'tombstone(@SCHEMA@.entity, text, uuid)',
     'links_replace(jsonb, uuid, uuid)', 'move_row(@SCHEMA@.entity, uuid, text, jsonb, jsonb, text)', 'reclass(uuid, text, jsonb)',
     'incoming_conflicts(uuid, text, uuid)', 'visible_detail(jsonb, uuid)', 'class_change_safe(jsonb, jsonb)',
-    'family_conflicts(text[], uuid, boolean)', 'reserved_names()', 'class_acl_admit(text, uuid)', 'class_has_history(text, uuid)', 'class_admit(jsonb, uuid)',
+    'family_conflicts(text[], uuid, boolean)', 'reserved_names()', 'class_acl_admit(text, uuid)', 'class_rows_admit(text, uuid, text[], text)', 'class_has_history(text, uuid)', 'class_admit(jsonb, uuid)',
     'trg_entity_bi()', 'trg_entity_bu()', 'trg_entity_ai()', 'trg_entity_au()', 'history_on(text, uuid)', 'signal_token(text, text, bytea)', 'signal_raw(text[])', 'signal(text[], uuid[])', 'class_evolve(@SCHEMA@.entity, @SCHEMA@.entity)',
     'trg_entity_bd()', 'trg_entity_ad()', 'owner_to_tenant(uuid, uuid)', 'ref_action(jsonb, jsonb, uuid[])', 'delete_preview(uuid[])', 'merge(jsonb, jsonb)', 'inc(jsonb, text[], numeric, numeric)', 'links_patch(jsonb, jsonb)'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);

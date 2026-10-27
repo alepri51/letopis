@@ -508,6 +508,9 @@ begin
   if not @SCHEMA@.acl_row_ok(wplan, 'Class', cr.id, cr.owner, cr.tenant, cr.tags, cr.data, cr.links) then
     perform @SCHEMA@.lt_fail('acl_denied', 'нет права WRITE на класс Class');
   end if;
+  -- смена ключа проверяет все строки семейства и отвечает числом нарушающих — как ужесточение, только с правом READ без
+  -- условий на все строки класса и потомков (доработки после точки Б)
+  perform @SCHEMA@.class_rows_admit(p_class, cr.tenant, array['READ'], format('смена ключа класса %s', p_class));
   perform @SCHEMA@.family_lock(cr, true);
   select x.* into cr from @SCHEMA@.entity x where x.id = cr.id for update;
   select p.data, p.validator into prep from @SCHEMA@.class_prepare(cr.data || jsonb_build_object('key', p_key), cr.tenant) p;
