@@ -887,3 +887,32 @@ test('доработки после точки Б: onExpired — выбывши�
     auto.close();
   }
 });
+
+test('доработки после точки Б (ревью коммита 2b229d2): выбывший по ярусу, чей источник выключил журнал, не останавливает автоматическую перестройку для всех', async () => {
+  const v = await e.tenant('proj-auto-v');
+  await tickTenant(v, { all: '1 day', daily: 'forever' });
+  const plain = adm.projector('ticker', tickerDef());
+  try {
+    await plain.rebuild();
+    await tick(v, 4);
+    await tick(t, 1);
+    await tickAge('3 days');
+    await plain.run({ once: true });
+    assert.equal((await plain.status()).failed[v.id]?.code, 'cursor_expired');
+  } finally {
+    plain.close();
+  }
+  // арендатор v выключил журнал источника до автоматической перестройки
+  await tickHistory(v, false);
+  const auto = adm2.projector('ticker', tickerDef({ onExpired: 'rebuild' }));
+  try {
+    await tick(t, 2);
+    await auto.run({ once: true });
+    // run() не отклонён; v остаётся выбывшим (cursor_expired — перестроится сам, когда журнал включат, или invalid_class)
+    assert.ok(['cursor_expired', 'invalid_class'].includes((await auto.status()).failed[v.id]?.code ?? ''), 'v выбывший');
+    assert.equal(await tickTotal(t), await tickSumOf(t), 'остальные идут дальше');
+  } finally {
+    auto.close();
+  }
+  await tickHistory(v, { all: '1 day', daily: 'forever' });
+});

@@ -1042,12 +1042,24 @@ export class Projector {
    * Начало перестройки арендатора пачками: его производные строки удаляются, отметка выбывшего снимается, в чекпоинт
    * встают пустая карта пачек и время начала. auto — путь run(): занятая блокировка — 'busy', а не projector_busy.
    */
-  private async startTenant(rep: ProjectorReport, tenant: string, auto: boolean): Promise<'busy' | 'ok'> {
+  private async startTenant(rep: ProjectorReport, tenant: string, auto: boolean): Promise<'busy' | 'ok' | 'skip'> {
     for (;;) {
-      const r = await this.tx(async (q): Promise<'busy' | 'ok'> => {
+      const r = await this.tx(async (q): Promise<'busy' | 'ok' | 'skip'> => {
         if (!(await this.lock(q))) return 'busy';
         await this.resolve(q);
         const meta = await this.state(q);
+        if (auto) {
+          // автоматический путь: арендатор, который с последнего прохода перестал подходить (не участник, источник без
+          // журнала), выбывает с причиной, а не останавливает run() для всех (автоматическое ревью коммита 2b229d2)
+          if (!meta.cursor || meta.state === 'rebuilding' || meta.version !== this.def.version) return 'skip';
+          if (!this.scopes.has(tenant) || this.blind.has(tenant)) {
+            const failed: Failed = { ...(meta.failed ?? {}) };
+            failed[tenant] = this.scopes.has(tenant) ? this.blindFailure(tenant, meta.cursor)
+              : { cursor: meta.cursor, code: 'tenant_denied', message: `проектор ${this.name}: арендатор ${tenant} больше не участник` };
+            await this.advance(q, meta.cursor, withFailed(meta, failed));
+            return 'skip';
+          }
+        }
         this.tenantAdmit(meta, tenant);
         await this.clear(q, [tenant]);
         const failed: Failed = { ...(meta.failed ?? {}) };
@@ -1061,7 +1073,7 @@ export class Projector {
         await this.advance(q, meta.cursor, withFailed(next, failed));
         return 'ok';
       });
-      if (r === 'ok' || auto) {
+      if (r !== 'busy' || auto) {
         if (r === 'busy') rep.skipped++;
         return r;
       }
