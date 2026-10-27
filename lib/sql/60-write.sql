@@ -528,7 +528,7 @@ language sql immutable parallel safe
 return array[@RESERVED_NAMES@]::text[];
 
 -- Проверки строки Class сверх метасхемы (этап 1, п. 6): признак system, имя системного класса,
--- имена связей против методов цепочки, однозначность имени конца во всей схеме.
+-- имена связей против методов цепочки, однозначность имени конца во всей схеме, право на агрегаты.
 create or replace function @SCHEMA@.class_admit(p_data jsonb, p_tenant uuid, out data jsonb, out validator jsonpath)
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -540,6 +540,10 @@ declare
   dname text;
   drole text;
   tc @SCHEMA@.entity;
+  prevd jsonb;
+  src text;
+  chk jsonb;
+  m jsonb;
 begin
   if p_tenant <> '@SYSTEM@'::uuid then
     if (p_data->>'name') = any (array['Class', 'Account', 'member', 'Resource', 'rule']) then
@@ -556,6 +560,40 @@ begin
   select c.data, c.validator into data, validator from @SCHEMA@.class_prepare(p_data, p_tenant) c;
   if data->>'kind' = 'link' and (data->>'name') = any (@SCHEMA@.reserved_names()) then
     perform @SCHEMA@.lt_fail('invalid_class', format('имя связи %s совпадает с методом цепочки', data->>'name'));
+  end if;
+  -- агрегаты (план 1.1, §2.4; ревью коммита этапа 4б): поле считают функции владельца по всем строкам источника
+  -- арендатора, без прав чтения, поэтому строки попадают в агрегат только с ведома того, кто читает их все. Пути
+  -- владельца (сид, class_evolve, rekey_class) сюда не заходят. Описание до правки — для сравнения (нет — новый класс)
+  select x.data into prevd from @SCHEMA@.entity x
+  where x.class = 'Class' and x.tenant = p_tenant and x.data->>'name' = data->>'name';
+  -- собственный агрегат описания, новый или изменённый против прежнего описания, задаёт только тот, кто без условий
+  -- читает все строки каждого класса-источника: класса of и его потомков (agg_classes: классы арендатора, у класса
+  -- System — классы System). Унаследованный и неизменённый агрегат не проверяется
+  if data ? 'aggregate' then
+    for e in select key, value from jsonb_each(data->'aggregate') order by key loop
+      continue when prevd->'aggregate'->e.key is not distinct from e.value;
+      -- сам класс of первым, потомки — по имени
+      foreach src in array array(select n from unnest(@SCHEMA@.agg_classes(e.value->>'of', p_tenant, p_tenant = '@SYSTEM@'::uuid)) n
+                                 order by n = (e.value->>'of') desc, n) loop
+        chk := @SCHEMA@.acl_check_data(src, 'READ');
+        if not coalesce((chk->>'allow')::boolean, false) or chk ? 'filter' then
+          perform @SCHEMA@.lt_fail('acl_denied', format('агрегат %s.%s: нужно право READ на все строки класса %s', data->>'name', e.key, src));
+        end if;
+      end loop;
+    end loop;
+  end if;
+  -- класс становится источником агрегата (новая метка aggregatedBy — смена parent): в агрегат войдут его строки и строки
+  -- потомков — нужно право READ без условий на них до правки, по прежним предкам (здесь), и после (agg_source_admit в
+  -- триггере после оператора; новый класс проверяется только там: до вставки план прав его не видит)
+  m := @SCHEMA@.agg_new_mark(prevd->'resolved', data->'resolved');
+  if m is not null and prevd is not null then
+    perform @SCHEMA@.agg_source_admit(data->>'name', m);
+    for src in select x.data->>'name' from @SCHEMA@.entity x
+               where x.class = 'Class' and x.tenant = p_tenant and x.data->>'name' <> data->>'name'
+                 and x.data->'resolved'->'ancestors' ? (data->>'name')
+               order by jsonb_array_length(x.data->'resolved'->'ancestors'), x.data->>'name' loop
+      perform @SCHEMA@.agg_source_admit(src, m);
+    end loop;
   end if;
   for e in select key, value from jsonb_each(coalesce(data->'resolved'->'ends', '{}'::jsonb)) loop
     select x.data->>'name' as name into o
@@ -868,8 +906,12 @@ begin
   if sc && array['rule', 'Resource', 'member', 'Account', 'Class'] then
     perform @SCHEMA@.acl_bump();
   end if;
-  -- новая цель агрегатов (план 1.1, §2.4): метки её источников (aggregatedBy) — заново
   if 'Class' = any (sc) then
+    -- новый класс — источник агрегата (ревью коммита этапа 4б): нужно право READ без условий на все его строки; план
+    -- прав после acl_bump видит новый класс
+    perform @SCHEMA@.agg_source_admit(n.data->>'name', @SCHEMA@.agg_new_mark(null, n.data->'resolved'))
+    from added n where n.class = 'Class' and n.data->'resolved' ? 'aggregatedBy';
+    -- новая цель агрегатов (план 1.1, §2.4): метки её источников (aggregatedBy) — заново
     perform @SCHEMA@.agg_mark(n.tenant, @SCHEMA@.agg_of(n.data->'resolved'))
     from added n where n.class = 'Class' and n.data->'resolved' ? 'aggregate';
   end if;
@@ -923,6 +965,9 @@ begin
              where n.class = 'Class' order by n.id loop
     select * into o_row from old_rows x where x.id = cid;
     select * into n_row from new_rows x where x.id = cid;
+    -- класс становится источником агрегата (смена parent; ревью коммита этапа 4б): право READ без условий на его строки
+    -- и после правки — по новым предкам (до правки проверил class_admit)
+    perform @SCHEMA@.agg_source_admit(n_row.data->>'name', @SCHEMA@.agg_new_mark(o_row.data->'resolved', n_row.data->'resolved'));
     perform @SCHEMA@.class_evolve(o_row, n_row);
   end loop;
   -- отключённый аккаунт: сессии гаснут (этап 5, п. 2), каждая — сигнал кэшу
@@ -962,6 +1007,13 @@ begin
     select p.data, p.validator into prep from @SCHEMA@.class_prepare(d.data, d.tenant) p;
     if prep.data is distinct from d.data or prep.validator::text is distinct from d.validator::text then
       perform @SCHEMA@.sys_update(d.id, prep.data, d.links, prep.validator, 'update');
+    end if;
+    -- потомок становится источником вместе с классом (смена parent; ревью коммита этапа 4б) — то же право READ на его
+    -- строки по новым предкам (до правки проверил class_admit). class_evolve зовёт только триггер правки приложения;
+    -- потомков класса System у арендаторов план прав сессии System не видит, их строки считают агрегаты System для
+    -- целей того же арендатора
+    if d.tenant = n.tenant then
+      perform @SCHEMA@.agg_source_admit(d.data->>'name', @SCHEMA@.agg_new_mark(d.data->'resolved', prep.data->'resolved'));
     end if;
     classes := classes || (d.data->>'name');
     if d.data->'resolved'->'aggregate' is distinct from prep.data->'resolved'->'aggregate' then

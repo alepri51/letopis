@@ -525,7 +525,10 @@ const Movement = link('Movement', { amount: z.number().int() }, { ends: { Wallet
   class together with its descendants, `via` is its single end that leads to the target row. `where` is a JSON Schema
   over the source data: rows that do not pass it are not counted.
 - Only live rows of the same tenant as the target are counted. A reference to a System row is not counted: a shared
-  directory does not count the data of all tenants.
+  directory does not count the data of all tenants. An aggregate of a tenant class, including one inherited from a
+  System class, counts only classes of its own tenant: a System class named `of` is not counted, while the tenant's
+  own descendant of a System class is. An aggregate of a System class counts System classes and the classes of the
+  target row's tenant.
 - A trigger recalculates the field after every statement: writes by the library, raw SQL, a delete cascade,
   `restore`, `reclass`, `rekey`, the loader, account deletion. The operations of one statement add up to one increment
   of the target, and the class rule (`min(0)`) is checked on the total: an operation that would take the balance below
@@ -539,6 +542,11 @@ const Movement = link('Movement', { amount: z.number().int() }, { ends: { Wallet
   key; the `via` end is single and accepts the target class; the `sum` field is a number; aggregates do not form a
   cycle; the target and the source are not system or derived classes. A source described after the target is checked
   when it appears.
+- Rows get into an aggregate only with the knowledge of someone who reads them all: the field also counts rows that
+  the author cannot see. Only someone who reads all rows of the source and its descendants without conditions can
+  describe or change an aggregate. Only someone who reads all rows of a class and its descendants without conditions,
+  both before the change and after it, can make the class a source (a new class, a `parent` change, a source described
+  after the target). Otherwise `acl_denied`.
 - The option is inherited, and a descendant replaces it as a whole. Adding or changing an aggregate is a tightening:
   writes to the target and to the sources wait while the field is recalculated for all rows.
 - `db.rebuildAggregates(class)` recalculates the field from the current rows, for repair. A version is written only

@@ -273,7 +273,10 @@ end $$;
 -- Опция класса aggregate (40-class.sql): { <поле>: { sum: <поле источника> | count: true, of: <класс-источник>,
 -- via: <роль конца источника>, where?: JSON Schema } }. Поле цели — сумма поля sum или число живых строк класса of
 -- (с потомками) того же арендатора, чей одиночный конец via ведёт на цель и чьи данные проходят where. Строка System
--- и строки других арендаторов в агрегат не входят: общий справочник не считает данные всех арендаторов.
+-- и строки других арендаторов в агрегат не входят: общий справочник не считает данные всех арендаторов. Агрегат класса
+-- арендатора считает только классы своего арендатора: класс of и потомков ищут среди них, класс System с тем же именем
+-- его источником не бывает — везде одинаково (agg_prepare, agg_source, agg_classes, agg_apply, agg_fill); агрегат
+-- класса System считает классы System и классы арендатора строки-цели.
 --
 -- Держит поле триггер после оператора entity_total_* (без условия WHEN — и для владельца, enable always): по
 -- переходным таблицам вклады строк оператора (прежние версии со знаком минус, новые — плюс) группируются по цели,
@@ -292,6 +295,12 @@ end $$;
 -- (class_change_safe): исключительные блокировки семейства цели и семейств источников, пересчёт поля у всех целей
 -- (class_evolve). Ремонт — rebuild_aggregates, расхождения показывает verify(true) (agg_issues), первая заливка —
 -- agg_fill.
+--
+-- Права (ревью коммита этапа 4б): поле считают функции владельца по всем строкам источника, без прав чтения, поэтому
+-- строки попадают в агрегат только с ведома того, кто читает их все. Описать или изменить агрегат приложение может с
+-- правом READ без условий на каждый класс семейства источника (class_admit), а сделать класс источником (новый класс,
+-- смена parent, источник после цели) — с таким правом на сам класс и его потомков, до правки и после
+-- (agg_source_admit).
 
 -- Агрегатные поля класса по развёрнутому описанию.
 create or replace function @SCHEMA@.agg_fields(p_res jsonb) returns text[]
@@ -397,22 +406,23 @@ begin
 end $$;
 
 -- Цикл агрегатов через класс p_res (арендатор и System; описание p_res — вместо его строки): цель a зависит от цели
--- b, если считает строки семейства, в которое входит b. Нет цикла — null, иначе путь «A → B → A».
+-- b, если считает строки семейства, в которое входит b (агрегат класса арендатора — только классы арендатора). Нет
+-- цикла — null, иначе путь «A → B → A».
 create or replace function @SCHEMA@.agg_cycle(p_tenant uuid, p_res jsonb) returns text
 language sql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
   with recursive tg as (
-    select x.data->>'name' as name, x.data->'resolved' as res from @SCHEMA@.entity x
+    select x.tenant, x.data->>'name' as name, x.data->'resolved' as res from @SCHEMA@.entity x
     where x.class = 'Class' and x.tenant in (p_tenant, '@SYSTEM@'::uuid) and x.data->>'name' <> p_res->>'name'
       and x.data->'resolved' ? 'aggregate'
     union all
-    select p_res->>'name', p_res
+    select p_tenant, p_res->>'name', p_res
   ), edge as (
     select distinct a.name as a, b.name as b
     from tg a
     cross join lateral jsonb_each(a.res->'aggregate') g
-    join tg b on b.res->'ancestors' ? (g.value->>'of')
+    join tg b on b.res->'ancestors' ? (g.value->>'of') and (a.tenant = '@SYSTEM@'::uuid or b.tenant = a.tenant)
   ), walk(node, path) as (
     select e.b, array[e.a, e.b] from edge e where e.a = p_res->>'name'
     union all
@@ -424,7 +434,9 @@ $$;
 
 -- Описание агрегатов цели (из class_prepare): ровно одно из sum и count; поле — число из схемы класса, не в ключе;
 -- уже описанные источники (класс of и его потомки) сверены; цели нет в цикле; условие where скомпилировано (match).
--- Цель — не системный и не производный класс; агрегат арендатора не считает строки класса System.
+-- Цель — не системный и не производный класс. Источники агрегата класса арендатора ищут только среди классов
+-- арендатора: класс System с именем of источником не бывает, а нет такого класса у арендатора — источник ещё не
+-- описан (ревью коммита этапа 4б); у класса System — во всех арендаторах.
 create or replace function @SCHEMA@.agg_prepare(p_res jsonb, p_data jsonb, p_tenant uuid) returns jsonb
 language plpgsql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -460,15 +472,11 @@ begin
     if coalesce(p_res->'key' ? f.key, false) then
       perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('агрегатное поле %s.%s в ключ не входит', nm, f.key));
     end if;
-    for s in select x.tenant, x.data->'resolved' as res from @SCHEMA@.entity x
+    for s in select x.data->'resolved' as res from @SCHEMA@.entity x
              where x.class = 'Class' and x.data->>'name' <> nm
-               and (x.tenant in (p_tenant, '@SYSTEM@'::uuid) or p_tenant = '@SYSTEM@'::uuid)
+               and (x.tenant = p_tenant or p_tenant = '@SYSTEM@'::uuid)
                and x.data->'resolved'->'ancestors' ? (d->>'of')
              order by x.id loop
-      if p_tenant <> '@SYSTEM@'::uuid and s.tenant = '@SYSTEM@'::uuid and (s.res->>'name') = (d->>'of') then
-        perform @SCHEMA@.lt_raise('LT010', 'invalid_class',
-          format('агрегат %s.%s: источник %s — класс System, а агрегат арендатора считает только классы своего арендатора', nm, f.key, d->>'of'));
-      end if;
       perform @SCHEMA@.agg_check_source(s.res, p_res, f.key, d);
     end loop;
     if d ? 'where' then
@@ -487,7 +495,7 @@ end $$;
 
 -- Метка источника (из class_prepare): агрегаты своего арендатора и System, которые считают строки класса (of — сам
 -- класс или предок), и та же сверка, что при описании цели. Классу System метка — только от агрегатов System:
--- агрегат арендатора, чей источник оказался бы классом System, отклоняется.
+-- агрегаты арендаторов пропускаются, а не отклоняют правку класса System (ревью коммита этапа 4б).
 create or replace function @SCHEMA@.agg_source(p_res jsonb, p_tenant uuid) returns jsonb
 language plpgsql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -503,12 +511,8 @@ begin
            order by x.data->>'name', x.tenant loop
     for f in select key, value from jsonb_each(k.res->'aggregate') where p_res->'ancestors' ? (value->>'of') order by key loop
       if p_tenant = '@SYSTEM@'::uuid and k.tenant <> '@SYSTEM@'::uuid then
-        -- у арендатора свой класс с этим именем — его агрегат считает свой класс, а не класс System
-        if not exists (select 1 from @SCHEMA@.entity y where y.class = 'Class' and y.tenant = k.tenant and y.data->>'name' = f.value->>'of') then
-          perform @SCHEMA@.lt_raise('LT010', 'invalid_class',
-            format('класс %s — источник агрегата %s.%s арендатора %s, а агрегат арендатора считает только классы своего арендатора',
-              p_res->>'name', k.res->>'name', f.key, k.tenant));
-        end if;
+        -- агрегат арендатора считает только классы своего арендатора: класс System его источником не бывает и
+        -- метки не получает. Отказывать здесь нельзя — иначе описание арендатора останавливало бы правку System
         continue;
       end if;
       perform @SCHEMA@.agg_check_source(p_res, k.res, f.key, f.value);
@@ -524,6 +528,35 @@ language sql immutable parallel safe
 return case when p_old->'aggregatedBy' is not distinct from p_new->'aggregatedBy' then '{}'::text[]
   else array(select distinct m->>'class' from jsonb_array_elements(coalesce(p_old->'aggregatedBy', '[]'::jsonb)
                                                                     || coalesce(p_new->'aggregatedBy', '[]'::jsonb)) m) end;
+
+-- Первая метка aggregatedBy описания p_new, которой нет в p_old: класс становится источником этого агрегата (новый
+-- класс, смена parent, источник описан после цели). Новых меток нет — null.
+create or replace function @SCHEMA@.agg_new_mark(p_old jsonb, p_new jsonb) returns jsonb
+language sql immutable parallel safe
+return (select x from jsonb_array_elements(coalesce(p_new->'aggregatedBy', '[]'::jsonb)) x
+        where not coalesce(p_old->'aggregatedBy', '[]'::jsonb) @> jsonb_build_array(x)
+        order by x->>'class', x->>'field' limit 1);
+
+-- Класс p_class становится источником агрегата p_mark (ревью коммита этапа 4б): его строки войдут в агрегат, поэтому
+-- актору нужно право READ без условий на все строки класса, иначе acl_denied; p_mark null — проверять нечего. Путь
+-- приложения: class_admit — до правки, по прежним предкам (строки уже есть, в том числе у потомков), триггеры после
+-- оператора и class_evolve — после: строка Class записана, и план прав видит новый класс и его новых предков.
+create or replace function @SCHEMA@.agg_source_admit(p_class text, p_mark jsonb) returns void
+language plpgsql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  chk jsonb;
+begin
+  if p_mark is null then
+    return;
+  end if;
+  chk := @SCHEMA@.acl_check_data(p_class, 'READ');
+  if not coalesce((chk->>'allow')::boolean, false) or chk ? 'filter' then
+    perform @SCHEMA@.lt_fail('acl_denied', format('класс %s становится источником агрегата %s.%s: нужно право READ на все его строки',
+      p_class, p_mark->>'class', p_mark->>'field'));
+  end if;
+end $$;
 
 -- Метки источников заново: классы арендатора p_tenant (System — всех), в предках которых есть одно из имён p_names;
 -- изменившееся описание — новой версией строки Class (журнал, сигнал).
@@ -567,23 +600,31 @@ begin
   end loop;
 end $$;
 
--- Классы-источники of в арендаторе: сам класс и потомки (свои и System).
-create or replace function @SCHEMA@.agg_classes(p_of text, p_tenant uuid) returns text[]
+-- Классы-источники of для строк цели арендатора p_tenant: сам класс и потомки среди классов арендатора, а у агрегата
+-- класса System (p_system) — ещё классы System. Агрегат класса арендатора классы System не считает (ревью коммита
+-- этапа 4б), как и метки (agg_source) и приращения (agg_apply).
+create or replace function @SCHEMA@.agg_classes(p_of text, p_tenant uuid, p_system boolean) returns text[]
 language sql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
   select coalesce(array_agg(x.data->>'name'), '{}') from @SCHEMA@.entity x
-  where x.class = 'Class' and x.tenant in (p_tenant, '@SYSTEM@'::uuid) and x.data->'resolved'->'ancestors' ? p_of
+  where x.class = 'Class' and (x.tenant = p_tenant or (p_system and x.tenant = '@SYSTEM@'::uuid))
+    and x.data->'resolved'->'ancestors' ? p_of
 $$;
 
--- Агрегатные поля цели p_id целиком из живых источников её арендатора: { поле: итог }.
+-- до ревью коммита этапа 4б семейство брало классы System и для агрегата класса арендатора
+drop function if exists @SCHEMA@.agg_classes(text, uuid);
+
+-- Агрегатные поля цели p_id целиком из живых источников её арендатора: { поле: итог }. Класс цели — по строке
+-- арендатора p_tenant (свой или System): от него зависит, входят ли в семейство классы System.
 create or replace function @SCHEMA@.agg_compute(p_res jsonb, p_id uuid, p_tenant uuid) returns jsonb
 language sql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
   with d as (
-    select f.key as field, f.value as def, @SCHEMA@.agg_classes(f.value->>'of', p_tenant) as cls
+    select f.key as field, f.value as def, @SCHEMA@.agg_classes(f.value->>'of', p_tenant, k.sys) as cls
     from jsonb_each(coalesce(p_res->'aggregate', '{}'::jsonb)) f
+    cross join (select (@SCHEMA@.class_row(p_res->>'name', p_tenant)).tenant = '@SYSTEM@'::uuid as sys) k
   )
   select coalesce(jsonb_object_agg(d.field, to_jsonb(coalesce(x.v, 0))), '{}'::jsonb)
   from d
@@ -798,19 +839,24 @@ begin
       select lk.*, t.class as tclass from lk join @SCHEMA@.entity t on t.id = lk.tid and t.tenant = lk.tenant
       where lk.tid = any (tids)
     ), td as (
-      select p.tclass, p.tenant, (@SCHEMA@.class_row(p.tclass, p.tenant)).data->'resolved'->'aggregate' as agg
+      select p.tclass, p.tenant, c.tenant as ct, c.data->'resolved'->'aggregate' as agg
       from (select distinct tg.tclass, tg.tenant from tg) p
+      cross join lateral @SCHEMA@.class_row(p.tclass, p.tenant) c
     ), sa as (
-      select p.class, p.tenant, (@SCHEMA@.class_row(p.class, p.tenant)).data->'resolved'->'ancestors' as anc
+      select p.class, p.tenant, c.tenant as ct, c.data->'resolved'->'ancestors' as anc
       from (select distinct tg.class, tg.tenant from tg) p
+      cross join lateral @SCHEMA@.class_row(p.class, p.tenant) c
     ), ct as (
+      -- класс System — источник только агрегатов класса System (ревью коммита этапа 4б): метки он получает только от
+      -- них, но конец via у них бывает общий с агрегатом класса арендатора
       select tg.tid, f.key as field,
              sum(tg.sign * case when f.value ? 'count' then 1 else @SCHEMA@.agg_num(tg.data->(f.value->>'sum')) end) as delta
       from tg
       join td on td.tclass = tg.tclass and td.tenant = tg.tenant
       join sa on sa.class = tg.class and sa.tenant = tg.tenant
       cross join lateral jsonb_each(coalesce(td.agg, '{}'::jsonb)) f
-      where f.value->>'via' = tg.via and sa.anc ? (f.value->>'of') and @SCHEMA@.agg_where_ok(f.value->'match', tg.data)
+      where f.value->>'via' = tg.via and sa.anc ? (f.value->>'of') and (sa.ct <> '@SYSTEM@'::uuid or td.ct = '@SYSTEM@'::uuid)
+        and @SCHEMA@.agg_where_ok(f.value->'match', tg.data)
       group by tg.tid, f.key
     )
     select coalesce(jsonb_object_agg(z.tid, z.f), '{}'::jsonb) into deltas
@@ -910,6 +956,7 @@ $$;
 -- Первая заливка (load.ts:initialSession): триггеров и индексов нет, поэтому поле целей считается одним оператором на
 -- агрегат и пишется в ту же (последнюю) версию в entity и log — строки ещё никто не видел, хэши — генерируемые колонки.
 -- Цепочки агрегатов (сумма агрегатного поля) сходятся повторными проходами. Итог проверяется описанием класса.
+-- Семейство источника — как agg_classes: классы арендатора строки, у агрегата класса System — ещё классы System.
 create or replace function @SCHEMA@.agg_fill() returns int
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -934,7 +981,8 @@ begin
         ), tot as (
           select (s.links->>(f.value->>'via'))::uuid as tid, s.tenant,
                  sum(case when f.value ? 'count' then 1 else @SCHEMA@.agg_num(s.data->(f.value->>'sum')) end) as v
-          from @SCHEMA@.entity s join sc on sc.name = s.class and sc.ct in (s.tenant, '@SYSTEM@'::uuid)
+          from @SCHEMA@.entity s
+          join sc on sc.name = s.class and (sc.ct = s.tenant or (k.ct = '@SYSTEM@'::uuid and sc.ct = '@SYSTEM@'::uuid))
           where jsonb_typeof(s.links->(f.value->>'via')) = 'string' and @SCHEMA@.agg_where_ok(f.value->'match', s.data)
           group by 1, 2
         ), nv as (
@@ -1071,7 +1119,8 @@ begin
   foreach f in array array['agg_fields(jsonb)', 'agg_of(jsonb)', 'agg_zero(jsonb, jsonb)', 'agg_num(jsonb)', 'agg_where_ok(jsonb, jsonb)',
     'agg_guard(jsonb, jsonb, jsonb, boolean)', 'agg_keep(text, uuid, jsonb, jsonb)', 'agg_check_source(jsonb, jsonb, text, jsonb)',
     'agg_cycle(uuid, jsonb)', 'agg_prepare(jsonb, jsonb, uuid)', 'agg_source(jsonb, uuid)', 'agg_marked(jsonb, jsonb)',
-    'agg_mark(uuid, text[])', 'agg_lock_sources(jsonb, jsonb, uuid)', 'agg_classes(text, uuid)', 'agg_compute(jsonb, uuid, uuid)',
+    'agg_new_mark(jsonb, jsonb)', 'agg_source_admit(text, jsonb)', 'agg_mark(uuid, text[])', 'agg_lock_sources(jsonb, jsonb, uuid)',
+    'agg_classes(text, uuid, boolean)', 'agg_compute(jsonb, uuid, uuid)',
     'agg_check(text, uuid, jsonb)', 'agg_write(@SCHEMA@.entity, jsonb, boolean)', 'agg_token(text)', 'agg_held()',
     'agg_hold_begin(text)', 'agg_hold_end(boolean)', 'agg_merge(jsonb, jsonb)', 'agg_flush(jsonb)', 'agg_kind(text, uuid)',
     'agg_apply(jsonb, jsonb, uuid[])', 'agg_refresh(text[], uuid, boolean)', 'rebuild_aggregates(text)', 'agg_issues()', 'agg_fill()',
