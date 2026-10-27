@@ -3,7 +3,7 @@
  *
  * Проектор — процесс администратора, как загрузчик: подключение connect({ allowBypassRls: true }) роли,
  * которая может стать владельцем схемы. Каждая пачка — одна транзакция под ролью владельца:
- * транзакционная advisory-блокировка (19542, «схема:имя») — писатель один; чекпоинт (строка secret вида
+ * строка-замок «схема:projector:имя» (lock_try, до конца транзакции) — писатель один; чекпоинт (строка secret вида
  * PROJECTOR) — for update; события журнала ниже горизонта (watch_read: пачка и горизонт — одним
  * оператором); handle; запись результатов (derived_apply); условный сдвиг чекпоинта (projector_advance).
  * Обрыв посреди пачки откатывает всё, повтор начинает с того же курсора: каждое изменение применено
@@ -36,8 +36,6 @@ type Conn = Awaited<ReturnType<Sql['reserve']>>;
 /** Имя проектора — оно же derivedBy производных классов (метасхема `40-class.sql`). */
 const NAME = /^[a-z0-9][a-z0-9_.:-]{0,63}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-/** Пространство advisory-блокировок проекторов (19540 — семейства классов, 19541 — maintain). */
-const LOCK_SPACE = 19542;
 /** Служебные записи журнала: не версии объекта. */
 const SPECIAL = new Set(['purge', 'trim', 'reset']);
 
@@ -557,8 +555,8 @@ export class Projector {
   }
 
   private async lock(q: Conn): Promise<boolean> {
-    // ключ — секретный (lock_key, ревью безопасности №3, №2): посторонняя роль не займёт блокировку проектора
-    const [r] = await q.unsafe(`select pg_try_advisory_xact_lock(${LOCK_SPACE}, ${this.env.S}.lock_key($1)) as ok`, [`${this.env.schema}:${this.name}`]);
+    // строка-замок таблицы secret (lock_try, ревью безопасности №3, №2): посторонняя роль её не займёт
+    const [r] = await q.unsafe(`select ${this.env.S}.lock_try($1) as ok`, [`${this.env.schema}:projector:${this.name}`]);
     return Boolean(r?.ok);
   }
 

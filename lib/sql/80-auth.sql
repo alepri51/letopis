@@ -17,7 +17,7 @@ return interval '10 minutes';
 
 create or replace function @SCHEMA@.auth_kind_ok(p_kind text) returns boolean
 language sql immutable parallel safe
-return p_kind ~ '^[A-Z][A-Z0-9_]{1,31}$' and p_kind not in ('SESSION', 'APIKEY', 'KEYSECRET', 'OTP', 'TOTP', 'KEY', 'PROJECTOR');
+return p_kind ~ '^[A-Z][A-Z0-9_]{1,31}$' and p_kind not in ('SESSION', 'APIKEY', 'KEYSECRET', 'OTP', 'TOTP', 'KEY', 'PROJECTOR', 'LOCK');
 
 -- Действующая сессия обязательна (иначе no_session).
 create or replace function @SCHEMA@.auth_session_required(p_account uuid) returns void
@@ -617,7 +617,7 @@ begin
            coalesce((s.meta->>'confirmed')::boolean, false), coalesce((s.meta->>'enabled')::boolean, true),
            s.meta - 'confirmed' - 'enabled' - 'attempts' - 'last_step', s.created_at, s.expires_at
     from @SCHEMA@.secret s
-    where s.account = p_account and s.kind not in ('SESSION', 'KEY', 'PROJECTOR') and s.deleted_at is null
+    where s.account = p_account and s.kind not in ('SESSION', 'KEY', 'PROJECTOR', 'LOCK') and s.deleted_at is null
       and (s.expires_at is null or s.expires_at > clock_timestamp())
     order by s.created_at, s.id;
 end $$;
@@ -639,7 +639,7 @@ begin
   perform @SCHEMA@.auth_session_required(c.account);
   select s.account, s.kind,
          (s.expires_at is null or s.expires_at > clock_timestamp()) and coalesce((s.meta->>'enabled')::boolean, true) as live
-  into cr from @SCHEMA@.secret s where s.id = p_id and s.kind not in ('SESSION', 'KEY', 'PROJECTOR') and s.deleted_at is null;
+  into cr from @SCHEMA@.secret s where s.id = p_id and s.kind not in ('SESSION', 'KEY', 'PROJECTOR', 'LOCK') and s.deleted_at is null;
   if cr.account is null then
     return false;
   end if;
@@ -679,7 +679,7 @@ declare
   acc uuid;
 begin
   perform @SCHEMA@.acl_require('auth.credential');
-  select s.account into acc from @SCHEMA@.secret s where s.id = p_id and s.kind not in ('SESSION', 'KEY', 'PROJECTOR') and s.deleted_at is null;
+  select s.account into acc from @SCHEMA@.secret s where s.id = p_id and s.kind not in ('SESSION', 'KEY', 'PROJECTOR', 'LOCK') and s.deleted_at is null;
   if acc is null then
     return false;
   end if;

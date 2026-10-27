@@ -10,36 +10,93 @@ create or replace function @SCHEMA@.now_ts() returns timestamptz
 language sql volatile
 return clock_timestamp();
 
--- Блокировки семейства (этап 1, п. 10): писатели и загрузчик берут разделяемую блокировку корня
--- семейства, ужесточение описания — исключительную. Форма с двумя int4 — отдельное от
--- пользовательского lock() (один bigint) пространство ключей advisory-блокировок. p_cls — строка
--- Class класса семейства. Ключ — арендатор корневого класса и имя корня (итоговое ревью
--- безопасности): ужесточение или rekeyClass одноимённого класса в другом арендаторе запись сюда не
--- останавливает; корень из System (общий для всех арендаторов) — ключ System.
--- Ключ внутренней advisory-блокировки (семейства, проектор, обслуживание): HMAC имени ключом установки из строки KEY
--- (таблица secret приложению недоступна). Функции блокировок PostgreSQL доступны любой роли, и по ключу из hashtext
--- имени посторонняя роль занимала бы блокировку и останавливала запись семейства, проектор или обслуживание для всех
--- (ревью безопасности №3, №2). Строки KEY ещё нет (накат до сида) — hashtext имени.
-create or replace function @SCHEMA@.lock_key(p_name text) returns int
+-- Внутренние блокировки (семейства, проектор, обслуживание) — строки-замки: строки вида LOCK таблицы secret, которой у
+-- приложения нет, а не advisory-блокировки. Advisory-блокировку берёт любая роль базы, а её ключ виден всем в pg_locks:
+-- посторонняя роль занимала бы её и останавливала запись семейства, проектор или обслуживание для всех (ревью
+-- безопасности №3, №2). id строки-замка — v5 от имени; строки семейств заводятся заранее (class_admit, seed_system), иначе
+-- строку вставляет первое обращение — и параллельное ждёт его транзакцию.
+create or replace function @SCHEMA@.lock_row(p_name text) returns uuid
+language plpgsql volatile
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  v uuid := @SCHEMA@.v5_id('@SYSTEM@'::uuid, 'LOCK', array[p_name]);
+begin
+  if not exists (select 1 from @SCHEMA@.secret s where s.id = v) then
+    insert into @SCHEMA@.secret (id, account, kind, ident) values (v, '@SYSTEM@'::uuid, 'LOCK', p_name) on conflict do nothing;
+  end if;
+  return v;
+end $$;
+
+-- Строка-замок без ожидания (обслуживание и проектор — один исполнитель): true — взята до конца транзакции, false — её
+-- держит другая транзакция. Блокировка — отдельным оператором: строку, которую вставила lock_row, видит уже он.
+create or replace function @SCHEMA@.lock_try(p_name text) returns boolean
+language plpgsql volatile
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  k uuid := @SCHEMA@.lock_row(p_name);
+begin
+  perform 1 from @SCHEMA@.secret s where s.id = k for update skip locked;
+  return found;
+end $$;
+
+-- Блокировки семейства (этап 1, п. 10): писатели и загрузчик берут разделяемую блокировку корня семейства, ужесточение
+-- описания и rekeyClass — исключительную. Имя — арендатор корневого класса и имя корня (итоговое ревью безопасности):
+-- ужесточение или rekeyClass одноимённого класса в другом арендаторе запись сюда не останавливает; корень из System
+-- (общий для всех арендаторов) — арендатор System. p_data — описание класса с resolved.
+create or replace function @SCHEMA@.family_name(p_tenant uuid, p_data jsonb) returns text
 language sql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
-return coalesce((select hashtext(encode(hmac(convert_to('letopis:lock:' || p_name, 'UTF8'), s.material, 'sha256'), 'hex'))
-                 from @SCHEMA@.secret s where s.id = '@SYSTEM@'::uuid and s.kind = 'KEY'), hashtext(p_name));
+return '@SCHEMA_NAME@:family:' || (case when p_tenant = '@SYSTEM@'::uuid or p_data->>'name' = p_data->'resolved'->'ancestors'->>-1 then p_tenant
+  else coalesce((@SCHEMA@.class_row(p_data->'resolved'->'ancestors'->>-1, p_tenant)).tenant, p_tenant) end)::text
+  || ':' || (p_data->'resolved'->'ancestors'->>-1);
 
+-- Строки-замки семейства класса — заранее, при записи строки Class и в seed_system: первая запись в семейство их не вставляет.
+create or replace function @SCHEMA@.family_rows(p_tenant uuid, p_data jsonb) returns void
+language plpgsql volatile
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  n text := @SCHEMA@.family_name(p_tenant, p_data);
+begin
+  perform @SCHEMA@.lock_row(n), @SCHEMA@.lock_row(n || ':gate');
+end $$;
+
+-- p_cls — строка Class класса семейства. Писатели — for key share строки-замка семейства, исключительная — for update:
+-- писатели друг другу не мешают. Строковые блокировки, в отличие от advisory, очереди не держат: for key share проходит
+-- мимо ждущего for update, и поток записей не дал бы исключительной случиться никогда. Поэтому у семейства есть шлюз —
+-- вторая строка-замок: исключительная занимает его первым, а писатель проходит шлюз в подтранзакции — ждёт, пока шлюз
+-- занят, и сразу отпускает. Блокировку, уже взятую транзакцией (letopis.family_locks), функция не берёт снова: писатель,
+-- который держит строку-замок, у шлюза ждал бы исключительную, а та — его самого. Подтранзакция, откат которой снимает
+-- блокировку, откатывает и запись о ней.
 create or replace function @SCHEMA@.family_lock(p_cls @SCHEMA@.entity, p_exclusive boolean) returns void
 language plpgsql volatile
 as $$
 declare
-  root text := p_cls.data->'resolved'->'ancestors'->>-1;
-  k int;
+  n text := @SCHEMA@.family_name(p_cls.tenant, p_cls.data);
+  held text := coalesce(current_setting('letopis.family_locks', true), '');
+  k uuid;
+  g uuid;
 begin
-  k := @SCHEMA@.lock_key('@SCHEMA_NAME@:' || (case when p_cls.tenant = '@SYSTEM@'::uuid or p_cls.data->>'name' = root then p_cls.tenant
-    else coalesce((@SCHEMA@.class_row(root, p_cls.tenant)).tenant, p_cls.tenant) end)::text || ':' || root);
-  if p_exclusive then
-    perform pg_advisory_xact_lock(19540, k);
-  else
-    perform pg_advisory_xact_lock_shared(19540, k);
+  if strpos(held, '|x:' || n || '|') > 0 or (not p_exclusive and strpos(held, '|s:' || n || '|') > 0) then
+    return;
   end if;
+  k := @SCHEMA@.lock_row(n);
+  g := @SCHEMA@.lock_row(n || ':gate');
+  if p_exclusive then
+    perform 1 from @SCHEMA@.secret s where s.id = g for update;
+    perform 1 from @SCHEMA@.secret s where s.id = k for update;
+  else
+    begin
+      perform 1 from @SCHEMA@.secret s where s.id = g for key share;
+      raise exception 'шлюз пройден';
+    exception when raise_exception then
+      null;
+    end;
+    perform 1 from @SCHEMA@.secret s where s.id = k for key share;
+  end if;
+  perform set_config('letopis.family_locks', held || (case when p_exclusive then '|x:' else '|s:' end) || n || '|', true);
 end $$;
 -- до итогового ревью безопасности ключ был без арендатора
 drop function if exists @SCHEMA@.family_lock(text, boolean);
@@ -768,6 +825,8 @@ begin
         data->>'name', drole, dname));
     end if;
   end if;
+  -- строки-замки семейства (family_lock) — заранее: первая запись в новое семейство их не вставляет
+  perform @SCHEMA@.family_rows(p_tenant, data);
 end $$;
 
 -- ========================= триггеры =========================
@@ -1792,7 +1851,7 @@ do $$
 declare f text;
 begin
   foreach f in array array[
-    'now_ts()', 'lock_key(text)', 'family_lock(@SCHEMA@.entity, boolean)', 'class_set(jsonb)', 'class_accepts(jsonb, text, uuid)', 'role_accepts(text, uuid, text, text, uuid)',
+    'now_ts()', 'lock_row(text)', 'lock_try(text)', 'family_name(uuid, jsonb)', 'family_rows(uuid, jsonb)', 'family_lock(@SCHEMA@.entity, boolean)', 'class_set(jsonb)', 'class_accepts(jsonb, text, uuid)', 'role_accepts(text, uuid, text, text, uuid)',
     'apply_defaults(jsonb, jsonb)', 'links_shape(jsonb, jsonb)', 'targets_bad(jsonb, boolean, jsonb)', 'check_links(jsonb, jsonb, uuid, boolean, jsonb)', 'key_id(jsonb, text, uuid, jsonb, jsonb)',
     'log_version(@SCHEMA@.entity)', 'sys_update(uuid, jsonb, jsonb, jsonpath, text, text)', 'tombstone(@SCHEMA@.entity, text, uuid)',
     'links_replace(jsonb, uuid, uuid)', 'move_row(@SCHEMA@.entity, uuid, text, jsonb, jsonb, text, jsonb)', 'reclass(uuid, text, jsonb)',

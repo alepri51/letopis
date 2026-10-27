@@ -106,7 +106,7 @@ export interface ConnectOptions {
   listen?: boolean;
   /** Кэш результатов (§2.12): срок по умолчанию, размер, ttlOnly; false — выключен. */
   cache?: CacheOptions | false;
-  /** Запускать maintain() по расписанию ('1h', '15m', мс) под advisory-блокировкой: работает один процесс. */
+  /** Запускать maintain() по расписанию ('1h', '15m', мс) под блокировкой обслуживания: работает один процесс. */
   maintain?: string | number;
 }
 

@@ -115,6 +115,33 @@ test('№3: ужесточение предка и запись строки п�
   await assert.rejects(A2, lt('tightening_conflict'));
 });
 
+test('№3а (ревью безопасности №3, №2): ужесточение во время непрерывной записи семейства не голодает — новые писатели встают за ним', async () => {
+  // Блокировки семейства — строки-замки: for key share писателя проходит мимо ждущего for update, и без шлюза
+  // ужесточение ждало бы момента, когда семейство не держит ни один писатель. Писатели здесь перекрываются: в любой
+  // момент кто-то держит семейство Base.
+  await q(`delete from ${S}.entity where class in ('Base', 'Child')`);
+  const until = Date.now() + 6000;
+  let stop = false;
+  const writer = async (delay: number) => {
+    await new Promise((r) => setTimeout(r, delay));
+    while (!stop && Date.now() < until) {
+      await e.as(t.token, async (tx) => {
+        await tx.unsafe(insSql, ['Base', { a: 'x' }, {}] as never[]);
+        await tx.unsafe('select pg_sleep(0.15)');
+      });
+    }
+  };
+  const writers = [0, 50, 100].map(writer);
+  await new Promise((r) => setTimeout(r, 500));
+  const t0 = Date.now();
+  await q(tighten('Base', ['a']));
+  const ms = Date.now() - t0;
+  stop = true;
+  await Promise.all(writers);
+  await loosen('Base');
+  assert.ok(ms < 3000, `ужесточение ждало ${ms} мс — писатели не встали за ним`);
+});
+
 test('№4: два создания одного ключа — одно проходит, второе 23505', async () => {
   const A = await e.hold(t.token, (tx) => tx.unsafe(insSql, ['Org', { name: 'R4' }, {}] as never[]));
   const B = q(insSql, ['Org', { name: 'R4' }, {}]);

@@ -1959,11 +1959,11 @@ const report = await adm.maintain()     // { sessions, codes, thinned, batches, 
 PostgreSQL signal queue: if it is more than half full, you get a warning. The system administrator, a role with the
 `letopis.maintain` permission or an admin connection can call it. An external scheduler runs it (`letopis maintain`),
 or the library itself does: `connect({ maintain: '1h' })`. Of several processes, only one works: each batch is its own
-transaction, and the first thing it does is take a transaction-level advisory lock (`pg_try_advisory_xact_lock`),
-which is released when the batch commits. If another process holds the lock, the call answers `skipped: true` before
-the first batch, and between batches it stops (that process continues) and reports what it has done with
-`more: true`. There is no session-level lock, so `maintain()` works behind any pool, including PgBouncer in
-transaction mode.
+transaction, and the first thing it does is take the maintenance lock — a row of the `secret` table that neither the
+application role nor any other database role can take; the lock is released when the batch commits. If another
+process holds the lock, the call answers `skipped: true` before the first batch, and between batches it stops (that
+process continues) and reports what it has done with `more: true`. There is no session-level lock, so `maintain()`
+works behind any pool, including PgBouncer in transaction mode.
 
 ### Reset: `reset()`
 
@@ -2554,9 +2554,12 @@ behavior.
   a System class gets the number of violating rows of other tenants (`others`): this is the installation level.
 - Class metadata (`meta`) is visible to anyone who has a session: anyone can read `Class` rows. Secrets do not belong
   there.
-- An application role can slow the installation down for everyone: `LOCK TABLE entity`, advisory locks with
-  predictable keys, fake `NOTIFY` signals (they only clear the cache), frequent permission changes (one counter row per
-  installation). The global journal number reveals the overall write activity.
+- An application role can slow the installation down for everyone: `LOCK TABLE entity`, advisory locks with the keys
+  of the application's `lock()`, fake `NOTIFY` signals (they only clear the cache), frequent permission changes (one
+  counter row per installation). The global journal number reveals the overall write activity. Internal locks — class
+  families, projectors and maintenance — are rows of the `secret` table, not advisory locks: neither the application
+  role nor any other database role can take them. A family writer passes the tightening gate in a subtransaction — one
+  per transaction for the first write to the family.
 
 **History, signals, cache**
 
@@ -2682,10 +2685,10 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # chain-write — writing with chains: create, update, upsert, delete with preview, anonymize, reclass, slots, inc, { rev }, fan-out, plan rollback (stage 4)
 # demo — the booking demo domain on Zod: seed from models, writing data, id by key, agreement between Zod and the database (stage 2)
 # docs — documentation examples are executed: the marked blocks of the README and the cheatsheet (Russian and English) run as scenarios against PostgreSQL 18 (stage 8)
-# engine-attacks — raw SQL attacks from the application role: the rows of §7.3.1 for stages 1 and 3 with specific outcomes; the signal key without permission, flooding with fake signals, Class included; writing to a derived class and a reference to it, a projector checkpoint through the credential functions; an agent through MCP without --write and without a human confirmation; a change of parent, alias and derivedBy of a class with the WRITE permission on Class alone, deleting and re-creating a class with a history of rows, a trial tightening as an oracle, reclass without DELETE and rewriting references deeper than the first level, a retention policy with the WRITE permission on Class alone; an agent through MCP grants a membership or a rule, a system administrator session; a tenant user creates a derived class on their own, `rekeyClass` of an ancestor of a derived class (stages 1, 3; plan 1.1, stages 2, 4a, 5, checkpoint A, security review No. 2, checkpoint B and the work after it)
+# engine-attacks — raw SQL attacks from the application role: the rows of §7.3.1 for stages 1 and 3 with specific outcomes; the signal key without permission, flooding with fake signals, Class included; writing to a derived class and a reference to it, a projector checkpoint through the credential functions; an agent through MCP without --write and without a human confirmation; a change of parent, alias and derivedBy of a class with the WRITE permission on Class alone, deleting and re-creating a class with a history of rows, a trial tightening as an oracle, reclass without DELETE and rewriting references deeper than the first level, a retention policy with the WRITE permission on Class alone; an agent through MCP grants a membership or a rule, a system administrator session; a tenant user creates a derived class on their own, `rekeyClass` of an ancestor of a derived class; moving a row in a way that would rewrite references of derived class rows; the application role holds advisory locks with the former keys of internal locks, while lock rows are out of its reach (stages 1, 3; plan 1.1, stages 2, 4a, 5, checkpoint A, security review No. 2, checkpoint B and the work after it, security review No. 3)
 # engine-class — classes as entities: metaschema, inheritance, recomputing descendants, tightening, metadata; a class with a history of rows is deleted only after purge() (stage 1; the work after checkpoint B)
 # engine-write — the write pipeline in raw SQL: v5 ids, defaults, merge, inc, deletion, resurrection, journal, signals (stage 1)
-# engine-races — races on two connections in both orders, without timed pauses (stage 1)
+# engine-races — races on two connections in both orders, without timed pauses; tightening during continuous writes to the family does not starve (stage 1; security review No. 3)
 # explain — chain indexes from the application role: outside, the primary key and (class, tenant); inside find_*(), GIN; an asOf slice by class does not read another tenant's journal (stage 3; the work after checkpoint B)
 # find-ids-parity — 30 chains through find_*() and through a direct read under RLS give the same answers; own memberships in other tenants and the Class rows of System — now, asOf and withDeleted (stage 3; the work after checkpoint B)
 # hash — the version hash chain, journal tampering and gaps, verify() (stage 1)

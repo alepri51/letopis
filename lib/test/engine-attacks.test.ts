@@ -811,22 +811,46 @@ test('№44 (ревью безопасности №3, №3): перенос с�
   assert.equal((await e.sql.unsafe(`select class from ${S}.entity where id = $1`, [prod.id]))[0].class, 'Prod');
 });
 
-test('№45 (ревью безопасности №3, №2): прикладная роль держит advisory-блокировки с прежними ключами — запись семейства и обслуживание не встают', async () => {
+test('№45 (ревью безопасности №3, №2): прикладная роль не занимает внутренние блокировки — запись семейства, ужесточение, обслуживание и проектор не встают', async () => {
   const { ADMIN_DSN } = await import('./_harness.js');
-  // прежние ключи: семейство Org арендатора a (19540) и обслуживание (19541) — hashtext открытых имён
+  await e.defineClass(a, { name: 'Lk', kind: 'hub', fields: { properties: { v: { type: 'integer' } } } });
+  await e.defineDerived(a, { name: 'LkSum', kind: 'hub', key: ['k'], derivedBy: 'lk45', history: false,
+    fields: { properties: { k: { type: 'string' }, n: { type: 'integer' } }, required: ['k'] } });
+  // блокировки — строки-замки, а не advisory: пока идёт запись семейства, в pg_locks нет ключа, который можно занять
+  const writing = await e.hold(a.token, (tx) => tx.unsafe(`insert into ${S}.entity (class, data) values ('Lk', '{"v": 1}')`));
+  const [{ n }] = await e.sql.unsafe(`select count(*)::int as n from pg_locks l join pg_database d on d.oid = l.database
+    where l.locktype = 'advisory' and d.datname = current_database()`);
+  await writing.finish(true);
+  assert.equal(n, 0, 'внутренние блокировки не видны в pg_locks как advisory');
+  // строки-замки и функции блокировок прикладной роли недоступны
+  await assert.rejects(as(a, `select 1 from ${S}.secret where kind = 'LOCK' for update`), lt('42501'));
+  await assert.rejects(as(a, `select ${S}.lock_try($1)`, [`${e.schema}:maintain`]), lt('42501'));
+  await assert.rejects(as(a, `select ${S}.lock_row($1)`, [`${e.schema}:maintain`]), lt('42501'));
+  // прикладная роль держит advisory-блокировки с прежними ключами (hashtext открытых имён): семейство Lk арендатора a
+  // (19540), обслуживание (19541), проектор lk45 (19542)
   const held = await e.hold(a.token, async (tx) => {
-    await tx.unsafe(`select pg_advisory_xact_lock(19540, hashtext($1))`, [`${e.schema}:${a.id}:Org`]);
+    await tx.unsafe(`select pg_advisory_xact_lock(19540, hashtext($1))`, [`${e.schema}:${a.id}:Lk`]);
     await tx.unsafe(`select pg_advisory_xact_lock(19541, hashtext($1))`, [e.schema]);
+    await tx.unsafe(`select pg_advisory_xact_lock(19542, hashtext($1))`, [`${e.schema}:lk45`]);
   });
-  const adm = await connect({ dsn: ADMIN_DSN, schema: e.schema, allowBypassRls: true, max: 1 });
+  const adm = await connect({ dsn: ADMIN_DSN, schema: e.schema, allowBypassRls: true, max: 2 });
+  const p = adm.projector('lk45', { from: ['Lk'], into: ['LkSum'], version: 1, handle: (changes, out) => {
+    for (const c of changes) if (c.op === 'create') out.inc('LkSum', { k: 'all' }, { n: c.row.data.v as number }, { tenant: c.tenant });
+  } });
   try {
-    const [row] = await e.as(a.token, async (tx) => {
+    const timed = (text: string, params: unknown[] = []) => e.as(a.token, async (tx) => {
       await tx.unsafe(`set local lock_timeout = '2s'`);
-      return tx.unsafe(`insert into ${S}.entity (class, data) values ('Org', '{"name": "Под-замком"}') returning id`);
+      return tx.unsafe(text, params as never[]);
     });
-    assert.ok(row.id, 'запись семейства не ждёт чужую блокировку');
+    await timed(`insert into ${S}.entity (class, data) values ('Lk', '{"v": 2}')`);
+    await timed(`update ${S}.entity set data = ${S}.merge(data, '{"fields": {"required": ["v"]}}')
+      where class = 'Class' and tenant = $1 and data->>'name' = 'Lk'`, [a.id]);
     assert.equal((await adm.maintain({ batches: 1 })).skipped, false, 'обслуживание не встаёт');
+    assert.equal((await p.run({ once: true })).rebuilds, 1, 'проектор работает');
+    const [sum] = await e.sql.unsafe(`select (data->>'n')::int as n from ${S}.entity where class = 'LkSum' and tenant = $1`, [a.id]);
+    assert.equal(sum.n, 3);
   } finally {
+    p.close();
     await adm.close();
     await held.finish(false);
   }
