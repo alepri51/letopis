@@ -459,8 +459,8 @@ await adm.close(); await db.close(); await svc.close()
     `letopis: <code>: …`; data errors (`ValidationError`) have `err.issues: [{ path, keyword, message }]`.
 16. **A subscription with `'now'` starts when the database answers.** `db.watch()` returns immediately, and the
     subscription takes the "now" moment with its first query to the database. A write made right after `db.watch()`
-    can be committed earlier and miss the stream. If you need a guarantee, subscribe from a saved cursor or from
-    `'start'`.
+    can be committed earlier and miss the stream. If you need a guarantee — `await sub.ready()` before the write, a
+    saved cursor or `'start'`. Parallel `next()` calls go in turn and get different events.
 17. **The terminal returns the rows of the last step.** `…Payment().create(…).Wallet().update(…).rows()` returns the
     `Wallet` rows, not the created payment; if you need the payment, end the chain on it.
 18. **A batch queue belongs to its facade.** `db.batch('x')` on the root, on each `await db.as(…)` and on each

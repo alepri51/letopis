@@ -6,7 +6,6 @@ import { randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
 import { ensureDatabase, adminSql, appSql, ensureAppRole, schemaFor, ident, type Sql } from './_harness.js';
 import { install, SYSTEM_ID } from '../src/up.js';
-import type { Subscription } from '../src/index.js';
 
 export interface Engine {
   /** Администраторское подключение (суперпользователь). */
@@ -155,17 +154,6 @@ export async function waitForLock(sql: Sql, n = 1, timeoutMs = 10000): Promise<v
   }
 }
 
-/**
- * Подписка «now» взяла начальную точку. Запрос watch_head() (горизонт и снимок) уходит из конструктора
- * асинхронно: транзакция, зафиксированная раньше его снимка, считается записанной до подписки и не
- * приходит. Поэтому запись «после подписки» — только после этого ожидания. Публичного способа нет —
- * читается поле start; переименуют его — тест упадёт здесь, а не вернёт гонку молча.
- */
-export async function watchStarted(sub: Subscription): Promise<void> {
-  const start = (sub as unknown as { start: Promise<unknown> | null }).start;
-  if (!(start instanceof Promise)) throw new Error('watchStarted: подписка «now» не держит запрос начальной точки в поле start');
-  await start;
-}
 
 /** Ошибка letopis с заданным именем (`letopis: <имя>:`) или кодом SQLSTATE. */
 export function lt(nameOrCode: string) {

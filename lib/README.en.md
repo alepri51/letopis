@@ -1701,8 +1701,10 @@ for await (const ev of sub) {             // ev: { cursor, row, id, class, op, r
 
 - `from` is `'now'` (the default: only changes after subscribing), `'start'` (the whole journal) or a saved cursor.
   `db.watch()` returns at once, and the subscription takes the "now" moment with its first query to the database: a
-  write made right after `db.watch()` may commit earlier and miss the stream. That is why the example above reads from
-  `'start'`.
+  write made right after `db.watch()` may commit earlier and miss the stream. `await sub.ready()` waits for that
+  moment: a write after it comes to the stream. The example above reads from `'start'`.
+- Calls of `sub.next()` go in turn: parallel calls get different events. A call abandoned by a timeout
+  (`Promise.race`) still gets its event — keep its promise and wait for it again.
 - `classes`: only these classes with their descendants; `pollMs`: fallback polling (1000 ms).
 - Events come without losses or repeats, under the reader's permissions, in the order of transaction numbers, and
   within a transaction in the order of writing. This is not the commit order: compare versions of one object by `rev`.
