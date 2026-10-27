@@ -279,6 +279,24 @@ begin
   if not @SCHEMA@.acl_row_ok(@SCHEMA@.acl_plan('DELETE'), l.class, l.id, l.owner, l.tenant, l.tags, l.data, l.links) then
     perform @SCHEMA@.lt_fail('acl_denied', format('нет права DELETE на класс %s', l.class));
   end if;
+  -- проектор источника, чей курсор ещё не прошёл надгробие (в том числе надгробие этой транзакции), об удалении не
+  -- узнал бы — вклад строки остался бы в итогах навсегда (ревью безопасности №3, №5). Проектор касается арендатора, у
+  -- которого есть его производный класс (derivedBy — имя проектора): брошенный проектор с удалёнными производными
+  -- классами purge не держит. Курсор «tx:seq~снимок»: транзакции, видимые в снимке, учла перестройка. Чекпоинт без from
+  -- (до 1.2.0) касается всех классов.
+  if exists (select 1 from @SCHEMA@.secret s
+             cross join lateral (select split_part(s.meta->>'cursor', '~', 1) as head,
+                                        nullif(split_part(s.meta->>'cursor', '~', 2), '') as snap) k
+             where s.kind = 'PROJECTOR' and s.account = '@SYSTEM@'::uuid and s.deleted_at is null
+               and coalesce(s.meta->>'cursor', '') <> ''
+               and exists (select 1 from @SCHEMA@.entity x where x.class = 'Class' and x.tenant = l.tenant
+                           and x.data->'resolved'->>'derivedBy' = s.ident)
+               and (not s.meta ? 'from' or coalesce((@SCHEMA@.class_row(l.class, l.tenant)).data->'resolved'->'ancestors',
+                                                    jsonb_build_array(l.class)) ?| array(select jsonb_array_elements_text(s.meta->'from')))
+               and (l.tx, l.seq) > (split_part(k.head, ':', 1)::xid8, split_part(k.head, ':', 2)::bigint)
+               and not coalesce(pg_visible_in_snapshot(l.tx, k.snap::pg_snapshot), false)) then
+    perform @SCHEMA@.lt_fail('projector_pending', 'проектор источника ещё не прочёл удаление: purge — после его run()');
+  end if;
   select count(*)::int into n from @SCHEMA@.log x where x.id = p_id;
   if not coalesce(p_confirm, false) then
     return jsonb_build_object('id', p_id, 'class', l.class, 'versions', n, 'purged', false);

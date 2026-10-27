@@ -281,6 +281,12 @@ test('7.5 №9: стирание — purge источника приходит �
   await p.run({ once: true });
   const [s] = await db.Sale().create({ day: 'gone', amount: 9 }).rows();
   await db.Sale(s.id).delete({ confirm: true }).rows();
+  // удаление сначала читают проекторы источника, иначе purge отказывает (ревью безопасности №3, №5)
+  await assert.rejects(db.Sale(s.id).purge({ confirm: true }).rows(), lt('projector_pending'));
+  await p.run({ once: true });
+  const d = adm.projector('daily', dailyDef());
+  await d.run({ once: true });
+  d.close();
   await db.Sale(s.id).purge({ confirm: true }).rows();
   await p.run({ once: true });
   const mine = seen.filter((c) => c.id === s.id).map((c) => c.op);
@@ -1022,6 +1028,59 @@ test('ревью безопасности №3, №4: смена класса б
     assert.equal(back?.op, 'reclass');
     assert.equal(back?.before, null, 'прошлая версия вне семейства — before = null');
     assert.equal(await total(), 16);
+  } finally {
+    p.close();
+  }
+});
+
+test('ревью безопасности №3, №5: purge не стирает надгробие, которое проектор источника ещё не прочёл', async () => {
+  const x = await e.tenant('proj-purge-x');
+  await e.defineClass(x, { name: 'Pz', kind: 'hub', history: true, fields: { properties: { v: { type: 'integer' } }, required: ['v'] } });
+  await e.defineClass(x, { name: 'PzKid', kind: 'hub', parent: 'Pz' });
+  await e.defineClass(x, { name: 'Other', kind: 'hub', history: true, fields: { properties: { v: { type: 'integer' } } } });
+  await e.defineDerived(x, { name: 'PzSum', kind: 'hub', key: ['k'], derivedBy: 'purger', history: false,
+    fields: { properties: { k: { type: 'string' }, total: { type: 'integer' } }, required: ['k'] } });
+  const signed = (changes: ProjectorChange[], out: ProjectorOut) => {
+    for (const c of changes) {
+      const v = Number((c.row.data as { v?: number }).v ?? 0);
+      if (c.op === 'create') out.inc('PzSum', { k: 'all' }, { total: v }, { tenant: c.tenant });
+      else if (c.row.$deleted) out.inc('PzSum', { k: 'all' }, { total: -v }, { tenant: c.tenant });
+    }
+  };
+  const total = async () => ((await e.sql.unsafe(`select (data->>'total')::int as n from ${e.S}.entity where class = 'PzSum' and tenant = $1`, [x.id]))[0]?.n ?? null) as number | null;
+  const q = (sql: string, p: unknown[] = []) => e.as(x.token, (tx) => tx.unsafe(sql, p as never[]));
+  const ins = async (cls: string, v: number) => (await q(`insert into ${e.S}.entity (class, data) values ($1, $2::jsonb) returning id`, [cls, { v }]))[0].id as string;
+  const p = adm.projector('purger', { from: ['Pz'], into: ['PzSum'], version: 1, handle: signed });
+  try {
+    await p.run({ once: true });
+    const a = await ins('PzKid', 5);
+    await p.run({ once: true });
+    assert.equal(await total(), 5);
+    // удаление, которое проектор ещё не прочёл: purge стёр бы надгробие, и вклад остался бы в итогах навсегда
+    await q(`delete from ${e.S}.entity where id = $1`, [a]);
+    await assert.rejects(q(`select ${e.S}.purge($1::uuid, true)`, [a]), lt('projector_pending'));
+    await p.run({ once: true });
+    assert.equal(await total(), 0, 'надгробие прочитано');
+    assert.equal((await q(`select ${e.S}.purge($1::uuid, true) as r`, [a]))[0].r.purged, true, 'после run() — можно');
+    // удаление и purge одной транзакцией — проектор прочесть надгробие не мог
+    const b = await ins('Pz', 7);
+    await p.run({ once: true });
+    await assert.rejects(e.as(x.token, async (tx) => {
+      await tx.unsafe(`delete from ${e.S}.entity where id = $1`, [b]);
+      return tx.unsafe(`select ${e.S}.purge($1::uuid, true)`, [b]);
+    }), lt('projector_pending'));
+    // класс вне источников проектора — purge сразу
+    const o = await ins('Other', 1);
+    await q(`delete from ${e.S}.entity where id = $1`, [o]);
+    assert.equal((await q(`select ${e.S}.purge($1::uuid, true) as r`, [o]))[0].r.purged, true);
+    assert.equal(await total(), 7);
+    // у арендатора нет производного класса проектора — его purge проектор не держит
+    const y = await e.tenant('proj-purge-y');
+    await e.defineClass(y, { name: 'Pz', kind: 'hub', history: true, fields: { properties: { v: { type: 'integer' } }, required: ['v'] } });
+    const qy = (sql: string, p: unknown[] = []) => e.as(y.token, (tx) => tx.unsafe(sql, p as never[]));
+    const [yr] = await qy(`insert into ${e.S}.entity (class, data) values ('Pz', '{"v": 1}') returning id`);
+    await qy(`delete from ${e.S}.entity where id = $1`, [yr.id]);
+    assert.equal((await qy(`select ${e.S}.purge($1::uuid, true) as r`, [yr.id]))[0].r.purged, true);
   } finally {
     p.close();
   }

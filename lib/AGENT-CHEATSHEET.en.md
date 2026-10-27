@@ -421,7 +421,8 @@ await adm.close(); await db.close(); await svc.close()
    without a filter and without `data.id`, all rows of the step are edited. `target_not_found` comes with `{ rev }` or
    if the row was deleted between the lookup and the edit.
 3. **Verbs return a chain.** Without a terminal (`.rows()`, `.first()` …) nothing runs. `delete()` without
-   `{ confirm: true }` is only a preview; `purge` works only on deleted entities (`not_deleted`).
+   `{ confirm: true }` is only a preview; `purge` works only on deleted entities (`not_deleted`) and once a projector
+   of the class has read the deletion (`projector_pending`).
 4. **Money and counters**: `update({ balance: inc(n) })` — the database adds inside the statement, without a read and
    without lost updates; the `minimum` check in the schema catches a drop below zero. For a total computed from what
    you read, use `{ rev }` (re-read and retry on `conflict`) or `forUpdate()` in `db.begin()`. Idempotency comes from

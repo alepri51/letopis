@@ -27,7 +27,8 @@ as $$
     ('LT019', 'reset_disabled',         'letopis: reset_disabled: reset выключен в этой установке'),
     ('LT020', 'confirm_mismatch',       'letopis: confirm_mismatch: подтверждение не совпадает с именем схемы'),
     ('LT021', 'derived_class',          'letopis: derived_class: строки производного класса пишет только его проектор'),
-    ('LT022', 'aggregate_field',        'letopis: aggregate_field: агрегатное поле считает база')
+    ('LT022', 'aggregate_field',        'letopis: aggregate_field: агрегатное поле считает база'),
+    ('LT023', 'projector_pending',      'letopis: projector_pending: проектор источника ещё не прочёл удаление')
 $$;
 
 create or replace function @SCHEMA@.lt_raise(p_code text, p_name text, p_msg text, p_detail jsonb default null)

@@ -48,6 +48,7 @@ const LT_NAMES: Record<string, string> = {
   LT011: 'use_reclass', LT012: 'reclass_denied', LT013: 'tightening_conflict', LT014: 'isolation_level',
   LT015: 'recreated_in_statement', LT016: 'cursor_expired', LT017: 'delete_restricted', LT018: 'not_deleted',
   LT019: 'reset_disabled', LT020: 'confirm_mismatch', LT021: 'derived_class', LT022: 'aggregate_field',
+  LT023: 'projector_pending',
 };
 
 /**

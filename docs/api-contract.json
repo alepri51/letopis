@@ -434,6 +434,10 @@
     },
     {
       "module": "15-errors",
+      "message": "letopis: projector_pending: проектор источника ещё не прочёл удаление"
+    },
+    {
+      "module": "15-errors",
       "message": "letopis: reclass_denied: смена класса отклонена"
     },
     {

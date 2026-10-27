@@ -197,6 +197,8 @@ interface Meta {
   retenant?: Record<string, { last: string | null; chunks: Chunk[]; done?: boolean }>;
   /** Время начала перестройки арендатора: его ярус отсчитывается от него, пока курсор его не догнал. */
   since?: Record<string, string>;
+  /** Классы from при последнем сдвиге — их читает purge базы. */
+  from?: string[];
 }
 
 const enc = (p: Pos): string => `${p.tx}:${p.seq}${p.snap ? `~${p.snap}` : ''}`;
@@ -567,8 +569,9 @@ export class Projector {
   }
 
   private async advance(q: Conn, expected: string | undefined, meta: Meta): Promise<void> {
+    // источники — для purge базы: надгробие, которое проектор ещё не прочёл, она не сотрёт (ревью безопасности №3, №5)
     const [r] = await q.unsafe(`select ${this.env.S}.projector_advance($1, $2, $3::text::jsonb) as ok`,
-      [this.name, expected ?? null, JSON.stringify(meta)]);
+      [this.name, expected ?? null, JSON.stringify({ ...meta, from: this.def.from })]);
     if (!r?.ok) throw new LetopisError('invalid_query', `проектор ${this.name}: чекпоинт изменился во время пачки`);
   }
 
