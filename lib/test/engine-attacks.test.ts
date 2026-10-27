@@ -855,3 +855,22 @@ test('№45 (ревью безопасности №3, №2): прикладна
     await held.finish(false);
   }
 });
+
+test('№46 (автоматическое ревью коммита 1bc6584): подделанная справка letopis.family_locks не снимает блокировку семейства — запись ждёт ужесточение и проверяется новым описанием', async () => {
+  await e.defineClass(a, { name: 'Gx', kind: 'hub', fields: { properties: { a: { type: 'string' }, b: { type: 'string' } } } });
+  const fam = `${e.schema}:family:${a.id}:Gx`;
+  // ужесточение держит исключительную блокировку семейства
+  const tight = await e.hold(a.token, (tx) => tx.unsafe(`update ${S}.entity set data = ${S}.merge(data, '{"fields": {"required": ["a"]}}')
+    where class = 'Class' and tenant = $1 and data->>'name' = 'Gx'`, [a.id]));
+  // справка транзакции о взятых блокировках — настройка, которую клиент выставляет сам: «семейство уже взято»
+  const write = e.as(a.token, async (tx) => {
+    await tx.unsafe(`select set_config('letopis.family_locks', $1, true)`, [`|${fam}||s:${fam}||x:${fam}|`]);
+    return tx.unsafe(`insert into ${S}.entity (class, data) values ('Gx', '{"b": "без a"}') returning id`);
+  });
+  const early = await Promise.race([write.then(() => 'прошла', () => 'отказ'), waitForLock(e.sql).then(() => 'ждёт', () => 'не ждёт')]);
+  await tight.finish(true);
+  assert.equal(early, 'ждёт', 'запись ждёт ужесточение, а не идёт мимо блокировки');
+  await assert.rejects(write, lt('invalid_data'));
+  const [{ n }] = await e.sql.unsafe(`select count(*)::int as n from ${S}.entity where class = 'Gx' and tenant = $1 and not data ? 'a'`, [a.id]);
+  assert.equal(n, 0, 'строк, нарушающих ужесточённое описание, нет');
+});
