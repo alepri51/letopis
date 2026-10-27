@@ -1524,6 +1524,11 @@ begin
   returning * into n;
   perform @SCHEMA@.log_version(n);
   for r in select x.* from @SCHEMA@.entity x where x.ends @> array[o.id] and x.id <> p_new_id order by x.id for update loop
+    -- строки производного класса пишет только проектор: перевод их ссылок мимо него оставил бы проекцию
+    -- несогласованной (ревью безопасности №3, №3)
+    if (@SCHEMA@.class_row(r.class, r.tenant)).data->'resolved' ? 'derivedBy' then
+      perform @SCHEMA@.lt_fail('derived_class', format('на строку ссылается строка производного класса %s: её пишет проектор', r.class));
+    end if;
     if p_plan is not null and not @SCHEMA@.acl_row_ok(p_plan, r.class, r.id, r.owner, r.tenant, r.tags, r.data, r.links) then
       perform @SCHEMA@.lt_fail('acl_denied', 'нет права WRITE на ссылающиеся строки');
     end if;

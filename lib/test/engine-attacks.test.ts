@@ -795,3 +795,18 @@ test('№43 (доработки после точки Б): политику хр
   await rule(e, org, g, await resource(e, org, 'note43:DELETE', 'DELETE', { class: 'Note' }), 'allow', 10);
   assert.equal((await setHistory({ all: '1 day' })).length, 1, 'с правом DELETE — можно');
 });
+
+test('№44 (ревью безопасности №3, №3): перенос строки не переписывает ссылки строк производного класса — derived_class', async () => {
+  await e.defineClass(a, { name: 'Prod', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' } }, required: ['code'] } });
+  await e.defineClass(a, { name: 'Prod2', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' } }, required: ['code'] } });
+  await e.defineDerived(a, { name: 'ProdSum', kind: 'hub', key: ['P'], derivedBy: 'prodsum', history: false,
+    fields: { properties: { n: { type: 'integer' } } }, ends: { P: { class: ['Prod', 'Prod2'], required: true, onDelete: 'cascade' } } });
+  const [prod] = await as(a, `insert into ${S}.entity (class, data) values ('Prod', '{"code": "p1"}') returning id`);
+  await e.asOwner((tx) => tx.unsafe(`select ${S}.derived_apply('prodsum', $1::text::jsonb)`,
+    [JSON.stringify([{ op: 'upsert', class: 'ProdSum', tenant: a.id, row: { P: prod.id, n: 1 } }])]));
+  const sum = async () => (await e.sql.unsafe(`select links->>'P' as p from ${S}.entity where class = 'ProdSum' and tenant = $1`, [a.id]))[0]?.p;
+  assert.equal(await sum(), prod.id);
+  await assert.rejects(as(a, `select ${S}.reclass($1::uuid, 'Prod2')`, [prod.id]), lt('derived_class'));
+  assert.equal(await sum(), prod.id, 'строка производного класса не переписана');
+  assert.equal((await e.sql.unsafe(`select class from ${S}.entity where id = $1`, [prod.id]))[0].class, 'Prod');
+});
