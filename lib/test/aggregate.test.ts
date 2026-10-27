@@ -491,6 +491,8 @@ test('ревью коммита этапа 4б: агрегат задаёт то
   await grant('sale.ban:READ', 'READ', { class: 'Sale' }, 50, 'deny');
   await setShop({ alias: 'Магазин' });
   await assert.rejects(setShop({ aggregate: { total, big: { ...big, where: { properties: { amount: { minimum: 500 } } } } } }), denied('Shop.big', 'Sale'));
+  // унаследованный агрегат — тоже: новый потомок цели получает агрегаты предка (ревью коммита 21b3b01)
+  await assert.rejects(e.defineClass(x, { name: 'Stall', kind: 'hub', parent: 'Shop' }), denied('Stall.big', 'Sale'));
 });
 
 test('ревью коммита этапа 4б: класс становится источником агрегата только с правом READ на все его строки', async () => {

@@ -566,12 +566,13 @@ begin
   -- владельца (сид, class_evolve, rekey_class) сюда не заходят. Описание до правки — для сравнения (нет — новый класс)
   select x.data into prevd from @SCHEMA@.entity x
   where x.class = 'Class' and x.tenant = p_tenant and x.data->>'name' = data->>'name';
-  -- собственный агрегат описания, новый или изменённый против прежнего описания, задаёт только тот, кто без условий
-  -- читает все строки каждого класса-источника: класса of и его потомков (agg_classes: классы арендатора, у класса
-  -- System — классы System). Унаследованный и неизменённый агрегат не проверяется
-  if data ? 'aggregate' then
-    for e in select key, value from jsonb_each(data->'aggregate') order by key loop
-      continue when prevd->'aggregate'->e.key is not distinct from e.value;
+  -- агрегат развёрнутого описания (свой или унаследованный), новый или изменённый против прежнего — описание
+  -- агрегата, новый потомок цели, смена parent, — задаёт только тот, кто без условий читает все строки каждого
+  -- класса-источника: класса of и его потомков (agg_classes: классы арендатора, у класса System — классы System).
+  -- Неизменённый агрегат не проверяется
+  if data->'resolved' ? 'aggregate' then
+    for e in select key, value from jsonb_each(data->'resolved'->'aggregate') order by key loop
+      continue when prevd->'resolved'->'aggregate'->e.key is not distinct from e.value;
       -- сам класс of первым, потомки — по имени
       foreach src in array array(select n from unnest(@SCHEMA@.agg_classes(e.value->>'of', p_tenant, p_tenant = '@SYSTEM@'::uuid)) n
                                  order by n = (e.value->>'of') desc, n) loop
