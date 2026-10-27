@@ -946,3 +946,32 @@ test('ревью безопасности №3, №1: пустой послед�
     p.close();
   }
 });
+
+test('ревью безопасности №3, №6: арендатор, выбывший из хвоста посреди своей перестройки пачками, — без частичных строк', async () => {
+  const z = await e.tenant('proj-part-z');
+  await tickTenant(z, true);
+  const o = await e.tenant('proj-part-o');
+  await tickTenant(o, true);
+  const p = adm.projector('ticker', tickerDef({ batch: 1 }));
+  try {
+    await p.rebuild();
+    await tick(z, 3);
+    await tick(z, 4);
+    await p.run({ once: true });
+    const rep = { batches: 0, changes: 0, created: 0, updated: 0, deleted: 0, unchanged: 0, skipped: 0, rebuilds: 0 };
+    const inner = p as unknown as { startTenant(r: unknown, t: string, auto: boolean): Promise<string>; tenantChunk(r: unknown, t: string): Promise<string> };
+    assert.equal(await inner.startTenant(rep, z.id, false), 'ok');
+    assert.equal(await inner.tenantChunk(rep, z.id), 'more', 'одна пачка из двух');
+    assert.notEqual(await tickTotal(z), null, 'частичная строка построена');
+    // источник z выключил журнал: хвост выводит z посреди перестройки
+    await tickHistory(z, false);
+    (p as unknown as { stale: boolean }).stale = true;
+    await tick(o, 1);
+    await p.run({ once: true });
+    assert.equal((await p.status()).failed[z.id]?.code, 'invalid_class');
+    assert.equal(await tickTotal(z), null, 'частичных строк нет');
+  } finally {
+    p.close();
+  }
+  await tickHistory(z, true);
+});

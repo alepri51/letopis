@@ -727,6 +727,10 @@ export class Projector {
         else delete next.resync;
       }
       if (next.retenant) {
+        // выбывший посреди своей перестройки — без производных строк: пачки построили их лишь частично (ревью
+        // безопасности №3, №6)
+        const partial = Object.entries(next.retenant).filter(([t, v]) => failed[t] && !v.done).map(([t]) => t);
+        if (partial.length) await this.clear(q, partial);
         // перестройка арендатора пачками: выбывший — без неё; законченная — пока курсор не прошёл снимки её пачек
         const left = Object.entries(next.retenant).filter(([t, v]) => !failed[t]
           && !(v.done && v.chunks.every((c) => BigInt(pos.tx) >= BigInt(c.snap.split(':')[1]))));
