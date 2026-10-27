@@ -662,3 +662,20 @@ test('№38 (/security-review после точки Б): пользовател�
   await e.as(admin.token, (tx) => tx.unsafe(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [{ ...total, name: 'SysTotals', derivedBy: 'rollup' } as never]));
   assert.equal((await e.sql.unsafe(`select count(*)::int as n from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = 'SysTotals'`, [SYSTEM_ID]))[0].n, 1);
 });
+
+test('№39 (доработки после точки Б): rekeyClass непроизводного предка не переносит строки производного потомка — derived_class', async () => {
+  await e.defineClass(a, { name: 'KeyBase', kind: 'hub', key: ['k'],
+    fields: { properties: { k: { type: 'string' }, v: { type: 'string' } }, required: ['k', 'v'] } });
+  await e.defineDerived(a, { name: 'KeyRoll', kind: 'hub', parent: 'KeyBase', derivedBy: 'keyroll', history: false });
+  const [r] = await e.asOwner((tx) => tx.unsafe(`select ${S}.derived_apply('keyroll', $1::text::jsonb) as r`,
+    [JSON.stringify([{ op: 'upsert', class: 'KeyRoll', tenant: a.id, row: { k: 'one', v: 'x' } }])]));
+  assert.equal(r.r.created, 1);
+  const rows = async () => (await e.sql.unsafe(`select id, rev from ${S}.entity where class = 'KeyRoll' and tenant = $1`, [a.id]))
+    .map((x) => `${x.id}:${x.rev}`);
+  const was = await rows();
+  await assert.rejects(as(a, `select ${S}.rekey_class('KeyBase', '["k", "v"]'::jsonb)`), lt('derived_class'));
+  await assert.rejects(as(a, `select ${S}.rekey_class('KeyBase', '["k", "v"]'::jsonb)`), /производный потомок KeyRoll/);
+  assert.deepEqual(await rows(), was, 'строки потомка на месте');
+  const [cls] = await e.sql.unsafe(`select data->'resolved'->'key' as key from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = 'KeyBase'`, [a.id]);
+  assert.deepEqual(cls.key, ['k'], 'ключ предка прежний');
+});

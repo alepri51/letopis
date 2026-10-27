@@ -744,8 +744,8 @@ const [vip] = await db.Customer(olga).reclass('Vip', { name: 'Olga', email: 'olg
 - `rekey(patch)` sets a new key value: a row with a new id, all references moved, the old row deleted. If a referencing
   row includes this end in its own key, its id changes too, and the move goes on. The journal links the old and the new
   id (`moved`).
-- `db.rekeyClass(class, key)` sets a new key for all rows of the family, in one transaction. For a derived class —
-  `derived_class`: only its projector writes its rows.
+- `db.rekeyClass(class, key)` sets a new key for all rows of the family, in one transaction. For a derived class and
+  for a class with a derived descendant — `derived_class`: only its projector writes the rows of a derived class.
 - `reclass(class, data)` changes the class; the data is optional, and if given, it is given whole. If the new class has
   no key, the id is kept (as for `vip` above); if it has one, the id is computed anew and the references are moved.
   The roles of referencing rows must accept the new class, otherwise `reclass_denied`. A raw `UPDATE … SET class`
@@ -2647,7 +2647,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # chain-write — writing with chains: create, update, upsert, delete with preview, anonymize, reclass, slots, inc, { rev }, fan-out, plan rollback (stage 4)
 # demo — the booking demo domain on Zod: seed from models, writing data, id by key, agreement between Zod and the database (stage 2)
 # docs — documentation examples are executed: the marked blocks of the README and the cheatsheet (Russian and English) run as scenarios against PostgreSQL 18 (stage 8)
-# engine-attacks — raw SQL attacks from the application role: the rows of §7.3.1 for stages 1 and 3 with specific outcomes; the signal key without permission, flooding with fake signals, Class included; writing to a derived class and a reference to it, a projector checkpoint through the credential functions; an agent through MCP without --write and without a human confirmation; a change of parent, alias and derivedBy of a class with the WRITE permission on Class alone; an agent through MCP grants a membership or a rule, a system administrator session; a tenant user creates a derived class on their own (stages 1, 3; plan 1.1, stages 2, 4a, 5, checkpoint A, security review No. 2, checkpoint B and the work after it)
+# engine-attacks — raw SQL attacks from the application role: the rows of §7.3.1 for stages 1 and 3 with specific outcomes; the signal key without permission, flooding with fake signals, Class included; writing to a derived class and a reference to it, a projector checkpoint through the credential functions; an agent through MCP without --write and without a human confirmation; a change of parent, alias and derivedBy of a class with the WRITE permission on Class alone; an agent through MCP grants a membership or a rule, a system administrator session; a tenant user creates a derived class on their own, `rekeyClass` of an ancestor of a derived class (stages 1, 3; plan 1.1, stages 2, 4a, 5, checkpoint A, security review No. 2, checkpoint B and the work after it)
 # engine-class — classes as entities: metaschema, inheritance, recomputing descendants, tightening, metadata (stage 1)
 # engine-write — the write pipeline in raw SQL: v5 ids, defaults, merge, inc, deletion, resurrection, journal, signals (stage 1)
 # engine-races — races on two connections in both orders, without timed pauses (stage 1)

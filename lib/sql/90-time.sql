@@ -474,6 +474,7 @@ declare
   nid uuid;
   n int := 0;
   conflicts jsonb;
+  dname text;
 begin
   select * into c from @SCHEMA@.ctx();
   if c.account is null then
@@ -494,6 +495,15 @@ begin
   -- строит заново проектор (rebuild)
   if cr.data->'resolved' ? 'derivedBy' then
     perform @SCHEMA@.lt_fail('derived_class', format('класс %s производный: его строки пишет проектор %s', p_class, cr.data->'resolved'->>'derivedBy'));
+  end if;
+  -- и потомки: производный потомок непроизводного предка наследует его ключ, а его строки переносит только проектор
+  -- (доработки после точки Б)
+  select x.data->>'name' into dname from @SCHEMA@.entity x
+  where x.class = 'Class' and x.tenant = cr.tenant and x.id <> cr.id
+    and x.data->'resolved'->'ancestors' ? p_class and x.data->'resolved' ? 'derivedBy'
+  order by x.data->>'name' limit 1;
+  if dname is not null then
+    perform @SCHEMA@.lt_fail('derived_class', format('у класса %s производный потомок %s: его строки пишет проектор', p_class, dname));
   end if;
   if not @SCHEMA@.acl_row_ok(wplan, 'Class', cr.id, cr.owner, cr.tenant, cr.tags, cr.data, cr.links) then
     perform @SCHEMA@.lt_fail('acl_denied', 'нет права WRITE на класс Class');
