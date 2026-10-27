@@ -28,10 +28,22 @@ declare
   v uuid := @SCHEMA@.lock_id(p_name);
 begin
   if not exists (select 1 from @SCHEMA@.secret s where s.id = v) then
-    insert into @SCHEMA@.secret (id, account, kind, ident) values (v, '@SYSTEM@'::uuid, 'LOCK', p_name) on conflict do nothing;
+    -- имя — в meta, а не в ident: уникальный индекс ident сравнивает без регистра, и строка-замок семейства, чей корень
+    -- отличается от другого только регистром, не вставлялась — его блокировка молча не бралась (/security-review после
+    -- ревью безопасности №3). Строки нет и после вставки — ошибка, а не запись без блокировки.
+    insert into @SCHEMA@.secret (id, account, kind, meta) values (v, '@SYSTEM@'::uuid, 'LOCK', jsonb_build_object('name', p_name))
+    on conflict do nothing;
+    if not exists (select 1 from @SCHEMA@.secret s where s.id = v) then
+      raise exception using errcode = 'XX000', message = format('строка-замок %s не создана', p_name);
+    end if;
   end if;
   return v;
 end $$;
+
+-- Строки вида LOCK других аккаунтов — не строки-замки: в 1.1 вид LOCK был открыт функциям кредов. При накате они
+-- помечаются удалёнными; повторный накат их уже не находит.
+update @SCHEMA@.secret s set deleted_at = clock_timestamp()
+where s.kind = 'LOCK' and s.account <> '@SYSTEM@'::uuid and s.deleted_at is null;
 
 -- Строка-замок без ожидания (обслуживание и проектор — один исполнитель): true — взята до конца транзакции, false — её
 -- держит другая транзакция. Блокировка — отдельным оператором: строку, которую вставила lock_row, видит уже он.
@@ -91,6 +103,9 @@ begin
     perform 1 from @SCHEMA@.secret s where s.id = g for update;
     perform @SCHEMA@.lock_row(n);
     perform 1 from @SCHEMA@.secret s where s.id = k for update;
+    if not found then
+      raise exception using errcode = 'XX000', message = format('строка-замок %s не найдена', n);
+    end if;
   else
     if strpos(held, '|' || n || '|') = 0 then
       g := @SCHEMA@.lock_row(n || ':gate');
@@ -105,6 +120,9 @@ begin
     if not found then
       perform @SCHEMA@.lock_row(n);
       perform 1 from @SCHEMA@.secret s where s.id = k for key share;
+      if not found then
+        raise exception using errcode = 'XX000', message = format('строка-замок %s не найдена', n);
+      end if;
     end if;
   end if;
   if strpos(held, '|' || n || '|') = 0 then

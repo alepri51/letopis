@@ -5,7 +5,8 @@
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { engine, lt, waitForLock, type Engine, type Tenant } from './_engine.js';
+import { engine, lt, waitForLock, SYSTEM_ID, type Engine, type Tenant } from './_engine.js';
+import { install } from '../src/up.js';
 
 let e: Engine;
 let t: Tenant;
@@ -140,6 +141,36 @@ test('№3а (ревью безопасности №3, №2): ужесточе�
   await Promise.all(writers);
   await loosen('Base');
   assert.ok(ms < 3000, `ужесточение ждало ${ms} мс — писатели не встали за ним`);
+});
+
+test('№3б (/security-review после ревью №3): семейства, чьи корни отличаются только регистром, — у каждого своя строка-замок', async () => {
+  // Имя строки-замка — в ident таблицы secret, а её уникальный индекс сравнивает ident без регистра: строка-замок второго
+  // семейства не вставлялась, и его блокировка молча не бралась — ужесточение шло мимо незафиксированной записи.
+  for (const name of ['Kase', 'kase']) {
+    await e.defineClass(t, { name, kind: 'hub', fields: { properties: { a: { type: 'string' }, b: { type: 'string' } } } });
+  }
+  const B = await e.hold(t.token, (tx) => tx.unsafe(insSql, ['kase', { b: 'без a' }, {}] as never[]));
+  const A = q(tighten('kase', ['a']));
+  await waitForLock(e.sql);
+  await B.finish(true);
+  await assert.rejects(A, lt('tightening_conflict'));
+});
+
+test('№3в (/security-review после ревью №3): строка вида LOCK, заведённая кредами 1.1 под именем блокировки семейства, её не отключает; накат помечает её удалённой', async () => {
+  // в 1.1 вид LOCK был открыт функциям кредов: пользователь заводил строку с ident = имя будущей блокировки семейства
+  const [{ id: planted }] = await e.asOwner((tx) => tx.unsafe(`insert into ${S}.secret (account, kind, ident)
+    values ($1::uuid, 'LOCK', $2) returning id`, [t.id, `${e.schema}:family:${t.id}:Fresh`]));
+  await e.defineClass(t, { name: 'Fresh', kind: 'hub', fields: { properties: { a: { type: 'string' }, b: { type: 'string' } } } });
+  const B = await e.hold(t.token, (tx) => tx.unsafe(insSql, ['Fresh', { b: 'без a' }, {}] as never[]));
+  const A = q(tighten('Fresh', ['a']));
+  await waitForLock(e.sql);
+  await B.finish(true);
+  await assert.rejects(A, lt('tightening_conflict'));
+  await install(e.sql, { schema: e.schema, allowReset: true });
+  const [row] = await e.sql.unsafe(`select deleted_at from ${S}.secret where id = $1`, [planted]);
+  assert.ok(row.deleted_at, 'накат пометил чужую строку LOCK удалённой');
+  const [{ n }] = await e.sql.unsafe(`select count(*)::int as n from ${S}.secret where kind = 'LOCK' and account <> $1 and deleted_at is null`, [SYSTEM_ID]);
+  assert.equal(n, 0);
 });
 
 test('№4: два создания одного ключа — одно проходит, второе 23505', async () => {
