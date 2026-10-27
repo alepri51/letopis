@@ -121,8 +121,6 @@ export async function verify(a: AdminCtx, opts: { data?: boolean } = {}): Promis
   return r.v;
 }
 
-/** Ключ advisory-блокировки обслуживания: форма с двумя int4, своё пространство (19541). */
-const MAINTAIN_LOCK = (schema: string) => [19541, schema] as const;
 
 /**
  * Обслуживание: истёкшие сессии и коды, прореживание журнала пачками (каждая — своя транзакция,
@@ -137,12 +135,12 @@ export async function maintain(a: AdminCtx, opts: MaintainOptions = {}): Promise
   if (a.exec.explicit) throw new LetopisError('invalid_query', 'maintain() — пачками в своих транзакциях, не внутри db.begin()');
   const now = opts.now === undefined ? null : opts.now instanceof Date ? opts.now.toISOString() : opts.now;
   const report: MaintainReport = { skipped: false, sessions: 0, codes: 0, thinned: 0, batches: 0, more: false, queue: 0 };
-  const [k1, k2] = MAINTAIN_LOCK(a.schema);
   const max = opts.batches ?? 100;
   for (let i = 0; i < max; i++) {
     // блокировка и пачка — одним оператором: case вычисляет maintain() только при взятой блокировке
-    const [{ r }] = await runTx(a.txc, (q) => q.unsafe(`select case when pg_try_advisory_xact_lock($1::int, hashtext($2::text))
-        then ${a.S}.maintain($3::text::timestamptz, $4::int) end as r`, [k1, k2, now, opts.limit ?? 10_000] as never[]));
+    // блокировку берёт сама maintain() — ключом lock_key, которого посторонняя роль не знает; занята — null
+    const [{ r }] = await runTx(a.txc, (q) => q.unsafe(`select ${a.S}.maintain($1::text::timestamptz, $2::int) as r`,
+      [now, opts.limit ?? 10_000] as never[]));
     if (r === null) {
       if (i === 0) return { ...report, skipped: true };
       break;

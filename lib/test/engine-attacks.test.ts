@@ -810,3 +810,24 @@ test('№44 (ревью безопасности №3, №3): перенос с�
   assert.equal(await sum(), prod.id, 'строка производного класса не переписана');
   assert.equal((await e.sql.unsafe(`select class from ${S}.entity where id = $1`, [prod.id]))[0].class, 'Prod');
 });
+
+test('№45 (ревью безопасности №3, №2): прикладная роль держит advisory-блокировки с прежними ключами — запись семейства и обслуживание не встают', async () => {
+  const { ADMIN_DSN } = await import('./_harness.js');
+  // прежние ключи: семейство Org арендатора a (19540) и обслуживание (19541) — hashtext открытых имён
+  const held = await e.hold(a.token, async (tx) => {
+    await tx.unsafe(`select pg_advisory_xact_lock(19540, hashtext($1))`, [`${e.schema}:${a.id}:Org`]);
+    await tx.unsafe(`select pg_advisory_xact_lock(19541, hashtext($1))`, [e.schema]);
+  });
+  const adm = await connect({ dsn: ADMIN_DSN, schema: e.schema, allowBypassRls: true, max: 1 });
+  try {
+    const [row] = await e.as(a.token, async (tx) => {
+      await tx.unsafe(`set local lock_timeout = '2s'`);
+      return tx.unsafe(`insert into ${S}.entity (class, data) values ('Org', '{"name": "Под-замком"}') returning id`);
+    });
+    assert.ok(row.id, 'запись семейства не ждёт чужую блокировку');
+    assert.equal((await adm.maintain({ batches: 1 })).skipped, false, 'обслуживание не встаёт');
+  } finally {
+    await adm.close();
+    await held.finish(false);
+  }
+});

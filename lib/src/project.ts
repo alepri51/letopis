@@ -557,7 +557,8 @@ export class Projector {
   }
 
   private async lock(q: Conn): Promise<boolean> {
-    const [r] = await q.unsafe(`select pg_try_advisory_xact_lock(${LOCK_SPACE}, hashtext($1)) as ok`, [`${this.env.schema}:${this.name}`]);
+    // ключ — секретный (lock_key, ревью безопасности №3, №2): посторонняя роль не займёт блокировку проектора
+    const [r] = await q.unsafe(`select pg_try_advisory_xact_lock(${LOCK_SPACE}, ${this.env.S}.lock_key($1)) as ok`, [`${this.env.schema}:${this.name}`]);
     return Boolean(r?.ok);
   }
 

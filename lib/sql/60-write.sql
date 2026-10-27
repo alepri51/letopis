@@ -16,6 +16,16 @@ return clock_timestamp();
 -- Class класса семейства. Ключ — арендатор корневого класса и имя корня (итоговое ревью
 -- безопасности): ужесточение или rekeyClass одноимённого класса в другом арендаторе запись сюда не
 -- останавливает; корень из System (общий для всех арендаторов) — ключ System.
+-- Ключ внутренней advisory-блокировки (семейства, проектор, обслуживание): HMAC имени ключом установки из строки KEY
+-- (таблица secret приложению недоступна). Функции блокировок PostgreSQL доступны любой роли, и по ключу из hashtext
+-- имени посторонняя роль занимала бы блокировку и останавливала запись семейства, проектор или обслуживание для всех
+-- (ревью безопасности №3, №2). Строки KEY ещё нет (накат до сида) — hashtext имени.
+create or replace function @SCHEMA@.lock_key(p_name text) returns int
+language sql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+return coalesce((select hashtext(encode(hmac(convert_to('letopis:lock:' || p_name, 'UTF8'), s.material, 'sha256'), 'hex'))
+                 from @SCHEMA@.secret s where s.id = '@SYSTEM@'::uuid and s.kind = 'KEY'), hashtext(p_name));
+
 create or replace function @SCHEMA@.family_lock(p_cls @SCHEMA@.entity, p_exclusive boolean) returns void
 language plpgsql volatile
 as $$
@@ -23,7 +33,7 @@ declare
   root text := p_cls.data->'resolved'->'ancestors'->>-1;
   k int;
 begin
-  k := hashtext('@SCHEMA_NAME@:' || (case when p_cls.tenant = '@SYSTEM@'::uuid or p_cls.data->>'name' = root then p_cls.tenant
+  k := @SCHEMA@.lock_key('@SCHEMA_NAME@:' || (case when p_cls.tenant = '@SYSTEM@'::uuid or p_cls.data->>'name' = root then p_cls.tenant
     else coalesce((@SCHEMA@.class_row(root, p_cls.tenant)).tenant, p_cls.tenant) end)::text || ':' || root);
   if p_exclusive then
     perform pg_advisory_xact_lock(19540, k);
@@ -1782,7 +1792,7 @@ do $$
 declare f text;
 begin
   foreach f in array array[
-    'now_ts()', 'family_lock(@SCHEMA@.entity, boolean)', 'class_set(jsonb)', 'class_accepts(jsonb, text, uuid)', 'role_accepts(text, uuid, text, text, uuid)',
+    'now_ts()', 'lock_key(text)', 'family_lock(@SCHEMA@.entity, boolean)', 'class_set(jsonb)', 'class_accepts(jsonb, text, uuid)', 'role_accepts(text, uuid, text, text, uuid)',
     'apply_defaults(jsonb, jsonb)', 'links_shape(jsonb, jsonb)', 'targets_bad(jsonb, boolean, jsonb)', 'check_links(jsonb, jsonb, uuid, boolean, jsonb)', 'key_id(jsonb, text, uuid, jsonb, jsonb)',
     'log_version(@SCHEMA@.entity)', 'sys_update(uuid, jsonb, jsonb, jsonpath, text, text)', 'tombstone(@SCHEMA@.entity, text, uuid)',
     'links_replace(jsonb, uuid, uuid)', 'move_row(@SCHEMA@.entity, uuid, text, jsonb, jsonb, text, jsonb)', 'reclass(uuid, text, jsonb)',

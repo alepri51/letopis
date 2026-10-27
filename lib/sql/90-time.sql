@@ -822,6 +822,11 @@ begin
   if not @SCHEMA@.letopis_allowed('letopis.maintain') then
     perform @SCHEMA@.lt_fail('acl_denied', 'нет права letopis.maintain');
   end if;
+  -- один исполнитель: транзакционная блокировка с секретным ключом (lock_key) — посторонняя роль её не займёт (ревью
+  -- безопасности №3, №2); занята — null, обслуживание продолжит держатель
+  if not pg_try_advisory_xact_lock(19541, @SCHEMA@.lock_key('@SCHEMA_NAME@:maintain')) then
+    return null;
+  end if;
   if p_now is not null then
     if not @ALLOW_RESET@ then
       perform @SCHEMA@.lt_fail('reset_disabled', 'maintain(now) — только в установке с allow_reset');

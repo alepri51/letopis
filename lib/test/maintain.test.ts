@@ -104,10 +104,10 @@ test('7.8.1 №11 из нескольких процессов работает 
   const other = postgres(ADMIN_DSN, { max: 1, onnotice: () => {} });
   try {
     const conn = await other.reserve();
-    await conn`select pg_advisory_lock(19541, hashtext(${e.schema}))`;
+    await conn.unsafe(`select pg_advisory_lock(19541, ${e.S}.lock_key($1))`, [`${e.schema}:maintain`]);
     const r = await adb.maintain();
     assert.equal(r.skipped, true);
-    await conn`select pg_advisory_unlock(19541, hashtext(${e.schema}))`;
+    await conn.unsafe(`select pg_advisory_unlock(19541, ${e.S}.lock_key($1))`, [`${e.schema}:maintain`]);
     conn.release();
     assert.equal((await adb.maintain()).skipped, false);
   } finally {
@@ -162,7 +162,7 @@ test('разбор в) maintain() за пулом в режиме транзак
     assert.equal((await adb.maintain()).skipped, false, 'обслуживание прочих не встаёт');
     // взаимное исключение: пока транзакция другого процесса держит блокировку — skipped; транзакция кончилась — блокировки нет
     await s1.unsafe('begin');
-    await s1`select pg_advisory_xact_lock(19541, hashtext(${e.schema}))`;
+    await s1.unsafe(`select pg_advisory_xact_lock(19541, ${e.S}.lock_key($1))`, [`${e.schema}:maintain`]);
     assert.equal((await run([0])).skipped, true);
     assert.equal((await adb.maintain()).skipped, true);
     await s1.unsafe('commit');
