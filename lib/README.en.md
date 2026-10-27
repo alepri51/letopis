@@ -1766,6 +1766,10 @@ sales.close()                                    // stop() after the current bat
   none. `await out.get(class, key or id, { tenant })` reads the current row together with the writes of the batch.
   `out` writes only to the `into` classes and only to the tenant of the changes passed to `handle`; otherwise you get
   `derived_class` or `tenant_denied`, and the batch is rolled back.
+- `out` adds up the increments of a row given by key fields only (or by `$id` alone) before sending them to the
+  database, as long as there is no `upsert`, `delete` or `get` between them: one edit of a row per batch, and the class
+  rule is checked on the total of its increments. `inc` does not fold a row with other fields (data, `$tags`,
+  `$owner`): its fields edit the row, and the order of such edits is kept.
 - A row for `out` is in the loader format: fields and end roles at the top level, the service keys `$tags`, `$owner`
   and `$id` (`$id` is needed only by a class without a key). The value of a role is the id of the target. An edit that
   changes nothing gives no version. Versions of derived rows are written by System with the agent
@@ -1774,9 +1778,12 @@ sales.close()                                    // stop() after the current bat
 - `rebuild()` rebuilds the projection atomically, in one transaction: until it commits, readers see the previous rows,
   but the subscription horizon stands still. `rebuild({ chunked: true })` works in batches: the derived rows are
   deleted at once, the data stays incomplete until the rebuild ends, and `status().state` is `'rebuilding'`. The next
-  start continues an interrupted batch rebuild. A rebuild deletes the rows of the participants only, and only of the
-  classes of their `into` families, and starts all participants anew: the marks of dropped tenants are removed, and a
-  tenant whose data fail again drops out again.
+  start continues an interrupted batch rebuild. `run()` itself, on the first start of a new projection and with
+  `onExpired: 'rebuild'`, rebuilds in batches: the subscription horizon of the cluster stands still no longer than a
+  batch. Meanwhile a second process of the same projector waits or continues the same rebuild instead of starting it
+  anew. A rebuild deletes the rows of the participants only, and only of the classes of their `into` families, and
+  starts all participants anew: the marks of dropped tenants are removed, and a tenant whose data fail again drops
+  out again.
 - `rebuild({ tenant: id })` rebuilds one tenant in one transaction: it deletes its derived rows, builds them from its
   current source rows and removes its mark in `status().failed`; the projector does not apply again the changes the
   rebuild has already counted. Fix the data or the class description of the tenant, then rebuild it. If the database
@@ -1791,10 +1798,10 @@ sales.close()                                    // stop() after the current bat
 - If the cursor is older than the `all` tier of the retention policy of the sources and there are changes after it,
   some changes may have been thinned out. Each tenant has a tier of its own: it is the description of its classes. If
   the cursor is older than the tier of every participant, `run()` throws `cursor_expired`, and with
-  `onExpired: 'rebuild'` the projector rebuilds entirely. If it is older than the tier of only some of them, they drop
-  out (`status().failed`, code `cursor_expired`) and the others go on, and with `onExpired: 'rebuild'` the dropped
-  tenants rebuild themselves, each in a transaction of its own. A projector without new changes does not expire.
-  `status().lag` is the age of the oldest unprocessed change in ms.
+  `onExpired: 'rebuild'` the projector rebuilds entirely, in batches. If it is older than the tier of only some of
+  them, they drop out (`status().failed`, code `cursor_expired`) and the others go on, and with
+  `onExpired: 'rebuild'` the dropped tenants rebuild themselves, each in a transaction of its own. A projector
+  without new changes does not expire. `status().lag` is the age of the oldest unprocessed change in ms.
 - A projector works with the tenants in which every `into` class is marked with its `derivedBy`; it skips the changes
   of other tenants, so a class with the same name and no mark in another tenant does not get in its way. No such tenant
   at all — `derived_class`. Any tenant that marks its classes may become a participant. The option `tenants: [id, …]`
@@ -1806,11 +1813,11 @@ sales.close()                                    // stop() after the current bat
   tenant with `rebuild({ tenant })`.
 - `batch` is how many changes go into a batch (500), `pollMs` is fallback polling (1000 ms): source signals wake the
   projector earlier.
-- Every `out` call is a separate edit of a row in the database, and the speed of a projector is set by the number of
-  edits, not by the number of changes. The handle from the example above (`out.inc` for every change) caught up with
-  1.0–1.2 thousand changes per second on the benchmark machine. If `handle` first adds up the increments of the batch
-  by key and calls `out.inc` once per key, catching up speeds up to 5.6 thousand changes per second with `batch` 500
-  and to 33 thousand with `batch` 2000 ([section 17](#17-performance)).
+- Every edit that `out` sends to the database is a separate edit of a row, and the speed of a projector is set by the
+  number of edits, not by the number of changes. The folding of `inc` brings the edits of a row down to one per batch,
+  so the handle from the example above (`out.inc` for every change) caught up with 6 thousand changes per second with
+  `batch` 500 and 33 thousand with `batch` 2000 on the benchmark machine ([section 17](#17-performance)): the larger
+  the batch, the more increments of one row fold into one edit.
 
 ### Recipe: daily revenue
 
@@ -1859,7 +1866,7 @@ const week = await db.Shop(shop).DayRevenue().sort('data.day', 'desc').limit(7).
 - `out.inc` adds without reading the row, so the total does not depend on the order of changes: the journal gives
   transactions in the order of their first write, not of their commit. Editing a sale subtracts the previous amount
   from the previous day and adds the new one to the new day; a deletion only subtracts. A day with no sales left stays
-  as a row of zeros.
+  as a row of zeros. `out` folds the increments of one day in a batch into one edit.
 - `DayRevenue` has `history: false`: the derived rows do not double the journal, and a rebuild assembles them without
   history anyway. `Sale` needs a journal: a projector does not see the changes of a class with `history: false`.
 - The application reads `DayRevenue` rows like any class, and only the projector writes them: `create` or `update` of
@@ -2021,7 +2028,11 @@ in 2026-07-28 as an `input_required` answer), the confirmation is bound to the h
 is `{ deleted, operation }`. The confirmation window shows the canonical class name and the ids of the targets (the
 first 10, then «и ещё K», that is "and K more"); a tenant writes the alias and the `meta` of a class, so they do not
 get into the window. An operation code sent by the agent is not a confirmation; a client without elicitation gets the
-refusal `confirmation_required`. Every write gets the reason `mcp: letopis_write`, and `blame()` shows it.
+refusal `confirmation_required`. Every write gets the reason `mcp: letopis_write`, and `blame()` shows it. By default,
+`letopis_write` does not create, edit or delete the permission classes, `rule`, `Resource`, `member`, `Account`,
+`Class` and their descendants (rules, memberships, class descriptions): the refusal is `acl_denied`. An agent under an
+injection in the data would grant a stranger a membership or a rule without a human confirmation. Only the option
+`allowAclWrite: true` allows it.
 
 **stdio.** `letopis mcp` is a stdio server for MCP clients. It needs the SDK package: `npm i @modelcontextprotocol/server`
 (an optional peer dependency). The client passes the connection string, the schema and the token as flags or as the
@@ -2029,7 +2040,9 @@ variables `LETOPIS_DSN`, `LETOPIS_SCHEMA`, `LETOPIS_TOKEN`; `--write` turns writ
 accepted, and the application issues it: `svc.auth.sessionFor(user, { ttl })`, while `auth.switch(tenant)` sets the
 working tenant of the session. The command rejects the service key (`--api-key`): it grants all `auth.*` rights and
 would lie on the agent's machine. Without a token and with `--api-key`, the command exits with code 2 and writes the
-reason to stderr. Client configuration (Claude Desktop, Claude Code, Cursor):
+reason to stderr. The command also rejects the token of a session in the System tenant (this is how a system
+administrator works): it has no `allowSystemAdmin` and `allowAclWrite` options. Client configuration (Claude Desktop,
+Claude Code, Cursor):
 
 ```json
 {
@@ -2053,7 +2066,9 @@ OAuth 2.1 authorization: the application checks the request token and finds the 
 is a user session (`connect({ token })`) or the facade `svc.as(user)`: the service key stays in the application
 process. A connection that bypasses RLS is refused with `bypass_rls`; the service root without `as()` and a connection
 without a session, with `user_session_required`; the facade of an explicit transaction `db.begin()`, with
-`invalid_query`.
+`invalid_query`. The server also refuses a session in the System tenant with `user_session_required` unless the option
+`allowSystemAdmin: true` is passed: this is how a system administrator works, and their `admin` role grants rights to
+the accounts, memberships and rules of the installation.
 
 <!-- run: mcp -->
 ```ts
@@ -2180,7 +2195,7 @@ The full machine-readable list of exports, methods and error texts is `docs/api-
 |---|---|
 | `letopis` | `connect`, `up`, `createTenant`; operators `ne`, `gt`, `gte`, `lt`, `lte`, `between`, `inList`, `like`, `ilike`, `starts`, `ends`, `has`, `hasAny`, `hasAll`, `exists`, `isNull`, `not`, `or`, `isOp`; `inc`, `isInc`, `cursorOf`; `idOf`, `uuidv5`, `v5Name`, `v5Id`; `LetopisError`, `ValidationError`, `fromDbError`; `syncModels`, `generateTypes`, `schemaToTs`; `compileValidator`, `applyDefaults`, `Registry`; `totpCode`, `hashPassword`, `verifyHash`; `describeText`; constants `DDL_REVISION`, `RESERVED_CLASS_NAMES`, `CHAIN_METHODS`, `DB_METHODS`; types `Db`, `DbTx`, `TypedDb`, `Chain`, `Row`, `Filter`, `Cursor`, `ConnectOptions`, `UpOptions`, `LoadOptions`, `LoadReport`, `WatchOptions`, `WatchEvent`, `AuthApi`, `AclApi`, `DiffResult`, `DiffChange`, `BlameResult`, `BlameField`, `Projector`, `ProjectorOptions`, `ProjectorChange`, `ProjectorOut`, `ProjectorRow`, `ProjectorReport`, `ProjectorStatus`, `ProjectorFailure` ([Projector](#projector)), `AggregateInfo` and others |
 | `letopis/model` | `hub`, `link`, `one`, `many`, `End`, types `Infer`, `InferLinks`, `Model`, `ClassDef`, `ClassMeta`, `HistoryPolicy`, `AggregateDef`; `normalizeSchema`, `translatePattern`, type `JsonSchema` |
-| `letopis/mcp` | `createMcpServer(db, options)`: an MCP SDK server with the letopis tools; the type `McpOptions`: `write` adds the `letopis_write` tool (absent by default), `maxRows` is the rows in an answer (100, from 1 to 10,000), `maxBytes` is the bytes in an answer (50,000, from 1,000 to 50,000,000); a value out of range gives `invalid_data`. Needs the `@modelcontextprotocol/server` package ([section 13](#agents-and-mcp)) |
+| `letopis/mcp` | `createMcpServer(db, options)`: an MCP SDK server with the letopis tools; the type `McpOptions`: `write` adds the `letopis_write` tool (absent by default), `maxRows` is the rows in an answer (100, from 1 to 10,000), `maxBytes` is the bytes in an answer (50,000, from 1,000 to 50,000,000); `allowAclWrite` lets `letopis_write` write the permission classes too (by default `acl_denied`); `allowSystemAdmin` accepts a session in the System tenant (by default `user_session_required`); a value out of range gives `invalid_data`. Needs the `@modelcontextprotocol/server` package ([section 13](#agents-and-mcp)) |
 | CLI `letopis` | `sync`, `types`, `load`, `verify`, `maintain`, `describe`, `import`, `mcp` ([section 13](#13-operations)); `mcp` takes `--dsn`, `--schema`, `--token` (or `LETOPIS_DSN`, `LETOPIS_SCHEMA`, `LETOPIS_TOKEN`) and `--write` |
 
 Removed 0.21 names (`uuidv7`, `LETOPIS_NS` and the methods listed below) throw `removed` with the replacement.
@@ -2250,7 +2265,7 @@ give `invalid_data`.
 
 | Member | What it does |
 |---|---|
-| options `ProjectorOptions` | `from`, `into`: classes with descendants; `version`: an integer from 1; `handle(changes, out)`; `withBefore`; `onExpired: 'rebuild' \| 'error'`; `batch`: changes in a batch (500, from 1 to 10,000); `pollMs`: fallback polling (1000 ms); `tenants`: ids of the participant tenants |
+| options `ProjectorOptions` | `from`, `into`: classes with descendants; `version`: an integer from 1; `handle(changes, out)`; `withBefore`; `onExpired: 'rebuild' \| 'error'` (`'rebuild'` rebuilds in batches); `batch`: changes in a batch (500, from 1 to 10,000); `pollMs`: fallback polling (1000 ms); `tenants`: ids of the participant tenants |
 | `run({ once })` | catch up with the journal (`once`) or follow it until `stop()` → `ProjectorReport` |
 | `rebuild({ chunked, tenant })` | rebuild from the current state: atomically, in batches or for one tenant → `ProjectorReport` |
 | `status()` | → `ProjectorStatus`: `{ name, state, version, cursor, at, lag, failed }`; `failed` is `{ [tenant id]: ProjectorFailure }`, where `ProjectorFailure` is `{ cursor, code, message }` |
@@ -2339,7 +2354,7 @@ Library codes:
 | `not_empty` | the initial load (`initial`) goes only into an empty schema |
 | `class_not_loadable` | the loader does not accept `Class` rows |
 | `bypass_rls` | `connect()` with a role that bypasses RLS, without `allowBypassRls`; `createMcpServer` with a connection that bypasses RLS |
-| `user_session_required` | `createMcpServer` and `letopis mcp`: a user session is needed — the connection has no session, it is the service root without `as()`, or the command line got the service key or no token |
+| `user_session_required` | `createMcpServer` and `letopis mcp`: a user session is needed — the connection has no session, it is the service root without `as()`, a session in the System tenant without `allowSystemAdmin`, or the command line got the service key or no token |
 | `confirmation_required` | `letopis_write` (MCP): a deletion without a human confirmation — the client has no elicitation, the human declined, the answer belongs to another operation, or the data changed after the preview |
 | `removed` | a removed 0.21 API; the text gives the replacement |
 
@@ -2384,17 +2399,17 @@ the load costs 36 s, building them at the end about 5 s. Preparing rows in the l
 alongside the `COPY` of the previous batch and now sets the pace: about 60 s of the 77.
 
 Derived data in 1.2 (`cd lib && npx tsx bench/derived.bench.mjs`, 2026-10-27, PostgreSQL 18.6, one machine; for
-aggregates, the median of three rounds):
+aggregates, the median of three rounds; the projector rows are a repeat of series 2 and 3 after the folding of `inc` in
+`out`, `BENCH_SERIES=2,3`):
 
 | Measurement | 1.2 | For comparison |
 |---|---|---|
 | an operation with an aggregate, one writer | 94 operations/s, p50 10.7 ms | without an aggregate 137 and 6.9 ms; the `inc` recipe 69 |
 | operations on one wallet with an aggregate, 20 writers | 152 operations/s, p95 0.47 s | without an aggregate 1,987; the `inc` recipe 190 |
 | operations on 20 wallets with an aggregate, 20 writers | 1,379 operations/s | without an aggregate 2,023 |
-| projector catch-up, `out.inc` for every change | 992 and 1,203 changes/s (`batch` 500 and 2000) | — |
-| projector catch-up with the batch folded in `handle` | 5,592 and 33,195 changes/s (`batch` 500 and 2000) | — |
-| rebuild of 75 thousand rows, `out.inc` for every change | atomic 101 s, in batches 58–63 s | with the batch folded, 12.7–13.3 s both |
-| delay of a subscription event during a rebuild | atomic up to 101 s, in batches up to 0.6 s | without a rebuild up to 0.12 s |
+| projector catch-up, `out.inc` for every change | 6,076 and 33,395 changes/s (`batch` 500 and 2000) | before the folding of `inc` in `out`: 992 and 1,203 |
+| rebuild of 75 thousand rows | atomic 13.3–13.5 s, in batches 13.0–13.2 s | before the folding of `inc` in `out`: 101 s and 58–63 s |
+| delay of a subscription event during a rebuild | atomic up to 13.4 s, in batches up to 0.21 s | without a rebuild up to 0.12 s |
 
 The aggregate triggers fire on every write statement, but for classes without aggregates the measurement does not see
 their cost: the p50 difference is from −0.28 to +0.21 ms. The benchmark against 1.0.1 (`bench/vs-101.bench.mjs`, four
@@ -2546,11 +2561,10 @@ behavior.
   `derived_class`, and ends may not refer to such rows.
 - An atomic rebuild is one long write transaction: while it runs, the subscription horizon stands still, and events
   are delayed for the subscribers and projectors of all processes. On the benchmark machine, a rebuild of 75 thousand
-  rows with `out.inc` for every change took 101 s, and the subscriber got no event until it ended. Repeated edits of
-  one row in one transaction get more expensive with each of its versions, so such a rebuild is also 1.6–1.7 times
-  slower than a batch rebuild; folding the batch in `handle` removes this difference.
+  rows took 13 s, and the subscriber got no event until it ended. That is why `run()` itself rebuilds in batches, and
+  only an explicit `rebuild()` runs an atomic rebuild.
 - A batch rebuild holds the horizon only for the time of a batch (in the same measurements, events were delayed by up
-  to 0.6 s), but the derived data is incomplete until it ends: the rows are deleted at once and reappear as the
+  to 0.2 s), but the derived data is incomplete until it ends: the rows are deleted at once and reappear as the
   rebuild goes on.
 - A projector sees only the changes from the journal, so a class with `history: false` cannot be a source: a tenant
   with such a source drops out of the projector (`invalid_class`) until the journal of the class is turned on and the
@@ -2579,6 +2593,8 @@ behavior.
   `structuredContent` of an answer carries no wrapper: a client that gives the model that instead of the text passes
   the data without the note.
 - By default the server only reads; writing is `write: true` (`--write`); deletion is only with a human confirmation.
+  The server writes the permission classes only with `allowAclWrite` and accepts a session in the System tenant only
+  with `allowSystemAdmin`; `create`, `update` and `upsert` of the other classes need no human confirmation.
 - The HTTP handler serves revision 2025 statelessly: the per-request instance does not know the client's
   capabilities, so deletion through it is refused (`confirmation_required`). Delete over stdio or in revision
   2026-07-28.
@@ -2616,7 +2632,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # chain-write — writing with chains: create, update, upsert, delete with preview, anonymize, reclass, slots, inc, { rev }, fan-out, plan rollback (stage 4)
 # demo — the booking demo domain on Zod: seed from models, writing data, id by key, agreement between Zod and the database (stage 2)
 # docs — documentation examples are executed: the marked blocks of the README and the cheatsheet (Russian and English) run as scenarios against PostgreSQL 18 (stage 8)
-# engine-attacks — raw SQL attacks from the application role: the rows of §7.3.1 for stages 1 and 3 with specific outcomes; the signal key without permission, flooding with fake signals, Class included; writing to a derived class and a reference to it, a projector checkpoint through the credential functions; an agent through MCP without --write and without a human confirmation; a change of parent, alias and derivedBy of a class with the WRITE permission on Class alone (stages 1, 3; plan 1.1, stages 2, 4a, 5, checkpoint A and security review No. 2)
+# engine-attacks — raw SQL attacks from the application role: the rows of §7.3.1 for stages 1 and 3 with specific outcomes; the signal key without permission, flooding with fake signals, Class included; writing to a derived class and a reference to it, a projector checkpoint through the credential functions; an agent through MCP without --write and without a human confirmation; a change of parent, alias and derivedBy of a class with the WRITE permission on Class alone; an agent through MCP grants a membership or a rule, a system administrator session (stages 1, 3; plan 1.1, stages 2, 4a, 5, checkpoint A, security review No. 2 and checkpoint B)
 # engine-class — classes as entities: metaschema, inheritance, recomputing descendants, tightening, metadata (stage 1)
 # engine-write — the write pipeline in raw SQL: v5 ids, defaults, merge, inc, deletion, resurrection, journal, signals (stage 1)
 # engine-races — races on two connections in both orders, without timed pauses (stage 1)
@@ -2654,8 +2670,8 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # history — diff and blame over the log, the reason of a change for verbs, db.begin() and batches; a version hidden by an ACL condition, the changed column, a missing version, row_changes over 20 thousand targets (plan 1.1, stage 1 and checkpoint A)
 # signals — signal modes: the payload seen by a foreign role, cache precision per tenant, System, permission classes, a process without the key, the loader, subscriptions, the key, none, coalescing, the server version, a class change, a resend, the mode after up() and reset({ all }) (plan 1.1, stage 2)
 # initial-load — the initial load: equality with the regular loader, structure and trigger modes, system rows, a non-empty schema, an insert during the start, rollback, MULTI_INSERT in WAL, commitEvery, import --initial, aggregates (agg_fill) (plan 1.1, stages 3 and 4b)
-# projector — projectors from the journal: catching up, exactly once on a break, one writer, a long transaction, a transaction on the boundary of the rebuild snapshot, no writes to derived classes and no references to them, the bounds of out, atomic and batch rebuilds during source writes, purge of a source, lag and cursor_expired, the credential functions; the version, the name, an admin connection; a race of two processes; a data error of one tenant drops out only this tenant (failed, rebuild({ tenant }), the tenants option), the checkpoint is only a System row, a rebuild touches only the rows of participants and into families, before after rekey, the all tier and the journal of sources per tenant (plan 1.1, stage 4a; security review No. 2)
-# mcp — MCP tools: the model and meta only in results, tenant rights, the JSON chain and hints of similar names, row and byte limits with a cursor, the untrusted-data wrapper, writing only with write, update only with rev, deletion with a human confirmation (elicitation in revisions 2025 and 2026-07-28), the reason in blame, credentials, tool schemas, letopis without the SDK; letopis mcp over stdio, the HTTP handler; the confirmation window without the alias and meta, countBy and versions limited in the query itself, limits of steps and $or conditions (plan 1.1, stage 5; security review No. 2)
+# projector — projectors from the journal: catching up, exactly once on a break, one writer, a long transaction, a transaction on the boundary of the rebuild snapshot, no writes to derived classes and no references to them, the bounds of out, atomic and batch rebuilds during source writes, purge of a source, lag and cursor_expired, the credential functions; the version, the name, an admin connection; a race of two processes; a data error of one tenant drops out only this tenant (failed, rebuild({ tenant }), the tenants option), the checkpoint is only a System row, a rebuild touches only the rows of participants and into families, before after rekey, the all tier and the journal of sources per tenant; folding of out.inc by key in a batch, batch rebuilds on the automatic paths of run() and a second process during them (plan 1.1, stage 4a; security review No. 2; checkpoint B)
+# mcp — MCP tools: the model and meta only in results, tenant rights, the JSON chain and hints of similar names, row and byte limits with a cursor, the untrusted-data wrapper, writing only with write, update only with rev, deletion with a human confirmation (elicitation in revisions 2025 and 2026-07-28), the reason in blame, credentials, tool schemas, letopis without the SDK; letopis mcp over stdio, the HTTP handler; the confirmation window without the alias and meta, countBy and versions limited in the query itself, limits of steps and $or conditions; the permission classes only with allowAclWrite, a session in the System tenant only with allowSystemAdmin (plan 1.1, stage 5; security review No. 2; checkpoint B)
 # import — import from 0.21 with a fixture of a real 0.21: key violation, --keyless, per-class counters, verify, self-reference, repeat, ids without a key, a dangling reference, $$strict and fields starting with $, update, credentials, CLI (stage 7)
 # security-final — the final security review (stage 8, §7.10 No. 8.4): a family lock by the tenant of the root, account_purge without permission and restore/purge of a foreign id give neither a leak nor a lock; the functions of stage 6, log_refs_at, journal-based find_* reads and watch_read stay within their own tenant; NOTIFY carries only names or mode tokens; the cache key distinguishes the token, the actor and the tenant (stage 8)
 ```

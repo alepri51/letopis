@@ -17,7 +17,7 @@ import { InMemoryTransport, createMcpHandler } from '@modelcontextprotocol/serve
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { engine, lt, type Engine, type Tenant } from './_engine.js';
 import { ADMIN_DSN, appDsn } from './_harness.js';
-import { service } from './_access.js';
+import { service, sysadmin } from './_access.js';
 import { connect, type Db } from '../src/index.js';
 import { createMcpServer, type McpOptions } from '../src/mcp.js';
 
@@ -580,4 +580,56 @@ test('ревью безопасности №2, О8: countBy и versions огр�
     await qdb.close();
     await db.Task(task.id).delete({ confirm: true }).rows();
   }
+});
+
+test('решение точки Б (ревью безопасности №2, О5): классы прав — только с allowAclWrite, сессия в арендаторе System — только с allowSystemAdmin', async () => {
+  await assert.rejects(createMcpServer(db, { allowAclWrite: 'да' as never }), lt('invalid_data'));
+  await assert.rejects(createMcpServer(db, { allowSystemAdmin: 1 as never }), lt('invalid_data'));
+  const [rule] = await e.sql.unsafe(`select id::text as id from ${e.S}.entity where class = 'rule' and tenant = $1 limit 1`, [t.id]);
+  const cn = await open(db, { write: true });
+  try {
+    const desc = (await cn.client.listTools()).tools.find((x) => x.name === 'letopis_write')!.description ?? '';
+    assert.match(desc, /Классы прав \(rule, Resource, member, Account, Class и их потомки\) этот сервер не пишет/);
+    for (const cls of ['rule', 'Resource', 'member', 'Account', 'Class']) {
+      const r = refused(await call(cn, 'letopis_write', { op: 'create', class: cls, data: {} }), 'acl_denied');
+      assert.match(r.message, new RegExp(`letopis_write: ${cls} — класс прав`));
+    }
+    // правку и удаление правила — тоже: снятое правило меняет права так же, как новое
+    refused(await call(cn, 'letopis_write', { op: 'update', class: 'rule', id: rule.id, rev: 1, data: {} }), 'acl_denied');
+    refused(await call(cn, 'letopis_write', { op: 'delete', class: 'rule', id: rule.id }), 'acl_denied');
+  } finally {
+    await cn.close();
+  }
+  // с allowAclWrite проверка снята, дальше — права базы: превью удаления правила
+  const acl = await open(db, { write: true, allowAclWrite: true });
+  try {
+    const desc = (await acl.client.listTools()).tools.find((x) => x.name === 'letopis_write')!.description ?? '';
+    assert.doesNotMatch(desc, /Классы прав/);
+    const r = await call(acl, 'letopis_write', { op: 'delete', class: 'rule', id: rule.id });
+    assert.notEqual(r.isError, true, JSON.stringify(r).slice(0, 300));
+    assert.ok(r.structuredContent!.preview.some((x: { id: string }) => x.id === rule.id));
+  } finally {
+    await acl.close();
+  }
+  // системный администратор — член System с ролью admin; его роль действует, когда рабочий арендатор сессии — System
+  const admin = await sysadmin(e);
+  const sdb = await connect({ dsn: appDsn(), schema: e.schema, token: admin.token, max: 2 });
+  try {
+    await assert.rejects(createMcpServer(sdb), lt('user_session_required'));
+    await assert.rejects(createMcpServer(sdb, { write: true, allowAclWrite: true }), lt('user_session_required'));
+    const cs = await open(sdb, { allowSystemAdmin: true });
+    try {
+      assert.notEqual((await call(cs, 'letopis_model', {})).isError, true);
+    } finally {
+      await cs.close();
+    }
+  } finally {
+    await sdb.close();
+  }
+  // у letopis mcp такой опции нет: токен системного администратора — отказ
+  const r = spawnSync(process.execPath, ['--import', 'tsx', join(LIB, 'src', 'cli.ts'), 'mcp', '--dsn', appDsn(), '--schema', e.schema, '--token', admin.token],
+    { cwd: LIB, encoding: 'utf8', input: '', timeout: 60_000 });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /user_session_required: createMcpServer: сессия в арендаторе System/);
+  assert.equal(r.stdout, '', 'в stdout — только протокол');
 });

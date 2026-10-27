@@ -697,3 +697,102 @@ test('ревью безопасности №2: источник без журн
     fixed.close();
   }
 });
+
+// решения точки Б: свёртка out.inc и перестройка пачками в автоматических путях run() (проекторы folder*)
+async function foldTenant(x: Tenant, projector: string): Promise<void> {
+  await e.defineClass(x, { name: 'Fold', kind: 'hub',
+    fields: { properties: { k: { type: 'string' }, v: { type: 'integer' }, op: { type: 'string' }, label: { type: 'string' } }, required: ['k', 'v'] } });
+  await e.defineClass(x, { name: 'FoldSum', kind: 'hub', key: ['k'], derivedBy: projector, history: false,
+    fields: { properties: { k: { type: 'string' }, total: { type: 'integer', minimum: 0 }, label: { type: 'string' } }, required: ['k'] } });
+}
+const fold = (x: Tenant, d: { k: string; v: number; op?: string; label?: string }) =>
+  e.as(x.token, (tx) => tx.unsafe(`insert into ${e.S}.entity (class, data) values ('Fold', $1::jsonb)`, [d as never]));
+const foldSum = async (x: Tenant, k: string) =>
+  ((await e.sql.unsafe(`select data from ${e.S}.entity where class = 'FoldSum' and tenant = $1 and data->>'k' = $2`, [x.id, k]))[0]?.data ?? null) as
+    { total: number; label?: string } | null;
+
+test('решение точки Б: out.inc складывает приращения строки в пачке — одна правка на ключ; upsert, delete и get свёртку сбрасывают', async () => {
+  const f = await e.tenant('proj-f');
+  await foldTenant(f, 'folder');
+  const seen: unknown[] = [];
+  const p = adm.projector('folder', { from: ['Fold'], into: ['FoldSum'], version: 1, tenants: [f.id], handle: async (changes, out) => {
+    for (const c of changes) {
+      if (c.op !== 'create') continue;
+      const d = c.row.data as { k: string; v: number; op?: string; label?: string };
+      const o = { tenant: c.tenant };
+      if (d.op === 'delete') out.delete('FoldSum', { k: d.k }, o);
+      else if (d.op === 'get') seen.push((await out.get('FoldSum', { k: d.k }, o))?.data.total ?? null);
+      else if (d.op === 'label') out.inc('FoldSum', { k: d.k, label: d.label }, { total: d.v }, o);
+      else out.inc('FoldSum', { k: d.k }, { total: d.v }, o);
+    }
+  } });
+  try {
+    await p.run({ once: true });
+    // три приращения одной строки в одной пачке — одна правка: строка создана один раз
+    for (const v of [1, 2, 3]) await fold(f, { k: 'a', v });
+    const r = await p.run({ once: true });
+    assert.deepEqual([r.changes, r.created, r.updated], [3, 1, 0]);
+    assert.equal((await foldSum(f, 'a'))!.total, 6);
+    // правило класса (minimum: 0) проверяется над итогом приращений пачки: −5 и +5 по новой строке — 0, а не отказ на −5
+    await fold(f, { k: 'b', v: -5 });
+    await fold(f, { k: 'b', v: 5 });
+    await p.run({ once: true });
+    assert.deepEqual((await p.status()).failed, {});
+    assert.equal((await foldSum(f, 'b'))!.total, 0);
+    // delete между приращениями: приращение до удаления через него не переносится
+    await fold(f, { k: 'c', v: 1 });
+    await fold(f, { k: 'c', v: 0, op: 'delete' });
+    await fold(f, { k: 'c', v: 2 });
+    // get отправляет накопленное и видит его; приращение после get — новая правка
+    await fold(f, { k: 'd', v: 1 });
+    await fold(f, { k: 'd', v: 2 });
+    await fold(f, { k: 'd', v: 0, op: 'get' });
+    await fold(f, { k: 'd', v: 4 });
+    // строка с полем вне ключа не складывается: её поля правят строку, и порядок правок сохраняется
+    for (const label of ['x', 'y', 'x']) await fold(f, { k: 'e', v: 1, op: 'label', label });
+    await p.run({ once: true });
+    assert.equal((await foldSum(f, 'c'))?.total, 2);
+    assert.deepEqual(seen, [3]);
+    assert.equal((await foldSum(f, 'd'))!.total, 7);
+    const ev = await foldSum(f, 'e');
+    assert.deepEqual([ev!.total, ev!.label], [3, 'x']);
+  } finally {
+    p.close();
+  }
+});
+
+test('решение точки Б: первый run() новой проекции перестраивает пачками; второй процесс того же проектора ждёт, а не падает', async () => {
+  const g = await e.tenant('proj-g');
+  await foldTenant(g, 'folder-g');
+  for (let i = 0; i < 30; i++) await fold(g, { k: `k${i % 3}`, v: 1 });
+  let state: string | null = null;
+  const def = (): ProjectorOptions => ({ from: ['Fold'], into: ['FoldSum'], version: 1, tenants: [g.id], batch: 1, pollMs: 20, handle: async (changes, out) => {
+    // состояние снаружи, пока идёт перестройка: атомарная показала бы new (её транзакция не зафиксирована)
+    if (state === null && changes[0]?.rebuild) state = (await probe.status()).state;
+    for (const c of changes) {
+      const d = c.row.data as { k: string; v: number };
+      out.inc('FoldSum', { k: d.k }, { total: d.v }, { tenant: c.tenant });
+    }
+  } });
+  const probe = adm.projector('folder-g', def());
+  const p1 = adm.projector('folder-g', def());
+  const p2 = adm2.projector('folder-g', def());
+  try {
+    const runs = [p1.run(), p2.run()];
+    for (let i = 0; i < 400; i++) {
+      const st = await probe.status();
+      if (st.state === 'running' && st.lag === 0) break;
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    p1.stop();
+    p2.stop();
+    const reps = await Promise.all(runs);
+    assert.equal(state, 'rebuilding', 'перестройка пачками: состояние rebuilding видно снаружи');
+    assert.equal(reps[0].rebuilds + reps[1].rebuilds, 1, 'перестройка одна, второй процесс её продолжал, а не начинал заново');
+    for (const k of ['k0', 'k1', 'k2']) assert.equal((await foldSum(g, k))?.total, 10, k);
+  } finally {
+    p1.close();
+    p2.close();
+    probe.close();
+  }
+});

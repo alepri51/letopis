@@ -324,9 +324,9 @@ p.run().catch(report)         // run() без once — с catch: после ош
 ```
 Только администраторское подключение (иначе `admin_required`). Пачка — одна транзакция, каждое изменение
 применяется ровно один раз, писатель один (`rebuild()`, пока другой процесс пишет пачку, — `projector_busy`).
-Первый запуск перестраивает проекцию с текущего состояния. `purge`, `trim` и `reset` приходят изменениями с `rev` 1 — сначала
+Первый запуск перестраивает проекцию с текущего состояния, пачками. `purge`, `trim` и `reset` приходят изменениями с `rev` 1 — сначала
 разберите `op`. Другая `version` — `rebuild_required`; курсор старше яруса `all` — `cursor_expired`
-(`onExpired: 'rebuild'` перестраивает сам); ярус — по арендатору: истёк у части участников — выбывают только они.
+(`onExpired: 'rebuild'` перестраивает сам, пачками); ярус — по арендатору: истёк у части участников — выбывают только они.
 Арендатор с источником `history: false` выбывает (`invalid_class`). `c.before` (с `withBefore`) —
 прошлая версия того же id или `null`: `null` при создании, у первой версии нового id после `reclass` и `rekey`
 (прежние данные вычитает надгробие прежнего id), при перестройке и когда прошлая версия — удаление (после `restore`);
@@ -339,8 +339,8 @@ p.run().catch(report)         // run() без once — с catch: после ош
 Дневной итог — свёртка: прошлую версию (`c.before`) вычесть, новую (`c.row`, если не `$deleted`) прибавить через
 `out.inc('DayTotal', { day }, { total: ±amount }, { tenant: c.tenant })`; у `DayTotal` ключ `['day']`,
 `derivedBy: 'daily'` и `history: false`. День берите из данных строки, а не из `at`: время версии меняет каждая правка.
-Каждый вызов `out` — отдельная правка строки: при большом потоке сложите приращения пачки по дню и вызовите `out.inc`
-один раз на день — догонка быстрее в 5–28 раз. Полный рецепт —
+Приращения одной строки по ключу `out` складывает сам в одну правку за пачку (пока между ними нет `upsert`, `delete`
+или `get`), а правило класса проверяет над их итогом. Полный рецепт —
 [README, «Рецепт: дневная выручка»](README.md#рецепт-дневная-выручка).
 
 ### 13. Агрегаты в базе
@@ -367,7 +367,8 @@ const server = await createMcpServer(await svc.as(userId))   // letopis_model, l
 // stdio: letopis mcp --dsn … --schema v2.x --token <токен пользователя> [--write]; HTTP — createMcpHandler(() => createMcpServer(…)) из SDK
 ```
 Только сессия пользователя или `svc.as(пользователь)`: подключение в обход RLS — `bypass_rls`, корень сервиса без `as()`
-— `user_session_required`, `--api-key` командная строка не принимает, а `--dsn`, `--schema` и `--token` берёт и из
+и сессия в арендаторе System (без `allowSystemAdmin`) — `user_session_required`; классы прав `letopis_write` не пишет без
+`allowAclWrite` (`acl_denied`); `--api-key` командная строка не принимает, а `--dsn`, `--schema` и `--token` берёт и из
 `LETOPIS_DSN`, `LETOPIS_SCHEMA`, `LETOPIS_TOKEN`. Чтение — JSON-цепочкой (`class`, `filter` с `$gt`, `$in`, `$or` и
 т. п., `steps`, `sort: { field, dir: 'asc' | 'desc' }`, `cursor`), без SQL; ответ — до `maxRows` строк (100) и
 `maxBytes` байт (50 000) из опций `createMcpServer`, дальше `cursor`. `structuredContent` по терминалам: `rows` —

@@ -333,9 +333,9 @@ p.run().catch(report)         // run() without once needs a catch: after a proje
 ```
 Only an admin connection (otherwise `admin_required`). A batch is one transaction, every change is applied exactly
 once, there is one writer (`rebuild()` while another process writes a batch gives `projector_busy`). The first
-start rebuilds the projection from the current state. `purge`, `trim` and `reset` come as changes with `rev` 1, so check `op` first.
+start rebuilds the projection from the current state, in batches. `purge`, `trim` and `reset` come as changes with `rev` 1, so check `op` first.
 Another `version` gives `rebuild_required`; a cursor older than the `all` tier gives `cursor_expired`
-(`onExpired: 'rebuild'` rebuilds by itself); the tier is per tenant: if it has expired for some participants, only
+(`onExpired: 'rebuild'` rebuilds by itself, in batches); the tier is per tenant: if it has expired for some participants, only
 they drop out. A tenant with a source with `history: false` drops out (`invalid_class`). `c.before` (with
 `withBefore`) is the previous version of the same id or `null`: `null` for a creation, for the first version of a new
 id after `reclass` and `rekey` (the tombstone of the former id subtracts the former data), during a rebuild and when
@@ -350,8 +350,8 @@ interrupted.
 A daily total is a fold: subtract the previous version (`c.before`), add the new one (`c.row` unless it is `$deleted`)
 with `out.inc('DayTotal', { day }, { total: ±amount }, { tenant: c.tenant })`; `DayTotal` has the key `['day']`,
 `derivedBy: 'daily'` and `history: false`. Take the day from the data of the row, not from `at`: every edit changes the
-version time. Every `out` call is a separate edit of a row: with a heavy stream, add up the increments of the batch by
-day and call `out.inc` once per day, which makes catching up 5–28 times faster. The full recipe is in
+version time. `out` itself folds the increments of one row by key into one edit per batch (as long as there is no
+`upsert`, `delete` or `get` between them) and checks the class rule on their total. The full recipe is in
 [the README, "Recipe: daily revenue"](README.en.md#recipe-daily-revenue).
 
 ### 13. Aggregates in the database
@@ -378,7 +378,9 @@ const server = await createMcpServer(await svc.as(userId))   // letopis_model, l
 // stdio: letopis mcp --dsn … --schema v2.x --token <user token> [--write]; HTTP: createMcpHandler(() => createMcpServer(…)) from the SDK
 ```
 Only a user session or `svc.as(user)`: a connection that bypasses RLS gets `bypass_rls`, the service root without
-`as()` gets `user_session_required`, and the command line does not accept `--api-key` but also takes `--dsn`,
+`as()` and a session in the System tenant (without `allowSystemAdmin`) get `user_session_required`; `letopis_write`
+does not write the permission classes without `allowAclWrite` (`acl_denied`); the command line does not accept
+`--api-key` but also takes `--dsn`,
 `--schema` and `--token` from `LETOPIS_DSN`, `LETOPIS_SCHEMA`, `LETOPIS_TOKEN`. Reading is a JSON chain
 (`class`, `filter` with `$gt`, `$in`, `$or` and so on, `steps`, `sort: { field, dir: 'asc' | 'desc' }`, `cursor`),
 with no SQL; an answer holds up to `maxRows` rows (100) and `maxBytes` bytes (50,000) from the `createMcpServer`

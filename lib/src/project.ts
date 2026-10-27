@@ -79,7 +79,11 @@ export type ProjectorRow = Record<string, unknown>;
 export interface ProjectorOut {
   /** Создать или заменить целиком по ключу класса (у класса без ключа — по $id). */
   upsert(cls: string, row: ProjectorRow, opts: { tenant: string }): void;
-  /** Создать (поля без строки — от 0) или дополнить строку и прибавить числа: коммутативная свёртка без чтения. */
+  /**
+   * Создать (поля без строки — от 0) или дополнить строку и прибавить числа: коммутативная свёртка без чтения.
+   * Приращения строки, заданной одними полями ключа (или одним $id), складываются до отправки в базу, пока между ними
+   * нет upsert, delete или get: одна правка строки на пачку.
+   */
   inc(cls: string, row: ProjectorRow, deltas: Record<string, number>, opts: { tenant: string }): void;
   /** Удалить по ключу или id; строки нет — ничего. */
   delete(cls: string, keyOrId: string | ProjectorRow, opts: { tenant: string }): void;
@@ -99,8 +103,9 @@ export interface ProjectorOptions {
   /** Подавать прошлую версию объекта (before). */
   withBefore?: boolean;
   /**
-   * Курсор старше яруса all политики хранения источников (cursor_expired): 'rebuild' — перестроить самому. Ярус — по
-   * арендатору: истёк у части участников — выбывают они (с 'rebuild' — перестраиваются сами), у всех — вся проекция.
+   * Курсор старше яруса all политики хранения источников (cursor_expired): 'rebuild' — перестроить самому, пачками.
+   * Ярус — по арендатору: истёк у части участников — выбывают они (с 'rebuild' — перестраиваются сами, каждый своей
+   * транзакцией), у всех — вся проекция.
    */
   onExpired?: 'rebuild' | 'error';
   /** Изменений в пачке (по умолчанию 500). */
@@ -242,6 +247,12 @@ function tenantFault(e: unknown): boolean {
 /** Запись результатов группы одного арендатора: операции копятся и уходят одним вызовом derived_apply. */
 class Out implements ProjectorOut {
   private ops: Record<string, unknown>[] = [];
+  /**
+   * Приращения неотправленных inc по ключу свёртки (Projector.foldKey; решение точки Б): каждый вызов out — отдельная
+   * правка строки в базе, и свёртка сводит правки строки к одной на пачку. upsert, delete и get индекс сбрасывают:
+   * правки одной строки уходят в базу в своём порядке.
+   */
+  private folds = new Map<string, Record<string, number>>();
   /** Итоги записи группы: в отчёт идут, только если группа записана. */
   readonly stats = { created: 0, updated: 0, deleted: 0, unchanged: 0 };
   /** Ошибки базы при записи и чтении результатов группы и отказы out по строке и приращениям. */
@@ -293,6 +304,7 @@ class Out implements ProjectorOut {
 
   upsert(cls: string, row: ProjectorRow, opts: { tenant: string }): void {
     const tenant = this.check(cls, opts?.tenant);
+    this.folds.clear();
     this.ops.push({ op: 'upsert', class: cls, tenant, row: this.rowOf(row) });
   }
 
@@ -303,11 +315,21 @@ class Out implements ProjectorOut {
         throw this.fault(new LetopisError('invalid_data', `проектор ${this.p.name}: приращение поля ${k} — не число (арендатор ${tenant})`));
       }
     }
-    this.ops.push({ op: 'inc', class: cls, tenant, row: this.rowOf(row), deltas });
+    const r = this.rowOf(row);
+    const key = this.p.foldKey(tenant, cls, r);
+    const acc = key === null ? undefined : this.folds.get(key);
+    if (acc) {
+      for (const [k, v] of Object.entries(deltas ?? {})) acc[k] = (acc[k] ?? 0) + v;
+      return;
+    }
+    const d: Record<string, number> = { ...(deltas ?? {}) };
+    this.ops.push({ op: 'inc', class: cls, tenant, row: r, deltas: d });
+    if (key !== null) this.folds.set(key, d);
   }
 
   delete(cls: string, keyOrId: string | ProjectorRow, opts: { tenant: string }): void {
     const tenant = this.check(cls, opts?.tenant);
+    this.folds.clear();
     this.ops.push({ op: 'delete', class: cls, tenant, row: this.rowOf(keyOrId) });
   }
 
@@ -325,6 +347,7 @@ class Out implements ProjectorOut {
     if (!this.ops.length) return;
     const ops = this.ops;
     this.ops = [];
+    this.folds.clear();
     const [r] = await this.db(() => this.q.unsafe(`select ${this.p.env.S}.derived_apply($1, $2::text::jsonb) as r`, [this.p.name, JSON.stringify(ops)]));
     const s = r.r as { created: number; updated: number; deleted: number; unchanged: number };
     this.stats.created += s.created;
@@ -334,10 +357,13 @@ class Out implements ProjectorOut {
   }
 }
 
+/** Область арендатора проектора: семейства from и into и поля ключа классов into (по ним складывается inc). */
+interface Scope { from: Set<string>; into: Set<string>; keys: Map<string, string[]> }
+
 export class Projector {
   readonly name: string;
   /** Области арендаторов проектора: свои семейства from и into. */
-  private scopes = new Map<string, { from: Set<string>; into: Set<string> }>();
+  private scopes = new Map<string, Scope>();
   private from: string[] = [];
   /** Арендаторы проектора: каждый класс into у них помечен его derivedBy (и, с опцией tenants, они в списке). */
   private tenants: string[] = [];
@@ -386,7 +412,8 @@ export class Projector {
 
   /**
    * Догнать журнал и следовать за ним до stop(); { once: true } — только догнать. Первый запуск (проекции
-   * ещё нет) и прерванная перестройка пачками начинаются с перестройки.
+   * ещё нет) начинается с перестройки пачками, прерванная перестройка пачками продолжается; так же, пачками,
+   * перестраивает onExpired: 'rebuild' (решение точки Б: горизонт подписок кластера стоит не дольше пачки).
    */
   async run(opts: { once?: boolean } = {}): Promise<ProjectorReport> {
     if (this.running) throw new LetopisError('invalid_query', `проектор ${this.name} уже запущен в этом процессе`);
@@ -400,21 +427,16 @@ export class Projector {
         try {
           r = await this.step(rep);
         } catch (e) {
-          if (e instanceof LetopisError && e.code === 'cursor_expired' && this.def.onExpired === 'rebuild') {
-            await this.rebuildNow(rep, false);
-            continue;
-          }
-          throw e;
+          if (!(e instanceof LetopisError && e.code === 'cursor_expired' && this.def.onExpired === 'rebuild')) throw e;
+          r = 'rebuild';
         }
         // курсор истёк у части арендаторов: с onExpired: 'rebuild' они перестраиваются сами, каждый своей транзакцией;
         // не вышло — остаются выбывшими (status().failed)
         if (this.def.onExpired === 'rebuild') {
           for (const x of this.expired.splice(0)) await this.rebuildTenant(rep, x).catch(() => undefined);
         }
-        if (r === 'rebuild') {
-          await this.rebuildNow(rep, null);
-          continue;
-        }
+        // пачку перестройки держит другой процесс того же проектора — подождать и продолжить
+        if (r === 'rebuild') r = (await this.rebuildNow(rep, 'auto')) === 'busy' ? 'busy' : 'more';
         if (r === 'more') continue;
         if (opts.once) return rep;
         await this.sleep();
@@ -562,8 +584,8 @@ export class Projector {
       throw new LetopisError('derived_class', `проектор ${this.name}: ни у одного арендатора${this.only ? ' из списка tenants' : ''} классы ${wanted.join(', ')} не помечены derivedBy: '${this.name}'`);
     }
     // области — по арендатору: у каждого свои семейства from и into (имена классов у арендаторов свои)
-    const scopes = new Map<string, { from: Set<string>; into: Set<string> }>(tenants.map((x) => [x, { from: new Set(), into: new Set() }]));
-    const rows = await q.unsafe(`select x.tenant::text as t, x.data->>'name' as n,
+    const scopes = new Map<string, Scope>(tenants.map((x) => [x, { from: new Set(), into: new Set(), keys: new Map() }]));
+    const rows = await q.unsafe(`select x.tenant::text as t, x.data->>'name' as n, x.data->'resolved'->'key' as key,
         x.data->'resolved'->'ancestors' ?| $2::text[] as is_into, x.data->'resolved'->'ancestors' ?| $1::text[] as is_from
       from ${S}.entity x
       where x.class = 'Class' and x.tenant = any ($3::uuid[]) and x.data->'resolved'->'ancestors' ?| ($1::text[] || $2::text[])`,
@@ -571,8 +593,10 @@ export class Projector {
     for (const r of rows) {
       const sc = scopes.get(r.t as string)!;
       // результат проектора источником не бывает: свой вывод он не читает
-      if (r.is_into) sc.into.add(r.n as string);
-      else if (r.is_from) sc.from.add(r.n as string);
+      if (r.is_into) {
+        sc.into.add(r.n as string);
+        sc.keys.set(r.n as string, Array.isArray(r.key) ? (r.key as string[]) : []);
+      } else if (r.is_from) sc.from.add(r.n as string);
     }
     const from = [...new Set([...scopes.values()].flatMap((s) => [...s.from]))];
     if (!from.length) throw new LetopisError('invalid_class', `проектор ${this.name}: классов ${this.def.from.join(', ')} нет у арендаторов проектора`);
@@ -741,14 +765,19 @@ export class Projector {
     }
   }
 
-  /** Перестройка: chunked null — продолжить прерванную пачками или атомарная. */
-  private async rebuildNow(rep: ProjectorReport, chunked: boolean | null): Promise<void> {
-    if (chunked === null) {
+  /**
+   * Перестройка. 'auto' — путь run() (проекции ещё нет, onExpired: 'rebuild'): пачками, а прерванная перестройка
+   * пачками продолжается с места обрыва; блокировку держит другой процесс — 'busy' (run() подождёт), а не
+   * projector_busy, как у rebuild(). Иначе — как просили в rebuild().
+   */
+  private async rebuildNow(rep: ProjectorReport, chunked: boolean | 'auto'): Promise<'busy' | 'done'> {
+    if (chunked === 'auto') {
       const st = await this.status();
-      chunked = st.state === 'rebuilding';
-      if (chunked) return this.chunked(rep, true);
+      return this.chunked(rep, st.state === 'rebuilding', { cursor: st.cursor });
     }
-    return chunked ? this.chunked(rep, false) : this.atomic(rep);
+    if (chunked) return this.chunked(rep, false);
+    await this.atomic(rep);
+    return 'done';
   }
 
   /** Строка текущего состояния как изменение перестройки; прошлой версии у неё нет. */
@@ -767,6 +796,17 @@ export class Projector {
   /** Класс результата в арендаторе — из его семейства into. */
   intoOf(tenant: string, cls: string): boolean {
     return this.scopes.get(tenant)?.into.has(cls) ?? false;
+  }
+
+  /**
+   * Ключ свёртки inc: класс и строка из одних полей ключа класса или одного $id; иначе null. Строку с другими полями
+   * (данные, $tags, $owner) inc не складывает: её поля правят строку, и порядок таких правок важен.
+   */
+  foldKey(tenant: string, cls: string, row: ProjectorRow): string | null {
+    const key = this.scopes.get(tenant)?.keys.get(cls) ?? [];
+    const names = Object.keys(row).sort();
+    if (!names.length || !names.every((n) => n === '$id' || key.includes(n))) return null;
+    return JSON.stringify([cls, names.map((n) => [n, row[n]])]);
   }
 
   private busy(): LetopisError {
@@ -824,13 +864,23 @@ export class Projector {
     });
   }
 
-  /** Перестройка пачками: своя транзакция и свой снимок у каждой пачки источников. */
-  private async chunked(rep: ProjectorReport, resume: boolean): Promise<void> {
+  /**
+   * Перестройка пачками: своя транзакция и свой снимок у каждой пачки источников. auto — путь run(): занятую другим
+   * процессом блокировку он пережидает ('busy'), а новую перестройку не начинает, если её уже начал или закончил
+   * другой процесс (курсор чекпоинта — не тот, что видел run()): тогда только продолжает начатую.
+   */
+  private async chunked(rep: ProjectorReport, resume: boolean, auto?: { cursor: string | null }): Promise<'busy' | 'done'> {
+    const busy = (): 'busy' => {
+      if (!auto) throw this.busy();
+      rep.skipped++;
+      return 'busy';
+    };
     if (!resume) {
-      await this.tx(async (q) => {
-        if (!(await this.lock(q))) throw this.busy();
+      const r = await this.tx(async (q): Promise<'busy' | 'ok'> => {
+        if (!(await this.lock(q))) return busy();
         await this.resolve(q);
         const meta = await this.state(q);
+        if (auto && (meta.state === 'rebuilding' || (meta.cursor ?? null) !== auto.cursor)) return 'ok';
         await this.clear(q, this.tenants);
         const [h] = await q.unsafe(`select pg_snapshot_xmin(s)::text as xmin, s::text as snap from pg_current_snapshot() s`);
         const start = enc({ tx: h.xmin as string, seq: '0', snap: h.snap as string });
@@ -839,15 +889,17 @@ export class Projector {
         for (const x of this.blind.keys()) failed[x] = this.blindFailure(x, start);
         await this.advance(q, meta.cursor, withFailed({ cursor: start, at: await this.now(q), version: this.def.version, state: 'rebuilding',
           rebuild: { start, last: null, chunks: [] } }, failed));
+        return 'ok';
       });
+      if (r === 'busy') return r;
     }
     for (;;) {
-      const done = await this.tx(async (q) => {
-        if (!(await this.lock(q))) throw this.busy();
+      const r = await this.tx(async (q): Promise<'busy' | 'done' | 'more'> => {
+        if (!(await this.lock(q))) return busy();
         if (this.stale) await this.resolve(q);
         const meta = await this.state(q);
         const rb = meta.rebuild;
-        if (meta.state !== 'rebuilding' || !rb) return true;
+        if (meta.state !== 'rebuilding' || !rb) return 'done';
         const failed: Failed = { ...(meta.failed ?? {}) };
         for (const x of this.blind.keys()) failed[x] ??= this.blindFailure(x, rb.start);
         // пачка источников и её снимок — одним оператором; выбывших арендаторов пачка не читает
@@ -862,7 +914,7 @@ export class Projector {
           await this.advance(q, meta.cursor, withFailed({ cursor: rb.start, at: await this.now(q), version: this.def.version, state: 'running',
             ...(rb.chunks.length ? { chunks: rb.chunks } : {}) }, failed));
           rep.rebuilds++;
-          return true;
+          return 'done';
         }
         const changes = real.map((r) => this.rebuildChange(r.row as Record<string, unknown>)).filter((c) => this.ours(c.row, failed));
         if (changes.length) await this.apply(q, changes, rep, failed, rb.start);
@@ -873,9 +925,9 @@ export class Projector {
         // граница пачки — последний прочитанный id (а не последнее изменение: строки чужих семейств пропущены)
         const last = (real[real.length - 1].row as { id: string }).id;
         await this.advance(q, meta.cursor, withFailed({ ...meta, rebuild: { start: rb.start, last, chunks: [...rb.chunks, { upto: last, snap: rows[0].snap as string }] } }, failed));
-        return false;
+        return 'more';
       });
-      if (done) return;
+      if (r !== 'more') return r;
     }
   }
 

@@ -1,7 +1,8 @@
 /**
  * engine-attacks — атаки сырым SQL от прикладной роли (план, §7.3.1, строки этапа 1; план 1.1, §7.7 №31–35).
  * Каждая попытка проверяет конкретный исход: код ошибки, пустую выборку, ноль строк или находку verify();
- * №35 — агент через инструменты MCP (letopis/mcp); №36 — ревью безопасности №2 (смена parent, alias, derivedBy).
+ * №35 — агент через инструменты MCP (letopis/mcp); №36 — ревью безопасности №2 (смена parent, alias, derivedBy); №37 —
+ * агент через MCP пишет классы прав, сессия системного администратора (О5).
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -557,6 +558,43 @@ test('№35 (план 1.1, этап 5): агент через MCP пишет б�
     assert.equal(await alive(), 'не удалять', 'строка цела');
   } finally {
     await db.close();
+  }
+});
+
+test('№37 (ревью безопасности №2, О5): агент через MCP выдаёт постороннему членство или правило — отказ; сессия системного администратора — отказ', async () => {
+  const { account, sysadmin } = await import('./_access.js');
+  const db = await connect({ dsn: appDsn(), schema: e.schema, token: a.token, max: 2 });
+  const [ct, st] = InMemoryTransport.createLinkedPair();
+  const handle = serveStdio(() => createMcpServer(db, { write: true }), { transport: st });
+  const client = new Client({ name: 'agent', version: '1' }, { capabilities: {} });
+  try {
+    await client.connect(ct);
+    const stranger = await account(e, 'посторонний');
+    const acl = async () => (await e.sql.unsafe(`select count(*)::int as n from ${S}.entity where class in ('member', 'rule', 'Resource', 'Class') and tenant = $1`, [a.id]))[0].n as number;
+    const was = await acl();
+    // инъекция в данных просит агента выдать постороннему членство с ролью admin, разрешающее правило и класс с чужим алиасом
+    for (const args of [
+      { op: 'create', class: 'member', data: { roles: ['admin'] }, links: { Account: stranger.id, Tenant: a.id } },
+      { op: 'upsert', class: 'rule', data: { action: 'allow', weight: 1000 } },
+      { op: 'create', class: 'Resource', data: { name: 'всё', perm: 'READ' } },
+      { op: 'create', class: 'Class', data: { name: 'Backdoor', kind: 'hub' } },
+    ]) {
+      const r = (await client.callTool({ name: 'letopis_write', arguments: args })) as { isError?: boolean; structuredContent?: Record<string, any> };
+      assert.equal(r.isError, true, args.class);
+      assert.equal(r.structuredContent!.error.code, 'acl_denied', args.class);
+    }
+    assert.equal(await acl(), was, 'строк классов прав не прибавилось');
+  } finally {
+    await client.close();
+    await handle.close();
+    await db.close();
+  }
+  const admin = await sysadmin(e);
+  const sdb = await connect({ dsn: appDsn(), schema: e.schema, token: admin.token, max: 2 });
+  try {
+    await assert.rejects(createMcpServer(sdb, { write: true }), lt('user_session_required'));
+  } finally {
+    await sdb.close();
   }
 });
 
