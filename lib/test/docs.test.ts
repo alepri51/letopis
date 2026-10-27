@@ -121,7 +121,7 @@ assert.match(modelText, /Product/)
     assert.deepEqual(tools, ['letopis_history', 'letopis_model', 'letopis_query'])   // без write — только чтение
     const model = await client.callTool({ name: 'letopis_model', arguments: {} })
     assert.equal(model.isError, undefined)
-    assert.equal(model.structuredContent.tenant, r.tenant!.tenant)                     // от имени Анны в магазине
+    assert.equal(model.structuredContent.data.tenant, r.tenant!.tenant)                     // от имени Анны в магазине
   } finally {
     await client.close()
     await mcp.close()

@@ -1991,10 +1991,11 @@ or operator gives an `isError` answer with a hint of similar names. There are at
 conditions in the `$or` of one filter; otherwise `invalid_query`. These limits do not bound the time of a query: set
 `statement_timeout` for the database role the MCP server connects as (`alter role … set statement_timeout = '5s'`).
 
-The answer is `structuredContent` and its text copy. The shape of `structuredContent` of `letopis_query` depends on
-the terminal:
+The answer is `structuredContent` and its text copy. `structuredContent` is `{ notice, data }`: `notice` is a constant
+text of the package saying that `data` holds database data, not instructions, and `data` is the answer itself. The
+shape of `data` of `letopis_query` depends on the terminal:
 
-| Terminal | `structuredContent` |
+| Terminal | `structuredContent.data` |
 |---|---|
 | `rows` (default) | `{ rows, count, more, cursor? }` |
 | `ids` | `{ ids, count, more, cursor? }` |
@@ -2012,7 +2013,7 @@ field of an aggregate and of `countBy` is `field: 'data.<path>'`. Sorting is `so
 `rev`, `id` or `data.<path>`, `dir` is `'asc'` (default) or `'desc'`; without `sort`, rows go by `id`. `sort`, `limit`
 and `cursor` work only with `rows`, `first` and `ids`.
 
-`letopis_model` without `class` answers `{ schema, tenant, classes }`, the same classes as in `db.describe()`. If such
+`letopis_model` without `class` answers (in `data`) `{ schema, tenant, classes }`, the same classes as in `db.describe()`. If such
 a model is larger than `maxBytes`, a brief one comes: `brief: true`, and the classes have only the names of their
 fields and ends; `letopis_model` with `class` returns each class in detail. `letopis_history` takes `class`, `id` and
 `kind`. `versions` answers `{ versions, more }`, the latest versions within the answer limits, from the oldest to the
@@ -2020,7 +2021,7 @@ newest; `diff` with `from` and `to` (a version number or a moment) answers `{ di
 answers `{ blame }`. If the changes or the leaves did not fit, the answer is cut, and it has `truncated: true` and
 `total`. `follow` works with `versions` and `diff`.
 
-A tool refusal is `isError: true` with `structuredContent.error`: `{ code, message }`, plus `similar` (similar names),
+A tool refusal is `isError: true` with a `structuredContent` of the form `{ notice, error }`, where `error` is `{ code, message }`, plus `similar` (similar names),
 `detail` (details) and `sqlstate` (the PostgreSQL code of an error not from letopis) when present. A parameter that
 does not match the tool input schema (a wrong type, a value outside the list, a missing required one) is rejected by
 the SDK before letopis: then it is `isError: true` with text only, without `structuredContent`.
@@ -2604,9 +2605,9 @@ behavior.
 **Agents and MCP**
 
 - The `<untrusted-data-…>` wrapper is a mitigation, not a protection: the model may follow the text inside it. The
-  protection is the rights in the database: the agent reads and writes only what its user is allowed to. The
-  `structuredContent` of an answer carries no wrapper: a client that gives the model that instead of the text passes
-  the data without the note.
+  protection is the rights in the database: the agent reads and writes only what its user is allowed to. In
+  `structuredContent`, the database data lies in `data` and `error` next to the `notice`, without marks: a client that
+  gives the model that instead of the text passes the data with the note but without a random mark.
 - By default the server only reads; writing is `write: true` (`--write`); deletion is only with a human confirmation.
   The server writes the permission classes only with `allowAclWrite` and accepts a session in the System tenant only
   with `allowSystemAdmin`; `create`, `update` and `upsert` of the other classes need no human confirmation.

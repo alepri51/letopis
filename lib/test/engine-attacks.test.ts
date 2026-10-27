@@ -542,7 +542,7 @@ test('№35 (план 1.1, этап 5): агент через MCP пишет б�
       const p = await rw.call({ op: 'delete', class: 'Note', id: note.id });
       assert.equal(p.isError, undefined);
       // код операции из превью, присланный агентом, — не подтверждение человека
-      const r = await rw.call({ op: 'delete', class: 'Note', id: note.id, confirm: true, operation: p.structuredContent!.operation });
+      const r = await rw.call({ op: 'delete', class: 'Note', id: note.id, confirm: true, operation: p.structuredContent!.data.operation });
       assert.equal(r.isError, true);
       assert.equal(r.structuredContent!.error.code, 'confirmation_required');
       assert.equal((await rw.call({ op: 'update', class: 'Note', id: note.id, data: { text: 'без rev' } })).isError, true);

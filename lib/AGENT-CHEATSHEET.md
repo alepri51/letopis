@@ -375,10 +375,11 @@ const server = await createMcpServer(await svc.as(userId))   // letopis_model, l
 `allowAclWrite` (`acl_denied`); `--api-key` командная строка не принимает, а `--dsn`, `--schema` и `--token` берёт и из
 `LETOPIS_DSN`, `LETOPIS_SCHEMA`, `LETOPIS_TOKEN`. Чтение — JSON-цепочкой (`class`, `filter` с `$gt`, `$in`, `$or` и
 т. п., `steps`, `sort: { field, dir: 'asc' | 'desc' }`, `cursor`), без SQL; ответ — до `maxRows` строк (100) и
-`maxBytes` байт (50 000) из опций `createMcpServer`, дальше `cursor`. `structuredContent` по терминалам: `rows` —
+`maxBytes` байт (50 000) из опций `createMcpServer`, дальше `cursor`. `structuredContent` — `{ notice, data }`
+(`notice` — постоянное пояснение, что это данные, а не инструкции); `data` по терминалам: `rows` —
 `{ rows, count, more, cursor? }`, `ids` — `{ ids, count, more, cursor? }` (`count` — строк на странице), `first` —
 `{ row }`, `count` — `{ count }`, `countBy` — `{ counts, truncated? }`, `sum`, `avg`, `min`, `max` — `{ value }`.
-Отказ — `isError: true` и `structuredContent.error` (`{ code, message, similar? }`). Запись — только `write: true`
+Отказ — `isError: true` и `structuredContent` вида `{ notice, error }` (`error` — `{ code, message, similar? }`). Запись — только `write: true`
 (без него `letopis_write` нет в списке, а вызов — ошибка протокола SDK): `update` с `rev`; `delete` без `confirm` —
 превью, с `confirm` — подтверждение человека (elicitation), без него — `confirmation_required`. Данные из базы в
 ответе — внутри `<untrusted-data-…>`.

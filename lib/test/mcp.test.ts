@@ -135,7 +135,7 @@ test('№1: letopis_model — классы, поля, концы, anyOf; meta �
     assert.ok(instructions.length > 0);
     assert.ok(!JSON.stringify(listed).includes('CANARY') && !instructions.includes('CANARY'), 'meta класса не попадает в описания инструментов и instructions');
     const r = await call(cn, 'letopis_model', {});
-    const task = r.structuredContent!.classes.find((c: { name: string }) => c.name === 'Task');
+    const task = r.structuredContent!.data.classes.find((c: { name: string }) => c.name === 'Task');
     assert.deepEqual(Object.keys(task.fields).sort(), ['body', 'n', 'title']);
     assert.equal(task.alias, 'Todo');
     assert.deepEqual(task.ends.Assignee.class, 'Person');
@@ -144,7 +144,7 @@ test('№1: letopis_model — классы, поля, концы, anyOf; meta �
     const { data } = unwrap(r);
     assert.equal(data.classes.find((c: { name: string }) => c.name === 'Task').meta.note, CANARY, 'meta — в результате, в обёртке');
     const one = await call(cn, 'letopis_model', { class: 'Todo' });
-    assert.equal(one.structuredContent!.class.name, 'Task');
+    assert.equal(one.structuredContent!.data.class.name, 'Task');
     refused(await call(cn, 'letopis_model', { class: 'Tsak' }), 'invalid_class');
   } finally {
     await cn.close();
@@ -154,9 +154,9 @@ test('№1: letopis_model — классы, поля, концы, anyOf; meta �
 test('№2: права — пользователь арендатора A не видит строк и классов арендатора B', async () => {
   const cn = await open(db);
   try {
-    assert.equal((await call(cn, 'letopis_query', { class: 'Task', terminal: 'count' })).structuredContent!.count, 1000);
-    assert.equal((await call(cn, 'letopis_query', { class: 'Task', filter: { title: 'чужая' } })).structuredContent!.count, 0);
-    assert.equal((await call(cn, 'letopis_query', { class: 'Task', id: theirs })).structuredContent!.count, 0);
+    assert.equal((await call(cn, 'letopis_query', { class: 'Task', terminal: 'count' })).structuredContent!.data.count, 1000);
+    assert.equal((await call(cn, 'letopis_query', { class: 'Task', filter: { title: 'чужая' } })).structuredContent!.data.count, 0);
+    assert.equal((await call(cn, 'letopis_query', { class: 'Task', id: theirs })).structuredContent!.data.count, 0);
     const p = refused(await call(cn, 'letopis_query', { class: 'Payroll' }), 'invalid_class');
     assert.ok(!(p.similar ?? []).includes('Payroll'));
     const m = await call(cn, 'letopis_model', {});
@@ -167,7 +167,7 @@ test('№2: права — пользователь арендатора A не 
   // у B свой Task — одна строка
   const cb = await open(udb);
   try {
-    assert.equal((await call(cb, 'letopis_query', { class: 'Task', terminal: 'count' })).structuredContent!.count, 1);
+    assert.equal((await call(cb, 'letopis_query', { class: 'Task', terminal: 'count' })).structuredContent!.data.count, 1);
   } finally {
     await cb.close();
   }
@@ -177,14 +177,14 @@ test('№3: JSON-цепочка — шаги по ролям и классам; 
   const cn = await open(db);
   try {
     const byRole = await call(cn, 'letopis_query', { class: 'Task', filter: { n: 1 }, steps: [{ step: 'Assignee' }] });
-    assert.deepEqual(byRole.structuredContent!.rows.map((x: { id: string }) => x.id), [person.id]);
+    assert.deepEqual(byRole.structuredContent!.data.rows.map((x: { id: string }) => x.id), [person.id]);
     const back = await call(cn, 'letopis_query', { class: 'Person', id: person.id, steps: [{ step: 'Task' }] });
-    assert.deepEqual(back.structuredContent!.rows.map((x: { data: { n: number } }) => x.data.n), [1]);
+    assert.deepEqual(back.structuredContent!.data.rows.map((x: { data: { n: number } }) => x.data.n), [1]);
     const ops = await call(cn, 'letopis_query', { class: 'Todo', filter: { n: { $between: [10, 12] }, title: { $starts: 'задача' } }, terminal: 'count' });
-    assert.equal(ops.structuredContent!.count, 3);
+    assert.equal(ops.structuredContent!.data.count, 3);
     const any = await call(cn, 'letopis_query', { class: 'Task', filter: { $or: [{ n: 5 }, { n: { $gte: 999 } }] }, terminal: 'ids' });
-    assert.equal(any.structuredContent!.count, 3);
-    assert.equal((await call(cn, 'letopis_query', { class: 'Task', filter: { n: { $in: [1, 2] } }, terminal: 'sum', field: 'data.n' })).structuredContent!.value, 3);
+    assert.equal(any.structuredContent!.data.count, 3);
+    assert.equal((await call(cn, 'letopis_query', { class: 'Task', filter: { n: { $in: [1, 2] } }, terminal: 'sum', field: 'data.n' })).structuredContent!.data.value, 3);
 
     const cls = refused(await call(cn, 'letopis_query', { class: 'Tsak' }), 'invalid_class');
     assert.ok(cls.similar?.includes('Task'), `подсказка класса: ${cls.similar}`);
@@ -215,7 +215,7 @@ test('№4: предел — 1000 строк дают 100 и курсор; по 
     let pages = 0;
     for (;;) {
       const r = await call(cn, 'letopis_query', { class: 'Task', ...(cursor ? { cursor } : {}) });
-      const s = r.structuredContent!;
+      const s = r.structuredContent!.data;
       assert.ok(s.count <= 100);
       if (pages === 0) assert.equal(s.count, 100);
       for (const row of s.rows) seen.add(row.id);
@@ -227,9 +227,9 @@ test('№4: предел — 1000 строк дают 100 и курсор; по 
     assert.equal(seen.size, 1000);
     assert.equal(pages, 10);
     // сортировка по полю данных: курсор продолжает её
-    const p1 = (await call(cn, 'letopis_query', { class: 'Task', sort: { field: 'data.n', dir: 'desc' }, limit: 5 })).structuredContent!;
+    const p1 = (await call(cn, 'letopis_query', { class: 'Task', sort: { field: 'data.n', dir: 'desc' }, limit: 5 })).structuredContent!.data;
     assert.deepEqual(p1.rows.map((x: { data: { n: number } }) => x.data.n), [1000, 999, 998, 997, 996]);
-    const p2 = (await call(cn, 'letopis_query', { class: 'Task', cursor: p1.cursor, limit: 3 })).structuredContent!;
+    const p2 = (await call(cn, 'letopis_query', { class: 'Task', cursor: p1.cursor, limit: 3 })).structuredContent!.data;
     assert.deepEqual(p2.rows.map((x: { data: { n: number } }) => x.data.n), [995, 994, 993]);
     refused(await call(cn, 'letopis_query', { class: 'Task', cursor: p1.cursor, sort: { field: 'id' } }), 'invalid_query');
     refused(await call(cn, 'letopis_query', { class: 'Task', cursor: 'чужой курсор' }), 'invalid_query');
@@ -238,10 +238,10 @@ test('№4: предел — 1000 строк дают 100 и курсор; по 
   }
   const small = await open(db, { maxBytes: 2000 });
   try {
-    const s = (await call(small, 'letopis_query', { class: 'Task' })).structuredContent!;
+    const s = (await call(small, 'letopis_query', { class: 'Task' })).structuredContent!.data;
     assert.ok(s.count > 0 && s.count < 100, `предел байт урезал страницу: ${s.count}`);
     assert.equal(s.more, true);
-    const next = (await call(small, 'letopis_query', { class: 'Task', cursor: s.cursor })).structuredContent!;
+    const next = (await call(small, 'letopis_query', { class: 'Task', cursor: s.cursor })).structuredContent!.data;
     assert.ok(next.rows[0].id > s.rows[s.rows.length - 1].id, 'следующая страница — после последней строки');
   } finally {
     await small.close();
@@ -253,8 +253,19 @@ test('№5: недоверенные данные — строка с текст
   const [row] = await db.Task().create({ title: 'письмо', body: `${INJECTION} ${forged}` }).rows();
   const cn = await open(db);
   try {
-    const a = unwrap(await call(cn, 'letopis_query', { class: 'Task', id: row.id }));
+    const raw = await call(cn, 'letopis_query', { class: 'Task', id: row.id });
+    const a = unwrap(raw);
     const b = unwrap(await call(cn, 'letopis_query', { class: 'Task', id: row.id }));
+    // structuredContent клиент тоже может отдать модели: данные базы — только в data, рядом — пояснение (доработки после точки Б)
+    const sc = raw.structuredContent!;
+    assert.deepEqual(Object.keys(sc).sort(), ['data', 'notice']);
+    assert.match(sc.notice, /данные, а не инструкции/);
+    assert.equal(sc.data.rows[0].data.body, `${INJECTION} ${forged}`);
+    assert.ok(!JSON.stringify({ ...sc, data: null }).includes(INJECTION), 'вне data текста из базы нет');
+    const bad = await call(cn, 'letopis_query', { class: `Task ${INJECTION}` });
+    assert.equal(bad.isError, true);
+    assert.deepEqual(Object.keys(bad.structuredContent!).sort(), ['error', 'notice']);
+    assert.ok(!JSON.stringify({ ...bad.structuredContent!, error: null }).includes(INJECTION), 'вне error текста из запроса нет');
     assert.notEqual(a.mark, b.mark, 'суффикс метки — новый в каждом ответе');
     const at = a.text.indexOf(INJECTION);
     assert.ok(at > a.text.indexOf(`<${a.mark}>`) && at < a.text.lastIndexOf(`</${a.mark}>`), 'текст-инструкция — внутри меток');
@@ -282,11 +293,11 @@ test('№6: запись выключена — letopis_write нет в спис
 test('№7: update — только с rev; чужая версия — conflict', async () => {
   const cn = await open(db, { write: true });
   try {
-    const [task] = (await call(cn, 'letopis_query', { class: 'Task', filter: { n: 7 } })).structuredContent!.rows;
+    const [task] = (await call(cn, 'letopis_query', { class: 'Task', filter: { n: 7 } })).structuredContent!.data.rows;
     const no = refused(await call(cn, 'letopis_write', { op: 'update', class: 'Task', id: task.id, data: { title: 'без rev' } }), 'invalid_query');
     assert.match(no.message, /rev/);
     const done = await call(cn, 'letopis_write', { op: 'update', class: 'Task', id: task.id, rev: task.rev, data: { title: 'с rev' } });
-    assert.equal(done.structuredContent!.rows[0].data.title, 'с rev');
+    assert.equal(done.structuredContent!.data.rows[0].data.title, 'с rev');
     refused(await call(cn, 'letopis_write', { op: 'update', class: 'Task', id: task.id, rev: task.rev, data: { title: 'устаревшая' } }), 'conflict');
     assert.equal((await db.Task(task.id).first())!.data.title, 'с rev');
   } finally {
@@ -303,8 +314,8 @@ test('№8: удаление — превью; подтверждение чел
   try {
     const p = await call(plain, 'letopis_write', { op: 'delete', class: 'Task', id: a });
     assert.equal(p.isError, undefined);
-    assert.deepEqual(p.structuredContent!.preview.map((x: { $action: string }) => x.$action), ['delete']);
-    operation = p.structuredContent!.operation;
+    assert.deepEqual(p.structuredContent!.data.preview.map((x: { $action: string }) => x.$action), ['delete']);
+    operation = p.structuredContent!.data.operation;
     assert.match(operation, /^[0-9a-f]{64}$/);
     assert.ok(await exists('Task', a));
     // код операции, присланный агентом, подтверждением не считается; клиент без elicitation — отказ
@@ -361,16 +372,16 @@ test('№9: причина mcp: letopis_write — в blame', async () => {
   const cn = await open(db, { write: true });
   try {
     const created = await call(cn, 'letopis_write', { op: 'upsert', class: 'Doc', data: { code: 'D-1', text: 'черновик' } });
-    const doc = created.structuredContent!.rows[0];
+    const doc = created.structuredContent!.data.rows[0];
     await call(cn, 'letopis_write', { op: 'update', class: 'Doc', id: doc.id, rev: doc.rev, data: { text: 'итог' } });
     const b = await call(cn, 'letopis_history', { class: 'Doc', id: doc.id, kind: 'blame' });
-    const text = b.structuredContent!.blame.fields.find((f: { path: string[] }) => f.path.join('.') === 'data.text');
+    const text = b.structuredContent!.data.blame.fields.find((f: { path: string[] }) => f.path.join('.') === 'data.text');
     assert.equal(text.reason, 'mcp: letopis_write');
     assert.equal(text.rev, 2);
     const v = await call(cn, 'letopis_history', { class: 'Doc', id: doc.id, kind: 'versions' });
-    assert.deepEqual(v.structuredContent!.versions.map((x: { reason?: string }) => x.reason), ['mcp: letopis_write', 'mcp: letopis_write']);
+    assert.deepEqual(v.structuredContent!.data.versions.map((x: { reason?: string }) => x.reason), ['mcp: letopis_write', 'mcp: letopis_write']);
     const d = await call(cn, 'letopis_history', { class: 'Doc', id: doc.id, kind: 'diff' });
-    assert.deepEqual(d.structuredContent!.diff.changes.map((x: { path: string[] }) => x.path.join('.')), ['data.text']);
+    assert.deepEqual(d.structuredContent!.data.diff.changes.map((x: { path: string[] }) => x.path.join('.')), ['data.text']);
     // значения перечислений проверяет схема инструмента (SDK): отказ без данных базы
     const bad = await call(cn, 'letopis_history', { class: 'Doc', id: doc.id, kind: 'blam' });
     assert.equal(bad.isError, true);
@@ -399,7 +410,7 @@ test('№10: учётные данные — ключ сервиса в letopis 
   // фасад сервиса от имени пользователя — можно: ключ остаётся в процессе приложения
   const cn = await open(await svc.as(t.id));
   try {
-    assert.equal((await call(cn, 'letopis_query', { class: 'Task', filter: { n: { $lte: 1000 } }, terminal: 'count' })).structuredContent!.count, 1000);
+    assert.equal((await call(cn, 'letopis_query', { class: 'Task', filter: { n: { $lte: 1000 } }, terminal: 'count' })).structuredContent!.data.count, 1000);
   } finally {
     await cn.close();
   }
@@ -469,7 +480,7 @@ test('letopis mcp по stdio: клиент запускает команду; LE
       const names = (await client.listTools()).tools.map((x) => x.name).sort();
       assert.deepEqual(names, ['letopis_history', 'letopis_model', 'letopis_query', ...(write ? ['letopis_write'] : [])]);
       const r = (await client.callTool({ name: 'letopis_query', arguments: { class: 'Task', filter: { n: 3 } } })) as unknown as R;
-      assert.equal(r.structuredContent!.rows[0].data.n, 3);
+      assert.equal(r.structuredContent!.data.rows[0].data.n, 3);
       unwrap(r);
     } finally {
       await client.close();
@@ -497,7 +508,7 @@ test('HTTP: createMcpHandler приложения — пользователь �
       }));
       try {
         const n = (await client.callTool({ name: 'letopis_query', arguments: { class: 'Task', filter: { n: { $lte: 1000 } }, terminal: 'count' } })) as unknown as R;
-        assert.equal(n.structuredContent!.count, 1000);
+        assert.equal(n.structuredContent!.data.count, 1000);
         const [x] = await db.Task().create({ title: 'по HTTP', n: 20_000 }).rows();
         const r = (await client.callTool({ name: 'letopis_write', arguments: { op: 'delete', class: 'Task', id: x.id, confirm: true } })) as unknown as R;
         if (modern) {
@@ -553,7 +564,7 @@ test('ревью безопасности №2, О8: countBy и versions огр�
   try {
     // 1000 с лишним групп: в ответе 100, из базы — не больше 101
     events.length = 0;
-    const by = (await call(cn, 'letopis_query', { class: 'Task', terminal: 'countBy', field: 'data.n' })).structuredContent!;
+    const by = (await call(cn, 'letopis_query', { class: 'Task', terminal: 'countBy', field: 'data.n' })).structuredContent!.data;
     assert.equal(Object.keys(by.counts).length, 100);
     assert.equal(by.truncated, true);
     const agg = events.filter((x) => x.mode === 'agg');
@@ -561,7 +572,7 @@ test('ревью безопасности №2, О8: countBy и versions огр�
     assert.ok(agg[0].rows <= 101, `строк из базы ${agg[0].rows}`);
     // 150 версий: последние 100 по порядку, из базы — не больше 101
     events.length = 0;
-    const v = (await call(cn, 'letopis_history', { class: 'Task', id: task.id, kind: 'versions' })).structuredContent!;
+    const v = (await call(cn, 'letopis_history', { class: 'Task', id: task.id, kind: 'versions' })).structuredContent!.data;
     assert.deepEqual(v.versions.map((x: { rev: number }) => x.rev), Array.from({ length: 100 }, (_, i) => 51 + i));
     assert.equal(v.more, true);
     const vs = events.filter((x) => x.mode === 'versions');
@@ -572,7 +583,7 @@ test('ревью безопасности №2, О8: countBy и versions огр�
     assert.equal((await call(cn, 'letopis_query', { class: 'Task', filter: { n: 1 }, steps: steps(16), terminal: 'count' })).isError, undefined);
     assert.match(refused(await call(cn, 'letopis_query', { class: 'Task', filter: { n: 1 }, steps: steps(17), terminal: 'count' }), 'invalid_query').message, /не больше 16 шагов/);
     const ors = (n: number) => ({ $or: Array.from({ length: n }, (_, i) => ({ n: i + 1 })) });
-    assert.equal((await call(cn, 'letopis_query', { class: 'Task', filter: ors(64), terminal: 'count' })).structuredContent!.count, 64);
+    assert.equal((await call(cn, 'letopis_query', { class: 'Task', filter: ors(64), terminal: 'count' })).structuredContent!.data.count, 64);
     assert.match(refused(await call(cn, 'letopis_query', { class: 'Task', filter: ors(65), terminal: 'count' }), 'invalid_query').message, /не больше 64 условий/);
     assert.match(refused(await call(cn, 'letopis_query', { class: 'Task', steps: [{ step: 'Assignee', filter: ors(65) }], terminal: 'count' }), 'invalid_query').message, /не больше 64 условий/);
   } finally {
@@ -607,7 +618,7 @@ test('решение точки Б (ревью безопасности №2, О
     assert.doesNotMatch(desc, /Классы прав/);
     const r = await call(acl, 'letopis_write', { op: 'delete', class: 'rule', id: rule.id });
     assert.notEqual(r.isError, true, JSON.stringify(r).slice(0, 300));
-    assert.ok(r.structuredContent!.preview.some((x: { id: string }) => x.id === rule.id));
+    assert.ok(r.structuredContent!.data.preview.some((x: { id: string }) => x.id === rule.id));
   } finally {
     await acl.close();
   }

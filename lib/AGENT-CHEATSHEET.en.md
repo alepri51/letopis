@@ -388,10 +388,12 @@ does not write the permission classes without `allowAclWrite` (`acl_denied`); th
 `--schema` and `--token` from `LETOPIS_DSN`, `LETOPIS_SCHEMA`, `LETOPIS_TOKEN`. Reading is a JSON chain
 (`class`, `filter` with `$gt`, `$in`, `$or` and so on, `steps`, `sort: { field, dir: 'asc' | 'desc' }`, `cursor`),
 with no SQL; an answer holds up to `maxRows` rows (100) and `maxBytes` bytes (50,000) from the `createMcpServer`
-options, then comes a `cursor`. `structuredContent` by terminal: `rows` — `{ rows, count, more, cursor? }`, `ids` —
+options, then comes a `cursor`. `structuredContent` is `{ notice, data }` (`notice` is a constant note that this is
+data, not instructions); `data` by terminal: `rows` — `{ rows, count, more, cursor? }`, `ids` —
 `{ ids, count, more, cursor? }` (`count` is the rows on the page), `first` — `{ row }`, `count` — `{ count }`,
 `countBy` — `{ counts, truncated? }`, `sum`, `avg`, `min`, `max` —
-`{ value }`. A refusal is `isError: true` with `structuredContent.error` (`{ code, message, similar? }`). Writing only
+`{ value }`. A refusal is `isError: true` with a `structuredContent` of the form `{ notice, error }` (`error` is
+`{ code, message, similar? }`). Writing only
 with `write: true` (without it `letopis_write` is not in the list, and a call is an SDK protocol error): `update` with
 `rev`; `delete` without `confirm` is a preview, with `confirm` a human confirms it (elicitation), and without that it
 is `confirmation_required`. Data from the database in an answer sits inside `<untrusted-data-…>`.

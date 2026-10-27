@@ -1923,9 +1923,11 @@ const modelText = describeText(model) // то же текстом — для llm
 не больше 64; иначе `invalid_query`. Время запроса эти пределы не ограничивают: задайте `statement_timeout` роли базы,
 под которой подключается сервер MCP (`alter role … set statement_timeout = '5s'`).
 
-Ответ — `structuredContent` и его текстовый дубль. Форма `structuredContent` у `letopis_query` зависит от терминала:
+Ответ — `structuredContent` и его текстовый дубль. `structuredContent` — `{ notice, data }`: `notice` — постоянный
+текст пакета о том, что в `data` данные базы, а не инструкции, `data` — сам ответ. Форма `data` у `letopis_query`
+зависит от терминала:
 
-| Терминал | `structuredContent` |
+| Терминал | `structuredContent.data` |
 |---|---|
 | `rows` (по умолчанию) | `{ rows, count, more, cursor? }` |
 | `ids` | `{ ids, count, more, cursor? }` |
@@ -1943,14 +1945,14 @@ const modelText = describeText(model) // то же текстом — для llm
 `'asc'` (по умолчанию) или `'desc'`; без `sort` строки идут по `id`. `sort`, `limit` и `cursor` — только у `rows`,
 `first` и `ids`.
 
-`letopis_model` без `class` отвечает `{ schema, tenant, classes }` — классы те же, что в `db.describe()`. Если такая
+`letopis_model` без `class` отвечает (в `data`) `{ schema, tenant, classes }` — классы те же, что в `db.describe()`. Если такая
 модель больше `maxBytes`, приходит краткая: `brief: true`, а у классов — только имена полей и концов; подробно каждый
 класс отдаёт `letopis_model` с `class`. `letopis_history` принимает `class`, `id` и `kind`. `versions` отвечает
 `{ versions, more }` — последние версии в пределах ответа, от старой к новой; `diff` с `from` и `to` (номер версии или
 момент) — `{ diff }`; `blame` с `at` и `limit` — `{ blame }`. Если изменения или листья не поместились, ответ
 обрезан, и в нём есть `truncated: true` и `total`. `follow` работает у `versions` и `diff`.
 
-Отказ инструмента — `isError: true` и `structuredContent.error`: `{ code, message }`, а также `similar` (похожие
+Отказ инструмента — `isError: true` и `structuredContent` вида `{ notice, error }`, где `error` — `{ code, message }`, а также `similar` (похожие
 имена), `detail` (подробности) и `sqlstate` (код PostgreSQL у ошибки не из letopis), если они есть. Параметр не по
 входной схеме инструмента (не тот тип, значение не из перечня, нет обязательного) отклоняет SDK ещё до letopis: тогда
 `isError: true` и только текст, без `structuredContent`.
@@ -2512,8 +2514,9 @@ p50 — от −0,28 до +0,21 мс. Бенч против 1.0.1 (`bench/vs-101
 **Агенты и MCP**
 
 - Обёртка `<untrusted-data-…>` — смягчение, а не защита: модель может последовать тексту внутри неё. Защищают права
-  базы: агент читает и пишет только то, что разрешено его пользователю. `structuredContent` ответа обёртки не несёт:
-  клиент, который отдаёт модели его, а не текст, передаёт данные без пояснения.
+  базы: агент читает и пишет только то, что разрешено его пользователю. В `structuredContent` данные базы лежат в
+  `data` и `error` рядом с пояснением `notice`, без меток: клиент, который отдаёт модели его, а не текст, передаёт
+  данные с пояснением, но без случайной метки.
 - По умолчанию сервер только читает; запись — `write: true` (`--write`); удаление — только с подтверждением человека.
   Классы прав сервер пишет только с `allowAclWrite`, сессию в арендаторе System принимает только с
   `allowSystemAdmin`; `create`, `update` и `upsert` остальных классов подтверждения человека не требуют.
