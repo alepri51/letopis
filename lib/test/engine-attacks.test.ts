@@ -706,10 +706,17 @@ test('№40 (доработки после точки Б, остаток Н2): �
     await tx.unsafe(`delete from ${S}.entity where id = $1`, [was.id]);
   });
   const master = CLASSES.find((c) => c.name === 'Master')!;
-  await assert.rejects(as(user, `insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [{ ...master, parent: 'Note' }]), /удалён, но журнал хранит историю/);
+  await assert.rejects(as(user, `insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [{ ...master, parent: 'Note' }]), /журнал хранит историю строк класса Master/);
   await assert.rejects(as(user, `insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [{ ...master, alias: 'Мастер' }]), lt('invalid_class'));
   assert.deepEqual((await as(user, `select id from ${S}.log where class = 'Master'`)).length, 0, 'история Master пользователю не видна');
   // с прежним описанием — можно: история остаётся под прежними правилами
   await as(user, `insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [master]);
   assert.deepEqual((await as(user, `select id from ${S}.log where class = 'Master'`)).length, 0);
+  // история без надгробия своего класса (например, строки класса System, удалённого в 1.1) — класс с этим именем не
+  // создать ни с каким описанием (автоматическое ревью коммита 11719ff)
+  await e.asOwner((tx) => tx.unsafe(`insert into ${S}.log (id, rev, class, tenant, owner, links, data, tags, at, author, op)
+    values (gen_random_uuid(), 1, 'Phantom', $1, $1, '{}', '{"secret": 1}', '{}', now(), $1, 'create')`, [org]));
+  await assert.rejects(as(user, `insert into ${S}.entity (class, data) values ('Class', '{"name": "Phantom", "kind": "hub", "parent": "Note"}')`),
+    /журнал хранит историю строк класса Phantom/);
+  await assert.rejects(as(user, `insert into ${S}.entity (class, data) values ('Class', '{"name": "Phantom", "kind": "hub"}')`), lt('invalid_class'));
 });

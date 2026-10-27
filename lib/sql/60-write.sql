@@ -818,16 +818,17 @@ begin
   -- блокируется — параллельные purge, обрезка и restore того же id ждут (этап 6), а если purge успел
   -- стереть её, пара (id, rev) столкнётся с его записью purge в журнале, и операция повторится
   select l.rev, l.hash, l.at, l.op, l.data into last from @SCHEMA@.log l where l.id = NEW.id order by l.rev desc limit 1 for update;
-  -- пересоздание удалённого класса (остаток Н2 ревью №2; доработки после точки Б): история его удалённых строк
-  -- осталась в журнале, а правила прав находят строки по именам класса, предков и алиасов — новый класс с другим
-  -- parent, alias или derivedBy подставил бы старую историю под чужие правила. Такой класс создаётся только с прежними
-  -- предками, алиасом и derivedBy (их хранит надгробие строки Class); иначе — сначала purge() удалённых строк
-  if NEW.class = 'Class' and last.op = 'delete'
-     and (last.data->'resolved'->'ancestors' is distinct from NEW.data->'resolved'->'ancestors'
-          or last.data->>'alias' is distinct from NEW.data->>'alias'
-          or last.data->'resolved'->'derivedBy' is distinct from NEW.data->'resolved'->'derivedBy')
-     and @SCHEMA@.class_has_history(NEW.data->>'name', NEW.tenant) then
-    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s удалён, но журнал хранит историю его строк: создать его заново можно только с прежними parent, alias и derivedBy',
+  -- класс с историей строк в журнале (остаток Н2 ревью №2; доработки после точки Б): правила прав находят строки, и
+  -- старые версии тоже, по именам класса, предков и алиасов — класс с другим parent, alias или derivedBy подставил бы
+  -- старую историю под чужие правила. Поэтому, если журнал арендатора хранит версии строк класса с этим именем, класс
+  -- создаётся только заново и с тем же описанием, что в надгробии его строки Class. Надгробия нет (история осталась от
+  -- класса System, удалённого раньше, или строку Class стёрли мимо триггеров) — отказ: сначала purge() строк
+  if NEW.class = 'Class' and @SCHEMA@.class_has_history(NEW.data->>'name', NEW.tenant)
+     and not (coalesce(last.op = 'delete', false)
+              and last.data->'resolved'->'ancestors' is not distinct from NEW.data->'resolved'->'ancestors'
+              and last.data->>'alias' is not distinct from NEW.data->>'alias'
+              and last.data->'resolved'->'derivedBy' is not distinct from NEW.data->'resolved'->'derivedBy') then
+    perform @SCHEMA@.lt_fail('invalid_class', format('журнал хранит историю строк класса %s: создать его можно только заново и с прежними parent, alias и derivedBy (или сначала стереть её purge())',
       NEW.data->>'name'));
   end if;
   ts := @SCHEMA@.now_ts();

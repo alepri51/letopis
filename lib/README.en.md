@@ -1457,7 +1457,9 @@ written for one class would act on the rows of another too. A violation gives `i
 By the same names, the rules also find the old versions of rows in the journal. So a class is deleted only when it has
 no rows, no descendants and no history of rows: `purge()` erases the history of deleted rows first. A class deleted
 with history before is created again only with the same `parent`, `alias` and `derivedBy` — otherwise `invalid_class`:
-the old versions of its rows would fall under other rules.
+the old versions of its rows would fall under other rules. If the journal holds rows of a class with this name but not
+its tombstone (for example, rows of a System class deleted in 1.1), a class with this name is not created until
+`purge()` erases the history.
 
 A derived class (`derivedBy`) is created, edited and deleted only by an administrator: an admin connection or an
 account with the System permission `letopis.projector` (the system administrator has it through the `letopis.*`
