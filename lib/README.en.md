@@ -1747,9 +1747,10 @@ const sales = adm.projector('product-sales', {   // adm is an admin connection
   },
 })
 const report = await sales.run({ once: true })  // catch up with the journal: { batches, changes, created, updated, … }
-const state = await sales.status()               // { name, state, version, cursor, at, lag, failed }
+const state = await sales.status()               // { name, state, version, cursor, at, lag, failed, rebuildingTenants }
 await sales.rebuild()                            // rebuild from the current state; { chunked: true } works in batches
 await sales.rebuild({ tenant: tenantId })        // rebuild one tenant, for example a dropped one (failed)
+await sales.rebuild({ tenant: tenantId, chunked: true })   // the same in batches: meanwhile the journal tail goes on for all
 sales.run().catch((err) => console.error('the projector stopped', err))   // follow the journal until stop()
 sales.close()                                    // stop() after the current batch and unsubscribe from signals
 ```
@@ -1816,6 +1817,11 @@ sales.close()                                    // stop() after the current bat
   rebuild has already counted. Fix the data or the class description of the tenant, then rebuild it. If the database
   rejects the write again, the rebuild is rolled back with this error, and the tenant stays dropped. No projection yet
   or a batch rebuild in progress gives `rebuild_required`; a tenant that is not a participant gives `tenant_denied`.
+  With `chunked: true` — in batches, each in a transaction of its own with its own snapshot, while the journal tail goes
+  on for all: the tail skips the tenant's changes above the last batch (a batch will read them) and, in a passed batch,
+  those whose transaction is visible in its snapshot. The tenant's derived rows are deleted at once and are incomplete
+  until the end of the rebuild (`status().rebuildingTenants`); the rebuild waits out a lock held by `run()` of another
+  process.
 - `status().state` describes the projection in the database, not a process: `'new'` means there is no projection yet,
   and the first `run()` or `rebuild()` builds it; `'running'` means the projection is built and kept up with the
   journal (it does not mean that some process is executing `run()` right now); `'rebuilding'` means a batch rebuild
@@ -1827,8 +1833,11 @@ sales.close()                                    // stop() after the current bat
   the cursor is older than the tier of every participant, `run()` throws `cursor_expired`, and with
   `onExpired: 'rebuild'` the projector rebuilds entirely, in batches. If it is older than the tier of only some of
   them, they drop out (`status().failed`, code `cursor_expired`) and the others go on, and with
-  `onExpired: 'rebuild'` the dropped tenants rebuild themselves, each in a transaction of its own. A projector
-  without new changes does not expire. `status().lag` is the age of the oldest unprocessed change in ms.
+  `onExpired: 'rebuild'` the dropped tenants rebuild themselves, in batches: the rebuild state lies in the checkpoint,
+  and `run()` of any process continues it; a lock held by another process is only a retry on the next pass, and a data
+  error drops the tenant with its code, without retries. The tier of a rebuilt tenant counts from the start of its
+  rebuild until the cursor catches up with it: a lagging projector does not drop it again. A projector without new
+  changes does not expire. `status().lag` is the age of the oldest unprocessed change in ms.
 - A projector works with the tenants in which every `into` class is marked with its `derivedBy`; it skips the changes
   of other tenants, so a class with the same name and no mark in another tenant does not get in its way. No such tenant
   at all — `derived_class`. Only an administrator may mark the classes of a tenant, so it is the administrator who
@@ -2300,7 +2309,7 @@ give `invalid_data`.
 | options `ProjectorOptions` | `from`, `into`: classes with descendants; `version`: an integer from 1; `handle(changes, out)`; `withBefore`; `onExpired: 'rebuild' \| 'error'` (`'rebuild'` rebuilds in batches); `batch`: changes in a batch (500, from 1 to 10,000); `pollMs`: fallback polling (1000 ms); `tenants`: ids of the participant tenants |
 | `run({ once })` | catch up with the journal (`once`) or follow it until `stop()` → `ProjectorReport` |
 | `rebuild({ chunked, tenant })` | rebuild from the current state: atomically, in batches or for one tenant → `ProjectorReport` |
-| `status()` | → `ProjectorStatus`: `{ name, state, version, cursor, at, lag, failed }`; `failed` is `{ [tenant id]: ProjectorFailure }`, where `ProjectorFailure` is `{ cursor, code, message }` |
+| `status()` | → `ProjectorStatus`: `{ name, state, version, cursor, at, lag, failed, rebuildingTenants }`; `failed` is `{ [tenant id]: ProjectorFailure }`, where `ProjectorFailure` is `{ cursor, code, message }` |
 | `stop()`, `close()` | stop `run()` after the current batch; the same plus unsubscribing from signals |
 | `ProjectorReport` | `{ batches, changes, created, updated, deleted, unchanged, skipped, rebuilds }` |
 | `ProjectorChange` | `{ cursor, id, class, tenant, op, rev, at, author, row }` and, when present, `agent`, `reason`, `moved`, `before`, `rebuild` |
@@ -2709,7 +2718,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # history — diff and blame over the log, the reason of a change for verbs, db.begin() and batches; a version hidden by an ACL condition, the changed column, a missing version, row_changes over 20 thousand targets (plan 1.1, stage 1 and checkpoint A)
 # signals — signal modes: the payload seen by a foreign role, cache precision per tenant, System, permission classes, a process without the key, the loader, subscriptions, the key, none, coalescing, the server version, a class change, a resend, the mode after up() and reset({ all }) (plan 1.1, stage 2)
 # initial-load — the initial load: equality with the regular loader, structure and trigger modes, system rows, a non-empty schema, an insert during the start, rollback, MULTI_INSERT in WAL, commitEvery, import --initial, aggregates (agg_fill) (plan 1.1, stages 3 and 4b)
-# projector — projectors from the journal: catching up, exactly once on a break, one writer, a long transaction, a transaction on the boundary of the rebuild snapshot, no writes to derived classes and no references to them, the bounds of out, atomic and batch rebuilds during source writes, purge of a source, lag and cursor_expired, the credential functions; the version, the name, an admin connection; a race of two processes; a data error of one tenant drops out only this tenant (failed, rebuild({ tenant }), the tenants option), the checkpoint is only a System row, a rebuild touches only the rows of participants and into families, before after rekey, the all tier and the journal of sources per tenant; folding of out.inc by key in a batch, batch rebuilds on the automatic paths of run() and a second process during them (plan 1.1, stage 4a; security review No. 2; checkpoint B)
+# projector — projectors from the journal: catching up, exactly once on a break, one writer, a long transaction, a transaction on the boundary of the rebuild snapshot, no writes to derived classes and no references to them, the bounds of out, atomic and batch rebuilds during source writes, purge of a source, lag and cursor_expired, the credential functions; the version, the name, an admin connection; a race of two processes; a data error of one tenant drops out only this tenant (failed, rebuild({ tenant }), the tenants option), the checkpoint is only a System row, a rebuild touches only the rows of participants and into families, before after rekey, the all tier and the journal of sources per tenant; folding of out.inc by key in a batch, batch rebuilds on the automatic paths of run() and a second process during them; rebuilding one tenant in batches while the tail goes on; onExpired in batches in another process, a data error without retries, the tier from the start of the rebuild (plan 1.1, stage 4a; security review No. 2; checkpoint B and the work after it)
 # mcp — MCP tools: the model and meta only in results, tenant rights, the JSON chain and hints of similar names, row and byte limits with a cursor, the untrusted-data wrapper, writing only with write, update only with rev, deletion with a human confirmation (elicitation in revisions 2025 and 2026-07-28), the reason in blame, credentials, tool schemas, letopis without the SDK; letopis mcp over stdio, the HTTP handler; the confirmation window without the alias and meta, countBy and versions limited in the query itself, limits of steps and $or conditions; the permission classes only with allowAclWrite, a session in the System tenant only with allowSystemAdmin; structuredContent with a note, a requestState signature of the server user with an expiry (plan 1.1, stage 5; security review No. 2; checkpoint B and the work after it)
 # import — import from 0.21 with a fixture of a real 0.21: key violation, --keyless, per-class counters, verify, self-reference, repeat, ids without a key, a dangling reference, $$strict and fields starting with $, update, credentials, CLI (stage 7)
 # security-final — the final security review (stage 8, §7.10 No. 8.4): a family lock by the tenant of the root, account_purge without permission and restore/purge of a foreign id give neither a leak nor a lock; the functions of stage 6, log_refs_at, journal-based find_* reads and watch_read stay within their own tenant; NOTIFY carries only names or mode tokens; the cache key distinguishes the token, the actor and the tenant (stage 8)

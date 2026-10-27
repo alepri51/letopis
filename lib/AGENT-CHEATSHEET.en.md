@@ -346,7 +346,9 @@ id after `reclass` and `rekey` (the tombstone of the former id subtracts the for
 the previous version is a deletion (after `restore`); `purge`, `trim` and `reset` have no such field, so subtract
 `before` only after checking it for `null`. `handle` gets the changes of one tenant. An error of its data (the
 database rejected its results, or `out` rejected its row or delta) rolls back only this tenant: it drops out
-(`status().failed`: `{ id: { cursor, code, message } }`) until `rebuild({ tenant: id })`, and the others go on;
+(`status().failed`: `{ id: { cursor, code, message } }`) until `rebuild({ tenant: id })` (`{ tenant, chunked: true }` — in batches while the tail goes on for all;
+`status().rebuildingTenants`), and the others go on; with `onExpired: 'rebuild'` a tenant dropped by the tier rebuilds
+itself in batches, in any process;
 `tenants: [id, …]` is an explicit list of participants.
 `status().state`: `'new'` means there is no projection yet, `'running'` means the projection is
 built and kept up (not "a process is running now"), `'rebuilding'` means a batch rebuild is in progress or was

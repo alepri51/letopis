@@ -606,7 +606,11 @@ const tickTotal = async (x: Tenant) =>
   ((await e.sql.unsafe(`select data->'total' as v from ${e.S}.entity where class = 'TickSum' and tenant = $1`, [x.id]))[0]?.v ?? null) as number | null;
 const tickHistory = (x: Tenant, history: unknown) => e.as(x.token, (tx) => tx.unsafe(`update ${e.S}.entity set data = jsonb_set(data, '{history}', $2::text::jsonb)
   where class = 'Class' and tenant = $1 and data->>'name' = 'Tick'`, [x.id, JSON.stringify(history)]));
-const tickAge = (iv: string) => e.sql.unsafe(`update ${e.S}.secret set meta = jsonb_set(meta, '{at}', to_jsonb(to_json(clock_timestamp() - $1::interval) #>> '{}'))
+// прошло время: курсор и отметки начала перестройки арендаторов (since) — старше на iv
+const tickAge = (iv: string) => e.sql.unsafe(`update ${e.S}.secret set meta = jsonb_set(meta - 'since', '{at}', to_jsonb(to_json(clock_timestamp() - $1::interval) #>> '{}'))
+  where kind = 'PROJECTOR' and ident = 'ticker'`, [iv]);
+// отстал только курсор, а перестройка арендатора — недавняя
+const ageCursor = (iv: string) => e.sql.unsafe(`update ${e.S}.secret set meta = jsonb_set(meta, '{at}', to_jsonb(to_json(clock_timestamp() - $1::interval) #>> '{}'))
   where kind = 'PROJECTOR' and ident = 'ticker'`, [iv]);
 
 test('ревью безопасности №2, Н1: короткий ярус all источников одного арендатора не останавливает проектор — выбывает только он', async () => {
@@ -798,5 +802,88 @@ test('решение точки Б: первый run() новой проекци
     p1.close();
     p2.close();
     probe.close();
+  }
+});
+
+const tickSumOf = async (x: Tenant) =>
+  Number((await e.sql.unsafe(`select coalesce(sum((data->>'v')::int), 0)::int as s from ${e.S}.entity where class = 'Tick' and tenant = $1`, [x.id]))[0].s);
+
+test('доработки после точки Б: rebuild({ tenant, chunked: true }) — пачками, пока хвост идёт для всех; итог равен догонке', async () => {
+  const x = await e.tenant('proj-chunk-x');
+  await tickTenant(x, true);
+  const p = adm.projector('ticker', tickerDef({ batch: 2 }));
+  const p2 = adm2.projector('ticker', tickerDef({ batch: 2 }));
+  try {
+    await p.rebuild();
+    for (let i = 1; i <= 7; i++) await tick(x, i);
+    await p.run({ once: true });
+    assert.equal(await tickTotal(x), 28);
+    // перестройка x пачками по две строки, а между пачками — новые изменения x и t и хвост другого процесса
+    const done = p.rebuild({ tenant: x.id, chunked: true });
+    for (let i = 0; i < 5; i++) {
+      await tick(x, 100);
+      await tick(t, 1);
+      await p2.run({ once: true });
+    }
+    const rep = await done;
+    assert.equal(rep.rebuilds, 1);
+    await p2.run({ once: true });
+    assert.equal(await tickTotal(x), await tickSumOf(x), 'итог x — как при догонке: каждое изменение ровно один раз');
+    assert.equal(await tickTotal(t), await tickSumOf(t), 'хвост t шёл во время перестройки x');
+    const st = await p.status();
+    assert.deepEqual(st.rebuildingTenants, []);
+    assert.deepEqual(st.failed, {});
+  } finally {
+    p.close();
+    p2.close();
+  }
+});
+
+test('доработки после точки Б: onExpired — выбывший по ярусу перестраивается пачками и в другом процессе; ошибка данных — выбывание без повторов; отстающий курсор не выводит его снова', async () => {
+  const w = await e.tenant('proj-auto-w');
+  await tickTenant(w, { all: '1 day', daily: 'forever' });
+  // процесс без onExpired: w выбывает по ярусу
+  const plain = adm.projector('ticker', tickerDef({ batch: 2 }));
+  try {
+    await plain.rebuild();
+    await tick(w, 5);
+    await tick(t, 1);
+    await tickAge('3 days');
+    await plain.run({ once: true });
+    assert.equal((await plain.status()).failed[w.id]?.code, 'cursor_expired');
+  } finally {
+    plain.close();
+  }
+  // другой процесс с onExpired: 'rebuild' подхватывает выбывшего из чекпоинта (прежде — только своего последнего прохода)
+  const auto = adm2.projector('ticker', tickerDef({ onExpired: 'rebuild', batch: 2 }));
+  try {
+    for (const v of [6, 7, 8]) await tick(w, v);
+    const r = await auto.run({ once: true });
+    assert.ok(r.rebuilds >= 1, 'перестроен выбывший');
+    assert.equal(await tickTotal(w), await tickSumOf(w));
+    assert.deepEqual((await auto.status()).failed, {});
+    // курсор всё ещё старый, а изменения есть: ярус w отсчитывается от начала его перестройки
+    await tick(w, 1);
+    await tick(t, 1);
+    await ageCursor('3 days');
+    await auto.run({ once: true });
+    assert.deepEqual((await auto.status()).failed, {}, 'w не выбыл снова');
+    assert.equal(await tickTotal(w), await tickSumOf(w));
+    // ошибка данных при автоматической перестройке: TickSum арендатора z не примет итог (maximum: 0) — z выбывает с её
+    // кодом, повторов нет
+    const z = await e.tenant('proj-auto-z');
+    await e.defineClass(z, { name: 'Tick', kind: 'hub', history: { all: '1 day', daily: 'forever' }, fields: { properties: { v: { type: 'integer' } }, required: ['v'] } });
+    await e.defineDerived(z, { name: 'TickSum', kind: 'hub', key: ['k'], derivedBy: 'ticker', history: false,
+      fields: { properties: { k: { type: 'string' }, total: { type: 'integer', maximum: 0 } }, required: ['k'] } });
+    await auto.run({ once: true });
+    await tick(z, 3);
+    await tick(t, 1);
+    await tickAge('3 days');
+    await auto.run({ once: true });
+    const st = await auto.status();
+    assert.equal(st.failed[z.id]?.code, 'invalid_data', JSON.stringify(st.failed[z.id]));
+    assert.equal((await auto.run({ once: true })).rebuilds, 0, 'без повторов');
+  } finally {
+    auto.close();
   }
 });
