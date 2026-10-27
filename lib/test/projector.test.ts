@@ -975,3 +975,54 @@ test('ревью безопасности №3, №6: арендатор, выб
   }
   await tickHistory(z, true);
 });
+
+test('ревью безопасности №3, №4: смена класса без смены id — уход из семейства источников приходит удалением, вход — с before = null', async () => {
+  const x = await e.tenant('proj-move-x');
+  await e.defineClass(x, { name: 'Mv', kind: 'hub', history: true, fields: { properties: { v: { type: 'integer' } }, required: ['v'] } });
+  await e.defineClass(x, { name: 'Away', kind: 'hub', history: true, fields: { properties: { v: { type: 'integer' } }, required: ['v'] } });
+  await e.defineDerived(x, { name: 'MvSum', kind: 'hub', key: ['k'], derivedBy: 'mover', history: false,
+    fields: { properties: { k: { type: 'string' }, total: { type: 'integer' } }, required: ['k'] } });
+  const seen: ProjectorChange[] = [];
+  // свёртка, как в README: прошлая версия вычитается, новая прибавляется; удаление — без новой
+  const fold = (changes: ProjectorChange[], out: ProjectorOut) => {
+    for (const c of changes) {
+      if (c.op === 'purge' || c.op === 'trim' || c.op === 'reset') continue;
+      seen.push(c);
+      const now = c.row.$deleted ? null : Number((c.row.data as { v: number }).v);
+      const was = c.before ? Number((c.before.data as { v: number }).v) : null;
+      if (was !== null) out.inc('MvSum', { k: 'all' }, { total: -was }, { tenant: c.tenant });
+      if (now !== null) out.inc('MvSum', { k: 'all' }, { total: now }, { tenant: c.tenant });
+    }
+  };
+  const total = async () => ((await e.sql.unsafe(`select (data->>'total')::int as n from ${e.S}.entity where class = 'MvSum' and tenant = $1`, [x.id]))[0]?.n ?? null) as number | null;
+  const q = (sql: string, p: unknown[] = []) => e.as(x.token, (tx) => tx.unsafe(sql, p as never[]));
+  const p = adm.projector('mover', { from: ['Mv'], into: ['MvSum'], version: 1, withBefore: true, handle: fold });
+  try {
+    await p.run({ once: true });
+    const [a] = await q(`insert into ${e.S}.entity (class, data) values ('Mv', '{"v": 5}') returning id`);
+    await q(`insert into ${e.S}.entity (class, data) values ('Mv', '{"v": 7}')`);
+    await p.run({ once: true });
+    assert.equal(await total(), 12);
+    // сырая смена класса (у обоих классов нет ключа — id прежний): строка уходит из семейства Mv
+    seen.length = 0;
+    await q(`update ${e.S}.entity set class = 'Away', data = '{"v": 50}' where id = $1`, [a.id]);
+    await p.run({ once: true });
+    assert.equal(await total(), 7, 'вклад ушедшей строки вычтен');
+    const gone = seen.find((c) => c.id === a.id);
+    assert.ok(gone, 'уход из семейства пришёл изменением');
+    assert.equal(gone.op, 'delete');
+    assert.equal(gone.row.$deleted, true);
+    assert.equal(gone.class, 'Mv');
+    assert.equal((gone.row.data as { v: number }).v, 5, 'строка — последняя версия в семействе');
+    // reclass() обратно с новыми данными: строка входит в семейство, прошлой версии в нём нет
+    seen.length = 0;
+    await q(`select ${e.S}.reclass($1::uuid, 'Mv', '{"v": 9}'::jsonb)`, [a.id]);
+    await p.run({ once: true });
+    const back = seen.find((c) => c.id === a.id);
+    assert.equal(back?.op, 'reclass');
+    assert.equal(back?.before, null, 'прошлая версия вне семейства — before = null');
+    assert.equal(await total(), 16);
+  } finally {
+    p.close();
+  }
+});

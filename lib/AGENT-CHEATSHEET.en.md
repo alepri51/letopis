@@ -343,8 +343,10 @@ Another `version` gives `rebuild_required`; a cursor older than the `all` tier g
 they drop out. A tenant with a source with `history: false` drops out (`invalid_class`). `c.before` (with
 `withBefore`) is the previous version of the same id or `null`: `null` for a creation, for the first version of a new
 id after `reclass` and `rekey` (the tombstone of the former id subtracts the former data), during a rebuild and when
-the previous version is a deletion (after `restore`); `purge`, `trim` and `reset` have no such field, so subtract
-`before` only after checking it for `null`. `handle` gets the changes of one tenant. An error of its data (the
+the previous version is a deletion (after `restore`) or lies outside the `from` family; `purge`, `trim` and `reset`
+have no such field, so subtract `before` only after checking it for `null`. A class change that keeps the id (a class
+without a key) and takes the row out of the `from` family comes as a deletion (`op` `delete`, `row` is the last
+version in the family with `$deleted`). `handle` gets the changes of one tenant. An error of its data (the
 database rejected its results, or `out` rejected its row or delta) rolls back only this tenant: it drops out
 (`status().failed`: `{ id: { cursor, code, message } }`) until `rebuild({ tenant: id })` (`{ tenant, chunked: true }` — in batches while the tail goes on for all;
 `status().rebuildingTenants`), and the others go on; with `onExpired: 'rebuild'` a tenant dropped by the tier rebuilds

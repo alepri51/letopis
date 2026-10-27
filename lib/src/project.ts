@@ -63,7 +63,8 @@ export interface ProjectorChange {
   row: Row;
   /**
    * withBefore: прошлая версия того же id; null — её нет. У первой версии нового id после reclass и rekey — null:
-   * прежние данные вычитает надгробие прежнего id (его before — последняя версия прежнего id).
+   * прежние данные вычитает надгробие прежнего id (его before — последняя версия прежнего id). Строка вошла в семейство
+   * from сменой класса без смены id — тоже null: прошлая версия была вне семейства.
    */
   before?: Row | null;
   /** Строка текущего состояния при перестройке (op — create). */
@@ -663,7 +664,7 @@ export class Projector {
       if (meta.version !== this.def.version) throw this.versionError(meta);
       const cur = dec(meta.cursor);
       const rows = await q.unsafe(`select l.tx::text as tx, l.seq::text as seq, ${rowJson('l')} as row
-        from ${this.env.S}.watch_read($1::text::xid8, $2::bigint, null, $3::text[], $4::int, $5::text::pg_snapshot) l`,
+        from ${this.env.S}.watch_read($1::text::xid8, $2::bigint, null, $3::text[], $4::int, $5::text::pg_snapshot, true) l`,
       [cur.tx, cur.seq, [...this.from, '#reset'], this.batch, cur.snap ?? null]);
       const failed: Failed = { ...(meta.failed ?? {}) };
       for (const t of this.blind.keys()) failed[t] ??= this.blindFailure(t, meta.cursor);
@@ -687,12 +688,14 @@ export class Projector {
         }
       }
       let pos: Pos = cur;
-      const changes: ProjectorChange[] = [];
+      let changes: ProjectorChange[] = [];
+      const away = new Set<ProjectorChange>();
       for (const r of rows) {
         const snap = keepSnap(cur.snap, r.tx as string);
         pos = { tx: r.tx as string, seq: r.seq as string, ...(snap ? { snap } : {}) };
         const row = toRow(r.row as Record<string, unknown>);
-        if (!this.ours(row, failed)) continue;
+        const leaves = this.leaves(row, failed);
+        if (!leaves && !this.ours(row, failed)) continue;
         if (meta.chunks && seen(meta.chunks, row.id, pos.tx)) continue;
         // после rebuild({ tenant }): транзакция видна в снимке перестройки арендатора — изменение уже учтено
         const rs = meta.resync?.[row.tenant];
@@ -702,8 +705,11 @@ export class Projector {
         const rt = meta.retenant?.[row.tenant];
         if (rt && !rt.done && (rt.last === null || row.id > rt.last)) continue;
         if (rt && seen(rt.chunks, row.id, pos.tx)) continue;
-        changes.push(change(row, enc(pos)));
+        const c = change(row, enc(pos));
+        if (leaves) away.add(c);
+        changes.push(c);
       }
+      if (away.size) changes = await this.leaving(q, changes, away);
       if (changes.length) {
         if (this.def.withBefore) await this.fillBefore(q, changes);
         await this.apply(q, changes, rep, failed);
@@ -748,26 +754,56 @@ export class Projector {
     });
   }
 
-  /**
-   * Прошлые версии одним запросом: (id, rev − 1) — всегда того же id. У первой версии нового id после reclass и
-   * rekey прошлой версии нет (null): прежние данные вычитает надгробие прежнего id. Прежде её before была последняя
-   * версия прежнего id, и свёртка вычитала её дважды — через неё и через надгробие.
-   */
-  private async fillBefore(q: Conn, changes: ProjectorChange[]): Promise<void> {
-    const need = changes.filter((c) => !SPECIAL.has(c.op));
-    for (const c of need) c.before = null;
-    if (!need.length) return;
+  /** Прошлые версии одним запросом: последняя версия того же id с меньшим номером, кроме служебных записей. */
+  private async previous(q: Conn, list: ProjectorChange[]): Promise<Map<ProjectorChange, Row>> {
+    const out = new Map<ProjectorChange, Row>();
+    if (!list.length) return out;
     const rows = await q.unsafe(`select c.i, ${rowJson('l')} as row
       from unnest($1::int[], $2::uuid[], $3::int[]) c(i, id, rev)
       cross join lateral (
         select x.* from ${this.env.S}.log x
         where x.id = c.id and x.rev < c.rev and x.op not in ('purge', 'trim', 'reset')
         order by x.rev desc limit 1) l`,
-    [need.map((_, i) => i), need.map((c) => c.id), need.map((c) => c.rev)]);
-    for (const r of rows) {
-      const row = toRow(r.row as Record<string, unknown>);
-      need[r.i as number].before = row.op === 'delete' ? null : row;
+    [list.map((_, i) => i), list.map((c) => c.id), list.map((c) => c.rev)]);
+    for (const r of rows) out.set(list[r.i as number], toRow(r.row as Record<string, unknown>));
+    return out;
+  }
+
+  /**
+   * Прошлые версии (id, rev − 1 и раньше) — всегда того же id. У первой версии нового id после reclass и rekey прошлой
+   * версии нет (null): прежние данные вычитает надгробие прежнего id. Прежде её before была последняя версия прежнего
+   * id, и свёртка вычитала её дважды — через неё и через надгробие. Прошлая версия вне семейства from арендатора —
+   * тоже null: строка вошла в семейство сменой класса без смены id, и в проекции её не было (ревью безопасности №3, №4).
+   */
+  private async fillBefore(q: Conn, changes: ProjectorChange[]): Promise<void> {
+    const need = changes.filter((c) => !SPECIAL.has(c.op));
+    for (const c of need) c.before = null;
+    for (const [c, row] of await this.previous(q, need)) {
+      if (row.op !== 'delete' && this.scopes.get(c.tenant)?.from.has(row.class)) c.before = row;
     }
+  }
+
+  /**
+   * Смена класса без смены id (класс без ключа: сырой update set class, reclass()), уводящая строку из семейства from:
+   * журнал пишет версию уже другого класса, а для проекции это удаление (ревью безопасности №3, №4). Изменение — op
+   * delete с $deleted, строка — последняя версия в семействе, номер, время и автор — смены класса. Прошлая версия вне
+   * семейства арендатора — изменения нет.
+   */
+  private async leaving(q: Conn, changes: ProjectorChange[], away: Set<ProjectorChange>): Promise<ProjectorChange[]> {
+    const prev = await this.previous(q, [...away]);
+    const out: ProjectorChange[] = [];
+    for (const c of changes) {
+      if (!away.has(c)) {
+        out.push(c);
+        continue;
+      }
+      const p = prev.get(c);
+      if (!p || p.op === 'delete' || !this.scopes.get(c.tenant)?.from.has(p.class)) continue;
+      const { agent: _agent, reason: _reason, moved: _moved, ...last } = p;
+      out.push(change({ ...last, rev: c.rev, at: c.at, author: c.author, op: 'delete', $deleted: true,
+        ...(c.agent !== undefined ? { agent: c.agent } : {}), ...(c.reason !== undefined ? { reason: c.reason } : {}) } as Row, c.cursor));
+    }
+    return out;
   }
 
   /**
@@ -841,6 +877,12 @@ export class Projector {
   private ours(row: Row, failed?: Failed): boolean {
     const sc = this.scopes.get(row.tenant);
     return sc !== undefined && !failed?.[row.tenant] && (sc.from.has(row.class) || row.class === '#reset');
+  }
+
+  /** Смена класса без смены id, после которой строка вне семейства from арендатора, — возможно, уход из него (leaving). */
+  private leaves(row: Row, failed?: Failed): boolean {
+    const sc = this.scopes.get(row.tenant);
+    return sc !== undefined && !failed?.[row.tenant] && row.op === 'reclass' && !row.moved && !sc.from.has(row.class) && row.class !== '#reset';
   }
 
   /** Класс результата в арендаторе — из его семейства into. */

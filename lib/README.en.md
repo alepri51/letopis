@@ -1781,13 +1781,19 @@ sales.close()                                    // stop() after the current bat
 - A change (`ProjectorChange`) is `cursor`, `id`, `class`, `tenant`, `op`, `rev`, `at`, `author`, `agent`, `reason`,
   `moved` and `row`, the version from the journal (for a deletion, a tombstone with `$deleted`). During a rebuild, the
   changes are rows of the current state: `rebuild: true`, `op` is `create`, `cursor` is empty.
+- A class change that keeps the id (classes without a key: a raw `UPDATE … SET class` and `reclass()`) is written to
+  the journal as a version of the new class. If it takes the row out of the `from` family, the projector gets a
+  deletion: `op` is `delete`, `row` is the last version of the row in the family with `$deleted`, and `rev`, `at` and
+  the author are those of the class change. A row that enters the family this way comes as a `reclass` change with
+  `before` = `null`.
 - With `withBefore`, a change has `before`, the previous version of the same id. `before` is `null` if there is no
   previous version (a creation and the first version of a new id after `reclass` and `rekey`), if the previous
-  version is a deletion (this happens after `restore`), and for every change of a rebuild. With `reclass` and
-  `rekey`, the former data are subtracted through the tombstone of the former id: it comes as a change with
-  `$deleted`, its `before` is the last version of the former id, and `moved` of both changes points to the other id.
-  So the fold of the example gives the same sum after `rekey`. The service changes `purge`, `trim` and `reset` have no
-  `before` field at all. So subtract `before` only after checking it for `null`, as in the example above.
+  version is a deletion (this happens after `restore`) or lies outside the `from` family, and for every change of a
+  rebuild. With `reclass` and `rekey`, the former data are subtracted through the tombstone of the former id: it comes
+  as a change with `$deleted`, its `before` is the last version of the former id, and `moved` of both changes points
+  to the other id. So the fold of the example gives the same sum after `rekey`. The service changes `purge`, `trim`
+  and `reset` have no `before` field at all. So subtract `before` only after checking it for `null`, as in the example
+  above.
 - The service journal records `purge`, `trim` and `reset` also come as changes, and their `rev` is 1. So check `op`
   first, and only then compare `rev`.
 - `out.upsert(class, row, { tenant })` creates a row or replaces it entirely by the class key.

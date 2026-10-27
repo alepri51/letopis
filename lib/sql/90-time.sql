@@ -982,8 +982,10 @@ end $$;
 -- события курсора: старше яруса all какого-либо класса подписки — cursor_expired (события могли
 -- проредиться). p_classes null — все классы. p_snap — снимок момента подписки «now»: транзакции,
 -- видимые в нём (зафиксированные до подписки), не отдаются.
+-- p_leaving (проектор, ревью безопасности №3, №4): ещё смены класса без смены id (reclass без moved), уводящие строку из
+-- p_classes, — версия уже другого класса, а прошлая была в p_classes; иначе уход строки из семейства не виден.
 create or replace function @SCHEMA@.watch_read(p_tx xid8, p_seq bigint, p_at timestamptz, p_classes text[], p_limit int,
-  p_snap pg_snapshot default null)
+  p_snap pg_snapshot default null, p_leaving boolean default false)
 returns setof @SCHEMA@.log
 language plpgsql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -1005,7 +1007,11 @@ begin
   return query select l.seq, l.tx, l.id, l.rev, l.class, l.cv, l.tenant, l.owner, l.links, l.data, l.tags, l.at, l.author,
       l.agent, l.op, l.reason, l.moved, l.prev_hash, l.hash, null::jsonb
     from @SCHEMA@.log l
-    where (l.tx, l.seq) > (p_tx, p_seq) and l.tx < horizon and (p_classes is null or l.class = any (p_classes))
+    where (l.tx, l.seq) > (p_tx, p_seq) and l.tx < horizon
+      and (p_classes is null or l.class = any (p_classes)
+           or (p_leaving and l.op = 'reclass' and l.moved is null
+               and (select p.class from @SCHEMA@.log p where p.id = l.id and p.rev < l.rev and p.op not in ('purge', 'trim', 'reset')
+                    order by p.rev desc limit 1) = any (p_classes)))
       and (p_snap is null or not pg_visible_in_snapshot(l.tx, p_snap))
     order by l.tx, l.seq limit p_limit;
 end $$;
@@ -1019,8 +1025,9 @@ set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
   select pg_snapshot_xmin(s), 0::bigint, s from pg_current_snapshot() s
 $$;
--- до исправления подписки «now»: без снимка
+-- до исправления подписки «now»: без снимка; до ревью безопасности №3 — без p_leaving
 drop function if exists @SCHEMA@.watch_read(xid8, bigint, timestamptz, text[], int);
+drop function if exists @SCHEMA@.watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot);
 
 do $$
 declare f text;
@@ -1031,7 +1038,7 @@ begin
     'last_version_visible(uuid, uuid, jsonb)', 'restore(uuid)', 'purge(uuid, boolean)', 'trim_history(uuid[], text[], timestamptz)',
     'rekey(uuid, jsonb, jsonb)', 'rekey_class(text, jsonb)', 'account_purge(uuid)', 'reset_mark(uuid, text, uuid)',
     'reset(text, text, uuid, int)', 'thin_batch(timestamptz, int)', 'maintain(timestamptz, int)', 'verify(boolean)',
-    'watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot)', 'watch_head()'] loop
+    'watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot, boolean)', 'watch_head()'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);
     execute format('revoke all on function @SCHEMA@.%s from public', f);
   end loop;
@@ -1040,6 +1047,6 @@ end $$;
 grant execute on function @SCHEMA@.restore(uuid), @SCHEMA@.purge(uuid, boolean), @SCHEMA@.trim_history(uuid[], text[], timestamptz),
   @SCHEMA@.rekey(uuid, jsonb, jsonb), @SCHEMA@.rekey_class(text, jsonb), @SCHEMA@.account_purge(uuid),
   @SCHEMA@.reset(text, text, uuid, int), @SCHEMA@.maintain(timestamptz, int), @SCHEMA@.verify(boolean),
-  @SCHEMA@.session_expires(), @SCHEMA@.watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot), @SCHEMA@.watch_head(),
+  @SCHEMA@.session_expires(), @SCHEMA@.watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot, boolean), @SCHEMA@.watch_head(),
   @SCHEMA@.history_default(), @SCHEMA@.history_policy(jsonb), @SCHEMA@.history_iv(text),
   @SCHEMA@.signal_mode(), @SCHEMA@.signal_key(), @SCHEMA@.class_stamp() to @APP@;
