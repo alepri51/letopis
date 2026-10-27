@@ -55,6 +55,11 @@ const RESERVED = new Set(RESERVED_CLASS_NAMES);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TERMINALS = ['rows', 'first', 'ids', 'count', 'sum', 'avg', 'min', 'max', 'countBy'] as const;
 const PAGED = new Set(['rows', 'first', 'ids']);
+/** Шагов цепочки и условий $or в одном фильтре не больше (ревью безопасности №2): запрос растёт с каждым. */
+const MAX_STEPS = 16;
+const MAX_OR = 64;
+/** id целей в окне подтверждения удаления: первые, дальше — «и ещё K». */
+const CONFIRM_IDS = 10;
 
 let sdkLoad: Promise<Sdk> | null = null;
 /** SDK по требованию: нет пакета — понятная ошибка; иная ошибка загрузки — как есть. */
@@ -377,6 +382,7 @@ function filterOf(f: unknown, where: string): Filter {
     if (Object.keys(f).length !== 1) throw invalid(`${where}: $or — единственный ключ фильтра: { $or: [фильтр, …] }`);
     const list = f.$or;
     if (!Array.isArray(list) || !list.length) throw invalid(`${where}.$or: непустой список фильтров`);
+    if (list.length > MAX_OR) throw invalid(`${where}.$or: не больше ${MAX_OR} условий, а не ${list.length}`);
     return or(...list.map((x, i) => {
       if (!isObj(x)) throw invalid(`${where}.$or[${i}]: фильтр — объект`);
       return fields(x, `${where}.$or[${i}]`, 1);
@@ -456,6 +462,7 @@ async function query(db: Db, a: Args, o: Limits): Promise<CallToolResult> {
   let chain: Chain = step(db, stepName(reg, a.class, 'letopis_query.class'))(stepFilter(a, 'letopis_query'));
   if (a.steps !== undefined) {
     if (!Array.isArray(a.steps)) throw invalid('letopis_query.steps: список шагов');
+    if (a.steps.length > MAX_STEPS) throw invalid(`letopis_query.steps: не больше ${MAX_STEPS} шагов, а не ${a.steps.length}`);
     a.steps.forEach((s: unknown, i: number) => {
       const where = `letopis_query.steps[${i}]`;
       if (!isObj(s)) throw invalid(`${where}: шаг — объект { step, filter? }`);
@@ -479,9 +486,10 @@ async function query(db: Db, a: Args, o: Limits): Promise<CallToolResult> {
     }
     const field = text(a.field, 'letopis_query.field');
     if (terminal === 'countBy') {
-      const all = Object.entries(await chain.countBy(field));
+      // группы ограничены уже в запросе: самые частые maxRows + 1, лишняя говорит, что есть ещё (ревью безопасности №2)
+      const all = Object.entries(await chain.limit(o.maxRows + 1).countBy(field)).sort((x, y) => y[1] - x[1]);
       const n = fit(all, o);
-      return ok({ counts: Object.fromEntries(all.slice(0, n)), ...(n < all.length ? { truncated: true, groups: all.length } : {}) });
+      return ok({ counts: Object.fromEntries(all.slice(0, n)), ...(n < all.length ? { truncated: true } : {}) });
     }
     const agg = terminal as 'sum' | 'avg' | 'min' | 'max';
     return ok({ value: await chain[agg](field) });
@@ -525,10 +533,11 @@ async function history(db: Db, a: Args, o: Limits): Promise<CallToolResult> {
   };
   if (a.kind === 'versions') {
     only([]);
-    const all = await target.versions({ follow });
-    // последние версии, которые помещаются в пределы; старые — diff и blame с from, to, at
-    const n = fit([...all].reverse(), o);
-    return ok({ versions: all.slice(all.length - n), total: all.length, more: n < all.length });
+    // последние версии — уже в запросе: от новых к старым, не больше maxRows + 1, лишняя говорит, что есть ещё (ревью
+    // безопасности №2); в ответе — по порядку, старые — diff и blame с from, to, at
+    const got = await target.sort('at', 'desc').limit(o.maxRows + 1).versions({ follow });
+    const n = fit(got, o);
+    return ok({ versions: got.slice(0, n).reverse(), more: n < got.length });
   }
   if (a.kind === 'diff') {
     only(['from', 'to']);
@@ -652,8 +661,11 @@ async function write(db: Db, a: Args, ctx: ServerContext, sdk: Sdk, server: McpS
   if (!preview.some((r) => (r.$depth ?? 0) === 0)) throw new LetopisError('target_not_found', 'letopis_write: удалять нечего — целей не видно');
   if (preview.some((r) => r.$action === 'restrict')) throw new LetopisError('delete_restricted', 'letopis_write: удалению мешают строки с $action: restrict', { preview });
   const count = (act: string) => preview.filter((r) => r.$action === act).length;
-  const message = `Удаление в letopis: агент просит удалить ${targets.length} объект(ов) класса ${cls}; затронуто строк: ${preview.length} `
-    + `(удалится ${count('delete')}, снимется конец ${count('unset')}). Операция ${op.slice(0, 12)}. Удалить?`;
+  // окно видит человек: каноническое имя класса (имя — идентификатор по метасхеме) и id целей; алиас и meta — текст
+  // арендатора, в окно они не попадают (ревью безопасности №2)
+  const shown = targets.slice(0, CONFIRM_IDS).join(', ') + (targets.length > CONFIRM_IDS ? ` и ещё ${targets.length - CONFIRM_IDS}` : '');
+  const message = `Удаление в letopis: агент просит удалить ${targets.length} объект(ов) класса ${db.registry.resolve(cls).name} (${shown}); `
+    + `затронуто строк: ${preview.length} (удалится ${count('delete')}, снимется конец ${count('unset')}). Операция ${op.slice(0, 12)}. Удалить?`;
   const c = await confirmDelete(sdk, server, ctx, op, message);
   if ('ask' in c) return c.ask;
   if (!c.granted) throw new LetopisError('confirmation_required', `letopis_write: удаление не выполнено — ${c.reason}`);

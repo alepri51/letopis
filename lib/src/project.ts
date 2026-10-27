@@ -9,17 +9,24 @@
  * Обрыв посреди пачки откатывает всё, повтор начинает с того же курсора: каждое изменение применено
  * ровно один раз.
  *
+ * Арендаторы изолированы (ревью безопасности №2): handle и запись результатов идут группами по арендатору, каждая
+ * под своей точкой сохранения. Ошибку базы при записи результатов арендатора (его описания классов, его данные)
+ * откатывает только его группа: арендатор выбывает (meta.failed чекпоинта) до rebuild({ tenant }), а остальные
+ * идут дальше в той же транзакции. Исключение handle и нарушение границ out — ошибка проектора: пачка
+ * откатывается целиком.
+ *
  * Перестройка идёт с текущего состояния: журнал прорежен политикой хранения и обрезан purge. Строки
  * источников читаются одним снимком S (курсор SQL держит снимок своего объявления), чекпоинт встаёт на
  * (xmin(S), 0, S), а хвост журнала исключает транзакции, видимые в S. Перестройка пачками: у каждой
  * пачки свой снимок Sᵢ, и событие хвоста пропускается, если его транзакция видна в снимке пачки, в
- * которую попал id.
+ * которую попал id. Перестройка одного арендатора — свой снимок в meta.resync: хвост пропускает изменения
+ * этого арендатора, чья транзакция в нём видна.
  */
 import type postgres from 'postgres';
 import { LetopisError, fromDbError } from './errors.js';
 import { toRow } from './sql.js';
 import { wakes } from './watch.js';
-import { schemaRevision } from './up.js';
+import { schemaRevision, SYSTEM_ID } from './up.js';
 import { DDL_REVISION, type Row } from './types.js';
 import type { Signal } from './signals.js';
 
@@ -28,6 +35,7 @@ type Conn = Awaited<ReturnType<Sql['reserve']>>;
 
 /** Имя проектора — оно же derivedBy производных классов (метасхема `40-class.sql`). */
 const NAME = /^[a-z0-9][a-z0-9_.:-]{0,63}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Пространство advisory-блокировок проекторов (19540 — семейства классов, 19541 — maintain). */
 const LOCK_SPACE = 19542;
 /** Служебные записи журнала: не версии объекта. */
@@ -55,7 +63,10 @@ export interface ProjectorChange {
   moved?: string;
   /** Версия из журнала (надгробие — $deleted); при перестройке — текущая строка. */
   row: Row;
-  /** withBefore: прошлая версия объекта (у первой версии после reclass и rekey — последняя версия прежнего id); null — её нет. */
+  /**
+   * withBefore: прошлая версия того же id; null — её нет. У первой версии нового id после reclass и rekey — null:
+   * прежние данные вычитает надгробие прежнего id (его before — последняя версия прежнего id).
+   */
   before?: Row | null;
   /** Строка текущего состояния при перестройке (op — create). */
   rebuild?: true;
@@ -64,7 +75,7 @@ export interface ProjectorChange {
 /** Строка результата в формате загрузчика: поля и роли концов на верхнем уровне, служебные $tags, $owner, $id. */
 export type ProjectorRow = Record<string, unknown>;
 
-/** Запись результатов пачки: только классы into и только арендаторы изменений пачки. */
+/** Запись результатов: handle получает изменения одного арендатора, out пишет только классы into этого арендатора. */
 export interface ProjectorOut {
   /** Создать или заменить целиком по ключу класса (у класса без ключа — по $id). */
   upsert(cls: string, row: ProjectorRow, opts: { tenant: string }): void;
@@ -83,15 +94,21 @@ export interface ProjectorOptions {
   into: string[];
   /** Версия проектора: другая версия в чекпоинте — rebuild_required, нужна перестройка. */
   version: number;
+  /** Изменения одного арендатора (пачка делится по арендаторам) и запись его результатов. */
   handle(changes: ProjectorChange[], out: ProjectorOut): void | Promise<void>;
   /** Подавать прошлую версию объекта (before). */
   withBefore?: boolean;
-  /** Курсор старше яруса all политики хранения (cursor_expired): 'rebuild' — перестроить самому. */
+  /** Курсор старше яруса all политики хранения источников (cursor_expired): 'rebuild' — перестроить самому. */
   onExpired?: 'rebuild' | 'error';
   /** Изменений в пачке (по умолчанию 500). */
   batch?: number;
   /** Запасной опрос журнала, мс (по умолчанию 1000; сигналы источников будят раньше). */
   pollMs?: number;
+  /**
+   * Явный список арендаторов проектора: участники — только они (и только те, у кого каждый класс into помечен
+   * derivedBy). Без списка участник — любой арендатор с такими классами.
+   */
+  tenants?: string[];
 }
 
 export interface ProjectorReport {
@@ -109,6 +126,16 @@ export interface ProjectorReport {
   rebuilds: number;
 }
 
+/** Выбывший арендатор: база отклонила запись его результатов. */
+export interface ProjectorFailure {
+  /** Курсор первого неприменённого изменения арендатора (ошибка при перестройке — курсор её начала). */
+  cursor: string;
+  /** Код ошибки letopis (invalid_data, target_not_found, …) или SQLSTATE. */
+  code: string;
+  /** Текст ошибки: проектор, арендатор и id строки. */
+  message: string;
+}
+
 export interface ProjectorStatus {
   name: string;
   /** new — проекции ещё нет; rebuilding — идёт (или прервана) перестройка пачками. */
@@ -119,6 +146,8 @@ export interface ProjectorStatus {
   at: string | null;
   /** Отставание, мс: возраст самого старого необработанного изменения источников; 0 — догнал. */
   lag: number;
+  /** Выбывшие арендаторы (id → ошибка): их изменения пропускаются до rebuild({ tenant }) или полной перестройки. */
+  failed: Record<string, ProjectorFailure>;
 }
 
 export interface ProjectorEnv {
@@ -133,6 +162,7 @@ export interface ProjectorEnv {
 
 interface Pos { tx: string; seq: string; snap?: string }
 interface Chunk { upto: string; snap: string }
+type Failed = Record<string, ProjectorFailure>;
 /** meta строки чекпоинта. */
 interface Meta {
   cursor?: string;
@@ -143,6 +173,10 @@ interface Meta {
   rebuild?: { start: string; last: string | null; chunks: Chunk[] };
   /** После перестройки пачками — снимки пачек, пока хвост журнала их не прошёл. */
   chunks?: Chunk[];
+  /** Выбывшие арендаторы: их изменения пропускаются до rebuild({ tenant }) или полной перестройки. */
+  failed?: Failed;
+  /** После rebuild({ tenant }) — снимок перестройки арендатора, пока хвост журнала его не прошёл. */
+  resync?: Record<string, string>;
 }
 
 const enc = (p: Pos): string => `${p.tx}:${p.seq}${p.snap ? `~${p.snap}` : ''}`;
@@ -167,6 +201,13 @@ function seen(chunks: readonly Chunk[], id: string, tx: string): boolean {
   const c = chunks.find((x) => x.upto >= id);
   return c !== undefined && visible(tx, c.snap);
 }
+/** Отметки выбывших в meta: пустой список — без ключа. */
+function withFailed(meta: Meta, failed: Failed): Meta {
+  const next = { ...meta };
+  if (Object.keys(failed).length) next.failed = failed;
+  else delete next.failed;
+  return next;
+}
 
 const emptyReport = (): ProjectorReport => ({ batches: 0, changes: 0, created: 0, updated: 0, deleted: 0, unchanged: 0, skipped: 0, rebuilds: 0 });
 
@@ -182,53 +223,95 @@ function change(row: Row, cursor: string, rebuild = false): ProjectorChange {
   };
 }
 
-/** Запись результатов пачки: операции копятся и уходят одним вызовом derived_apply. */
+/**
+ * Причина ошибки — данные арендатора: проверки строк и приращений out и ошибки базы с кодами letopis (LT…), неверными
+ * значениями (22…) и пределами размера (54…). Сбой окружения (блокировки, отмена запроса, связь) — не причина
+ * выводить арендатора: пачка откатывается целиком, повтор начнётся с того же курсора.
+ */
+function tenantFault(e: unknown): boolean {
+  if (e instanceof LetopisError) return true;
+  return /^(LT|22|54)/.test(String((e as { code?: unknown } | null)?.code ?? ''));
+}
+
+/** Запись результатов группы одного арендатора: операции копятся и уходят одним вызовом derived_apply. */
 class Out implements ProjectorOut {
   private ops: Record<string, unknown>[] = [];
+  /** Итоги записи группы: в отчёт идут, только если группа записана. */
+  readonly stats = { created: 0, updated: 0, deleted: 0, unchanged: 0 };
+  /** Ошибки базы при записи и чтении результатов группы и отказы out по строке и приращениям. */
+  private errors: unknown[] = [];
+  /** Первая ошибка базы: транзакция группы прервана, даже если handle поймал ошибку и не бросил её. */
+  aborted: unknown = undefined;
 
-  constructor(private p: Projector, private q: Conn, private tenants: ReadonlySet<string>, private rep: ProjectorReport) {}
+  constructor(private p: Projector, private q: Conn, private tenant: string) {}
+
+  /** Ошибку дали база или проверки out, а не код handle. */
+  owns(e: unknown): boolean {
+    return this.errors.includes(e);
+  }
+
+  /** Отказ out по строке или приращениям: его причина — данные, по которым handle их построил. */
+  private fault(e: LetopisError): LetopisError {
+    this.errors.push(e);
+    return e;
+  }
 
   private check(cls: string, tenant: string | undefined): string {
-    if (typeof tenant === 'string' && this.tenants.has(tenant) && !this.p.intoOf(tenant, cls)) {
+    if (tenant === this.tenant && !this.p.intoOf(tenant, cls)) {
       throw new LetopisError('derived_class', `проектор ${this.p.name}: класс ${cls} не входит в into`);
     }
-    if (typeof tenant !== 'string' || !this.tenants.has(tenant)) {
-      throw new LetopisError('tenant_denied', `проектор ${this.p.name}: арендатор ${String(tenant)} — не арендатор изменений пачки`);
+    if (typeof tenant !== 'string' || tenant !== this.tenant) {
+      throw new LetopisError('tenant_denied', `проектор ${this.p.name}: арендатор ${String(tenant)} — не арендатор изменений`);
     }
     return tenant;
   }
 
-  private static rowOf(keyOrId: string | ProjectorRow): ProjectorRow {
+  private rowOf(keyOrId: string | ProjectorRow): ProjectorRow {
     if (typeof keyOrId === 'string') return { $id: keyOrId };
-    if (!keyOrId || typeof keyOrId !== 'object') throw new LetopisError('invalid_data', 'проектор: нужен ключ строки или id');
+    if (!keyOrId || typeof keyOrId !== 'object') {
+      throw this.fault(new LetopisError('invalid_data', `проектор ${this.p.name}: нужен ключ строки или id (арендатор ${this.tenant})`));
+    }
     return keyOrId;
+  }
+
+  /** Запрос к базе: ошибка запоминается — по ней откатывается группа и выбывает арендатор. */
+  private async db<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (e) {
+      this.errors.push(e);
+      this.aborted ??= e;
+      throw e;
+    }
   }
 
   upsert(cls: string, row: ProjectorRow, opts: { tenant: string }): void {
     const tenant = this.check(cls, opts?.tenant);
-    this.ops.push({ op: 'upsert', class: cls, tenant, row: Out.rowOf(row) });
+    this.ops.push({ op: 'upsert', class: cls, tenant, row: this.rowOf(row) });
   }
 
   inc(cls: string, row: ProjectorRow, deltas: Record<string, number>, opts: { tenant: string }): void {
     const tenant = this.check(cls, opts?.tenant);
     for (const [k, v] of Object.entries(deltas ?? {})) {
-      if (typeof v !== 'number' || !Number.isFinite(v)) throw new LetopisError('invalid_data', `проектор ${this.p.name}: приращение поля ${k} — не число`);
+      if (typeof v !== 'number' || !Number.isFinite(v)) {
+        throw this.fault(new LetopisError('invalid_data', `проектор ${this.p.name}: приращение поля ${k} — не число (арендатор ${tenant})`));
+      }
     }
-    this.ops.push({ op: 'inc', class: cls, tenant, row: Out.rowOf(row), deltas });
+    this.ops.push({ op: 'inc', class: cls, tenant, row: this.rowOf(row), deltas });
   }
 
   delete(cls: string, keyOrId: string | ProjectorRow, opts: { tenant: string }): void {
     const tenant = this.check(cls, opts?.tenant);
-    this.ops.push({ op: 'delete', class: cls, tenant, row: Out.rowOf(keyOrId) });
+    this.ops.push({ op: 'delete', class: cls, tenant, row: this.rowOf(keyOrId) });
   }
 
   async get(cls: string, keyOrId: string | ProjectorRow, opts: { tenant: string }): Promise<Row | null> {
     const tenant = this.check(cls, opts?.tenant);
     await this.flush();
     const S = this.p.env.S;
-    const [r] = await this.q.unsafe(`select ${rowJson('e')} as row from ${S}.entity e
+    const [r] = await this.db(() => this.q.unsafe(`select ${rowJson('e')} as row from ${S}.entity e
       where e.id = ${S}.derived_id($1, $2::uuid, $3::text::jsonb) and e.class = $1 and e.tenant = $2::uuid`,
-    [cls, tenant, JSON.stringify(Out.rowOf(keyOrId))]);
+    [cls, tenant, JSON.stringify(this.rowOf(keyOrId))]));
     return r ? toRow(r.row as Record<string, unknown>) : null;
   }
 
@@ -236,12 +319,12 @@ class Out implements ProjectorOut {
     if (!this.ops.length) return;
     const ops = this.ops;
     this.ops = [];
-    const [r] = await this.q.unsafe(`select ${this.p.env.S}.derived_apply($1, $2::text::jsonb) as r`, [this.p.name, JSON.stringify(ops)]);
+    const [r] = await this.db(() => this.q.unsafe(`select ${this.p.env.S}.derived_apply($1, $2::text::jsonb) as r`, [this.p.name, JSON.stringify(ops)]));
     const s = r.r as { created: number; updated: number; deleted: number; unchanged: number };
-    this.rep.created += s.created;
-    this.rep.updated += s.updated;
-    this.rep.deleted += s.deleted;
-    this.rep.unchanged += s.unchanged;
+    this.stats.created += s.created;
+    this.stats.updated += s.updated;
+    this.stats.deleted += s.deleted;
+    this.stats.unchanged += s.unchanged;
   }
 }
 
@@ -250,7 +333,7 @@ export class Projector {
   /** Области арендаторов проектора: свои семейства from и into. */
   private scopes = new Map<string, { from: Set<string>; into: Set<string> }>();
   private from: string[] = [];
-  /** Арендаторы проектора: каждый класс into у них помечен его derivedBy. */
+  /** Арендаторы проектора: каждый класс into у них помечен его derivedBy (и, с опцией tenants, они в списке). */
   private tenants: string[] = [];
   /** Самый короткий ярус all политик хранения источников, мс (null — предела нет). */
   private limMs: number | null = null;
@@ -261,6 +344,7 @@ export class Projector {
   private off: (() => void) | null = null;
   private readonly batch: number;
   private readonly pollMs: number;
+  private readonly only: ReadonlySet<string> | null;
 
   constructor(readonly env: ProjectorEnv, name: string, private def: ProjectorOptions) {
     if (typeof name !== 'string' || !NAME.test(name)) {
@@ -273,7 +357,11 @@ export class Projector {
     if (def.onExpired !== undefined && def.onExpired !== 'rebuild' && def.onExpired !== 'error') {
       throw new LetopisError('invalid_data', `проектор ${name}: onExpired — 'rebuild' или 'error'`);
     }
+    if (def.tenants !== undefined && !(Array.isArray(def.tenants) && def.tenants.length > 0 && def.tenants.every((x) => typeof x === 'string' && UUID.test(x)))) {
+      throw new LetopisError('invalid_data', `проектор ${name}: tenants — непустой список id арендаторов`);
+    }
     this.name = name;
+    this.only = def.tenants ? new Set(def.tenants.map((x) => x.toLowerCase())) : null;
     this.batch = def.batch ?? 500;
     this.pollMs = def.pollMs ?? 1000;
     if (!Number.isInteger(this.batch) || this.batch < 1 || this.batch > 10_000) throw new LetopisError('invalid_data', `проектор ${name}: batch — от 1 до 10 000`);
@@ -325,10 +413,18 @@ export class Projector {
    * Перестроить проекцию с текущего состояния: атомарно (одна транзакция: до фиксации читатели видят
    * прежние строки, но горизонт подписок стоит) или { chunked: true } — пачками: производные строки
    * удаляются сразу, до конца перестройки данные неполные (status() — rebuilding); прерванную перестройку
-   * продолжает следующий запуск.
+   * продолжает следующий запуск. Полная перестройка начинает всех участников заново: отметки выбывших снимаются,
+   * а чьи данные снова не проходят — выбывают снова. { tenant: id } — только этот арендатор, одной транзакцией:
+   * его производные строки удаляются и строятся из его текущих строк источников, отметка выбывшего снимается.
    */
-  async rebuild(opts: { chunked?: boolean } = {}): Promise<ProjectorReport> {
+  async rebuild(opts: { chunked?: boolean; tenant?: string } = {}): Promise<ProjectorReport> {
     const rep = emptyReport();
+    if (opts.tenant !== undefined) {
+      if (typeof opts.tenant !== 'string' || !UUID.test(opts.tenant)) throw new LetopisError('invalid_data', `проектор ${this.name}: rebuild({ tenant }) — id арендатора`);
+      if (opts.chunked) throw new LetopisError('invalid_data', `проектор ${this.name}: rebuild({ tenant }) идёт одной транзакцией — без chunked`);
+      await this.rebuildTenant(rep, opts.tenant.toLowerCase());
+      return rep;
+    }
     await this.rebuildNow(rep, Boolean(opts.chunked));
     return rep;
   }
@@ -336,15 +432,17 @@ export class Projector {
   async status(): Promise<ProjectorStatus> {
     return this.tx(async (q) => {
       if (this.stale) await this.resolve(q);
-      const [r] = await q.unsafe(`select s.meta from ${this.env.S}.secret s where s.kind = 'PROJECTOR' and s.ident = $1 and s.deleted_at is null`, [this.name]);
+      const [r] = await q.unsafe(`select s.meta from ${this.env.S}.secret s
+        where s.kind = 'PROJECTOR' and s.ident = $1 and s.account = $2::uuid and s.deleted_at is null`, [this.name, SYSTEM_ID]);
       const meta = (r?.meta ?? {}) as Meta;
+      const failed = meta.failed ?? {};
       let lag = 0;
       if (meta.cursor) {
         const p = dec(meta.cursor);
         const [l] = await q.unsafe(`select coalesce(extract(epoch from clock_timestamp() - min(l.at)) * 1000, 0)::float8 as ms
           from ${this.env.S}.log l where (l.tx, l.seq) > ($1::text::xid8, $2::bigint) and l.class = any ($3::text[]) and l.tenant = any ($5::uuid[])
             and ($4::text is null or not pg_visible_in_snapshot(l.tx, $4::text::pg_snapshot))`,
-        [p.tx, p.seq, [...this.from, '#reset'], p.snap ?? null, this.tenants]);
+        [p.tx, p.seq, [...this.from, '#reset'], p.snap ?? null, this.tenants.filter((x) => !failed[x])]);
         lag = Number(l?.ms ?? 0);
       }
       return {
@@ -354,6 +452,7 @@ export class Projector {
         cursor: meta.cursor ?? null,
         at: meta.at ?? null,
         lag,
+        failed,
       };
     });
   }
@@ -413,12 +512,16 @@ export class Projector {
     return String(r.t);
   }
 
+  private versionError(meta: Meta): LetopisError {
+    return new LetopisError('rebuild_required', `проектор ${this.name}: проекция построена версией ${String(meta.version)}, а проектор — версии ${this.def.version}: нужна перестройка rebuild()`);
+  }
+
   /**
    * Арендаторы и классы по строкам Class всех арендаторов (реестр администраторского подключения без сессии
    * видит только System). Проектор работает с арендаторами, у которых каждый класс into помечен его
-   * derivedBy; изменения остальных арендаторов пропускаются — иначе любой арендатор, заведя одноимённый
-   * класс без пометки, остановил бы проектор для всех. Источники — семейства from у этих арендаторов, кроме
-   * собственных результатов.
+   * derivedBy (с опцией tenants — только из списка); изменения остальных арендаторов пропускаются — иначе
+   * любой арендатор, заведя одноимённый класс без пометки, остановил бы проектор для всех. Источники — семейства
+   * from у этих арендаторов, кроме собственных результатов.
    */
   private async resolve(q: Conn): Promise<void> {
     const S = this.env.S;
@@ -429,9 +532,10 @@ export class Projector {
     const wanted = [...new Set(this.def.into)];
     const tenants = (await q.unsafe(`select x.tenant::text as t from ${S}.entity x
       where x.class = 'Class' and x.data->>'name' = any ($1::text[]) and x.data->'resolved'->>'derivedBy' = $2
-      group by x.tenant having count(distinct x.data->>'name') = $3`, [wanted, this.name, wanted.length])).map((r) => r.t as string);
+      group by x.tenant having count(distinct x.data->>'name') = $3`, [wanted, this.name, wanted.length]))
+      .map((r) => r.t as string).filter((x) => !this.only || this.only.has(x));
     if (!tenants.length) {
-      throw new LetopisError('derived_class', `проектор ${this.name}: ни у одного арендатора классы ${wanted.join(', ')} не помечены derivedBy: '${this.name}'`);
+      throw new LetopisError('derived_class', `проектор ${this.name}: ни у одного арендатора${this.only ? ' из списка tenants' : ''} классы ${wanted.join(', ')} не помечены derivedBy: '${this.name}'`);
     }
     // области — по арендатору: у каждого свои семейства from и into (имена классов у арендаторов свои)
     const scopes = new Map<string, { from: Set<string>; into: Set<string> }>(tenants.map((x) => [x, { from: new Set(), into: new Set() }]));
@@ -468,9 +572,7 @@ export class Projector {
       if (this.stale) await this.resolve(q);
       const meta = await this.state(q);
       if (!meta.cursor || meta.state === 'rebuilding') return 'rebuild';
-      if (meta.version !== this.def.version) {
-        throw new LetopisError('rebuild_required', `проектор ${this.name}: проекция построена версией ${String(meta.version)}, а проектор — версии ${this.def.version}: нужна перестройка rebuild()`);
-      }
+      if (meta.version !== this.def.version) throw this.versionError(meta);
       const cur = dec(meta.cursor);
       // время курсора проверяет сам проектор, а не watch_read: без изменений после курсора прореживать было
       // нечего, и простоявший без событий проектор не истекает
@@ -480,22 +582,26 @@ export class Projector {
       if (rows.length && this.limMs !== null && meta.at && Date.now() - Date.parse(meta.at) > this.limMs) {
         throw new LetopisError('cursor_expired', `проектор ${this.name}: курсор старше яруса all политики хранения источников — изменения могли проредиться, нужна перестройка rebuild()`);
       }
+      const failed: Failed = { ...(meta.failed ?? {}) };
       let pos: Pos = cur;
       const changes: ProjectorChange[] = [];
       for (const r of rows) {
         const snap = keepSnap(cur.snap, r.tx as string);
         pos = { tx: r.tx as string, seq: r.seq as string, ...(snap ? { snap } : {}) };
         const row = toRow(r.row as Record<string, unknown>);
-        if (!this.ours(row)) continue;
+        if (!this.ours(row, failed)) continue;
         if (meta.chunks && seen(meta.chunks, row.id, pos.tx)) continue;
+        // после rebuild({ tenant }): транзакция видна в снимке перестройки арендатора — изменение уже учтено
+        const rs = meta.resync?.[row.tenant];
+        if (rs && visible(pos.tx, rs)) continue;
         changes.push(change(row, enc(pos)));
       }
       if (changes.length) {
         if (this.def.withBefore) await this.fillBefore(q, changes);
-        await this.apply(q, changes, rep);
+        await this.apply(q, changes, rep, failed);
       }
       const caught = rows.length < this.batch;
-      const next: Meta = { ...meta, cursor: enc(pos) };
+      const next: Meta = withFailed({ ...meta, cursor: enc(pos) }, failed);
       if (!rows.length) {
         // пусто: отметить время прохода, но не чаще раза в минуту — иначе каждый опрос писал бы чекпоинт
         if (meta.at && Date.now() - Date.parse(meta.at) < 60_000) return 'empty';
@@ -505,6 +611,12 @@ export class Projector {
         next.at = caught ? await this.now(q) : (rows[rows.length - 1].row as { at: string }).at;
       }
       if (next.chunks && next.chunks.every((c) => BigInt(pos.tx) >= BigInt(c.snap.split(':')[1]))) delete next.chunks;
+      if (next.resync) {
+        // снимок перестройки арендатора не нужен, когда курсор дошёл до его xmax
+        const left = Object.entries(next.resync).filter(([, s]) => BigInt(pos.tx) < BigInt(s.split(':')[1]));
+        if (left.length) next.resync = Object.fromEntries(left);
+        else delete next.resync;
+      }
       await this.advance(q, meta.cursor, next);
       rep.batches++;
       rep.changes += changes.length;
@@ -512,32 +624,71 @@ export class Projector {
     });
   }
 
-  /** Прошлые версии одним запросом: (id, rev − 1) или, после reclass и rekey, последняя живая версия прежнего id. */
+  /**
+   * Прошлые версии одним запросом: (id, rev − 1) — всегда того же id. У первой версии нового id после reclass и
+   * rekey прошлой версии нет (null): прежние данные вычитает надгробие прежнего id. Прежде её before была последняя
+   * версия прежнего id, и свёртка вычитала её дважды — через неё и через надгробие.
+   */
   private async fillBefore(q: Conn, changes: ProjectorChange[]): Promise<void> {
     const need = changes.filter((c) => !SPECIAL.has(c.op));
     for (const c of need) c.before = null;
     if (!need.length) return;
     const rows = await q.unsafe(`select c.i, ${rowJson('l')} as row
-      from unnest($1::int[], $2::uuid[], $3::int[], $4::uuid[], $5::text[]) c(i, id, rev, moved, op)
+      from unnest($1::int[], $2::uuid[], $3::int[]) c(i, id, rev)
       cross join lateral (
         select x.* from ${this.env.S}.log x
-        where (case when c.moved is not null and c.op in ('reclass', 'rekey') then x.id = c.moved and x.op <> 'delete'
-                    else x.id = c.id and x.rev < c.rev end)
-          and x.op not in ('purge', 'trim', 'reset')
+        where x.id = c.id and x.rev < c.rev and x.op not in ('purge', 'trim', 'reset')
         order by x.rev desc limit 1) l`,
-    [need.map((_, i) => i), need.map((c) => c.id), need.map((c) => c.rev), need.map((c) => c.moved ?? null),
-      need.map((c) => c.op)]);
+    [need.map((_, i) => i), need.map((c) => c.id), need.map((c) => c.rev)]);
     for (const r of rows) {
       const row = toRow(r.row as Record<string, unknown>);
       need[r.i as number].before = row.op === 'delete' ? null : row;
     }
   }
 
-  /** handle и запись результатов пачки в её транзакции. */
-  private async apply(q: Conn, changes: ProjectorChange[], rep: ProjectorReport): Promise<void> {
-    const out = new Out(this, q, new Set(changes.map((c) => c.tenant)), rep);
-    await this.def.handle(changes, out);
-    await out.flush();
+  /**
+   * handle и запись результатов в транзакции пачки — группами по арендатору (ревью безопасности №2). failed —
+   * отметки выбывших этой пачки: каждая группа идёт под точкой сохранения, и ошибка данных арендатора (tenantFault:
+   * отказ базы при записи или чтении его результатов, отказ out по строке или приращениям) откатывает только группу,
+   * а арендатор попадает в failed (курсор — первого изменения группы, у перестройки — start). Исключение handle,
+   * нарушение границ out и сбой окружения пачку не спасают: откатывается всё. failed null (rebuild({ tenant })) — без
+   * точек сохранения: любая ошибка откатывает перестройку.
+   */
+  private async apply(q: Conn, changes: ProjectorChange[], rep: ProjectorReport, failed: Failed | null, start = ''): Promise<void> {
+    const groups = new Map<string, ProjectorChange[]>();
+    for (const c of changes) {
+      const g = groups.get(c.tenant);
+      if (g) g.push(c);
+      else groups.set(c.tenant, [c]);
+    }
+    for (const [tenant, list] of groups) {
+      const out = new Out(this, q, tenant);
+      if (failed) await q.unsafe('savepoint letopis_projector');
+      try {
+        await this.def.handle(list, out);
+        await out.flush();
+        // handle поймал ошибку базы и не бросил её: транзакция группы всё равно прервана
+        if (out.aborted !== undefined) throw out.aborted;
+      } catch (e) {
+        // причина — первая ошибка базы группы (следом за ней база отвечает лишь «транзакция прервана»)
+        const cause = out.aborted ?? e;
+        if (!failed || !out.owns(e) || !tenantFault(cause)) throw e;
+        await q.unsafe('rollback to savepoint letopis_projector');
+        await q.unsafe('release savepoint letopis_projector');
+        const le = fromDbError(cause) as { code?: unknown; message?: unknown };
+        failed[tenant] = {
+          cursor: list[0].cursor || start,
+          code: le instanceof LetopisError ? le.code : String(le?.code ?? 'internal'),
+          message: String(le?.message ?? le).replace(/^letopis: [a-z_]+: /, ''),
+        };
+        continue;
+      }
+      if (failed) await q.unsafe('release savepoint letopis_projector');
+      rep.created += out.stats.created;
+      rep.updated += out.stats.updated;
+      rep.deleted += out.stats.deleted;
+      rep.unchanged += out.stats.unchanged;
+    }
   }
 
   /** Перестройка: chunked null — продолжить прерванную пачками или атомарная. */
@@ -557,10 +708,10 @@ export class Projector {
     return c;
   }
 
-  /** Изменение — из семейства from своего арендатора (сброс арендатора — тоже). */
-  private ours(row: Row): boolean {
+  /** Изменение — из семейства from своего арендатора (сброс арендатора — тоже); выбывший арендатор пропускается. */
+  private ours(row: Row, failed?: Failed): boolean {
     const sc = this.scopes.get(row.tenant);
-    return sc !== undefined && (sc.from.has(row.class) || row.class === '#reset');
+    return sc !== undefined && !failed?.[row.tenant] && (sc.from.has(row.class) || row.class === '#reset');
   }
 
   /** Класс результата в арендаторе — из его семейства into. */
@@ -572,13 +723,26 @@ export class Projector {
     return new LetopisError('projector_busy', `проектор ${this.name} работает в другом процессе`);
   }
 
+  /** Производные строки арендаторов tenants — только семейства into каждого из них (derived_clear по парам). */
+  private async clear(q: Conn, tenants: readonly string[]): Promise<void> {
+    const ts: string[] = [];
+    const cs: string[] = [];
+    for (const t of tenants) {
+      for (const c of this.scopes.get(t)?.into ?? []) {
+        ts.push(t);
+        cs.push(c);
+      }
+    }
+    await q.unsafe(`select ${this.env.S}.derived_clear($1, $2::uuid[], $3::text[])`, [this.name, ts, cs]);
+  }
+
   /** Атомарная перестройка: одна транзакция, источники — курсором одним снимком. */
   private async atomic(rep: ProjectorReport): Promise<void> {
     await this.tx(async (q) => {
       if (!(await this.lock(q))) throw this.busy();
       await this.resolve(q);
       const meta = await this.state(q);
-      await q.unsafe(`select ${this.env.S}.derived_clear($1)`, [this.name]);
+      await this.clear(q, this.tenants);
       // курсор держит снимок своего объявления: pg_current_snapshot() в его запросе — этот снимок; строка s
       // есть всегда, даже без источников
       await q.unsafe(`declare letopis_rebuild no scroll cursor for
@@ -587,18 +751,22 @@ export class Projector {
         from s left join ${this.env.S}.entity e on e.class = any ($1::text[]) and e.tenant = any ($2::uuid[])
         order by e.id`, [this.from, this.tenants]);
       let head: Pos | null = null;
+      // полная перестройка начинает всех участников заново: отметки выбывших — только её собственные
+      const failed: Failed = {};
       for (;;) {
         const rows = await q.unsafe(`fetch ${this.batch} from letopis_rebuild`);
         if (!rows.length) break;
         head ??= { tx: rows[0].xmin as string, seq: '0', snap: rows[0].snap as string };
-        const changes = rows.filter((r) => r.row).map((r) => this.rebuildChange(r.row as Record<string, unknown>)).filter((c) => this.ours(c.row));
+        const changes = rows.filter((r) => r.row).map((r) => this.rebuildChange(r.row as Record<string, unknown>)).filter((c) => this.ours(c.row, failed));
         if (changes.length) {
-          await this.apply(q, changes, rep);
+          await this.apply(q, changes, rep, failed, enc(head));
           rep.changes += changes.length;
         }
       }
       await q.unsafe('close letopis_rebuild');
-      await this.advance(q, meta.cursor, { cursor: enc(head!), at: await this.now(q), version: this.def.version, state: 'running' });
+      // выбывший посреди перестройки — без производных строк: прежние пачки построили их лишь частично
+      if (Object.keys(failed).length) await this.clear(q, Object.keys(failed));
+      await this.advance(q, meta.cursor, withFailed({ cursor: enc(head!), at: await this.now(q), version: this.def.version, state: 'running' }, failed));
       rep.rebuilds++;
     });
   }
@@ -610,9 +778,10 @@ export class Projector {
         if (!(await this.lock(q))) throw this.busy();
         await this.resolve(q);
         const meta = await this.state(q);
-        await q.unsafe(`select ${this.env.S}.derived_clear($1)`, [this.name]);
+        await this.clear(q, this.tenants);
         const [h] = await q.unsafe(`select pg_snapshot_xmin(s)::text as xmin, s::text as snap from pg_current_snapshot() s`);
         const start = enc({ tx: h.xmin as string, seq: '0', snap: h.snap as string });
+        // все участники заново: отметки выбывших снимаются
         await this.advance(q, meta.cursor, { cursor: start, at: await this.now(q), version: this.def.version, state: 'rebuilding',
           rebuild: { start, last: null, chunks: [] } });
       });
@@ -624,29 +793,78 @@ export class Projector {
         const meta = await this.state(q);
         const rb = meta.rebuild;
         if (meta.state !== 'rebuilding' || !rb) return true;
-        // пачка источников и её снимок — одним оператором
+        const failed: Failed = { ...(meta.failed ?? {}) };
+        // пачка источников и её снимок — одним оператором; выбывших арендаторов пачка не читает
         const rows = await q.unsafe(`with s as (select pg_current_snapshot()::text as snap)
           select s.snap, case when e.id is null then null else ${rowJson('e')} end as row
           from s left join lateral (select x.* from ${this.env.S}.entity x
             where x.class = any ($1::text[]) and x.tenant = any ($4::uuid[]) and ($2::uuid is null or x.id > $2::uuid)
             order by x.id limit $3) e on true`,
-        [this.from, rb.last, this.batch, this.tenants]);
+        [this.from, rb.last, this.batch, this.tenants.filter((x) => !failed[x])]);
         const real = rows.filter((r) => r.row);
         if (!real.length) {
-          await this.advance(q, meta.cursor, { cursor: rb.start, at: await this.now(q), version: this.def.version, state: 'running',
-            ...(rb.chunks.length ? { chunks: rb.chunks } : {}) });
+          await this.advance(q, meta.cursor, withFailed({ cursor: rb.start, at: await this.now(q), version: this.def.version, state: 'running',
+            ...(rb.chunks.length ? { chunks: rb.chunks } : {}) }, failed));
           rep.rebuilds++;
           return true;
         }
-        const changes = real.map((r) => this.rebuildChange(r.row as Record<string, unknown>)).filter((c) => this.ours(c.row));
-        await this.apply(q, changes, rep);
+        const changes = real.map((r) => this.rebuildChange(r.row as Record<string, unknown>)).filter((c) => this.ours(c.row, failed));
+        if (changes.length) await this.apply(q, changes, rep, failed, rb.start);
+        // выбывший в этой пачке — без производных строк: прежние пачки построили их лишь частично
+        const fresh = Object.keys(failed).filter((x) => !meta.failed?.[x]);
+        if (fresh.length) await this.clear(q, fresh);
         rep.changes += changes.length;
-        const last = changes[changes.length - 1].id;
-        await this.advance(q, meta.cursor, { ...meta, rebuild: { start: rb.start, last, chunks: [...rb.chunks, { upto: last, snap: rows[0].snap as string }] } });
+        // граница пачки — последний прочитанный id (а не последнее изменение: строки чужих семейств пропущены)
+        const last = (real[real.length - 1].row as { id: string }).id;
+        await this.advance(q, meta.cursor, withFailed({ ...meta, rebuild: { start: rb.start, last, chunks: [...rb.chunks, { upto: last, snap: rows[0].snap as string }] } }, failed));
         return false;
       });
       if (done) return;
     }
+  }
+
+  /**
+   * Перестройка одного арендатора (rebuild({ tenant })): одной транзакцией его производные строки удаляются и
+   * строятся заново из его текущих строк источников, отметка выбывшего снимается. Снимок перестройки встаёт в
+   * чекпоинт (meta.resync): изменения арендатора, чья транзакция в нём видна, хвост журнала пропускает — каждое
+   * изменение применено ровно один раз. Ошибка записи откатывает перестройку: арендатор остаётся выбывшим.
+   */
+  private async rebuildTenant(rep: ProjectorReport, tenant: string): Promise<void> {
+    await this.tx(async (q) => {
+      if (!(await this.lock(q))) throw this.busy();
+      await this.resolve(q);
+      const meta = await this.state(q);
+      if (!meta.cursor || meta.state === 'rebuilding') {
+        throw new LetopisError('rebuild_required', `проектор ${this.name}: проекции ещё нет или идёт перестройка пачками — сначала run() или rebuild()`);
+      }
+      if (meta.version !== this.def.version) throw this.versionError(meta);
+      const sc = this.scopes.get(tenant);
+      if (!sc) {
+        throw new LetopisError('tenant_denied', `проектор ${this.name}: арендатор ${tenant} не участник — у него не все классы ${this.def.into.join(', ')} помечены derivedBy: '${this.name}'${this.only ? ' или его нет в списке tenants' : ''}`);
+      }
+      await this.clear(q, [tenant]);
+      await q.unsafe(`declare letopis_rebuild no scroll cursor for
+        with s as (select pg_current_snapshot() as snap)
+        select s.snap::text as snap, case when e.id is null then null else ${rowJson('e')} end as row
+        from s left join ${this.env.S}.entity e on e.class = any ($1::text[]) and e.tenant = $2::uuid
+        order by e.id`, [[...sc.from], tenant]);
+      let snap: string | null = null;
+      for (;;) {
+        const rows = await q.unsafe(`fetch ${this.batch} from letopis_rebuild`);
+        if (!rows.length) break;
+        snap ??= rows[0].snap as string;
+        const changes = rows.filter((r) => r.row).map((r) => this.rebuildChange(r.row as Record<string, unknown>)).filter((c) => this.ours(c.row));
+        if (changes.length) {
+          await this.apply(q, changes, rep, null);
+          rep.changes += changes.length;
+        }
+      }
+      await q.unsafe('close letopis_rebuild');
+      const failed: Failed = { ...(meta.failed ?? {}) };
+      delete failed[tenant];
+      await this.advance(q, meta.cursor, withFailed({ ...meta, resync: { ...(meta.resync ?? {}), [tenant]: snap! } }, failed));
+      rep.rebuilds++;
+    });
   }
 
   /** Ждать сигнал источников, остановку или запасной опрос. */

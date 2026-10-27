@@ -50,7 +50,7 @@ export type { DiffChange, DiffResult, DiffOptions, BlameField, BlameResult, Blam
 export type { CacheOptions, CacheStats } from './cache.js';
 export type { SignalMode } from './signals.js';
 export type { WatchOptions, WatchEvent, Subscription } from './watch.js';
-export type { Projector, ProjectorOptions, ProjectorChange, ProjectorOut, ProjectorRow, ProjectorReport, ProjectorStatus } from './project.js';
+export type { Projector, ProjectorOptions, ProjectorChange, ProjectorOut, ProjectorRow, ProjectorReport, ProjectorStatus, ProjectorFailure } from './project.js';
 export type { VerifyResult, VerifyIssue, MaintainOptions, MaintainReport, ResetOptions, ResetResult, ModelDescription } from './admin.js';
 export { describeText } from './admin.js';
 export { up, createTenant, type UpOptions, type UpResult, type HistoryPolicy, type TenantOptions, type TenantResult } from './up.js';

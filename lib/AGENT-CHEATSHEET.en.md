@@ -41,12 +41,14 @@ const r = await up({ dsn: ADMIN, schema: 'myapp',                  // schema 'v2
   policy), `allowReset`, `serviceKey`, `quiet`, `pglite: true` (a database for development without PostgreSQL; then
   `connect({ dsn: r.pglite.dsn, listen: false, max: 1, allowBypassRls: true, … })` — a superuser connection, RLS
   does not apply on it).
-- `signals` — what `NOTIFY` signals show to any role that can connect to the database: `'class'` (default — class
-  names), `'tenant'` (the class name and a tenant token; the cache is cleared only in the tenant of the write),
-  `'opaque'` (tokens only), `'none'` (no signals: the cache works only with `ttlOnly`, subscriptions poll the log).
-  The mode is stored in the schema: `up()` without the option keeps it; after a change, restart the processes. The
-  signal key (precise cache clearing) goes to services — the `letopis.signals` permission. The `up()` result also has
-  `signals` and `warnings` (PostgreSQL below 18.2 — upgrade).
+- `signals` — what `NOTIFY` signals show to any role that can connect to the database. The channel is the full
+  schema name (`LISTEN "v2.myapp"`); the write signal payload: `'class'` (default) — `Class`; `'tenant'` —
+  `Class@tenant token` (the cache is cleared only in the tenant of the write); `'opaque'` — `class token@tenant
+  token`; `'none'` — no signals (the cache works only with `ttlOnly`, subscriptions poll the log). Service signals:
+  `session:<16 hex>` is a revoked session, `session:*` and `*` are resets (`reset`). The mode is stored in the
+  schema: `up()` without the option keeps it; after a change, restart the processes. The signal key (precise cache
+  clearing) goes to services — the `letopis.signals` permission. The `up()` result also has `signals` and `warnings`
+  (PostgreSQL below 18.2 — upgrade).
 - `tenant` — the first tenant and user without a seed of your own: the tenant gets the rule "authenticated users may
   do everything" (`grantAll`, on by default, weight 10); the user gets a membership with the roles `user.roles`
   (`['owner']` by default), a password for signing in with the login `login`, and a session in the tenant. Repeating
@@ -285,6 +287,12 @@ await db.Wallet(w200).versions({ follow: true })                      // also ac
 await db.Wallet(w).diff()                                             // what changed: previous version → latest
 await db.Wallet(w).blame()                                            // who, when and why (verb option reason) changed fields
 ```
+`diff()` is an array of `DiffResult`: `{ id, class, from, to, changes }`; `from` and `to` are `{ rev, at, id? }`, `to`
+also has `deleted?` (then `changes` is empty), `from: null` means the object did not exist then. A change, `DiffChange`,
+is `{ path, kind: 'added' | 'removed' | 'changed', before?, after? }`. `blame()` is an array of `BlameResult`:
+`{ id, class, rev, complete, fields }`; `fields` are the `BlameField` leaves in path order:
+`{ path, rev, at, author, op, exact, agent?, reason?, id? }`. `path` is an array of segments: `['data', 'price']`;
+empty `agent`, `reason`, `before`, `after` are omitted. The types come from `letopis`.
 A class with `history: false` does not provide `versions`, `asOf`, `restore` or subscription events.
 
 ### 11. Import from 0.21
@@ -320,12 +328,23 @@ lag. A derived class is marked with `derivedBy: 'projector-name'`, and only this
 const p = adm.projector('daily', { from: ['Payment'], into: ['DayTotal'], version: 1, withBefore: true,
   handle(changes, out) { /* out.inc, out.upsert, out.delete, await out.get: into classes, { tenant: c.tenant } */ } })
 await p.run({ once: true })   // catch up with the journal; run() follows it until stop(); rebuild(), status(), close()
+p.run().catch(report)         // run() without once needs a catch: after a projector error it stops
 ```
 Only an admin connection (otherwise `admin_required`). A batch is one transaction, every change is applied exactly
 once, there is one writer (`rebuild()` while another process writes a batch gives `projector_busy`). The first
 start rebuilds the projection from the current state. `purge`, `trim` and `reset` come as changes with `rev` 1, so check `op` first.
 Another `version` gives `rebuild_required`; a cursor older than the `all` tier gives `cursor_expired`
-(`onExpired: 'rebuild'` rebuilds by itself). A source with `history: false` does not fit.
+(`onExpired: 'rebuild'` rebuilds by itself). A source with `history: false` does not fit. `c.before` (with
+`withBefore`) is the previous version of the same id or `null`: `null` for a creation, for the first version of a new
+id after `reclass` and `rekey` (the tombstone of the former id subtracts the former data), during a rebuild and when
+the previous version is a deletion (after `restore`); `purge`, `trim` and `reset` have no such field, so subtract
+`before` only after checking it for `null`. `handle` gets the changes of one tenant. An error of its data (the
+database rejected its results, or `out` rejected its row or delta) rolls back only this tenant: it drops out
+(`status().failed`: `{ id: { cursor, code, message } }`) until `rebuild({ tenant: id })`, and the others go on;
+`tenants: [id, …]` is an explicit list of participants.
+`status().state`: `'new'` means there is no projection yet, `'running'` means the projection is
+built and kept up (not "a process is running now"), `'rebuilding'` means a batch rebuild is in progress or was
+interrupted.
 
 ### 13. Aggregates in the database
 
@@ -351,10 +370,14 @@ const server = await createMcpServer(await svc.as(userId))   // letopis_model, l
 ```
 Only a user session or `svc.as(user)`: a connection that bypasses RLS gets `bypass_rls`, the service root without
 `as()` gets `user_session_required`, and the command line does not accept `--api-key`. Reading is a JSON chain
-(`class`, `filter` with `$gt`, `$in`, `$or` and so on, `steps`, `sort`, `cursor`), with no SQL; an answer holds up to
-100 rows and 50 KB, then comes a `cursor`. Writing only with `write: true`: `update` with `rev`; `delete` without
-`confirm` is a preview, with `confirm` a human confirms it (elicitation), and without that it is
-`confirmation_required`. Data from the database in an answer sits inside `<untrusted-data-…>`.
+(`class`, `filter` with `$gt`, `$in`, `$or` and so on, `steps`, `sort: { field, dir: 'asc' | 'desc' }`, `cursor`),
+with no SQL; an answer holds up to 100 rows and 50 KB, then comes a `cursor`. `structuredContent` by terminal: `rows` —
+`{ rows, count, more, cursor? }`, `ids` — `{ ids, count, more, cursor? }` (`count` is the rows on the page), `first` —
+`{ row }`, `count` — `{ count }`, `countBy` — `{ counts, truncated? }`, `sum`, `avg`, `min`, `max` —
+`{ value }`. A refusal is `isError: true` with `structuredContent.error` (`{ code, message, similar? }`). Writing only
+with `write: true` (without it `letopis_write` is not in the list, and a call is an SDK protocol error): `update` with
+`rev`; `delete` without `confirm` is a preview, with `confirm` a human confirms it (elicitation), and without that it
+is `confirmation_required`. Data from the database in an answer sits inside `<untrusted-data-…>`.
 
 ### Operations
 

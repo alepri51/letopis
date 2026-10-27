@@ -4,12 +4,15 @@
 -- Проектор — процесс администратора, как загрузчик: работает от роли владельца (set local role),
 -- читает журнал всех арендаторов функцией watch_read и пишет строки производных классов (derivedBy)
 -- только функцией derived_apply. Чекпоинт — строка secret вида PROJECTOR (account = System, ident —
--- имя проектора): курсор журнала со снимком, версия проектора, состояние. Курсор сдвигается в той же
--- транзакции, что и запись результатов; писатель один — транзакционная advisory-блокировка
--- (19542, «схема:имя») на каждую пачку. Функции кредов вид PROJECTOR не видят (80-auth.sql).
--- Приложению функции файла не выданы: их вызывает только роль владельца.
+-- имя проектора): курсор журнала со снимком, версия проектора, состояние, выбывшие арендаторы. Курсор
+-- сдвигается в той же транзакции, что и запись результатов; писатель один — транзакционная
+-- advisory-блокировка (19542, «схема:имя») на каждую пачку. Функции кредов вид PROJECTOR не видят
+-- (80-auth.sql). Приложению функции файла не выданы: их вызывает только роль владельца.
 
--- Чекпоинт проектора: строка создаётся при первом обращении и блокируется до конца транзакции.
+-- Чекпоинт проектора: строка создаётся при первом обращении и блокируется до конца транзакции. Чекпоинт — только
+-- строка System (ревью безопасности №2): строка вида PROJECTOR другого аккаунта им не бывает. Такая строка с тем же
+-- именем заняла бы уникальный индекс secret_kind_ident, и своя не записалась бы, — она помечается удалённой, как при
+-- накате (ниже).
 create or replace function @SCHEMA@.projector_state(p_name text) returns jsonb
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -18,9 +21,11 @@ declare
   m jsonb;
 begin
   select s.meta into m from @SCHEMA@.secret s
-  where s.kind = 'PROJECTOR' and s.ident = p_name and s.deleted_at is null
+  where s.kind = 'PROJECTOR' and s.ident = p_name and s.account = '@SYSTEM@'::uuid and s.deleted_at is null
   for update;
   if not found then
+    update @SCHEMA@.secret s set deleted_at = clock_timestamp()
+    where s.kind = 'PROJECTOR' and casefold(s.ident) = casefold(p_name) and s.account <> '@SYSTEM@'::uuid and s.deleted_at is null;
     insert into @SCHEMA@.secret (account, kind, ident, meta) values ('@SYSTEM@'::uuid, 'PROJECTOR', p_name, '{}'::jsonb);
     return '{}'::jsonb;
   end if;
@@ -34,10 +39,15 @@ set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 begin
   update @SCHEMA@.secret s set meta = p_meta
-  where s.kind = 'PROJECTOR' and s.ident = p_name and s.deleted_at is null
+  where s.kind = 'PROJECTOR' and s.ident = p_name and s.account = '@SYSTEM@'::uuid and s.deleted_at is null
     and s.meta->>'cursor' is not distinct from p_expected;
   return found;
 end $$;
+
+-- Строки вида PROJECTOR других аккаунтов — не чекпоинты (ревью безопасности №2): при накате помечаются удалёнными;
+-- повторный накат их уже не находит.
+update @SCHEMA@.secret s set deleted_at = clock_timestamp()
+where s.kind = 'PROJECTOR' and s.account <> '@SYSTEM@'::uuid and s.deleted_at is null;
 
 -- Строка проектора в формате загрузчика: поля и роли концов на верхнем уровне, служебные $tags, $owner,
 -- $id; ключи на $ внутри данных — обычные данные. Делится на данные и концы по описанию класса.
@@ -76,7 +86,8 @@ end $$;
 -- создании. Класс — производный именно этого проектора в арендаторе строки; данные — по описанию класса
 -- (умолчания, проверка); концы — живые цели своего арендатора или System подходящего класса, не производные;
 -- id — v5 от ключа. Пустая правка версии не даёт. Журнал — по history класса, сигнал — всегда (log_version,
--- tombstone). Возвращает {created, updated, deleted, unchanged}.
+-- tombstone). Текст ошибки называет проектор, арендатора и id строки (ревью безопасности №2): по нему видно, чьи
+-- данные проектор не записал. Возвращает {created, updated, deleted, unchanged}.
 create or replace function @SCHEMA@.derived_apply(p_name text, p_ops jsonb) returns jsonb
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -101,6 +112,8 @@ declare
   k record;
   tg text[];
   own uuid;
+  -- где ошибка: проектор, арендатор и (когда известен) id строки
+  w text;
   v_agent text := 'letopis projector ' || p_name;
   v_reason text := nullif(current_setting('letopis.reason', true), '');
   n_created int := 0;
@@ -122,34 +135,36 @@ begin
       perform @SCHEMA@.lt_fail('invalid_data', format('проектор %s: арендатор строки — не uuid', p_name));
     end if;
     tid := (o->>'tenant')::uuid;
+    w := format(' (проектор %s, арендатор %s)', p_name, tid);
     cls := @SCHEMA@.class_row(cname, tid);
     if cls.id is null then
-      perform @SCHEMA@.lt_fail('invalid_class', format('класс %s не найден', cname));
+      perform @SCHEMA@.lt_fail('invalid_class', format('класс %s не найден', cname) || w);
     end if;
     -- как у писателей приложения: разделяемая блокировка семейства, описание — свежее под ней
     perform @SCHEMA@.family_lock(cls, false);
     cls := @SCHEMA@.class_row(cname, tid);
     res := cls.data->'resolved';
     if res->>'derivedBy' is distinct from p_name then
-      perform @SCHEMA@.lt_fail('derived_class', format('класс %s не производный проектора %s', cname, p_name));
+      perform @SCHEMA@.lt_fail('derived_class', format('класс %s не производный проектора %s', cname, p_name) || w);
     end if;
     if coalesce((res->>'abstract')::boolean, false) then
-      perform @SCHEMA@.lt_fail('invalid_class', format('класс %s абстрактный', cname));
+      perform @SCHEMA@.lt_fail('invalid_class', format('класс %s абстрактный', cname) || w);
     end if;
     select * into sp from @SCHEMA@.derived_split(res, rw);
     -- id: v5 от ключа; у класса без ключа — $id строки
     kid := @SCHEMA@.key_id(res, cname, tid, sp.data, sp.links);
     if kid is null then
       if not pg_input_is_valid(rw->>'$id', 'uuid') then
-        perform @SCHEMA@.lt_fail('invalid_data', format('класс %s без ключа: проектору нужен $id строки', cname));
+        perform @SCHEMA@.lt_fail('invalid_data', format('класс %s без ключа: проектору нужен $id строки', cname) || w);
       end if;
       kid := (rw->>'$id')::uuid;
     elsif rw ? '$id' and (not pg_input_is_valid(rw->>'$id', 'uuid') or (rw->>'$id')::uuid <> kid) then
-      perform @SCHEMA@.lt_fail('id_mismatch', format('$id не равен v5 от ключа класса %s', cname), jsonb_build_object('expected', kid));
+      perform @SCHEMA@.lt_fail('id_mismatch', format('$id не равен v5 от ключа класса %s', cname) || w, jsonb_build_object('expected', kid));
     end if;
+    w := format(' (проектор %s, арендатор %s, строка %s)', p_name, tid, kid);
     select x.* into cur from @SCHEMA@.entity x where x.id = kid for update;
     if cur.id is not null and (cur.class <> cname or cur.tenant <> tid) then
-      perform @SCHEMA@.lt_fail('id_mismatch', format('id %s занят строкой другого класса или арендатора', kid));
+      perform @SCHEMA@.lt_fail('id_mismatch', 'id занят строкой другого класса или арендатора' || w);
     end if;
     if op = 'delete' then
       if cur.id is not null then
@@ -163,7 +178,7 @@ begin
       d := @SCHEMA@.merge(coalesce(cur.data, '{}'::jsonb), sp.data);
       for k in select key, value from jsonb_each(coalesce(o->'deltas', '{}'::jsonb)) loop
         if jsonb_typeof(k.value) <> 'number' then
-          perform @SCHEMA@.lt_fail('invalid_data', format('проектор %s: приращение поля %s — не число', p_name, k.key));
+          perform @SCHEMA@.lt_fail('invalid_data', format('приращение поля %s — не число', k.key) || w);
         end if;
         d := @SCHEMA@.inc(d, array[k.key], (k.value #>> '{}')::numeric, 0);
       end loop;
@@ -173,28 +188,29 @@ begin
     d := @SCHEMA@.apply_defaults(res->'schema', d);
     bad := @SCHEMA@.validate_data(res->'rules', cls.validator, res->'vars', d);
     if bad <> '[]'::jsonb then
-      perform @SCHEMA@.lt_fail('invalid_data', format('данные не проходят описание класса %s', cname), jsonb_build_object('issues', bad));
+      perform @SCHEMA@.lt_fail('invalid_data', format('данные не проходят описание класса %s', cname) || w,
+        jsonb_build_object('issues', bad, 'tenant', tid, 'id', kid));
     end if;
     -- концы: у inc без концов в строке — прежние
     select * into lk from @SCHEMA@.check_links(res,
       case when op = 'inc' and sp.links = '{}'::jsonb then coalesce(cur.links, '{}'::jsonb) else sp.links end,
       tid, true, null);
     if lk.code is not null then
-      perform @SCHEMA@.lt_fail(lk.code, lk.msg);
+      perform @SCHEMA@.lt_fail(lk.code, lk.msg || w);
     end if;
     if rw ? '$tags' and jsonb_typeof(rw->'$tags') <> 'array' then
-      perform @SCHEMA@.lt_fail('invalid_data', format('проектор %s: $tags — список строк', p_name));
+      perform @SCHEMA@.lt_fail('invalid_data', '$tags — список строк' || w);
     end if;
     tg := case when rw ? '$tags' then array(select jsonb_array_elements_text(rw->'$tags')) else coalesce(cur.tags, '{}') end;
     if cur.id is null then
       own := tid;
       if rw->>'$owner' is not null then
         if not pg_input_is_valid(rw->>'$owner', 'uuid') then
-          perform @SCHEMA@.lt_fail('invalid_data', format('проектор %s: $owner — не uuid', p_name));
+          perform @SCHEMA@.lt_fail('invalid_data', '$owner — не uuid' || w);
         end if;
         own := (rw->>'$owner')::uuid;
         if own <> tid and not exists (select 1 from @SCHEMA@.entity a where a.id = own and a.class = 'Account' and a.tenant = '@SYSTEM@'::uuid) then
-          perform @SCHEMA@.lt_fail('target_not_found', 'владелец строки не найден');
+          perform @SCHEMA@.lt_fail('target_not_found', 'владелец строки не найден' || w);
         end if;
       end if;
       -- воскрешение: номер версии и цепочка хэшей продолжаются от последней записи журнала (как trg_entity_bi)
@@ -222,10 +238,12 @@ begin
   return jsonb_build_object('created', n_created, 'updated', n_updated, 'deleted', n_deleted, 'unchanged', n_unchanged);
 end $$;
 
--- Перестройка проектора: строки всех его производных классов во всех арендаторах удаляются одним
--- оператором; надгробия — по history класса одной вставкой, сигнал — по парам «класс, арендатор».
--- Возвращает число удалённых строк.
-create or replace function @SCHEMA@.derived_clear(p_name text) returns int
+-- Перестройка проектора: строки его производных классов удаляются одним оператором — только пары «арендатор, класс»,
+-- которые передал проектор (p_tenants[i], p_classes[i]: участники и их семейства into), и только классы с пометкой
+-- derivedBy этого проектора. Прежде удалялись строки всех классов с пометкой во всех арендаторах — и тех, кто
+-- участником не был (ревью безопасности №2). Надгробия — по history класса одной вставкой, сигнал — по парам «класс,
+-- арендатор». Возвращает число удалённых строк.
+create or replace function @SCHEMA@.derived_clear(p_name text, p_tenants uuid[], p_classes text[]) returns int
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
@@ -237,8 +255,10 @@ declare
   v_reason text := nullif(current_setting('letopis.reason', true), '');
 begin
   with c as (
-    select distinct x.data->>'name' as name, x.tenant from @SCHEMA@.entity x
-    where x.class = 'Class' and x.data->'resolved'->>'derivedBy' = p_name
+    select distinct x.data->>'name' as name, x.tenant
+    from unnest(coalesce(p_tenants, '{}'), coalesce(p_classes, '{}')) p(tenant, name)
+    join @SCHEMA@.entity x on x.class = 'Class' and x.tenant = p.tenant and x.data->>'name' = p.name
+    where x.data->'resolved'->>'derivedBy' = p_name
   ), g as (
     delete from @SCHEMA@.entity e using c where e.class = c.name and e.tenant = c.tenant
     returning e.*
@@ -258,11 +278,14 @@ begin
   return n;
 end $$;
 
+-- до ревью безопасности №2 перестройка удаляла строки всех классов с пометкой во всех арендаторах
+drop function if exists @SCHEMA@.derived_clear(text);
+
 do $$
 declare f text;
 begin
   foreach f in array array['projector_state(text)', 'projector_advance(text, text, jsonb)', 'derived_split(jsonb, jsonb)',
-    'derived_id(text, uuid, jsonb)', 'derived_apply(text, jsonb)', 'derived_clear(text)'] loop
+    'derived_id(text, uuid, jsonb)', 'derived_apply(text, jsonb)', 'derived_clear(text, uuid[], text[])'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);
     execute format('revoke all on function @SCHEMA@.%s from public', f);
   end loop;

@@ -487,9 +487,10 @@ test('ревью коммита этапа 4б: агрегат задаёт то
   await setShop({ aggregate: { total, big } });
   const [shop] = await e.sql.unsafe(`select data->'resolved'->'aggregate' as a from ${e.S}.entity where class = 'Class' and tenant = $1 and data->>'name' = 'Shop'`, [x.id]);
   assert.deepEqual(Object.keys(shop.a).sort(), ['big', 'total']);
-  // право отозвано: правка описания без изменения агрегата проходит, изменение агрегата — нет
+  // право отозвано: правка описания без изменения агрегата проходит, изменение агрегата — нет (правка — метаданные:
+  // смена алиаса требует права на все строки самого класса, ревью безопасности №2)
   await grant('sale.ban:READ', 'READ', { class: 'Sale' }, 50, 'deny');
-  await setShop({ alias: 'Магазин' });
+  await setShop({ meta: { title: 'Магазин' } });
   await assert.rejects(setShop({ aggregate: { total, big: { ...big, where: { properties: { amount: { minimum: 500 } } } } } }), denied('Shop.big', 'Sale'));
   // унаследованный агрегат — тоже: новый потомок цели получает агрегаты предка (ревью коммита 21b3b01)
   await assert.rejects(e.defineClass(x, { name: 'Stall', kind: 'hub', parent: 'Shop' }), denied('Stall.big', 'Sale'));
@@ -505,6 +506,9 @@ test('ревью коммита этапа 4б: класс становится 
   await grant('class:WRITE', 'WRITE', { class: 'Class' }, 10);
   await grant('shop:READ', 'READ', { class: 'Shop' }, 10);
   await grant('sale:READ', 'READ', { class: 'Sale' }, 10);
+  // перенос класса под другого предка — ещё и право WRITE и DELETE на все его строки (ревью безопасности №2)
+  await grant('secret:WRITE', 'WRITE', { class: 'Secret' }, 10);
+  await grant('secret:DELETE', 'DELETE', { class: 'Secret' }, 10);
   const link = (name: string) => e.defineClass(x, { name, kind: 'link', fields: { properties: { amount: { type: 'integer' } }, required: ['amount'] },
     ends: { Shop: { class: 'Shop', required: true, onDelete: 'cascade' } } });
   await e.defineClass(x, { name: 'Shop', kind: 'hub', key: ['code'],

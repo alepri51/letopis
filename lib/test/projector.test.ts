@@ -1,11 +1,14 @@
 /**
  * projector — проекторы из журнала (план 1.1, §2.4, этап 4а; тест-план §7.5 №1–11): догонка, ровно один раз,
  * один писатель, долгая транзакция, перестройка атомарная и пачками при записи источника, запрет записи
- * в производные классы и ссылок на них, границы out, служебные изменения, отставание, функции кредов.
+ * в производные классы и ссылок на них, границы out, служебные изменения, отставание, функции кредов. Ревью
+ * безопасности №2: ошибка данных одного арендатора — выбывает только он (failed, rebuild({ tenant }), опция tenants),
+ * чекпоинт — только строка System, перестройка удаляет строки только участников и семейств into, before — прошлая
+ * версия того же id (rekey).
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { engine, lt, type Engine, type Tenant } from './_engine.js';
+import { engine, lt, SYSTEM_ID, type Engine, type Tenant } from './_engine.js';
 import { ADMIN_DSN, appDsn } from './_harness.js';
 import { sysadmin, sqlAs } from './_access.js';
 import { install } from '../src/up.js';
@@ -387,4 +390,199 @@ test('ревью: имя производного класса одного ар
   await p.run({ once: true });
   assert.deepEqual((await totals(db)).gift, { total: 3, count: 1 }, 'Gift арендатора t — источник');
   p.close();
+});
+
+test('ревью безопасности №2, Н1: ошибка данных одного арендатора не останавливает проектор — арендатор выбывает до rebuild({ tenant })', async () => {
+  // арендатор x сам стал участником проектора daily: его DayTotal с maximum: 0 не примет ни одной суммы
+  const x = await e.tenant('proj-x');
+  await e.defineClass(x, { name: 'Sale', kind: 'hub', fields: { properties: { day: { type: 'string' }, amount: { type: 'integer' } }, required: ['day', 'amount'] } });
+  await e.defineClass(x, { name: 'DayTotal', kind: 'hub', key: ['day'], derivedBy: 'daily', history: false,
+    fields: { properties: { day: { type: 'string' }, total: { type: 'integer', maximum: 0 }, count: { type: 'integer' } }, required: ['day'] } });
+  // у арендатора y сумма продажи — строка: handle передаёт её в out.inc, и out отклоняет приращение
+  const y = await e.tenant('proj-y');
+  await e.defineClass(y, { name: 'Sale', kind: 'hub', fields: { properties: { day: { type: 'string' }, amount: { type: 'string' } }, required: ['day', 'amount'] } });
+  await e.defineClass(y, { name: 'DayTotal', kind: 'hub', key: ['day'], derivedBy: 'daily', history: false,
+    fields: { properties: { day: { type: 'string' }, total: { type: 'integer' }, count: { type: 'integer' } }, required: ['day'] } });
+  const xdb = await connect({ dsn: appDsn(), schema: e.schema, token: x.token, max: 2 });
+  const p = adm.projector('daily', dailyDef({ version: 2 }));
+  try {
+    await insSale(x.token, { day: 'x1', amount: 5 });
+    await e.as(y.token, (tx) => tx.unsafe(`insert into ${e.S}.entity (class, data) values ('Sale', '{"day": "y1", "amount": "много"}')`));
+    await insSale(t.token, { day: 'n1', amount: 6 });
+    await p.run({ once: true });
+    assert.deepEqual((await totals(db)).n1, { total: 6, count: 1 }, 'итог t записан в той же пачке');
+    let st = await p.status();
+    assert.deepEqual(Object.keys(st.failed).sort(), [x.id, y.id].sort(), 'выбыли только x и y');
+    assert.equal(st.failed[x.id].code, 'invalid_data');
+    assert.match(st.failed[x.id].message, new RegExp(`DayTotal .*арендатор ${x.id}, строка [0-9a-f-]{36}`), 'текст называет арендатора и id строки');
+    assert.match(st.failed[x.id].cursor, /^\d+:\d+/);
+    assert.equal(st.failed[y.id].code, 'invalid_data');
+    assert.match(st.failed[y.id].message, new RegExp(`приращение поля total — не число \\(арендатор ${y.id}\\)`));
+    assert.equal(st.lag, 0);
+    // дальше изменения x пропускаются, остальные идут
+    await insSale(x.token, { day: 'x1', amount: 1 });
+    await insSale(t.token, { day: 'n1', amount: 1 });
+    await p.run({ once: true });
+    assert.deepEqual((await totals(db)).n1, { total: 7, count: 2 });
+    assert.deepEqual(await totals(xdb), {}, 'у x ничего не записано');
+    // полная перестройка, атомарная и пачками: итоги остальных верны, x выбывает снова
+    for (const chunked of [false, true]) {
+      await p.rebuild({ chunked });
+      assert.deepEqual(await totals(db), await expected(db), chunked ? 'пачками' : 'атомарно');
+      assert.deepEqual(await totals(udb), await expected(udb));
+      st = await p.status();
+      assert.equal(st.state, 'running');
+      assert.equal(st.failed[x.id]?.code, 'invalid_data', chunked ? 'пачками' : 'атомарно');
+    }
+    // пока описание не исправлено, перестройка арендатора отклоняется и ничего не меняет
+    await assert.rejects(p.rebuild({ tenant: x.id }), lt('invalid_data'));
+    assert.equal((await p.status()).failed[x.id]?.code, 'invalid_data');
+    // ограничение снято — rebuild({ tenant }) строит x из его текущих строк и снимает отметку
+    await e.as(x.token, (tx) => tx.unsafe(`update ${e.S}.entity set data = jsonb_set(data, '{fields,properties,total}', '{"type": "integer"}')
+      where class = 'Class' and tenant = $1 and data->>'name' = 'DayTotal'`, [x.id]));
+    assert.equal((await p.rebuild({ tenant: x.id })).rebuilds, 1);
+    assert.deepEqual(await totals(xdb), { x1: { total: 6, count: 2 } });
+    assert.deepEqual(Object.keys((await p.status()).failed), [y.id], 'отметка x снята, y — выбывший');
+    // хвост журнала после перестройки арендатора: каждое изменение x — ровно один раз
+    await insSale(x.token, { day: 'x1', amount: 2 });
+    await p.run({ once: true });
+    assert.deepEqual(await totals(xdb), { x1: { total: 8, count: 3 } });
+    assert.deepEqual(await totals(db), await expected(db));
+    // явный список арендаторов: x не участник — ни его изменения, ни перестройка (О2: и строки) его не трогают
+    const only = adm.projector('daily', dailyDef({ version: 2, tenants: [t.id, u.id] }));
+    try {
+      await insSale(x.token, { day: 'x1', amount: 100 });
+      await insSale(t.token, { day: 'n1', amount: 3 });
+      await only.run({ once: true });
+      await only.rebuild();
+      assert.deepEqual(await totals(xdb), { x1: { total: 8, count: 3 } }, 'x отсечён');
+      assert.deepEqual(await totals(db), await expected(db));
+      assert.deepEqual(await totals(udb), await expected(udb));
+      await assert.rejects(only.rebuild({ tenant: x.id }), lt('tenant_denied'));
+    } finally {
+      only.close();
+    }
+    assert.throws(() => adm.projector('daily', dailyDef({ tenants: [] })), lt('invalid_data'));
+    assert.throws(() => adm.projector('daily', dailyDef({ tenants: ['не-uuid'] })), lt('invalid_data'));
+  } finally {
+    p.close();
+    await xdb.close();
+  }
+});
+
+test('ревью безопасности №2, Н1: арендатор, выбывший посреди перестройки, остаётся без производных строк, а не с их частью', async () => {
+  // у z сумма дня не больше 0. batch: 1 — каждая строка источника в своей пачке перестройки (по возрастанию id):
+  // первая строка проходит, вторая — нет
+  const z = await e.tenant('proj-z');
+  await e.defineClass(z, { name: 'Sale', kind: 'hub', fields: { properties: { day: { type: 'string' }, amount: { type: 'integer' } }, required: ['day', 'amount'] } });
+  await e.defineClass(z, { name: 'DayTotal', kind: 'hub', key: ['day'], derivedBy: 'zdaily', history: false,
+    fields: { properties: { day: { type: 'string' }, total: { type: 'integer', maximum: 0 }, count: { type: 'integer' } }, required: ['day'] } });
+  const zdb = await connect({ dsn: appDsn(), schema: e.schema, token: z.token, max: 2 });
+  await insSale(z.token, { day: 'z0', amount: 0 });
+  await insSale(z.token, { day: 'z1', amount: 0 });
+  const [, late] = (await zdb.Sale().rows()).map((r) => r.id).sort();
+  await e.as(z.token, (tx) => tx.unsafe(`update ${e.S}.entity set data = data || '{"amount": 5}' where id = $1`, [late]));
+  const p = adm.projector('zdaily', dailyDef({ batch: 1 }));
+  try {
+    for (const chunked of [false, true]) {
+      await p.rebuild({ chunked });
+      assert.equal((await p.status()).failed[z.id]?.code, 'invalid_data', chunked ? 'пачками' : 'атомарно');
+      assert.deepEqual(await totals(zdb), {}, chunked ? 'пачками' : 'атомарно');
+    }
+  } finally {
+    p.close();
+    await zdb.close();
+  }
+});
+
+test('ревью безопасности №2, О1: строка PROJECTOR другого аккаунта — не чекпоинт: подложенная не мешает проектору, накат её удаляет', async () => {
+  await e.defineClass(t, { name: 'Mark', kind: 'hub', key: ['k'], derivedBy: 'marker', history: false,
+    fields: { properties: { k: { type: 'string' }, n: { type: 'integer' } }, required: ['k'] } });
+  const fake = { cursor: '1:0', version: 1, state: 'running', at: new Date().toISOString() };
+  const plant = async (ident: string) => (await e.asOwner((tx) => tx.unsafe(`insert into ${e.S}.secret (account, kind, ident, meta)
+    values ($1::uuid, 'PROJECTOR', $2, $3::jsonb) returning id`, [t.id, ident, fake as never])))[0].id as string;
+  const rowOf = async (id: string) => (await e.sql.unsafe(`select account, deleted_at, meta from ${e.S}.secret where id = $1`, [id]))[0];
+  // подложенная строка выдаёт проекцию за построенную с начала журнала: без проверки аккаунта проектор взял бы её
+  const planted = await plant('marker');
+  const p = adm.projector('marker', { from: ['Sale'], into: ['Mark'], version: 1, handle: (ch, out) => {
+    for (const c of ch) if (c.op === 'create') out.inc('Mark', { k: 'all' }, { n: 1 }, { tenant: c.tenant });
+  } });
+  try {
+    assert.equal((await p.run({ once: true })).rebuilds, 1, 'первый запуск — перестройка: чужая строка не чекпоинт');
+    const [own] = await e.sql.unsafe(`select account, meta from ${e.S}.secret where kind = 'PROJECTOR' and ident = 'marker' and deleted_at is null`);
+    assert.equal(own.account, SYSTEM_ID);
+    assert.notEqual(own.meta.cursor, fake.cursor);
+    const was = await rowOf(planted);
+    assert.ok(was.deleted_at, 'чужая строка помечена удалённой');
+    assert.deepEqual(was.meta, fake, 'и не тронута проектором');
+    const [mark] = await e.sql.unsafe(`select data from ${e.S}.entity where class = 'Mark' and tenant = $1`, [t.id]);
+    assert.equal(mark.data.n, await db.Sale().count());
+    assert.equal((await p.status()).cursor, own.meta.cursor);
+  } finally {
+    p.close();
+  }
+  // накат помечает удалёнными строки PROJECTOR других аккаунтов
+  const late = await plant('marker-late');
+  await install(e.sql, { schema: e.schema, allowReset: true });
+  assert.ok((await rowOf(late)).deleted_at);
+  assert.equal((await e.sql.unsafe(`select count(*)::int as n from ${e.S}.secret where kind = 'PROJECTOR' and account <> $1 and deleted_at is null`, [SYSTEM_ID]))[0].n, 0);
+});
+
+test('ревью безопасности №2, О2: перестройка удаляет строки только участников и только семейств into', async () => {
+  // класс с пометкой daily вне семейства into: его строку проектор не строил и при перестройке не удаляет
+  await e.defineClass(t, { name: 'Stray', kind: 'hub', key: ['k'], derivedBy: 'daily', history: false,
+    fields: { properties: { k: { type: 'string' } }, required: ['k'] } });
+  await e.asOwner((tx) => tx.unsafe(`select ${e.S}.derived_apply('daily', $1::text::jsonb)`,
+    [JSON.stringify([{ op: 'upsert', class: 'Stray', tenant: t.id, row: { k: 'keep' } }])]));
+  const stray = async () => (await e.sql.unsafe(`select count(*)::int as n from ${e.S}.entity where class = 'Stray' and tenant = $1`, [t.id]))[0].n;
+  const p = adm.projector('daily', dailyDef({ version: 2 }));
+  try {
+    for (const chunked of [false, true]) {
+      await p.rebuild({ chunked });
+      assert.equal(await stray(), 1, chunked ? 'пачками' : 'атомарно');
+    }
+    assert.deepEqual(await totals(db), await expected(db));
+  } finally {
+    p.close();
+  }
+});
+
+test('ревью безопасности №2: before — прошлая версия того же id; rekey строки источника — итог свёртки верный', async () => {
+  await e.defineClass(t, { name: 'Order', kind: 'hub', key: ['code'],
+    fields: { properties: { code: { type: 'string' }, day: { type: 'string' }, amount: { type: 'integer' } }, required: ['code', 'day', 'amount'] } });
+  await e.defineClass(t, { name: 'OrderDay', kind: 'hub', key: ['day'], derivedBy: 'orders', history: false,
+    fields: { properties: { day: { type: 'string' }, total: { type: 'integer' }, count: { type: 'integer' } }, required: ['day'] } });
+  await db.refresh();
+  const seen: ProjectorChange[] = [];
+  // свёртка как в README: прошлая версия вычитается, новая прибавляется
+  const p = adm.projector('orders', { from: ['Order'], into: ['OrderDay'], version: 1, withBefore: true, handle: (changes, out) => {
+    for (const c of changes) {
+      seen.push(c);
+      if (c.op === 'purge' || c.op === 'trim' || c.op === 'reset') continue;
+      const was = c.before ? (c.before.data as unknown as Sale) : null;
+      const now = c.row.$deleted ? null : (c.row.data as unknown as Sale);
+      if (was) out.inc('OrderDay', { day: was.day }, { total: -was.amount, count: -1 }, { tenant: c.tenant });
+      if (now) out.inc('OrderDay', { day: now.day }, { total: now.amount, count: 1 }, { tenant: c.tenant });
+    }
+  } });
+  const day = async () => (await e.sql.unsafe(`select data from ${e.S}.entity where class = 'OrderDay' and tenant = $1 and data->>'day' = 'rk'`, [t.id]))[0]?.data;
+  try {
+    await p.run({ once: true });
+    const [o] = await db.Order().create({ code: 'A', day: 'rk', amount: 10 }).rows();
+    await p.run({ once: true });
+    assert.deepEqual(await day(), { day: 'rk', total: 10, count: 1 });
+    const [moved] = await db.Order(o.id).rekey({ code: 'B' }).rows();
+    assert.notEqual(moved.id, o.id);
+    await p.run({ once: true });
+    assert.deepEqual(await day(), { day: 'rk', total: 10, count: 1 }, 'после rekey — та же сумма, а не 0');
+    // у первой версии нового id прошлой версии нет; прежние данные вычитает надгробие прежнего id
+    const first = seen.find((c) => c.id === moved.id && c.op === 'rekey');
+    assert.ok(first, 'первая версия нового id пришла');
+    assert.equal(first.before, null);
+    const tomb = seen.find((c) => c.id === o.id && c.row.$deleted);
+    assert.equal((tomb?.before?.data as unknown as { code: string } | undefined)?.code, 'A');
+    assert.equal(tomb?.moved, moved.id);
+  } finally {
+    p.close();
+  }
 });

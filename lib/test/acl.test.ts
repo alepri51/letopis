@@ -324,3 +324,75 @@ test('строки Resource с маской не строкой, записан�
   assert.deepEqual(await du.acl.checkData('Vehicle', 'READ'), { allow: true });
   assert.deepEqual(await du.acl.checkData('Vehicle', 'WRITE'), { allow: true });
 });
+
+test('ревью безопасности №2, Н2: с одним правом WRITE на Class у класса не сменить alias и parent — правила другого имени открыли бы его строки', async () => {
+  // строки Ledger и его потомка закрыты (правил нет), Open читают все аутентифицированные. Сменив parent на Open или
+  // alias на имя из чужих правил, клерк с правом WRITE на Class открыл бы строки Ledger себе и другим
+  await cls('Ledger', { fields: { properties: { amount: { type: 'integer' } } } });
+  await cls('SubLedger', { parent: 'Ledger' });
+  await cls('Open', { fields: { properties: { amount: { type: 'integer' } } } });
+  await ownRow('Ledger', { amount: 100 });
+  const clerk = await account(e, 'клерк', { categories: ['User'] });
+  await member(e, clerk.id, org, ['clerk']);
+  clerk.token = await session(e, clerk.id, { tenant: org });
+  const g = await resource(e, org, 'clerk:ACCOUNT', 'ACCOUNT', { roles: '{clerk}' });
+  const grant = async (alias: string, cat: string, pattern: Record<string, unknown>, weight: number, perm: 'allow' | 'deny' = 'allow') =>
+    rule(e, org, g, await resource(e, org, alias, cat, pattern), perm, weight);
+  await grant('class:WRITE', 'WRITE', { class: 'Class' }, 10);
+  await rule(e, org, await sysRes(e, 'authenticated:ACCOUNT'), await resource(e, org, 'open:READ', 'READ', { class: 'Open' }), 'allow', 10);
+  const raw = sqlAs(e, clerk.token);
+  const setClass = (name: string, patch: Record<string, unknown>) =>
+    raw(`update ${S}.entity set data = data || $1::jsonb where class = 'Class' and tenant = $2 and data->>'name' = $3 returning id`, [patch, org, name]);
+  const rev = async () => (await e.sql.unsafe(`select rev from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = 'Ledger'`, [org]))[0].rev as number;
+  const denied = (op: string, c: string) => new RegExp(`letopis: acl_denied: класс Ledger меняет предков, алиас или derivedBy: нужно право ${op} на все строки класса ${c}$`);
+  const rev0 = await rev();
+  await assert.rejects(setClass('Ledger', { alias: 'Книга' }), denied('READ', 'Ledger'));
+  await assert.rejects(setClass('Ledger', { parent: 'Open' }), denied('READ', 'Ledger'));
+  assert.equal(await rev(), rev0, 'строка Class не изменилась');
+  assert.deepEqual([...await raw(`select id from ${S}.entity where class in ('Ledger', 'SubLedger')`)], [], 'строки по-прежнему закрыты');
+  // условного права мало: READ только своих строк
+  await grant('ledger.own:READ', 'READ', { class: 'Ledger', owner: '$actor' }, 10);
+  await assert.rejects(setClass('Ledger', { alias: 'Книга' }), denied('READ', 'Ledger'));
+  // READ без условий — мало без WRITE и DELETE; DELETE на потомка SubLedger запрещён отдельным правилом
+  await grant('ledger:READ', 'READ', { class: 'Ledger' }, 20);
+  await assert.rejects(setClass('Ledger', { alias: 'Книга' }), denied('WRITE', 'Ledger'));
+  for (const op of ['WRITE', 'DELETE']) await grant(`ledger:${op}`, op, { class: 'Ledger' }, 20);
+  await grant('subledger:DELETE', 'DELETE', { class: 'SubLedger' }, 30, 'deny');
+  await assert.rejects(setClass('Ledger', { parent: 'Open' }), denied('DELETE', 'SubLedger'));
+  assert.equal(await rev(), rev0, 'строка Class не изменилась');
+  // права без условий на класс и потомка — правка проходит
+  await grant('subledger.all:DELETE', 'DELETE', { class: 'SubLedger' }, 40);
+  assert.equal((await setClass('Ledger', { alias: 'Книга' })).length, 1);
+  assert.equal((await setClass('Ledger', { parent: 'Open' })).length, 1);
+  assert.ok(await rev() > rev0);
+  // алиас не совпадает с именем другого класса (в том числе Class и системных) и с чужим алиасом; новый класс — тоже
+  for (const alias of ['Open', 'Customer', 'Class', 'Account', 'rule', 'Машина']) {
+    await assert.rejects(setClass('Ledger', { alias }), lt('invalid_class'), alias);
+  }
+  await assert.rejects(raw(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [{ name: 'Ledger2', kind: 'hub', alias: 'Vehicle' }]), lt('invalid_class'));
+  await assert.rejects(raw(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [{ name: 'Ledger3', kind: 'hub', alias: 'Книга' }]), lt('invalid_class'));
+});
+
+test('ревью безопасности №2, Н2 (г): подкласс класса System не снять с наследования, пока запрет System весом от 1000 закрывает его строки', async () => {
+  // System описывает Archive и запрещает всем удалять его строки весом 1000 — арендатор такой запрет не перебьёт.
+  // Shelf арендатора — потомок Archive. Сняв parent (поля скопированы в Shelf), участник со всеми правами на Shelf
+  // вывел бы его строки из-под запрета System
+  await e.asOwner((tx) => tx.unsafe(`select ${S}.sys_create(${S}.v5_id($1::uuid, 'Class', array['Archive']), 'Class', $1::uuid, '{}', $2::jsonb)`,
+    [SYSTEM_ID, { name: 'Archive', kind: 'hub', fields: { properties: { n: { type: 'integer' } } } } as never]));
+  await rule(e, SYSTEM_ID, await sysRes(e, 'authenticated:ACCOUNT'), await resource(e, SYSTEM_ID, 'archive:DELETE', 'DELETE', { class: 'Archive' }), 'deny', 1000);
+  await cls('Shelf', { parent: 'Archive' });
+  await ownRow('Shelf', { n: 1 });
+  const boss = await account(e, 'заведующий', { categories: ['User'] });
+  await member(e, boss.id, org, ['boss']);
+  boss.token = await session(e, boss.id, { tenant: org });
+  const g = await resource(e, org, 'boss:ACCOUNT', 'ACCOUNT', { roles: '{boss}' });
+  await rule(e, org, g, await resource(e, org, 'boss.class:WRITE', 'WRITE', { class: 'Class' }), 'allow', 100);
+  for (const op of ['READ', 'WRITE', 'DELETE']) await rule(e, org, g, await resource(e, org, `boss.shelf:${op}`, op, { class: 'Shelf' }), 'allow', 100);
+  const raw = sqlAs(e, boss.token);
+  const rev = async () => (await e.sql.unsafe(`select rev from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = 'Shelf'`, [org]))[0].rev as number;
+  const rev0 = await rev();
+  await assert.rejects(raw(`update ${S}.entity set data = (data - 'parent') || $1::jsonb where class = 'Class' and tenant = $2 and data->>'name' = 'Shelf' returning id`,
+    [{ fields: { properties: { n: { type: 'integer' } } } }, org]),
+  /letopis: acl_denied: класс Shelf меняет предков, алиас или derivedBy: нужно право DELETE на все строки класса Shelf$/);
+  assert.equal(await rev(), rev0, 'Shelf по-прежнему потомок Archive');
+});

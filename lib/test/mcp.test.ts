@@ -520,3 +520,64 @@ test('HTTP: createMcpHandler приложения — пользователь �
     await mcp.close();
   }
 });
+
+test('ревью безопасности №2, О7: окно подтверждения удаления — каноническое имя класса и id целей, без алиаса и meta', async () => {
+  // агент удаляет по алиасу Todo: алиас и meta — текст арендатора, человеку их не показывают
+  const ids = (await db.Task().create({ title: 'в окне', n: 30_000 }).rows()).map((r) => r.id);
+  for (let i = 1; i < 12; i++) ids.push((await db.Task().create({ title: 'в окне', n: 30_000 + i }).rows())[0].id);
+  const cn = await open(db, { write: true }, { elicit: 'accept' });
+  try {
+    const r = await call(cn, 'letopis_write', { op: 'delete', class: 'Todo', ids, confirm: true });
+    assert.equal(r.isError, undefined, JSON.stringify(r).slice(0, 300));
+    assert.equal(cn.asked.length, 1);
+    const msg = cn.asked[0].message;
+    assert.match(msg, /класса Task /, msg);
+    for (const id of ids.slice(0, 10)) assert.ok(msg.includes(id), `id ${id} в окне`);
+    for (const id of ids.slice(10)) assert.ok(!msg.includes(id), `id ${id} — среди «ещё»`);
+    assert.match(msg, /и ещё 2\)/);
+    assert.ok(!msg.includes('Todo') && !msg.includes(CANARY) && !msg.includes('Задача'), 'алиаса и meta в окне нет');
+    for (const id of ids) assert.equal(await exists('Task', id), false);
+  } finally {
+    await cn.close();
+  }
+});
+
+test('ревью безопасности №2, О8: countBy и versions ограничены в самом запросе; шагов цепочки и условий $or — не больше предела', async () => {
+  const events: { mode: string; rows: number }[] = [];
+  const qdb = await connect({ dsn: appDsn(), schema: e.schema, token: t.token, max: 2, onQuery: (ev) => events.push(ev) });
+  const [task] = await db.Task().create({ title: 'версии', n: 40_000 }).rows();
+  await e.as(t.token, async (tx) => {
+    for (let i = 1; i < 150; i++) await tx.unsafe(`update ${e.S}.entity set data = data || jsonb_build_object('n', $2::int) where id = $1`, [task.id, 40_000 + i]);
+  });
+  const cn = await open(qdb);
+  try {
+    // 1000 с лишним групп: в ответе 100, из базы — не больше 101
+    events.length = 0;
+    const by = (await call(cn, 'letopis_query', { class: 'Task', terminal: 'countBy', field: 'data.n' })).structuredContent!;
+    assert.equal(Object.keys(by.counts).length, 100);
+    assert.equal(by.truncated, true);
+    const agg = events.filter((x) => x.mode === 'agg');
+    assert.equal(agg.length, 1);
+    assert.ok(agg[0].rows <= 101, `строк из базы ${agg[0].rows}`);
+    // 150 версий: последние 100 по порядку, из базы — не больше 101
+    events.length = 0;
+    const v = (await call(cn, 'letopis_history', { class: 'Task', id: task.id, kind: 'versions' })).structuredContent!;
+    assert.deepEqual(v.versions.map((x: { rev: number }) => x.rev), Array.from({ length: 100 }, (_, i) => 51 + i));
+    assert.equal(v.more, true);
+    const vs = events.filter((x) => x.mode === 'versions');
+    assert.equal(vs.length, 1);
+    assert.ok(vs[0].rows <= 101, `версий из базы ${vs[0].rows}`);
+    // шаги цепочки: 16 — можно, 17 — отказ с пределом; условия $or: 64 — можно, 65 — отказ
+    const steps = (n: number) => Array.from({ length: n }, (_, i) => ({ step: i % 2 ? 'Task' : 'Assignee' }));
+    assert.equal((await call(cn, 'letopis_query', { class: 'Task', filter: { n: 1 }, steps: steps(16), terminal: 'count' })).isError, undefined);
+    assert.match(refused(await call(cn, 'letopis_query', { class: 'Task', filter: { n: 1 }, steps: steps(17), terminal: 'count' }), 'invalid_query').message, /не больше 16 шагов/);
+    const ors = (n: number) => ({ $or: Array.from({ length: n }, (_, i) => ({ n: i + 1 })) });
+    assert.equal((await call(cn, 'letopis_query', { class: 'Task', filter: ors(64), terminal: 'count' })).structuredContent!.count, 64);
+    assert.match(refused(await call(cn, 'letopis_query', { class: 'Task', filter: ors(65), terminal: 'count' }), 'invalid_query').message, /не больше 64 условий/);
+    assert.match(refused(await call(cn, 'letopis_query', { class: 'Task', steps: [{ step: 'Assignee', filter: ors(65) }], terminal: 'count' }), 'invalid_query').message, /не больше 64 условий/);
+  } finally {
+    await cn.close();
+    await qdb.close();
+    await db.Task(task.id).delete({ confirm: true }).rows();
+  }
+});

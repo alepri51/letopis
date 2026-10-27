@@ -1,7 +1,7 @@
 /**
  * engine-attacks — атаки сырым SQL от прикладной роли (план, §7.3.1, строки этапа 1; план 1.1, §7.7 №31–35).
  * Каждая попытка проверяет конкретный исход: код ошибки, пустую выборку, ноль строк или находку verify();
- * №35 — агент через инструменты MCP (letopis/mcp).
+ * №35 — агент через инструменты MCP (letopis/mcp); №36 — ревью безопасности №2 (смена parent, alias, derivedBy).
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -558,4 +558,27 @@ test('№35 (план 1.1, этап 5): агент через MCP пишет б�
   } finally {
     await db.close();
   }
+});
+
+test('№36 (ревью безопасности №2): право WRITE на Class не меняет parent, alias и derivedBy без права READ, WRITE и DELETE на все строки; алиас — не имя другого класса', async () => {
+  // Org читается только из Твери, Note — без DELETE, Master — без прав; описывать классы пользователю можно
+  const { org, user } = await aclTenant();
+  const { resource, rule, sysRes } = await import('./_access.js');
+  await rule(e, org, await sysRes(e, 'authenticated:ACCOUNT'), await resource(e, org, 'class:WRITE', 'WRITE', { class: 'Class' }), 'allow', 10);
+  const set = (name: string, patch: Record<string, unknown>) =>
+    as(user, `update ${S}.entity set data = data || $1::jsonb where class = 'Class' and tenant = $2 and data->>'name' = $3 returning id`, [patch, org, name]);
+  const revs = async () => (await e.sql.unsafe(`select data->>'name' as n, rev from ${S}.entity where class = 'Class' and tenant = $1 order by 1`, [org]))
+    .map((r) => `${r.n}:${r.rev}`);
+  const was = await revs();
+  await assert.rejects(set('Org', { alias: 'Организация' }), lt('acl_denied'));
+  await assert.rejects(set('Note', { parent: 'Org' }), lt('acl_denied'));
+  await assert.rejects(set('Note', { derivedBy: 'rollup' }), lt('acl_denied'));
+  await assert.rejects(set('Master', { alias: 'Мастер' }), lt('acl_denied'));
+  assert.deepEqual(await revs(), was, 'строки Class не изменились');
+  assert.deepEqual((await as(user, `select id from ${S}.entity where class = 'Master'`)).length, 0);
+  // алиас — не имя другого класса и не имя системного
+  for (const alias of ['Org', 'Class', 'rule']) await assert.rejects(set('Note', { alias }), lt('invalid_class'));
+  await assert.rejects(as(user, `insert into ${S}.entity (class, data) values ('Class', '{"name": "Memo", "kind": "hub", "alias": "Master"}')`), lt('invalid_class'));
+  // правка, которая имён класса не меняет, прав на строки не требует
+  assert.equal((await set('Note', { meta: { note: 'ok' } })).length, 1);
 });

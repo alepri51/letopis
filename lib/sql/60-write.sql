@@ -527,8 +527,42 @@ create or replace function @SCHEMA@.reserved_names() returns text[]
 language sql immutable parallel safe
 return array[@RESERVED_NAMES@]::text[];
 
+-- Правка класса p_class арендатора p_tenant меняет имена, по которым его строки находят правила прав: предков
+-- (parent), алиас или derivedBy (ревью безопасности №2). План прав берёт для класса имена предков и их алиасы
+-- (acl_plan_for), поэтому строки класса и его потомков попали бы под правила READ, WRITE и DELETE нового предка или
+-- алиаса — право WRITE на Class открывало бы чужие строки. Актору нужно право READ, WRITE и DELETE без условий на
+-- все строки самого класса и каждого потомка своего арендатора, иначе acl_denied. Потомков у арендаторов класса
+-- System план прав сессии System не видит — они пропускаются, как у агрегатов (agg_source_admit). Проверка — до
+-- правки (class_admit): план видит прежние имена, по которым строки уже защищены.
+create or replace function @SCHEMA@.class_acl_admit(p_class text, p_tenant uuid) returns void
+language plpgsql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  c text;
+  op text;
+  chk jsonb;
+begin
+  -- сам класс первым, потомки — по глубине и имени
+  for c in select p_class
+           union all
+           (select x.data->>'name' from @SCHEMA@.entity x
+            where x.class = 'Class' and x.tenant = p_tenant and x.data->>'name' <> p_class
+              and x.data->'resolved'->'ancestors' ? p_class
+            order by jsonb_array_length(x.data->'resolved'->'ancestors'), x.data->>'name') loop
+    foreach op in array array['READ', 'WRITE', 'DELETE'] loop
+      chk := @SCHEMA@.acl_check_data(c, op);
+      if not coalesce((chk->>'allow')::boolean, false) or chk ? 'filter' then
+        perform @SCHEMA@.lt_fail('acl_denied', format('класс %s меняет предков, алиас или derivedBy: нужно право %s на все строки класса %s',
+          p_class, op, c));
+      end if;
+    end loop;
+  end loop;
+end $$;
+
 -- Проверки строки Class сверх метасхемы (этап 1, п. 6): признак system, имя системного класса,
--- имена связей против методов цепочки, однозначность имени конца во всей схеме, право на агрегаты.
+-- имена связей против методов цепочки, однозначность имени конца во всей схеме, право на агрегаты,
+-- алиас и право на смену предков, алиаса и derivedBy (ревью безопасности №2).
 create or replace function @SCHEMA@.class_admit(p_data jsonb, p_tenant uuid, out data jsonb, out validator jsonpath)
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -560,6 +594,17 @@ begin
   select c.data, c.validator into data, validator from @SCHEMA@.class_prepare(p_data, p_tenant) c;
   if data->>'kind' = 'link' and (data->>'name') = any (@SCHEMA@.reserved_names()) then
     perform @SCHEMA@.lt_fail('invalid_class', format('имя связи %s совпадает с методом цепочки', data->>'name'));
+  end if;
+  -- алиас — второе имя класса и для правил прав (ревью безопасности №2): совпади он с именем другого класса (в том
+  -- числе Class и системных) или с чужим алиасом арендатора и System, правила одного класса действовали бы на строки
+  -- другого
+  if data->>'alias' is not null
+     and ((data->>'alias') = any (array['Class', 'Account', 'member', 'Resource', 'rule'])
+          or exists (select 1 from @SCHEMA@.entity x
+                     where x.class = 'Class' and x.tenant in (p_tenant, '@SYSTEM@'::uuid) and x.data->>'name' <> data->>'name'
+                       and (x.data->>'name' = data->>'alias' or x.data->>'alias' = data->>'alias'))) then
+    perform @SCHEMA@.lt_fail('invalid_class', format('алиас %s класса %s совпадает с именем или алиасом другого класса',
+      data->>'alias', data->>'name'));
   end if;
   -- агрегаты (план 1.1, §2.4; ревью коммита этапа 4б): поле считают функции владельца по всем строкам источника
   -- арендатора, без прав чтения, поэтому строки попадают в агрегат только с ведома того, кто читает их все. Пути
@@ -595,6 +640,14 @@ begin
                order by jsonb_array_length(x.data->'resolved'->'ancestors'), x.data->>'name' loop
       perform @SCHEMA@.agg_source_admit(src, m);
     end loop;
+  end if;
+  -- правка меняет предков, алиас или derivedBy (ревью безопасности №2): строки класса и потомков попали бы под правила
+  -- других имён — нужно право READ, WRITE и DELETE без условий на все их строки. У нового класса строк ещё нет
+  if prevd is not null
+     and (prevd->'resolved'->'ancestors' is distinct from data->'resolved'->'ancestors'
+          or prevd->>'alias' is distinct from data->>'alias'
+          or prevd->'resolved'->'derivedBy' is distinct from data->'resolved'->'derivedBy') then
+    perform @SCHEMA@.class_acl_admit(data->>'name', p_tenant);
   end if;
   for e in select key, value from jsonb_each(coalesce(data->'resolved'->'ends', '{}'::jsonb)) loop
     select x.data->>'name' as name into o
@@ -1627,7 +1680,7 @@ begin
     'log_version(@SCHEMA@.entity)', 'sys_update(uuid, jsonb, jsonb, jsonpath, text, text)', 'tombstone(@SCHEMA@.entity, text, uuid)',
     'links_replace(jsonb, uuid, uuid)', 'move_row(@SCHEMA@.entity, uuid, text, jsonb, jsonb, text)', 'reclass(uuid, text, jsonb)',
     'incoming_conflicts(uuid, text, uuid)', 'visible_detail(jsonb, uuid)', 'class_change_safe(jsonb, jsonb)',
-    'family_conflicts(text[], uuid, boolean)', 'reserved_names()', 'class_admit(jsonb, uuid)',
+    'family_conflicts(text[], uuid, boolean)', 'reserved_names()', 'class_acl_admit(text, uuid)', 'class_admit(jsonb, uuid)',
     'trg_entity_bi()', 'trg_entity_bu()', 'trg_entity_ai()', 'trg_entity_au()', 'history_on(text, uuid)', 'signal_token(text, text, bytea)', 'signal_raw(text[])', 'signal(text[], uuid[])', 'class_evolve(@SCHEMA@.entity, @SCHEMA@.entity)',
     'trg_entity_bd()', 'trg_entity_ad()', 'owner_to_tenant(uuid, uuid)', 'ref_action(jsonb, jsonb, uuid[])', 'delete_preview(uuid[])', 'merge(jsonb, jsonb)', 'inc(jsonb, text[], numeric, numeric)', 'links_patch(jsonb, jsonb)'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);

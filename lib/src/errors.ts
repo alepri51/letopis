@@ -75,7 +75,8 @@ export function fromDbError(e: unknown): unknown {
   if (name === 'invalid_data' && Array.isArray(issues)) {
     const cls = /класса (\S+)/.exec(text)?.[1] ?? '?';
     const v = new ValidationError(cls, issues);
-    return Object.assign(v, { cause: e });
+    // текст базы целиком: в нём бывает больше, чем имя класса (у проектора — арендатор и id строки)
+    return Object.assign(v, { cause: e, ...(text ? { message: `letopis: invalid_data: ${text}` } : {}) });
   }
   return Object.assign(new LetopisError(name, text, detail), { cause: e });
 }

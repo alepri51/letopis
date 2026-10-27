@@ -191,23 +191,26 @@ is built from the journal.
 
 ### Signals
 
-A write reports changes through `NOTIFY` on the schema channel. Raw SQL sends the signal from a trigger, and PostgreSQL
-delivers it on commit. Library transactions defer their signals: the process notifier sends them every 100 ms
-(`notifyIntervalMs`) and retries the ones that failed to send. What a write signal carries is set by the installation
-mode `up({ signals })`:
+A write reports changes through `NOTIFY`. The channel is the full name of the installation schema, version included,
+for example `v2.shop`; because of the dot, SQL takes the name in double quotes: `LISTEN "v2.shop"`. Raw SQL sends the
+signal from a trigger, and PostgreSQL delivers it on commit. Library transactions defer their signals: the process
+notifier sends them every 100 ms (`notifyIntervalMs`) and retries the ones that failed to send. What a write signal
+carries (its payload) is set by the installation mode `up({ signals })`:
 
-| Mode | Write signal | What any role that can connect to the database sees |
+| Mode | Write signal payload | What any role that can connect to the database sees |
 |---|---|---|
 | `class` (default) | the class name: `Booking` | class names and write times |
-| `tenant` | the class name and a tenant token: `Booking@3f9c…` | also tenant pseudonyms |
-| `opaque` | a class token and a tenant token | only write times and frequency per pseudonym |
+| `tenant` | `Class@tenant token`: `Booking@3f9c…` | also tenant pseudonyms |
+| `opaque` | `class token@tenant token`: `9a1e…@3f9c…` | only write times and frequency per pseudonym |
 | `none` | no signals | nothing |
 
-A revoked session sends `session:<start of the token hash>`, a reset sends `*`; signals carry no ids and no data. A
-token is a keyed HMAC: only a process with the signal key can match a pseudonym to a name, and the key is given to
-services (the `letopis.signals` permission). On signals, the class registry is re-read, the result cache is cleared
-and subscriptions wake up; what the mode changes for the cache and subscriptions is in
-[section 12](#12-change-subscription-and-cache).
+A token is 24 hexadecimal characters of a keyed HMAC: only a process with the signal key can match a pseudonym to a
+name, and the key is given to services (the `letopis.signals` permission). Besides write signals, there are service
+ones: a revoked session sends `session:<16 hex>` (the first 16 hexadecimal characters of the sha256 of its token), a
+session reset sends `session:*`, and a reset of a tenant or of the whole installation sends `*` (a reset of the whole
+installation also sends `session:*`). In the `none` mode there are none of them either. Signals carry no ids and no
+data. On signals, the class registry is re-read, the result cache is cleared and subscriptions wake up; what the mode
+changes for the cache and subscriptions is in [section 12](#12-change-subscription-and-cache).
 
 ## 3. Installation and connection
 
@@ -886,7 +889,8 @@ const avgPrice = await db.Shop(shop).Product().avg('data.price')
 const byStatus = await db.Order().countBy('data.status')          // { new: 1 }
 ```
 
-The database computes aggregates over the entities of the last step.
+The database computes aggregates over the entities of the last step. `limit(n)` and `offset(n)` before `countBy()`
+apply to the groups: `db.Order().limit(3).countBy('data.status')` gives the three most frequent values.
 
 ### Paths
 
@@ -1365,6 +1369,13 @@ cut down to 999, so System rules with a weight of 1000 or more are an administra
 outweigh. Tenant rules apply to the tenant's rows, System rules apply everywhere. Permissions apply to raw SQL too: rows
 without permission are invisible, and an edit changes nothing or fails with `acl_denied`.
 
+A class mask in a `READ`, `WRITE` or `DELETE` object matches the descendants of the class too, by the names of the
+ancestors and their aliases. So an edit of a class that changes `parent`, `alias` or `derivedBy` needs the `READ`,
+`WRITE` and `DELETE` permissions without conditions on all rows of the class and of each of its descendants,
+otherwise `acl_denied`: the `WRITE` permission on `Class` alone is not enough to put the rows of a class under other
+rules. An alias does not match the name of another class (including `Class` and the system ones) or another class's
+alias in the tenant and System; otherwise `invalid_class`.
+
 ### Granting a permission
 
 Example: Oleg is a shop employee with the `staff` role, and employees may not delete products.
@@ -1437,6 +1448,10 @@ Every version has an author, an agent, a time, a number, a kind of operation (`c
 operation of a block, from `db.begin({ reason })` and `db.batch(name, { reason })`; in raw SQL, from the
 `letopis.reason` setting of the transaction. A deletion version has `$deleted`.
 
+Without `sort()`, versions go by id and version number (with `follow`, by time). `sort()` sets the order of versions
+too, and `limit()` limits them in the query itself: `db.Product(kettle).sort('at', 'desc').limit(5).versions()` gives
+the five latest versions, newest first.
+
 ### Point-in-time read
 
 <!-- run: guide -->
@@ -1492,16 +1507,57 @@ const [b] = await db.Order(id).blame()                      // every field of th
 await db.Order(id).blame({ at: '2026-10-01', limit: 200 })  // the version at a moment; scan 200 versions
 ```
 
-- `diff()` returns one item per object of the step: `{ id, class, from, to, changes }`, where a change is
-  `{ path, kind, before, after }`, `kind` is `added`, `removed` or `changed`, and the path starts with the section of
-  the row: `data`, `links`, `tags`, `owner`, `class`. Data objects are compared by keys, arrays as a whole; a
-  multi-valued end and tags element by element. If the object did not exist at `from`, every path is `added`; if it
-  was deleted at `to`, `to.deleted` is `true`.
-- `blame()` returns `{ id, class, rev, complete, fields }`: for every leaf, the version that changed it last,
-  `author`, `agent`, `op`, `reason` and `exact`. `exact: false` means there are gaps between the current version and
-  that one (the history is thinned, trimmed or partly invisible): a missing version may have changed the leaf too.
-  `complete: true` means the whole history was scanned without gaps; by default at most the 1000 latest versions are
-  scanned.
+Both terminals return an array, one item per object of the step. This is what the answers look like for a kettle
+whose price was lowered with a reason:
+
+```ts
+import type { BlameResult, DiffResult } from 'letopis'
+
+// db.Product(kettle).blame(): version 2 changed the price, the other leaves date from the creation (version 1)
+const blamed: BlameResult = {
+  id: '6f1c…', class: 'Product', rev: 2, complete: true,
+  fields: [                                     // in path order
+    { path: ['class'], rev: 1, at: '2026-10-27T09:15:02.118204+00:00', author: '<Anna id>', agent: '<service id>',
+      op: 'create', exact: true },
+    { path: ['data', 'price'], rev: 2, at: '2026-10-27T09:20:41.502617+00:00', author: '<Anna id>', agent: '<service id>',
+      op: 'update', reason: 'promotion discount', exact: true },
+    // ['data', 'sku'], ['data', 'title'], ['links', 'Shop'], ['owner'] — also version 1, like ['class']
+  ],
+}
+// db.Product(kettle).diff(): previous version → latest
+const diffed: DiffResult = {
+  id: '6f1c…', class: 'Product',
+  from: { rev: 1, at: '2026-10-27T09:15:02.118204+00:00' },
+  to: { rev: 2, at: '2026-10-27T09:20:41.502617+00:00' },
+  changes: [{ path: ['data', 'price'], kind: 'changed', before: 2500, after: 2000 }],
+}
+```
+
+`agent` here is the service that writes on behalf of Anna (`db = await svc.as(…)`); a write without impersonation has
+none.
+
+- `diff()` returns an array of `DiffResult`: `{ id, class, from, to, changes }`. `from` and `to` are the compared
+  versions `{ rev, at }`. They have `id` if the version belongs to another id (`follow: true` across `reclass` or
+  `rekey`), and `to` has `deleted: true` if the object was deleted at that moment; then `changes` is empty. `from` is
+  `null` if the object did not exist yet: every path is `added`. If there is no version at all, `class` and `to` are
+  `null` too.
+- A change, `DiffChange`, is `{ path, kind, before, after }`. `path` is an array of segments, not a dotted string;
+  the first segment is the section of the row: `data`, `links`, `tags`, `owner`, `class`. `kind` is `added` (there
+  was no value), `removed` (the value is gone) or `changed`. A missing value is omitted: `added` has no `before`,
+  `removed` has no `after`. Data objects are compared by keys, arrays as a whole. A multi-valued end and tags are
+  sets: one change per id or tag, the path is `['links', role]` or `['tags']`, and the id or tag itself is in
+  `before` or `after`.
+- `blame()` returns an array of `BlameResult`: `{ id, class, rev, complete, fields }`, plus `deleted: true` if that
+  version is a tombstone. An object with no versions at that moment gives no item. `fields` is an array of
+  `BlameField`, one item per leaf of the version, ordered by path: `{ path, rev, at, author, op, exact }` and, when
+  present, `agent`, `reason`, `id`. A leaf is a scalar or an array in the data, an empty object, the role of a
+  single-valued end, every id of a multi-valued end (`['links', role, id]`), every tag (`['tags', tag]`), `owner` and
+  `class`. `rev`, `at`, `author`, `agent`, `op` and `reason` come from the version that changed the leaf last. Empty
+  `agent` and `reason` are omitted; `id` is present only if it is a version of the former id (the history went
+  through `reclass` or `rekey`).
+- `exact: false` means there are gaps between the current version and the found one (the history is thinned,
+  trimmed or partly invisible): a missing version may have changed the leaf too. `complete: true` means the whole
+  history was scanned without gaps; by default at most the 1000 latest versions are scanned.
 - The database computes both with the caller's rights: raw SQL gets the same, `select "v2.shop".blame('<id>')`,
   `select "v2.shop".diff_versions('<id>')`.
 - The journal column `changed` (the paths changed by a version, which make `blame` fast) is not granted to the
@@ -1594,9 +1650,10 @@ const sales = adm.projector('product-sales', {   // adm is an admin connection
   },
 })
 const report = await sales.run({ once: true })  // catch up with the journal: { batches, changes, created, updated, … }
-const state = await sales.status()               // { name, state, version, cursor, at, lag }
+const state = await sales.status()               // { name, state, version, cursor, at, lag, failed }
 await sales.rebuild()                            // rebuild from the current state; { chunked: true } works in batches
-void sales.run()                                 // follow the journal until stop(); source signals wake it up
+await sales.rebuild({ tenant: tenantId })        // rebuild one tenant, for example a dropped one (failed)
+sales.run().catch((err) => console.error('the projector stopped', err))   // follow the journal until stop()
 sales.close()                                    // stop() after the current batch and unsubscribe from signals
 ```
 
@@ -1610,18 +1667,34 @@ sales.close()                                    // stop() after the current bat
   every change is applied exactly once. A projector has one writer: a second process of the same projector skips the
   batch (the `skipped` counter of the report), and `rebuild()` started while another process writes a batch gives
   `projector_busy`.
+- A batch is split by tenant: `handle` gets the changes of one tenant, and its results are written under a savepoint
+  of its own. If the database rejects writing the results of a tenant (the data do not pass the description of its
+  derived class, the target of an end is not found and so on) or `out` rejects a row or a delta built from its data
+  (a delta that is not a number), only its changes are rolled back: the tenant drops out, and the others are written
+  in the same batch. A dropped tenant gets into `status().failed` — `{ [tenant id]: { cursor, code, message } }`, and
+  `message` names the tenant and the row id — and its changes are skipped until it is rebuilt. The derived rows of a
+  dropped tenant no longer change: a tenant dropped in `run()` keeps them as they were before the failed batch, and a
+  tenant dropped in the middle of a rebuild is left without them — the partly built rows are deleted. An exception
+  from `handle`, a breach of the `out` limits and a failure of the environment (a deadlock, a cancelled query, a
+  broken connection) roll the whole batch back, and `run()` is rejected. So catch `run()` without `once`: after an
+  error it stops.
 - A change (`ProjectorChange`) is `cursor`, `id`, `class`, `tenant`, `op`, `rev`, `at`, `author`, `agent`, `reason`,
-  `moved` and `row`, the version from the journal (for a deletion, a tombstone with `$deleted`). With `withBefore`,
-  `before` is added: the previous version of the object. For the first version after `reclass` and `rekey`, it is the
-  last version of the former id, and if there is no previous version, it is `null`. During a rebuild, the changes are
-  rows of the current state: `rebuild: true`, `op` is `create`, `cursor` is empty.
+  `moved` and `row`, the version from the journal (for a deletion, a tombstone with `$deleted`). During a rebuild, the
+  changes are rows of the current state: `rebuild: true`, `op` is `create`, `cursor` is empty.
+- With `withBefore`, a change has `before`, the previous version of the same id. `before` is `null` if there is no
+  previous version (a creation and the first version of a new id after `reclass` and `rekey`), if the previous
+  version is a deletion (this happens after `restore`), and for every change of a rebuild. With `reclass` and
+  `rekey`, the former data are subtracted through the tombstone of the former id: it comes as a change with
+  `$deleted`, its `before` is the last version of the former id, and `moved` of both changes points to the other id.
+  So the fold of the example gives the same sum after `rekey`. The service changes `purge`, `trim` and `reset` have no
+  `before` field at all. So subtract `before` only after checking it for `null`, as in the example above.
 - The service journal records `purge`, `trim` and `reset` also come as changes, and their `rev` is 1. So check `op`
   first, and only then compare `rev`.
 - `out.upsert(class, row, { tenant })` creates a row or replaces it entirely by the class key.
   `out.inc(class, row, deltas, { tenant })` creates a row or completes it and adds the numbers without reading the row
   (missing fields count from 0). `out.delete(class, key or id, { tenant })` deletes a row and does nothing if there is
   none. `await out.get(class, key or id, { tenant })` reads the current row together with the writes of the batch.
-  `out` writes only to the `into` classes and only to the tenants of the batch changes; otherwise you get
+  `out` writes only to the `into` classes and only to the tenant of the changes passed to `handle`; otherwise you get
   `derived_class` or `tenant_denied`, and the batch is rolled back.
 - A row for `out` is in the loader format: fields and end roles at the top level, the service keys `$tags`, `$owner`
   and `$id` (`$id` is needed only by a class without a key). The value of a role is the id of the target. An edit that
@@ -1631,7 +1704,18 @@ sales.close()                                    // stop() after the current bat
 - `rebuild()` rebuilds the projection atomically, in one transaction: until it commits, readers see the previous rows,
   but the subscription horizon stands still. `rebuild({ chunked: true })` works in batches: the derived rows are
   deleted at once, the data stays incomplete until the rebuild ends, and `status().state` is `'rebuilding'`. The next
-  start continues an interrupted batch rebuild.
+  start continues an interrupted batch rebuild. A rebuild deletes the rows of the participants only, and only of the
+  classes of their `into` families, and starts all participants anew: the marks of dropped tenants are removed, and a
+  tenant whose data fail again drops out again.
+- `rebuild({ tenant: id })` rebuilds one tenant in one transaction: it deletes its derived rows, builds them from its
+  current source rows and removes its mark in `status().failed`; the projector does not apply again the changes the
+  rebuild has already counted. Fix the data or the class description of the tenant, then rebuild it. If the database
+  rejects the write again, the rebuild is rolled back with this error, and the tenant stays dropped. No projection yet
+  or a batch rebuild in progress gives `rebuild_required`; a tenant that is not a participant gives `tenant_denied`.
+- `status().state` describes the projection in the database, not a process: `'new'` means there is no projection yet,
+  and the first `run()` or `rebuild()` builds it; `'running'` means the projection is built and kept up with the
+  journal (it does not mean that some process is executing `run()` right now); `'rebuilding'` means a batch rebuild
+  is in progress or was interrupted.
 - `version` is the version of the `handle` logic. If the projection was built by another version, `run()` throws
   `rebuild_required`, and a rebuild with `rebuild()` is needed.
 - If the cursor is older than the `all` tier of the retention policy of the sources and there are changes after it,
@@ -1640,8 +1724,11 @@ sales.close()                                    // stop() after the current bat
   unprocessed change in ms.
 - A projector works with the tenants in which every `into` class is marked with its `derivedBy`; it skips the changes
   of other tenants, so a class with the same name and no mark in another tenant does not get in its way. No such tenant
-  at all — `derived_class`. The sources are the `from` families of these tenants; a class cannot be a source and a
-  result at the same time. A projector does not see the changes of a class with `history: false`: it has no journal.
+  at all — `derived_class`. Any tenant that marks its classes may become a participant. The option `tenants: [id, …]`
+  is an explicit list of participants: the projector works only with these tenants (their `into` classes must be
+  marked too) and ignores the marks of the others. The sources are the `from` families of these tenants; a class
+  cannot be a source and a result at the same time. A projector does not see the changes of a class with
+  `history: false`: it has no journal.
 - `batch` is how many changes go into a batch (500), `pollMs` is fallback polling (1000 ms): source signals wake the
   projector earlier.
 
@@ -1746,21 +1833,50 @@ A `letopis_query` request is the same chain as `db.Product({ price: lt(1000) }).
 A filter value means equality, a nested object addresses the fields of nested objects, `{ "Role": id }` is an end.
 Operators: `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$between`, `$in`, `$like`, `$ilike`, `$starts`, `$ends`, `$has`,
 `$hasAny`, `$hasAll`, `$exists`, `$isNull`, `$not`; OR is `{ "$or": [filter, …] }`. An unknown class, role, parameter
-or operator gives an `isError` answer with a hint of similar names.
+or operator gives an `isError` answer with a hint of similar names. There are at most 16 `steps` and at most 64
+conditions in the `$or` of one filter; otherwise `invalid_query`. These limits do not bound the time of a query: set
+`statement_timeout` for the database role the MCP server connects as (`alter role … set statement_timeout = '5s'`).
 
-The answer is `structuredContent` and its text copy: at most `maxRows` rows (100) and `maxBytes` bytes (50,000);
-beyond that comes a `cursor`, and the same request with it returns the next page. Without `sort`, rows go by `id`. In
-the text of the answer, everything that came from the database (rows, names and descriptions of classes, error texts,
-hints) sits inside `<untrusted-data-…>` with a random suffix and a note that this is data, not instructions. Tool
-descriptions and the server's `instructions` are fixed text of the package: tenants write the `meta` of classes, so it
-only appears in results.
+The answer is `structuredContent` and its text copy. The shape of `structuredContent` of `letopis_query` depends on
+the terminal:
 
-Writing. `update` takes only the `rev` of the version that was read: someone else's version gives `conflict`, and no
-update is lost. `delete` without `confirm` returns a preview of the cascade and the operation code `operation`; with
-`confirm: true`, a human confirms the deletion in the client through elicitation (in protocol revision 2025 as a
-request to the client, in 2026-07-28 as an `input_required` answer), and the confirmation is bound to the hash of the
-operation. An operation code sent by the agent is not a confirmation; a client without elicitation gets the refusal
-`confirmation_required`. Every write gets the reason `mcp: letopis_write`, and `blame()` shows it.
+| Terminal | `structuredContent` |
+|---|---|
+| `rows` (default) | `{ rows, count, more, cursor? }` |
+| `ids` | `{ ids, count, more, cursor? }` |
+| `first` | `{ row }`, a row or `null` |
+| `count` | `{ count }` |
+| `countBy` | `{ counts, truncated? }` |
+| `sum`, `avg`, `min`, `max` | `{ value }` |
+
+For `rows` and `ids`, `count` is the number of rows on this page, not the total. A page holds at most `limit`,
+`maxRows` rows (100) and `maxBytes` bytes (50,000). `more: true` means there are more rows, and then the same request
+with `cursor` returns the next page. `counts` is `{ value: number }`, the most frequent values; if the groups did not
+fit into the limits, `truncated: true` comes. `countBy` reads at most `maxRows` + 1 groups from the database. The
+field of an aggregate and of `countBy` is `field: 'data.<path>'`. Sorting is `sort: { field, dir }`: `field` is `at`,
+`rev`, `id` or `data.<path>`, `dir` is `'asc'` (default) or `'desc'`; without `sort`, rows go by `id`. `sort`, `limit`
+and `cursor` work only with `rows`, `first` and `ids`.
+
+A tool refusal is `isError: true` with `structuredContent.error`: `{ code, message }`, plus `similar` (similar names),
+`detail` (details) and `sqlstate` (the PostgreSQL code of an error not from letopis) when present. A parameter that
+does not match the tool input schema (a wrong type, a value outside the list, a missing required one) is rejected by
+the SDK before letopis: then it is `isError: true` with text only, without `structuredContent`.
+
+In the text of the answer, everything that came from the database (rows, names and descriptions of classes, error
+texts, hints) sits inside `<untrusted-data-…>` with a random suffix and a note that this is data, not instructions.
+Tool descriptions and the server's `instructions` are fixed text of the package: tenants write the `meta` of classes,
+so it only appears in results.
+
+Writing. Without `write`, the `letopis_write` tool is not in the tool list, and a call to it is an SDK protocol error
+(`Tool letopis_write not found`), not a tool answer with `isError`. `update` takes only the `rev` of the version that
+was read: someone else's version gives `conflict`, and no update is lost. `delete` without `confirm` returns a preview
+of the cascade and the operation code `operation`; with `confirm: true`, a human confirms the deletion in the client
+through elicitation (in protocol revision 2025 as a request to the client, in 2026-07-28 as an `input_required`
+answer), and the confirmation is bound to the hash of the operation. The confirmation window shows the canonical
+class name and the ids of the targets (the first 10, then «и ещё K», that is "and K more"); a tenant writes the
+alias and the `meta` of a class, so they do not get into the window. An operation code sent by the agent is not a
+confirmation; a client without elicitation gets the refusal `confirmation_required`. Every write gets the reason
+`mcp: letopis_write`, and `blame()` shows it.
 
 **stdio.** `letopis mcp` is a stdio server for MCP clients. It needs the SDK package: `npm i @modelcontextprotocol/server`
 (an optional peer dependency). The client passes the connection string, the schema and the token as flags or as the
@@ -1812,6 +1928,12 @@ const mcp = createMcpHandler(async ({ authInfo }) =>
 
 The handler calls the factory on every HTTP request, so `createMcpServer` checks the connection every time (one query
 to the database).
+
+The handler can be checked without a network: the SDK client from the `@modelcontextprotocol/client` package reaches
+it through the application's `fetch`: `new StreamableHTTPClientTransport(new URL('http://localhost/mcp'), { fetch:
+(url, init) => mcp.fetch(new Request(url, init), { authInfo }) })`. This is how the `docs` test checks the example
+above (the `mcp` scenario in `lib/test/docs.test.ts` of the repository): without `write` the client sees three tools,
+and `letopis_model` answers on behalf of Anna in the shop.
 
 ### Raw SQL
 
@@ -1909,7 +2031,7 @@ The full machine-readable list of exports, methods and error texts is `docs/api-
 
 | Entry point | What it exports |
 |---|---|
-| `letopis` | `connect`, `up`, `createTenant`; operators `ne`, `gt`, `gte`, `lt`, `lte`, `between`, `inList`, `like`, `ilike`, `starts`, `ends`, `has`, `hasAny`, `hasAll`, `exists`, `isNull`, `not`, `or`, `isOp`; `inc`, `isInc`, `cursorOf`; `idOf`, `uuidv5`, `v5Name`, `v5Id`; `LetopisError`, `ValidationError`, `fromDbError`; `syncModels`, `generateTypes`, `schemaToTs`; `compileValidator`, `applyDefaults`, `Registry`; `totpCode`, `hashPassword`, `verifyHash`; `describeText`; constants `DDL_REVISION`, `RESERVED_CLASS_NAMES`, `CHAIN_METHODS`, `DB_METHODS`; types `Db`, `DbTx`, `TypedDb`, `Chain`, `Row`, `Filter`, `Cursor`, `ConnectOptions`, `UpOptions`, `LoadOptions`, `LoadReport`, `WatchOptions`, `WatchEvent`, `AuthApi`, `AclApi` and others |
+| `letopis` | `connect`, `up`, `createTenant`; operators `ne`, `gt`, `gte`, `lt`, `lte`, `between`, `inList`, `like`, `ilike`, `starts`, `ends`, `has`, `hasAny`, `hasAll`, `exists`, `isNull`, `not`, `or`, `isOp`; `inc`, `isInc`, `cursorOf`; `idOf`, `uuidv5`, `v5Name`, `v5Id`; `LetopisError`, `ValidationError`, `fromDbError`; `syncModels`, `generateTypes`, `schemaToTs`; `compileValidator`, `applyDefaults`, `Registry`; `totpCode`, `hashPassword`, `verifyHash`; `describeText`; constants `DDL_REVISION`, `RESERVED_CLASS_NAMES`, `CHAIN_METHODS`, `DB_METHODS`; types `Db`, `DbTx`, `TypedDb`, `Chain`, `Row`, `Filter`, `Cursor`, `ConnectOptions`, `UpOptions`, `LoadOptions`, `LoadReport`, `WatchOptions`, `WatchEvent`, `AuthApi`, `AclApi`, `DiffResult`, `DiffChange`, `BlameResult`, `BlameField` and others |
 | `letopis/model` | `hub`, `link`, `one`, `many`, `End`, types `Infer`, `InferLinks`, `Model`, `ClassDef`, `ClassMeta`, `HistoryPolicy`; `normalizeSchema`, `translatePattern`, type `JsonSchema` |
 | `letopis/mcp` | `createMcpServer`, the type `McpOptions`: MCP tools; needs the `@modelcontextprotocol/server` package ([section 13](#agents-and-mcp)) |
 | CLI `letopis` | `sync`, `types`, `load`, `verify`, `maintain`, `describe`, `import`, `mcp` ([section 13](#13-operations)) |
@@ -1927,7 +2049,7 @@ Removed 0.21 names (`uuidv7`, `LETOPIS_NS` and the methods listed below) throw `
 | `begin()`, `commit(tr)`, `rollback(tr)`, `lock(…keys)` | an explicit transaction ([section 8](#8-transactions-batches-and-money)) |
 | `batch(name)` | a queue of plans: `run()`, `discard()`, `size()` |
 | `load(input, options)` | the loader ([section 9](#9-bulk-loading)) |
-| `projector(name, options)` | a projector from the journal: `run()`, `rebuild()`, `status()`, `stop()`, `close()` ([Projectors](#projectors)) |
+| `projector(name, options)` | a projector from the journal: `run()`, `rebuild({ chunked, tenant })`, `status()`, `stop()`, `close()` ([Projectors](#projectors)) |
 | `rebuildAggregates(class)` | repair of aggregates: the field anew from live sources, a version only for corrected rows ([Aggregates in the database](#aggregates-in-the-database)) |
 | `watch(options)`, `cache` | subscription; result cache (`clear()`, `stats()`) |
 | `` sql`…` ``, `transaction(fn)` | raw SQL under the session and RLS |
@@ -1946,7 +2068,7 @@ Removed 0.21 names (`uuidv7`, `LETOPIS_NS` and the methods listed below) throw `
 | modifiers | `limit(n)`, `offset(n)`, `sort(field, 'asc' \| 'desc')`, `after(cursor)`, `asOf(moment)`, `withDeleted()`, `deep(max)`, `exact()`, `alias(name)`, `tags(…)`, `owner(…)`, `entity(…)`, `forUpdate()`, `cache({ ttl })` |
 | verbs | `create(data)`, `update(patch, { rev })`, `upsert(data)`, `delete({ confirm })`, `anonymize(fields)`, `reclass(class, data)`, `rekey(patch)`, `restore()`, `purge({ confirm })` |
 | slots | after a verb: `.RoleName.set(value)`, `.RoleName.unset()`, `.RoleName.add(value)`, `.RoleName.remove(value)` |
-| terminals | `rows()`, `first()`, `ids()`, `count({ paths })`, `paths()`, `versions({ follow })`, `sum(field)`, `avg(field)`, `min(field)`, `max(field)`, `countBy(field)` |
+| terminals | `rows()`, `first()`, `ids()`, `count({ paths })`, `paths()`, `versions({ follow })`, `diff({ from, to, follow })`, `blame({ at, limit })`, `sum(field)`, `avg(field)`, `min(field)`, `max(field)`, `countBy(field)` |
 
 ### `db.auth`
 
@@ -2048,7 +2170,7 @@ Library codes:
 | `no_path` | there is no hop between the classes of neighboring steps |
 | `invalid_query` | the chain or the API is used incorrectly (a step modifier `deep`, `exact`, `alias`, `tags` or `owner` after a verb, a slot not after a verb, an `after()` cursor with a value of a different type than the `sort` field, without `v` or with an `id` that is not a uuid, and so on) |
 | `admin_required` | the loader and a projector need an admin connection |
-| `rebuild_required` | the projection was built by another version of the projector (`version`): a rebuild with `rebuild()` is needed |
+| `rebuild_required` | the projection was built by another version of the projector (`version`): a rebuild with `rebuild()` is needed; `rebuild({ tenant })` while there is no projection or a batch rebuild is in progress |
 | `projector_busy` | a rebuild cannot start: the projector is running in another process right now |
 | `not_empty` | the initial load (`initial`) goes only into an empty schema |
 | `class_not_loadable` | the loader does not accept `Class` rows |
@@ -2259,8 +2381,9 @@ behavior.
   2026-07-28.
 - A confirmation in revision 2026-07-28 is signed with a process key: a retried call that lands in another process of
   the application (several instances behind a load balancer) is refused with `confirmation_required`.
-- `versions` returns the latest versions within `maxRows` and `maxBytes`; earlier ones, through `diff` and `blame`
-  with `from`, `to`, `at`. A mode where the agent writes code against the API (code mode) is not part of the package.
+- `versions` returns the latest versions within `maxRows` and `maxBytes` (at most `maxRows` + 1 versions are read
+  from the database) and `more`; earlier ones, through `diff` and `blame` with `from`, `to`, `at`. A mode where the
+  agent writes code against the API (code mode) is not part of the package.
 
 **Import from 0.21**
 
@@ -2280,7 +2403,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # context — sessions, service sign-in by key, the RLS policies of stage 1 (stage 1)
 # access-rest — the remaining rows of stage 5: loading on behalf of a user, balance No. 20, 22, 29, upsert and { rev } under ACL, inlining of acl_ok (stage 5)
 # aggregate — aggregates in the database: 20 writers of one wallet, raw SQL, a cascade, reclass, restore, the loader, account deletion, restore and rekey of the target, a description change under writes and race No. 18, aggregate_field, repair and verify, a System row (plan 1.1, stage 4b)
-# acl — ACL permissions: the 0.21 suite ported, row conditions, weight and default deny, cascade, deny on a descendant, deep, an invisible target, raw SQL versus the library (stage 5)
+# acl — ACL permissions: the 0.21 suite ported, row conditions, weight and default deny, cascade, deny on a descendant, deep, an invisible target, raw SQL versus the library; a change of parent and alias of a class only with permissions on all its rows, an alias is not the name of another class (stage 5; security review No. 2)
 # acl-parity — 1000 random rule sets: the database permission plan and endpoint decisions versus decide from 0.21 (stage 5)
 # auth — credentials (password, key, key + secret, OTP, TOTP, identity), timing equalization, case, session revocation, recent sign-in (stage 5)
 # balance — top-up and debit: idempotency by opId, races, deadlock, connection drop (TCP proxy), adjustment under { rev } and forUpdate (stage 4)
@@ -2290,7 +2413,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # chain-write — writing with chains: create, update, upsert, delete with preview, anonymize, reclass, slots, inc, { rev }, fan-out, plan rollback (stage 4)
 # demo — the booking demo domain on Zod: seed from models, writing data, id by key, agreement between Zod and the database (stage 2)
 # docs — documentation examples are executed: the marked blocks of the README and the cheatsheet (Russian and English) run as scenarios against PostgreSQL 18 (stage 8)
-# engine-attacks — raw SQL attacks from the application role: the rows of §7.3.1 for stages 1 and 3 with specific outcomes; the signal key without permission, flooding with fake signals, Class included; writing to a derived class and a reference to it, a projector checkpoint through the credential functions; an agent through MCP without --write and without a human confirmation (stages 1, 3; plan 1.1, stages 2, 4a, 5 and checkpoint A)
+# engine-attacks — raw SQL attacks from the application role: the rows of §7.3.1 for stages 1 and 3 with specific outcomes; the signal key without permission, flooding with fake signals, Class included; writing to a derived class and a reference to it, a projector checkpoint through the credential functions; an agent through MCP without --write and without a human confirmation; a change of parent, alias and derivedBy of a class with the WRITE permission on Class alone (stages 1, 3; plan 1.1, stages 2, 4a, 5, checkpoint A and security review No. 2)
 # engine-class — classes as entities: metaschema, inheritance, recomputing descendants, tightening, metadata (stage 1)
 # engine-write — the write pipeline in raw SQL: v5 ids, defaults, merge, inc, deletion, resurrection, journal, signals (stage 1)
 # engine-races — races on two connections in both orders, without timed pauses (stage 1)
@@ -2328,8 +2451,8 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # history — diff and blame over the log, the reason of a change for verbs, db.begin() and batches; a version hidden by an ACL condition, the changed column, a missing version, row_changes over 20 thousand targets (plan 1.1, stage 1 and checkpoint A)
 # signals — signal modes: the payload seen by a foreign role, cache precision per tenant, System, permission classes, a process without the key, the loader, subscriptions, the key, none, coalescing, the server version, a class change, a resend, the mode after up() and reset({ all }) (plan 1.1, stage 2)
 # initial-load — the initial load: equality with the regular loader, structure and trigger modes, system rows, a non-empty schema, an insert during the start, rollback, MULTI_INSERT in WAL, commitEvery, import --initial, aggregates (agg_fill) (plan 1.1, stages 3 and 4b)
-# projector — projectors from the journal: catching up, exactly once on a break, one writer, a long transaction, a transaction on the boundary of the rebuild snapshot, no writes to derived classes and no references to them, the bounds of out, atomic and batch rebuilds during source writes, purge of a source, lag and cursor_expired, the credential functions; the version, the name, an admin connection; a race of two processes (plan 1.1, stage 4a)
-# mcp — MCP tools: the model and meta only in results, tenant rights, the JSON chain and hints of similar names, row and byte limits with a cursor, the untrusted-data wrapper, writing only with write, update only with rev, deletion with a human confirmation (elicitation in revisions 2025 and 2026-07-28), the reason in blame, credentials, tool schemas, letopis without the SDK; letopis mcp over stdio, the HTTP handler (plan 1.1, stage 5)
+# projector — projectors from the journal: catching up, exactly once on a break, one writer, a long transaction, a transaction on the boundary of the rebuild snapshot, no writes to derived classes and no references to them, the bounds of out, atomic and batch rebuilds during source writes, purge of a source, lag and cursor_expired, the credential functions; the version, the name, an admin connection; a race of two processes; a data error of one tenant drops out only this tenant (failed, rebuild({ tenant }), the tenants option), the checkpoint is only a System row, a rebuild touches only the rows of participants and into families, before after rekey (plan 1.1, stage 4a; security review No. 2)
+# mcp — MCP tools: the model and meta only in results, tenant rights, the JSON chain and hints of similar names, row and byte limits with a cursor, the untrusted-data wrapper, writing only with write, update only with rev, deletion with a human confirmation (elicitation in revisions 2025 and 2026-07-28), the reason in blame, credentials, tool schemas, letopis without the SDK; letopis mcp over stdio, the HTTP handler; the confirmation window without the alias and meta, countBy and versions limited in the query itself, limits of steps and $or conditions (plan 1.1, stage 5; security review No. 2)
 # import — import from 0.21 with a fixture of a real 0.21: key violation, --keyless, per-class counters, verify, self-reference, repeat, ids without a key, a dangling reference, $$strict and fields starting with $, update, credentials, CLI (stage 7)
 # security-final — the final security review (stage 8, §7.10 No. 8.4): a family lock by the tenant of the root, account_purge without permission and restore/purge of a foreign id give neither a leak nor a lock; the functions of stage 6, log_refs_at, journal-based find_* reads and watch_read stay within their own tenant; NOTIFY carries only names or mode tokens; the cache key distinguishes the token, the actor and the tenant (stage 8)
 ```

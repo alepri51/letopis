@@ -38,12 +38,13 @@ const r = await up({ dsn: ADMIN, schema: 'myapp',                  // схема
   `'booking'` — демо-домен, или путь к своему `.sql`), `history` (политика хранения), `allowReset`, `serviceKey`,
   `quiet`, `pglite: true` (база для разработки без PostgreSQL; затем `connect({ dsn: r.pglite.dsn, listen: false,
   max: 1, allowBypassRls: true, … })` — подключение суперпользователя, RLS на нём не действует).
-- `signals` — что видно в сигналах `NOTIFY` любой роли, способной подключиться к базе: `'class'` (по умолчанию —
-  имена классов), `'tenant'` (имя класса и токен арендатора; кэш сбрасывается только в арендаторе записи),
-  `'opaque'` (только токены), `'none'` (сигналов нет: кэш — только `ttlOnly`, подписка опрашивает журнал). Режим
-  хранится в схеме: `up()` без опции его не меняет; после смены — перезапуск процессов. Ключ сигналов (точный сброс
-  кэша) получают сервисы — право `letopis.signals`. Результат `up()`: ещё `signals` и `warnings` (PostgreSQL ниже
-  18.2 — обновить).
+- `signals` — что видно в сигналах `NOTIFY` любой роли, способной подключиться к базе. Канал — полное имя схемы
+  (`LISTEN "v2.myapp"`), нагрузка сигнала записи: `'class'` (по умолчанию) — `Класс`; `'tenant'` —
+  `Класс@токен арендатора` (кэш сбрасывается только в арендаторе записи); `'opaque'` — `токен класса@токен
+  арендатора`; `'none'` — сигналов нет (кэш — только `ttlOnly`, подписка опрашивает журнал). Служебные сигналы:
+  `session:<16 hex>` — погашенная сессия, `session:*` и `*` — сбросы (`reset`). Режим хранится в схеме: `up()` без
+  опции его не меняет; после смены — перезапуск процессов. Ключ сигналов (точный сброс кэша) получают сервисы — право
+  `letopis.signals`. Результат `up()`: ещё `signals` и `warnings` (PostgreSQL ниже 18.2 — обновить).
 - `tenant` — первый арендатор и пользователь без своего сида: арендатор получает правило «аутентифицированным можно
   всё» (`grantAll`, по умолчанию да, вес 10), пользователь — членство с ролями `user.roles` (по умолчанию `['owner']`),
   пароль для входа по логину `login` и сессию в арендаторе. Повтор с тем же именем и логином ничего не дублирует и роли
@@ -277,6 +278,12 @@ await db.Wallet(w200).versions({ follow: true })                      // и че
 await db.Wallet(w).diff()                                             // что изменилось: предыдущая версия → последняя
 await db.Wallet(w).blame()                                            // кто, когда и почему (опция reason глагола) менял поля
 ```
+`diff()` — массив `DiffResult`: `{ id, class, from, to, changes }`; `from` и `to` — `{ rev, at, id? }`, у `to` ещё
+`deleted?` (тогда `changes` пуст), `from: null` — объекта тогда не было. Изменение `DiffChange` —
+`{ path, kind: 'added' | 'removed' | 'changed', before?, after? }`. `blame()` — массив `BlameResult`:
+`{ id, class, rev, complete, fields }`; `fields` — листья `BlameField` по порядку пути:
+`{ path, rev, at, author, op, exact, agent?, reason?, id? }`. `path` — массив сегментов: `['data', 'price']`; пустые
+`agent`, `reason`, `before`, `after` опускаются. Типы — из `letopis`.
 Класс с `history: false` не даёт `versions`, `asOf`, `restore` и событий подписки.
 
 ### 11. Импорт из 0.21
@@ -312,12 +319,21 @@ npx letopis import --from "$ADMIN" --from-schema v1.fixture --dsn "$ADMIN" --sch
 const p = adm.projector('daily', { from: ['Payment'], into: ['DayTotal'], version: 1, withBefore: true,
   handle(changes, out) { /* out.inc, out.upsert, out.delete, await out.get — классы into, { tenant: c.tenant } */ } })
 await p.run({ once: true })   // догнать журнал; run() — следовать за ним до stop(); rebuild(), status(), close()
+p.run().catch(report)         // run() без once — с catch: после ошибки проектора он остановлен
 ```
 Только администраторское подключение (иначе `admin_required`). Пачка — одна транзакция, каждое изменение
 применяется ровно один раз, писатель один (`rebuild()`, пока другой процесс пишет пачку, — `projector_busy`).
 Первый запуск перестраивает проекцию с текущего состояния. `purge`, `trim` и `reset` приходят изменениями с `rev` 1 — сначала
 разберите `op`. Другая `version` — `rebuild_required`; курсор старше яруса `all` — `cursor_expired`
-(`onExpired: 'rebuild'` перестраивает сам). Источник с `history: false` не подходит.
+(`onExpired: 'rebuild'` перестраивает сам). Источник с `history: false` не подходит. `c.before` (с `withBefore`) —
+прошлая версия того же id или `null`: `null` при создании, у первой версии нового id после `reclass` и `rekey`
+(прежние данные вычитает надгробие прежнего id), при перестройке и когда прошлая версия — удаление (после `restore`);
+у `purge`, `trim` и `reset` поля нет — вычитайте `before`, только проверив его на `null`. `handle` получает изменения
+одного арендатора. Ошибку его данных (база отклонила его результаты или `out` — его строку или приращение)
+откатывает только он: арендатор выбывает (`status().failed`: `{ id: { cursor, code, message } }`) до
+`rebuild({ tenant: id })`, остальные идут дальше; `tenants: [id, …]` — явный список участников. `status().state`: `'new'` —
+проекции ещё нет, `'running'` — проекция построена и ведётся (а не «процесс сейчас работает»), `'rebuilding'` — идёт
+или прервана перестройка пачками.
 
 ### 13. Агрегаты в базе
 
@@ -342,9 +358,14 @@ const server = await createMcpServer(await svc.as(userId))   // letopis_model, l
 ```
 Только сессия пользователя или `svc.as(пользователь)`: подключение в обход RLS — `bypass_rls`, корень сервиса без `as()`
 — `user_session_required`, `--api-key` командная строка не принимает. Чтение — JSON-цепочкой (`class`, `filter` с
-`$gt`, `$in`, `$or` и т. п., `steps`, `sort`, `cursor`), без SQL; ответ — до 100 строк и 50 КБ, дальше `cursor`.
-Запись — только `write: true`: `update` с `rev`; `delete` без `confirm` — превью, с `confirm` — подтверждение человека
-(elicitation), без него — `confirmation_required`. Данные из базы в ответе — внутри `<untrusted-data-…>`.
+`$gt`, `$in`, `$or` и т. п., `steps`, `sort: { field, dir: 'asc' | 'desc' }`, `cursor`), без SQL; ответ — до 100 строк
+и 50 КБ, дальше `cursor`. `structuredContent` по терминалам: `rows` — `{ rows, count, more, cursor? }`, `ids` —
+`{ ids, count, more, cursor? }` (`count` — строк на странице), `first` — `{ row }`, `count` — `{ count }`, `countBy` —
+`{ counts, truncated? }`, `sum`, `avg`, `min`, `max` — `{ value }`. Отказ — `isError: true` и
+`structuredContent.error` (`{ code, message, similar? }`). Запись — только `write: true` (без него `letopis_write`
+нет в списке, а вызов — ошибка протокола SDK): `update` с `rev`; `delete` без `confirm` — превью, с `confirm` —
+подтверждение человека (elicitation), без него — `confirmation_required`. Данные из базы в ответе — внутри
+`<untrusted-data-…>`.
 
 ### Эксплуатация
 

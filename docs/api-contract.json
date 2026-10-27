@@ -116,6 +116,7 @@
         "Path",
         "Projector",
         "ProjectorChange",
+        "ProjectorFailure",
         "ProjectorOptions",
         "ProjectorOut",
         "ProjectorReport",
@@ -546,6 +547,10 @@
     {
       "module": "errors",
       "message": "letopis: <…>: <…>"
+    },
+    {
+      "module": "errors",
+      "message": "letopis: invalid_data: <…>"
     },
     {
       "module": "import",
