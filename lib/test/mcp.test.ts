@@ -5,7 +5,7 @@
  * инструментов, основная точка входа без SDK. Дополнительно: letopis mcp по stdio (клиент SDK запускает команду) и
  * обработчик HTTP приложения (createMcpHandler SDK, как в README). Клиент — из SDK, транспорт — в памяти.
  */
-import { test, before, after } from 'node:test';
+import { test, before, after, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -17,7 +17,7 @@ import { InMemoryTransport, createMcpHandler } from '@modelcontextprotocol/serve
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { engine, lt, type Engine, type Tenant } from './_engine.js';
 import { ADMIN_DSN, appDsn } from './_harness.js';
-import { service, sysadmin } from './_access.js';
+import { account, member, service, session, sysadmin } from './_access.js';
 import { connect, type Db } from '../src/index.js';
 import { createMcpServer, type McpOptions } from '../src/mcp.js';
 
@@ -365,6 +365,81 @@ test('№8: удаление — превью; подтверждение чел
     assert.ok(await exists('Task', c));
   } finally {
     await modernPlain.close();
+  }
+});
+
+test('доработки после точки Б: requestState подтверждения удаления — подпись пользователя сервера со сроком; подделка, подпись другого пользователя и истёкшая — отказ', async () => {
+  // второй пользователь того же арендатора: та же операция даёт тот же хэш, поэтому подпись без аккаунта прошла бы у него
+  const other = await account(e, 'mcp-a2');
+  await member(e, other.id, t.id);
+  const db2 = await connect({ dsn: appDsn(), schema: e.schema, token: await session(e, other.id, { tenant: t.id }), max: 2 });
+  /** Клиент ревизии 2026-07-28, человек подтверждает; retry подменяет requestState повтора вызова с ответом человека. */
+  const modern = async (d: Db, retry: (state: string) => string) => {
+    const [ct, st] = InMemoryTransport.createLinkedPair();
+    const handle = serveStdio(() => createMcpServer(d, { write: true }), { transport: st });
+    const client = new Client({ name: 'letopis-test', version: '1' }, { capabilities: { elicitation: {} }, versionNegotiation: { mode: { pin: '2026-07-28' } } });
+    client.setRequestHandler('elicitation/create', async () => ({ action: 'accept', content: { confirm: true } }));
+    const send = ct.send.bind(ct);
+    (ct as unknown as { send: typeof send }).send = async (m, o) => {
+      const p = (m as { params?: Record<string, unknown> }).params;
+      if (p && typeof p.requestState === 'string' && p.inputResponses) p.requestState = retry(p.requestState);
+      return send(m, o);
+    };
+    await client.connect(ct);
+    return {
+      call: async (args: Record<string, unknown>) => (await client.callTool({ name: 'letopis_write', arguments: args })) as unknown as R,
+      close: async () => { await client.close(); await handle.close(); },
+    };
+  };
+  const target = (await db.Task().create({ title: 'подпись', n: 20_001 }).rows())[0].id;
+  const del = { op: 'delete', class: 'Task', id: target, confirm: true };
+  try {
+    // подделанная подпись
+    let cn = await modern(db, () => `${Date.now() + 60_000}.${'0'.repeat(64)}`);
+    try {
+      assert.match(refused(await cn.call(del), 'confirmation_required').message, /не к этой операции/);
+    } finally {
+      await cn.close();
+    }
+    // подпись, выданная серверу первого пользователя, у сервера второго
+    let captured = '';
+    cn = await modern(db, (st) => { captured = st; return 'испорчена'; });
+    try {
+      refused(await cn.call(del), 'confirmation_required');
+    } finally {
+      await cn.close();
+    }
+    assert.match(captured, /^\d+\.[0-9a-f]{64}$/);
+    const cn2 = await modern(db2, () => captured);
+    try {
+      assert.match(refused(await cn2.call(del), 'confirmation_required').message, /не к этой операции/);
+    } finally {
+      await cn2.close();
+    }
+    // истёкшая: между input_required и повтором прошло больше 10 минут
+    mock.timers.enable({ apis: ['Date'], now: Date.now() });
+    try {
+      cn = await modern(db, (st) => { mock.timers.tick(10 * 60_000 + 1000); return st; });
+      try {
+        assert.match(refused(await cn.call(del), 'confirmation_required').message, /устарело/);
+      } finally {
+        await cn.close();
+      }
+    } finally {
+      mock.timers.reset();
+    }
+    assert.ok(await exists('Task', target), 'без верной подписи не удалено');
+    // своя подпись до срока — удаление проходит
+    cn = await modern(db, (st) => st);
+    try {
+      const r = await cn.call(del);
+      assert.equal(r.isError, undefined, JSON.stringify(r).slice(0, 300));
+    } finally {
+      await cn.close();
+    }
+    assert.equal(await exists('Task', target), false);
+  } finally {
+    await db2.close();
   }
 });
 

@@ -22,7 +22,7 @@
  * elicitation (ревизия 2025 — запрос клиенту, 2026-07-28 — input_required), привязанное к хэшу операции; клиент без
  * elicitation — отказ; причина каждой записи — 'mcp: letopis_write'.
  */
-import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createRequire } from 'node:module';
 import type { CallToolResult, InputRequiredResult, McpServer, ServerContext } from '@modelcontextprotocol/server';
 import { lookupStep, type Chain, type StepFn } from './chain.js';
@@ -64,6 +64,8 @@ const VERSION = (createRequire(import.meta.url)('../package.json') as { version:
 const REASON = 'mcp: letopis_write';
 /** Ключ подписи requestState (ревизия 2026-07-28): общий на процесс — повтор вызова приходит в новый экземпляр сервера. */
 const STATE_KEY = randomBytes(32);
+/** Срок подписи requestState: столько ждёт ответ человека на подтверждение удаления. */
+const CONFIRM_TTL_MS = 10 * 60_000;
 const RESERVED = new Set(RESERVED_CLASS_NAMES);
 const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -594,12 +596,36 @@ function withLinks(db: Db, cls: string, c: Chain, links: unknown): Chain {
   return c;
 }
 
-/** Хэш операции удаления: актор, арендатор, цели и превью каскада — подтверждение человека привязано к нему. */
+/** Хэш операции удаления: схема, арендатор, класс, цели и превью каскада — подтверждение человека привязано к нему. */
 function operationOf(db: Db, cls: string, targets: string[], preview: Row[]): string {
   const rows = preview.map((r) => [r.id, r.class, r.rev, r.$action ?? null, r.$depth ?? null]).sort((x, y) => (String(x[0]) < String(y[0]) ? -1 : 1));
   return createHash('sha256').update(JSON.stringify({ schema: db.schema, tenant: db.tenant, cls, targets: [...targets].sort(), rows })).digest('hex');
 }
-const signOf = (op: string): string => createHmac('sha256', STATE_KEY).update(`letopis:mcp:delete:${op}`).digest('hex');
+
+/** Пользователь сервера: аккаунт и арендатор сессии (ctx() базы при createMcpServer). */
+interface Actor { account: string; tenant: string }
+
+const hmacOf = (who: Actor, exp: number, op: string): string =>
+  createHmac('sha256', STATE_KEY).update(`letopis:mcp:delete:${who.account}:${who.tenant}:${exp}:${op}`).digest('hex');
+/**
+ * requestState подтверждения удаления (доработки после точки Б): срок и подпись аккаунта и арендатора сессии
+ * сервера, срока и хэша операции. Подпись сервера другого пользователя того же процесса и истёкшая не проходят.
+ */
+const stateOf = (who: Actor, op: string): string => {
+  const exp = Date.now() + CONFIRM_TTL_MS;
+  return `${exp}.${hmacOf(who, exp, op)}`;
+};
+/** Проверка requestState: null — подпись верна, иначе — причина отказа. */
+function stateError(state: unknown, who: Actor, op: string): string | null {
+  const m = typeof state === 'string' ? /^(\d{1,16})\.([0-9a-f]{64})$/.exec(state) : null;
+  if (!m) return 'ответ человека не к этой операции';
+  const exp = Number(m[1]);
+  const got = Buffer.from(m[2], 'hex');
+  const want = Buffer.from(hmacOf(who, exp, op), 'hex');
+  if (got.length !== want.length || !timingSafeEqual(got, want)) return 'ответ человека не к этой операции';
+  if (Date.now() > exp) return 'подтверждение устарело — посмотрите превью и подтвердите удаление заново';
+  return null;
+}
 
 /** Умеет ли клиент elicitation в форме (объект без режимов — форма, как в ревизиях до режимов). */
 function formElicitation(caps: unknown): boolean {
@@ -612,10 +638,11 @@ type Confirmation = { granted: true } | { granted: false; reason: string } | { a
 /**
  * Подтверждение удаления человеком (elicitation). Ревизия 2025: запрос клиенту во время вызова. Ревизия 2026-07-28:
  * ответ input_required; клиент повторяет вызов с ответом человека (inputResponses) и requestState — подписью
- * хэша операции. Ответ засчитывается только под ключом этой операции и с её подписью; клиент без elicitation —
- * отказ: без человека разрушительная операция не выполняется.
+ * хэша операции, пользователя сервера и срока (stateOf). Ответ засчитывается только под ключом этой операции, с её
+ * подписью этого пользователя и до срока; клиент без elicitation — отказ: без человека разрушительная операция не
+ * выполняется.
  */
-async function confirmDelete(sdk: Sdk, server: McpServer, ctx: ServerContext, op: string, message: string): Promise<Confirmation> {
+async function confirmDelete(sdk: Sdk, server: McpServer, ctx: ServerContext, op: string, message: string, who: Actor): Promise<Confirmation> {
   const requestedSchema = {
     type: 'object' as const,
     properties: { confirm: { type: 'boolean' as const, title: 'Удалить', description: 'Да — удалить (история объектов остаётся в журнале)' } },
@@ -626,13 +653,14 @@ async function confirmDelete(sdk: Sdk, server: McpServer, ctx: ServerContext, op
     const key = `letopis_delete_${op.slice(0, 32)}`;
     const answer = sdk.inputResponse(ctx.mcpReq.inputResponses, key);
     if (answer.kind === 'elicit') {
-      if (ctx.mcpReq.requestState<string>() !== signOf(op)) return { granted: false, reason: 'ответ человека не к этой операции' };
+      const bad = stateError(ctx.mcpReq.requestState<string>(), who, op);
+      if (bad) return { granted: false, reason: bad };
       return answer.action === 'accept' && answer.content?.confirm === true ? { granted: true } : { granted: false, reason: 'человек не подтвердил удаление' };
     }
     if (!formElicitation(envelope[sdk.CLIENT_CAPABILITIES_META_KEY])) {
       return { granted: false, reason: 'клиент не умеет elicitation — без подтверждения человека удаление не выполняется' };
     }
-    return { ask: sdk.inputRequired({ inputRequests: { [key]: sdk.inputRequired.elicit({ message, requestedSchema }) }, requestState: signOf(op) }) };
+    return { ask: sdk.inputRequired({ inputRequests: { [key]: sdk.inputRequired.elicit({ message, requestedSchema }) }, requestState: stateOf(who, op) }) };
   }
   if (!formElicitation(server.server.getClientCapabilities())) {
     return { granted: false, reason: 'клиент не умеет elicitation — без подтверждения человека удаление не выполняется' };
@@ -641,7 +669,7 @@ async function confirmDelete(sdk: Sdk, server: McpServer, ctx: ServerContext, op
   return r.action === 'accept' && r.content?.confirm === true ? { granted: true } : { granted: false, reason: 'человек не подтвердил удаление' };
 }
 
-async function write(db: Db, a: Args, ctx: ServerContext, sdk: Sdk, server: McpServer, o: Limits): Promise<ToolResult> {
+async function write(db: Db, a: Args, ctx: ServerContext, sdk: Sdk, server: McpServer, o: Limits, who: Actor): Promise<ToolResult> {
   checkKeys(a, ['op', 'class', 'id', 'ids', 'data', 'links', 'rev', 'confirm', 'operation'], 'letopis_write');
   const cls = stepName(db.registry, a.class, 'letopis_write.class', false);
   // классы прав — только с allowAclWrite (ревью безопасности №2, О5): правило, членство или описание класса агент под
@@ -690,7 +718,7 @@ async function write(db: Db, a: Args, ctx: ServerContext, sdk: Sdk, server: McpS
   const shown = targets.slice(0, CONFIRM_IDS).join(', ') + (targets.length > CONFIRM_IDS ? ` и ещё ${targets.length - CONFIRM_IDS}` : '');
   const message = `Удаление в letopis: агент просит удалить ${targets.length} объект(ов) класса ${db.registry.resolve(cls).name} (${shown}); `
     + `затронуто строк: ${preview.length} (удалится ${count('delete')}, снимется конец ${count('unset')}). Операция ${op.slice(0, 12)}. Удалить?`;
-  const c = await confirmDelete(sdk, server, ctx, op, message);
+  const c = await confirmDelete(sdk, server, ctx, op, message, who);
   if ('ask' in c) return c.ask;
   if (!c.granted) throw new LetopisError('confirmation_required', `letopis_write: удаление не выполнено — ${c.reason}`);
   // превью и удаление — одной транзакцией: подтверждено ровно то, что удаляется
@@ -730,7 +758,7 @@ function limitsOf(opts: McpOptions): Limits {
  * арендаторов), корню сервиса без db.as() (права auth.* — имперсонация и выпуск сессий), подключению без сессии и,
  * без allowSystemAdmin, сессии в арендаторе System (роль admin системного администратора действует только там).
  */
-async function checkCredentials(db: Db, o: Limits): Promise<void> {
+async function checkCredentials(db: Db, o: Limits): Promise<Actor> {
   const inner = internalsOf(db);
   if (!inner) throw new LetopisError('invalid_data', 'createMcpServer: нужно подключение connect() пакета letopis или фасад db.as()');
   if (inner.allTenants) {
@@ -749,6 +777,7 @@ async function checkCredentials(db: Db, o: Limits): Promise<void> {
   if (String(c.tenant ?? '').toLowerCase() === SYSTEM_ID && !o.allowSystemAdmin) {
     throw new LetopisError('user_session_required', 'createMcpServer: сессия в арендаторе System — права системного администратора на аккаунты, членства и правила установки; агенту нужна сессия пользователя в его арендаторе (или allowSystemAdmin: true)');
   }
+  return { account: c.account, tenant: String(c.tenant ?? '') };
 }
 
 /**
@@ -759,7 +788,7 @@ async function checkCredentials(db: Db, o: Limits): Promise<void> {
  */
 export async function createMcpServer(db: Db, opts: McpOptions = {}): Promise<McpServer> {
   const o = limitsOf(opts);
-  await checkCredentials(db, o);
+  const who = await checkCredentials(db, o);
   const sdk = await loadSdk();
   const server = new sdk.McpServer({ name: 'letopis', version: VERSION }, { instructions: instructions(o), capabilities: { tools: {} } });
   const guard = (fn: (a: Args, ctx: ServerContext) => ToolResult | Promise<ToolResult>) => async (args: unknown, ctx: ServerContext): Promise<ToolResult> => {
@@ -777,7 +806,7 @@ export async function createMcpServer(db: Db, opts: McpOptions = {}): Promise<Mc
     guard((a) => history(db, a, o)));
   if (o.write) {
     server.registerTool('letopis_write', { title: 'Запись letopis', description: describeWrite(o), inputSchema: sdk.fromJsonSchema(WRITE_SCHEMA), annotations: DESTRUCTIVE },
-      guard((a, ctx) => write(db, a, ctx, sdk, server, o)));
+      guard((a, ctx) => write(db, a, ctx, sdk, server, o, who)));
   }
   return server;
 }
