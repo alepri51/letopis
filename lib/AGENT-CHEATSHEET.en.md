@@ -116,8 +116,9 @@ export const Payment = link('Payment', { opId: z.string(), amount: z.number().in
 export const Note = hub('Note', { text: z.string() }, {})   // no key: the database assigns the id
 ```
 - Full form: `hub(name, { alias, extends, abstract, ends, fields: z.object(…) | { fields }, key, onDelete, history,
-  ownerDefault: 'tenant' | 'actor', cache: { ttl }, meta })`; `link` works the same way. `extends` also works in
-  the short form, but TypeScript infers the data types of a descendant only in the full form.
+  ownerDefault: 'tenant' | 'actor', cache: { ttl }, meta, derivedBy, aggregate })`; `link` works the same way.
+  `derivedBy` and `aggregate` are in sections 12 and 13 below. `extends` also works in the short form, but TypeScript
+  infers the data types of a descendant only in the full form.
 - Ends: `one(A)` (required), `one(A, B)` (union), `one('Name')` (target by name, for a class that refers to itself),
   `.optional()`, `.onDelete('restrict' | 'cascade' | 'unset')` (default `restrict`; `unset` only for an optional
   end), `many(A, { min, max, onDelete })`.
@@ -334,7 +335,8 @@ Only an admin connection (otherwise `admin_required`). A batch is one transactio
 once, there is one writer (`rebuild()` while another process writes a batch gives `projector_busy`). The first
 start rebuilds the projection from the current state. `purge`, `trim` and `reset` come as changes with `rev` 1, so check `op` first.
 Another `version` gives `rebuild_required`; a cursor older than the `all` tier gives `cursor_expired`
-(`onExpired: 'rebuild'` rebuilds by itself). A source with `history: false` does not fit. `c.before` (with
+(`onExpired: 'rebuild'` rebuilds by itself); the tier is per tenant: if it has expired for some participants, only
+they drop out. A tenant with a source with `history: false` drops out (`invalid_class`). `c.before` (with
 `withBefore`) is the previous version of the same id or `null`: `null` for a creation, for the first version of a new
 id after `reclass` and `rekey` (the tombstone of the former id subtracts the former data), during a rebuild and when
 the previous version is a deletion (after `restore`); `purge`, `trim` and `reset` have no such field, so subtract
@@ -345,6 +347,12 @@ database rejected its results, or `out` rejected its row or delta) rolls back on
 `status().state`: `'new'` means there is no projection yet, `'running'` means the projection is
 built and kept up (not "a process is running now"), `'rebuilding'` means a batch rebuild is in progress or was
 interrupted.
+A daily total is a fold: subtract the previous version (`c.before`), add the new one (`c.row` unless it is `$deleted`)
+with `out.inc('DayTotal', { day }, { total: ±amount }, { tenant: c.tenant })`; `DayTotal` has the key `['day']`,
+`derivedBy: 'daily'` and `history: false`. Take the day from the data of the row, not from `at`: every edit changes the
+version time. Every `out` call is a separate edit of a row: with a heavy stream, add up the increments of the batch by
+day and call `out.inc` once per day, which makes catching up 5–28 times faster. The full recipe is in
+[the README, "Recipe: daily revenue"](README.en.md#recipe-daily-revenue).
 
 ### 13. Aggregates in the database
 
@@ -356,9 +364,10 @@ await db.Wallet(w).Payment().create({ opId: 'op-9', amount: 500 }).rows()   // t
 ```
 A trigger recalculates the field after every statement (the library, raw SQL, a cascade, `restore`, `reclass`,
 `rekey`, the loader); going below `minimum` is `invalid_data`, every change is a version of the target. Live rows of
-the same tenant are counted (a System row is not). Repair: `adm.rebuildAggregates('Wallet')`; discrepancies:
-`verify({ data: true })`. A hot counter (thousands of writes per second per object) is a projector that folds a batch,
-not an aggregate.
+the same tenant are counted (a System row is not). Repair: `adm.rebuildAggregates('Wallet')` on an admin connection;
+discrepancies: `verify({ data: true })`. Only someone who reads all rows of the source and its descendants without
+conditions can describe or change an aggregate, otherwise `acl_denied`. A hot counter (more than ~150 writes per
+second per object) is a projector that folds a batch, not an aggregate.
 
 ### 14. Agents and MCP
 
@@ -369,11 +378,13 @@ const server = await createMcpServer(await svc.as(userId))   // letopis_model, l
 // stdio: letopis mcp --dsn … --schema v2.x --token <user token> [--write]; HTTP: createMcpHandler(() => createMcpServer(…)) from the SDK
 ```
 Only a user session or `svc.as(user)`: a connection that bypasses RLS gets `bypass_rls`, the service root without
-`as()` gets `user_session_required`, and the command line does not accept `--api-key`. Reading is a JSON chain
+`as()` gets `user_session_required`, and the command line does not accept `--api-key` but also takes `--dsn`,
+`--schema` and `--token` from `LETOPIS_DSN`, `LETOPIS_SCHEMA`, `LETOPIS_TOKEN`. Reading is a JSON chain
 (`class`, `filter` with `$gt`, `$in`, `$or` and so on, `steps`, `sort: { field, dir: 'asc' | 'desc' }`, `cursor`),
-with no SQL; an answer holds up to 100 rows and 50 KB, then comes a `cursor`. `structuredContent` by terminal: `rows` —
-`{ rows, count, more, cursor? }`, `ids` — `{ ids, count, more, cursor? }` (`count` is the rows on the page), `first` —
-`{ row }`, `count` — `{ count }`, `countBy` — `{ counts, truncated? }`, `sum`, `avg`, `min`, `max` —
+with no SQL; an answer holds up to `maxRows` rows (100) and `maxBytes` bytes (50,000) from the `createMcpServer`
+options, then comes a `cursor`. `structuredContent` by terminal: `rows` — `{ rows, count, more, cursor? }`, `ids` —
+`{ ids, count, more, cursor? }` (`count` is the rows on the page), `first` — `{ row }`, `count` — `{ count }`,
+`countBy` — `{ counts, truncated? }`, `sum`, `avg`, `min`, `max` —
 `{ value }`. A refusal is `isError: true` with `structuredContent.error` (`{ code, message, similar? }`). Writing only
 with `write: true` (without it `letopis_write` is not in the list, and a call is an SDK protocol error): `update` with
 `rev`; `delete` without `confirm` is a preview, with `confirm` a human confirms it (elicitation), and without that it
@@ -413,9 +424,9 @@ await adm.close(); await db.close(); await svc.close()
    by themselves.
 7. **`commit_unknown`** — the connection dropped during `COMMIT`: the transaction may have been committed. Do not
    retry blindly; repeat the same operation with the same key (`exists` means "already written").
-8. **The loader needs an admin connection** (`allowBypassRls: true`, the owner role), otherwise `admin_required`;
-   inside `db.begin()` it gives `invalid_query`. A regular application uses the application role, without bypassing
-   RLS.
+8. **The loader, a projector and `rebuildAggregates` need an admin connection** (`allowBypassRls: true`, the owner
+   role), otherwise `admin_required`; inside `db.begin()` they give `invalid_query`. A regular application uses the
+   application role, without bypassing RLS.
 9. **Data is under RLS.** Without a session (`token`/`apiKey`) a write gives `no_session`; a row of another tenant or
    an invisible row cannot be told apart from a missing one: the step does not find it, and a reference to it gives
    `target_not_found`; without a permission you get an empty result or `acl_denied`. `` db.sql`…` `` and raw SQL also run under the session and RLS.

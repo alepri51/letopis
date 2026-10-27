@@ -606,6 +606,13 @@ begin
     perform @SCHEMA@.lt_fail('invalid_class', format('алиас %s класса %s совпадает с именем или алиасом другого класса',
       data->>'alias', data->>'name'));
   end if;
+  -- и наоборот: имя класса — не чужой алиас арендатора и System, иначе правила, написанные для нового класса, действовали
+  -- бы и на строки класса с этим алиасом
+  if exists (select 1 from @SCHEMA@.entity x
+             where x.class = 'Class' and x.tenant in (p_tenant, '@SYSTEM@'::uuid) and x.data->>'name' <> data->>'name'
+               and x.data->>'alias' = data->>'name') then
+    perform @SCHEMA@.lt_fail('invalid_class', format('имя класса %s совпадает с алиасом другого класса', data->>'name'));
+  end if;
   -- агрегаты (план 1.1, §2.4; ревью коммита этапа 4б): поле считают функции владельца по всем строкам источника
   -- арендатора, без прав чтения, поэтому строки попадают в агрегат только с ведома того, кто читает их все. Пути
   -- владельца (сид, class_evolve, rekey_class) сюда не заходят. Описание до правки — для сравнения (нет — новый класс)

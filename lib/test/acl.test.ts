@@ -396,3 +396,24 @@ test('ревью безопасности №2, Н2 (г): подкласс кл�
   /letopis: acl_denied: класс Shelf меняет предков, алиас или derivedBy: нужно право DELETE на все строки класса Shelf$/);
   assert.equal(await rev(), rev0, 'Shelf по-прежнему потомок Archive');
 });
+
+test('ревью безопасности №2, Н2: имя нового класса — не чужой алиас: правило для нового класса действовало бы и на строки класса с этим алиасом', async () => {
+  // Tome арендатора называют Journal (алиас), Manual System — Handbook: правила для Journal относятся к строкам Tome
+  await cls('Tome', { alias: 'Journal', fields: { properties: { n: { type: 'integer' } } } });
+  await e.asOwner((tx) => tx.unsafe(`select ${S}.sys_create(${S}.v5_id($1::uuid, 'Class', array['Manual']), 'Class', $1::uuid, '{}', $2::jsonb)`,
+    [SYSTEM_ID, { name: 'Manual', kind: 'hub', alias: 'Handbook' } as never]));
+  const writer = await account(e, 'составитель', { categories: ['User'] });
+  await member(e, writer.id, org, ['writer']);
+  writer.token = await session(e, writer.id, { tenant: org });
+  const g = await resource(e, org, 'writer:ACCOUNT', 'ACCOUNT', { roles: '{writer}' });
+  await rule(e, org, g, await resource(e, org, 'writer.class:WRITE', 'WRITE', { class: 'Class' }), 'allow', 100);
+  const raw = sqlAs(e, writer.token);
+  const create = (name: string) => raw(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [{ name, kind: 'hub' }]);
+  for (const name of ['Journal', 'Handbook']) {
+    await assert.rejects(create(name), new RegExp(`letopis: invalid_class: имя класса ${name} совпадает с алиасом другого класса$`), name);
+  }
+  await create('Diary');
+  const names = (await e.sql.unsafe(`select data->>'name' as n from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' in ('Journal', 'Handbook', 'Diary')`, [org]))
+    .map((r) => r.n);
+  assert.deepEqual(names, ['Diary']);
+});

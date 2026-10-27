@@ -110,8 +110,9 @@ export const Payment = link('Payment', { opId: z.string(), amount: z.number().in
 export const Note = hub('Note', { text: z.string() }, {})   // без ключа: id выдаёт база
 ```
 - Полная форма: `hub(name, { alias, extends, abstract, ends, fields: z.object(…) | { поля }, key, onDelete, history,
-  ownerDefault: 'tenant' | 'actor', cache: { ttl }, meta })`; `link` — так же. `extends` работает и в короткой
-  форме, но типы данных потомка TypeScript выводит только в полной.
+  ownerDefault: 'tenant' | 'actor', cache: { ttl }, meta, derivedBy, aggregate })`; `link` — так же. `derivedBy` и
+  `aggregate` — разделы 12 и 13 ниже. `extends` работает и в короткой форме, но типы данных потомка TypeScript
+  выводит только в полной.
 - Концы: `one(A)` (обязательный), `one(A, B)` (союз), `one('Имя')` (цель по имени — ссылка класса на себя),
   `.optional()`, `.onDelete('restrict' | 'cascade' | 'unset')` (по умолчанию `restrict`; `unset` — только для
   необязательного), `many(A, { min, max, onDelete })`.
@@ -325,7 +326,8 @@ p.run().catch(report)         // run() без once — с catch: после ош
 применяется ровно один раз, писатель один (`rebuild()`, пока другой процесс пишет пачку, — `projector_busy`).
 Первый запуск перестраивает проекцию с текущего состояния. `purge`, `trim` и `reset` приходят изменениями с `rev` 1 — сначала
 разберите `op`. Другая `version` — `rebuild_required`; курсор старше яруса `all` — `cursor_expired`
-(`onExpired: 'rebuild'` перестраивает сам). Источник с `history: false` не подходит. `c.before` (с `withBefore`) —
+(`onExpired: 'rebuild'` перестраивает сам); ярус — по арендатору: истёк у части участников — выбывают только они.
+Арендатор с источником `history: false` выбывает (`invalid_class`). `c.before` (с `withBefore`) —
 прошлая версия того же id или `null`: `null` при создании, у первой версии нового id после `reclass` и `rekey`
 (прежние данные вычитает надгробие прежнего id), при перестройке и когда прошлая версия — удаление (после `restore`);
 у `purge`, `trim` и `reset` поля нет — вычитайте `before`, только проверив его на `null`. `handle` получает изменения
@@ -334,6 +336,12 @@ p.run().catch(report)         // run() без once — с catch: после ош
 `rebuild({ tenant: id })`, остальные идут дальше; `tenants: [id, …]` — явный список участников. `status().state`: `'new'` —
 проекции ещё нет, `'running'` — проекция построена и ведётся (а не «процесс сейчас работает»), `'rebuilding'` — идёт
 или прервана перестройка пачками.
+Дневной итог — свёртка: прошлую версию (`c.before`) вычесть, новую (`c.row`, если не `$deleted`) прибавить через
+`out.inc('DayTotal', { day }, { total: ±amount }, { tenant: c.tenant })`; у `DayTotal` ключ `['day']`,
+`derivedBy: 'daily'` и `history: false`. День берите из данных строки, а не из `at`: время версии меняет каждая правка.
+Каждый вызов `out` — отдельная правка строки: при большом потоке сложите приращения пачки по дню и вызовите `out.inc`
+один раз на день — догонка быстрее в 5–28 раз. Полный рецепт —
+[README, «Рецепт: дневная выручка»](README.md#рецепт-дневная-выручка).
 
 ### 13. Агрегаты в базе
 
@@ -345,8 +353,10 @@ await db.Wallet(w).Payment().create({ opId: 'op-9', amount: 500 }).rows()   // �
 ```
 Поле пересчитывает триггер после каждого оператора (библиотека, сырой SQL, каскад, `restore`, `reclass`, `rekey`,
 загрузчик); уход ниже `minimum` — `invalid_data`, каждое изменение — версия цели. Считаются живые строки того же
-арендатора (строка System — нет). Ремонт — `adm.rebuildAggregates('Wallet')`, расхождения — `verify({ data: true })`.
-Горячий счётчик (тысячи записей в секунду на объект) — проектор со свёрткой пачкой, а не агрегат.
+арендатора (строка System — нет). Ремонт — `adm.rebuildAggregates('Wallet')` на администраторском подключении,
+расхождения — `verify({ data: true })`. Описать или изменить агрегат может только тот, кто без условий читает все строки
+источника и его потомков, иначе `acl_denied`. Горячий счётчик (больше ~150 записей в секунду на объект) —
+проектор со свёрткой пачкой, а не агрегат.
 
 ### 14. Агенты и MCP
 
@@ -357,15 +367,16 @@ const server = await createMcpServer(await svc.as(userId))   // letopis_model, l
 // stdio: letopis mcp --dsn … --schema v2.x --token <токен пользователя> [--write]; HTTP — createMcpHandler(() => createMcpServer(…)) из SDK
 ```
 Только сессия пользователя или `svc.as(пользователь)`: подключение в обход RLS — `bypass_rls`, корень сервиса без `as()`
-— `user_session_required`, `--api-key` командная строка не принимает. Чтение — JSON-цепочкой (`class`, `filter` с
-`$gt`, `$in`, `$or` и т. п., `steps`, `sort: { field, dir: 'asc' | 'desc' }`, `cursor`), без SQL; ответ — до 100 строк
-и 50 КБ, дальше `cursor`. `structuredContent` по терминалам: `rows` — `{ rows, count, more, cursor? }`, `ids` —
-`{ ids, count, more, cursor? }` (`count` — строк на странице), `first` — `{ row }`, `count` — `{ count }`, `countBy` —
-`{ counts, truncated? }`, `sum`, `avg`, `min`, `max` — `{ value }`. Отказ — `isError: true` и
-`structuredContent.error` (`{ code, message, similar? }`). Запись — только `write: true` (без него `letopis_write`
-нет в списке, а вызов — ошибка протокола SDK): `update` с `rev`; `delete` без `confirm` — превью, с `confirm` —
-подтверждение человека (elicitation), без него — `confirmation_required`. Данные из базы в ответе — внутри
-`<untrusted-data-…>`.
+— `user_session_required`, `--api-key` командная строка не принимает, а `--dsn`, `--schema` и `--token` берёт и из
+`LETOPIS_DSN`, `LETOPIS_SCHEMA`, `LETOPIS_TOKEN`. Чтение — JSON-цепочкой (`class`, `filter` с `$gt`, `$in`, `$or` и
+т. п., `steps`, `sort: { field, dir: 'asc' | 'desc' }`, `cursor`), без SQL; ответ — до `maxRows` строк (100) и
+`maxBytes` байт (50 000) из опций `createMcpServer`, дальше `cursor`. `structuredContent` по терминалам: `rows` —
+`{ rows, count, more, cursor? }`, `ids` — `{ ids, count, more, cursor? }` (`count` — строк на странице), `first` —
+`{ row }`, `count` — `{ count }`, `countBy` — `{ counts, truncated? }`, `sum`, `avg`, `min`, `max` — `{ value }`.
+Отказ — `isError: true` и `structuredContent.error` (`{ code, message, similar? }`). Запись — только `write: true`
+(без него `letopis_write` нет в списке, а вызов — ошибка протокола SDK): `update` с `rev`; `delete` без `confirm` —
+превью, с `confirm` — подтверждение человека (elicitation), без него — `confirmation_required`. Данные из базы в
+ответе — внутри `<untrusted-data-…>`.
 
 ### Эксплуатация
 
@@ -400,8 +411,9 @@ await adm.close(); await db.close(); await svc.close()
    В `db.begin()` повторов нет: на `40P01` повторите весь блок. Операции из пула сами повторяют `40001`/`40P01`.
 7. **`commit_unknown`** — связь оборвалась во время `COMMIT`: транзакция могла зафиксироваться. Не повторяйте
    вслепую — повторите ту же операцию с тем же ключом (`exists` значит «уже записано»).
-8. **Загрузчику нужно администраторское подключение** (`allowBypassRls: true`, роль-владелец), иначе
-   `admin_required`; внутри `db.begin()` — `invalid_query`. Обычное приложение — прикладной ролью, без обхода RLS.
+8. **Загрузчику, проектору и `rebuildAggregates` нужно администраторское подключение** (`allowBypassRls: true`,
+   роль-владелец), иначе `admin_required`; внутри `db.begin()` — `invalid_query`. Обычное приложение — прикладной
+   ролью, без обхода RLS.
 9. **Данные под RLS.** Без сессии (`token`/`apiKey`) запись — `no_session`; чужая или невидимая строка неотличима от
    несуществующей: шаг её не находит, а ссылка на неё — `target_not_found`; без права — пусто или `acl_denied`. `` db.sql`…` `` и сырой SQL — тоже под
    сессией и RLS.

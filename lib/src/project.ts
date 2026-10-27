@@ -98,7 +98,10 @@ export interface ProjectorOptions {
   handle(changes: ProjectorChange[], out: ProjectorOut): void | Promise<void>;
   /** Подавать прошлую версию объекта (before). */
   withBefore?: boolean;
-  /** Курсор старше яруса all политики хранения источников (cursor_expired): 'rebuild' — перестроить самому. */
+  /**
+   * Курсор старше яруса all политики хранения источников (cursor_expired): 'rebuild' — перестроить самому. Ярус — по
+   * арендатору: истёк у части участников — выбывают они (с 'rebuild' — перестраиваются сами), у всех — вся проекция.
+   */
   onExpired?: 'rebuild' | 'error';
   /** Изменений в пачке (по умолчанию 500). */
   batch?: number;
@@ -130,7 +133,10 @@ export interface ProjectorReport {
 export interface ProjectorFailure {
   /** Курсор первого неприменённого изменения арендатора (ошибка при перестройке — курсор её начала). */
   cursor: string;
-  /** Код ошибки letopis (invalid_data, target_not_found, …) или SQLSTATE. */
+  /**
+   * Код ошибки letopis (invalid_data, target_not_found, …) или SQLSTATE; cursor_expired — истёк ярус all источников
+   * арендатора, invalid_class — его источники не ведут журнал (history: false).
+   */
   code: string;
   /** Текст ошибки: проектор, арендатор и id строки. */
   message: string;
@@ -335,8 +341,12 @@ export class Projector {
   private from: string[] = [];
   /** Арендаторы проектора: каждый класс into у них помечен его derivedBy (и, с опцией tenants, они в списке). */
   private tenants: string[] = [];
-  /** Самый короткий ярус all политик хранения источников, мс (null — предела нет). */
-  private limMs: number | null = null;
+  /** Самый короткий ярус all политик хранения источников арендатора, мс (нет в карте — предела нет). */
+  private lim = new Map<string, number>();
+  /** Источники арендатора без журнала (history: false): их изменений проектор не увидит — арендатор выбывает. */
+  private blind = new Map<string, string[]>();
+  /** Арендаторы, чей курсор истёк в последней пачке: их перестраивает onExpired: 'rebuild'. */
+  private expired: string[] = [];
   private stale = true;
   private running = false;
   private stopped = false;
@@ -395,6 +405,11 @@ export class Projector {
             continue;
           }
           throw e;
+        }
+        // курсор истёк у части арендаторов: с onExpired: 'rebuild' они перестраиваются сами, каждый своей транзакцией;
+        // не вышло — остаются выбывшими (status().failed)
+        if (this.def.onExpired === 'rebuild') {
+          for (const x of this.expired.splice(0)) await this.rebuildTenant(rep, x).catch(() => undefined);
         }
         if (r === 'rebuild') {
           await this.rebuildNow(rep, null);
@@ -512,6 +527,15 @@ export class Projector {
     return String(r.t);
   }
 
+  /** Отметка выбывшего: источники арендатора не ведут журнал. */
+  private blindFailure(tenant: string, cursor: string): ProjectorFailure {
+    return { cursor, code: 'invalid_class', message: this.blindError(tenant).message.replace(/^letopis: [a-z_]+: /, '') };
+  }
+
+  private blindError(tenant: string): LetopisError {
+    return new LetopisError('invalid_class', `проектор ${this.name}: у арендатора ${tenant} источники ${(this.blind.get(tenant) ?? []).join(', ')} не ведут журнал (history: false) — проектор не увидит их изменений`);
+  }
+
   private versionError(meta: Meta): LetopisError {
     return new LetopisError('rebuild_required', `проектор ${this.name}: проекция построена версией ${String(meta.version)}, а проектор — версии ${this.def.version}: нужна перестройка rebuild()`);
   }
@@ -552,10 +576,22 @@ export class Projector {
     }
     const from = [...new Set([...scopes.values()].flatMap((s) => [...s.from]))];
     if (!from.length) throw new LetopisError('invalid_class', `проектор ${this.name}: классов ${this.def.from.join(', ')} нет у арендаторов проектора`);
-    const [lim] = await q.unsafe(`select (extract(epoch from min(${S}.history_iv(p.p->>'all'))) * 1000)::float8 as ms
-      from ${S}.entity x cross join lateral (select ${S}.history_policy(x.data->'resolved') as p) p
-      where x.class = 'Class' and p.p is not null and x.data->>'name' = any ($1::text[]) and x.tenant = any ($2::uuid[])`, [from, tenants]);
-    this.limMs = lim?.ms == null ? null : Number(lim.ms);
+    // ярус all политики хранения и журнал источников — по арендатору (ревью безопасности №2): это описание его классов,
+    // и короткий ярус или выключенный журнал одного арендатора не касается остальных
+    const lim = new Map<string, number>();
+    const blind = new Map<string, string[]>();
+    const pol = await q.unsafe(`select x.tenant::text as t, x.data->>'name' as n, x.data->'resolved'->>'history' = 'false' as off,
+        (extract(epoch from ${S}.history_iv(${S}.history_policy(x.data->'resolved')->>'all')) * 1000)::float8 as ms
+      from ${S}.entity x
+      where x.class = 'Class' and x.data->>'name' = any ($1::text[]) and x.tenant = any ($2::uuid[])`, [from, tenants]);
+    for (const r of pol) {
+      const t = r.t as string;
+      if (!scopes.get(t)!.from.has(r.n as string)) continue;
+      if (r.off) blind.set(t, [...(blind.get(t) ?? []), r.n as string]);
+      if (r.ms != null) lim.set(t, Math.min(lim.get(t) ?? Infinity, Number(r.ms)));
+    }
+    this.lim = lim;
+    this.blind = blind;
     this.from = from;
     this.scopes = scopes;
     this.tenants = tenants;
@@ -574,15 +610,29 @@ export class Projector {
       if (!meta.cursor || meta.state === 'rebuilding') return 'rebuild';
       if (meta.version !== this.def.version) throw this.versionError(meta);
       const cur = dec(meta.cursor);
-      // время курсора проверяет сам проектор, а не watch_read: без изменений после курсора прореживать было
-      // нечего, и простоявший без событий проектор не истекает
       const rows = await q.unsafe(`select l.tx::text as tx, l.seq::text as seq, ${rowJson('l')} as row
         from ${this.env.S}.watch_read($1::text::xid8, $2::bigint, null, $3::text[], $4::int, $5::text::pg_snapshot) l`,
       [cur.tx, cur.seq, [...this.from, '#reset'], this.batch, cur.snap ?? null]);
-      if (rows.length && this.limMs !== null && meta.at && Date.now() - Date.parse(meta.at) > this.limMs) {
-        throw new LetopisError('cursor_expired', `проектор ${this.name}: курсор старше яруса all политики хранения источников — изменения могли проредиться, нужна перестройка rebuild()`);
-      }
       const failed: Failed = { ...(meta.failed ?? {}) };
+      for (const t of this.blind.keys()) failed[t] ??= this.blindFailure(t, meta.cursor);
+      // время курсора проверяет сам проектор, а не watch_read: без изменений после курсора прореживать было нечего, и
+      // простоявший без событий проектор не истекает. Ярус all — по арендатору (ревью безопасности №2): истёк у всех
+      // участников — cursor_expired, у части — выбывают только они, иначе короткий ярус классов одного арендатора
+      // останавливал бы проектор для всех
+      this.expired = [];
+      if (rows.length && meta.at) {
+        const age = Date.now() - Date.parse(meta.at);
+        const live = this.tenants.filter((x) => !failed[x]);
+        const old = live.filter((x) => (this.lim.get(x) ?? Infinity) < age);
+        if (old.length && old.length === live.length) {
+          throw new LetopisError('cursor_expired', `проектор ${this.name}: курсор старше яруса all политики хранения источников — изменения могли проредиться, нужна перестройка rebuild()`);
+        }
+        for (const x of old) {
+          failed[x] = { cursor: meta.cursor, code: 'cursor_expired',
+            message: `проектор ${this.name}: курсор старше яруса all политики хранения источников арендатора ${x} — его изменения могли проредиться, нужна перестройка rebuild({ tenant })` };
+        }
+        this.expired = old;
+      }
       let pos: Pos = cur;
       const changes: ProjectorChange[] = [];
       for (const r of rows) {
@@ -751,8 +801,10 @@ export class Projector {
         from s left join ${this.env.S}.entity e on e.class = any ($1::text[]) and e.tenant = any ($2::uuid[])
         order by e.id`, [this.from, this.tenants]);
       let head: Pos | null = null;
-      // полная перестройка начинает всех участников заново: отметки выбывших — только её собственные
+      // полная перестройка начинает всех участников заново: отметки выбывших — только её собственные; арендатор, чьи
+      // источники не ведут журнал, выбывает сразу
       const failed: Failed = {};
+      for (const x of this.blind.keys()) failed[x] = this.blindFailure(x, '');
       for (;;) {
         const rows = await q.unsafe(`fetch ${this.batch} from letopis_rebuild`);
         if (!rows.length) break;
@@ -764,6 +816,7 @@ export class Projector {
         }
       }
       await q.unsafe('close letopis_rebuild');
+      for (const x of this.blind.keys()) failed[x].cursor = enc(head!);
       // выбывший посреди перестройки — без производных строк: прежние пачки построили их лишь частично
       if (Object.keys(failed).length) await this.clear(q, Object.keys(failed));
       await this.advance(q, meta.cursor, withFailed({ cursor: enc(head!), at: await this.now(q), version: this.def.version, state: 'running' }, failed));
@@ -781,9 +834,11 @@ export class Projector {
         await this.clear(q, this.tenants);
         const [h] = await q.unsafe(`select pg_snapshot_xmin(s)::text as xmin, s::text as snap from pg_current_snapshot() s`);
         const start = enc({ tx: h.xmin as string, seq: '0', snap: h.snap as string });
-        // все участники заново: отметки выбывших снимаются
-        await this.advance(q, meta.cursor, { cursor: start, at: await this.now(q), version: this.def.version, state: 'rebuilding',
-          rebuild: { start, last: null, chunks: [] } });
+        // все участники заново: отметки выбывших снимаются; арендатор, чьи источники не ведут журнал, выбывает сразу
+        const failed: Failed = {};
+        for (const x of this.blind.keys()) failed[x] = this.blindFailure(x, start);
+        await this.advance(q, meta.cursor, withFailed({ cursor: start, at: await this.now(q), version: this.def.version, state: 'rebuilding',
+          rebuild: { start, last: null, chunks: [] } }, failed));
       });
     }
     for (;;) {
@@ -794,6 +849,7 @@ export class Projector {
         const rb = meta.rebuild;
         if (meta.state !== 'rebuilding' || !rb) return true;
         const failed: Failed = { ...(meta.failed ?? {}) };
+        for (const x of this.blind.keys()) failed[x] ??= this.blindFailure(x, rb.start);
         // пачка источников и её снимок — одним оператором; выбывших арендаторов пачка не читает
         const rows = await q.unsafe(`with s as (select pg_current_snapshot()::text as snap)
           select s.snap, case when e.id is null then null else ${rowJson('e')} end as row
@@ -842,6 +898,7 @@ export class Projector {
       if (!sc) {
         throw new LetopisError('tenant_denied', `проектор ${this.name}: арендатор ${tenant} не участник — у него не все классы ${this.def.into.join(', ')} помечены derivedBy: '${this.name}'${this.only ? ' или его нет в списке tenants' : ''}`);
       }
+      if (this.blind.has(tenant)) throw this.blindError(tenant);
       await this.clear(q, [tenant]);
       await q.unsafe(`declare letopis_rebuild no scroll cursor for
         with s as (select pg_current_snapshot() as snap)

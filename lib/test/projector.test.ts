@@ -586,3 +586,114 @@ test('ревью безопасности №2: before — прошлая вер
     p.close();
   }
 });
+
+// ревью безопасности №2: ярус all и журнал источников — по арендатору (проектор ticker)
+const tickSum = (changes: ProjectorChange[], out: ProjectorOut) => {
+  for (const c of changes) if (c.op === 'create') out.inc('TickSum', { k: 'all' }, { total: c.row.data.v as number }, { tenant: c.tenant });
+};
+const tickerDef = (extra: Partial<ProjectorOptions> = {}): ProjectorOptions => ({ from: ['Tick'], into: ['TickSum'], version: 1, handle: tickSum, ...extra });
+async function tickTenant(x: Tenant, history: unknown): Promise<void> {
+  await e.defineClass(x, { name: 'Tick', kind: 'hub', history, fields: { properties: { v: { type: 'integer' } }, required: ['v'] } });
+  await e.defineClass(x, { name: 'TickSum', kind: 'hub', key: ['k'], derivedBy: 'ticker', history: false,
+    fields: { properties: { k: { type: 'string' }, total: { type: 'integer' } }, required: ['k'] } });
+}
+const tick = (x: Tenant, v: number) => e.as(x.token, (tx) => tx.unsafe(`insert into ${e.S}.entity (class, data) values ('Tick', $1::jsonb)`, [{ v } as never]));
+const tickTotal = async (x: Tenant) =>
+  ((await e.sql.unsafe(`select data->'total' as v from ${e.S}.entity where class = 'TickSum' and tenant = $1`, [x.id]))[0]?.v ?? null) as number | null;
+const tickHistory = (x: Tenant, history: unknown) => e.as(x.token, (tx) => tx.unsafe(`update ${e.S}.entity set data = jsonb_set(data, '{history}', $2::text::jsonb)
+  where class = 'Class' and tenant = $1 and data->>'name' = 'Tick'`, [x.id, JSON.stringify(history)]));
+const tickAge = (iv: string) => e.sql.unsafe(`update ${e.S}.secret set meta = jsonb_set(meta, '{at}', to_jsonb(to_json(clock_timestamp() - $1::interval) #>> '{}'))
+  where kind = 'PROJECTOR' and ident = 'ticker'`, [iv]);
+
+test('ревью безопасности №2, Н1: короткий ярус all источников одного арендатора не останавливает проектор — выбывает только он', async () => {
+  // у w ярус all источника — 1 день, у t политики нет: курсор старше дня истёк только у w. Прежде предел был общим
+  // (самый короткий ярус всех участников), и run() отклонялся с cursor_expired для всех
+  const w = await e.tenant('proj-w');
+  await tickTenant(t, true);
+  await tickTenant(w, { all: '1 day', daily: 'forever' });
+  const p = adm.projector('ticker', tickerDef());
+  try {
+    await p.run({ once: true });
+    await tick(t, 1);
+    await tick(w, 10);
+    await tickAge('3 days');
+    await p.run({ once: true });
+    assert.equal(await tickTotal(t), 1, 'изменение t применено');
+    assert.equal(await tickTotal(w), null, 'изменение w не применено');
+    const st = await p.status();
+    assert.deepEqual(Object.keys(st.failed), [w.id]);
+    assert.equal(st.failed[w.id].code, 'cursor_expired');
+    assert.match(st.failed[w.id].message, new RegExp(`арендатора ${w.id} .*rebuild\\(\\{ tenant \\}\\)$`));
+    await p.rebuild({ tenant: w.id });
+    assert.equal(await tickTotal(w), 10);
+    assert.deepEqual((await p.status()).failed, {});
+  } finally {
+    p.close();
+  }
+  // onExpired: 'rebuild' — выбывший по ярусу перестраивается сам, остальные идут дальше
+  const auto = adm.projector('ticker', tickerDef({ onExpired: 'rebuild' }));
+  try {
+    await tick(t, 2);
+    await tick(w, 20);
+    await tickAge('3 days');
+    const r = await auto.run({ once: true });
+    assert.equal(r.rebuilds, 1, 'перестроен один арендатор');
+    assert.equal(await tickTotal(t), 3);
+    assert.equal(await tickTotal(w), 30);
+    assert.deepEqual((await auto.status()).failed, {});
+  } finally {
+    auto.close();
+  }
+  // ярус истёк у всех участников — cursor_expired, как прежде
+  await tickHistory(t, { all: '1 day', daily: 'forever' });
+  const all = adm.projector('ticker', tickerDef());
+  try {
+    await tick(t, 4);
+    await tickAge('3 days');
+    await assert.rejects(all.run({ once: true }), lt('cursor_expired'));
+  } finally {
+    all.close();
+  }
+  await tickHistory(t, true);
+});
+
+test('ревью безопасности №2: источник без журнала (history: false) — его арендатор выбывает с invalid_class, остальные идут', async () => {
+  // журнала у Tick арендатора n нет: проектор не увидел бы его изменений, и проекция n молча разошлась бы с данными
+  const n = await e.tenant('proj-n');
+  await tickTenant(n, false);
+  const p = adm.projector('ticker', tickerDef());
+  try {
+    await p.rebuild();
+    await tick(n, 5);
+    const was = await tickTotal(t);
+    await tick(t, 7);
+    await p.run({ once: true });
+    assert.equal(await tickTotal(t), (was ?? 0) + 7, 'изменение t применено');
+    assert.equal(await tickTotal(n), null, 'у n производных строк нет');
+    const st = await p.status();
+    assert.deepEqual(Object.keys(st.failed), [n.id]);
+    assert.equal(st.failed[n.id].code, 'invalid_class');
+    assert.match(st.failed[n.id].message, new RegExp(`у арендатора ${n.id} источники Tick не ведут журнал`));
+    await assert.rejects(p.rebuild({ tenant: n.id }), lt('invalid_class'));
+    for (const chunked of [false, true]) {
+      await p.rebuild({ chunked });
+      assert.equal((await p.status()).failed[n.id]?.code, 'invalid_class', chunked ? 'пачками' : 'атомарно');
+      assert.equal(await tickTotal(n), null, chunked ? 'пачками' : 'атомарно');
+    }
+  } finally {
+    p.close();
+  }
+  // журнал включён — перестройка арендатора возвращает его в проекцию
+  await tickHistory(n, true);
+  const fixed = adm.projector('ticker', tickerDef());
+  try {
+    await fixed.rebuild({ tenant: n.id });
+    assert.equal(await tickTotal(n), 5);
+    assert.deepEqual((await fixed.status()).failed, {});
+    await tick(n, 1);
+    await fixed.run({ once: true });
+    assert.equal(await tickTotal(n), 6);
+  } finally {
+    fixed.close();
+  }
+});
