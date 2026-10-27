@@ -392,6 +392,7 @@ declare
   lk record;
   nid uuid;
   denied text;
+  n_denied int;
 begin
   select * into c from @SCHEMA@.ctx();
   if c.account is null then
@@ -444,13 +445,16 @@ begin
     end if;
     return o.id;
   end if;
-  -- перевод ссылок пишет ссылающиеся строки: на них тоже нужно право WRITE
-  select min(x.class) into denied from @SCHEMA@.entity x
+  -- перевод ссылок пишет ссылающиеся строки: на них тоже нужно право WRITE (глубже первого уровня — move_row); класс
+  -- такой строки называется, только если актор её видит (доработки после точки Б)
+  select min(x.class) filter (where @SCHEMA@.row_visible(x.tenant, x.class, x.id, x.owner, x.tags, x.data, x.links, c.tenant, c.account, rd->'plan')),
+         count(*) into denied, n_denied from @SCHEMA@.entity x
   where x.ends @> array[o.id] and not @SCHEMA@.acl_row_ok(wplan, x.class, x.id, x.owner, x.tenant, x.tags, x.data, x.links);
-  if denied is not null then
-    perform @SCHEMA@.lt_fail('acl_denied', format('нет права WRITE на ссылающиеся строки класса %s', denied));
+  if n_denied > 0 then
+    perform @SCHEMA@.lt_fail('acl_denied', case when denied is not null then format('нет права WRITE на ссылающиеся строки класса %s', denied)
+                                                 else 'нет права WRITE на ссылающиеся строки' end);
   end if;
-  perform @SCHEMA@.move_row(o, nid, o.class, d, lk.links, 'rekey');
+  perform @SCHEMA@.move_row(o, nid, o.class, d, lk.links, 'rekey', wplan);
   return nid;
 end $$;
 
@@ -537,7 +541,7 @@ begin
     res := (@SCHEMA@.class_row(r.class, r.tenant)).data->'resolved';
     nid := coalesce(@SCHEMA@.key_id(res, r.class, r.tenant, r.data, r.links), r.id);
     if nid <> r.id then
-      perform @SCHEMA@.move_row(r, nid, r.class, r.data, r.links, 'rekey');
+      perform @SCHEMA@.move_row(r, nid, r.class, r.data, r.links, 'rekey', wplan);
       n := n + 1;
     end if;
   end loop;

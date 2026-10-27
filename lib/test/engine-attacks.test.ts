@@ -745,3 +745,36 @@ test('№41 (доработки после точки Б): ужесточени�
   assert.equal(d.others, 0);
   assert.ok(d.rows.length >= 1 && d.rows.every((r: { class: string }) => r.class === 'Org'), 'строки перечислены — все видны');
 });
+
+test('№42 (доработки после точки Б): reclass без права DELETE на прежнюю строку — отказ; ссылки глубже первого уровня — только с WRITE; имя невидимого класса не в тексте', async () => {
+  const x = await e.tenant('x42');
+  const { resource, rule, sysRes } = await import('./_access.js');
+  const g = await sysRes(e, 'authenticated:ACCOUNT');
+  const q = (sql: string, p: unknown[] = []) => e.as(x.token, (tx) => tx.unsafe(sql, p as never[]));
+  for (const c of [
+    { name: 'NoDel', kind: 'hub', fields: { properties: { v: { type: 'string' } } } },
+    { name: 'Bin', kind: 'hub', fields: { properties: { v: { type: 'string' } } } },
+    { name: 'KA', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' } }, required: ['code'] } },
+    { name: 'KA2', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' } }, required: ['code'] } },
+    { name: 'KS', kind: 'hub', key: ['A', 'n'], fields: { properties: { n: { type: 'string' } }, required: ['n'] },
+      ends: { A: { class: ['KA', 'KA2'], required: true, onDelete: 'cascade' } } },
+    { name: 'KHidden', kind: 'hub', fields: { properties: {} }, ends: { S: { class: 'KS', onDelete: 'unset' } } },
+  ]) await e.defineClass(x, c);
+  const [nd] = await q(`insert into ${S}.entity (class, data) values ('NoDel', '{"v": "x"}') returning id`);
+  const [ka] = await q(`insert into ${S}.entity (class, data) values ('KA', '{"code": "r"}') returning id`);
+  const [ks] = await q(`insert into ${S}.entity (class, data, links) values ('KS', '{"n": "1"}', $1::jsonb) returning id`, [{ A: ka.id }]);
+  const [kh] = await q(`insert into ${S}.entity (class, data, links) values ('KHidden', '{}', $1::jsonb) returning id`, [{ S: ks.id }]);
+  // NoDel удалять нельзя, KHidden не видно и не правится
+  await rule(e, x.id, g, await resource(e, x.id, 'nodel:DELETE', 'DELETE', { class: 'NoDel' }), 'deny', 20);
+  await rule(e, x.id, g, await resource(e, x.id, 'hidden:READ', 'READ', { class: 'KHidden' }), 'deny', 20);
+  await rule(e, x.id, g, await resource(e, x.id, 'hidden:WRITE', 'WRITE', { class: 'KHidden' }), 'deny', 20);
+  await assert.rejects(q(`select ${S}.reclass($1::uuid, 'Bin')`, [nd.id]), /нет права DELETE на строку класса NoDel/);
+  await assert.rejects(q(`update ${S}.entity set class = 'Bin' where id = $1`, [nd.id]), /нет права DELETE на строку класса NoDel/);
+  assert.equal((await e.sql.unsafe(`select class from ${S}.entity where id = $1`, [nd.id]))[0].class, 'NoDel');
+  // KA → KA2: id меняется, KS (конец в ключе) переезжает, KHidden ссылается на KS — третий уровень
+  const err = await q(`select ${S}.reclass($1::uuid, 'KA2')`, [ka.id]).then(() => null, (x2) => x2);
+  lt('acl_denied')(err);
+  assert.ok(!err.message.includes('KHidden'), err.message);
+  const [h] = await e.sql.unsafe(`select links from ${S}.entity where id = $1`, [kh.id]);
+  assert.equal(h.links.S, ks.id, 'невидимая строка не переписана');
+});

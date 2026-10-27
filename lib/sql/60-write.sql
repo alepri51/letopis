@@ -928,6 +928,11 @@ begin
     -- обычный update берёт слабую блокировку; смене класса нужна for update, чтобы дождаться
     -- транзакций, которые как раз пишут ссылку на эту строку
     perform 1 from @SCHEMA@.entity x where x.id = OLD.id for update;
+    -- строка уходит из своего класса — как удаление из него: нужно право DELETE на прежнюю строку (доработки после
+    -- точки Б; иначе с одним WRITE строку переносили в класс, где есть DELETE, и удаляли там)
+    if not @SCHEMA@.acl_row_ok(@SCHEMA@.acl_plan('DELETE'), OLD.class, OLD.id, OLD.owner, OLD.tenant, OLD.tags, OLD.data, OLD.links) then
+      perform @SCHEMA@.lt_fail('acl_denied', format('нет права DELETE на строку класса %s: смена класса убирает её из класса', OLD.class));
+    end if;
     inc := @SCHEMA@.incoming_conflicts(OLD.id, NEW.class, OLD.tenant);
     if inc <> '[]'::jsonb then
       perform @SCHEMA@.lt_fail('reclass_denied', format('роли ссылающихся строк не принимают класс %s', NEW.class),
@@ -1478,11 +1483,15 @@ return (
 -- Перенос строки на новый id (смена класса с ключом, смена ключа): новая строка продолжает журнал
 -- нового id и ссылается на старый (moved), ссылки переводятся — если переведённый конец входит
 -- в ключ ссылающейся строки, её id тоже меняется, и перевод идёт дальше рекурсивно; старая строка
--- удаляется с надгробием, которое ссылается на новый id. Проверки делает вызывающая функция.
+-- удаляется с надгробием, которое ссылается на новый id. Проверки делает вызывающая функция; p_plan — план WRITE
+-- актора (reclass, rekey, rekey_class): каждая строка, чьи ссылки перевод переписывает, на всех уровнях рекурсии должна
+-- им проходить (доработки после точки Б: прежде проверялся только первый уровень); null — путь владельца.
 -- Агрегаты (план 1.1, §2.4): перенос — несколько операторов (новая строка, перевод ссылок, удаление старой), и
 -- триггер агрегатов на это время только копит их вклады (agg_hold_begin), а в конце применяет одним итогом: сумма
 -- не проходит через промежуточные значения, новая цель считается целиком из живых источников.
-create or replace function @SCHEMA@.move_row(o @SCHEMA@.entity, p_new_id uuid, p_class text, p_data jsonb, p_links jsonb, p_op text)
+drop function if exists @SCHEMA@.move_row(@SCHEMA@.entity, uuid, text, jsonb, jsonb, text);
+create or replace function @SCHEMA@.move_row(o @SCHEMA@.entity, p_new_id uuid, p_class text, p_data jsonb, p_links jsonb, p_op text,
+  p_plan jsonb default null)
 returns @SCHEMA@.entity
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -1507,10 +1516,13 @@ begin
   returning * into n;
   perform @SCHEMA@.log_version(n);
   for r in select x.* from @SCHEMA@.entity x where x.ends @> array[o.id] and x.id <> p_new_id order by x.id for update loop
+    if p_plan is not null and not @SCHEMA@.acl_row_ok(p_plan, r.class, r.id, r.owner, r.tenant, r.tags, r.data, r.links) then
+      perform @SCHEMA@.lt_fail('acl_denied', 'нет права WRITE на ссылающиеся строки');
+    end if;
     nl := @SCHEMA@.links_replace(r.links, o.id, p_new_id);
     rid := coalesce(@SCHEMA@.key_id((@SCHEMA@.class_row(r.class, r.tenant)).data->'resolved', r.class, r.tenant, r.data, nl), r.id);
     if rid <> r.id then
-      perform @SCHEMA@.move_row(r, rid, r.class, r.data, nl, 'rekey');
+      perform @SCHEMA@.move_row(r, rid, r.class, r.data, nl, 'rekey', p_plan);
     else
       perform @SCHEMA@.sys_update(r.id, r.data, nl, r.validator, 'update');
     end if;
@@ -1544,6 +1556,7 @@ declare
   rd jsonb;
   wplan jsonb;
   denied text;
+  n_denied int;
 begin
   select * into c from @SCHEMA@.ctx();
   if c.account is null then
@@ -1560,6 +1573,11 @@ begin
   end if;
   if not @SCHEMA@.acl_row_ok(wplan, o.class, o.id, o.owner, o.tenant, o.tags, o.data, o.links) then
     perform @SCHEMA@.lt_fail('acl_denied', format('нет права WRITE на строку класса %s', o.class));
+  end if;
+  -- строка уходит из своего класса — как удаление из него: нужно право DELETE на прежнюю строку (доработки после
+  -- точки Б; иначе с одним WRITE строку переносили в класс, где есть DELETE, и удаляли там)
+  if not @SCHEMA@.acl_row_ok(@SCHEMA@.acl_plan('DELETE'), o.class, o.id, o.owner, o.tenant, o.tags, o.data, o.links) then
+    perform @SCHEMA@.lt_fail('acl_denied', format('нет права DELETE на строку класса %s: смена класса убирает её из класса', o.class));
   end if;
   -- строки прав и классов функция не трогает
   if o.class in ('Class', 'Account', 'member', 'Resource', 'rule') or p_class in ('Class', 'Account', 'member', 'Resource', 'rule') then
@@ -1606,17 +1624,20 @@ begin
     perform @SCHEMA@.lt_fail('acl_denied', format('нет права WRITE на класс %s', p_class));
   end if;
   if nid <> o.id then
-    -- перевод ссылок пишет ссылающиеся строки: на них тоже нужно право WRITE
-    select min(x.class) into denied from @SCHEMA@.entity x
+    -- перевод ссылок пишет ссылающиеся строки: на них тоже нужно право WRITE (глубже первого уровня — move_row);
+    -- класс такой строки называется, только если актор её видит
+    select min(x.class) filter (where @SCHEMA@.row_visible(x.tenant, x.class, x.id, x.owner, x.tags, x.data, x.links, c.tenant, c.account, rd->'plan')),
+           count(*) into denied, n_denied from @SCHEMA@.entity x
     where x.ends @> array[o.id] and not @SCHEMA@.acl_row_ok(wplan, x.class, x.id, x.owner, x.tenant, x.tags, x.data, x.links);
-    if denied is not null then
-      perform @SCHEMA@.lt_fail('acl_denied', format('нет права WRITE на ссылающиеся строки класса %s', denied));
+    if n_denied > 0 then
+      perform @SCHEMA@.lt_fail('acl_denied', case when denied is not null then format('нет права WRITE на ссылающиеся строки класса %s', denied)
+                                                   else 'нет права WRITE на ссылающиеся строки' end);
     end if;
   end if;
   if nid = o.id then
     perform @SCHEMA@.sys_update(o.id, d, lk.links, null, 'reclass', p_class);
   else
-    perform @SCHEMA@.move_row(o, nid, p_class, d, lk.links, 'reclass');
+    perform @SCHEMA@.move_row(o, nid, p_class, d, lk.links, 'reclass', wplan);
   end if;
   return nid;
 end $$;
@@ -1751,7 +1772,7 @@ begin
     'now_ts()', 'family_lock(@SCHEMA@.entity, boolean)', 'class_set(jsonb)', 'class_accepts(jsonb, text, uuid)', 'role_accepts(text, uuid, text, text, uuid)',
     'apply_defaults(jsonb, jsonb)', 'links_shape(jsonb, jsonb)', 'targets_bad(jsonb, boolean, jsonb)', 'check_links(jsonb, jsonb, uuid, boolean, jsonb)', 'key_id(jsonb, text, uuid, jsonb, jsonb)',
     'log_version(@SCHEMA@.entity)', 'sys_update(uuid, jsonb, jsonb, jsonpath, text, text)', 'tombstone(@SCHEMA@.entity, text, uuid)',
-    'links_replace(jsonb, uuid, uuid)', 'move_row(@SCHEMA@.entity, uuid, text, jsonb, jsonb, text)', 'reclass(uuid, text, jsonb)',
+    'links_replace(jsonb, uuid, uuid)', 'move_row(@SCHEMA@.entity, uuid, text, jsonb, jsonb, text, jsonb)', 'reclass(uuid, text, jsonb)',
     'incoming_conflicts(uuid, text, uuid)', 'visible_detail(jsonb, uuid)', 'class_change_safe(jsonb, jsonb)',
     'family_conflicts(text[], uuid, boolean)', 'reserved_names()', 'class_acl_admit(text, uuid)', 'class_rows_admit(text, uuid, text[], text)', 'class_has_history(text, uuid)', 'class_admit(jsonb, uuid)',
     'trg_entity_bi()', 'trg_entity_bu()', 'trg_entity_ai()', 'trg_entity_au()', 'history_on(text, uuid)', 'signal_token(text, text, bytea)', 'signal_raw(text[])', 'signal(text[], uuid[])', 'class_evolve(@SCHEMA@.entity, @SCHEMA@.entity)',
