@@ -916,3 +916,33 @@ test('доработки после точки Б (ревью коммита 2b2
   }
   await tickHistory(v, { all: '1 day', daily: 'forever' });
 });
+
+test('ревью безопасности №3, №1: пустой последний проход перестройки пачками учтён — надгробие строки с наибольшим id не вычитается лишний раз', async () => {
+  const x = await e.tenant('proj-last-x');
+  await tickTenant(x, true);
+  // обработчик со знаком: создание прибавляет, удаление вычитает
+  const signed = (changes: ProjectorChange[], out: ProjectorOut) => {
+    for (const c of changes) {
+      const v = Number((c.row.data as { v?: number }).v ?? 0);
+      if (c.op === 'create') out.inc('TickSum', { k: 'all' }, { total: v }, { tenant: c.tenant });
+      else if (c.row.$deleted) out.inc('TickSum', { k: 'all' }, { total: -v }, { tenant: c.tenant });
+    }
+  };
+  const p = adm.projector('ticker', tickerDef({ batch: 100, handle: signed }));
+  try {
+    await p.rebuild();
+    for (const v of [1, 2, 4]) await tick(x, v);
+    await p.run({ once: true });
+    // перестройка начата, затем удалена строка с наибольшим id — первая пачка её уже не прочтёт
+    const rep = { batches: 0, changes: 0, created: 0, updated: 0, deleted: 0, unchanged: 0, skipped: 0, rebuilds: 0 };
+    const inner = p as unknown as { startTenant(r: unknown, t: string, auto: boolean): Promise<string>; tenantChunk(r: unknown, t: string): Promise<string> };
+    assert.equal(await inner.startTenant(rep, x.id, false), 'ok');
+    const [top] = await e.sql.unsafe(`select id from ${e.S}.entity where class = 'Tick' and tenant = $1 order by id desc limit 1`, [x.id]);
+    await e.as(x.token, (tx) => tx.unsafe(`delete from ${e.S}.entity where id = $1`, [top.id]));
+    while ((await inner.tenantChunk(rep, x.id)) !== 'done') { /* пачки до конца */ }
+    await p.run({ once: true });
+    assert.equal(await tickTotal(x), await tickSumOf(x), 'итог — сумма живых строк');
+  } finally {
+    p.close();
+  }
+});

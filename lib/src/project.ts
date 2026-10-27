@@ -217,6 +217,12 @@ function visible(tx: string, snap: string): boolean {
   if (t >= BigInt(xmax)) return false;
   return !(xip ? xip.split(',').some((x) => BigInt(x) === t) : false);
 }
+/**
+ * Пустой последний проход перестройки пачками — тоже пачка: id выше последней прочитанной строки до конца диапазона.
+ * Его снимок учёл, что таких строк нет, поэтому хвост не применяет изменения, видимые в нём (ревью безопасности №3:
+ * без неё надгробие строки с наибольшим id вычиталось лишний раз).
+ */
+const LAST_ID = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
 /** Изменение уже учтено перестройкой пачками: id попал в пачку, в снимке которой транзакция видна. */
 function seen(chunks: readonly Chunk[], id: string, tx: string): boolean {
   const c = chunks.find((x) => x.upto >= id);
@@ -953,7 +959,7 @@ export class Projector {
         const real = rows.filter((r) => r.row);
         if (!real.length) {
           await this.advance(q, meta.cursor, withFailed({ cursor: rb.start, at: await this.now(q), version: this.def.version, state: 'running',
-            ...(rb.chunks.length ? { chunks: rb.chunks } : {}) }, failed));
+            chunks: [...rb.chunks, { upto: LAST_ID, snap: rows[0].snap as string }] }, failed));
           rep.rebuilds++;
           return 'done';
         }
@@ -1108,7 +1114,8 @@ export class Projector {
         [[...sc.from], rt.last, this.batch, tenant]);
         const real = rows.filter((r) => r.row);
         if (!real.length) {
-          await this.advance(q, meta.cursor, { ...meta, retenant: { ...meta.retenant, [tenant]: { ...rt, done: true } } });
+          await this.advance(q, meta.cursor, { ...meta, retenant: { ...meta.retenant,
+            [tenant]: { last: rt.last, chunks: [...rt.chunks, { upto: LAST_ID, snap: rows[0].snap as string }], done: true } } });
           rep.rebuilds++;
           return 'done';
         }
