@@ -7,6 +7,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { engine, lt, SYSTEM_ID, type Engine } from './_engine.js';
+import { install } from '../src/up.js';
 import { appDsn } from './_harness.js';
 import { account, member, sqlAs, sysadmin, type Acc } from './_access.js';
 import { connect, type Db } from '../src/index.js';
@@ -101,4 +102,66 @@ test('5.7 db.auth.sessionFor: короткая сессия пользовате
   assert.equal(s.short, true);
   // пользователь сессию для другого не выпускает
   await assert.rejects(db.auth.sessionFor(org), (err: { code?: string }) => err.code === 'acl_denied');
+});
+
+/** Арендатор с правилом «можно всё» и классом Note. */
+async function shopWithNote(name: string): Promise<{ id: string; token: string }> {
+  const t = await account(e, name);
+  await e.asOwner((tx) => tx.unsafe(`select ${S}.sys_grant_all($1::uuid)`, [t.id]));
+  await e.asOwner((tx) => tx.unsafe(`select ${S}.sys_create(${S}.v5_id($1::uuid, 'Class', array['Note']), 'Class', $1::uuid, '{}', $2::jsonb)`,
+    [t.id, { name: 'Note', kind: 'hub', fields: { properties: { text: { type: 'string' } } } } as never]));
+  return t;
+}
+const names = (d: Db) => d.registry.all().map((c) => c.name);
+const addClass = (tenant: string, name: string) => e.asOwner((tx) => tx.unsafe(`select ${S}.sys_create(${S}.v5_id($1::uuid, 'Class', array[$2]), 'Class', $1::uuid, '{}', $3::jsonb)`,
+  [tenant, name, { name, kind: 'hub', fields: { properties: {} } } as never]));
+
+test('доработки после точки Б: реестр db.as() — один на арендатора, перечитывается под контекстом последнего as() и не пустеет', async () => {
+  const shop = await shopWithNote('Магазин-реестр');
+  const u1 = await account(e, 'Первый');
+  const u2 = await account(e, 'Второй');
+  await member(e, u1.id, shop.id);
+  const m2 = await member(e, u2.id, shop.id);
+  // одновременные as() нового арендатора — один реестр
+  const [f1, f2] = await Promise.all([svc.as(u1.id, { tenant: shop.id }), svc.as(u2.id, { tenant: shop.id })]);
+  assert.equal(f1.registry, f2.registry, 'один реестр');
+  assert.ok(names(f1).includes('Note'));
+  // последний as() — второго пользователя; он выбыл из арендатора: перечитывание под его контекстом не проходит,
+  // а реестр остаётся прежним (в 1.2.0-alpha он пустел для всех пользователей арендатора)
+  await svc.as(u2.id, { tenant: shop.id });
+  await e.asOwner((tx) => tx.unsafe(`delete from ${S}.entity where id = $1`, [m2]));
+  await addClass(shop.id, 'Memo');
+  await svc.refresh();
+  assert.ok(names(f1).includes('Note'), 'реестр не опустел');
+  assert.ok(!names(f1).includes('Memo'));
+  // as() первого пользователя — перечитывание идёт под его контекстом
+  await svc.as(u1.id, { tenant: shop.id });
+  await svc.refresh();
+  assert.ok(names(f1).includes('Memo'), 'реестр перечитан под контекстом последнего as()');
+});
+
+test('доработки после точки Б: сигнал Class с токеном арендатора (режим tenant) перечитывает реестр db.as() только этого арендатора', async () => {
+  await install(e.sql, { schema: e.schema, allowReset: true, signals: 'tenant' });
+  const svcT = await connect({ dsn: appDsn(), schema: e.schema, apiKey: e.serviceKey, max: 2 });
+  try {
+    const a = await shopWithNote('Арендатор-А');
+    const b = await shopWithNote('Арендатор-Б');
+    const ua = await account(e, 'Пользователь-А');
+    const ub = await account(e, 'Пользователь-Б');
+    await member(e, ua.id, a.id);
+    await member(e, ub.id, b.id);
+    const fa = await svcT.as(ua.id, { tenant: a.id });
+    const fb = await svcT.as(ub.id, { tenant: b.id });
+    let loadsB = 0;
+    const load = fb.registry.load.bind(fb.registry);
+    fb.registry.load = ((rows: never) => { loadsB++; return load(rows); }) as typeof fb.registry.load;
+    // класс в арендаторе А от сессии приложения — сигнал «Class@токен А»
+    await e.as(a.token, (tx) => tx.unsafe(`insert into ${S}.entity (class, data) values ('Class', '{"name": "Signal", "kind": "hub"}')`));
+    for (let i = 0; i < 100 && !names(fa).includes('Signal'); i++) await new Promise((r) => setTimeout(r, 50));
+    assert.ok(names(fa).includes('Signal'), 'реестр А перечитан по сигналу');
+    assert.equal(loadsB, 0, 'реестр Б не перечитывался');
+  } finally {
+    await svcT.close();
+    await install(e.sql, { schema: e.schema, allowReset: true });
+  }
 });

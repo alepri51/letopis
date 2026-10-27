@@ -457,30 +457,53 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
     const ctx: TxContext = { sql, token, notifier: mode === 'none' ? null : notifier, passes, after: touch,
       ...(cache ? { onChanged: (names, raw) => cache.changed(names, raw) } : {}) };
     const root = { tenant: null as string | null, registry: new Registry() };
-    const loadClasses = (txc: TxContext) => runTx(txc, (q) =>
-      q.unsafe(`select tenant, rev, data from ${S}.entity where class = 'Class' and tenant in (${S}.ctx_tenant(), '${SYSTEM_ID}')`), { read: true });
+    // классы арендатора tenant под контекстом txc; null — контекст уже не в этом арендаторе (сессия кончилась,
+    // пользователь выбыл из арендатора): тогда прежний реестр остаётся, а не пустеет (доработки после точки Б)
+    const loadClasses = (txc: TxContext, tenant: string) => runTx(txc, async (q) => {
+      const [t] = await q.unsafe(`select ${S}.ctx_tenant() as t`);
+      if (String(t?.t ?? '').toLowerCase() !== tenant.toLowerCase()) return null;
+      return q.unsafe(`select tenant, rev, data from ${S}.entity where class = 'Class' and tenant in (${S}.ctx_tenant(), '${SYSTEM_ID}')`);
+    }, { read: true });
+    // реестры db.as() — общие на арендатора; txc — контекст последнего успешного as() этого арендатора
     const others = new Map<string, { registry: Registry; txc: TxContext }>();
+    const loading = new Map<string, Promise<Registry>>();
     // токены классов (режим opaque) — по именам всех реестров подключения
     const tokens = () => sig.setClasses([root.registry, ...[...others.values()].map((o) => o.registry)].flatMap((r) => r.all().map((c) => c.name)));
-    const refresh = async () => {
+    // only — токены арендаторов из сигналов Class (режимы tenant и opaque): реестры db.as() только этих арендаторов
+    const refresh = async (only?: Set<string> | null) => {
       const rows = await runTx(ctx, async (q) => {
         const [t] = await q.unsafe(`select ${S}.ctx_tenant() as t`);
         root.tenant = (t?.t as string | null) ?? null;
         return q.unsafe(`select tenant, rev, data from ${S}.entity where class = 'Class' and tenant in (${S}.ctx_tenant(), '${SYSTEM_ID}')`);
       });
       root.registry.load(rows as never);
-      for (const o of others.values()) o.registry.load(await loadClasses(o.txc).catch(() => []) as never);
+      for (const [tenant, o] of others) {
+        if (only && !only.has(sig.tenantToken(tenant) ?? '')) continue;
+        const loaded = await loadClasses(o.txc, tenant).catch(() => null);
+        if (loaded) o.registry.load(loaded as never);
+      }
       tokens();
     };
     const registryFor = async (tenant: string, txc: TxContext): Promise<Registry> => {
       if (tenant === root.tenant) return root.registry;
       const known = others.get(tenant);
-      if (known) return known.registry;
-      const registry = new Registry();
-      registry.load(await loadClasses(txc) as never);
-      others.set(tenant, { registry, txc });
-      tokens();
-      return registry;
+      if (known) {
+        known.txc = txc;
+        return known.registry;
+      }
+      // одновременные as() нового арендатора получают один реестр
+      let pending = loading.get(tenant);
+      if (!pending) {
+        pending = (async () => {
+          const registry = new Registry();
+          registry.load(((await loadClasses(txc, tenant)) ?? []) as never);
+          others.set(tenant, { registry, txc });
+          tokens();
+          return registry;
+        })().finally(() => loading.delete(tenant));
+        loading.set(tenant, pending);
+      }
+      return pending;
     };
     // ключ сигналов (режимы tenant и opaque) — сессии с правом letopis.signals; без права процесс
     // работает без ключа: арендатора (а в opaque — и класса) в сигнале не различает
@@ -502,7 +525,7 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
     // поддельными сигналами) не становится потоком перечитываний
     const resync = throttle(() => {
       passes.clear();
-      void fetchKey().then(refresh).catch(() => {});
+      void fetchKey().then(() => refresh()).catch(() => {});
     }, 5000);
     // сигнал Class — реестр сразу, как в 1.0: правка описания доходит без задержки; пока идёт перечитывание, новые
     // сигналы сливаются в одно следующее. Три перечитывания подряд — сразу, дальше не чаще раза в 5 с: заливка
@@ -510,17 +533,26 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
     // точки А)
     let reloading = false;
     let again = false;
+    // какие реестры db.as() перечитать: токены арендаторов из сигналов или все (сигнал без арендатора)
+    let reloadAll = false;
+    const reloadTokens = new Set<string>();
     const startReload = bucket(() => {
       reloading = true;
-      void refresh().catch(() => {}).finally(() => {
+      const only = reloadAll ? null : new Set(reloadTokens);
+      reloadAll = false;
+      reloadTokens.clear();
+      void refresh(only).catch(() => {}).finally(() => {
         reloading = false;
         if (again) {
           again = false;
-          reload();
+          reload(undefined);
         }
       });
     }, 3, 5000);
-    const reload = (): void => {
+    // tenant: null — все реестры, строка — токен арендатора сигнала, undefined — то, что уже накоплено
+    const reload = (tenant: string | null | undefined): void => {
+      if (tenant === null) reloadAll = true;
+      else if (tenant !== undefined) reloadTokens.add(tenant);
       if (reloading) {
         again = true;
         return;
@@ -532,7 +564,7 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
     const onSignal = (payload: string) => {
       const s = sig.parse(payload);
       if (s.kind === 'class' && ACL_CLASSES.has(s.cls)) passes.clear();
-      if (s.kind === 'class' && s.cls === 'Class') reload();
+      if (s.kind === 'class' && s.cls === 'Class') reload(s.tenant);
       else if (s.kind === 'all' || s.kind === 'opaque' || s.kind === 'unknown' || s.kind === 'foreign') resync();
       cache?.signal(s);
       for (const fn of signals) fn(s);

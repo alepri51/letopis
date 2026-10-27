@@ -2680,7 +2680,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # hash — the version hash chain, journal tampering and gaps, verify() (stage 1)
 # harness — the test harness: starting the database, a schema per file, two connection strings (stage 0)
 # jsonschema — compiling JSON Schema to jsonpath and checking data in the database (stage 1)
-# impersonation — impersonation: letopis.account only for a service with the permission, target restrictions, author and agent in the journal, sessionFor (stage 5)
+# impersonation — impersonation: letopis.account only for a service with the permission, target restrictions, author and agent in the journal, sessionFor; the db.as() registry is one per tenant, does not empty, is re-read on a signal of its tenant (stage 5; the work after checkpoint B)
 # install — the installer and roles: a repeated installation, two installations in one database, three tables (stage 1)
 # member — memberships: working in a tenant by roles, auth.switch, leaving with ownership transfer, system rows, tenant roles without System permissions (stage 5)
 # model — Zod models, the JSON Schema normalizer, pattern translation, agreement with the database metaschema (stage 2)
