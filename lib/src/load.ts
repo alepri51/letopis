@@ -156,9 +156,13 @@ export interface InitialSession {
   taken(id: string): boolean;
 }
 
+// значения без обратной косой, табуляции и переводов строки (почти все: uuid, числа, время) — как есть, без четырёх
+// замен (профиль первой заливки: esc — 14 % процессора)
+const ESCAPED = /[\\\t\n\r]/;
 const esc = (v: unknown): string => {
   if (v === null || v === undefined) return '\\N';
-  return String(v).replace(/\\/g, '\\\\').replace(/\t/g, '\\t').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+  const s = String(v);
+  return ESCAPED.test(s) ? s.replace(/\\/g, '\\\\').replace(/\t/g, '\\t').replace(/\n/g, '\\n').replace(/\r/g, '\\r') : s;
 };
 const hex = (b: Buffer | null | undefined): string | null => (b ? '\\x' + b.toString('hex') : null);
 const ENTITY_COLS = 'id, rev, class, cv, tenant, owner, links, data, tags, at, created_at, author, agent, op, reason, moved, prev_hash, validator';
@@ -927,9 +931,11 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       const owner = sh.owner ?? (asAcc && cur.ownerDefault === 'actor' ? asAcc : tenant!);
       const tags = sh.tags ?? [];
       if (acl) rowsAcl.push({ i, class: cls.name, id, owner, tags, data: sh.data, links: sh.links });
-      const common = [id, rev, cls.name, cur.rev, tenant, owner, JSON.stringify(sh.links), JSON.stringify(sh.data), pgArray(tags), atv];
-      ent.push([...common, atv, author, agent, 'create', null, null, hex(prev?.hash), null].map(esc).join('\t') + '\n');
-      if (cur.history !== false) log.push([...common, author, agent, 'create', null, null, hex(prev?.hash), xid].map(esc).join('\t') + '\n');
+      // общая голова строк entity и log — одной сборкой и одним экранированием
+      const head = [id, rev, cls.name, cur.rev, tenant, owner, JSON.stringify(sh.links), JSON.stringify(sh.data), pgArray(tags), atv].map(esc).join('\t');
+      const ph = esc(hex(prev?.hash));
+      ent.push(`${head}\t${esc(atv)}\t${esc(author)}\t${esc(agent)}\tcreate\t\\N\t\\N\t${ph}\t\\N\n`);
+      if (cur.history !== false) log.push(`${head}\t${esc(author)}\t${esc(agent)}\tcreate\t\\N\t\\N\t${ph}\t${esc(xid)}\n`);
       report.loaded++;
       report.byClass[cls.name] = (report.byClass[cls.name] ?? 0) + 1;
       touched.add(cls.name);
