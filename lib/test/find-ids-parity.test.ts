@@ -99,3 +99,32 @@ test('30 цепочек: find_*() и прямое чтение под RLS даю
   const [acc] = await both(db.Account());
   assert.equal(acc.length, 1);
 });
+
+test('доработки после точки Б: явный арендатор в find_ids — свои членства в других арендаторах и строки Class System, сейчас, asOf и withDeleted', async () => {
+  const { member } = await import('./_access.js');
+  const S = `"${e.schema}"`;
+  // аккаунт t — член ещё двух арендаторов; одно членство удалено (надгробие в журнале)
+  const third = await e.tenant('parity-third');
+  const kept = await member(e, t.id, other.id, ['staff']);
+  const gone = await member(e, t.id, third.id, ['staff']);
+  await e.as(third.token, (tx) => tx.unsafe(`delete from ${S}.entity where id = $1`, [gone]));
+  const now = new Date(Date.now() + 1000);
+  const chains: [string, () => Chain, number][] = [
+    ['членства сейчас', () => db.member(), 1],
+    ['членства по роли', () => db.member({ roles: ['staff'] }), 1],
+    ['членства asOf', () => db.member().asOf(now), 1],
+    ['членства withDeleted', () => db.member().withDeleted(), 2],
+    ['строки Class asOf', () => db.Class({ kind: 'link' }).asOf(now), 9],
+    ['строки Class withDeleted', () => db.Class().withDeleted(), -1],
+    ['класс целиком asOf', () => db.Staff().asOf(now), -1],
+  ];
+  for (const [label, make, n] of chains) {
+    const [viaFind, direct] = await both(make());
+    assert.deepEqual(viaFind, direct, label);
+    if (n >= 0) assert.equal(viaFind.length, n, label);
+    assert.ok(viaFind.every((r) => !String(r).includes(`"tenant":"${third.id}"`) || label.includes('withDeleted')), label);
+  }
+  const ids = async (c: Chain) => (await both(c))[0].map((r) => JSON.parse(String(r)).id).sort();
+  assert.deepEqual(await ids(db.member()), [kept]);
+  assert.deepEqual(await ids(db.member().withDeleted()), [kept, gone].sort(), 'withDeleted — живые и удалённые');
+});

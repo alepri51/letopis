@@ -115,6 +115,8 @@ export class Subscription implements AsyncIterable<WatchEvent> {
   private readonly pollMs: number;
   /** 'now' — голова журнала в момент подписки (запрос уходит сразу). */
   private start: Promise<Pos> | null = null;
+  /** Вызовы next() — по очереди: параллельные получают разные события (доработки после точки Б). */
+  private queue: Promise<unknown> = Promise.resolve();
 
   constructor(private ctx: WatchCtx, private opts: WatchOptions) {
     this.batch = opts.batch ?? 500;
@@ -146,6 +148,14 @@ export class Subscription implements AsyncIterable<WatchEvent> {
     return this.pos ? encode(this.pos) : null;
   }
 
+  /**
+   * Начальная точка взята (доработки после точки Б): у from: 'now' — горизонт и снимок момента подписки (watch_head());
+   * у 'start' и курсора — сразу. Запись после await sub.ready() придёт в поток; ошибка начальной точки — отказ.
+   */
+  async ready(): Promise<void> {
+    if (!this.pos && this.start) this.pos = await this.start;
+  }
+
   private async head(): Promise<Pos> {
     const [r] = await this.ctx.exec.run((q) => q.unsafe(`select tx::text as tx, seq::text as seq, snap::text as snap from ${this.ctx.S}.watch_head()`) as unknown as Promise<{ tx: string; seq: string; snap: string }[]>, { read: true });
     return { tx: r.tx, seq: r.seq, at: null, snap: r.snap };
@@ -170,7 +180,17 @@ export class Subscription implements AsyncIterable<WatchEvent> {
     return rows.length;
   }
 
-  async next(): Promise<IteratorResult<WatchEvent>> {
+  /**
+   * Следующее событие. Вызовы идут по очереди: параллельные next() получают разные события, без двойных. Вызов,
+   * брошенный по таймауту (Promise.race), всё равно получит своё событие — держите его обещание.
+   */
+  next(): Promise<IteratorResult<WatchEvent>> {
+    const p = this.queue.then(() => this.take(), () => this.take());
+    this.queue = p.catch(() => undefined);
+    return p;
+  }
+
+  private async take(): Promise<IteratorResult<WatchEvent>> {
     let empty = 0;
     for (;;) {
       if (this.failure) throw this.failure;

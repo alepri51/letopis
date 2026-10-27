@@ -12,6 +12,7 @@ import { LetopisError, fromDbError, removed } from './errors.js';
 import { Registry } from './registry.js';
 import { AclPasses, ExplicitTx, Notifier, poolExecutor, runTx, type Executor, type Tx, type TxContext } from './tx.js';
 import { checkReason } from './write.js';
+import { registerDb } from './internal.js';
 import { makeAuth, type AuthApi } from './auth.js';
 import { makeAcl, type AclApi } from './acl.js';
 import { idOf as idOfClass } from './uuid.js';
@@ -21,10 +22,11 @@ import type { QueryEvent, Row } from './types.js';
 import { DDL_REVISION } from './types.js';
 import { ACL_CLASSES, ResultCache, type CacheOptions, type CacheStats } from './cache.js';
 import { Subscription, type WatchOptions } from './watch.js';
+import { Projector, type ProjectorOptions } from './project.js';
 import { SIGNAL_MODES, Signals, bucket, throttle, type Signal, type SignalMode } from './signals.js';
 import {
-  describe as describeModel, maintain as runMaintain, rekeyClass as runRekeyClass, reset as runReset, scheduleMaintain,
-  trimHistory as runTrim, verify as runVerify, type AdminCtx, type MaintainOptions, type MaintainReport, type ModelDescription,
+  describe as describeModel, maintain as runMaintain, rebuildAggregates as runRebuildAggregates, rekeyClass as runRekeyClass,
+  reset as runReset, scheduleMaintain, trimHistory as runTrim, verify as runVerify, type AdminCtx, type MaintainOptions, type MaintainReport, type ModelDescription,
   type ResetOptions, type ResetResult, type VerifyResult,
 } from './admin.js';
 import type { AnyModelLike, StepsOf } from './typed.js';
@@ -32,7 +34,7 @@ import type { AnyModelLike, StepsOf } from './typed.js';
 export { DDL_REVISION } from './types.js';
 export { uuidv5, v5Name, v5Id, idOf, type KeyedClass } from './uuid.js';
 export { LetopisError, ValidationError, fromDbError, type Issue } from './errors.js';
-export { Registry, type ClassInfo, type EndInfo, type LeafType } from './registry.js';
+export { Registry, type AggregateInfo, type ClassInfo, type EndInfo, type LeafType } from './registry.js';
 export { compileValidator, applyDefaults, type Validator } from './validate.js';
 export { syncModels, generateTypes, schemaToTs, type SyncResult } from './sync.js';
 export { ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends, has, hasAny, hasAll, exists, isNull, not, or, isOp } from './ops.js';
@@ -48,6 +50,7 @@ export type { DiffChange, DiffResult, DiffOptions, BlameField, BlameResult, Blam
 export type { CacheOptions, CacheStats } from './cache.js';
 export type { SignalMode } from './signals.js';
 export type { WatchOptions, WatchEvent, Subscription } from './watch.js';
+export type { Projector, ProjectorOptions, ProjectorChange, ProjectorOut, ProjectorRow, ProjectorReport, ProjectorStatus, ProjectorFailure } from './project.js';
 export type { VerifyResult, VerifyIssue, MaintainOptions, MaintainReport, ResetOptions, ResetResult, ModelDescription } from './admin.js';
 export { describeText } from './admin.js';
 export { up, createTenant, type UpOptions, type UpResult, type HistoryPolicy, type TenantOptions, type TenantResult } from './up.js';
@@ -103,7 +106,7 @@ export interface ConnectOptions {
   listen?: boolean;
   /** Кэш результатов (§2.12): срок по умолчанию, размер, ttlOnly; false — выключен. */
   cache?: CacheOptions | false;
-  /** Запускать maintain() по расписанию ('1h', '15m', мс) под advisory-блокировкой: работает один процесс. */
+  /** Запускать maintain() по расписанию ('1h', '15m', мс) под блокировкой обслуживания: работает один процесс. */
   maintain?: string | number;
 }
 
@@ -174,6 +177,18 @@ export interface DbCore {
    * целям вне загрузки. Только на администраторском подключении (иначе admin_required).
    */
   load(input: LoadInput, opts?: LoadOptions): Promise<LoadReport>;
+  /**
+   * Проектор из журнала (план 1.1, §2.4): строит строки производных классов (derivedBy: имя) из изменений
+   * классов from; run() — догнать журнал и следовать за ним, rebuild() — перестроить с текущего состояния.
+   * Только на администраторском подключении (иначе admin_required).
+   */
+  projector(name: string, opts: ProjectorOptions): Projector;
+  /**
+   * Ремонт агрегатов в базе (план 1.1, §2.4): поля класса (с потомками) во всех арендаторах — заново из живых строк
+   * источников, под исключительными блокировками; версия — только у исправленных. Возвращает их число. Только на
+   * администраторском подключении (иначе admin_required).
+   */
+  rebuildAggregates(cls: string): Promise<number>;
   /**
    * Именованная очередь планов фасада: batch.Класс(…).create(…); batch.run() — одной транзакцией. У корня,
    * у каждого db.as() и у каждой db.begin() очереди свои: план исполняется от имени фасада, который его поставил.
@@ -331,6 +346,19 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
       if (tx) throw new LetopisError('invalid_query', 'load() — своей транзакцией, не внутри db.begin()');
       return load({ sql: sh.sql, schema: sh.schema, tenant: scope.tenant(), admin: sh.admin, ownerRole: sh.ownerRole }, input, o);
     },
+    projector: (name, o) => {
+      if (tx) throw new LetopisError('invalid_query', 'projector() — от корня подключения, а не внутри db.begin()');
+      if (!sh.admin) throw new LetopisError('admin_required', 'проектору нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы)');
+      return new Projector({
+        sql: sh.sql, schema: sh.schema, S: sh.S, ownerRole: sh.ownerRole,
+        ...(sh.listen ? { onSignal: (fn: (s: Signal) => void) => { sh.signals.add(fn); return () => void sh.signals.delete(fn); } } : {}),
+      }, name, o);
+    },
+    rebuildAggregates: async (cls) => {
+      if (tx) throw new LetopisError('invalid_query', 'rebuildAggregates() — своей транзакцией, не внутри db.begin()');
+      if (!sh.admin) throw new LetopisError('admin_required', 'ремонту агрегатов нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы)');
+      return runRebuildAggregates({ sql: sh.sql, S: sh.S, ownerRole: sh.ownerRole }, cls);
+    },
     batch: (name, o) => {
       let q = batches.get(name);
       if (!q) batches.set(name, (q = []));
@@ -341,7 +369,7 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
     rollback: async (tr) => (tr ? tr.rollback() : tx ? tx.rollback() : noTx('rollback()')),
     close: () => (tx ? tx.rollback() : sh.close()),
   };
-  return new Proxy(core, {
+  const facade = new Proxy(core, {
     get(t, prop, r) {
       if (typeof prop === 'symbol' || prop in t) return Reflect.get(t, prop, r);
       switch (prop) {
@@ -360,6 +388,9 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
       return startStep(chainCtx, prop);
     },
   }) as Db;
+  // модули пакета (letopis/mcp) узнают обход RLS по самому подключению, а не со слов вызывающего (internal.ts)
+  registerDb(facade, { allTenants: sh.allTenants, explicit: Boolean(tx) });
+  return facade;
 }
 
 export function connect<const M extends readonly AnyModelLike[]>(opts: ConnectOptions & { models: M }): Promise<TypedDb<M>>;
@@ -426,30 +457,53 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
     const ctx: TxContext = { sql, token, notifier: mode === 'none' ? null : notifier, passes, after: touch,
       ...(cache ? { onChanged: (names, raw) => cache.changed(names, raw) } : {}) };
     const root = { tenant: null as string | null, registry: new Registry() };
-    const loadClasses = (txc: TxContext) => runTx(txc, (q) =>
-      q.unsafe(`select tenant, rev, data from ${S}.entity where class = 'Class' and tenant in (${S}.ctx_tenant(), '${SYSTEM_ID}')`), { read: true });
+    // классы арендатора tenant под контекстом txc; null — контекст уже не в этом арендаторе (сессия кончилась,
+    // пользователь выбыл из арендатора): тогда прежний реестр остаётся, а не пустеет (доработки после точки Б)
+    const loadClasses = (txc: TxContext, tenant: string) => runTx(txc, async (q) => {
+      const [t] = await q.unsafe(`select ${S}.ctx_tenant() as t`);
+      if (String(t?.t ?? '').toLowerCase() !== tenant.toLowerCase()) return null;
+      return q.unsafe(`select tenant, rev, data from ${S}.entity where class = 'Class' and tenant in (${S}.ctx_tenant(), '${SYSTEM_ID}')`);
+    }, { read: true });
+    // реестры db.as() — общие на арендатора; txc — контекст последнего успешного as() этого арендатора
     const others = new Map<string, { registry: Registry; txc: TxContext }>();
+    const loading = new Map<string, Promise<Registry>>();
     // токены классов (режим opaque) — по именам всех реестров подключения
     const tokens = () => sig.setClasses([root.registry, ...[...others.values()].map((o) => o.registry)].flatMap((r) => r.all().map((c) => c.name)));
-    const refresh = async () => {
+    // only — токены арендаторов из сигналов Class (режимы tenant и opaque): реестры db.as() только этих арендаторов
+    const refresh = async (only?: Set<string> | null) => {
       const rows = await runTx(ctx, async (q) => {
         const [t] = await q.unsafe(`select ${S}.ctx_tenant() as t`);
         root.tenant = (t?.t as string | null) ?? null;
         return q.unsafe(`select tenant, rev, data from ${S}.entity where class = 'Class' and tenant in (${S}.ctx_tenant(), '${SYSTEM_ID}')`);
       });
       root.registry.load(rows as never);
-      for (const o of others.values()) o.registry.load(await loadClasses(o.txc).catch(() => []) as never);
+      for (const [tenant, o] of others) {
+        if (only && !only.has(sig.tenantToken(tenant) ?? '')) continue;
+        const loaded = await loadClasses(o.txc, tenant).catch(() => null);
+        if (loaded) o.registry.load(loaded as never);
+      }
       tokens();
     };
     const registryFor = async (tenant: string, txc: TxContext): Promise<Registry> => {
       if (tenant === root.tenant) return root.registry;
       const known = others.get(tenant);
-      if (known) return known.registry;
-      const registry = new Registry();
-      registry.load(await loadClasses(txc) as never);
-      others.set(tenant, { registry, txc });
-      tokens();
-      return registry;
+      if (known) {
+        known.txc = txc;
+        return known.registry;
+      }
+      // одновременные as() нового арендатора получают один реестр
+      let pending = loading.get(tenant);
+      if (!pending) {
+        pending = (async () => {
+          const registry = new Registry();
+          registry.load(((await loadClasses(txc, tenant)) ?? []) as never);
+          others.set(tenant, { registry, txc });
+          tokens();
+          return registry;
+        })().finally(() => loading.delete(tenant));
+        loading.set(tenant, pending);
+      }
+      return pending;
     };
     // ключ сигналов (режимы tenant и opaque) — сессии с правом letopis.signals; без права процесс
     // работает без ключа: арендатора (а в opaque — и класса) в сигнале не различает
@@ -471,7 +525,7 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
     // поддельными сигналами) не становится потоком перечитываний
     const resync = throttle(() => {
       passes.clear();
-      void fetchKey().then(refresh).catch(() => {});
+      void fetchKey().then(() => refresh()).catch(() => {});
     }, 5000);
     // сигнал Class — реестр сразу, как в 1.0: правка описания доходит без задержки; пока идёт перечитывание, новые
     // сигналы сливаются в одно следующее. Три перечитывания подряд — сразу, дальше не чаще раза в 5 с: заливка
@@ -479,17 +533,26 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
     // точки А)
     let reloading = false;
     let again = false;
+    // какие реестры db.as() перечитать: токены арендаторов из сигналов или все (сигнал без арендатора)
+    let reloadAll = false;
+    const reloadTokens = new Set<string>();
     const startReload = bucket(() => {
       reloading = true;
-      void refresh().catch(() => {}).finally(() => {
+      const only = reloadAll ? null : new Set(reloadTokens);
+      reloadAll = false;
+      reloadTokens.clear();
+      void refresh(only).catch(() => {}).finally(() => {
         reloading = false;
         if (again) {
           again = false;
-          reload();
+          reload(undefined);
         }
       });
     }, 3, 5000);
-    const reload = (): void => {
+    // tenant: null — все реестры, строка — токен арендатора сигнала, undefined — то, что уже накоплено
+    const reload = (tenant: string | null | undefined): void => {
+      if (tenant === null) reloadAll = true;
+      else if (tenant !== undefined) reloadTokens.add(tenant);
       if (reloading) {
         again = true;
         return;
@@ -501,7 +564,7 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
     const onSignal = (payload: string) => {
       const s = sig.parse(payload);
       if (s.kind === 'class' && ACL_CLASSES.has(s.cls)) passes.clear();
-      if (s.kind === 'class' && s.cls === 'Class') reload();
+      if (s.kind === 'class' && s.cls === 'Class') reload(s.tenant);
       else if (s.kind === 'all' || s.kind === 'opaque' || s.kind === 'unknown' || s.kind === 'foreign') resync();
       cache?.signal(s);
       for (const fn of signals) fn(s);

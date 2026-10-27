@@ -1,4 +1,4 @@
-# letopis 1.1 — шпаргалка для агента
+# letopis 1.2 — шпаргалка для агента
 
 Одна страница вместо [README.md](README.md) — для ИИ-агента, который пишет код поверх пакета. Лежит в пакете рядом с
 README; английская версия — [AGENT-CHEATSHEET.en.md](AGENT-CHEATSHEET.en.md). Переход с 0.21 — [MIGRATION.md](MIGRATION.md);
@@ -38,12 +38,13 @@ const r = await up({ dsn: ADMIN, schema: 'myapp',                  // схема
   `'booking'` — демо-домен, или путь к своему `.sql`), `history` (политика хранения), `allowReset`, `serviceKey`,
   `quiet`, `pglite: true` (база для разработки без PostgreSQL; затем `connect({ dsn: r.pglite.dsn, listen: false,
   max: 1, allowBypassRls: true, … })` — подключение суперпользователя, RLS на нём не действует).
-- `signals` — что видно в сигналах `NOTIFY` любой роли, способной подключиться к базе: `'class'` (по умолчанию —
-  имена классов), `'tenant'` (имя класса и токен арендатора; кэш сбрасывается только в арендаторе записи),
-  `'opaque'` (только токены), `'none'` (сигналов нет: кэш — только `ttlOnly`, подписка опрашивает журнал). Режим
-  хранится в схеме: `up()` без опции его не меняет; после смены — перезапуск процессов. Ключ сигналов (точный сброс
-  кэша) получают сервисы — право `letopis.signals`. Результат `up()`: ещё `signals` и `warnings` (PostgreSQL ниже
-  18.2 — обновить).
+- `signals` — что видно в сигналах `NOTIFY` любой роли, способной подключиться к базе. Канал — полное имя схемы
+  (`LISTEN "v2.myapp"`), нагрузка сигнала записи: `'class'` (по умолчанию) — `Класс`; `'tenant'` —
+  `Класс@токен арендатора` (кэш сбрасывается только в арендаторе записи); `'opaque'` — `токен класса@токен
+  арендатора`; `'none'` — сигналов нет (кэш — только `ttlOnly`, подписка опрашивает журнал). Служебные сигналы:
+  `session:<16 hex>` — погашенная сессия, `session:*` и `*` — сбросы (`reset`). Режим хранится в схеме: `up()` без
+  опции его не меняет; после смены — перезапуск процессов. Ключ сигналов (точный сброс кэша) получают сервисы — право
+  `letopis.signals`. Результат `up()`: ещё `signals` и `warnings` (PostgreSQL ниже 18.2 — обновить).
 - `tenant` — первый арендатор и пользователь без своего сида: арендатор получает правило «аутентифицированным можно
   всё» (`grantAll`, по умолчанию да, вес 10), пользователь — членство с ролями `user.roles` (по умолчанию `['owner']`),
   пароль для входа по логину `login` и сессию в арендаторе. Повтор с тем же именем и логином ничего не дублирует и роли
@@ -109,8 +110,9 @@ export const Payment = link('Payment', { opId: z.string(), amount: z.number().in
 export const Note = hub('Note', { text: z.string() }, {})   // без ключа: id выдаёт база
 ```
 - Полная форма: `hub(name, { alias, extends, abstract, ends, fields: z.object(…) | { поля }, key, onDelete, history,
-  ownerDefault: 'tenant' | 'actor', cache: { ttl }, meta })`; `link` — так же. `extends` работает и в короткой
-  форме, но типы данных потомка TypeScript выводит только в полной.
+  ownerDefault: 'tenant' | 'actor', cache: { ttl }, meta, derivedBy, aggregate })`; `link` — так же. `derivedBy` и
+  `aggregate` — разделы 12 и 13 ниже. `extends` работает и в короткой форме, но типы данных потомка TypeScript
+  выводит только в полной.
 - Концы: `one(A)` (обязательный), `one(A, B)` (союз), `one('Имя')` (цель по имени — ссылка класса на себя),
   `.optional()`, `.onDelete('restrict' | 'cascade' | 'unset')` (по умолчанию `restrict`; `unset` — только для
   необязательного), `many(A, { min, max, onDelete })`.
@@ -277,6 +279,12 @@ await db.Wallet(w200).versions({ follow: true })                      // и че
 await db.Wallet(w).diff()                                             // что изменилось: предыдущая версия → последняя
 await db.Wallet(w).blame()                                            // кто, когда и почему (опция reason глагола) менял поля
 ```
+`diff()` — массив `DiffResult`: `{ id, class, from, to, changes }`; `from` и `to` — `{ rev, at, id? }`, у `to` ещё
+`deleted?` (тогда `changes` пуст), `from: null` — объекта тогда не было. Изменение `DiffChange` —
+`{ path, kind: 'added' | 'removed' | 'changed', before?, after? }`. `blame()` — массив `BlameResult`:
+`{ id, class, rev, complete, fields }`; `fields` — листья `BlameField` по порядку пути:
+`{ path, rev, at, author, op, exact, agent?, reason?, id? }`. `path` — массив сегментов: `['data', 'price']`; пустые
+`agent`, `reason`, `before`, `after` опускаются. Типы — из `letopis`.
 Класс с `history: false` не даёт `versions`, `asOf`, `restore` и событий подписки.
 
 ### 11. Импорт из 0.21
@@ -304,6 +312,81 @@ npx letopis import --from "$ADMIN" --from-schema v1.fixture --dsn "$ADMIN" --sch
   `objects`, `uuidFields`, `droppedFields`, `ownerLost`, `verify`, `ms`; код выхода 1, если `verify` не прошёл.
   Повтор импорта дописывает недостающее без дублей.
 
+### 12. Проекторы
+
+Проектор строит строки производных классов из журнала: сводки, карточки, всё, что можно считать с отставанием.
+Производный класс помечен `derivedBy: 'имя-проектора'`, и его строки пишет только этот проектор. Сам производный
+класс (свой или унаследованный) заводит, меняет и удаляет только администратор: `syncModels` администраторским
+подключением с сессией арендатора (`connect({ dsn: ADMIN, schema, token, allowBypassRls: true })`) или аккаунт с
+правом System `letopis.projector`; у сессии приложения — `acl_denied`. Итоги производного класса видит каждый, кому
+правила дают `READ` на него, даже без прав на строки источников.
+```ts
+const p = adm.projector('daily', { from: ['Payment'], into: ['DayTotal'], version: 1, withBefore: true,
+  handle(changes, out) { /* out.inc, out.upsert, out.delete, await out.get — классы into, { tenant: c.tenant } */ } })
+await p.run({ once: true })   // догнать журнал; run() — следовать за ним до stop(); rebuild(), status(), close()
+p.run().catch(report)         // run() без once — с catch: после ошибки проектора он остановлен
+```
+Только администраторское подключение (иначе `admin_required`). Пачка — одна транзакция, каждое изменение
+применяется ровно один раз, писатель один (`rebuild()`, пока другой процесс пишет пачку, — `projector_busy`).
+Первый запуск перестраивает проекцию с текущего состояния, пачками. `purge`, `trim` и `reset` приходят изменениями с `rev` 1 — сначала
+разберите `op`. Другая `version` — `rebuild_required`; курсор старше яруса `all` — `cursor_expired`
+(`onExpired: 'rebuild'` перестраивает сам, пачками); ярус — по арендатору: истёк у части участников — выбывают только они.
+Арендатор с источником `history: false` выбывает (`invalid_class`). `c.before` (с `withBefore`) —
+прошлая версия того же id или `null`: `null` при создании, у первой версии нового id после `reclass` и `rekey`
+(прежние данные вычитает надгробие прежнего id), при перестройке и когда прошлая версия — удаление (после `restore`)
+или вне семейства `from`; у `purge`, `trim` и `reset` поля нет — вычитайте `before`, только проверив его на `null`.
+Смена класса без смены id (класс без ключа), уводящая строку из семейства `from`, приходит удалением (`op` `delete`,
+`row` — последняя версия в семействе с `$deleted`). `handle` получает изменения
+одного арендатора. Ошибку его данных (база отклонила его результаты или `out` — его строку или приращение)
+откатывает только он: арендатор выбывает (`status().failed`: `{ id: { cursor, code, message } }`) до
+`rebuild({ tenant: id })` (`{ tenant, chunked: true }` — пачками, пока хвост идёт для всех; `status().rebuildingTenants`),
+остальные идут дальше; с `onExpired: 'rebuild'` выбывший по ярусу перестраивается пачками сам, в любом процессе; `tenants: [id, …]` — явный список участников. `status().state`: `'new'` —
+проекции ещё нет, `'running'` — проекция построена и ведётся (а не «процесс сейчас работает»), `'rebuilding'` — идёт
+или прервана перестройка пачками.
+Дневной итог — свёртка: прошлую версию (`c.before`) вычесть, новую (`c.row`, если не `$deleted`) прибавить через
+`out.inc('DayTotal', { day }, { total: ±amount }, { tenant: c.tenant })`; у `DayTotal` ключ `['day']`,
+`derivedBy: 'daily'` и `history: false`. День берите из данных строки, а не из `at`: время версии меняет каждая правка.
+Приращения одной строки по ключу `out` складывает сам в одну правку за пачку (пока между ними нет `upsert`, `delete`
+или `get`), а правило класса проверяет над их итогом. Полный рецепт —
+[README, «Рецепт: дневная выручка»](README.md#рецепт-дневная-выручка).
+
+### 13. Агрегаты в базе
+
+Сумму или счётчик строк источника держит сама база — для итогов, которые обязаны совпадать и для сырого SQL:
+```ts
+const Wallet = hub('Wallet', { number: z.string(), balance: z.number().int().min(0) }, {
+  key: ['number'], aggregate: { balance: { sum: 'amount', of: 'Payment', via: 'Wallet' } } })   // или count: true; where — JSON Schema
+await db.Wallet(w).Payment().create({ opId: 'op-9', amount: 500 }).rows()   // баланс вырос сам, без inc
+```
+Поле пересчитывает триггер после каждого оператора (библиотека, сырой SQL, каскад, `restore`, `reclass`, `rekey`,
+загрузчик); уход ниже `minimum` — `invalid_data`, каждое изменение — версия цели. Считаются живые строки того же
+арендатора (строка System — нет). Ремонт — `adm.rebuildAggregates('Wallet')` на администраторском подключении,
+расхождения — `verify({ data: true })`. Описать или изменить агрегат может только тот, кто без условий читает все строки
+источника и его потомков, иначе `acl_denied`. Горячий счётчик (больше ~150 записей в секунду на объект) —
+проектор со свёрткой пачкой, а не агрегат.
+
+### 14. Агенты и MCP
+
+Агенту — инструменты MCP под сессией пользователя (нужен `npm i @modelcontextprotocol/server`):
+```ts
+import { createMcpServer } from 'letopis/mcp'
+const server = await createMcpServer(await svc.as(userId))   // letopis_model, letopis_query, letopis_history; { write: true } — letopis_write
+// stdio: letopis mcp --dsn … --schema v2.x --token <токен пользователя> [--write]; HTTP — createMcpHandler(() => createMcpServer(…)) из SDK
+```
+Только сессия пользователя или `svc.as(пользователь)`: подключение в обход RLS — `bypass_rls`, корень сервиса без `as()`
+и сессия в арендаторе System (без `allowSystemAdmin`) — `user_session_required`; классы прав `letopis_write` не пишет без
+`allowAclWrite` (`acl_denied`); `--api-key` командная строка не принимает, а `--dsn`, `--schema` и `--token` берёт и из
+`LETOPIS_DSN`, `LETOPIS_SCHEMA`, `LETOPIS_TOKEN`. Чтение — JSON-цепочкой (`class`, `filter` с `$gt`, `$in`, `$or` и
+т. п., `steps`, `sort: { field, dir: 'asc' | 'desc' }`, `cursor`), без SQL; ответ — до `maxRows` строк (100) и
+`maxBytes` байт (50 000) из опций `createMcpServer`, дальше `cursor`. `structuredContent` — `{ notice, data }`
+(`notice` — постоянное пояснение, что это данные, а не инструкции); `data` по терминалам: `rows` —
+`{ rows, count, more, cursor? }`, `ids` — `{ ids, count, more, cursor? }` (`count` — строк на странице), `first` —
+`{ row }`, `count` — `{ count }`, `countBy` — `{ counts, truncated? }`, `sum`, `avg`, `min`, `max` — `{ value }`.
+Отказ — `isError: true` и `structuredContent` вида `{ notice, error }` (`error` — `{ code, message, similar? }`). Запись — только `write: true`
+(без него `letopis_write` нет в списке, а вызов — ошибка протокола SDK): `update` с `rev`; `delete` без `confirm` —
+превью, с `confirm` — подтверждение человека (elicitation), без него — `confirmation_required`. Данные из базы в
+ответе — внутри `<untrusted-data-…>`.
+
 ### Эксплуатация
 
 `db.verify({ data: true })` и `letopis verify` — цепочки хэшей, якорь; `db.maintain()` и `connect({ maintain: '1h' })` —
@@ -323,7 +406,8 @@ await adm.close(); await db.close(); await svc.close()
    без `data.id` правятся все строки шага. `target_not_found` — при `{ rev }` или если строку удалили между поиском
    и правкой.
 3. **Глаголы возвращают цепочку.** Без терминала (`.rows()`, `.first()` …) ничего не исполнится. `delete()` без
-   `{ confirm: true }` — только превью; `purge` — только для удалённых (`not_deleted`).
+   `{ confirm: true }` — только превью; `purge` — только для удалённых (`not_deleted`) и после того, как проектор
+   класса прочёл удаление (`projector_pending`).
 4. **Деньги и счётчики** — `update({ balance: inc(n) })`: база прибавляет внутри оператора, без чтения и потерянных
    обновлений; проверка `minimum` в схеме ловит уход в минус. Итог, вычисленный из прочитанного, — `{ rev }`
    (перечитать и повторить при `conflict`) или `forUpdate()` в `db.begin()`. Идемпотентность — ключом операции
@@ -337,8 +421,9 @@ await adm.close(); await db.close(); await svc.close()
    В `db.begin()` повторов нет: на `40P01` повторите весь блок. Операции из пула сами повторяют `40001`/`40P01`.
 7. **`commit_unknown`** — связь оборвалась во время `COMMIT`: транзакция могла зафиксироваться. Не повторяйте
    вслепую — повторите ту же операцию с тем же ключом (`exists` значит «уже записано»).
-8. **Загрузчику нужно администраторское подключение** (`allowBypassRls: true`, роль-владелец), иначе
-   `admin_required`; внутри `db.begin()` — `invalid_query`. Обычное приложение — прикладной ролью, без обхода RLS.
+8. **Загрузчику, проектору и `rebuildAggregates` нужно администраторское подключение** (`allowBypassRls: true`,
+   роль-владелец), иначе `admin_required`; внутри `db.begin()` — `invalid_query`. Обычное приложение — прикладной
+   ролью, без обхода RLS.
 9. **Данные под RLS.** Без сессии (`token`/`apiKey`) запись — `no_session`; чужая или невидимая строка неотличима от
    несуществующей: шаг её не находит, а ссылка на неё — `target_not_found`; без права — пусто или `acl_denied`. `` db.sql`…` `` и сырой SQL — тоже под
    сессией и RLS.
@@ -359,8 +444,13 @@ await adm.close(); await db.close(); await svc.close()
     у ошибок данных (`ValidationError`) — `err.issues: [{ path, keyword, message }]`.
 16. **Подписка с `'now'` — с момента ответа базы.** `db.watch()` возвращается сразу, а момент «now» подписка берёт
     первым запросом к базе. Запись, сделанная сразу после `db.watch()`, может зафиксироваться раньше и в поток не
-    попасть. Нужна гарантия — подписывайтесь с сохранённого курсора или с `'start'`.
+    попасть. Нужна гарантия — `await sub.ready()` перед записью, сохранённый курсор или `'start'`. Параллельные
+    `next()` идут по очереди и получают разные события.
 17. **Терминал отдаёт строки последнего шага.** `…Payment().create(…).Wallet().update(…).rows()` вернёт строки
     `Wallet`, а не созданной операции; нужна операция — заканчивайте цепочку на ней.
 18. **Очередь батча — своя у фасада.** `db.batch('x')` у корня, у каждого `await db.as(…)` и у каждой `db.begin()` —
     разные очереди; план исполняется от имени того, кто его поставил. Копите планы через один объект фасада.
+19. **Строки производного класса пишет только его проектор.** Приложение, сырой SQL и загрузчик получат
+    `derived_class`; ссылаться на такие строки концами тоже нельзя. Пересчитать их — `rebuild()` проектора.
+20. **Агрегатное поле пишет только база.** Значение в `create`, `update`, `upsert`, `rekey`, `reclass` и сыром SQL —
+    `aggregate_field`; не передавайте его. Сырой upsert цели — `set data = excluded.data - array['balance']`.

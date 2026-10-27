@@ -1,7 +1,7 @@
 /**
  * maintain — обслуживание (план, этап 6, п. 8; тест-план §7.8 №6.11, §7.8.1 №11): истёкшие сессии и
  * одноразовые коды убираются; не администратор — отказ, сервис — по отдельному правилу letopis.maintain;
- * из нескольких процессов работает один (advisory-блокировка), запуск по расписанию.
+ * из нескольких процессов работает один (строка-замок обслуживания), запуск по расписанию.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -104,10 +104,11 @@ test('7.8.1 №11 из нескольких процессов работает 
   const other = postgres(ADMIN_DSN, { max: 1, onnotice: () => {} });
   try {
     const conn = await other.reserve();
-    await conn`select pg_advisory_lock(19541, hashtext(${e.schema}))`;
+    await conn.unsafe('begin');
+    await conn.unsafe(`select ${e.S}.lock_try($1)`, [`${e.schema}:maintain`]);
     const r = await adb.maintain();
     assert.equal(r.skipped, true);
-    await conn`select pg_advisory_unlock(19541, hashtext(${e.schema}))`;
+    await conn.unsafe('commit');
     conn.release();
     assert.equal((await adb.maintain()).skipped, false);
   } finally {
@@ -130,18 +131,16 @@ test('7.8.1 №11 из нескольких процессов работает 
 test('разбор в) maintain() за пулом в режиме транзакций: блокировка обслуживания транзакционная — не переживает пачку, обслуживание не встаёт', async () => {
   // Было: сеансовая pg_try_advisory_lock на reserve(), который за таким пулом серверное соединение не
   // закрепляет, — блокировка оставалась на серверном соединении, unlock уходил в другое (WARNING, которого
-  // библиотека не видит), и обслуживание прочих молча вставало (skipped). Стало: pg_try_advisory_xact_lock
-  // в транзакции каждой пачки — пул закрепляет серверное соединение на транзакцию, фиксация снимает блокировку.
+  // библиотека не видит), и обслуживание прочих молча вставало (skipped). Стало: блокировка в транзакции каждой
+  // пачки (с ревью безопасности №3 — строка-замок, lock_try) — пул закрепляет серверное соединение на транзакцию,
+  // фиксация снимает блокировку.
   const notices: string[] = [];
   const pool = postgres(ADMIN_DSN, { max: 2, onnotice: (n) => notices.push(String(n.message)) });
   const s0 = await pool.reserve();
   const s1 = await pool.reserve();
   try {
-    const pids: number[] = [];
-    for (const s of [s0, s1]) pids.push((await s`select pg_backend_pid() as pid`)[0].pid as number);
-    /** Блокировок обслуживания у серверных процессов S0 и S1 (форма с двумя int4: classid = 19541). */
-    const held = async () => (await e.sql.unsafe(`select count(*)::int as n from pg_locks
-      where locktype = 'advisory' and classid = 19541 and objsubid = 2 and pid = any ($1::int[]) and granted`, [pids]))[0].n as number;
+    /** Занята ли строка-замок обслуживания (1 — занята): своя транзакция пробует взять её без ожидания. */
+    const held = async () => ((await e.sql.begin(async (tx) => tx.unsafe(`select ${e.S}.lock_try($1) as ok`, [`${e.schema}:maintain`])))[0].ok ? 0 : 1);
     /** Блокировок обслуживания в момент commit каждой пачки (транзакция ещё открыта). */
     const atCommit: number[] = [];
     /** maintain() библиотеки через «пул»: администраторская роль, без сессии (admin_role). */
@@ -162,7 +161,7 @@ test('разбор в) maintain() за пулом в режиме транзак
     assert.equal((await adb.maintain()).skipped, false, 'обслуживание прочих не встаёт');
     // взаимное исключение: пока транзакция другого процесса держит блокировку — skipped; транзакция кончилась — блокировки нет
     await s1.unsafe('begin');
-    await s1`select pg_advisory_xact_lock(19541, hashtext(${e.schema}))`;
+    await s1.unsafe(`select ${e.S}.lock_try($1)`, [`${e.schema}:maintain`]);
     assert.equal((await run([0])).skipped, true);
     assert.equal((await adb.maintain()).skipped, true);
     await s1.unsafe('commit');

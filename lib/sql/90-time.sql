@@ -213,6 +213,9 @@ begin
   if coalesce((res->>'abstract')::boolean, false) then
     perform @SCHEMA@.lt_fail('invalid_class', format('класс %s абстрактный', l.class));
   end if;
+  if res ? 'derivedBy' then
+    perform @SCHEMA@.lt_fail('derived_class', format('класс %s производный: его строки пишет проектор %s', l.class, res->>'derivedBy'));
+  end if;
   d := @SCHEMA@.apply_defaults(res->'schema', l.data);
   bad := @SCHEMA@.validate_data(res->'rules', cls.validator, res->'vars', d);
   if bad <> '[]'::jsonb then
@@ -239,6 +242,9 @@ begin
   values (p_id, l.rev + 1, l.class, cls.rev, l.tenant, own, lk.links, d, l.tags, ts, ts, c.author, c.agent, 'restore',
           nullif(current_setting('letopis.reason', true), ''), null, l.hash, null)
   returning * into n;
+  -- агрегатные поля восстановленной цели триггер после вставки посчитал из живых источников в эту же версию, а не
+  -- взял из надгробия (план 1.1, §2.4): в журнал идёт строка таблицы
+  select x.* into n from @SCHEMA@.entity x where x.id = p_id;
   perform @SCHEMA@.log_version(n);
   if l.class in ('rule', 'Resource', 'member', 'Account') then
     perform @SCHEMA@.acl_bump();
@@ -272,6 +278,24 @@ begin
   end if;
   if not @SCHEMA@.acl_row_ok(@SCHEMA@.acl_plan('DELETE'), l.class, l.id, l.owner, l.tenant, l.tags, l.data, l.links) then
     perform @SCHEMA@.lt_fail('acl_denied', format('нет права DELETE на класс %s', l.class));
+  end if;
+  -- проектор источника, чей курсор ещё не прошёл надгробие (в том числе надгробие этой транзакции), об удалении не
+  -- узнал бы — вклад строки остался бы в итогах навсегда (ревью безопасности №3, №5). Проектор касается арендатора, у
+  -- которого есть его производный класс (derivedBy — имя проектора): брошенный проектор с удалёнными производными
+  -- классами purge не держит. Курсор «tx:seq~снимок»: транзакции, видимые в снимке, учла перестройка. Чекпоинт без from
+  -- (до 1.2.0) касается всех классов.
+  if exists (select 1 from @SCHEMA@.secret s
+             cross join lateral (select split_part(s.meta->>'cursor', '~', 1) as head,
+                                        nullif(split_part(s.meta->>'cursor', '~', 2), '') as snap) k
+             where s.kind = 'PROJECTOR' and s.account = '@SYSTEM@'::uuid and s.deleted_at is null
+               and coalesce(s.meta->>'cursor', '') <> ''
+               and exists (select 1 from @SCHEMA@.entity x where x.class = 'Class' and x.tenant = l.tenant
+                           and x.data->'resolved'->>'derivedBy' = s.ident)
+               and (not s.meta ? 'from' or coalesce((@SCHEMA@.class_row(l.class, l.tenant)).data->'resolved'->'ancestors',
+                                                    jsonb_build_array(l.class)) ?| array(select jsonb_array_elements_text(s.meta->'from')))
+               and (l.tx, l.seq) > (split_part(k.head, ':', 1)::xid8, split_part(k.head, ':', 2)::bigint)
+               and not coalesce(pg_visible_in_snapshot(l.tx, k.snap::pg_snapshot), false)) then
+    perform @SCHEMA@.lt_fail('projector_pending', 'проектор источника ещё не прочёл удаление: purge — после его run()');
   end if;
   select count(*)::int into n from @SCHEMA@.log x where x.id = p_id;
   if not coalesce(p_confirm, false) then
@@ -386,6 +410,7 @@ declare
   lk record;
   nid uuid;
   denied text;
+  n_denied int;
 begin
   select * into c from @SCHEMA@.ctx();
   if c.account is null then
@@ -410,8 +435,14 @@ begin
   perform @SCHEMA@.family_lock(cls, false);
   cls := @SCHEMA@.class_row(o.class, o.tenant);
   res := cls.data->'resolved';
+  if res ? 'derivedBy' then
+    perform @SCHEMA@.lt_fail('derived_class', format('класс %s производный: его строки пишет проектор %s', o.class, res->>'derivedBy'));
+  end if;
   if jsonb_array_length(coalesce(res->'key', '[]'::jsonb)) = 0 then
     perform @SCHEMA@.lt_fail('invalid_class', format('у класса %s нет ключа: id выдаёт база, менять нечего', o.class));
+  end if;
+  if res ? 'aggregate' and coalesce(p_data, '{}'::jsonb) ?| @SCHEMA@.agg_fields(res) then
+    perform @SCHEMA@.lt_fail('aggregate_field', format('агрегатные поля класса %s считает база — в rekey их не передают', o.class));
   end if;
   d := @SCHEMA@.apply_defaults(res->'schema', @SCHEMA@.merge(o.data, coalesce(p_data, '{}'::jsonb)));
   bad := @SCHEMA@.validate_data(res->'rules', cls.validator, res->'vars', d);
@@ -432,13 +463,16 @@ begin
     end if;
     return o.id;
   end if;
-  -- перевод ссылок пишет ссылающиеся строки: на них тоже нужно право WRITE
-  select min(x.class) into denied from @SCHEMA@.entity x
+  -- перевод ссылок пишет ссылающиеся строки: на них тоже нужно право WRITE (глубже первого уровня — move_row); класс
+  -- такой строки называется, только если актор её видит (доработки после точки Б)
+  select min(x.class) filter (where @SCHEMA@.row_visible(x.tenant, x.class, x.id, x.owner, x.tags, x.data, x.links, c.tenant, c.account, rd->'plan')),
+         count(*) into denied, n_denied from @SCHEMA@.entity x
   where x.ends @> array[o.id] and not @SCHEMA@.acl_row_ok(wplan, x.class, x.id, x.owner, x.tenant, x.tags, x.data, x.links);
-  if denied is not null then
-    perform @SCHEMA@.lt_fail('acl_denied', format('нет права WRITE на ссылающиеся строки класса %s', denied));
+  if n_denied > 0 then
+    perform @SCHEMA@.lt_fail('acl_denied', case when denied is not null then format('нет права WRITE на ссылающиеся строки класса %s', denied)
+                                                 else 'нет права WRITE на ссылающиеся строки' end);
   end if;
-  perform @SCHEMA@.move_row(o, nid, o.class, d, lk.links, 'rekey');
+  perform @SCHEMA@.move_row(o, nid, o.class, d, lk.links, 'rekey', wplan);
   return nid;
 end $$;
 
@@ -462,6 +496,7 @@ declare
   nid uuid;
   n int := 0;
   conflicts jsonb;
+  dname text;
 begin
   select * into c from @SCHEMA@.ctx();
   if c.account is null then
@@ -478,9 +513,26 @@ begin
   if coalesce((cr.data->>'system')::boolean, false) then
     perform @SCHEMA@.lt_fail('invalid_class', 'ключ системного класса не меняется');
   end if;
+  -- строки производного класса (и его потомков) переносит только владелец: ключ меняют в описании, а строки
+  -- строит заново проектор (rebuild)
+  if cr.data->'resolved' ? 'derivedBy' then
+    perform @SCHEMA@.lt_fail('derived_class', format('класс %s производный: его строки пишет проектор %s', p_class, cr.data->'resolved'->>'derivedBy'));
+  end if;
+  -- и потомки: производный потомок непроизводного предка наследует его ключ, а его строки переносит только проектор
+  -- (доработки после точки Б)
+  select x.data->>'name' into dname from @SCHEMA@.entity x
+  where x.class = 'Class' and x.tenant = cr.tenant and x.id <> cr.id
+    and x.data->'resolved'->'ancestors' ? p_class and x.data->'resolved' ? 'derivedBy'
+  order by x.data->>'name' limit 1;
+  if dname is not null then
+    perform @SCHEMA@.lt_fail('derived_class', format('у класса %s производный потомок %s: его строки пишет проектор', p_class, dname));
+  end if;
   if not @SCHEMA@.acl_row_ok(wplan, 'Class', cr.id, cr.owner, cr.tenant, cr.tags, cr.data, cr.links) then
     perform @SCHEMA@.lt_fail('acl_denied', 'нет права WRITE на класс Class');
   end if;
+  -- смена ключа проверяет все строки семейства и отвечает числом нарушающих — как ужесточение, только с правом READ без
+  -- условий на все строки класса и потомков (доработки после точки Б)
+  perform @SCHEMA@.class_rows_admit(p_class, cr.tenant, array['READ'], format('смена ключа класса %s', p_class));
   perform @SCHEMA@.family_lock(cr, true);
   select x.* into cr from @SCHEMA@.entity x where x.id = cr.id for update;
   select p.data, p.validator into prep from @SCHEMA@.class_prepare(cr.data || jsonb_build_object('key', p_key), cr.tenant) p;
@@ -507,7 +559,7 @@ begin
     res := (@SCHEMA@.class_row(r.class, r.tenant)).data->'resolved';
     nid := coalesce(@SCHEMA@.key_id(res, r.class, r.tenant, r.data, r.links), r.id);
     if nid <> r.id then
-      perform @SCHEMA@.move_row(r, nid, r.class, r.data, r.links, 'rekey');
+      perform @SCHEMA@.move_row(r, nid, r.class, r.data, r.links, 'rekey', wplan);
       n := n + 1;
     end if;
   end loop;
@@ -631,6 +683,7 @@ declare
   n int;
   m int;
   key text;
+  held boolean;
 begin
   if not @ALLOW_RESET@ then
     perform @SCHEMA@.lt_fail('reset_disabled', 'reset выключен в этой установке (up({ allowReset }))');
@@ -657,9 +710,15 @@ begin
       if not exists (select 1 from @SCHEMA@.entity a where a.id = t and a.class = 'Account' and a.tenant = '@SYSTEM@'::uuid) then
         perform @SCHEMA@.lt_fail('target_not_found', 'арендатор не найден');
       end if;
+      -- строки арендатора стираются пачками в любом порядке: агрегаты его целей (план 1.1, §2.4) не пересчитываются —
+      -- цели уходят вместе с источниками, а промежуточный итог пачки мог бы выйти за правило класса
+      held := @SCHEMA@.agg_hold_begin('off');
       with d as (delete from @SCHEMA@.entity x where x.id in (
           select y.id from @SCHEMA@.entity y where y.tenant = t limit coalesce(p_limit, 2147483647)) returning 1)
       select count(*)::int into n from d;
+      if held then
+        perform @SCHEMA@.agg_hold_end(false);
+      end if;
       with d as (delete from @SCHEMA@.log x where x.seq in (
           select y.seq from @SCHEMA@.log y where y.tenant = t limit coalesce(p_limit, 2147483647)) returning 1)
       select count(*)::int into m from d;
@@ -781,6 +840,11 @@ begin
   if not @SCHEMA@.letopis_allowed('letopis.maintain') then
     perform @SCHEMA@.lt_fail('acl_denied', 'нет права letopis.maintain');
   end if;
+  -- один исполнитель: строка-замок до конца транзакции пачки (lock_try) — посторонняя роль её не займёт (ревью
+  -- безопасности №3, №2); занята — null, обслуживание продолжит держатель
+  if not @SCHEMA@.lock_try('@SCHEMA_NAME@:maintain') then
+    return null;
+  end if;
   if p_now is not null then
     if not @ALLOW_RESET@ then
       perform @SCHEMA@.lt_fail('reset_disabled', 'maintain(now) — только в установке с allow_reset');
@@ -805,7 +869,8 @@ end $$;
 -- прореживание — пропуск после версии старше яруса all класса, у которого есть (или была) политика
 -- хранения — своя или умолчание установки (метка default_policy в строке ключа). p_data — ещё и все строки: данные по проверке класса, концы (цель существует, её
 -- арендатор — тот же или System, класс принимается концом), арендатор и владелец существуют, id
--- класса с ключом — v5 от ключа. Возвращает находки и якорь — хэш всех голов цепочек. Только
+-- класса с ключом — v5 от ключа, агрегатные поля равны итогу живых источников (план 1.1, §2.4; ремонт —
+-- rebuild_aggregates). Возвращает находки и якорь — хэш всех голов цепочек. Только
 -- системный администратор (право letopis.verify) или администраторское подключение.
 create or replace function @SCHEMA@.verify(p_data boolean default false) returns jsonb
 language plpgsql stable security definer
@@ -913,6 +978,11 @@ begin
                        from @SCHEMA@.entity k2
                        where k2.class = 'Class' and k2.data->>'name' = t.class and k2.tenant in (t.tenant, '@SYSTEM@'::uuid)
                        order by k2.tenant = '@SYSTEM@'::uuid limit 1), '{}')))
+      union all
+      select jsonb_build_object('id', a.id, 'class', a.class, 'field', a.field, 'stored', a.stored, 'expected', a.expected,
+               'problem', format('агрегат %s не равен итогу живых источников: в строке %s, по источникам %s — ремонт rebuildAggregates',
+                 a.field, coalesce(a.stored::text, 'нет значения'), a.expected::text))
+        from @SCHEMA@.agg_issues() a
     )
     select coalesce(jsonb_agg(f), '[]'::jsonb) into data_issues from found;
   end if;
@@ -930,8 +1000,10 @@ end $$;
 -- события курсора: старше яруса all какого-либо класса подписки — cursor_expired (события могли
 -- проредиться). p_classes null — все классы. p_snap — снимок момента подписки «now»: транзакции,
 -- видимые в нём (зафиксированные до подписки), не отдаются.
+-- p_leaving (проектор, ревью безопасности №3, №4): ещё смены класса без смены id (reclass без moved), уводящие строку из
+-- p_classes, — версия уже другого класса, а прошлая была в p_classes; иначе уход строки из семейства не виден.
 create or replace function @SCHEMA@.watch_read(p_tx xid8, p_seq bigint, p_at timestamptz, p_classes text[], p_limit int,
-  p_snap pg_snapshot default null)
+  p_snap pg_snapshot default null, p_leaving boolean default false)
 returns setof @SCHEMA@.log
 language plpgsql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -953,7 +1025,11 @@ begin
   return query select l.seq, l.tx, l.id, l.rev, l.class, l.cv, l.tenant, l.owner, l.links, l.data, l.tags, l.at, l.author,
       l.agent, l.op, l.reason, l.moved, l.prev_hash, l.hash, null::jsonb
     from @SCHEMA@.log l
-    where (l.tx, l.seq) > (p_tx, p_seq) and l.tx < horizon and (p_classes is null or l.class = any (p_classes))
+    where (l.tx, l.seq) > (p_tx, p_seq) and l.tx < horizon
+      and (p_classes is null or l.class = any (p_classes)
+           or (p_leaving and l.op = 'reclass' and l.moved is null
+               and (select p.class from @SCHEMA@.log p where p.id = l.id and p.rev < l.rev and p.op not in ('purge', 'trim', 'reset')
+                    order by p.rev desc limit 1) = any (p_classes)))
       and (p_snap is null or not pg_visible_in_snapshot(l.tx, p_snap))
     order by l.tx, l.seq limit p_limit;
 end $$;
@@ -967,8 +1043,9 @@ set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
   select pg_snapshot_xmin(s), 0::bigint, s from pg_current_snapshot() s
 $$;
--- до исправления подписки «now»: без снимка
+-- до исправления подписки «now»: без снимка; до ревью безопасности №3 — без p_leaving
 drop function if exists @SCHEMA@.watch_read(xid8, bigint, timestamptz, text[], int);
+drop function if exists @SCHEMA@.watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot);
 
 do $$
 declare f text;
@@ -979,7 +1056,7 @@ begin
     'last_version_visible(uuid, uuid, jsonb)', 'restore(uuid)', 'purge(uuid, boolean)', 'trim_history(uuid[], text[], timestamptz)',
     'rekey(uuid, jsonb, jsonb)', 'rekey_class(text, jsonb)', 'account_purge(uuid)', 'reset_mark(uuid, text, uuid)',
     'reset(text, text, uuid, int)', 'thin_batch(timestamptz, int)', 'maintain(timestamptz, int)', 'verify(boolean)',
-    'watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot)', 'watch_head()'] loop
+    'watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot, boolean)', 'watch_head()'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);
     execute format('revoke all on function @SCHEMA@.%s from public', f);
   end loop;
@@ -988,6 +1065,6 @@ end $$;
 grant execute on function @SCHEMA@.restore(uuid), @SCHEMA@.purge(uuid, boolean), @SCHEMA@.trim_history(uuid[], text[], timestamptz),
   @SCHEMA@.rekey(uuid, jsonb, jsonb), @SCHEMA@.rekey_class(text, jsonb), @SCHEMA@.account_purge(uuid),
   @SCHEMA@.reset(text, text, uuid, int), @SCHEMA@.maintain(timestamptz, int), @SCHEMA@.verify(boolean),
-  @SCHEMA@.session_expires(), @SCHEMA@.watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot), @SCHEMA@.watch_head(),
+  @SCHEMA@.session_expires(), @SCHEMA@.watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot, boolean), @SCHEMA@.watch_head(),
   @SCHEMA@.history_default(), @SCHEMA@.history_policy(jsonb), @SCHEMA@.history_iv(text),
   @SCHEMA@.signal_mode(), @SCHEMA@.signal_key(), @SCHEMA@.class_stamp() to @APP@;

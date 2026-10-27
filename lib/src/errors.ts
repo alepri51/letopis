@@ -47,7 +47,8 @@ const LT_NAMES: Record<string, string> = {
   LT006: 'acl_denied', LT007: 'id_mismatch', LT008: 'id_from_db', LT009: 'immutable_key', LT010: 'invalid_class',
   LT011: 'use_reclass', LT012: 'reclass_denied', LT013: 'tightening_conflict', LT014: 'isolation_level',
   LT015: 'recreated_in_statement', LT016: 'cursor_expired', LT017: 'delete_restricted', LT018: 'not_deleted',
-  LT019: 'reset_disabled', LT020: 'confirm_mismatch',
+  LT019: 'reset_disabled', LT020: 'confirm_mismatch', LT021: 'derived_class', LT022: 'aggregate_field',
+  LT023: 'projector_pending',
 };
 
 /**
@@ -75,7 +76,8 @@ export function fromDbError(e: unknown): unknown {
   if (name === 'invalid_data' && Array.isArray(issues)) {
     const cls = /класса (\S+)/.exec(text)?.[1] ?? '?';
     const v = new ValidationError(cls, issues);
-    return Object.assign(v, { cause: e });
+    // текст базы целиком: в нём бывает больше, чем имя класса (у проектора — арендатор и id строки)
+    return Object.assign(v, { cause: e, ...(text ? { message: `letopis: invalid_data: ${text}` } : {}) });
   }
   return Object.assign(new LetopisError(name, text, detail), { cause: e });
 }

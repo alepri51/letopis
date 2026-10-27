@@ -772,14 +772,17 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
     case 'countPaths':
       text = `${withClause}select count(*)::int as n ${from}${whereOf(tail)}`;
       break;
-    case 'versions':
-      // с follow — по времени через все связанные id; без — по id и номеру версии
+    case 'versions': {
+      // с sort — по полю и направлению (последние версии первыми — sort('at', 'desc'), с limit — в самом запросе);
+      // без sort: с follow — по времени через все связанные id, без follow — по id и номеру версии
+      const order = sort ? `${sort.expr('v')}${dir}, v.id${dir}, v.rev${dir}` : mods.follow ? 'v.at, v.id, v.rev' : 'v.id, v.rev';
       text = mods.follow
         ? `${withClause}select to_jsonb(v) as row from (select ${colsOf('l')}, null::int as depth from ${S}.log l `
-          + `where l.id in (select f.id from f)) v order by v.at, v.id, v.rev${limitOffset()}`
+          + `where l.id in (select f.id from f)) v order by ${order}${limitOffset()}`
         : `${withClause}select to_jsonb(v) as row from (select ${colsOf('l')}, null::int as depth from ${S}.log l `
-          + `where l.id in (select z.id from ${ents} z)) v order by v.id, v.rev${limitOffset()}`;
+          + `where l.id in (select z.id from ${ents} z)) v order by ${order}${limitOffset()}`;
       break;
+    }
     case 'diff':
     case 'blame': {
       // план 1.1, §2.1: функции базы считают по журналу под RLS — по одному документу на объект шага
@@ -798,7 +801,8 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
       const acc = accessor(path)('z');
       aggLeaf = leaf(path);
       if (agg!.fn === 'countBy') {
-        text = `${withClause}select ${acc} as k, count(*)::int as n from ${ents} z group by 1 order by 2 desc, 1`;
+        // limit и offset — группы по убыванию числа (самые частые значения), а не строки
+        text = `${withClause}select ${acc} as k, count(*)::int as n from ${ents} z group by 1 order by 2 desc, 1${limitOffset()}`;
       } else {
         const cast = agg!.fn === 'sum' || agg!.fn === 'avg' ? '::numeric' : CAST[aggLeaf];
         text = `${withClause}select ${agg!.fn}((${acc})${cast}) as v from ${ents} z`;

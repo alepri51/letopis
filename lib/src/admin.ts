@@ -4,8 +4,8 @@
  * сами сверяют права (letopis.* — системный администратор или администраторское подключение).
  */
 import type postgres from 'postgres';
-import { LetopisError } from './errors.js';
-import type { Registry } from './registry.js';
+import { LetopisError, fromDbError } from './errors.js';
+import type { AggregateInfo, Registry } from './registry.js';
 import { runTx, type Executor, type TxContext } from './tx.js';
 import { CHAIN_METHODS, DB_METHODS } from './types.js';
 
@@ -36,7 +36,7 @@ export interface MaintainOptions {
 }
 
 export interface MaintainReport {
-  /** Другой процесс уже обслуживает установку (advisory-блокировка): этот вызов ничего не делал. */
+  /** Другой процесс уже обслуживает установку (держит строку-замок обслуживания): этот вызов ничего не делал. */
   skipped: boolean;
   /** Удалено истёкших и погашенных сессий и одноразовых кодов. */
   sessions: number;
@@ -92,6 +92,10 @@ export interface ModelDescription {
     ownerDefault: string;
     cache?: { ttl?: number };
     meta: Record<string, unknown>;
+    /** Производный класс: строки пишет только проектор с этим именем (план 1.1, §2.4). */
+    derivedBy?: string;
+    /** Агрегатные поля: сумма или число живых строк класса-источника, их считает база (план 1.1, §2.4). */
+    aggregate?: Record<string, AggregateInfo>;
   }[];
   methods: { chain: readonly string[]; db: readonly string[] };
 }
@@ -117,14 +121,13 @@ export async function verify(a: AdminCtx, opts: { data?: boolean } = {}): Promis
   return r.v;
 }
 
-/** Ключ advisory-блокировки обслуживания: форма с двумя int4, своё пространство (19541). */
-const MAINTAIN_LOCK = (schema: string) => [19541, schema] as const;
 
 /**
  * Обслуживание: истёкшие сессии и коды, прореживание журнала пачками (каждая — своя транзакция,
  * долгих блокировок нет), заполнение очереди сигналов. Из нескольких процессов работает один: пачка
- * первым делом берёт транзакционную advisory-блокировку (pg_try_advisory_xact_lock), и та снимается
- * с фиксацией пачки. Сеансовая блокировка за пулом в режиме транзакций (PgBouncer) оставалась бы на
+ * первым делом берёт строку-замок обслуживания (lock_try в maintain() базы: for update skip locked строки
+ * secret, которую посторонняя роль не займёт), и та снимается с фиксацией пачки. Сеансовая блокировка
+ * за пулом в режиме транзакций (PgBouncer) оставалась бы на
  * серверном соединении, которое пул отдаёт другим клиентам, — и обслуживание молча вставало бы
  * (skipped у всех). Блокировку держит другой процесс: до первой пачки — skipped; между пачками —
  * вызов останавливается (продолжит тот процесс), отчёт — о сделанном, more: true.
@@ -133,12 +136,11 @@ export async function maintain(a: AdminCtx, opts: MaintainOptions = {}): Promise
   if (a.exec.explicit) throw new LetopisError('invalid_query', 'maintain() — пачками в своих транзакциях, не внутри db.begin()');
   const now = opts.now === undefined ? null : opts.now instanceof Date ? opts.now.toISOString() : opts.now;
   const report: MaintainReport = { skipped: false, sessions: 0, codes: 0, thinned: 0, batches: 0, more: false, queue: 0 };
-  const [k1, k2] = MAINTAIN_LOCK(a.schema);
   const max = opts.batches ?? 100;
   for (let i = 0; i < max; i++) {
-    // блокировка и пачка — одним оператором: case вычисляет maintain() только при взятой блокировке
-    const [{ r }] = await runTx(a.txc, (q) => q.unsafe(`select case when pg_try_advisory_xact_lock($1::int, hashtext($2::text))
-        then ${a.S}.maintain($3::text::timestamptz, $4::int) end as r`, [k1, k2, now, opts.limit ?? 10_000] as never[]));
+    // блокировку берёт сама maintain() базы — строку-замок, которую посторонняя роль не займёт; занята — null
+    const [{ r }] = await runTx(a.txc, (q) => q.unsafe(`select ${a.S}.maintain($1::text::timestamptz, $2::int) as r`,
+      [now, opts.limit ?? 10_000] as never[]));
     if (r === null) {
       if (i === 0) return { ...report, skipped: true };
       break;
@@ -230,6 +232,25 @@ export async function rekeyClass(a: AdminCtx, cls: string, key: string[]): Promi
   return r.n;
 }
 
+/**
+ * Ремонт агрегатов (план 1.1, §2.4): поля класса и его потомков во всех арендаторах — заново из живых источников,
+ * под исключительными блокировками семейств целей и источников (запись в них ждёт). Версия пишется только там, где
+ * значение изменилось; возвращает число исправленных строк. Функция владельца — от его роли (set local role), как
+ * загрузчик; подключение проверил вызывающий (admin_required).
+ */
+export async function rebuildAggregates(env: { sql: Sql; S: string; ownerRole: string }, cls: string): Promise<number> {
+  if (typeof cls !== 'string' || !cls) throw new LetopisError('invalid_data', 'rebuildAggregates(класс): имя класса');
+  const role = `"${env.ownerRole.replace(/"/g, '""')}"`;
+  return (env.sql.begin(async (q) => {
+    await q.unsafe(`set local role ${role}`);
+    await q.unsafe(`select set_config('letopis.reason', 'rebuildAggregates', true)`);
+    const [{ n }] = await q.unsafe(`select ${env.S}.rebuild_aggregates($1) as n`, [cls]);
+    return n as number;
+  }) as Promise<number>).catch((e: unknown) => {
+    throw fromDbError(e);
+  });
+}
+
 /** Машинное описание модели арендатора вместе с метаданными классов (этап 6, п. 12). */
 export function describe(a: AdminCtx): ModelDescription {
   const classes = a.registry().all().map((c) => ({
@@ -250,6 +271,8 @@ export function describe(a: AdminCtx): ModelDescription {
     ownerDefault: c.ownerDefault,
     ...(c.cache ? { cache: c.cache } : {}),
     meta: c.meta,
+    ...(c.derivedBy ? { derivedBy: c.derivedBy } : {}),
+    ...(c.aggregate ? { aggregate: c.aggregate } : {}),
   })).sort((x, y) => Number(x.system) - Number(y.system) || x.name.localeCompare(y.name));
   return { schema: a.schema, tenant: a.tenant(), classes, methods: { chain: CHAIN_METHODS, db: DB_METHODS } };
 }
@@ -275,6 +298,11 @@ export function describeText(d: ModelDescription): string {
       return `${k}${e.required ? '*' : ''} → ${Array.isArray(e.class) ? e.class.join('|') : e.class}${e.many ? '[]' : ''}`;
     });
     if (ends.length) out.push(`- концы: ${ends.join(', ')}`);
+    if (c.derivedBy) out.push(`- производный: строки пишет проектор ${c.derivedBy}, приложение только читает`);
+    for (const [field, a] of Object.entries(c.aggregate ?? {})) {
+      const what = a.sum !== undefined ? `сумма ${a.sum}` : 'число';
+      out.push(`- агрегат ${field} = ${what} строк ${a.of} по концу ${a.via}${a.where ? `, условие ${JSON.stringify(a.where)}` : ''}; поле считает база, приложение его не пишет`);
+    }
     out.push('');
   }
   return out.join('\n');

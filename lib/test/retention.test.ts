@@ -6,7 +6,7 @@
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { engine, watchStarted, type Engine, type Tenant } from './_engine.js';
+import { engine, type Engine, type Tenant } from './_engine.js';
 import { appDsn, ident } from './_harness.js';
 import { connect, type Db } from '../src/index.js';
 import { install } from '../src/up.js';
@@ -230,7 +230,7 @@ test('7.8.1 №6: подписчик с курсором старше яруса
   await assert.rejects(sub.next(), (err: { code?: string }) => err.code === 'cursor_expired');
   const fresh = db.watch({ from: 'now', classes: ['Gauge'] });
   try {
-    await watchStarted(fresh); // запись — после начальной точки «now», иначе next() ждал бы её вечно
+    await fresh.ready(); // запись — после начальной точки «now», иначе next() ждал бы её вечно
     await db.Gauge().create({ code: 'G-live', n: 1 }).rows();
     const ev = await fresh.next();
     assert.equal(ev.value.class, 'Gauge');
@@ -307,7 +307,7 @@ test('7.3.2 №15: прореживание во время записи и по
   const id = await history('Busy', 'B1', ats);
   const sub = db.watch({ from: 'now', classes: ['Busy'] });
   try {
-    await watchStarted(sub); // записи — после начальной точки «now»: ни одна не должна уйти «до подписки»
+    await sub.ready(); // записи — после начальной точки «now»: ни одна не должна уйти «до подписки»
     const thin = (async () => {
       for (;;) {
         const r = await adm.maintain({ batches: 1, limit: 50 });

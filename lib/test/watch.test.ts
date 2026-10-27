@@ -5,7 +5,7 @@
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { engine, watchStarted, type Engine, type Tenant } from './_engine.js';
+import { engine, type Engine, type Tenant } from './_engine.js';
 import { appDsn } from './_harness.js';
 import { connect, type Db, type WatchEvent } from '../src/index.js';
 
@@ -64,7 +64,7 @@ const ins = (token: string, n: number, cls = 'Ev') =>
 test('6.5 события по порядку фиксации, курсор, фильтр по классам; другой арендатор не виден', async () => {
   const sub = db.watch({ from: 'now', classes: ['Ev'] });
   try {
-    await watchStarted(sub);
+    await sub.ready();
     await ins(t.token, 1);
     await ins(t.token, 2, 'Other');
     await ins(u.token, 100);
@@ -81,7 +81,7 @@ test('6.5 события по порядку фиксации, курсор, ф�
 test('6.5 фиксация не по порядку и долгая пишущая транзакция: поток ждёт её, затем отдаёт всё без потерь', async () => {
   const sub = db.watch({ from: 'now', classes: ['Ev'] });
   try {
-    await watchStarted(sub);
+    await sub.ready();
     // A начинает раньше (меньший номер транзакции) и держит транзакцию; B фиксируется первой
     const a = await e.hold(t.token, (tx) => tx.unsafe(`insert into ${e.S}.entity (class, data) values ('Ev', '{"n": 10}')`));
     await ins(t.token, 11);
@@ -99,7 +99,7 @@ test('6.5 фиксация не по порядку и долгая пишуща
 
 test('6.5 возобновление по курсору: без потерь и повторов; обрыв соединения подписки', async () => {
   const sub = db.watch({ from: 'now', classes: ['Ev'] });
-  await watchStarted(sub);
+  await sub.ready();
   await ins(t.token, 20);
   const [first] = await take(sub, 1);
   sub.close();
@@ -138,7 +138,7 @@ test('6.5 «now» — изменения после подписки: зафик
   try {
     assert.ok(sub.cursor === null || /~/.test(sub.cursor ?? ''), 'курсор «now» несёт снимок');
     // снимок начальной точки взят, пока A открыта: A фиксируется уже после подписки
-    await watchStarted(sub);
+    await sub.ready();
     await a.finish(true);
     await ins(t.token, 32);
     const evs = await take(sub, 2);
@@ -154,4 +154,23 @@ test('6.5 «now» — изменения после подписки: зафик
   } finally {
     sub.close();
   }
+});
+
+test('доработки после точки Б: sub.ready() — начальная точка взята; параллельные next() получают разные события, close() отвечает ожидающим', async () => {
+  // 'start' и курсор — сразу; 'now' — после watch_head(): запись после ready() приходит
+  const fromStart = db.watch({ from: 'start' });
+  await fromStart.ready();
+  assert.notEqual(fromStart.cursor, null);
+  fromStart.close();
+  const sub = db.watch();
+  await sub.ready();
+  assert.notEqual(sub.cursor, null, 'точка взята');
+  const ids = [] as string[];
+  for (const n of [1, 2]) ids.push((await db.Ev().create({ n: 9000 + n }).rows())[0].id);
+  const [a, b] = await Promise.all([sub.next(), sub.next()]);
+  assert.deepEqual([a.value!.id, b.value!.id].sort(), [...ids].sort(), 'два разных события, без двойных');
+  // ожидающие вызовы при close() — done, по очереди
+  const waiting = [sub.next(), sub.next()];
+  sub.close();
+  for (const w of await Promise.all(waiting)) assert.equal(w.done, true);
 });

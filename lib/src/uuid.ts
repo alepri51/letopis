@@ -5,19 +5,30 @@
  * (`v5_name` в lib/sql/30-validate.sql — текстовый вид jsonb-массива): элементы через JSON.stringify,
  * разделитель — запятая с пробелом. Совпадение закрепляет общий файл векторов lib/test/vectors/v5.json.
  */
-import { createHash } from 'node:crypto';
+import { hash } from 'node:crypto';
 import { LetopisError } from './errors.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// байты пространств имён (арендаторов): в загрузке их единицы, а проверка и разбор шли на каждый id
+const NS = new Map<string, Buffer>();
+function nsBytes(ns: string): Buffer {
+  let b = NS.get(ns);
+  if (!b) {
+    if (!UUID.test(ns)) throw new LetopisError('invalid_data', `пространство имён v5 — не uuid: ${ns}`);
+    b = Buffer.from(ns.replace(/-/g, ''), 'hex');
+    if (NS.size >= 10_000) NS.clear();
+    NS.set(ns, b);
+  }
+  return b;
+}
+
 /** RFC 4122 v5: sha1(пространство + имя); одно имя в одном пространстве — один id. */
 export function uuidv5(name: string, ns: string): string {
-  if (!UUID.test(ns)) throw new LetopisError('invalid_data', `пространство имён v5 — не uuid: ${ns}`);
-  const h = createHash('sha1').update(Buffer.from(ns.replace(/-/g, ''), 'hex')).update(name, 'utf8').digest().subarray(0, 16);
-  h[6] = (h[6] & 0x0f) | 0x50; // версия 5
-  h[8] = (h[8] & 0x3f) | 0x80; // вариант 10xx
-  const x = h.toString('hex');
-  return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20, 32)}`;
+  const x = hash('sha1', Buffer.concat([nsBytes(ns), Buffer.from(name, 'utf8')]), 'hex');
+  // версия 5 — старшая тетрада байта 6; вариант 10xx — старшие биты байта 8
+  const variant = ((parseInt(x[16], 16) & 0x3) | 0x8).toString(16);
+  return `${x.slice(0, 8)}-${x.slice(8, 12)}-5${x.slice(13, 16)}-${variant}${x.slice(17, 20)}-${x.slice(20, 32)}`;
 }
 
 /** Имя v5: JSON-массив из имени класса и значений ключа — как `jsonb_build_array(…)::text` в базе. */

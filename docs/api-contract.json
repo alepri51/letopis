@@ -8,7 +8,8 @@
     },
     "exports": [
       ".",
-      "./model"
+      "./model",
+      "./mcp"
     ]
   },
   "exports": {
@@ -68,6 +69,7 @@
         "AclDataDecision",
         "AclDecision",
         "AclOp",
+        "AggregateInfo",
         "AnyModelLike",
         "AuthApi",
         "Batch",
@@ -112,6 +114,14 @@
         "Op",
         "PatchOf",
         "Path",
+        "Projector",
+        "ProjectorChange",
+        "ProjectorFailure",
+        "ProjectorOptions",
+        "ProjectorOut",
+        "ProjectorReport",
+        "ProjectorRow",
+        "ProjectorStatus",
         "QueryEvent",
         "ResetOptions",
         "ResetResult",
@@ -148,6 +158,7 @@
         "translatePattern"
       ],
       "types": [
+        "AggregateDef",
         "AnyModel",
         "ClassDef",
         "ClassDescription",
@@ -159,6 +170,14 @@
         "LostRule",
         "Model",
         "OnDelete"
+      ]
+    },
+    "./mcp": {
+      "values": [
+        "createMcpServer"
+      ],
+      "types": [
+        "McpOptions"
       ]
     }
   },
@@ -226,6 +245,8 @@
     "load",
     "lock",
     "maintain",
+    "projector",
+    "rebuildAggregates",
     "refresh",
     "registry",
     "rekeyClass",
@@ -361,6 +382,10 @@
     },
     {
       "module": "15-errors",
+      "message": "letopis: aggregate_field: агрегатное поле считает база"
+    },
+    {
+      "module": "15-errors",
       "message": "letopis: confirm_mismatch: подтверждение не совпадает с именем схемы"
     },
     {
@@ -370,6 +395,10 @@
     {
       "module": "15-errors",
       "message": "letopis: delete_restricted: удалению мешают ссылающиеся строки"
+    },
+    {
+      "module": "15-errors",
+      "message": "letopis: derived_class: строки производного класса пишет только его проектор"
     },
     {
       "module": "15-errors",
@@ -402,6 +431,10 @@
     {
       "module": "15-errors",
       "message": "letopis: not_deleted: объект не удалён — restore и purge только для удалённых"
+    },
+    {
+      "module": "15-errors",
+      "message": "letopis: projector_pending: проектор источника ещё не прочёл удаление"
     },
     {
       "module": "15-errors",
@@ -508,8 +541,20 @@
       "message": "letopis: removed: --trust снят в 1.0.0 — запрос по целям вне загрузки стоит 0,1–1,3 % её времени"
     },
     {
+      "module": "cli",
+      "message": "letopis: user_session_required: letopis mcp принимает только токен сессии пользователя (--token или LETOPIS_TOKEN): ключ сервиса даёт все права auth.* и не должен лежать на машине агента"
+    },
+    {
+      "module": "cli",
+      "message": "letopis: user_session_required: letopis mcp — нужен токен сессии пользователя: --token или LETOPIS_TOKEN"
+    },
+    {
       "module": "errors",
       "message": "letopis: <…>: <…>"
+    },
+    {
+      "module": "errors",
+      "message": "letopis: invalid_data: <…>"
     },
     {
       "module": "import",
@@ -518,6 +563,10 @@
     {
       "module": "index",
       "message": "letopis: администраторское подключение — RLS не действует, данные всех арендаторов видны"
+    },
+    {
+      "module": "mcp",
+      "message": "letopis.mcp: нужен пакет @modelcontextprotocol/server — npm i @modelcontextprotocol/server"
     },
     {
       "module": "pglite",

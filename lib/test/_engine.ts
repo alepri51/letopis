@@ -6,7 +6,6 @@ import { randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
 import { ensureDatabase, adminSql, appSql, ensureAppRole, schemaFor, ident, type Sql } from './_harness.js';
 import { install, SYSTEM_ID } from '../src/up.js';
-import type { Subscription } from '../src/index.js';
 
 export interface Engine {
   /** Администраторское подключение (суперпользователь). */
@@ -26,6 +25,16 @@ export interface Engine {
   asOwner<T>(fn: (tx: Sql) => Promise<T>): Promise<T>;
   /** Определить класс от имени арендатора; возвращает строку Class. */
   defineClass(t: Tenant, desc: Record<string, unknown>): Promise<postgres.Row>;
+  /**
+   * Транзакция администраторского подключения с токеном сессии (null — без сессии): триггеры срабатывают, как у
+   * приложения, но роль подключения — администраторская (`admin_role()`), и RLS её не касается.
+   */
+  asAdmin<T>(token: string | null, fn: (tx: Sql) => Promise<T>): Promise<T>;
+  /**
+   * Определить производный класс (`derivedBy`, свой или унаследованный) от имени арендатора администраторским
+   * подключением: такие классы заводит только администратор (право letopis.projector).
+   */
+  defineDerived(t: Tenant, desc: Record<string, unknown>): Promise<postgres.Row>;
   /**
    * Транзакция A для гонок: выполняет шаг и держит транзакцию открытой, пока тест не вызовет
    * finish(true) — фиксация, или finish(false) — откат.
@@ -64,6 +73,12 @@ export async function engine(file: string, opts: { keep?: boolean; seeds?: strin
       return fn(tx as unknown as Sql);
     }) as Promise<T>;
 
+  const asAdmin = <T>(token: string | null, fn: (tx: Sql) => Promise<T>): Promise<T> =>
+    sql.begin(async (tx) => {
+      if (token) await tx`select set_config('letopis.token', ${token}, true)`;
+      return fn(tx as unknown as Sql);
+    }) as Promise<T>;
+
   return {
     sql,
     serviceKey: inst.serviceKey!,
@@ -85,6 +100,12 @@ export async function engine(file: string, opts: { keep?: boolean; seeds?: strin
     },
     async defineClass(t, desc) {
       const [row] = await as(t.token, (tx) =>
+        tx.unsafe(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb) returning *`, [desc as never]));
+      return row;
+    },
+    asAdmin,
+    async defineDerived(t, desc) {
+      const [row] = await asAdmin(t.token, (tx) =>
         tx.unsafe(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb) returning *`, [desc as never]));
       return row;
     },
@@ -133,21 +154,11 @@ export async function waitForLock(sql: Sql, n = 1, timeoutMs = 10000): Promise<v
   }
 }
 
-/**
- * Подписка «now» взяла начальную точку. Запрос watch_head() (горизонт и снимок) уходит из конструктора
- * асинхронно: транзакция, зафиксированная раньше его снимка, считается записанной до подписки и не
- * приходит. Поэтому запись «после подписки» — только после этого ожидания. Публичного способа нет —
- * читается поле start; переименуют его — тест упадёт здесь, а не вернёт гонку молча.
- */
-export async function watchStarted(sub: Subscription): Promise<void> {
-  const start = (sub as unknown as { start: Promise<unknown> | null }).start;
-  if (!(start instanceof Promise)) throw new Error('watchStarted: подписка «now» не держит запрос начальной точки в поле start');
-  await start;
-}
 
 /** Ошибка letopis с заданным именем (`letopis: <имя>:`) или кодом SQLSTATE. */
 export function lt(nameOrCode: string) {
-  return (e: { message?: string; code?: string }) => {
+  return (e: { message?: string; code?: string } | null | undefined) => {
+    if (e == null) throw new Error(`ожидалась ошибка ${nameOrCode}, а операция прошла`);
     if (/^[0-9A-Z]{5}$/.test(nameOrCode)) {
       if (e.code === nameOrCode) return true;
     } else if (e.message?.startsWith(`letopis: ${nameOrCode}:`)) {

@@ -4,7 +4,7 @@
  * против PostgreSQL 18: lib/README.md и README.en.md, lib/AGENT-CHEATSHEET.md и AGENT-CHEATSHEET.en.md, корневые
  * README.md и README.en.md. Каждый
  * сценарий — в своей свежей схеме v2.t_docs_<документ>[_<сценарий>]: строки `const ADMIN = …` и `const APP = …`
- * заменяются подключениями обвязки, имя схемы примеров — схемой теста, импорты 'letopis' и 'letopis/model' —
+ * заменяются подключениями обвязки, имя схемы примеров — схемой теста, импорты 'letopis', 'letopis/model' и 'letopis/mcp' —
  * исходниками пакета, `import type` убирается. Блоки без пометки (командная строка, импорт из 0.21, PGlite, сброс)
  * не исполняются: их покрывают свои тесты.
  */
@@ -108,6 +108,27 @@ assert.match(modelText, /Product/)
   }
 }
 `,
+  // обработчик HTTP из README (createMcpHandler SDK): клиент SDK ходит в него через fetch приложения
+  mcp: `
+{
+  const { Client, StreamableHTTPClientTransport } = await import(${JSON.stringify(import.meta.resolve('@modelcontextprotocol/client'))})
+  const authInfo = { token: 'app-token', clientId: 'app', scopes: [], extra: { account: r.tenant!.user } }
+  const client = new Client({ name: 'docs', version: '1' })
+  await client.connect(new StreamableHTTPClientTransport(new URL('http://localhost/mcp'),
+    { fetch: (url: string | URL, init?: RequestInit) => mcp.fetch(new Request(url, init), { authInfo }) }))
+  try {
+    const tools = (await client.listTools()).tools.map((x: { name: string }) => x.name).sort()
+    assert.deepEqual(tools, ['letopis_history', 'letopis_model', 'letopis_query'])   // без write — только чтение
+    const model = await client.callTool({ name: 'letopis_model', arguments: {} })
+    assert.equal(model.isError, undefined)
+    assert.equal(model.structuredContent.data.tenant, r.tenant!.tenant)                     // от имени Анны в магазине
+  } finally {
+    await client.close()
+    await mcp.close()
+    await svc.close()
+  }
+}
+`,
 };
 
 const CHEAT_EXPECT: Record<string, string> = {
@@ -160,10 +181,11 @@ const DOCS: Doc[] = [
 const BLOCK = /<!--\s*run(?::\s*([\w-]+))?\s*-->[ \t]*\r?\n```ts\r?\n([\s\S]*?)\r?\n```/g;
 const IMPORT = /^import\s+(?:(\w+)\s*,?\s*)?(?:\{([^}]*)\})?\s*from\s+'([^']+)'\s*;?\s*$/;
 
-/** Bare-спецификатор → URL: 'letopis' и 'letopis/model' — исходники, остальное — из node_modules пакета. */
+/** Bare-спецификатор → URL: 'letopis', 'letopis/model' и 'letopis/mcp' — исходники, остальное — из node_modules пакета. */
 function resolveSpec(spec: string): string {
   if (spec === 'letopis') return pathToFileURL(join(LIB, 'src', 'index.ts')).href;
   if (spec === 'letopis/model') return pathToFileURL(join(LIB, 'src', 'model.ts')).href;
+  if (spec === 'letopis/mcp') return pathToFileURL(join(LIB, 'src', 'mcp.ts')).href;
   if (spec.startsWith('node:')) return spec;
   return import.meta.resolve(spec);
 }

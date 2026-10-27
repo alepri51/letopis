@@ -109,3 +109,39 @@ test('срез на дату по переходу, deep на дату и withDe
     assert.equal(u.logSeqScans, 0);
   }
 });
+
+test('доработки после точки Б: срез asOf по классу у другого арендатора не читает журнал этого — индекс log_class_tenant_at', async () => {
+  // у t — 5000 версий Staff (before); у u — двадцать
+  const u = await e.tenant('explain-u');
+  await e.asOwner(async (tx) => {
+    await tx.unsafe(`insert into ${e.S}.entity (id, rev, class, tenant, owner, links, data, at, created_at, author, op)
+      select gen_random_uuid(), 1, 'Staff', $1, $1, '{}'::jsonb, jsonb_build_object('name', 'у' || g, 'phone', '+7'), now(), now(), $1, 'create'
+      from generate_series(1, 20) g`, [u.id]);
+    await tx.unsafe(`insert into ${e.S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
+      select id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash from ${e.S}.entity
+      where class = 'Staff' and tenant = $1`, [u.id]);
+  });
+  await e.sql.unsafe(`analyze ${e.S}.log`);
+  const udb = await connect({ dsn: appDsn(), schema: e.schema, token: u.token, max: 1 });
+  try {
+    const chain = udb.Staff().asOf(new Date(Date.now() + 1000));
+    const { steps, mods } = (chain as unknown as Record<symbol, { steps: Step[]; mods: ChainMods }>)[PLAN];
+    const q = buildRead(udb.registry, udb.schema, steps, mods, 'rows');
+    const read = await e.as(u.token, async (tx) => {
+      // записи индекса, которые отдали сканы этой транзакции (и внутри find_ids)
+      const tuples = async () => new Map((await tx.unsafe(`select c.relname as name, pg_stat_get_xact_tuples_returned(c.oid) as n
+        from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = $1 and c.relkind = 'i'`, [e.schema]))
+        .map((r) => [r.name as string, Number(r.n)]));
+      const before = await tuples();
+      const rows = await tx.unsafe(q.text, q.params as never[]);
+      const after = await tuples();
+      return { rows: rows.length, idx: (after.get('log_class_tenant_at') ?? 0) - (before.get('log_class_tenant_at') ?? 0),
+        old: after.has('log_class_at') };
+    });
+    assert.equal(read.rows, 20);
+    assert.equal(read.old, false, 'прежнего индекса нет');
+    assert.ok(read.idx > 0 && read.idx <= 40, `записей индекса: ${read.idx}`);
+  } finally {
+    await udb.close();
+  }
+});

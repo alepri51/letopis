@@ -25,7 +25,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { engine, watchStarted, type Engine, type Tenant } from './_engine.js';
+import { engine, type Engine, type Tenant } from './_engine.js';
 import { appDsn, ADMIN_DSN, ident } from './_harness.js';
 import { account, member, session, sqlAs, sysadmin, type Acc } from './_access.js';
 import {
@@ -584,8 +584,8 @@ test('Акт 15. Подписка: watch ловит новые версии; п�
   let продолжение: ReturnType<Db['watch']> | null = null;
   try {
     // момент «now» подписка берёт первым запросом к базе: записи — после него
-    await watchStarted(всё);
-    await watchStarted(клиенты);
+    await всё.ready();
+    await клиенты.ready();
     const [гость] = await db.Организация(S.org).Клиент().create({ name: 'Гость', phone: '+7 911 004' }).rows();
     const [салон] = await db.Организация(S.org.id).update({ address: 'Тверская, 7' }).rows();
     await db.flushSignals();
@@ -903,6 +903,8 @@ const GUARDS: Record<string, string> = {
 const NOT_TOUCHED: Record<string, string> = {
   diff: 'план 1.1, этап 1: проверен набором history (§7.2), акты сценария 1.0 его не используют',
   blame: 'план 1.1, этап 1: проверен набором history (§7.2), акты сценария 1.0 его не используют',
+  projector: 'план 1.1, этап 4а: проверен набором projector (§7.5), акты сценария 1.0 его не используют',
+  rebuildAggregates: 'план 1.1, этап 4б: проверен набором aggregate (§7.5 №19), в модели салона агрегатов нет',
   then: 'не метод: цепочка нарочно не thenable (А21 проверяет, что then === undefined)',
 };
 

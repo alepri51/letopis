@@ -154,6 +154,10 @@ test('7.3.8 №4: перечень функций владельца — search_
     trg_entity_au: () => assert.rejects(q(`select ${S}.trg_entity_au()`), lt('42501')),
     trg_entity_bd: () => assert.rejects(q(`select ${S}.trg_entity_bd()`), lt('42501')),
     trg_entity_ad: () => assert.rejects(q(`select ${S}.trg_entity_ad()`), lt('42501')),
+    // агрегаты в базе (план 1.1, этап 4б): триггерные функции приложению не выданы
+    trg_entity_total_ai: () => assert.rejects(q(`select ${S}.trg_entity_total_ai()`), lt('42501')),
+    trg_entity_total_au: () => assert.rejects(q(`select ${S}.trg_entity_total_au()`), lt('42501')),
+    trg_entity_total_ad: () => assert.rejects(q(`select ${S}.trg_entity_total_ad()`), lt('42501')),
   };
   const fns = await e.sql.unsafe(`select p.proname, p.proconfig, pg_get_userbyid(p.proowner) as owner
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = $1 and p.prosecdef order by p.proname`, [e.schema]);
@@ -172,13 +176,20 @@ test('7.3.8 №6: приложение не создаёт постоянных 
   await assert.rejects(q(`create function ${S}.lt_evil() returns int language sql return 1`), lt('42501'));
 });
 
-test('7.3.8 №7: триггеры entity по каталогу — условие для владельца и enable always', async () => {
+test('7.3.8 №7: триггеры entity по каталогу — условие для владельца и enable always; триггеры агрегатов — без условия', async () => {
   const trg = await e.sql.unsafe(`select tgname, tgenabled, pg_get_triggerdef(oid) as def from pg_trigger
     where tgrelid = $1::regclass and not tgisinternal order by tgname`, [`${S}.entity`]);
-  assert.deepEqual(trg.map((r) => r.tgname), ['entity_ad', 'entity_ai', 'entity_au', 'entity_bd', 'entity_bi', 'entity_bu']);
+  assert.deepEqual(trg.map((r) => r.tgname), ['entity_ad', 'entity_ai', 'entity_au', 'entity_bd', 'entity_bi', 'entity_bu',
+    'entity_total_ad', 'entity_total_ai', 'entity_total_au']);
   for (const r of trg) {
     assert.equal(r.tgenabled, 'A', r.tgname);
-    assert.match(r.def, /WHEN \(+CURRENT_USER <> 'letopis_owner'::name\)+/, r.tgname);
+    if (r.tgname.startsWith('entity_total_')) {
+      // агрегаты в базе (план 1.1, §2.4): срабатывают и для владельца — каскад, функции владельца, загрузчик
+      assert.doesNotMatch(r.def, /WHEN/, r.tgname);
+      assert.match(r.def, /AFTER (INSERT|UPDATE|DELETE) ON .* REFERENCING .* FOR EACH STATEMENT/, r.tgname);
+    } else {
+      assert.match(r.def, /WHEN \(+CURRENT_USER <> 'letopis_owner'::name\)+/, r.tgname);
+    }
   }
   const onLog = await e.sql.unsafe(`select count(*)::int as n from pg_trigger where tgrelid = $1::regclass and not tgisinternal`, [`${S}.log`]);
   assert.equal(onLog[0].n, 0, 'на журнале триггеров нет');

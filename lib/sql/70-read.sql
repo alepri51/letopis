@@ -40,7 +40,7 @@ return exists (select 1 from unnest(p_roles) r(role) where (p_links -> r.role) @
 -- не позже p_at; p_at null — последняя вообще), которые ссылаются на p_src: кандидаты — версии,
 -- ссылавшиеся на p_src (GIN log_ends), затем последняя версия каждого кандидата (log_id_rev); ссылку
 -- проверяет она. Класс и время кандидатов — после пробы (offset 0): иначе планировщик объединяет пробу
--- с log_class_at и читает весь класс в индексе. Без прав: вызывают только функции владельца find_*,
+-- с log_class_tenant_at и читает весь класс в индексе. Без прав: вызывают только функции владельца find_*,
 -- видимость — на них.
 create or replace function @SCHEMA@.log_refs_at(p_classes text[], p_src uuid, p_at timestamptz)
 returns setof @SCHEMA@.log
@@ -60,6 +60,10 @@ $$;
 
 -- id строк классов p_classes: по вложению в data (GIN entity_data), по целям концов (GIN entity_ends),
 -- по списку id (первичный ключ) или по классу (entity_class_tenant).
+-- Арендатор строки — явным условием (доработки после точки Б): row_visible пропускает только строки арендатора
+-- сессии и System и свои членства (member) в других арендаторах, поэтому поиск сразу берёт строки этих двух
+-- арендаторов, а свои членства — отдельным запросом по концу User; иначе цена поиска росла с данными других
+-- арендаторов с теми же именами классов. По списку id условие ничего не даёт — там первичный ключ.
 create or replace function @SCHEMA@.find_ids(p_classes text[], p_data jsonb, p_ends uuid[], p_ids uuid[],
   p_at timestamptz default null, p_dead boolean default false)
 returns table (id uuid, rev int)
@@ -72,6 +76,8 @@ declare
   c_tenant uuid := (a->>'tenant')::uuid;
   c_account uuid := (a->>'account')::uuid;
   c_plan jsonb := a->'plan';
+  v_tenants uuid[] := array[(a->>'tenant')::uuid, '@SYSTEM@'::uuid];
+  v_member boolean := 'member' = any (p_classes);
 begin
   if c_account is null then
     return;
@@ -83,21 +89,29 @@ begin
         where e.id = any (p_ids) and e.class = any (p_classes)
           and (p_data is null or e.data @> p_data) and (p_ends is null or e.ends @> p_ends)
           and @SCHEMA@.row_visible(e.tenant, e.class, e.id, e.owner, e.tags, e.data, e.links, c_tenant, c_account, c_plan);
+      return;
     elsif p_data is not null and p_ends is not null then
       return query select e.id, e.rev from @SCHEMA@.entity e
-        where e.class = any (p_classes) and e.data @> p_data and e.ends @> p_ends
+        where e.class = any (p_classes) and e.tenant = any (v_tenants) and e.data @> p_data and e.ends @> p_ends
           and @SCHEMA@.row_visible(e.tenant, e.class, e.id, e.owner, e.tags, e.data, e.links, c_tenant, c_account, c_plan);
     elsif p_data is not null then
       return query select e.id, e.rev from @SCHEMA@.entity e
-        where e.class = any (p_classes) and e.data @> p_data
+        where e.class = any (p_classes) and e.tenant = any (v_tenants) and e.data @> p_data
           and @SCHEMA@.row_visible(e.tenant, e.class, e.id, e.owner, e.tags, e.data, e.links, c_tenant, c_account, c_plan);
     elsif p_ends is not null then
       return query select e.id, e.rev from @SCHEMA@.entity e
-        where e.class = any (p_classes) and e.ends @> p_ends
+        where e.class = any (p_classes) and e.tenant = any (v_tenants) and e.ends @> p_ends
           and @SCHEMA@.row_visible(e.tenant, e.class, e.id, e.owner, e.tags, e.data, e.links, c_tenant, c_account, c_plan);
     else
       return query select e.id, e.rev from @SCHEMA@.entity e
-        where e.class = any (p_classes)
+        where e.class = any (p_classes) and e.tenant = any (v_tenants)
+          and @SCHEMA@.row_visible(e.tenant, e.class, e.id, e.owner, e.tags, e.data, e.links, c_tenant, c_account, c_plan);
+    end if;
+    -- свои членства в других арендаторах: по концу User (GIN entity_ends)
+    if v_member then
+      return query select e.id, e.rev from @SCHEMA@.entity e
+        where e.class = 'member' and e.ends @> array[c_account] and not (e.tenant = any (v_tenants))
+          and (p_data is null or e.data @> p_data) and (p_ends is null or e.ends @> p_ends)
           and @SCHEMA@.row_visible(e.tenant, e.class, e.id, e.owner, e.tags, e.data, e.links, c_tenant, c_account, c_plan);
     end if;
   elsif p_ids is not null then
@@ -111,20 +125,31 @@ begin
         and (p_data is null or v.data @> p_data) and (p_ends is null or @SCHEMA@.link_ids(v.links) @> p_ends)
         and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan);
   elsif p_ends is not null then
-    -- по целям концов — от версий, ссылавшихся на первую цель (GIN log_ends)
+    -- по целям концов — от версий, ссылавшихся на первую цель (GIN log_ends); арендатор — после пробы
     return query select v.id, v.rev from @SCHEMA@.log_refs_at(p_classes, p_ends[1], p_at) v
-      where (v.op = 'delete') = p_dead and v.op not in ('purge', 'trim', 'reset')
+      where (v.tenant = any (v_tenants) or v.class = 'member')
+        and (v.op = 'delete') = p_dead and v.op not in ('purge', 'trim', 'reset')
         and (p_data is null or v.data @> p_data) and @SCHEMA@.link_ids(v.links) @> p_ends
         and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan);
   else
+    -- арендатор id неизменен, записи purge и trim несут арендатора объекта: условие до distinct on не меняет, какая
+    -- версия id последняя (индекс log_class_tenant_at)
     return query select v.id, v.rev from (
         select distinct on (l.id) l.id, l.rev, l.op, l.class, l.tenant, l.owner, l.tags, l.data, l.links
         from @SCHEMA@.log l
-        where l.class = any (p_classes) and l.at <= coalesce(p_at, 'infinity'::timestamptz)
+        where l.class = any (p_classes) and l.tenant = any (v_tenants) and l.at <= coalesce(p_at, 'infinity'::timestamptz)
         order by l.id, l.rev desc) v
       where (v.op = 'delete') = p_dead and v.op not in ('purge', 'trim', 'reset')
         and (p_data is null or v.data @> p_data) and (p_ends is null or @SCHEMA@.link_ids(v.links) @> p_ends)
         and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan);
+    -- свои членства в других арендаторах: версии, ссылавшиеся на аккаунт (GIN log_ends)
+    if v_member then
+      return query select v.id, v.rev from @SCHEMA@.log_refs_at(array['member'], c_account, p_at) v
+        where not (v.tenant = any (v_tenants))
+          and (v.op = 'delete') = p_dead and v.op not in ('purge', 'trim', 'reset')
+          and (p_data is null or v.data @> p_data) and (p_ends is null or @SCHEMA@.link_ids(v.links) @> p_ends)
+          and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan);
+    end if;
   end if;
 end $$;
 

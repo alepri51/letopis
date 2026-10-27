@@ -21,7 +21,7 @@ import { randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
 import { LetopisError, fromDbError, removed, type Issue } from './errors.js';
 import { isOp } from './ops.js';
-import { Registry, type ClassInfo, type EndInfo } from './registry.js';
+import { Registry, aggregateFields, type ClassInfo, type EndInfo } from './registry.js';
 import { accepts } from './sql.js';
 import { v5Id } from './uuid.js';
 import { applyDefaults } from './validate.js';
@@ -156,9 +156,13 @@ export interface InitialSession {
   taken(id: string): boolean;
 }
 
+// значения без обратной косой, табуляции и переводов строки (почти все: uuid, числа, время) — как есть, без четырёх
+// замен (профиль первой заливки: esc — 14 % процессора)
+const ESCAPED = /[\\\t\n\r]/;
 const esc = (v: unknown): string => {
   if (v === null || v === undefined) return '\\N';
-  return String(v).replace(/\\/g, '\\\\').replace(/\t/g, '\\t').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+  const s = String(v);
+  return ESCAPED.test(s) ? s.replace(/\\/g, '\\\\').replace(/\t/g, '\\t').replace(/\n/g, '\\n').replace(/\r/g, '\\r') : s;
 };
 const hex = (b: Buffer | null | undefined): string | null => (b ? '\\x' + b.toString('hex') : null);
 const ENTITY_COLS = 'id, rev, class, cv, tenant, owner, links, data, tags, at, created_at, author, agent, op, reason, moved, prev_hash, validator';
@@ -279,6 +283,9 @@ function shape(reg: Registry, tenant: string, cls: ClassInfo, raw: Raw, check: b
       data[k] = v;
     }
   }
+  // агрегатные поля считает база (план 1.1, §2.4): переданное значение не пишется — 0, итог посчитает триггер
+  // после оператора, а первая заливка — agg_fill
+  for (const f of aggregateFields(cls)) data[f] = 0;
   if (!check) return { data, links };
   const scan = (v: unknown, path: string): string | null => {
     if (isInc(v)) return `inc() — только в update() (${path})`;
@@ -428,7 +435,9 @@ async function verifyIds(conn: Sql, S: string, ids: string[], to: Issues): Promi
   if (bad.length >= ISSUES_LIMIT) to.unchecked.add(`проверка базы называет не больше ${ISSUES_LIMIT} строк`);
   const [t] = await conn.unsafe(`select ${S}.targets_bad((select jsonb_agg(jsonb_build_object('class', e.class, 'tenant', e.tenant, 'links', e.links))
     from ${S}.entity e where e.id = any ($1::uuid[]) and e.links <> '{}'::jsonb), false) as role`, [ids]);
-  if (t?.role) to.add({ line: 0, code: 'target_not_found', message: `проверка базы: цель конца ${t.role} не найдена` });
+  const role = t?.role as string | null | undefined;
+  if (role?.startsWith('!')) to.add({ line: 0, code: 'derived_class', message: `проверка базы: конец ${role.slice(1)} ведёт на строку производного класса` });
+  else if (role) to.add({ line: 0, code: 'target_not_found', message: `проверка базы: цель конца ${role} не найдена` });
 }
 
 /**
@@ -510,6 +519,12 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     }
     if (cls.abstract) {
       issues.add({ line, code: 'invalid_class', message: `класс ${cls.name} абстрактный`, class: cls.name });
+      p1[i] = null;
+      continue;
+    }
+    // строки производного класса пишет только его проектор (план 1.1, §2.4)
+    if (cls.derivedBy) {
+      issues.add({ line, code: 'derived_class', message: `класс ${cls.name} производный: его строки пишет проектор ${cls.derivedBy}`, class: cls.name });
       p1[i] = null;
       continue;
     }
@@ -702,6 +717,8 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
           const f = found.get(id);
           if (!f || (f.tenant !== tenant && f.tenant !== SYSTEM_ID) || !accepts(reg, ref.allowed, f.class)) {
             issues.add({ line: ref.line, code: 'target_not_found', message: `цель конца ${ref.role} не найдена`, id });
+          } else if (reg.find(f.class)?.derivedBy) {
+            issues.add({ line: ref.line, code: 'derived_class', message: `цель конца ${ref.role} — строка производного класса ${f.class}`, id });
           }
         }
       }
@@ -914,9 +931,11 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       const owner = sh.owner ?? (asAcc && cur.ownerDefault === 'actor' ? asAcc : tenant!);
       const tags = sh.tags ?? [];
       if (acl) rowsAcl.push({ i, class: cls.name, id, owner, tags, data: sh.data, links: sh.links });
-      const common = [id, rev, cls.name, cur.rev, tenant, owner, JSON.stringify(sh.links), JSON.stringify(sh.data), pgArray(tags), atv];
-      ent.push([...common, atv, author, agent, 'create', null, null, hex(prev?.hash), null].map(esc).join('\t') + '\n');
-      if (cur.history !== false) log.push([...common, author, agent, 'create', null, null, hex(prev?.hash), xid].map(esc).join('\t') + '\n');
+      // общая голова строк entity и log — одной сборкой и одним экранированием
+      const head = [id, rev, cls.name, cur.rev, tenant, owner, JSON.stringify(sh.links), JSON.stringify(sh.data), pgArray(tags), atv].map(esc).join('\t');
+      const ph = esc(hex(prev?.hash));
+      ent.push(`${head}\t${esc(atv)}\t${esc(author)}\t${esc(agent)}\tcreate\t\\N\t\\N\t${ph}\t\\N\n`);
+      if (cur.history !== false) log.push(`${head}\t${esc(author)}\t${esc(agent)}\tcreate\t\\N\t\\N\t${ph}\t${esc(xid)}\n`);
       report.loaded++;
       report.byClass[cls.name] = (report.byClass[cls.name] ?? 0) + 1;
       touched.add(cls.name);
@@ -954,12 +973,15 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       }
       if (issues.any) return;
     }
-    // первая заливка: FREEZE — таблицы опустошены этой же транзакцией
-    await copyLines(conn, `copy ${S}.entity (${ENTITY_COLS}) from stdin${ini?.freeze ? ' with (freeze)' : ''}`, ent);
+    // первая заливка: FREEZE — таблицы опустошены этой же транзакцией. Журнал — раньше строк: агрегатные поля новой
+    // цели триггер после COPY досчитывает в ту же версию — и в entity, и в уже записанную версию журнала (план 1.1, §2.4)
     await copyLines(conn, `copy ${S}.log (${LOG_COLS}) from stdin${ini?.freeze ? ' with (freeze)' : ''}`, log);
+    await copyLines(conn, `copy ${S}.entity (${ENTITY_COLS}) from stdin${ini?.freeze ? ' with (freeze)' : ''}`, ent);
     if (updates.length) {
-      // новая версия из заблокированных значений — одним оператором; без изменений — без версии
-      const res = await conn.unsafe(`with u as (select * from jsonb_to_recordset($1::jsonb) as x(id uuid, data jsonb, links jsonb, tags text[])),
+      // новая версия из заблокированных значений — одним оператором; без изменений — без версии; агрегатные поля —
+      // прежние (agg_keep): их считает база
+      const res = await conn.unsafe(`with u as (select x.id, ${S}.agg_keep(e.class, e.tenant, e.data, x.data) as data, x.links, x.tags
+            from jsonb_to_recordset($1::jsonb) as x(id uuid, data jsonb, links jsonb, tags text[]) join ${S}.entity e on e.id = x.id),
           up as (
             update ${S}.entity e set data = u.data, links = u.links, tags = coalesce(u.tags, e.tags), rev = e.rev + 1, prev_hash = e.hash,
               at = greatest($2::timestamptz, e.at + interval '1 microsecond'), author = $3::uuid, agent = $4::text, op = 'update',
@@ -1134,6 +1156,9 @@ export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) =>
       load: (input, opts = {}) => load({ ...env, session: state }, input, opts),
       taken: (id) => state.ids.has(id.toLowerCase()),
     });
+    // 6. агрегаты в базе (план 1.1, §2.4): триггеров нет — поле целей считает agg_fill, одним оператором на агрегат, и
+    // пишет его в ту же (последнюю) версию в entity и log: строки ещё никто не видел, хэши — генерируемые колонки
+    await q(`select ${S}.agg_fill()`);
     // 7. ограничения, затем индексы; память и параллельные исполнители сборки — не меньше серверных
     await q(`select set_config('maintenance_work_mem', (greatest(pg_size_bytes(current_setting('maintenance_work_mem')), 268435456) / 1024)::bigint || 'kB', true),
       set_config('max_parallel_maintenance_workers', greatest(current_setting('max_parallel_maintenance_workers')::int,
@@ -1158,6 +1183,8 @@ export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) =>
           const f = found.get(id);
           if (!f || (f.tenant !== p.tenant && f.tenant !== SYSTEM_ID) || !accepts(p.reg, ref.allowed, f.class)) {
             issues.add({ line: ref.line, code: 'target_not_found', message: `цель конца ${ref.role} не найдена`, id });
+          } else if (p.reg.find(f.class)?.derivedBy) {
+            issues.add({ line: ref.line, code: 'derived_class', message: `цель конца ${ref.role} — строка производного класса ${f.class}`, id });
           }
         }
       }
