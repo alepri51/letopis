@@ -369,6 +369,12 @@ package. So a startup script that calls `up()` on every start will stop after a 
 `upgrade: true`. `up({ dsn, schema, upgrade: true })` applies the migrations from `sql/migrate/` and re-applies the
 functions; the data is kept.
 
+The first `up()` after moving to 1.2 builds the journal index `log_class_tenant_at (class, tenant, at)` instead of
+`log_class_at`: an `asOf` and `withDeleted` slice by class no longer reads the journal of other tenants with the same
+class name. While the index is being built, writes to the journal wait. On a large installation, build it in advance
+without stopping writes: `create index concurrently log_class_tenant_at on "v2.<schema>".log (class, tenant, at)` as
+the owner role — then `up()` only drops the old one.
+
 ### Development without PostgreSQL: PGlite
 
 `up({ pglite: true })` starts PGlite (PostgreSQL 18 on WebAssembly) with pgcrypto and a socket on a free port. It needs
@@ -2654,8 +2660,8 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # engine-class — classes as entities: metaschema, inheritance, recomputing descendants, tightening, metadata (stage 1)
 # engine-write — the write pipeline in raw SQL: v5 ids, defaults, merge, inc, deletion, resurrection, journal, signals (stage 1)
 # engine-races — races on two connections in both orders, without timed pauses (stage 1)
-# explain — chain indexes from the application role: outside, the primary key and (class, tenant); inside find_*(), GIN (stage 3)
-# find-ids-parity — 30 chains through find_*() and through a direct read under RLS give the same answers (stage 3)
+# explain — chain indexes from the application role: outside, the primary key and (class, tenant); inside find_*(), GIN; an asOf slice by class does not read another tenant's journal (stage 3; the work after checkpoint B)
+# find-ids-parity — 30 chains through find_*() and through a direct read under RLS give the same answers; own memberships in other tenants and the Class rows of System — now, asOf and withDeleted (stage 3; the work after checkpoint B)
 # hash — the version hash chain, journal tampering and gaps, verify() (stage 1)
 # harness — the test harness: starting the database, a schema per file, two connection strings (stage 0)
 # jsonschema — compiling JSON Schema to jsonpath and checking data in the database (stage 1)

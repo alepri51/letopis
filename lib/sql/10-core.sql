@@ -91,7 +91,11 @@ create table if not exists @SCHEMA@.log (
   changed    jsonb,
   constraint log_id_rev unique (id, rev)
 );
-create index if not exists log_class_at on @SCHEMA@.log (class, at);
+-- срез журнала по классу (asOf, withDeleted) — по арендатору (доработки после точки Б): цена запроса не растёт с
+-- журналом других арендаторов с тем же именем класса. Прежний log_class_at (class, at) снимается при накате; на
+-- большой установке новый индекс можно построить заранее — create index concurrently log_class_tenant_at …
+create index if not exists log_class_tenant_at on @SCHEMA@.log (class, tenant, at);
+drop index if exists @SCHEMA@.log_class_at;
 create index if not exists log_tx_seq on @SCHEMA@.log (tx, seq);
 -- versions({ follow: true }): переход по связи старого и нового id при reclass и rekey (этап 6)
 create index if not exists log_moved on @SCHEMA@.log (moved) where moved is not null;
