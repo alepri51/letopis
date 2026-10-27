@@ -35,6 +35,10 @@
     "./model": {
       "types": "./dist/model.d.ts",
       "import": "./dist/model.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp.d.ts",
+      "import": "./dist/mcp.js"
     }
   },
   "engines": {
@@ -72,7 +76,8 @@
   "peerDependencies": {
     "zod": "^4",
     "@electric-sql/pglite": "^0.5.8",
-    "@electric-sql/pglite-socket": "^0.2.11"
+    "@electric-sql/pglite-socket": "^0.2.11",
+    "@modelcontextprotocol/server": "^2.4.0"
   },
   "peerDependenciesMeta": {
     "zod": {
@@ -83,11 +88,16 @@
     },
     "@electric-sql/pglite-socket": {
       "optional": true
+    },
+    "@modelcontextprotocol/server": {
+      "optional": true
     }
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
     "@electric-sql/pglite-socket": "^0.2.11",
+    "@modelcontextprotocol/client": "^2.4.0",
+    "@modelcontextprotocol/server": "^2.4.0",
     "@types/node": "^22.20.5",
     "letopis-0": "npm:letopis@0.21.0",
     "letopis-1": "npm:letopis@1.0.1",

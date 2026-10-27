@@ -4,7 +4,7 @@
 
 Key facts for writing code with letopis 1.1:
 
-- ESM package, Node 22+, PostgreSQL 18+ with pgcrypto, database encoding UTF8. Runtime dependency: `postgres`. Zod 4 is an optional peer dependency needed only by `letopis/model`.
+- ESM package, Node 22+, PostgreSQL 18+ with pgcrypto, database encoding UTF8. Runtime dependency: `postgres`. Zod 4 is an optional peer dependency needed only by `letopis/model`; `@modelcontextprotocol/server`, only by `letopis/mcp`.
 - Install a schema with `up({ dsn, schema })` from an admin role; the schema is named `v2.<name>`. The application connects with a LOGIN role that is a member of `letopis_app`: `connect({ dsn, schema: 'v2.<name>', token | apiKey })`. A role that bypasses RLS is refused (`bypass_rls`) unless `allowBypassRls: true`.
 - Classes are hubs (objects) and links (relations with ends), described with `hub()`/`link()` from `letopis/model` and written to the database with `syncModels()` or `letopis sync`. A class with a key gets a deterministic UUID v5 id (`db.idOf`); uniqueness is the key.
 - Verbs return a chain; a terminal (`rows`, `first`, `ids`, `count`, …) executes the whole plan in one transaction. `create` only creates (a taken key is `exists`), `update` merges and never creates, `upsert` replaces the whole object (keyed classes only), `delete()` is a preview and `delete({ confirm: true })` deletes.
@@ -15,6 +15,7 @@ Key facts for writing code with letopis 1.1:
 - Aggregates in the database: the class option `aggregate: { balance: { sum: 'amount', of: 'Movement', via: 'Wallet' } }` (or `count: true`, `where` as a JSON Schema) keeps the field equal to the total of live source rows of the same tenant; a trigger after each statement recalculates it for the library, raw SQL, cascades and the loader; only the database writes the field (`aggregate_field`); repair with `db.rebuildAggregates(class)` on an admin connection, check with `db.verify({ data: true })`.
 - NOTIFY signals are visible to any database role: `up({ signals: 'class' | 'tenant' | 'opaque' | 'none' })` chooses what they reveal (default `class`).
 - Access rules are always on and deny by default; `up({ tenant })` or `createTenant()` creates a tenant with the rule "authenticated users may do everything" and its first user.
+- MCP: `createMcpServer(db)` from `letopis/mcp` and `letopis mcp` (stdio, a user session token only) give an AI agent the tools `letopis_model`, `letopis_query` (a JSON chain, no SQL), `letopis_history` and, with `write: true`, `letopis_write`; the agent acts with the rights of one user, and a deletion needs a human confirmation through elicitation.
 - Errors carry a lowercase `err.code`: `exists`, `conflict`, `invalid_data` (`err.issues`), `target_not_found`, `acl_denied`, `no_session`, `removed` (0.21 API with its replacement), …
 
 ## Docs

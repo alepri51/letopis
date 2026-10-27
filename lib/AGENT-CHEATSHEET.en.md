@@ -341,6 +341,21 @@ the same tenant are counted (a System row is not). Repair: `adm.rebuildAggregate
 `verify({ data: true })`. A hot counter (thousands of writes per second per object) is a projector that folds a batch,
 not an aggregate.
 
+### 14. Agents and MCP
+
+MCP tools for an agent, under a user session (needs `npm i @modelcontextprotocol/server`):
+```ts
+import { createMcpServer } from 'letopis/mcp'
+const server = await createMcpServer(await svc.as(userId))   // letopis_model, letopis_query, letopis_history; { write: true } adds letopis_write
+// stdio: letopis mcp --dsn … --schema v2.x --token <user token> [--write]; HTTP: createMcpHandler(() => createMcpServer(…)) from the SDK
+```
+Only a user session or `svc.as(user)`: a connection that bypasses RLS gets `bypass_rls`, the service root without
+`as()` gets `user_session_required`, and the command line does not accept `--api-key`. Reading is a JSON chain
+(`class`, `filter` with `$gt`, `$in`, `$or` and so on, `steps`, `sort`, `cursor`), with no SQL; an answer holds up to
+100 rows and 50 KB, then comes a `cursor`. Writing only with `write: true`: `update` with `rev`; `delete` without
+`confirm` is a preview, with `confirm` a human confirms it (elicitation), and without that it is
+`confirmation_required`. Data from the database in an answer sits inside `<untrusted-data-…>`.
+
 ### Operations
 
 `db.verify({ data: true })` and `letopis verify` — hash chains, the anchor; `db.maintain()` and

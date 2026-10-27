@@ -1667,6 +1667,94 @@ const modelText = describeText(model) // то же текстом — для llm
 условия по нескольким полям `anyOf` и `oneOf` с учётом наследования, если они заданы. Из командной строки —
 `letopis describe --format text --out llms.txt`.
 
+### Агенты и MCP
+
+Агент — Claude, Cursor или свой — работает с данными через инструменты MCP: узнаёт модель, читает цепочкой, смотрит
+историю, а если разрешено — пишет. Сервер MCP действует от имени одного пользователя и только с его правами: каждый
+вызов — цепочка под его сессией, права и арендаторов проверяет база. Сырого SQL у агента нет.
+
+| Инструмент | Что делает |
+|---|---|
+| `letopis_model` | модель: классы, поля (JSON Schema), условия `anyOf` и `oneOf`, концы, ключи, алиасы, метаданные; с `class` — подробно один класс |
+| `letopis_query` | чтение JSON-цепочкой: старт `class` и `filter`, `id` или `ids`; `steps` — переходы по ролям и классам; `asOf`, `withDeleted`, `sort`, `limit`, `cursor`; терминал `rows`, `first`, `ids`, `count`, `sum`, `avg`, `min`, `max`, `countBy` |
+| `letopis_history` | `versions`, `diff` или `blame` одного объекта |
+| `letopis_write` | `create`, `update` (только с `rev`), `upsert`, `delete` — только при `write: true` (`letopis mcp --write`) |
+
+Запрос `letopis_query` — та же цепочка, что `db.Product({ price: lt(1000) }).Shop().sort('data.name').rows()`, только записанная JSON:
+
+```json
+{ "class": "Product", "filter": { "price": { "$lt": 1000 } }, "steps": [{ "step": "Shop" }], "sort": { "field": "data.name" } }
+```
+
+Значение фильтра — равенство, вложенный объект — поля вложенных объектов, `{ "Роль": id }` — конец. Операторы:
+`$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$between`, `$in`, `$like`, `$ilike`, `$starts`, `$ends`, `$has`, `$hasAny`,
+`$hasAll`, `$exists`, `$isNull`, `$not`; ИЛИ — `{ "$or": [фильтр, …] }`. Неизвестный класс, роль, параметр или
+оператор — ответ `isError` с подсказкой похожих имён.
+
+Ответ — `structuredContent` и его текстовый дубль: не больше `maxRows` строк (100) и `maxBytes` байт (50 000), дальше —
+`cursor`, с которым тот же запрос отдаёт следующую страницу. Без `sort` строки идут по `id`. В тексте ответа всё, что
+пришло из базы, — строки, имена и описания классов, тексты ошибок, подсказки — стоит внутри `<untrusted-data-…>` со
+случайным суффиксом и пояснением, что это данные, а не инструкции. Описания инструментов и `instructions` сервера —
+постоянный текст пакета: `meta` классов пишут арендаторы, поэтому она попадает только в результаты.
+
+Запись. `update` принимает только `rev` прочитанной версии: чужая версия — `conflict`, потерянной правки нет. `delete`
+без `confirm` возвращает превью каскада и код операции `operation`; с `confirm: true` удаление подтверждает человек в
+клиенте через elicitation (в ревизии протокола 2025 — запросом клиенту, в 2026-07-28 — ответом `input_required`), и
+подтверждение привязано к хэшу операции. Код операции, присланный агентом, подтверждением не считается; клиент без
+elicitation получает отказ `confirmation_required`. Причина каждой записи — `mcp: letopis_write`, её показывает
+`blame()`.
+
+**stdio.** `letopis mcp` — сервер по stdio для клиентов MCP. Нужен пакет SDK: `npm i @modelcontextprotocol/server`
+(необязательная peer-зависимость). Строку подключения, схему и токен клиент передаёт флагами или переменными
+`LETOPIS_DSN`, `LETOPIS_SCHEMA`, `LETOPIS_TOKEN`; `--write` включает запись. Принимается только токен сессии
+пользователя — его выпускает приложение: `svc.auth.sessionFor(пользователь, { ttl })`, а рабочий арендатор сессии
+задаёт `auth.switch(арендатор)`. Ключ сервиса (`--api-key`) команда отклоняет: он даёт все права `auth.*` и лежал бы на
+машине агента. Конфигурация клиента (Claude Desktop, Claude Code, Cursor):
+
+```json
+{
+  "mcpServers": {
+    "letopis": {
+      "command": "npx",
+      "args": ["letopis", "mcp"],
+      "env": {
+        "LETOPIS_DSN": "postgres://shop_app:app-secret@localhost:5432/shop",
+        "LETOPIS_SCHEMA": "v2.shop",
+        "LETOPIS_TOKEN": "<токен сессии пользователя>"
+      }
+    }
+  }
+}
+```
+
+**HTTP.** Встроенного HTTP-сервера нет. `createMcpServer(db, { write, maxRows, maxBytes })` из `letopis/mcp` отдаёт
+сервер MCP, а приложение подключает его к своему обработчику `createMcpHandler` из SDK со своей авторизацией
+OAuth 2.1: токен запроса проверяет приложение и находит по нему пользователя letopis. Подключение — сессия
+пользователя (`connect({ token })`) или фасад `svc.as(пользователь)`: ключ сервиса остаётся в процессе приложения.
+Подключение в обход RLS получает отказ `bypass_rls`, корень сервиса без `as()` и подключение без сессии —
+`user_session_required`.
+
+<!-- run: mcp -->
+```ts
+import { up, connect } from 'letopis'
+import { createMcpServer } from 'letopis/mcp'
+import { createMcpHandler } from '@modelcontextprotocol/server'
+
+const ADMIN = 'postgres://postgres:secret@localhost:5432/shop'
+const APP = 'postgres://shop_app:app-secret@localhost:5432/shop'
+const r = await up({ dsn: ADMIN, schema: 'shop', quiet: true,
+  tenant: { name: 'Ромашка', user: { name: 'Анна', login: 'anna@shop.ru', password: 'Ромашка-2026!' } } })
+const svc = await connect({ dsn: APP, schema: r.schema, apiKey: r.serviceKey! })
+
+// authInfo — итог проверки токена запроса приложением; в extra оно кладёт id аккаунта letopis
+const mcp = createMcpHandler(async ({ authInfo }) =>
+  createMcpServer(await svc.as(String(authInfo?.extra?.account), { tenant: r.tenant!.tenant })))
+// в HTTP-обработчике приложения, после проверки токена: return mcp.fetch(request, { authInfo })
+```
+
+Фабрику обработчик вызывает на каждый запрос HTTP, поэтому `createMcpServer` проверяет подключение каждый раз (один
+запрос к базе).
+
 ### Сырой SQL
 
 <!-- run: guide -->
@@ -1691,6 +1779,8 @@ letopis maintain --dsn <строка> --schema <v2.имя> [--token <токен>
 letopis describe --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--format json|text] [--out <файл>]
 letopis import --from <строка 0.21> --from-schema <v1.имя> --dsn <строка> --schema <v2.имя> [--tenant <имя>] [--keyless <Класс>]…
   [--rename <Старое>=<Новое>]… [--update] [--commit-every <N>] [--partition <имя>] [--initial]
+letopis mcp --dsn <строка> --schema <v2.имя> --token <токен пользователя> [--write]
+  (или LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; ключ сервиса --api-key не принимается)
 ```
 
 ### Наблюдение
@@ -1760,7 +1850,8 @@ npx letopis import --from postgres://…/old --from-schema v1.salon --dsn postgr
 |---|---|
 | `letopis` | `connect`, `up`, `createTenant`; операторы `ne`, `gt`, `gte`, `lt`, `lte`, `between`, `inList`, `like`, `ilike`, `starts`, `ends`, `has`, `hasAny`, `hasAll`, `exists`, `isNull`, `not`, `or`, `isOp`; `inc`, `isInc`, `cursorOf`; `idOf`, `uuidv5`, `v5Name`, `v5Id`; `LetopisError`, `ValidationError`, `fromDbError`; `syncModels`, `generateTypes`, `schemaToTs`; `compileValidator`, `applyDefaults`, `Registry`; `totpCode`, `hashPassword`, `verifyHash`; `describeText`; константы `DDL_REVISION`, `RESERVED_CLASS_NAMES`, `CHAIN_METHODS`, `DB_METHODS`; типы `Db`, `DbTx`, `TypedDb`, `Chain`, `Row`, `Filter`, `Cursor`, `ConnectOptions`, `UpOptions`, `LoadOptions`, `LoadReport`, `WatchOptions`, `WatchEvent`, `AuthApi`, `AclApi` и другие |
 | `letopis/model` | `hub`, `link`, `one`, `many`, `End`, типы `Infer`, `InferLinks`, `Model`, `ClassDef`, `ClassMeta`, `HistoryPolicy`; `normalizeSchema`, `translatePattern`, тип `JsonSchema` |
-| CLI `letopis` | `sync`, `types`, `load`, `verify`, `maintain`, `describe`, `import` ([раздел 13](#13-эксплуатация)) |
+| `letopis/mcp` | `createMcpServer`, тип `McpOptions` — инструменты MCP; нужен пакет `@modelcontextprotocol/server` ([раздел 13](#агенты-и-mcp)) |
+| CLI `letopis` | `sync`, `types`, `load`, `verify`, `maintain`, `describe`, `import`, `mcp` ([раздел 13](#13-эксплуатация)) |
 
 Снятые имена 0.21 (`uuidv7`, `LETOPIS_NS` и методы, перечисленные ниже) бросают `removed` с заменой.
 
@@ -1899,7 +1990,9 @@ npx letopis import --from postgres://…/old --from-schema v1.salon --dsn postgr
 | `projector_busy` | перестройку не начать: проектор сейчас работает в другом процессе |
 | `not_empty` | первая заливка (`initial`) — только в пустую схему |
 | `class_not_loadable` | строки `Class` загрузчик не принимает |
-| `bypass_rls` | `connect()` с ролью, которая обходит RLS, без `allowBypassRls` |
+| `bypass_rls` | `connect()` с ролью, которая обходит RLS, без `allowBypassRls`; `createMcpServer` с подключением в обход RLS |
+| `user_session_required` | `createMcpServer` и `letopis mcp`: нужна сессия пользователя — у подключения нет сессии, это корень сервиса без `as()` или в командной строке ключ сервиса |
+| `confirmation_required` | `letopis_write` (MCP): удаление без подтверждения человека — клиент без elicitation, человек отказал, ответ не к этой операции или данные изменились после превью |
 | `removed` | снесённое API 0.21; в тексте — замена |
 
 Отказ PostgreSQL в праве (`42501`) приходит, например, при `upsert` поверх чужой строки, которую нельзя править.
@@ -2079,6 +2172,19 @@ npx letopis import --from postgres://…/old --from-schema v1.salon --dsn postgr
   задевшая цель, пишет её версию.
 - Агрегат арендатора не считает строки класса System, а поле строки System считает только источники System.
 
+**Агенты и MCP**
+
+- Обёртка `<untrusted-data-…>` — смягчение, а не защита: модель может последовать тексту внутри неё. Защищают права
+  базы: агент читает и пишет только то, что разрешено его пользователю. `structuredContent` ответа обёртки не несёт:
+  клиент, который отдаёт модели его, а не текст, передаёт данные без пояснения.
+- По умолчанию сервер только читает; запись — `write: true` (`--write`); удаление — только с подтверждением человека.
+- Обработчик HTTP в ревизии 2025 работает без состояния: экземпляр на запрос не знает возможностей клиента, поэтому
+  удаление по нему отклоняется (`confirmation_required`). Удаляйте по stdio или в ревизии 2026-07-28.
+- Подтверждение в ревизии 2026-07-28 подписано ключом процесса: повтор вызова, попавший в другой процесс приложения
+  (несколько экземпляров за балансировщиком), получает отказ `confirmation_required`.
+- `versions` отдаёт последние версии в пределах `maxRows` и `maxBytes`; более ранние — `diff` и `blame` с `from`, `to`,
+  `at`. Режим, в котором агент пишет код против API (code mode), в пакет не входит.
+
 **Импорт из 0.21**
 
 - 1.0 — новая major-версия, а не продолжение 0.21: `count()`, `paths()`, `create`, роли, множественные концы
@@ -2107,7 +2213,7 @@ npx letopis import --from postgres://…/old --from-schema v1.salon --dsn postgr
 # chain-write — запись цепочками: create, update, upsert, delete с превью, anonymize, reclass, слоты, inc, { rev }, fan-out, откат плана (этап 4)
 # demo — демо-домен booking на Zod: сид из моделей, запись данных, id по ключу, согласие Zod и базы (этап 2)
 # docs — примеры документации исполняются: помеченные блоки README и шпаргалки (русские и английские) — сценариями против PostgreSQL 18 (этап 8)
-# engine-attacks — атаки сырым SQL от прикладной роли: строки §7.3.1 этапов 1 и 3 с конкретными исходами; ключ сигналов без права, заливка поддельными сигналами, в том числе Class; запись в производный класс и ссылка на него, чекпоинт проектора через функции кредов (этапы 1, 3; план 1.1, этапы 2, 4а и точка А)
+# engine-attacks — атаки сырым SQL от прикладной роли: строки §7.3.1 этапов 1 и 3 с конкретными исходами; ключ сигналов без права, заливка поддельными сигналами, в том числе Class; запись в производный класс и ссылка на него, чекпоинт проектора через функции кредов; агент через MCP без --write и без подтверждения человека (этапы 1, 3; план 1.1, этапы 2, 4а, 5 и точка А)
 # engine-class — классы как сущности: метасхема, наследование, пересчёт потомков, ужесточение, метаданные (этап 1)
 # engine-write — конвейер записи сырым SQL: id v5, умолчания, merge, inc, удаление, воскрешение, журнал, сигналы (этап 1)
 # engine-races — гонки на двух соединениях в обоих порядках без пауз по времени (этап 1)
@@ -2146,6 +2252,7 @@ npx letopis import --from postgres://…/old --from-schema v1.salon --dsn postgr
 # signals — режимы сигналов: нагрузка у посторонней роли, точность кэша до арендатора, System, классы прав, процесс без ключа, загрузчик, подписка, ключ, none, склейка, версия сервера, смена класса, повтор отправки, режим после up() и reset({ all }) (план 1.1, этап 2)
 # initial-load — первая заливка: равенство с обычным загрузчиком, структура и режимы триггеров, системные строки, непустая схема, вставка во время запуска, откат, MULTI_INSERT в WAL, commitEvery, import --initial, агрегаты (agg_fill) (план 1.1, этапы 3 и 4б)
 # projector — проекторы из журнала: догонка, ровно один раз при обрыве, один писатель, долгая транзакция, транзакция на границе снимка перестройки, запрет записи в производные классы и ссылок на них, границы out, перестройка атомарная и пачками во время записи, purge источника, отставание и cursor_expired, функции кредов; версия, имя, администраторское подключение; гонка двух процессов (план 1.1, этап 4а)
+# mcp — инструменты MCP: модель и meta только в результатах, права арендатора, JSON-цепочка и подсказки похожих имён, предел строк и байт с курсором, обёртка недоверенных данных, запись только с write, update только с rev, удаление с подтверждением человека (elicitation в ревизиях 2025 и 2026-07-28), причина в blame, учётные данные, схемы инструментов, letopis без SDK; letopis mcp по stdio, обработчик HTTP (план 1.1, этап 5)
 # import — импорт из 0.21 по фикстуре настоящей 0.21: нарушение ключа, --keyless, счётчики по классам, verify, самоссылка, повтор, id без ключа, висячая ссылка, $$strict и поля на $, update, креды, CLI (этап 7)
 # security-final — итоговое ревью безопасности (этап 8, §7.10 №8.4): блокировка семейства по арендатору корня, account_purge без права и restore/purge чужого id не дают ни утечки, ни блокировки; функции этапа 6, log_refs_at, срезы find_* по журналу и watch_read не выходят за свой арендатор; NOTIFY несёт только имена или токены режима; ключ кэша различает токен, актора и арендатора (этап 8)
 ```

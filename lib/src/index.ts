@@ -12,6 +12,7 @@ import { LetopisError, fromDbError, removed } from './errors.js';
 import { Registry } from './registry.js';
 import { AclPasses, ExplicitTx, Notifier, poolExecutor, runTx, type Executor, type Tx, type TxContext } from './tx.js';
 import { checkReason } from './write.js';
+import { registerDb } from './internal.js';
 import { makeAuth, type AuthApi } from './auth.js';
 import { makeAcl, type AclApi } from './acl.js';
 import { idOf as idOfClass } from './uuid.js';
@@ -368,7 +369,7 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
     rollback: async (tr) => (tr ? tr.rollback() : tx ? tx.rollback() : noTx('rollback()')),
     close: () => (tx ? tx.rollback() : sh.close()),
   };
-  return new Proxy(core, {
+  const facade = new Proxy(core, {
     get(t, prop, r) {
       if (typeof prop === 'symbol' || prop in t) return Reflect.get(t, prop, r);
       switch (prop) {
@@ -387,6 +388,9 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
       return startStep(chainCtx, prop);
     },
   }) as Db;
+  // модули пакета (letopis/mcp) узнают обход RLS по самому подключению, а не со слов вызывающего (internal.ts)
+  registerDb(facade, { allTenants: sh.allTenants, explicit: Boolean(tx) });
+  return facade;
 }
 
 export function connect<const M extends readonly AnyModelLike[]>(opts: ConnectOptions & { models: M }): Promise<TypedDb<M>>;

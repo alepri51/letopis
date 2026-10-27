@@ -1,6 +1,7 @@
 /**
- * engine-attacks — атаки сырым SQL от прикладной роли (план, §7.3.1, строки этапа 1; план 1.1, §7.7 №31–32).
- * Каждая попытка проверяет конкретный исход: код ошибки, пустую выборку, ноль строк или находку verify().
+ * engine-attacks — атаки сырым SQL от прикладной роли (план, §7.3.1, строки этапа 1; план 1.1, §7.7 №31–35).
+ * Каждая попытка проверяет конкретный исход: код ошибки, пустую выборку, ноль строк или находку verify();
+ * №35 — агент через инструменты MCP (letopis/mcp).
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -8,6 +9,10 @@ import postgres from 'postgres';
 import { engine, lt, waitForLock, SYSTEM_ID, type Engine, type Tenant } from './_engine.js';
 import { appDsn } from './_harness.js';
 import { connect } from '../src/index.js';
+import { Client } from '@modelcontextprotocol/client';
+import { InMemoryTransport } from '@modelcontextprotocol/server';
+import { serveStdio } from '@modelcontextprotocol/server/stdio';
+import { createMcpServer } from '../src/mcp.js';
 
 let e: Engine;
 let a: Tenant;
@@ -505,4 +510,52 @@ test('№34 (план 1.1, этап 4): чекпоинт проектора че
   assert.equal((listed as { kind: string }[]).filter((c) => c.kind === 'PROJECTOR').length, 0);
   await assert.rejects(svc(`select * from ${S}.secret`), lt('42501'));
   assert.equal((await e.sql.unsafe(`select count(*)::int as n from ${S}.secret where kind = 'PROJECTOR' and deleted_at is null`))[0].n, 1, 'чекпоинт цел');
+});
+
+test('№35 (план 1.1, этап 5): агент через MCP пишет без --write, удаляет без подтверждения человека — отказ', async () => {
+  const db = await connect({ dsn: appDsn(), schema: e.schema, token: a.token, max: 2 });
+  // агент — клиент MCP; elicit — что ответит человек (нет — клиент без elicitation)
+  const agent = async (write: boolean, elicit?: 'decline') => {
+    const [ct, st] = InMemoryTransport.createLinkedPair();
+    const handle = serveStdio(() => createMcpServer(db, { write }), { transport: st });
+    const client = new Client({ name: 'agent', version: '1' }, { capabilities: elicit ? { elicitation: {} } : {} });
+    if (elicit) client.setRequestHandler('elicitation/create', async () => ({ action: elicit }));
+    await client.connect(ct);
+    const call = async (args: Record<string, unknown>) => (await client.callTool({ name: 'letopis_write', arguments: args }).then(
+      (r) => r as { isError?: boolean; structuredContent?: Record<string, any> }, () => ({ isError: true }))) as { isError?: boolean; structuredContent?: Record<string, any> };
+    return { call, close: async () => { await client.close(); await handle.close(); } };
+  };
+  try {
+    const [note] = await db.Note().create({ text: 'не удалять' }).rows();
+    const alive = async () => (await db.Note(note.id).first())?.data.text;
+    const ro = await agent(false);
+    try {
+      assert.equal((await ro.call({ op: 'create', class: 'Note', data: { text: 'от агента' } })).isError, true);
+      assert.equal((await ro.call({ op: 'delete', class: 'Note', id: note.id, confirm: true })).isError, true);
+    } finally {
+      await ro.close();
+    }
+    assert.equal(await db.Note({ text: 'от агента' }).count(), 0, 'без write записи нет');
+    const rw = await agent(true);
+    try {
+      const p = await rw.call({ op: 'delete', class: 'Note', id: note.id });
+      assert.equal(p.isError, undefined);
+      // код операции из превью, присланный агентом, — не подтверждение человека
+      const r = await rw.call({ op: 'delete', class: 'Note', id: note.id, confirm: true, operation: p.structuredContent!.operation });
+      assert.equal(r.isError, true);
+      assert.equal(r.structuredContent!.error.code, 'confirmation_required');
+      assert.equal((await rw.call({ op: 'update', class: 'Note', id: note.id, data: { text: 'без rev' } })).isError, true);
+    } finally {
+      await rw.close();
+    }
+    const declined = await agent(true, 'decline');
+    try {
+      assert.equal((await declined.call({ op: 'delete', class: 'Note', id: note.id, confirm: true })).isError, true);
+    } finally {
+      await declined.close();
+    }
+    assert.equal(await alive(), 'не удалять', 'строка цела');
+  } finally {
+    await db.close();
+  }
 });

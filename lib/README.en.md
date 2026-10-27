@@ -1723,6 +1723,96 @@ const modelText = describeText(model) // the same as text: for the application's
 metadata, plus the multi-field conditions `anyOf` and `oneOf` with inheritance applied, when a class has them. From
 the command line: `letopis describe --format text --out llms.txt`.
 
+### Agents and MCP
+
+An agent — Claude, Cursor or your own — works with the data through MCP tools: it learns the model, reads with
+chains, looks at the history and, if allowed, writes. The MCP server acts on behalf of one user and only with that
+user's rights: every call is a chain under the user's session, and the database checks rights and tenants. The agent
+has no raw SQL.
+
+| Tool | What it does |
+|---|---|
+| `letopis_model` | the model: classes, fields (JSON Schema), the `anyOf` and `oneOf` conditions, ends, keys, aliases, metadata; with `class`, one class in detail |
+| `letopis_query` | reading with a JSON chain: the start is `class` and `filter`, `id` or `ids`; `steps` are hops by roles and classes; `asOf`, `withDeleted`, `sort`, `limit`, `cursor`; the terminal is `rows`, `first`, `ids`, `count`, `sum`, `avg`, `min`, `max` or `countBy` |
+| `letopis_history` | `versions`, `diff` or `blame` of one object |
+| `letopis_write` | `create`, `update` (only with `rev`), `upsert`, `delete`, only with `write: true` (`letopis mcp --write`) |
+
+A `letopis_query` request is the same chain as `db.Product({ price: lt(1000) }).Shop().sort('data.name').rows()`, written as JSON:
+
+```json
+{ "class": "Product", "filter": { "price": { "$lt": 1000 } }, "steps": [{ "step": "Shop" }], "sort": { "field": "data.name" } }
+```
+
+A filter value means equality, a nested object addresses the fields of nested objects, `{ "Role": id }` is an end.
+Operators: `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$between`, `$in`, `$like`, `$ilike`, `$starts`, `$ends`, `$has`,
+`$hasAny`, `$hasAll`, `$exists`, `$isNull`, `$not`; OR is `{ "$or": [filter, …] }`. An unknown class, role, parameter
+or operator gives an `isError` answer with a hint of similar names.
+
+The answer is `structuredContent` and its text copy: at most `maxRows` rows (100) and `maxBytes` bytes (50,000);
+beyond that comes a `cursor`, and the same request with it returns the next page. Without `sort`, rows go by `id`. In
+the text of the answer, everything that came from the database (rows, names and descriptions of classes, error texts,
+hints) sits inside `<untrusted-data-…>` with a random suffix and a note that this is data, not instructions. Tool
+descriptions and the server's `instructions` are fixed text of the package: tenants write the `meta` of classes, so it
+only appears in results.
+
+Writing. `update` takes only the `rev` of the version that was read: someone else's version gives `conflict`, and no
+update is lost. `delete` without `confirm` returns a preview of the cascade and the operation code `operation`; with
+`confirm: true`, a human confirms the deletion in the client through elicitation (in protocol revision 2025 as a
+request to the client, in 2026-07-28 as an `input_required` answer), and the confirmation is bound to the hash of the
+operation. An operation code sent by the agent is not a confirmation; a client without elicitation gets the refusal
+`confirmation_required`. Every write gets the reason `mcp: letopis_write`, and `blame()` shows it.
+
+**stdio.** `letopis mcp` is a stdio server for MCP clients. It needs the SDK package: `npm i @modelcontextprotocol/server`
+(an optional peer dependency). The client passes the connection string, the schema and the token as flags or as the
+variables `LETOPIS_DSN`, `LETOPIS_SCHEMA`, `LETOPIS_TOKEN`; `--write` turns writing on. Only a user session token is
+accepted, and the application issues it: `svc.auth.sessionFor(user, { ttl })`, while `auth.switch(tenant)` sets the
+working tenant of the session. The command rejects the service key (`--api-key`): it grants all `auth.*` rights and
+would lie on the agent's machine. Client configuration (Claude Desktop, Claude Code, Cursor):
+
+```json
+{
+  "mcpServers": {
+    "letopis": {
+      "command": "npx",
+      "args": ["letopis", "mcp"],
+      "env": {
+        "LETOPIS_DSN": "postgres://shop_app:app-secret@localhost:5432/shop",
+        "LETOPIS_SCHEMA": "v2.shop",
+        "LETOPIS_TOKEN": "<user session token>"
+      }
+    }
+  }
+}
+```
+
+**HTTP.** There is no built-in HTTP server. `createMcpServer(db, { write, maxRows, maxBytes })` from `letopis/mcp`
+returns an MCP server, and the application plugs it into its own `createMcpHandler` handler from the SDK with its own
+OAuth 2.1 authorization: the application checks the request token and finds the letopis user by it. The connection
+is a user session (`connect({ token })`) or the facade `svc.as(user)`: the service key stays in the application
+process. A connection that bypasses RLS is refused with `bypass_rls`; the service root without `as()` and a connection
+without a session, with `user_session_required`.
+
+<!-- run: mcp -->
+```ts
+import { up, connect } from 'letopis'
+import { createMcpServer } from 'letopis/mcp'
+import { createMcpHandler } from '@modelcontextprotocol/server'
+
+const ADMIN = 'postgres://postgres:secret@localhost:5432/shop'
+const APP = 'postgres://shop_app:app-secret@localhost:5432/shop'
+const r = await up({ dsn: ADMIN, schema: 'shop', quiet: true,
+  tenant: { name: 'Chamomile', user: { name: 'Anna', login: 'anna@shop.ru', password: 'Chamomile-2026!' } } })
+const svc = await connect({ dsn: APP, schema: r.schema, apiKey: r.serviceKey! })
+
+// authInfo is the result of the application's check of the request token; it puts the letopis account id into extra
+const mcp = createMcpHandler(async ({ authInfo }) =>
+  createMcpServer(await svc.as(String(authInfo?.extra?.account), { tenant: r.tenant!.tenant })))
+// in the application's HTTP handler, after checking the token: return mcp.fetch(request, { authInfo })
+```
+
+The handler calls the factory on every HTTP request, so `createMcpServer` checks the connection every time (one query
+to the database).
+
 ### Raw SQL
 
 <!-- run: guide -->
@@ -1748,6 +1838,8 @@ letopis maintain --dsn <dsn> --schema <v2.name> [--token <token> | --api-key <ke
 letopis describe --dsn <dsn> --schema <v2.name> (--token <token> | --api-key <key>) [--format json|text] [--out <file>]
 letopis import --from <0.21 dsn> --from-schema <v1.name> --dsn <dsn> --schema <v2.name> [--tenant <name>] [--keyless <Class>]…
   [--rename <Old>=<New>]… [--update] [--commit-every <N>] [--partition <name>] [--initial]
+letopis mcp --dsn <dsn> --schema <v2.name> --token <user token> [--write]
+  (or LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; the service key --api-key is not accepted)
 ```
 
 ### Monitoring
@@ -1819,7 +1911,8 @@ The full machine-readable list of exports, methods and error texts is `docs/api-
 |---|---|
 | `letopis` | `connect`, `up`, `createTenant`; operators `ne`, `gt`, `gte`, `lt`, `lte`, `between`, `inList`, `like`, `ilike`, `starts`, `ends`, `has`, `hasAny`, `hasAll`, `exists`, `isNull`, `not`, `or`, `isOp`; `inc`, `isInc`, `cursorOf`; `idOf`, `uuidv5`, `v5Name`, `v5Id`; `LetopisError`, `ValidationError`, `fromDbError`; `syncModels`, `generateTypes`, `schemaToTs`; `compileValidator`, `applyDefaults`, `Registry`; `totpCode`, `hashPassword`, `verifyHash`; `describeText`; constants `DDL_REVISION`, `RESERVED_CLASS_NAMES`, `CHAIN_METHODS`, `DB_METHODS`; types `Db`, `DbTx`, `TypedDb`, `Chain`, `Row`, `Filter`, `Cursor`, `ConnectOptions`, `UpOptions`, `LoadOptions`, `LoadReport`, `WatchOptions`, `WatchEvent`, `AuthApi`, `AclApi` and others |
 | `letopis/model` | `hub`, `link`, `one`, `many`, `End`, types `Infer`, `InferLinks`, `Model`, `ClassDef`, `ClassMeta`, `HistoryPolicy`; `normalizeSchema`, `translatePattern`, type `JsonSchema` |
-| CLI `letopis` | `sync`, `types`, `load`, `verify`, `maintain`, `describe`, `import` ([section 13](#13-operations)) |
+| `letopis/mcp` | `createMcpServer`, the type `McpOptions`: MCP tools; needs the `@modelcontextprotocol/server` package ([section 13](#agents-and-mcp)) |
+| CLI `letopis` | `sync`, `types`, `load`, `verify`, `maintain`, `describe`, `import`, `mcp` ([section 13](#13-operations)) |
 
 Removed 0.21 names (`uuidv7`, `LETOPIS_NS` and the methods listed below) throw `removed` with the replacement.
 
@@ -1959,7 +2052,9 @@ Library codes:
 | `projector_busy` | a rebuild cannot start: the projector is running in another process right now |
 | `not_empty` | the initial load (`initial`) goes only into an empty schema |
 | `class_not_loadable` | the loader does not accept `Class` rows |
-| `bypass_rls` | `connect()` with a role that bypasses RLS, without `allowBypassRls` |
+| `bypass_rls` | `connect()` with a role that bypasses RLS, without `allowBypassRls`; `createMcpServer` with a connection that bypasses RLS |
+| `user_session_required` | `createMcpServer` and `letopis mcp`: a user session is needed — the connection has no session, it is the service root without `as()`, or the command line got the service key |
+| `confirmation_required` | `letopis_write` (MCP): a deletion without a human confirmation — the client has no elicitation, the human declined, the answer belongs to another operation, or the data changed after the preview |
 | `removed` | a removed 0.21 API; the text gives the replacement |
 
 A PostgreSQL permission denial (`42501`) comes, for example, on an `upsert` over someone else's row that you may not
@@ -2152,6 +2247,21 @@ behavior.
   valid. Every batch that touches a target writes its version.
 - A tenant aggregate does not count rows of a System class, and the field of a System row counts only System sources.
 
+**Agents and MCP**
+
+- The `<untrusted-data-…>` wrapper is a mitigation, not a protection: the model may follow the text inside it. The
+  protection is the rights in the database: the agent reads and writes only what its user is allowed to. The
+  `structuredContent` of an answer carries no wrapper: a client that gives the model that instead of the text passes
+  the data without the note.
+- By default the server only reads; writing is `write: true` (`--write`); deletion is only with a human confirmation.
+- The HTTP handler serves revision 2025 statelessly: the per-request instance does not know the client's
+  capabilities, so deletion through it is refused (`confirmation_required`). Delete over stdio or in revision
+  2026-07-28.
+- A confirmation in revision 2026-07-28 is signed with a process key: a retried call that lands in another process of
+  the application (several instances behind a load balancer) is refused with `confirmation_required`.
+- `versions` returns the latest versions within `maxRows` and `maxBytes`; earlier ones, through `diff` and `blame`
+  with `from`, `to`, `at`. A mode where the agent writes code against the API (code mode) is not part of the package.
+
 **Import from 0.21**
 
 - 1.0 is a new major version, not a continuation of 0.21: `count()`, `paths()`, `create`, roles, multiple ends and
@@ -2180,7 +2290,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # chain-write — writing with chains: create, update, upsert, delete with preview, anonymize, reclass, slots, inc, { rev }, fan-out, plan rollback (stage 4)
 # demo — the booking demo domain on Zod: seed from models, writing data, id by key, agreement between Zod and the database (stage 2)
 # docs — documentation examples are executed: the marked blocks of the README and the cheatsheet (Russian and English) run as scenarios against PostgreSQL 18 (stage 8)
-# engine-attacks — raw SQL attacks from the application role: the rows of §7.3.1 for stages 1 and 3 with specific outcomes; the signal key without permission, flooding with fake signals, Class included; writing to a derived class and a reference to it, a projector checkpoint through the credential functions (stages 1, 3; plan 1.1, stages 2, 4a and checkpoint A)
+# engine-attacks — raw SQL attacks from the application role: the rows of §7.3.1 for stages 1 and 3 with specific outcomes; the signal key without permission, flooding with fake signals, Class included; writing to a derived class and a reference to it, a projector checkpoint through the credential functions; an agent through MCP without --write and without a human confirmation (stages 1, 3; plan 1.1, stages 2, 4a, 5 and checkpoint A)
 # engine-class — classes as entities: metaschema, inheritance, recomputing descendants, tightening, metadata (stage 1)
 # engine-write — the write pipeline in raw SQL: v5 ids, defaults, merge, inc, deletion, resurrection, journal, signals (stage 1)
 # engine-races — races on two connections in both orders, without timed pauses (stage 1)
@@ -2219,6 +2329,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # signals — signal modes: the payload seen by a foreign role, cache precision per tenant, System, permission classes, a process without the key, the loader, subscriptions, the key, none, coalescing, the server version, a class change, a resend, the mode after up() and reset({ all }) (plan 1.1, stage 2)
 # initial-load — the initial load: equality with the regular loader, structure and trigger modes, system rows, a non-empty schema, an insert during the start, rollback, MULTI_INSERT in WAL, commitEvery, import --initial, aggregates (agg_fill) (plan 1.1, stages 3 and 4b)
 # projector — projectors from the journal: catching up, exactly once on a break, one writer, a long transaction, a transaction on the boundary of the rebuild snapshot, no writes to derived classes and no references to them, the bounds of out, atomic and batch rebuilds during source writes, purge of a source, lag and cursor_expired, the credential functions; the version, the name, an admin connection; a race of two processes (plan 1.1, stage 4a)
+# mcp — MCP tools: the model and meta only in results, tenant rights, the JSON chain and hints of similar names, row and byte limits with a cursor, the untrusted-data wrapper, writing only with write, update only with rev, deletion with a human confirmation (elicitation in revisions 2025 and 2026-07-28), the reason in blame, credentials, tool schemas, letopis without the SDK; letopis mcp over stdio, the HTTP handler (plan 1.1, stage 5)
 # import — import from 0.21 with a fixture of a real 0.21: key violation, --keyless, per-class counters, verify, self-reference, repeat, ids without a key, a dangling reference, $$strict and fields starting with $, update, credentials, CLI (stage 7)
 # security-final — the final security review (stage 8, §7.10 No. 8.4): a family lock by the tenant of the root, account_purge without permission and restore/purge of a foreign id give neither a leak nor a lock; the functions of stage 6, log_refs_at, journal-based find_* reads and watch_read stay within their own tenant; NOTIFY carries only names or mode tokens; the cache key distinguishes the token, the actor and the tenant (stage 8)
 ```

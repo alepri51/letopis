@@ -332,6 +332,20 @@ await db.Wallet(w).Payment().create({ opId: 'op-9', amount: 500 }).rows()   // �
 арендатора (строка System — нет). Ремонт — `adm.rebuildAggregates('Wallet')`, расхождения — `verify({ data: true })`.
 Горячий счётчик (тысячи записей в секунду на объект) — проектор со свёрткой пачкой, а не агрегат.
 
+### 14. Агенты и MCP
+
+Агенту — инструменты MCP под сессией пользователя (нужен `npm i @modelcontextprotocol/server`):
+```ts
+import { createMcpServer } from 'letopis/mcp'
+const server = await createMcpServer(await svc.as(userId))   // letopis_model, letopis_query, letopis_history; { write: true } — letopis_write
+// stdio: letopis mcp --dsn … --schema v2.x --token <токен пользователя> [--write]; HTTP — createMcpHandler(() => createMcpServer(…)) из SDK
+```
+Только сессия пользователя или `svc.as(пользователь)`: подключение в обход RLS — `bypass_rls`, корень сервиса без `as()`
+— `user_session_required`, `--api-key` командная строка не принимает. Чтение — JSON-цепочкой (`class`, `filter` с
+`$gt`, `$in`, `$or` и т. п., `steps`, `sort`, `cursor`), без SQL; ответ — до 100 строк и 50 КБ, дальше `cursor`.
+Запись — только `write: true`: `update` с `rev`; `delete` без `confirm` — превью, с `confirm` — подтверждение человека
+(elicitation), без него — `confirmation_required`. Данные из базы в ответе — внутри `<untrusted-data-…>`.
+
 ### Эксплуатация
 
 `db.verify({ data: true })` и `letopis verify` — цепочки хэшей, якорь; `db.maintain()` и `connect({ maintain: '1h' })` —

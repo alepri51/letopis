@@ -8,7 +8,8 @@
     },
     "exports": [
       ".",
-      "./model"
+      "./model",
+      "./mcp"
     ]
   },
   "exports": {
@@ -168,6 +169,14 @@
         "LostRule",
         "Model",
         "OnDelete"
+      ]
+    },
+    "./mcp": {
+      "values": [
+        "createMcpServer"
+      ],
+      "types": [
+        "McpOptions"
       ]
     }
   },
@@ -527,6 +536,14 @@
       "message": "letopis: removed: --trust снят в 1.0.0 — запрос по целям вне загрузки стоит 0,1–1,3 % её времени"
     },
     {
+      "module": "cli",
+      "message": "letopis: user_session_required: letopis mcp принимает только токен сессии пользователя (--token или LETOPIS_TOKEN): ключ сервиса даёт все права auth.* и не должен лежать на машине агента"
+    },
+    {
+      "module": "cli",
+      "message": "letopis: user_session_required: letopis mcp — нужен токен сессии пользователя: --token или LETOPIS_TOKEN"
+    },
+    {
       "module": "errors",
       "message": "letopis: <…>: <…>"
     },
@@ -537,6 +554,10 @@
     {
       "module": "index",
       "message": "letopis: администраторское подключение — RLS не действует, данные всех арендаторов видны"
+    },
+    {
+      "module": "mcp",
+      "message": "letopis.mcp: нужен пакет @modelcontextprotocol/server — npm i @modelcontextprotocol/server"
     },
     {
       "module": "pglite",

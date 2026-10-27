@@ -13,6 +13,8 @@
  *   letopis import --from <строка 0.21> --from-schema v1.x --dsn … --schema v2.x [--tenant <имя>] [--keyless C]…
  *     [--rename Старое=Новое]… [--update] [--commit-every N] [--partition p] [--initial]   — код 1, если verify нашёл расхождения
  *   --initial — первая заливка (план 1.1, §2.3): пустая схема, одна транзакция, индексы и триггеры — после загрузки
+ *   letopis mcp --dsn … --schema v2.x --token … [--write]   — сервер MCP по stdio (план 1.1, §2.5); dsn, schema и
+ *     token — ещё из LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; только токен пользователя: --api-key — отказ
  */
 import { parseArgs } from 'node:util';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -32,7 +34,9 @@ letopis verify --dsn <строка> --schema <v2.имя> [--token <токен> |
 letopis maintain --dsn <строка> --schema <v2.имя> [--token <токен> | --api-key <ключ>] [--batches <N>]
 letopis describe --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--format json|text] [--out <файл>]
 letopis import --from <строка 0.21> --from-schema <v1.имя> --dsn <строка> --schema <v2.имя> [--tenant <имя>] [--keyless <Класс>]…
-  [--rename <Старое>=<Новое>]… [--update] [--commit-every <N>] [--partition <имя>] [--initial]`;
+  [--rename <Старое>=<Новое>]… [--update] [--commit-every <N>] [--partition <имя>] [--initial]
+letopis mcp --dsn <строка> --schema <v2.имя> --token <токен пользователя> [--write]
+  (или LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; ключ сервиса --api-key не принимается)`;
 
 const isModel = (v: unknown): v is AnyModel => typeof v === 'object' && v !== null && typeof (v as AnyModel).describe === 'function' && typeof (v as AnyModel).name === 'string';
 
@@ -48,10 +52,16 @@ export async function main(argv: string[]): Promise<number> {
       format: { type: 'string' },
       from: { type: 'string' }, 'from-schema': { type: 'string' }, tenant: { type: 'string' }, partition: { type: 'string' },
       keyless: { type: 'string', multiple: true }, rename: { type: 'string', multiple: true }, update: { type: 'boolean' },
-      initial: { type: 'boolean' },
+      initial: { type: 'boolean' }, write: { type: 'boolean' },
     },
   });
   const [cmd, arg] = positionals;
+  // клиенты MCP передают строку подключения и токен окружением (план 1.1, §2.5) — только для этой команды
+  if (cmd === 'mcp') {
+    values.dsn ??= process.env.LETOPIS_DSN || undefined;
+    values.schema ??= process.env.LETOPIS_SCHEMA || undefined;
+    values.token ??= process.env.LETOPIS_TOKEN || undefined;
+  }
   if (values.help || !cmd || !values.dsn || !values.schema) {
     console.log(USAGE);
     return cmd ? 2 : 0;
@@ -73,6 +83,7 @@ export async function main(argv: string[]): Promise<number> {
     console.log(JSON.stringify(r, null, 2));
     return r.verify.ok ? 0 : 1;
   }
+  if (cmd === 'mcp') return mcp(values);
   // загрузчику нужно администраторское подключение (§2.6, п. 1)
   const db = await connect({ dsn: values.dsn, schema: values.schema, token: values.token, apiKey: values['api-key'], max: 2,
     // verify и maintain работают и на администраторском подключении без сессии
@@ -135,6 +146,42 @@ export async function main(argv: string[]): Promise<number> {
     }
     console.log(USAGE);
     return 2;
+  } finally {
+    await db.close();
+  }
+}
+
+/**
+ * letopis mcp (план 1.1, §2.5): сервер MCP по stdio от имени одного пользователя. Только токен сессии пользователя —
+ * ключ сервиса даёт все права auth.* (имперсонация, выпуск сессий) и лежал бы на машине агента. Модуль mcp.js и SDK
+ * грузятся только здесь: letopis --help и прочие команды работают без SDK. В stdout — только протокол (предупреждения
+ * connect() идут в stderr); процесс живёт, пока клиент не закроет stdin.
+ */
+async function mcp(v: { dsn?: string; schema?: string; token?: string; 'api-key'?: string; write?: boolean }): Promise<number> {
+  if (v['api-key'] !== undefined) {
+    console.error('letopis: user_session_required: letopis mcp принимает только токен сессии пользователя (--token или LETOPIS_TOKEN): ключ сервиса даёт все права auth.* и не должен лежать на машине агента');
+    return 2;
+  }
+  if (!v.token) {
+    console.error('letopis: user_session_required: letopis mcp — нужен токен сессии пользователя: --token или LETOPIS_TOKEN');
+    return 2;
+  }
+  const { createMcpServer } = await import('./mcp.js');
+  const db = await connect({ dsn: v.dsn!, schema: v.schema!, token: v.token, max: 4 });
+  try {
+    const opts = { write: v.write === true };
+    // учётные данные — до начала протокола: отказ виден кодом выхода и текстом в stderr
+    await createMcpServer(db, opts);
+    const { serveStdio } = await import('@modelcontextprotocol/server/stdio');
+    const closed = new Promise<void>((resolve) => {
+      process.stdin.once('end', resolve);
+      process.stdin.once('close', resolve);
+    });
+    // экземпляр сервера — на соединение (и на пробу server/discover): ревизию протокола выбирает клиент
+    const handle = serveStdio(() => createMcpServer(db, opts), { onerror: (e) => console.error(`letopis mcp: ${e.message}`) });
+    await closed;
+    await handle.close();
+    return 0;
   } finally {
     await db.close();
   }
