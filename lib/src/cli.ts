@@ -86,8 +86,9 @@ export async function main(argv: string[]): Promise<number> {
   if (cmd === 'mcp') return mcp(values);
   // загрузчику нужно администраторское подключение (§2.6, п. 1)
   const db = await connect({ dsn: values.dsn, schema: values.schema, token: values.token, apiKey: values['api-key'], max: 2,
-    // verify и maintain работают и на администраторском подключении без сессии
-    ...(cmd === 'load' || cmd === 'verify' || cmd === 'maintain' ? { allowBypassRls: true } : {}) });
+    // verify и maintain работают и на администраторском подключении без сессии; производные классы (derivedBy)
+    // синхронизирует администраторское подключение с сессией арендатора
+    ...(cmd === 'load' || cmd === 'verify' || cmd === 'maintain' || cmd === 'sync' ? { allowBypassRls: true } : {}) });
   try {
     if (cmd === 'sync') {
       if (!arg) { console.log(USAGE); return 2; }

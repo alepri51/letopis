@@ -618,6 +618,16 @@ begin
   -- владельца (сид, class_evolve, rekey_class) сюда не заходят. Описание до правки — для сравнения (нет — новый класс)
   select x.data into prevd from @SCHEMA@.entity x
   where x.class = 'Class' and x.tenant = p_tenant and x.data->>'name' = data->>'name';
+  -- производный класс (план 1.1, §2.4) заводит, меняет и удаляет только администратор (/security-review после точки Б):
+  -- проектор берёт арендатора в участники по его классам с пометкой и пишет туда итоги по всем строкам источников,
+  -- поэтому пользователь с правом WRITE на Class, заведя такой класс сам, читал бы итоги по строкам, которые ему читать
+  -- запрещено. Пометка своя или унаследованная, до правки или после; право letopis.projector — у администраторской роли
+  -- подключения и по правилам System (системный администратор — маска letopis.*)
+  if (data->'resolved' ? 'derivedBy' or coalesce(prevd->'resolved' ? 'derivedBy', false))
+     and not @SCHEMA@.letopis_allowed('letopis.projector') then
+    perform @SCHEMA@.lt_fail('acl_denied', format('класс %s производный: его описание задаёт только администратор (право letopis.projector)',
+      data->>'name'));
+  end if;
   -- агрегат развёрнутого описания (свой или унаследованный), новый или изменённый против прежнего — описание
   -- агрегата, новый потомок цели, смена parent, — задаёт только тот, кто без условий читает все строки каждого
   -- класса-источника: класса of и его потомков (agg_classes: классы арендатора, у класса System — классы System).
@@ -1206,7 +1216,11 @@ begin
   if denied is not null then
     perform @SCHEMA@.lt_fail('derived_class', format('класс %s производный: его строки удаляет проектор', denied));
   end if;
-  for r in select g.id, g.tenant, g.data->>'name' as name from gone g where g.class = 'Class' loop
+  for r in select g.id, g.tenant, g.data->>'name' as name, g.data->'resolved' ? 'derivedBy' as derived from gone g where g.class = 'Class' loop
+    -- производный класс удаляет только администратор (class_admit)
+    if r.derived and not @SCHEMA@.letopis_allowed('letopis.projector') then
+      perform @SCHEMA@.lt_fail('acl_denied', format('класс %s производный: его описание задаёт только администратор (право letopis.projector)', r.name));
+    end if;
     if exists (select 1 from @SCHEMA@.entity x where x.class = r.name and (x.tenant = r.tenant or r.tenant = '@SYSTEM@'::uuid))
        or exists (select 1 from @SCHEMA@.entity x where x.class = 'Class' and x.data->>'parent' = r.name
                   and (x.tenant = r.tenant or r.tenant = '@SYSTEM@'::uuid)) then

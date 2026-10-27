@@ -27,6 +27,16 @@ export interface Engine {
   /** Определить класс от имени арендатора; возвращает строку Class. */
   defineClass(t: Tenant, desc: Record<string, unknown>): Promise<postgres.Row>;
   /**
+   * Транзакция администраторского подключения с токеном сессии (null — без сессии): триггеры срабатывают, как у
+   * приложения, но роль подключения — администраторская (`admin_role()`), и RLS её не касается.
+   */
+  asAdmin<T>(token: string | null, fn: (tx: Sql) => Promise<T>): Promise<T>;
+  /**
+   * Определить производный класс (`derivedBy`, свой или унаследованный) от имени арендатора администраторским
+   * подключением: такие классы заводит только администратор (право letopis.projector).
+   */
+  defineDerived(t: Tenant, desc: Record<string, unknown>): Promise<postgres.Row>;
+  /**
    * Транзакция A для гонок: выполняет шаг и держит транзакцию открытой, пока тест не вызовет
    * finish(true) — фиксация, или finish(false) — откат.
    */
@@ -64,6 +74,12 @@ export async function engine(file: string, opts: { keep?: boolean; seeds?: strin
       return fn(tx as unknown as Sql);
     }) as Promise<T>;
 
+  const asAdmin = <T>(token: string | null, fn: (tx: Sql) => Promise<T>): Promise<T> =>
+    sql.begin(async (tx) => {
+      if (token) await tx`select set_config('letopis.token', ${token}, true)`;
+      return fn(tx as unknown as Sql);
+    }) as Promise<T>;
+
   return {
     sql,
     serviceKey: inst.serviceKey!,
@@ -85,6 +101,12 @@ export async function engine(file: string, opts: { keep?: boolean; seeds?: strin
     },
     async defineClass(t, desc) {
       const [row] = await as(t.token, (tx) =>
+        tx.unsafe(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb) returning *`, [desc as never]));
+      return row;
+    },
+    asAdmin,
+    async defineDerived(t, desc) {
+      const [row] = await asAdmin(t.token, (tx) =>
         tx.unsafe(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb) returning *`, [desc as never]));
       return row;
     },

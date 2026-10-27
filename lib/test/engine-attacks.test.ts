@@ -2,7 +2,7 @@
  * engine-attacks — атаки сырым SQL от прикладной роли (план, §7.3.1, строки этапа 1; план 1.1, §7.7 №31–35).
  * Каждая попытка проверяет конкретный исход: код ошибки, пустую выборку, ноль строк или находку verify();
  * №35 — агент через инструменты MCP (letopis/mcp); №36 — ревью безопасности №2 (смена parent, alias, derivedBy); №37 —
- * агент через MCP пишет классы прав, сессия системного администратора (О5).
+ * агент через MCP пишет классы прав, сессия системного администратора (О5); №38 и дальше — доработки после точки Б.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -480,7 +480,7 @@ test('№32 (план 1.1, этап 2): заливка канала поддел
 });
 
 test('№33 (план 1.1, этап 4): запись в производный класс и ссылка на него — derived_class; описание со ссылкой отклонено', async () => {
-  await e.defineClass(a, { name: 'Rollup', kind: 'hub', key: ['k'], derivedBy: 'rollup', history: false,
+  await e.defineDerived(a, { name: 'Rollup', kind: 'hub', key: ['k'], derivedBy: 'rollup', history: false,
     fields: { properties: { k: { type: 'string' } }, required: ['k'] } });
   const q = (sql: string, p: unknown[] = []) => e.as(a.token, (tx) => tx.unsafe(sql, p as never[]));
   await assert.rejects(q(`insert into ${S}.entity (class, data) values ('Rollup', '{"k": "x"}')`), lt('derived_class'));
@@ -619,4 +619,46 @@ test('№36 (ревью безопасности №2): право WRITE на Cl
   await assert.rejects(as(user, `insert into ${S}.entity (class, data) values ('Class', '{"name": "Memo", "kind": "hub", "alias": "Master"}')`), lt('invalid_class'));
   // правка, которая имён класса не меняет, прав на строки не требует
   assert.equal((await set('Note', { meta: { note: 'ok' } })).length, 1);
+});
+
+test('№38 (/security-review после точки Б): пользователь арендатора сам заводит производный класс и читает итоги по закрытым строкам — отказ; производный класс описывает только администратор', async () => {
+  const { sysadmin } = await import('./_access.js');
+  const { ADMIN_DSN } = await import('./_harness.js');
+  const { hub } = await import('../src/model.js');
+  const { syncModels } = await import('../src/sync.js');
+  const { z } = await import('zod');
+  const x = await e.tenant('x-derived');
+  const total = { kind: 'hub', key: ['k'], history: false, fields: { properties: { k: { type: 'string' }, n: { type: 'integer' } }, required: ['k'] } };
+  const derived = (n: number) => e.sql.unsafe(`select count(*)::int as n from ${S}.entity where class = 'Class' and tenant = $1 and data->'resolved' ? 'derivedBy'`, [x.id])
+    .then(([r]) => assert.equal(r.n, n));
+  // сессия приложения: свой производный класс — отказ, проектор такого арендатора участником не сделает
+  await assert.rejects(e.defineClass(x, { ...total, name: 'Spy', derivedBy: 'rollup' }), lt('acl_denied'));
+  await assert.rejects(e.defineClass(x, { ...total, name: 'Spy', derivedBy: 'rollup' }), /право letopis\.projector/);
+  await derived(0);
+  // администраторское подключение с сессией арендатора — заводит; потомок, правка и удаление из сессии приложения — отказ
+  await e.defineDerived(x, { ...total, name: 'Totals', derivedBy: 'rollup' });
+  await assert.rejects(e.defineClass(x, { kind: 'hub', name: 'TotalsKid', parent: 'Totals' }), lt('acl_denied'));
+  const q = (sql: string, p: unknown[] = []) => e.as(x.token, (tx) => tx.unsafe(sql, p as never[]));
+  await assert.rejects(q(`update ${S}.entity set data = data || '{"history": true}' where class = 'Class' and tenant = $1 and data->>'name' = 'Totals'`, [x.id]), lt('acl_denied'));
+  await assert.rejects(q(`update ${S}.entity set data = data - 'derivedBy' where class = 'Class' and tenant = $1 and data->>'name' = 'Totals'`, [x.id]), lt('acl_denied'));
+  await assert.rejects(q(`delete from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = 'Totals'`, [x.id]), lt('acl_denied'));
+  await derived(1);
+  await e.asAdmin(x.token, (tx) => tx.unsafe(`delete from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = 'Totals'`, [x.id]));
+  await derived(0);
+  // библиотека: syncModels на администраторском подключении с сессией арендатора — проходит, на подключении приложения — нет
+  const Model = hub('Synced', { k: z.string(), n: z.number().int() }, { key: ['k'], derivedBy: 'rollup', history: false });
+  const app = await connect({ dsn: appDsn(), schema: e.schema, token: x.token, max: 2 });
+  const adm = await connect({ dsn: ADMIN_DSN, schema: e.schema, token: x.token, allowBypassRls: true, max: 2 });
+  try {
+    await assert.rejects(syncModels(app, [Model], { apply: true }), lt('acl_denied'));
+    assert.deepEqual((await syncModels(adm, [Model], { apply: true })).created, ['Synced']);
+  } finally {
+    await app.close();
+    await adm.close();
+  }
+  await derived(1);
+  // системный администратор в System
+  const admin = await sysadmin(e, 'admin-derived');
+  await e.as(admin.token, (tx) => tx.unsafe(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [{ ...total, name: 'SysTotals', derivedBy: 'rollup' } as never]));
+  assert.equal((await e.sql.unsafe(`select count(*)::int as n from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = 'SysTotals'`, [SYSTEM_ID]))[0].n, 1);
 });

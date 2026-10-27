@@ -510,7 +510,9 @@ name of the class for a chain step, for example a name in another language.
   characters. The option is inherited, and a descendant does not change it. The ends of a derived class are only
   `onDelete: 'cascade'` or `'unset'`: a derived row does not prevent deleting its target. Nothing refers to the rows
   of a derived class. The application, raw SQL and the loader do not write to such a class: writing, editing and
-  deleting its rows gives `derived_class`.
+  deleting its rows gives `derived_class`. The derived class itself (own or inherited) is created, edited and deleted
+  only by an administrator — an admin connection or an account with the System permission `letopis.projector`; for an
+  application session it is `acl_denied` ([Projectors](#projectors)).
 - `aggregate: { field: { sum | count, of, via, where } }`: an aggregate in the database: the database itself keeps
   the sum or count of source rows ([Aggregates in the database](#aggregates-in-the-database)).
 
@@ -1446,6 +1448,11 @@ rules. An alias does not match the name of another class (including `Class` and 
 alias in the tenant and System, and the name of a new class does not match another class's alias: otherwise a rule
 written for one class would act on the rows of another too. A violation gives `invalid_class`.
 
+A derived class (`derivedBy`) is created, edited and deleted only by an administrator: an admin connection or an
+account with the System permission `letopis.projector` (the system administrator has it through the `letopis.*`
+mask). The projector writes totals over all source rows of the tenant into such a class, without read permissions,
+so a user who created it on their own would read totals over rows they may not read.
+
 ### Granting a permission
 
 Example: Oleg is a shop employee with the `staff` role, and employees may not delete products.
@@ -1694,13 +1701,16 @@ for await (const ev of sub) {             // ev: { cursor, row, id, class, op, r
 A projector builds rows of derived classes from the journal: summaries, denormalized cards and anything else that may
 be computed with a lag behind the writes. The application writes the source classes (`from`), and only the projector
 writes the rows of the `into` classes. Each `into` class is marked with the option `derivedBy` holding the projector
-name ([Class settings](#class-settings)). In the example below, the projector counts product sales from the order
-lines `line`.
+name ([Class settings](#class-settings)). Only an administrator creates derived classes: sync them with an admin
+connection holding a tenant session — `adm` from section 3 (`connect({ dsn: ADMIN, schema, token, allowBypassRls:
+true })`) or `as()` of a service on such a connection; in the CLI, `letopis sync` with the `--dsn` of the admin role.
+For an application session it is `acl_denied`. In the example below, the projector counts product sales from the
+order lines `line`.
 
 ```ts
 const ProductSales = hub('ProductSales', { qty: z.number().int(), revenue: z.number().int() }, {
   ends: { Product: one(Product).onDelete('cascade') }, key: ['Product'], derivedBy: 'product-sales', history: false,
-})                                               // the derived class is in the model, like the others (syncModels)
+})                                               // the derived class is in the model; syncModels — on an admin connection
 
 const sales = adm.projector('product-sales', {   // adm is an admin connection
   from: ['line'],                                // source classes with descendants; they must keep a journal
@@ -1804,7 +1814,8 @@ sales.close()                                    // stop() after the current bat
   without new changes does not expire. `status().lag` is the age of the oldest unprocessed change in ms.
 - A projector works with the tenants in which every `into` class is marked with its `derivedBy`; it skips the changes
   of other tenants, so a class with the same name and no mark in another tenant does not get in its way. No such tenant
-  at all — `derived_class`. Any tenant that marks its classes may become a participant. The option `tenants: [id, …]`
+  at all — `derived_class`. Only an administrator may mark the classes of a tenant, so it is the administrator who
+  chooses the participants: a tenant user cannot join a projector on their own. The option `tenants: [id, …]`
   is an explicit list of participants: the projector works only with these tenants (their `into` classes must be
   marked too) and ignores the marks of the others. The sources are the `from` families of these tenants; a class
   cannot be a source and a result at the same time. A projector does not see the changes of a class with
@@ -1841,7 +1852,8 @@ const Sale = hub('Sale', { day: z.iso.date(), amount: z.number().int().min(0) },
 const DayRevenue = hub('DayRevenue', { day: z.iso.date(), revenue: z.number().int(), sales: z.number().int() }, {
   ends: { Shop: one(Shop).onDelete('cascade') }, key: ['Shop', 'day'], derivedBy: 'day-revenue', history: false,
 })
-await syncModels(db, [Sale, DayRevenue], { apply: true })
+await syncModels(db, [Sale], { apply: true })
+await syncModels(adm, [DayRevenue], { apply: true })   // the derived class is created by an administrator: adm holds a tenant session
 
 const revenue = adm.projector('day-revenue', {
   from: ['Sale'], into: ['DayRevenue'], version: 1, withBefore: true,
@@ -2554,9 +2566,12 @@ behavior.
 **Projectors**
 
 - A projector is an admin process: it works only on an admin connection, reads the journal of all tenants bypassing
-  RLS and writes its results as the owner role. Keep it in a separate process, like the loader. Without the `tenants`
-  option, any tenant that marks its classes with the projector's `derivedBy` becomes a participant, and its changes go
-  to `handle` too.
+  RLS and writes its results as the owner role. Keep it in a separate process, like the loader. A participant of a
+  projector is a tenant in which all `into` classes are marked with its `derivedBy`; only an administrator may mark a
+  class (the `letopis.projector` permission).
+- The totals of a derived class are seen by everyone whom the tenant rules give `READ` on it — even by those who do not
+  read the source rows: decide who reads it with rules on the derived class itself. With `history: true`, its journal
+  shows the change of every batch, that is, the contribution of single source rows too.
 - Only their projector writes the rows of derived classes: the application, raw SQL and the loader get
   `derived_class`, and ends may not refer to such rows.
 - An atomic rebuild is one long write transaction: while it runs, the subscription horizon stands still, and events
@@ -2632,7 +2647,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # chain-write — writing with chains: create, update, upsert, delete with preview, anonymize, reclass, slots, inc, { rev }, fan-out, plan rollback (stage 4)
 # demo — the booking demo domain on Zod: seed from models, writing data, id by key, agreement between Zod and the database (stage 2)
 # docs — documentation examples are executed: the marked blocks of the README and the cheatsheet (Russian and English) run as scenarios against PostgreSQL 18 (stage 8)
-# engine-attacks — raw SQL attacks from the application role: the rows of §7.3.1 for stages 1 and 3 with specific outcomes; the signal key without permission, flooding with fake signals, Class included; writing to a derived class and a reference to it, a projector checkpoint through the credential functions; an agent through MCP without --write and without a human confirmation; a change of parent, alias and derivedBy of a class with the WRITE permission on Class alone; an agent through MCP grants a membership or a rule, a system administrator session (stages 1, 3; plan 1.1, stages 2, 4a, 5, checkpoint A, security review No. 2 and checkpoint B)
+# engine-attacks — raw SQL attacks from the application role: the rows of §7.3.1 for stages 1 and 3 with specific outcomes; the signal key without permission, flooding with fake signals, Class included; writing to a derived class and a reference to it, a projector checkpoint through the credential functions; an agent through MCP without --write and without a human confirmation; a change of parent, alias and derivedBy of a class with the WRITE permission on Class alone; an agent through MCP grants a membership or a rule, a system administrator session; a tenant user creates a derived class on their own (stages 1, 3; plan 1.1, stages 2, 4a, 5, checkpoint A, security review No. 2, checkpoint B and the work after it)
 # engine-class — classes as entities: metaschema, inheritance, recomputing descendants, tightening, metadata (stage 1)
 # engine-write — the write pipeline in raw SQL: v5 ids, defaults, merge, inc, deletion, resurrection, journal, signals (stage 1)
 # engine-races — races on two connections in both orders, without timed pauses (stage 1)

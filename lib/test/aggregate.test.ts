@@ -144,7 +144,7 @@ test('описание агрегата: поле, источник, роль, �
   await assert.rejects(q(x.token, `update ${e.S}.entity set data = data || $1::jsonb where class = 'Class' and tenant = $2 and data->>'name' = 'Ca'`,
     [{ aggregate: { n: { count: true, of: 'Cb', via: 'Ca' } } }, x.id]), lt('invalid_class'));
   // производный класс целью агрегата не бывает
-  await assert.rejects(e.defineClass(x, { name: 'Sum', kind: 'hub', derivedBy: 'p', fields: { properties: { n: { type: 'integer' } } },
+  await assert.rejects(e.defineDerived(x, { name: 'Sum', kind: 'hub', derivedBy: 'p', fields: { properties: { n: { type: 'integer' } } },
     aggregate: { n: { count: true, of: 'Ball', via: 'Box' } } }), lt('invalid_class'));
 });
 

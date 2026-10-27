@@ -315,7 +315,11 @@ npx letopis import --from "$ADMIN" --from-schema v1.fixture --dsn "$ADMIN" --sch
 ### 12. Проекторы
 
 Проектор строит строки производных классов из журнала: сводки, карточки, всё, что можно считать с отставанием.
-Производный класс помечен `derivedBy: 'имя-проектора'`, и его строки пишет только этот проектор.
+Производный класс помечен `derivedBy: 'имя-проектора'`, и его строки пишет только этот проектор. Сам производный
+класс (свой или унаследованный) заводит, меняет и удаляет только администратор: `syncModels` администраторским
+подключением с сессией арендатора (`connect({ dsn: ADMIN, schema, token, allowBypassRls: true })`) или аккаунт с
+правом System `letopis.projector`; у сессии приложения — `acl_denied`. Итоги производного класса видит каждый, кому
+правила дают `READ` на него, даже без прав на строки источников.
 ```ts
 const p = adm.projector('daily', { from: ['Payment'], into: ['DayTotal'], version: 1, withBefore: true,
   handle(changes, out) { /* out.inc, out.upsert, out.delete, await out.get — классы into, { tenant: c.tenant } */ } })

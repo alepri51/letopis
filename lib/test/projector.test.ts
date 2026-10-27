@@ -31,14 +31,14 @@ before(async () => {
   for (const x of [t, u]) {
     await e.defineClass(x, { name: 'Sale', kind: 'hub',
       fields: { properties: { day: { type: 'string' }, amount: { type: 'integer' } }, required: ['day', 'amount'] } });
-    await e.defineClass(x, { name: 'DayTotal', kind: 'hub', key: ['day'], derivedBy: 'daily', history: false,
+    await e.defineDerived(x, { name: 'DayTotal', kind: 'hub', key: ['day'], derivedBy: 'daily', history: false,
       fields: { properties: { day: { type: 'string' }, total: { type: 'integer' }, count: { type: 'integer' } }, required: ['day'] } });
   }
-  await e.defineClass(t, { name: 'Probe', kind: 'hub', key: ['tag'], derivedBy: 'probe', history: false,
+  await e.defineDerived(t, { name: 'Probe', kind: 'hub', key: ['tag'], derivedBy: 'probe', history: false,
     fields: { properties: { tag: { type: 'string' }, n: { type: 'integer' } }, required: ['tag'] } });
   await e.defineClass(t, { name: 'Gauge', kind: 'hub', history: { all: '1 day', daily: 'forever' },
     fields: { properties: { v: { type: 'integer' } }, required: ['v'] } });
-  await e.defineClass(t, { name: 'GaugeSum', kind: 'hub', key: ['k'], derivedBy: 'lagger', history: false,
+  await e.defineDerived(t, { name: 'GaugeSum', kind: 'hub', key: ['k'], derivedBy: 'lagger', history: false,
     fields: { properties: { k: { type: 'string' }, total: { type: 'integer' } }, required: ['k'] } });
   db = await connect({ dsn: appDsn(), schema: e.schema, token: t.token, max: 4 });
   udb = await connect({ dsn: appDsn(), schema: e.schema, token: u.token, max: 2 });
@@ -78,6 +78,9 @@ async function totals(d: Db): Promise<Totals> {
 }
 async function expected(d: Db): Promise<Totals> {
   const out: Totals = {};
+  // реестр подключения перечитывается по сигналу Class не чаще раза в 5 с: без этого Sale() не видел бы потомка,
+  // описанного только что (Gift), а проектор его видит
+  await d.refresh();
   for (const r of await d.Sale().limit(100_000).rows()) {
     const s = r.data as unknown as Sale;
     const x = (out[s.day] ??= { total: 0, count: 0 });
@@ -205,12 +208,12 @@ test('7.5 №6: производный класс — приложение и с
   await assert.rejects(e.defineClass(t, { name: 'TotalNote', kind: 'hub', fields: { properties: {} }, ends: { Total: { class: 'DayTotal' } } }), lt('derived_class'));
   await e.defineClass(t, { name: 'Shop', kind: 'hub', key: ['name'], fields: { properties: { name: { type: 'string' } }, required: ['name'] } });
   await e.defineClass(t, { name: 'Shelf', kind: 'hub', fields: { properties: {} }, ends: { Shop: { class: 'Shop' } } });
-  await assert.rejects(e.as(t.token, (tx) => tx.unsafe(`update ${e.S}.entity set data = data || '{"derivedBy": "daily"}'
+  await assert.rejects(e.asAdmin(t.token, (tx) => tx.unsafe(`update ${e.S}.entity set data = data || '{"derivedBy": "daily"}'
     where class = 'Class' and tenant = $1 and data->>'name' = 'Shop'`, [t.id])), lt('derived_class'));
   // конец предка: производный потомок не годится целью
   await e.defineClass(t, { name: 'Doc', kind: 'hub', fields: { properties: { title: { type: 'string' } } } });
   // строку DocD тест пишет от владельца без журнала — класс без истории
-  await e.defineClass(t, { name: 'DocD', kind: 'hub', parent: 'Doc', derivedBy: 'docs', history: false, fields: { properties: {} } });
+  await e.defineDerived(t, { name: 'DocD', kind: 'hub', parent: 'Doc', derivedBy: 'docs', history: false, fields: { properties: {} } });
   await e.defineClass(t, { name: 'DocRef', kind: 'hub', fields: { properties: {} }, ends: { Doc: { class: 'Doc' } } });
   await db.refresh();
   const [d] = await e.asOwner((tx) => tx.unsafe(`insert into ${e.S}.entity (id, rev, class, tenant, owner, data, at, created_at, author, op)
@@ -218,7 +221,7 @@ test('7.5 №6: производный класс — приложение и с
   await assert.rejects(db.DocRef().create({}).Doc.set(d.id as string).rows(), lt('derived_class'));
   await assert.rejects(e.as(t.token, (tx) => tx.unsafe(`insert into ${e.S}.entity (class, data, links) values ('DocRef', '{}', $1::jsonb)`, [{ Doc: d.id } as never])), lt('derived_class'));
   // концы производного класса не мешают удалять цели
-  await assert.rejects(e.defineClass(t, { name: 'BadDerived', kind: 'hub', derivedBy: 'daily', fields: { properties: {} }, ends: { Shop: { class: 'Shop' } } }), lt('invalid_class'));
+  await assert.rejects(e.defineDerived(t, { name: 'BadDerived', kind: 'hub', derivedBy: 'daily', fields: { properties: {} }, ends: { Shop: { class: 'Shop' } } }), lt('invalid_class'));
   // загрузчик: строки производного класса и ссылки на производные строки
   await assert.rejects(adm.load({ DayTotal: [{ day: 'z' }] }, { tenant: t.id }), lt('derived_class'));
   await assert.rejects(adm.load({ DocRef: [{ Doc: d.id }] }, { tenant: t.id }), lt('derived_class'));
@@ -380,9 +383,9 @@ test('ревью: одноимённый класс без derivedBy у друг
 
 test('ревью: имя производного класса одного арендатора не выключает одноимённый источник другого', async () => {
   const w = await e.tenant('proj-w');
-  await e.defineClass(w, { name: 'DayTotal', kind: 'hub', key: ['day'], derivedBy: 'daily', history: false,
+  await e.defineDerived(w, { name: 'DayTotal', kind: 'hub', key: ['day'], derivedBy: 'daily', history: false,
     fields: { properties: { day: { type: 'string' }, total: { type: 'integer' }, count: { type: 'integer' } }, required: ['day'] } });
-  await e.defineClass(w, { name: 'Gift', kind: 'hub', parent: 'DayTotal', fields: { properties: {} } });
+  await e.defineDerived(w, { name: 'Gift', kind: 'hub', parent: 'DayTotal', fields: { properties: {} } });
   await e.defineClass(w, { name: 'Sale', kind: 'hub', fields: { properties: { day: { type: 'string' }, amount: { type: 'integer' } }, required: ['day', 'amount'] } });
   await e.defineClass(t, { name: 'Gift', kind: 'hub', parent: 'Sale', fields: { properties: {} } });
   await e.as(t.token, (tx) => tx.unsafe(`insert into ${e.S}.entity (class, data) values ('Gift', '{"day": "gift", "amount": 3}')`));
@@ -396,12 +399,12 @@ test('ревью безопасности №2, Н1: ошибка данных �
   // арендатор x сам стал участником проектора daily: его DayTotal с maximum: 0 не примет ни одной суммы
   const x = await e.tenant('proj-x');
   await e.defineClass(x, { name: 'Sale', kind: 'hub', fields: { properties: { day: { type: 'string' }, amount: { type: 'integer' } }, required: ['day', 'amount'] } });
-  await e.defineClass(x, { name: 'DayTotal', kind: 'hub', key: ['day'], derivedBy: 'daily', history: false,
+  await e.defineDerived(x, { name: 'DayTotal', kind: 'hub', key: ['day'], derivedBy: 'daily', history: false,
     fields: { properties: { day: { type: 'string' }, total: { type: 'integer', maximum: 0 }, count: { type: 'integer' } }, required: ['day'] } });
   // у арендатора y сумма продажи — строка: handle передаёт её в out.inc, и out отклоняет приращение
   const y = await e.tenant('proj-y');
   await e.defineClass(y, { name: 'Sale', kind: 'hub', fields: { properties: { day: { type: 'string' }, amount: { type: 'string' } }, required: ['day', 'amount'] } });
-  await e.defineClass(y, { name: 'DayTotal', kind: 'hub', key: ['day'], derivedBy: 'daily', history: false,
+  await e.defineDerived(y, { name: 'DayTotal', kind: 'hub', key: ['day'], derivedBy: 'daily', history: false,
     fields: { properties: { day: { type: 'string' }, total: { type: 'integer' }, count: { type: 'integer' } }, required: ['day'] } });
   const xdb = await connect({ dsn: appDsn(), schema: e.schema, token: x.token, max: 2 });
   const p = adm.projector('daily', dailyDef({ version: 2 }));
@@ -438,7 +441,7 @@ test('ревью безопасности №2, Н1: ошибка данных �
     await assert.rejects(p.rebuild({ tenant: x.id }), lt('invalid_data'));
     assert.equal((await p.status()).failed[x.id]?.code, 'invalid_data');
     // ограничение снято — rebuild({ tenant }) строит x из его текущих строк и снимает отметку
-    await e.as(x.token, (tx) => tx.unsafe(`update ${e.S}.entity set data = jsonb_set(data, '{fields,properties,total}', '{"type": "integer"}')
+    await e.asAdmin(x.token, (tx) => tx.unsafe(`update ${e.S}.entity set data = jsonb_set(data, '{fields,properties,total}', '{"type": "integer"}')
       where class = 'Class' and tenant = $1 and data->>'name' = 'DayTotal'`, [x.id]));
     assert.equal((await p.rebuild({ tenant: x.id })).rebuilds, 1);
     assert.deepEqual(await totals(xdb), { x1: { total: 6, count: 2 } });
@@ -475,7 +478,7 @@ test('ревью безопасности №2, Н1: арендатор, выб�
   // первая строка проходит, вторая — нет
   const z = await e.tenant('proj-z');
   await e.defineClass(z, { name: 'Sale', kind: 'hub', fields: { properties: { day: { type: 'string' }, amount: { type: 'integer' } }, required: ['day', 'amount'] } });
-  await e.defineClass(z, { name: 'DayTotal', kind: 'hub', key: ['day'], derivedBy: 'zdaily', history: false,
+  await e.defineDerived(z, { name: 'DayTotal', kind: 'hub', key: ['day'], derivedBy: 'zdaily', history: false,
     fields: { properties: { day: { type: 'string' }, total: { type: 'integer', maximum: 0 }, count: { type: 'integer' } }, required: ['day'] } });
   const zdb = await connect({ dsn: appDsn(), schema: e.schema, token: z.token, max: 2 });
   await insSale(z.token, { day: 'z0', amount: 0 });
@@ -496,7 +499,7 @@ test('ревью безопасности №2, Н1: арендатор, выб�
 });
 
 test('ревью безопасности №2, О1: строка PROJECTOR другого аккаунта — не чекпоинт: подложенная не мешает проектору, накат её удаляет', async () => {
-  await e.defineClass(t, { name: 'Mark', kind: 'hub', key: ['k'], derivedBy: 'marker', history: false,
+  await e.defineDerived(t, { name: 'Mark', kind: 'hub', key: ['k'], derivedBy: 'marker', history: false,
     fields: { properties: { k: { type: 'string' }, n: { type: 'integer' } }, required: ['k'] } });
   const fake = { cursor: '1:0', version: 1, state: 'running', at: new Date().toISOString() };
   const plant = async (ident: string) => (await e.asOwner((tx) => tx.unsafe(`insert into ${e.S}.secret (account, kind, ident, meta)
@@ -516,6 +519,7 @@ test('ревью безопасности №2, О1: строка PROJECTOR др
     assert.ok(was.deleted_at, 'чужая строка помечена удалённой');
     assert.deepEqual(was.meta, fake, 'и не тронута проектором');
     const [mark] = await e.sql.unsafe(`select data from ${e.S}.entity where class = 'Mark' and tenant = $1`, [t.id]);
+    await db.refresh();
     assert.equal(mark.data.n, await db.Sale().count());
     assert.equal((await p.status()).cursor, own.meta.cursor);
   } finally {
@@ -530,7 +534,7 @@ test('ревью безопасности №2, О1: строка PROJECTOR др
 
 test('ревью безопасности №2, О2: перестройка удаляет строки только участников и только семейств into', async () => {
   // класс с пометкой daily вне семейства into: его строку проектор не строил и при перестройке не удаляет
-  await e.defineClass(t, { name: 'Stray', kind: 'hub', key: ['k'], derivedBy: 'daily', history: false,
+  await e.defineDerived(t, { name: 'Stray', kind: 'hub', key: ['k'], derivedBy: 'daily', history: false,
     fields: { properties: { k: { type: 'string' } }, required: ['k'] } });
   await e.asOwner((tx) => tx.unsafe(`select ${e.S}.derived_apply('daily', $1::text::jsonb)`,
     [JSON.stringify([{ op: 'upsert', class: 'Stray', tenant: t.id, row: { k: 'keep' } }])]));
@@ -550,7 +554,7 @@ test('ревью безопасности №2, О2: перестройка уд
 test('ревью безопасности №2: before — прошлая версия того же id; rekey строки источника — итог свёртки верный', async () => {
   await e.defineClass(t, { name: 'Order', kind: 'hub', key: ['code'],
     fields: { properties: { code: { type: 'string' }, day: { type: 'string' }, amount: { type: 'integer' } }, required: ['code', 'day', 'amount'] } });
-  await e.defineClass(t, { name: 'OrderDay', kind: 'hub', key: ['day'], derivedBy: 'orders', history: false,
+  await e.defineDerived(t, { name: 'OrderDay', kind: 'hub', key: ['day'], derivedBy: 'orders', history: false,
     fields: { properties: { day: { type: 'string' }, total: { type: 'integer' }, count: { type: 'integer' } }, required: ['day'] } });
   await db.refresh();
   const seen: ProjectorChange[] = [];
@@ -594,7 +598,7 @@ const tickSum = (changes: ProjectorChange[], out: ProjectorOut) => {
 const tickerDef = (extra: Partial<ProjectorOptions> = {}): ProjectorOptions => ({ from: ['Tick'], into: ['TickSum'], version: 1, handle: tickSum, ...extra });
 async function tickTenant(x: Tenant, history: unknown): Promise<void> {
   await e.defineClass(x, { name: 'Tick', kind: 'hub', history, fields: { properties: { v: { type: 'integer' } }, required: ['v'] } });
-  await e.defineClass(x, { name: 'TickSum', kind: 'hub', key: ['k'], derivedBy: 'ticker', history: false,
+  await e.defineDerived(x, { name: 'TickSum', kind: 'hub', key: ['k'], derivedBy: 'ticker', history: false,
     fields: { properties: { k: { type: 'string' }, total: { type: 'integer' } }, required: ['k'] } });
 }
 const tick = (x: Tenant, v: number) => e.as(x.token, (tx) => tx.unsafe(`insert into ${e.S}.entity (class, data) values ('Tick', $1::jsonb)`, [{ v } as never]));
@@ -702,7 +706,7 @@ test('ревью безопасности №2: источник без журн
 async function foldTenant(x: Tenant, projector: string): Promise<void> {
   await e.defineClass(x, { name: 'Fold', kind: 'hub',
     fields: { properties: { k: { type: 'string' }, v: { type: 'integer' }, op: { type: 'string' }, label: { type: 'string' } }, required: ['k', 'v'] } });
-  await e.defineClass(x, { name: 'FoldSum', kind: 'hub', key: ['k'], derivedBy: projector, history: false,
+  await e.defineDerived(x, { name: 'FoldSum', kind: 'hub', key: ['k'], derivedBy: projector, history: false,
     fields: { properties: { k: { type: 'string' }, total: { type: 'integer', minimum: 0 }, label: { type: 'string' } }, required: ['k'] } });
 }
 const fold = (x: Tenant, d: { k: string; v: number; op?: string; label?: string }) =>
