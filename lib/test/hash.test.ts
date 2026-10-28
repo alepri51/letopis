@@ -114,7 +114,7 @@ test('7.3.7 №4: законные разрывы этапа 6 — purge, обр
   assert.equal(v.ok, true, JSON.stringify(v.issues));
 });
 
-test('доработки после 1.2.0: link_ids на plpgsql с быстрым путём — побайтно как прежнее SQL-тело на краевых и случайных концах', async () => {
+test('доработки после 1.2.0: link_ids — побайтно как эталонное тело на краевых и случайных концах (страж правок тела)', async () => {
   const S = e.S;
   await e.asOwner((tx) => tx.unsafe(`create or replace function ${S}.link_ids_ref(links jsonb) returns uuid[] language sql immutable return (
     select coalesce(array_agg(distinct (v #>> '{}')::uuid order by (v #>> '{}')::uuid), '{}'::uuid[])

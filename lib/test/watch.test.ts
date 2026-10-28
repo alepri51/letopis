@@ -189,8 +189,11 @@ test('хвост ревью безопасности №3: уход строки
   const move = (id: string, cls: string) => q(`update ${e.S}.entity set class = $2 where id = $1`, [id, cls]);
   const xdb = await connect({ dsn: appDsn(), schema: e.schema, token: await session(e, reader.id, { tenant: x.id }), max: 2, notifyIntervalMs: 10 });
   const sub = xdb.watch({ from: 'now', classes: ['Inbox'], pollMs: 20 });
+  // новый класс входит в подписку, но подписчику не виден — тоже надгробие (иначе перебором классов он узнал бы класс)
+  const sub2 = xdb.watch({ from: 'now', classes: ['Inbox', 'Vault'], pollMs: 20 });
   try {
     await sub.ready();
+    await sub2.ready();
     const a = await ins('Inbox', 1);
     const b = await ins('Inbox', 2);
     await move(a, 'Archive');
@@ -198,6 +201,8 @@ test('хвост ревью безопасности №3: уход строки
     const evs = await take(sub, 4);
     assert.deepEqual(evs.map((v) => [v.id, v.op, v.class]), [[a, 'create', 'Inbox'], [b, 'create', 'Inbox'], [a, 'delete', 'Inbox'], [b, 'delete', 'Inbox']],
       'уход — событием удаления в прежнем классе, и когда новый класс подписчику не виден');
+    assert.deepEqual((await take(sub2, 4)).map((v) => [v.id, v.op, v.class]), evs.map((v) => [v.id, v.op, v.class]));
+    assert.equal(evs[3].row.author ?? null, null, 'автор невидимой версии смены класса не отдаётся');
     assert.equal(evs[2].row.$deleted, true);
     assert.equal((evs[2].row.data as { n: number }).n, 1, 'прежние данные');
     // уход строки в чужом арендаторе (прежнюю версию подписчик не видит) — события нет; вход строки в класс — обычное
@@ -211,6 +216,7 @@ test('хвост ревью безопасности №3: уход строки
     assert.deepEqual([next.id, next.op, next.class], [d, 'reclass', 'Inbox']);
   } finally {
     await sub.close();
+    await sub2.close();
     await xdb.close();
   }
 });

@@ -6,23 +6,16 @@
 revoke all on schema @SCHEMA@ from public;
 grant usage on schema @SCHEMA@ to @APP@;
 
--- Все цели концов плоским списком: {роль: id} или {роль: [id, …]}. Тело на plpgsql с быстрым путём для строки без
--- концов (доработки после 1.2.0, этап 4): SQL-тело с подзапросом не встраивается и на каждую строку исполнялось целиком;
--- результат побайтно прежний (тест hash, бенч gencols), поэтому колонка ends и индекс log_ends остаются верными
+-- Все цели концов плоским списком: {роль: id} или {роль: [id, …]}. Тело — SQL-стандарта (return): имена связываются
+-- при создании и от search_path сеанса не зависят, а колонку ends вычисляет роль приложения. Вариант на plpgsql быстрее
+-- на 17 % (бенч gencols), но его имена разрешались бы при исполнении (ревью безопасности доработок после 1.2.0)
 create or replace function @SCHEMA@.link_ids(links jsonb) returns uuid[]
-language plpgsql immutable parallel safe
-as $$
-declare
-  r uuid[];
-begin
-  if links is null or links = '{}'::jsonb then
-    return '{}'::uuid[];
-  end if;
+language sql immutable parallel safe
+return (
   -- lax $.*[*]: значения концов, массивы разворачиваются, одиночная строка остаётся собой
-  select coalesce(array_agg(distinct (v #>> '{}')::uuid order by (v #>> '{}')::uuid), '{}'::uuid[]) into r
-  from jsonb_path_query(links, 'lax $.*[*]') as v;
-  return r;
-end $$;
+  select coalesce(array_agg(distinct (v #>> '{}')::uuid order by (v #>> '{}')::uuid), '{}'::uuid[])
+  from jsonb_path_query(coalesce(links, '{}'::jsonb), 'lax $.*[*]') as v
+);
 
 -- Снимок версии для хэша (§2.2). Не зависит от настроек сеанса: время — числом микросекунд,
 -- остальное — через текстовый вид jsonb, который от настроек не зависит.

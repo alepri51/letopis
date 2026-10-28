@@ -340,6 +340,7 @@ declare
   r @SCHEMA@.log;
   first @SCHEMA@.log;
   nxt record;
+  late record;
   j int;
   h bytea;
   k int;
@@ -387,9 +388,12 @@ begin
     -- проектор источника, чей курсор ещё не прошёл первую оставшуюся версию: читая её, он возьмёт прошлую версию для
     -- before, а её уже не будет — свёртка прибавила бы новую, не вычитая прежнюю (хвост ревью безопасности №3). Класс —
     -- обеих версий у стыка: строка могла уйти из семейства источников сменой класса
-    select x.tx, x.seq, x.class into nxt from @SCHEMA@.log x where x.id = r.id and x.rev > j order by x.rev limit 1;
+    select x.rev, x.class into nxt from @SCHEMA@.log x where x.id = r.id and x.rev > j order by x.rev limit 1;
+    -- позиция — самая поздняя по (tx, seq) среди стираемых версий и первой оставшейся: у более поздней версии бывает
+    -- меньший xid (автоматическое ревью)
+    select x.tx, x.seq into late from @SCHEMA@.log x where x.id = r.id and x.rev <= nxt.rev order by x.tx desc, x.seq desc limit 1;
     if @SCHEMA@.projector_behind(r.tenant, array[(select x.class from @SCHEMA@.log x where x.id = r.id and x.rev = j), nxt.class],
-                                 nxt.tx, nxt.seq) then
+                                 late.tx, late.seq) then
       perform @SCHEMA@.lt_fail('projector_pending', 'проектор источника ещё не прочёл версии: trimHistory — после его run()');
     end if;
     select x.hash into h from @SCHEMA@.log x where x.id = r.id and x.rev = j;
@@ -1075,14 +1079,18 @@ begin
   if a is null then
     return;
   end if;
-  return query select l.seq, l.tx, p.id, l.rev, p.class, p.cv, p.tenant, p.owner, p.links, p.data, p.tags, l.at, l.author,
-      null::text, 'delete'::text, null::text, null::uuid, null::bytea, null::bytea, null::jsonb
+  -- новую версию актор не видит — надгробие при любом p_classes и без автора: перебором классов подписки он узнал бы её
+  -- класс (автоматическое ревью доработок после 1.2.0)
+  return query select l.seq, l.tx, p.id, l.rev, p.class, p.cv, p.tenant, p.owner, p.links, p.data, p.tags, l.at,
+      case when v.seen then l.author end, null::text, 'delete'::text, null::text, null::uuid, null::bytea, null::bytea, null::jsonb
     from @SCHEMA@.log l
     cross join lateral (select x.* from @SCHEMA@.log x where x.id = l.id and x.rev < l.rev and x.op not in ('purge', 'trim', 'reset')
                         order by x.rev desc limit 1) p
+    cross join lateral (select @SCHEMA@.row_visible(l.tenant, l.class, l.id, l.owner, l.tags, l.data, l.links,
+                               (a->>'tenant')::uuid, (a->>'account')::uuid, a->'plan') as seen) v
     where (l.tx, l.seq) > (p_tx, p_seq) and l.tx < horizon
       and (p_upto_tx is null or (l.tx, l.seq) <= (p_upto_tx, p_upto_seq))
-      and l.op = 'reclass' and l.moved is null and not (l.class = any (p_classes))
+      and l.op = 'reclass' and l.moved is null and (not (l.class = any (p_classes)) or not v.seen)
       and p.class = any (p_classes) and p.op <> 'delete'
       and (p_snap is null or not pg_visible_in_snapshot(l.tx, p_snap))
       and @SCHEMA@.row_visible(p.tenant, p.class, p.id, p.owner, p.tags, p.data, p.links,

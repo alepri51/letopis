@@ -169,25 +169,31 @@ export class Subscription implements AsyncIterable<WatchEvent> {
     const cols = `l.tx::text as tx, l.seq::text as seq, jsonb_build_object('id', l.id, 'rev', l.rev, 'class', l.class, 'tenant', l.tenant, `
       + `'owner', l.owner, 'links', l.links, 'data', l.data, 'tags', l.tags, 'at', l.at, 'author', l.author, 'agent', l.agent, `
       + `'op', l.op, 'reason', l.reason, 'moved', l.moved) as row`;
-    const read = await this.ctx.exec.run((q) => q.unsafe(
-      `select ${cols} from ${this.ctx.S}.watch_read($1::text::xid8, $2::bigint, $3::text::timestamptz, $4::text[], $5::int, $6::text::pg_snapshot) l`,
-      [p.tx, p.seq, p.at, this.ctx.classes, this.batch, p.snap ?? null] as never[]) as unknown as Promise<R[]>, { read: true });
-    let rows = read;
     // уход строки из классов подписки сменой класса без смены id (хвост ревью безопасности №3) — надгробием прежней
-    // версии в том же окне: полная пачка watch_read ограничивает окно своей последней строкой. Потоки сливаются по
-    // (tx, seq) до границы — последней строки каждого потока, обрезанного лимитом: дальше неё события могли не прийти
-    if (this.ctx.classes) {
-      const full = read.length === this.batch;
-      const upto = full ? read[read.length - 1] : null;
-      const away = await this.ctx.exec.run((q) => q.unsafe(
-        `select ${cols} from ${this.ctx.S}.watch_leaving($1::text::xid8, $2::bigint, $3::text[], $4::int, $5::text::pg_snapshot, $6::text::xid8, $7::bigint) l`,
-        [p.tx, p.seq, this.ctx.classes, this.batch, p.snap ?? null, upto?.tx ?? null, upto?.seq ?? null] as never[]) as unknown as Promise<R[]>, { read: true });
+    // версии в том же окне: полная пачка watch_read ограничивает окно своей последней строкой. Оба потока — одним
+    // оператором: общий снимок и горизонт, иначе курсор перескочил бы событие, зафиксированное между запросами
+    // (автоматическое ревью). Потоки сливаются по (tx, seq) до границы — последней строки потока, обрезанного лимитом
+    const S = this.ctx.S;
+    const both = await this.ctx.exec.run((q) => q.unsafe(
+      `with r as (select l.* from ${S}.watch_read($1::text::xid8, $2::bigint, $3::text::timestamptz, $4::text[], $5::int, $6::text::pg_snapshot) l),
+            u as (select r.tx, r.seq from r where (select count(*) from r) = $5 order by r.tx desc, r.seq desc limit 1)
+       select 0 as src, ${cols} from r l
+       union all
+       select 1 as src, ${cols} from ${S}.watch_leaving($1::text::xid8, $2::bigint, $4::text[], $5::int, $6::text::pg_snapshot,
+         (select tx from u), (select seq from u)) l`,
+      [p.tx, p.seq, p.at, this.ctx.classes, this.batch, p.snap ?? null] as never[]) as unknown as Promise<(R & { src: number })[]>, { read: true });
+    const before = (a: R, b: R) => BigInt(a.tx) < BigInt(b.tx) || (a.tx === b.tx && BigInt(a.seq) < BigInt(b.seq));
+    const order = (a: R, b: R) => (before(a, b) ? -1 : before(b, a) ? 1 : 0);
+    const read = both.filter((r) => r.src === 0).sort(order);
+    const away = both.filter((r) => r.src === 1).sort(order);
+    let rows: R[] = read;
+    {
+      const upto = read.length === this.batch ? read[read.length - 1] : null;
       if (away.length) {
-        const before = (a: R, b: R) => BigInt(a.tx) < BigInt(b.tx) || (a.tx === b.tx && BigInt(a.seq) < BigInt(b.seq));
         let bound = upto;
         const lastAway = away[away.length - 1];
         if (away.length === this.batch && (!bound || before(lastAway, bound))) bound = lastAway;
-        rows = [...read, ...away].sort((a, b) => (before(a, b) ? -1 : before(b, a) ? 1 : 0)).filter((r) => !bound || !before(bound, r));
+        rows = [...read, ...away].sort(order).filter((r) => !bound || !before(bound, r));
       }
     }
     for (const r of rows) {
