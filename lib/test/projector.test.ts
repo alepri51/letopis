@@ -1171,3 +1171,61 @@ test('хвост ревью безопасности №3: trimHistory верс�
     p.close();
   }
 });
+
+test('хвост ревью доработок после 1.2.0: purge и trimHistory проверяют каждую версию — у более поздней версии бывает меньший xid', async () => {
+  const x = await e.tenant('proj-xid');
+  await e.defineClass(x, { name: 'Xid', kind: 'hub', fields: { properties: { v: { type: 'integer' } }, required: ['v'] } });
+  await e.defineDerived(x, { name: 'XidSum', kind: 'hub', key: ['k'], derivedBy: 'xids', history: false,
+    fields: { properties: { k: { type: 'string' }, total: { type: 'integer' } }, required: ['k'] } });
+  const p = adm.projector('xids', { from: ['Xid'], into: ['XidSum'], version: 1, handle: () => {} });
+  const q = (s: string, params: unknown[] = []) => e.as(x.token, (tx) => tx.unsafe(s, params as never[]));
+  const bump = (id: string) => `update ${e.S}.entity set data = jsonb_build_object('v', (data->>'v')::int + 1) where id = '${id}'`;
+  const versions = async (id: string) => (await e.sql.unsafe(`select rev, tx::text as tx, seq::text as seq from ${e.S}.log where id = $1 order by rev`, [id]))
+    .map((r) => ({ rev: r.rev as number, tx: BigInt(r.tx as string), seq: r.seq as string }));
+  const setCursor = (cursor: string) => e.sql.unsafe(`update ${e.S}.secret set meta = jsonb_set(meta, '{cursor}', to_jsonb($1::text))
+    where kind = 'PROJECTOR' and ident = 'xids'`, [cursor]);
+  // транзакция B берёт xid раньше A, а пишет строку после фиксации A: следующая версия получает меньший xid
+  const permuted = async (id: string, last: string) => {
+    const b = await e.app.reserve();
+    try {
+      await b.unsafe('begin');
+      await b.unsafe(`select set_config('letopis.token', $1, true)`, [x.token]);
+      await b.unsafe('select pg_current_xact_id()');
+      await q(bump(id));
+      await b.unsafe(last);
+      await b.unsafe('commit');
+    } finally {
+      b.release();
+    }
+  };
+  try {
+    await p.run({ once: true });
+    const [r1] = await q(`insert into ${e.S}.entity (class, data) values ('Xid', '{"v": 1}') returning id`);
+    const [r2] = await q(`insert into ${e.S}.entity (class, data) values ('Xid', '{"v": 1}') returning id`);
+    await p.run({ once: true });
+
+    // purge: надгробие (меньший xid) курсор прошёл, а предыдущую версию (больший xid) — нет
+    await permuted(r1.id, `delete from ${e.S}.entity where id = '${r1.id}'`);
+    const v1 = await versions(r1.id);
+    const tomb = v1[v1.length - 1];
+    assert.ok(tomb.tx < v1[v1.length - 2].tx, 'у надгробия xid меньше, чем у предыдущей версии');
+    await setCursor(`${tomb.tx}:${tomb.seq}`);
+    await assert.rejects(q(`select ${e.S}.purge($1, true)`, [r1.id]), lt('projector_pending'));
+
+    // обрезка: курсор и снимок перестройки учли самую позднюю по (tx, seq) версию, а первую оставшуюся (меньший xid,
+    // фиксация после снимка) — нет
+    await permuted(r2.id, bump(r2.id));
+    const v2 = await versions(r2.id);
+    const [, a, nxt] = v2;
+    assert.ok(v2.length === 3 && nxt.tx < a.tx, 'у первой оставшейся версии xid меньше, чем у стираемой');
+    await setCursor(`${nxt.tx - 1n}:0~${nxt.tx}:${a.tx + 1n}:${nxt.tx}`);
+    await assert.rejects(q(`select ${e.S}.trim_history(array[$1::uuid], null, now())`, [r2.id]), lt('projector_pending'));
+
+    // проектор прочёл всё — обе операции проходят
+    await setCursor(`${a.tx > tomb.tx ? a.tx : tomb.tx}:${Number.MAX_SAFE_INTEGER}`);
+    await q(`select ${e.S}.purge($1, true)`, [r1.id]);
+    assert.equal((await q(`select ${e.S}.trim_history(array[$1::uuid], null, now()) as n`, [r2.id]))[0].n, 2);
+  } finally {
+    p.close();
+  }
+});
