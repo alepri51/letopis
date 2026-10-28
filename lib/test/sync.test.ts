@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { engine, type Engine, type Tenant } from './_engine.js';
 import { appDsn } from './_harness.js';
 import { connect, syncModels, generateTypes, type Db } from '../src/index.js';
-import { hub } from '../src/model.js';
+import { hub, link } from '../src/model.js';
 
 let e: Engine;
 let t: Tenant;
@@ -81,4 +81,13 @@ export const l: TicketLinks = { Tags: [] };\n`);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test('доработки после 1.2.0: sync описывает класс-источник агрегата раньше цели, в каком бы порядке ни пришли модели', async () => {
+  // агрегат над классом, которого ещё нет, база отклоняет (ревью безопасности №3)
+  const Purse = hub('SPurse', { code: z.string(), total: z.number().int() }, { key: ['code'], aggregate: { total: { sum: 'v', of: 'SCoin', via: 'SPurse' } } });
+  const Coin = link('SCoin', { v: z.number().int() }, { ends: { SPurse: Purse } });
+  const r = await syncModels(db, [Purse, Coin], { apply: true });
+  assert.deepEqual(r.created, ['SCoin', 'SPurse']);
+  assert.deepEqual(db.registry.find('SPurse')?.aggregate?.total, { sum: 'v', of: 'SCoin', via: 'SPurse' });
 });

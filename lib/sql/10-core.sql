@@ -6,7 +6,9 @@
 revoke all on schema @SCHEMA@ from public;
 grant usage on schema @SCHEMA@ to @APP@;
 
--- Все цели концов плоским списком: {роль: id} или {роль: [id, …]}.
+-- Все цели концов плоским списком: {роль: id} или {роль: [id, …]}. Тело — SQL-стандарта (return): имена связываются
+-- при создании и от search_path сеанса не зависят, а колонку ends вычисляет роль приложения. Вариант на plpgsql быстрее
+-- на 17 % (бенч gencols), но его имена разрешались бы при исполнении (ревью безопасности доработок после 1.2.0)
 create or replace function @SCHEMA@.link_ids(links jsonb) returns uuid[]
 language sql immutable parallel safe
 return (

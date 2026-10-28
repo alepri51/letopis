@@ -545,6 +545,18 @@ begin
   return jsonb_build_object('rows', vis, 'others', jsonb_array_length(p_rows) - jsonb_array_length(vis));
 end $$;
 
+-- Класс для текста отказа (ревью безопасности №3): наименьший класс среди строк p_rows (строки целиком, to_jsonb), которые
+-- актор видит; не видит ни одной — null, и текст класса не называет. Строки берутся из самих данных, а не из таблицы:
+-- удалённые каскадом в этом же операторе её уже не найдут.
+create or replace function @SCHEMA@.visible_class(p_rows jsonb) returns text
+language sql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+return (select min(r->>'class') from jsonb_array_elements(p_rows) r, (select @SCHEMA@.acl_actor('READ') as a) x
+        where x.a is not null
+          and @SCHEMA@.row_visible((r->>'tenant')::uuid, r->>'class', (r->>'id')::uuid, (r->>'owner')::uuid,
+                                   array(select jsonb_array_elements_text(r->'tags')), r->'data', r->'links',
+                                   (x.a->>'tenant')::uuid, (x.a->>'account')::uuid, x.a->'plan'));
+
 -- Безопасно ли изменение описания класса (этап 1, п. 10): новые необязательные поля и концы,
 -- метаданные, алиас, политика истории, кэш. Всё остальное — ужесточение с проверкой строк, в том числе
 -- любая правка условий anyOf и oneOf (1.0.1: прежде они не сравнивались, и строки не перепроверялись),
@@ -585,6 +597,7 @@ declare
   outv jsonb := '[]'::jsonb;
   a jsonb := @SCHEMA@.acl_actor('READ');
   vis boolean;
+  ref jsonb;
 begin
   for r in select e.* from @SCHEMA@.entity e
            where e.class = any (p_classes) and (e.tenant = p_tenant or p_tenant = '@SYSTEM@'::uuid)
@@ -610,13 +623,17 @@ begin
     if problem is null and p_incoming then
       inc := @SCHEMA@.incoming_conflicts(r.id, r.class, r.tenant);
       if inc <> '[]'::jsonb then
-        -- id ссылающейся строки — только если актор её видит (доработки после точки Б)
-        select @SCHEMA@.row_visible(x.tenant, x.class, x.id, x.owner, x.tags, x.data, x.links,
-                                    (a->>'tenant')::uuid, (a->>'account')::uuid, a->'plan') into vis
-        from @SCHEMA@.entity x where x.id = (inc->0->>'id')::uuid;
-        problem := case when coalesce(vis, false)
-          then format('на строку ссылается роль %s строки %s, которая не принимает класс', inc->0->>'role', inc->0->>'id')
-          else format('на строку ссылается роль %s строки, которой актор не видит, и она не принимает класс', inc->0->>'role') end;
+        -- роль и id ссылающейся строки — только если актор её видит (доработки после точки Б; ревью безопасности №3:
+        -- о невидимой — ни роли, ни id); видимые ссылающиеся строки — первыми, затем по id
+        select i.v, coalesce(@SCHEMA@.row_visible(x.tenant, x.class, x.id, x.owner, x.tags, x.data, x.links,
+                                                  (a->>'tenant')::uuid, (a->>'account')::uuid, a->'plan'), false) as seen
+          into ref, vis
+        from jsonb_array_elements(inc) i(v)
+        left join @SCHEMA@.entity x on x.id = (i.v->>'id')::uuid
+        order by seen desc, i.v->>'id' limit 1;
+        problem := case when vis
+          then format('на строку ссылается роль %s строки %s, которая не принимает класс', ref->>'role', ref->>'id')
+          else 'на строку ссылается строка, которой актор не видит, и она не принимает класс' end;
       end if;
     end if;
     if problem is not null then
@@ -678,14 +695,38 @@ begin
   end loop;
 end $$;
 
--- Есть ли в журнале версии строк класса p_name арендатора p_tenant (у класса System — любого арендатора); записи purge,
--- trim и reset — не версии (доработки после точки Б: удаление и пересоздание класса, остаток Н2 ревью №2).
+-- Есть ли в журнале версии строк класса p_name арендатора p_tenant; записи purge, trim и reset — не версии (доработки
+-- после точки Б: удаление и пересоздание класса, остаток Н2 ревью №2). У класса System — строки любого арендатора, кроме
+-- арендаторов со своим классом с тем же именем: их строки — строки своего класса, как их резолвит class_row (ревью
+-- безопасности №3: история такого класса не мешает администратору создать и удалить класс System)
 create or replace function @SCHEMA@.class_has_history(p_name text, p_tenant uuid) returns boolean
 language sql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 return exists (select 1 from @SCHEMA@.log l
-               where l.class = p_name and (l.tenant = p_tenant or p_tenant = '@SYSTEM@'::uuid)
-                 and l.op not in ('purge', 'trim', 'reset'));
+               where l.class = p_name and l.op not in ('purge', 'trim', 'reset')
+                 and (l.tenant = p_tenant
+                      or p_tenant = '@SYSTEM@'::uuid
+                         and l.tenant <> all (array(select x.tenant from @SCHEMA@.entity x
+                                                    where x.class = 'Class' and x.data->>'name' = p_name
+                                                      and x.tenant <> '@SYSTEM@'::uuid))));
+
+-- Хранят ли историю строк удалённые потомки класса p_name: надгробия строк Class (последняя версия их id — удаление),
+-- у которых в resolved.ancestors есть p_name (ревью безопасности №3). Правила находят старые версии строк и по алиасам
+-- предков, а надгробие потомка их не записывает: пока такая история есть, предок не меняет алиас ни правкой, ни
+-- удалением и созданием заново. У класса System — кроме арендаторов со своим одноимённым классом, как class_has_history
+create or replace function @SCHEMA@.class_orphan_history(p_name text, p_tenant uuid) returns boolean
+language sql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+return exists (select 1 from @SCHEMA@.log t
+               where t.class = 'Class' and t.op = 'delete' and t.data->>'name' <> p_name
+                 and t.data->'resolved'->'ancestors' ? p_name
+                 and (t.tenant = p_tenant
+                      or p_tenant = '@SYSTEM@'::uuid
+                         and t.tenant <> all (array(select x.tenant from @SCHEMA@.entity x
+                                                    where x.class = 'Class' and x.data->>'name' = p_name
+                                                      and x.tenant <> '@SYSTEM@'::uuid)))
+                 and not exists (select 1 from @SCHEMA@.log z where z.id = t.id and z.rev > t.rev)
+                 and @SCHEMA@.class_has_history(t.data->>'name', t.tenant));
 
 -- Проверки строки Class сверх метасхемы (этап 1, п. 6): признак system, имя системного класса,
 -- имена связей против методов цепочки, однозначность имени конца во всей схеме, право на агрегаты,
@@ -705,6 +746,7 @@ declare
   src text;
   chk jsonb;
   m jsonb;
+  dkid text;
 begin
   if p_tenant <> '@SYSTEM@'::uuid then
     if (p_data->>'name') = any (array['Class', 'Account', 'member', 'Resource', 'rule']) then
@@ -755,6 +797,20 @@ begin
     perform @SCHEMA@.lt_fail('acl_denied', format('класс %s производный: его описание задаёт только администратор (право letopis.projector)',
       data->>'name'));
   end if;
+  -- предок производного класса (ревью безопасности №3): правка предка пересчитывает описание потомка (class_evolve) —
+  -- поля, ключ, history, — поэтому класс с производными потомками (своего арендатора, у класса System — всех) меняет
+  -- тоже только администратор
+  if prevd is not null and not @SCHEMA@.letopis_allowed('letopis.projector') then
+    select x.data->>'name' into dkid from @SCHEMA@.entity x
+    where x.class = 'Class' and x.data->>'name' <> data->>'name'
+      and (x.tenant = p_tenant or p_tenant = '@SYSTEM@'::uuid)
+      and x.data->'resolved'->'ancestors' ? (data->>'name') and x.data->'resolved' ? 'derivedBy'
+    order by x.data->>'name' limit 1;
+    if dkid is not null then
+      perform @SCHEMA@.lt_fail('acl_denied', format('класс %s — предок производного класса %s: его описание задаёт только администратор (право letopis.projector)',
+        data->>'name', dkid));
+    end if;
+  end if;
   -- агрегат развёрнутого описания (свой или унаследованный), новый или изменённый против прежнего — описание
   -- агрегата, новый потомок цели, смена parent, — задаёт только тот, кто без условий читает все строки каждого
   -- класса-источника: класса of и его потомков (agg_classes: классы арендатора, у класса System — классы System).
@@ -762,6 +818,13 @@ begin
   if data->'resolved' ? 'aggregate' then
     for e in select key, value from jsonb_each(data->'resolved'->'aggregate') order by key loop
       continue when prevd->'resolved'->'aggregate'->e.key is not distinct from e.value;
+      -- класс-источник должен уже быть (ревью безопасности №3, /security-review): пока его нет, проверять право READ не
+      -- на чем, а когда класс заведёт другой пользователь, проверялись бы только его права — и описавший агрегат читал бы
+      -- в истории цели вклад каждой строки источника. Поэтому источник описывают раньше агрегата
+      if cardinality(@SCHEMA@.agg_classes(e.value->>'of', p_tenant, p_tenant = '@SYSTEM@'::uuid)) = 0 then
+        perform @SCHEMA@.lt_fail('invalid_class', format('агрегат %s.%s: класса-источника %s и его потомков %s нет — источник описывают раньше агрегата',
+          data->>'name', e.key, e.value->>'of', case when p_tenant = '@SYSTEM@'::uuid then 'в System' else 'у арендатора' end));
+      end if;
       -- сам класс of первым, потомки — по имени
       foreach src in array array(select n from unnest(@SCHEMA@.agg_classes(e.value->>'of', p_tenant, p_tenant = '@SYSTEM@'::uuid)) n
                                  order by n = (e.value->>'of') desc, n) loop
@@ -792,6 +855,13 @@ begin
           or prevd->>'alias' is distinct from data->>'alias'
           or prevd->'resolved'->'derivedBy' is distinct from data->'resolved'->'derivedBy') then
     perform @SCHEMA@.class_acl_admit(data->>'name', p_tenant);
+  end if;
+  -- алиас класса, у которого удалённые потомки хранят историю строк (ревью безопасности №3): правила находят их старые
+  -- версии и по алиасам предков, а надгробие потомка их не записывает — алиас меняется после purge() их строк
+  if prevd is not null and prevd->>'alias' is distinct from data->>'alias'
+     and @SCHEMA@.class_orphan_history(data->>'name', p_tenant) then
+    perform @SCHEMA@.lt_fail('invalid_class', format('удалённые потомки класса %s хранят историю строк: алиас меняется после purge() их строк',
+      data->>'name'));
   end if;
   -- политика хранения истории (доработки после точки Б): по ней maintain() прореживает журнал строк класса, а
   -- history: false выключает журнал. Одним правом WRITE на Class автор правки стирал бы аудит строк, на которые у него
@@ -951,12 +1021,17 @@ begin
   -- старую историю под чужие правила. Поэтому, если журнал арендатора хранит версии строк класса с этим именем, класс
   -- создаётся только заново и с тем же описанием, что в надгробии его строки Class. Надгробия нет (история осталась от
   -- класса System, удалённого раньше, или строку Class стёрли мимо триггеров) — отказ: сначала purge() строк
-  if NEW.class = 'Class' and @SCHEMA@.class_has_history(NEW.data->>'name', NEW.tenant)
+  -- Так же — если историю хранят удалённые потомки класса (их правила находят старые версии и по алиасу предка), и
+  -- политика хранения прежняя: по ней maintain() прореживает старые версии (ревью безопасности №3; у описаний без ключа
+  -- history в resolved — значение по умолчанию true)
+  if NEW.class = 'Class'
+     and (@SCHEMA@.class_has_history(NEW.data->>'name', NEW.tenant) or @SCHEMA@.class_orphan_history(NEW.data->>'name', NEW.tenant))
      and not (coalesce(last.op = 'delete', false)
               and last.data->'resolved'->'ancestors' is not distinct from NEW.data->'resolved'->'ancestors'
               and last.data->>'alias' is not distinct from NEW.data->>'alias'
-              and last.data->'resolved'->'derivedBy' is not distinct from NEW.data->'resolved'->'derivedBy') then
-    perform @SCHEMA@.lt_fail('invalid_class', format('журнал хранит историю строк класса %s: создать его можно только заново и с прежними parent, alias и derivedBy (или сначала стереть её purge())',
+              and last.data->'resolved'->'derivedBy' is not distinct from NEW.data->'resolved'->'derivedBy'
+              and coalesce(last.data->'resolved'->'history', 'true'::jsonb) is not distinct from coalesce(NEW.data->'resolved'->'history', 'true'::jsonb)) then
+    perform @SCHEMA@.lt_fail('invalid_class', format('журнал хранит историю строк класса %s или его удалённых потомков: создать его можно только заново и с прежними parent, alias, derivedBy и history (или сначала стереть её purge())',
       NEW.data->>'name'));
   end if;
   ts := @SCHEMA@.now_ts();
@@ -1361,6 +1436,8 @@ declare
   mems jsonb;
   lvl_accs uuid[];
   lvl_mems jsonb;
+  drows jsonb;
+  own uuid[];
 begin
   select * into c from @SCHEMA@.ctx();
   -- права в замыкании (этап 5, п. 6): DELETE на каждую удаляемую каскадом строку, WRITE — на строку,
@@ -1381,9 +1458,30 @@ begin
     if r.derived and not @SCHEMA@.letopis_allowed('letopis.projector') then
       perform @SCHEMA@.lt_fail('acl_denied', format('класс %s производный: его описание задаёт только администратор (право letopis.projector)', r.name));
     end if;
-    if exists (select 1 from @SCHEMA@.entity x where x.class = r.name and (x.tenant = r.tenant or r.tenant = '@SYSTEM@'::uuid))
+    -- класс-источник агрегата (автоматическое ревью коммита 5290be1): пока его называет агрегат класса того же
+    -- арендатора, класс не удаляется — иначе класс с этим именем завёл бы потом другой пользователь, и право READ
+    -- описавшего агрегат на его строки уже не проверить (класс of проверяется только при описании агрегата). Агрегаты
+    -- классов System описывает системный администратор: он читает всё
+    if r.tenant <> '@SYSTEM@'::uuid then
+      select x.data->>'name' || '.' || a.key into denied
+      from @SCHEMA@.entity x cross join lateral jsonb_each(x.data->'resolved'->'aggregate') a
+      where x.class = 'Class' and x.tenant = r.tenant and x.data->'resolved' ? 'aggregate' and a.value->>'of' = r.name
+      order by 1 limit 1;
+      if denied is not null then
+        perform @SCHEMA@.lt_fail('invalid_class', format('класс %s — источник агрегата %s: сначала уберите агрегат из описания цели',
+          r.name, denied));
+      end if;
+    end if;
+    -- у класса System — строки и потомки любого арендатора, кроме арендаторов со своим одноимённым классом: их строки и
+    -- потомки относятся к своему классу (class_row; ревью безопасности №3)
+    own := case when r.tenant = '@SYSTEM@'::uuid
+                then array(select x.tenant from @SCHEMA@.entity x
+                           where x.class = 'Class' and x.data->>'name' = r.name and x.tenant <> '@SYSTEM@'::uuid)
+                else '{}'::uuid[] end;
+    if exists (select 1 from @SCHEMA@.entity x
+               where x.class = r.name and (x.tenant = r.tenant or r.tenant = '@SYSTEM@'::uuid and x.tenant <> all (own)))
        or exists (select 1 from @SCHEMA@.entity x where x.class = 'Class' and x.data->>'parent' = r.name
-                  and (x.tenant = r.tenant or r.tenant = '@SYSTEM@'::uuid)) then
+                  and (x.tenant = r.tenant or r.tenant = '@SYSTEM@'::uuid and x.tenant <> all (own))) then
       perform @SCHEMA@.lt_fail('invalid_class', format('у класса %s есть строки или потомки', r.name));
     end if;
     -- и история строк (остаток Н2; доработки после точки Б): удалённый класс с историей, созданный заново с другими
@@ -1439,12 +1537,15 @@ begin
     )
     select coalesce(array_agg(d.id), '{}'), coalesce(array_agg(distinct d.class), '{}'),
            coalesce(array_agg(distinct d.class || ' ' || d.tenant::text), '{}'),
-           min(d.class) filter (where not @SCHEMA@.acl_row_ok(dplan, d.class, d.id, d.owner, d.tenant, d.tags, d.data, d.links)),
+           jsonb_agg(to_jsonb(d)) filter (where not @SCHEMA@.acl_row_ok(dplan, d.class, d.id, d.owner, d.tenant, d.tags, d.data, d.links)),
            coalesce(array_agg(d.id) filter (where d.class = 'Account'), '{}'),
            coalesce(jsonb_agg(jsonb_build_object('tenant', d.tenant, 'user', d.links->>'User')) filter (where d.class = 'member'), '[]'::jsonb)
-      into lvl, lvl_classes, lvl_pairs, denied, lvl_accs, lvl_mems from d;
-    if denied is not null then
-      perform @SCHEMA@.lt_fail('acl_denied', format('нет права DELETE на класс %s в каскаде удаления', denied));
+      into lvl, lvl_classes, lvl_pairs, drows, lvl_accs, lvl_mems from d;
+    -- класс отказавшей строки называется, только если актор её видит (ревью безопасности №3)
+    if drows is not null then
+      denied := @SCHEMA@.visible_class(drows);
+      perform @SCHEMA@.lt_fail('acl_denied', case when denied is not null then format('нет права DELETE на класс %s в каскаде удаления', denied)
+                                                   else 'нет права DELETE на строки в каскаде удаления' end);
     end if;
     accs := accs || lvl_accs;
     mems := mems || lvl_mems;
@@ -1453,7 +1554,9 @@ begin
     -- unset: снять конец, новая версия
     for r in select x.* from @SCHEMA@.entity x where x.id = any (unsets) order by x.id for update loop
       if not @SCHEMA@.acl_row_ok(wplan, r.class, r.id, r.owner, r.tenant, r.tags, r.data, r.links) then
-        perform @SCHEMA@.lt_fail('acl_denied', format('нет права WRITE на класс %s: снятие конца при удалении', r.class));
+        perform @SCHEMA@.lt_fail('acl_denied', case when @SCHEMA@.visible_class(jsonb_build_array(to_jsonb(r))) is not null
+                                                     then format('нет права WRITE на класс %s: снятие конца при удалении', r.class)
+                                                     else 'нет права WRITE на ссылающуюся строку: снятие конца при удалении' end);
       end if;
       newlinks := '{}'::jsonb;
       for k in select key, value from jsonb_each(r.links) loop
@@ -1627,7 +1730,10 @@ begin
     -- строки производного класса пишет только проектор: перевод их ссылок мимо него оставил бы проекцию
     -- несогласованной (ревью безопасности №3, №3)
     if (@SCHEMA@.class_row(r.class, r.tenant)).data->'resolved' ? 'derivedBy' then
-      perform @SCHEMA@.lt_fail('derived_class', format('на строку ссылается строка производного класса %s: её пишет проектор', r.class));
+      perform @SCHEMA@.lt_fail('derived_class',
+        case when p_plan is null or @SCHEMA@.visible_class(jsonb_build_array(to_jsonb(r))) is not null
+             then format('на строку ссылается строка производного класса %s: её пишет проектор', r.class)
+             else 'на строку ссылается строка производного класса: её пишет проектор' end);
     end if;
     if p_plan is not null and not @SCHEMA@.acl_row_ok(p_plan, r.class, r.id, r.owner, r.tenant, r.tags, r.data, r.links) then
       perform @SCHEMA@.lt_fail('acl_denied', 'нет права WRITE на ссылающиеся строки');
@@ -1886,8 +1992,8 @@ begin
     'apply_defaults(jsonb, jsonb)', 'links_shape(jsonb, jsonb)', 'targets_bad(jsonb, boolean, jsonb)', 'check_links(jsonb, jsonb, uuid, boolean, jsonb)', 'key_id(jsonb, text, uuid, jsonb, jsonb)',
     'log_version(@SCHEMA@.entity)', 'sys_update(uuid, jsonb, jsonb, jsonpath, text, text)', 'tombstone(@SCHEMA@.entity, text, uuid)',
     'links_replace(jsonb, uuid, uuid)', 'move_row(@SCHEMA@.entity, uuid, text, jsonb, jsonb, text, jsonb)', 'reclass(uuid, text, jsonb)',
-    'incoming_conflicts(uuid, text, uuid)', 'visible_detail(jsonb, uuid)', 'class_change_safe(jsonb, jsonb)',
-    'family_conflicts(text[], uuid, boolean)', 'reserved_names()', 'class_acl_admit(text, uuid)', 'class_rows_admit(text, uuid, text[], text)', 'class_has_history(text, uuid)', 'class_admit(jsonb, uuid)',
+    'incoming_conflicts(uuid, text, uuid)', 'visible_detail(jsonb, uuid)', 'visible_class(jsonb)', 'class_change_safe(jsonb, jsonb)',
+    'family_conflicts(text[], uuid, boolean)', 'reserved_names()', 'class_acl_admit(text, uuid)', 'class_rows_admit(text, uuid, text[], text)', 'class_has_history(text, uuid)', 'class_orphan_history(text, uuid)', 'class_admit(jsonb, uuid)',
     'trg_entity_bi()', 'trg_entity_bu()', 'trg_entity_ai()', 'trg_entity_au()', 'history_on(text, uuid)', 'signal_token(text, text, bytea)', 'signal_raw(text[])', 'signal(text[], uuid[])', 'class_evolve(@SCHEMA@.entity, @SCHEMA@.entity)',
     'trg_entity_bd()', 'trg_entity_ad()', 'owner_to_tenant(uuid, uuid)', 'ref_action(jsonb, jsonb, uuid[])', 'delete_preview(uuid[])', 'merge(jsonb, jsonb)', 'inc(jsonb, text[], numeric, numeric)', 'links_patch(jsonb, jsonb)'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);

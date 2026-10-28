@@ -256,6 +256,28 @@ end $$;
 -- все версии удаляются, а на место версии 1 встаёт запись purge с числом стёртых версий и хэшем
 -- последней. Право DELETE на класс по последнему снимку. История системных классов — аудит прав и
 -- схемы: её не стирают.
+-- Проектор источника ещё не прочёл версию (p_tx, p_seq) строки арендатора p_tenant класса из p_classes (ревью
+-- безопасности №3, №5 — purge; хвост ревью №3 — обрезка истории). Проектор касается арендатора, у которого есть его
+-- производный класс (derivedBy — имя проектора): брошенный проектор с удалёнными производными классами не держит.
+-- Курсор «tx:seq~снимок»: транзакции, видимые в снимке, учла перестройка. Чекпоинт без from (до 1.2.0) касается всех
+-- классов.
+create or replace function @SCHEMA@.projector_behind(p_tenant uuid, p_classes text[], p_tx xid8, p_seq bigint) returns boolean
+language sql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+return exists (select 1 from @SCHEMA@.secret s
+               cross join lateral (select split_part(s.meta->>'cursor', '~', 1) as head,
+                                          nullif(split_part(s.meta->>'cursor', '~', 2), '') as snap) k
+               where s.kind = 'PROJECTOR' and s.account = '@SYSTEM@'::uuid and s.deleted_at is null
+                 and coalesce(s.meta->>'cursor', '') <> ''
+                 and exists (select 1 from @SCHEMA@.entity x where x.class = 'Class' and x.tenant = p_tenant
+                             and x.data->'resolved'->>'derivedBy' = s.ident)
+                 and (not s.meta ? 'from'
+                      or exists (select 1 from unnest(p_classes) c
+                                 where coalesce((@SCHEMA@.class_row(c, p_tenant)).data->'resolved'->'ancestors', jsonb_build_array(c))
+                                       ?| array(select jsonb_array_elements_text(s.meta->'from'))))
+                 and (p_tx, p_seq) > (split_part(k.head, ':', 1)::xid8, split_part(k.head, ':', 2)::bigint)
+                 and not coalesce(pg_visible_in_snapshot(p_tx, k.snap::pg_snapshot), false));
+
 create or replace function @SCHEMA@.purge(p_id uuid, p_confirm boolean default false) returns jsonb
 language plpgsql volatile security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -280,21 +302,8 @@ begin
     perform @SCHEMA@.lt_fail('acl_denied', format('нет права DELETE на класс %s', l.class));
   end if;
   -- проектор источника, чей курсор ещё не прошёл надгробие (в том числе надгробие этой транзакции), об удалении не
-  -- узнал бы — вклад строки остался бы в итогах навсегда (ревью безопасности №3, №5). Проектор касается арендатора, у
-  -- которого есть его производный класс (derivedBy — имя проектора): брошенный проектор с удалёнными производными
-  -- классами purge не держит. Курсор «tx:seq~снимок»: транзакции, видимые в снимке, учла перестройка. Чекпоинт без from
-  -- (до 1.2.0) касается всех классов.
-  if exists (select 1 from @SCHEMA@.secret s
-             cross join lateral (select split_part(s.meta->>'cursor', '~', 1) as head,
-                                        nullif(split_part(s.meta->>'cursor', '~', 2), '') as snap) k
-             where s.kind = 'PROJECTOR' and s.account = '@SYSTEM@'::uuid and s.deleted_at is null
-               and coalesce(s.meta->>'cursor', '') <> ''
-               and exists (select 1 from @SCHEMA@.entity x where x.class = 'Class' and x.tenant = l.tenant
-                           and x.data->'resolved'->>'derivedBy' = s.ident)
-               and (not s.meta ? 'from' or coalesce((@SCHEMA@.class_row(l.class, l.tenant)).data->'resolved'->'ancestors',
-                                                    jsonb_build_array(l.class)) ?| array(select jsonb_array_elements_text(s.meta->'from')))
-               and (l.tx, l.seq) > (split_part(k.head, ':', 1)::xid8, split_part(k.head, ':', 2)::bigint)
-               and not coalesce(pg_visible_in_snapshot(l.tx, k.snap::pg_snapshot), false)) then
+  -- узнал бы — вклад строки остался бы в итогах навсегда (ревью безопасности №3, №5)
+  if @SCHEMA@.projector_behind(l.tenant, array[l.class], l.tx, l.seq) then
     perform @SCHEMA@.lt_fail('projector_pending', 'проектор источника ещё не прочёл удаление: purge — после его run()');
   end if;
   select count(*)::int into n from @SCHEMA@.log x where x.id = p_id;
@@ -330,6 +339,8 @@ declare
   dplan jsonb;
   r @SCHEMA@.log;
   first @SCHEMA@.log;
+  nxt record;
+  late record;
   j int;
   h bytea;
   k int;
@@ -374,6 +385,17 @@ begin
     select x.* into first from @SCHEMA@.log x where x.id = r.id order by x.rev limit 1;
     -- до момента — только сама запись trim: стирать нечего
     continue when j = 1 and first.op = 'trim';
+    -- проектор источника, чей курсор ещё не прошёл первую оставшуюся версию: читая её, он возьмёт прошлую версию для
+    -- before, а её уже не будет — свёртка прибавила бы новую, не вычитая прежнюю (хвост ревью безопасности №3). Класс —
+    -- обеих версий у стыка: строка могла уйти из семейства источников сменой класса
+    select x.rev, x.class into nxt from @SCHEMA@.log x where x.id = r.id and x.rev > j order by x.rev limit 1;
+    -- позиция — самая поздняя по (tx, seq) среди стираемых версий и первой оставшейся: у более поздней версии бывает
+    -- меньший xid (автоматическое ревью)
+    select x.tx, x.seq into late from @SCHEMA@.log x where x.id = r.id and x.rev <= nxt.rev order by x.tx desc, x.seq desc limit 1;
+    if @SCHEMA@.projector_behind(r.tenant, array[(select x.class from @SCHEMA@.log x where x.id = r.id and x.rev = j), nxt.class],
+                                 late.tx, late.seq) then
+      perform @SCHEMA@.lt_fail('projector_pending', 'проектор источника ещё не прочёл версии: trimHistory — после его run()');
+    end if;
     select x.hash into h from @SCHEMA@.log x where x.id = r.id and x.rev = j;
     with d as (delete from @SCHEMA@.log x where x.id = r.id and x.rev <= j returning 1)
     select count(*)::int into k from d;
@@ -1034,6 +1056,48 @@ begin
     order by l.tx, l.seq limit p_limit;
 end $$;
 
+-- Уход строки из классов подписки сменой класса без смены id (хвост ревью безопасности №3): версия пишется уже с новым
+-- классом, и подписка по классам её не видит. Здесь — те же окно, горизонт и снимок, что у watch_read (и верхняя граница
+-- окна p_upto — последняя строка полной пачки watch_read), а строки — синтетические надгробия прежней версии: класс,
+-- концы и данные прежние; номер, время, автор, tx и seq — версии смены класса; вид delete; агента и причины нет. Только
+-- если нового класса нет в p_classes, а прежнюю версию актор видит (row_visible с его планом READ): о строке, которой он
+-- не читал, подписчик не узнает. Функция владельца: версию с новым классом актору видеть не нужно.
+create or replace function @SCHEMA@.watch_leaving(p_tx xid8, p_seq bigint, p_classes text[], p_limit int,
+  p_snap pg_snapshot default null, p_upto_tx xid8 default null, p_upto_seq bigint default null)
+returns setof @SCHEMA@.log
+language plpgsql stable security definer
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  horizon xid8 := pg_snapshot_xmin(pg_current_snapshot());
+  a jsonb;
+begin
+  if p_classes is null then
+    return;
+  end if;
+  a := @SCHEMA@.acl_actor('READ');
+  if a is null then
+    return;
+  end if;
+  -- новую версию актор не видит — надгробие при любом p_classes и без автора: перебором классов подписки он узнал бы её
+  -- класс (автоматическое ревью доработок после 1.2.0)
+  return query select l.seq, l.tx, p.id, l.rev, p.class, p.cv, p.tenant, p.owner, p.links, p.data, p.tags, l.at,
+      case when v.seen then l.author end, null::text, 'delete'::text, null::text, null::uuid, null::bytea, null::bytea, null::jsonb
+    from @SCHEMA@.log l
+    cross join lateral (select x.* from @SCHEMA@.log x where x.id = l.id and x.rev < l.rev and x.op not in ('purge', 'trim', 'reset')
+                        order by x.rev desc limit 1) p
+    cross join lateral (select @SCHEMA@.row_visible(l.tenant, l.class, l.id, l.owner, l.tags, l.data, l.links,
+                               (a->>'tenant')::uuid, (a->>'account')::uuid, a->'plan') as seen) v
+    where (l.tx, l.seq) > (p_tx, p_seq) and l.tx < horizon
+      and (p_upto_tx is null or (l.tx, l.seq) <= (p_upto_tx, p_upto_seq))
+      and l.op = 'reclass' and l.moved is null and (not (l.class = any (p_classes)) or not v.seen)
+      and p.class = any (p_classes) and p.op <> 'delete'
+      and (p_snap is null or not pg_visible_in_snapshot(l.tx, p_snap))
+      and @SCHEMA@.row_visible(p.tenant, p.class, p.id, p.owner, p.tags, p.data, p.links,
+                               (a->>'tenant')::uuid, (a->>'account')::uuid, a->'plan')
+    order by l.tx, l.seq limit p_limit;
+end $$;
+
 -- Точка подписки «с этого момента»: курсор — горизонт завершённых транзакций, снимок — чтобы не
 -- отдавать транзакции, зафиксированные до подписки, но ещё не ушедшие за горизонт.
 drop function if exists @SCHEMA@.watch_head();
@@ -1053,10 +1117,10 @@ begin
   foreach f in array array[
     'history_default()', 'history_policy(jsonb)', 'history_iv(text)', 'history_horizon(jsonb)',
     'history_keep(jsonb, timestamp, timestamp, timestamp)', 'admin_role()', 'letopis_allowed(text)', 'session_expires()', 'signal_mode()', 'signal_key()', 'class_stamp()',
-    'last_version_visible(uuid, uuid, jsonb)', 'restore(uuid)', 'purge(uuid, boolean)', 'trim_history(uuid[], text[], timestamptz)',
+    'last_version_visible(uuid, uuid, jsonb)', 'restore(uuid)', 'projector_behind(uuid, text[], xid8, bigint)', 'purge(uuid, boolean)', 'trim_history(uuid[], text[], timestamptz)',
     'rekey(uuid, jsonb, jsonb)', 'rekey_class(text, jsonb)', 'account_purge(uuid)', 'reset_mark(uuid, text, uuid)',
     'reset(text, text, uuid, int)', 'thin_batch(timestamptz, int)', 'maintain(timestamptz, int)', 'verify(boolean)',
-    'watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot, boolean)', 'watch_head()'] loop
+    'watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot, boolean)', 'watch_leaving(xid8, bigint, text[], int, pg_snapshot, xid8, bigint)', 'watch_head()'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);
     execute format('revoke all on function @SCHEMA@.%s from public', f);
   end loop;
@@ -1065,6 +1129,6 @@ end $$;
 grant execute on function @SCHEMA@.restore(uuid), @SCHEMA@.purge(uuid, boolean), @SCHEMA@.trim_history(uuid[], text[], timestamptz),
   @SCHEMA@.rekey(uuid, jsonb, jsonb), @SCHEMA@.rekey_class(text, jsonb), @SCHEMA@.account_purge(uuid),
   @SCHEMA@.reset(text, text, uuid, int), @SCHEMA@.maintain(timestamptz, int), @SCHEMA@.verify(boolean),
-  @SCHEMA@.session_expires(), @SCHEMA@.watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot, boolean), @SCHEMA@.watch_head(),
+  @SCHEMA@.session_expires(), @SCHEMA@.watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot, boolean), @SCHEMA@.watch_leaving(xid8, bigint, text[], int, pg_snapshot, xid8, bigint), @SCHEMA@.watch_head(),
   @SCHEMA@.history_default(), @SCHEMA@.history_policy(jsonb), @SCHEMA@.history_iv(text),
   @SCHEMA@.signal_mode(), @SCHEMA@.signal_key(), @SCHEMA@.class_stamp() to @APP@;

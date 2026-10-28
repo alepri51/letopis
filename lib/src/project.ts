@@ -112,6 +112,11 @@ export interface ProjectorOptions {
   /** Запасной опрос журнала, мс (по умолчанию 1000; сигналы источников будят раньше). */
   pollMs?: number;
   /**
+   * Сколько транзакция проектора ждёт чужую блокировку строки, мс (по умолчанию 5000; 0 — без предела). Дольше —
+   * пачка откатывается, курсор остаётся, run() не отклоняется, а пропускает проход и повторяет его.
+   */
+  lockTimeout?: number;
+  /**
    * Явный список арендаторов проектора: участники — только они (и только те, у кого каждый класс into помечен
    * derivedBy). Без списка участник — любой арендатор с такими классами.
    */
@@ -256,6 +261,11 @@ function change(row: Row, cursor: string, rebuild = false): ProjectorChange {
  * значениями (22…) и пределами размера (54…). Сбой окружения (блокировки, отмена запроса, связь) — не причина
  * выводить арендатора: пачка откатывается целиком, повтор начнётся с того же курсора.
  */
+/** Ожидание чужой блокировки строки дольше lock_timeout (55P03): сбой окружения, проход повторяется. */
+function lockWait(e: unknown): boolean {
+  return (e as { code?: unknown } | null)?.code === '55P03';
+}
+
 function tenantFault(e: unknown): boolean {
   if (e instanceof LetopisError) return true;
   return /^(LT|22|54)/.test(String((e as { code?: unknown } | null)?.code ?? ''));
@@ -389,12 +399,15 @@ export class Projector {
   /** Источники арендатора без журнала (history: false): их изменений проектор не увидит — арендатор выбывает. */
   private blind = new Map<string, string[]>();
   private stale = true;
+  /** В чекпоинте есть начатая перестройка арендатора пачками (по последней пачке; до первой — проверить). */
+  private tenantsPending = true;
   private running = false;
   private stopped = false;
   private wake: (() => void) | null = null;
   private off: (() => void) | null = null;
   private readonly batch: number;
   private readonly pollMs: number;
+  private readonly lockMs: number;
   private readonly only: ReadonlySet<string> | null;
 
   constructor(readonly env: ProjectorEnv, name: string, private def: ProjectorOptions) {
@@ -415,6 +428,8 @@ export class Projector {
     this.only = def.tenants ? new Set(def.tenants.map((x) => x.toLowerCase())) : null;
     this.batch = def.batch ?? 500;
     this.pollMs = def.pollMs ?? 1000;
+    this.lockMs = def.lockTimeout ?? 5000;
+    if (!Number.isInteger(this.lockMs) || this.lockMs < 0) throw new LetopisError('invalid_data', `проектор ${name}: lockTimeout — целое число мс, 0 и больше`);
     if (!Number.isInteger(this.batch) || this.batch < 1 || this.batch > 10_000) throw new LetopisError('invalid_data', `проектор ${name}: batch — от 1 до 10 000`);
     if (env.onSignal) {
       this.off = env.onSignal((s) => {
@@ -442,15 +457,30 @@ export class Projector {
         try {
           r = await this.step(rep);
         } catch (e) {
-          if (!(e instanceof LetopisError && e.code === 'cursor_expired' && this.def.onExpired === 'rebuild')) throw e;
-          r = 'rebuild';
+          if (lockWait(e)) {
+            rep.skipped++;
+            r = 'busy';
+          } else if (e instanceof LetopisError && e.code === 'cursor_expired' && this.def.onExpired === 'rebuild') {
+            r = 'rebuild';
+          } else throw e;
         }
         // курсор истёк у части арендаторов: с onExpired: 'rebuild' они перестраиваются сами, пачками (доработки после
         // точки Б). Состояние — в чекпоинте, поэтому перестройку продолжает run() любого процесса, а занятая
-        // блокировка — только повтор на следующем проходе; ошибка данных выводит арендатора с её кодом, без повторов
-        if (this.def.onExpired === 'rebuild' && r !== 'rebuild' && (await this.tenantWork(rep)) && r !== 'busy') r = 'more';
-        // пачку перестройки держит другой процесс того же проектора — подождать и продолжить
-        if (r === 'rebuild') r = (await this.rebuildNow(rep, 'auto')) === 'busy' ? 'busy' : 'more';
+        // блокировка — только повтор на следующем проходе; ошибка данных выводит арендатора с её кодом, без повторов.
+        // Начатую перестройку арендатора пачками — и прерванную rebuild({ tenant, chunked: true }) — продвигает run()
+        // и без onExpired (ревью безопасности №3): иначе хвост бессрочно пропускал бы изменения арендатора с id выше
+        // последней пачки. Начинает перестройку выбывших по ярусу только onExpired: 'rebuild'. Блокировку проектора держит
+        // другой процесс (busy) — перестройку продвинет он: чтение чекпоинта ждало бы его пачку
+        const auto = this.def.onExpired === 'rebuild';
+        try {
+          if (r !== 'rebuild' && r !== 'busy' && (auto || this.tenantsPending) && (await this.tenantWork(rep, auto))) r = 'more';
+          // пачку перестройки держит другой процесс того же проектора — подождать и продолжить
+          if (r === 'rebuild') r = (await this.rebuildNow(rep, 'auto')) === 'busy' ? 'busy' : 'more';
+        } catch (e) {
+          if (!lockWait(e)) throw e;
+          rep.skipped++;
+          r = 'busy';
+        }
         if (r === 'more') continue;
         if (opts.once) return rep;
         await this.sleep();
@@ -481,13 +511,18 @@ export class Projector {
         return rep;
       }
       await this.startTenant(rep, tenant, false);
+      const started = rep.rebuilds;
       for (;;) {
-        const r = await this.tenantChunk(rep, tenant);
+        // занятая строка (lockTimeout) — как занятая блокировка проектора: подождать и повторить пачку
+        const r = await this.tenantChunk(rep, tenant).catch((e) => { if (lockWait(e)) return 'busy' as const; throw e; });
         if (r === 'busy') await new Promise((res) => setTimeout(res, 20));
         if (r !== 'done') continue;
         // ошибка данных арендатора — как у перестройки одной транзакцией: отказ, арендатор выбывший
         const f = (await this.tx(async (q) => this.state(q))).failed?.[tenant];
         if (f) throw new LetopisError(f.code as never, f.message);
+        // последнюю пачку мог записать run() другого процесса (он продвигает начатые перестройки): перестройка этого
+        // вызова всё равно завершена
+        if (rep.rebuilds === started) rep.rebuilds++;
         return rep;
       }
     }
@@ -546,6 +581,9 @@ export class Projector {
       await q.unsafe('begin isolation level read committed');
       await q.unsafe(`set local role ${ident(this.env.ownerRole)}`);
       await q.unsafe(`set local timezone = 'UTC'`);
+      // чужая блокировка строки (транзакция любого арендатора держит итог или цель) не держит пачку всех арендаторов
+      // дольше lockTimeout (хвост ревью безопасности №3): 55P03 — проход пропускается, курсор остаётся
+      if (this.lockMs > 0) await q.unsafe(`set local lock_timeout = ${this.lockMs}`);
       const out = await fn(q);
       await q.unsafe('commit');
       return out;
@@ -665,6 +703,7 @@ export class Projector {
       const meta = await this.state(q);
       if (!meta.cursor || meta.state === 'rebuilding') return 'rebuild';
       if (meta.version !== this.def.version) throw this.versionError(meta);
+      this.tenantsPending = Object.values(meta.retenant ?? {}).some((v) => !v.done);
       const cur = dec(meta.cursor);
       const rows = await q.unsafe(`select l.tx::text as tx, l.seq::text as seq, ${rowJson('l')} as row
         from ${this.env.S}.watch_read($1::text::xid8, $2::bigint, null, $3::text[], $4::int, $5::text::pg_snapshot, true) l`,
@@ -1189,22 +1228,26 @@ export class Projector {
   }
 
   /**
-   * Автоматическая перестройка выбывших по cursor_expired (onExpired: 'rebuild') — проход run(): начинает перестройку
-   * пачками у каждого такого арендатора и продвигает начатые на пачку. true — работа ещё осталась.
+   * Перестройка арендаторов пачками — проход run(): с start (onExpired: 'rebuild') начинает её у каждого выбывшего по
+   * cursor_expired, затем продвигает на пачку каждую начатую — автоматическую и прерванную rebuild({ tenant, chunked:
+   * true }). true — работа ещё осталась.
    */
-  private async tenantWork(rep: ProjectorReport): Promise<boolean> {
+  private async tenantWork(rep: ProjectorReport, start: boolean): Promise<boolean> {
     const meta = await this.tx(async (q) => this.state(q));
     if (!meta.cursor || meta.state === 'rebuilding' || meta.version !== this.def.version) return false;
     let more = false;
-    for (const [t, f] of Object.entries(meta.failed ?? {})) {
-      if (f.code !== 'cursor_expired' || this.blind.has(t) || !this.scopes.has(t)) continue;
-      if ((await this.startTenant(rep, t, true)) === 'ok') more = true;
+    if (start) {
+      for (const [t, f] of Object.entries(meta.failed ?? {})) {
+        if (f.code !== 'cursor_expired' || this.blind.has(t) || !this.scopes.has(t)) continue;
+        if ((await this.startTenant(rep, t, true)) === 'ok') more = true;
+      }
     }
-    const fresh = await this.tx(async (q) => this.state(q));
+    const fresh = start ? await this.tx(async (q) => this.state(q)) : meta;
     for (const [t, v] of Object.entries(fresh.retenant ?? {})) {
       if (v.done) continue;
       if ((await this.tenantChunk(rep, t)) === 'more') more = true;
     }
+    this.tenantsPending = more;
     return more;
   }
 

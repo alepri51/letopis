@@ -34,7 +34,7 @@ const WALLET = {
     },
     required: ['number', 'balance'],
   },
-  // источники описываются позже цели: сверка «источник — цель» идёт и при появлении источника
+  // источники описываются раньше цели: агрегат над классом, которого ещё нет, отклоняется (ревью безопасности №3)
   aggregate: {
     balance: { sum: 'amount', of: 'Movement', via: 'Wallet' },
     ops: { count: true, of: 'Movement', via: 'Wallet' },
@@ -48,7 +48,6 @@ before(async () => {
   t = await e.tenant('agg-a');
   u = await e.tenant('agg-b');
   for (const x of [t, u]) {
-    await e.defineClass(x, WALLET);
     await e.defineClass(x, { name: 'Payer', kind: 'hub', fields: { properties: { name: { type: 'string' } }, required: ['name'] } });
     await e.defineClass(x, { name: 'Movement', kind: 'link',
       fields: { properties: { amount: { type: 'integer' }, note: { type: 'string' } }, required: ['amount'] },
@@ -65,6 +64,7 @@ before(async () => {
     await e.defineClass(x, { name: 'Tally', kind: 'link', key: ['Wallet', 'n'],
       fields: { properties: { n: { type: 'string' } }, required: ['n'] },
       ends: { Wallet: { class: 'Wallet', required: true, onDelete: 'cascade' } } });
+    await e.defineClass(x, WALLET);
     await e.defineClass(x, { name: 'VipWallet', kind: 'hub', parent: 'Wallet' });
   }
   db = await connect({ dsn: appDsn(), schema: e.schema, token: t.token, max: 25 });
@@ -105,7 +105,7 @@ async function verifyOk(msg: string): Promise<void> {
   assert.equal(v.ok, true, `${msg}: ${JSON.stringify(v.issues)}`);
 }
 
-test('описание агрегата: в реестре и describe(); новое поле — 0, источник после цели сверен', async () => {
+test('описание агрегата: в реестре и describe(); новое поле — 0', async () => {
   const w = db.describe().classes.find((c) => c.name === 'Wallet');
   assert.deepEqual(w?.aggregate?.balance, { sum: 'amount', of: 'Movement', via: 'Wallet' });
   assert.deepEqual(w?.aggregate?.plus, { count: true, of: 'Movement', via: 'Wallet', where: { properties: { amount: { minimum: 1 } } } });
@@ -131,12 +131,13 @@ test('описание агрегата: поле, источник, роль, �
   await assert.rejects(e.defineClass(x, hubD({ n: { sum: 'label', of: 'Ball', via: 'Box' } })), lt('invalid_class'));
   await assert.rejects(e.defineClass(x, hubD({ n: { count: true, of: 'Ball', via: 'Box', where: { properties: { w: { foo: 1 } } } } })), lt('invalid_class'));
   await e.defineClass(x, hubD({ n: { sum: 'w', of: 'Ball', via: 'Box' } }));
-  // источник после цели: роль не принимает класс цели
+  // источника ещё нет — отказ (ревью безопасности №3); источник раньше цели, но его роль не принимает класс цели — отказ
+  const peg = { name: 'Peg', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' }, n: { type: 'integer' } }, required: ['code'] },
+    aggregate: { n: { sum: 'w', of: 'Pin', via: 'Lid' } } };
+  await assert.rejects(e.defineClass(x, peg), /агрегат Peg\.n: класса-источника Pin и его потомков у арендатора нет/);
   await e.defineClass(x, { name: 'Lid', kind: 'hub', fields: { properties: {} } });
-  await e.defineClass(x, { name: 'Peg', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' }, n: { type: 'integer' } }, required: ['code'] },
-    aggregate: { n: { sum: 'w', of: 'Pin', via: 'Lid' } } });
-  await assert.rejects(e.defineClass(x, { name: 'Pin', kind: 'link', fields: { properties: { w: { type: 'integer' } } }, ends: { Lid: { class: 'Lid' } } }),
-    lt('invalid_class'));
+  await e.defineClass(x, { name: 'Pin', kind: 'link', fields: { properties: { w: { type: 'integer' } } }, ends: { Lid: { class: 'Lid' } } });
+  await assert.rejects(e.defineClass(x, peg), lt('invalid_class'));
   // цикл: A считает строки B, B — строки A
   await e.defineClass(x, { name: 'Ca', kind: 'hub', fields: { properties: { n: { type: 'integer' } } }, ends: { Cb: { class: 'Cb' } } });
   await e.defineClass(x, { name: 'Cb', kind: 'hub', fields: { properties: { n: { type: 'integer' } } }, ends: { Ca: { class: 'Ca' } },
@@ -249,9 +250,11 @@ test('7.5 №14: каскад, reclass, restore операции, загрузч
   await verifyOk('после загрузчика');
   // удаление аккаунта-арендатора: его кошельки и операции стираются одним оператором
   const gone = await e.tenant('agg-gone');
-  await e.defineClass(gone, WALLET);
   await e.defineClass(gone, { name: 'Movement', kind: 'link', fields: { properties: { amount: { type: 'integer' } }, required: ['amount'] },
     ends: { Wallet: { class: 'Wallet', required: true, onDelete: 'cascade' } } });
+  await e.defineClass(gone, { name: 'Entry', kind: 'link', key: ['Wallet', 'n'], fields: { properties: { n: { type: 'string' } }, required: ['n'] },
+    ends: { Wallet: { class: 'Wallet', required: true, onDelete: 'cascade' } } });
+  await e.defineClass(gone, WALLET);
   const [gw] = await q(gone.token, `insert into ${e.S}.entity (class, data) values ('Wallet', '{"number": "g"}') returning id`);
   await q(gone.token, `insert into ${e.S}.entity (class, data, links) values ('Movement', '{"amount": 100}', $1::jsonb), ('Movement', '{"amount": -30}', $1::jsonb)`, [{ Wallet: gw.id }]);
   assert.equal((await row(gw.id)).data.balance, 70);
@@ -334,11 +337,11 @@ test('7.5 №16: агрегат добавлен, пока параллельн�
 });
 
 test('гонка №18 (§7.8): смена агрегата и параллельные операции источника — итог равен сумме по новому описанию', async () => {
+  await e.defineClass(t, { name: 'Bean', kind: 'link', fields: { properties: { v: { type: 'integer' }, w: { type: 'integer' } }, required: ['v', 'w'] },
+    ends: { Jar: { class: 'Jar', required: true, onDelete: 'cascade' } } });
   await e.defineClass(t, { name: 'Jar', kind: 'hub', key: ['code'],
     fields: { properties: { code: { type: 'string' }, total: { type: 'integer' } }, required: ['code'] },
     aggregate: { total: { sum: 'v', of: 'Bean', via: 'Jar' } } });
-  await e.defineClass(t, { name: 'Bean', kind: 'link', fields: { properties: { v: { type: 'integer' }, w: { type: 'integer' } }, required: ['v', 'w'] },
-    ends: { Jar: { class: 'Jar', required: true, onDelete: 'cascade' } } });
   await db.refresh();
   const [jar] = await db.Jar().create({ code: 'j18' }).rows();
   const bean = (tx: Parameters<Parameters<Engine['as']>[1]>[0], v: number, w: number) =>
@@ -501,7 +504,8 @@ test('ревью коммита этапа 4б: агрегат задаёт то
 
 test('ревью коммита этапа 4б: класс становится источником агрегата только с правом READ на все его строки', async () => {
   // строки попадают в агрегат только с ведома того, кто читает их все: перенос класса под источник (parent) и описание
-  // источника после цели. Право проверяется до правки (по прежним предкам) и после
+  // агрегата над классом. Право проверяется до правки (по прежним предкам) и после; агрегат над классом, которого ещё нет,
+  // отклоняется (ревью безопасности №3)
   const x = await e.tenant('agg-src', { bare: true });
   const auth = await sysRes(e, 'authenticated:ACCOUNT');
   const grant = async (alias: string, cat: string, pattern: Record<string, unknown>, weight: number, perm: 'allow' | 'deny' = 'allow') =>
@@ -521,8 +525,10 @@ test('ревью коммита этапа 4б: класс становится 
   await e.defineClass(x, { name: 'TopSecret', kind: 'link', parent: 'Secret' });
   const setClass = (name: string, patch: Record<string, unknown>) =>
     q(x.token, `update ${e.S}.entity set data = data || $1::jsonb where class = 'Class' and tenant = $2 and data->>'name' = $3`, [patch, x.id, name]);
-  // агрегат описан законно: Sale читается целиком; источника Later ещё нет
-  await setClass('Shop', { aggregate: { total: { sum: 'amount', of: 'Sale', via: 'Shop' }, later: { count: true, of: 'Later', via: 'Shop' } } });
+  // агрегат описан законно: Sale читается целиком; над классом Later, которого ещё нет, агрегат не описывается
+  const both = { aggregate: { total: { sum: 'amount', of: 'Sale', via: 'Shop' }, later: { count: true, of: 'Later', via: 'Shop' } } };
+  await assert.rejects(setClass('Shop', both), /агрегат Shop\.later: класса-источника Later и его потомков у арендатора нет/);
+  await setClass('Shop', { aggregate: { total: { sum: 'amount', of: 'Sale', via: 'Shop' } } });
   // строки пишет владелец: магазин и операции Secret и TopSecret, правил на которые у x нет
   const shop = await e.asOwner(async (tx) => {
     const [s] = await tx.unsafe(`select ${e.S}.sys_create(${e.S}.v5_id($1::uuid, 'Shop', array['s1']), 'Shop', $1::uuid, '{}', '{"code": "s1"}') as id`, [x.id]);
@@ -546,16 +552,20 @@ test('ревью коммита этапа 4б: класс становится 
   await grant('topsecret.all:READ', 'READ', { class: 'TopSecret' }, 30);
   await setClass('Secret', { parent: 'Sale' });
   assert.equal(await total(), 740);
-  // источник описан после цели: без права READ на него — отказ, с правом — описан
-  await assert.rejects(link('Later'), denied('Later', 'Shop.later'));
-  await grant('later:READ', 'READ', { class: 'Later' }, 10);
+  // источник описан раньше агрегата: агрегат над ним задаёт только тот, кто читает все его строки
   await link('Later');
+  await assert.rejects(setClass('Shop', both), /агрегат Shop\.later: нужно право READ на все строки класса Later/);
+  await grant('later:READ', 'READ', { class: 'Later' }, 10);
+  await setClass('Shop', both);
   await verifyOk('классы стали источниками');
 });
 
 test('ревью коммита этапа 4б: агрегат арендатора над именем класса System не останавливает накат и правку классов System', async () => {
-  // источника Crate ещё нет нигде — описание проходит; потом класс с этим именем появляется в System
+  // источник Crate — класс арендатора; потом класс с этим именем появляется в System. В арендаторе имя Crate означает его
+  // собственный класс, поэтому агрегат System Depot над Crate считает в нём этот класс: у него есть и конец Depot
   const y = await e.tenant('agg-sys');
+  await e.defineClass(y, { name: 'Crate', kind: 'link', fields: { properties: { w: { type: 'integer' } } },
+    ends: { Rack: { class: 'Rack' }, Depot: { class: 'Depot' } } });
   await e.defineClass(y, { name: 'Rack', kind: 'hub', key: ['code'],
     fields: { properties: { code: { type: 'string' }, crates: { type: 'integer' } }, required: ['code'] },
     aggregate: { crates: { count: true, of: 'Crate', via: 'Rack' } } });
@@ -603,10 +613,14 @@ test('ревью коммита этапа 4б: агрегат класса ар
   await sys({ name: 'Store', kind: 'hub', fields: { properties: { n: { type: 'integer' } } }, aggregate: { n: { count: true, of: 'Bin', via: 'Store' } } });
   await sys({ name: 'Bin', kind: 'link', fields: { properties: { w: { type: 'integer' } } }, ends: { Store: { class: 'Store' }, Shelf: { class: 'Shelf' } } });
   const z = await e.tenant('agg-own');
-  // класс System Bin уже есть, но источник агрегата арендатора ищут только среди классов арендатора: его ещё нет
-  await e.defineClass(z, { name: 'Shelf', kind: 'hub', key: ['code'],
+  // класс System Bin уже есть, но источник агрегата арендатора ищут только среди классов арендатора: пока его нет,
+  // агрегат не описывается (ревью безопасности №3); свой потомок класса System — класс арендатора, источник
+  const shelf = { name: 'Shelf', kind: 'hub', key: ['code'],
     fields: { properties: { code: { type: 'string' }, bins: { type: 'integer' } }, required: ['code'] },
-    aggregate: { bins: { count: true, of: 'Bin', via: 'Shelf' } } });
+    aggregate: { bins: { count: true, of: 'Bin', via: 'Shelf' } } };
+  await assert.rejects(e.defineClass(z, shelf), /агрегат Shelf\.bins: класса-источника Bin и его потомков у арендатора нет/);
+  await e.defineClass(z, { name: 'MyBin', kind: 'link', parent: 'Bin' });
+  await e.defineClass(z, shelf);
   const [r1] = await q(z.token, `insert into ${e.S}.entity (class, data) values ('Shelf', '{"code": "r1"}') returning id`);
   // строка класса System Bin у арендатора ведёт на его полку — в агрегат не входит
   await q(z.token, `insert into ${e.S}.entity (class, data, links) values ('Bin', '{"w": 1}', $1::jsonb)`, [{ Shelf: r1.id }]);
@@ -616,7 +630,6 @@ test('ревью коммита этапа 4б: агрегат класса ар
   // правка цели арендатором проходит
   await q(z.token, `update ${e.S}.entity set data = data || '{"alias": "Полка"}' where class = 'Class' and tenant = $1 and data->>'name' = 'Shelf'`, [z.id]);
   // свой потомок класса System — класс арендатора: его строки агрегат считает
-  await e.defineClass(z, { name: 'MyBin', kind: 'link', parent: 'Bin' });
   await q(z.token, `insert into ${e.S}.entity (class, data, links) values ('MyBin', '{"w": 2}', $1::jsonb)`, [{ Shelf: r1.id }]);
   assert.equal((await row(r1.id)).data.bins, 1);
   // агрегат, унаследованный классом арендатора от класса System, — тоже агрегат класса арендатора: строки класса System

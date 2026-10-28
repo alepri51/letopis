@@ -1,4 +1,4 @@
-# letopis 1.2
+# letopis 1.3
 
 **letopis** is a Node.js library: a store of versioned entities on PostgreSQL 18. Every change is saved as a version
 in a journal. So every object has a history, a state as of any date and a change subscription. The database itself
@@ -375,6 +375,11 @@ class name. While the index is being built, writes to the journal wait. On a lar
 without stopping writes: `create index concurrently log_class_tenant_at on "v2.<schema>".log (class, tenant, at)` as
 the owner role — then `up()` only drops the old one.
 
+The `upgrade` test checks upgrading 1.1.0 and 1.0.1 schemas. The old package installs the schema and the old engine
+writes the data, then the current version's `up()` runs. After it, the versions and hashes written by the old engine
+are in place, `verify({ data: true })` is clean, and the schema catalog matches a clean installation. A 1.1.0 schema is
+upgraded with a plain `up()`, since its revision is the same. A 1.0.1 schema is upgraded with `up({ upgrade: true })`.
+
 ### Development without PostgreSQL: PGlite
 
 `up({ pglite: true })` starts PGlite (PostgreSQL 18 on WebAssembly) with pgcrypto and a socket on a free port. It needs
@@ -560,13 +565,15 @@ const Movement = link('Movement', { amount: z.number().int() }, { ends: { Wallet
   the target is needed: the permission to write the source is enough.
 - The database checks the description (`invalid_class`): the field is in the schema, it is numeric and not part of the
   key; the `via` end is single and accepts the target class; the `sum` field is a number; aggregates do not form a
-  cycle; the target and the source are not system or derived classes. A source described after the target is checked
-  when it appears.
+  cycle; the target and the source are not system or derived classes. A source class is described before the
+  aggregate: an aggregate over a class that does not exist yet is refused. For a tenant class, the source is looked up
+  among the tenant's classes. `syncModels` describes sources before targets itself. The `of` class is not deleted while
+  an aggregate of a class of the same tenant names it: first the aggregate is removed from the target's description.
 - Rows get into an aggregate only with the knowledge of someone who reads them all: the field also counts rows that
   the author cannot see. Only someone who reads all rows of the source and its descendants without conditions can
   describe or change an aggregate. Only someone who reads all rows of a class and its descendants without conditions,
-  both before the change and after it, can make the class a source (a new class, a `parent` change, a source described
-  after the target). Otherwise `acl_denied`.
+  both before the change and after it, can make the class a source (a new descendant of a source, a `parent` change).
+  Otherwise `acl_denied`.
 - The option is inherited, and a descendant replaces it as a whole. Adding or changing an aggregate is a tightening:
   writes to the target and to the sources wait while the field is recalculated for all rows.
 - `db.rebuildAggregates(class)` recalculates the field from the current rows, for repair. A version is written only
@@ -981,7 +988,8 @@ version 1, a `purge` record stays with the number of erased versions. The histor
 While a projector whose `from` sources include the class of the object ([“Projectors”](#projectors)) has not read
 the deletion, `purge` refuses (`projector_pending`): the projector would never see an erased tombstone, and the
 object's contribution would stay in the totals. So a deletion and a `purge` in one transaction do not go through in
-such a class. To delete an account, use `db.auth.purgeAccount` ([section 10](#10-users-sign-in-and-permissions)).
+such a class. Likewise, `db.trimHistory` refuses while the projector has not read the first remaining version: it
+would no longer find the previous version for `before`. To delete an account, use `db.auth.purgeAccount` ([section 10](#10-users-sign-in-and-permissions)).
 
 ## 8. Transactions, batches and money
 
@@ -1462,16 +1470,23 @@ alias in the tenant and System, and the name of a new class does not match anoth
 written for one class would act on the rows of another too. A violation gives `invalid_class`.
 
 By the same names, the rules also find the old versions of rows in the journal. So a class is deleted only when it has
-no rows, no descendants and no history of rows: `purge()` erases the history of deleted rows first. A class deleted
-with history before is created again only with the same `parent`, `alias` and `derivedBy` — otherwise `invalid_class`:
-the old versions of its rows would fall under other rules. If the journal holds rows of a class with this name but not
-its tombstone (for example, rows of a System class deleted in 1.1), a class with this name is not created until
-`purge()` erases the history.
+no rows, no descendants and no history of rows: `purge()` erases the history of deleted rows first. For a System class,
+the rows, descendants and history of a tenant that has its own class with the same name do not count: they belong to
+that tenant's class. A class deleted with history before is created again only with the same `parent`, `alias`,
+`derivedBy` and `history` — otherwise `invalid_class`: the old versions of its rows would fall under other rules or a
+different thinning. The rules also find old versions by the aliases of ancestors. So while deleted descendants of a
+class keep row history, the class does not change its alias (`invalid_class`), and once deleted it is created again
+only with the same description. If the journal holds rows of a class with this name but not its tombstone (for
+example, rows of a System class deleted in 1.1), a class with this name is not created until `purge()` erases the
+history.
 
 A derived class (`derivedBy`) is created, edited and deleted only by an administrator: an admin connection or an
 account with the System permission `letopis.projector` (the system administrator has it through the `letopis.*`
 mask). The projector writes totals over all source rows of the tenant into such a class, without read permissions,
-so a user who created it on their own would read totals over rows they may not read.
+so a user who created it on their own would read totals over rows they may not read. A class that has derived
+descendants is also edited only by an administrator: editing an ancestor changes the description of the descendant
+(fields, key, `history`). The database itself sets the `aggregatedBy` mark (the class became an aggregate source) on a
+derived class too: it does not change its fields or key.
 
 ### Granting a permission
 
@@ -1708,7 +1723,10 @@ for await (const ev of sub) {             // ev: { cursor, row, id, class, op, r
   moment: a write after it comes to the stream. The example above reads from `'start'`.
 - Calls of `sub.next()` go in turn: parallel calls get different events. A call abandoned by a timeout
   (`Promise.race`) still gets its event — keep its promise and wait for it again.
-- `classes`: only these classes with their descendants; `pollMs`: fallback polling (1000 ms).
+- `classes`: only these classes with their descendants; `pollMs`: fallback polling (1000 ms). A row that left these
+  classes through a class change without an id change arrives as a deletion event in the previous class (`op:
+  'delete'`, `row` is the previous version with `$deleted`), even if the subscriber cannot see the new class. The
+  event comes if the subscriber could see the previous version.
 - Events come without losses or repeats, under the reader's permissions, in the order of transaction numbers, and
   within a transaction in the order of writing. This is not the commit order: compare versions of one object by `rev`.
 - A long write transaction in any database of the cluster delays the stream: `await sub.lag()` shows the lag in ms.
@@ -1832,7 +1850,8 @@ sales.close()                                    // stop() after the current bat
   on for all: the tail skips the tenant's changes above the last batch (a batch will read them) and, in a passed batch,
   those whose transaction is visible in its snapshot. The tenant's derived rows are deleted at once and are incomplete
   until the end of the rebuild (`status().rebuildingTenants`); the rebuild waits out a lock held by `run()` of another
-  process.
+  process. An interrupted rebuild (the process stopped) is continued by `run()` of any process, with or without
+  `onExpired`.
 - `status().state` describes the projection in the database, not a process: `'new'` means there is no projection yet,
   and the first `run()` or `rebuild()` builds it; `'running'` means the projection is built and kept up with the
   journal (it does not mean that some process is executing `run()` right now); `'rebuilding'` means a batch rebuild
@@ -1861,6 +1880,10 @@ sales.close()                                    // stop() after the current bat
   tenant with `rebuild({ tenant })`.
 - `batch` is how many changes go into a batch (500), `pollMs` is fallback polling (1000 ms): source signals wake the
   projector earlier.
+- `lockTimeout` is how long a projector transaction waits for another transaction's row lock (5000 ms; 0 — no limit).
+  Otherwise a transaction of any tenant holding a total row or an end target would hold the batch of all tenants.
+  Longer than that, the batch rolls back, the cursor stays, and `run()` does not reject but skips the pass
+  (`skipped`) and repeats it.
 - Every edit that `out` sends to the database is a separate edit of a row, and the speed of a projector is set by the
   number of edits, not by the number of changes. The folding of `inc` brings the edits of a row down to one per batch,
   so the handle from the example above (`out.inc` for every change) caught up with 6 thousand changes per second with
@@ -2317,7 +2340,7 @@ give `invalid_data`.
 
 | Member | What it does |
 |---|---|
-| options `ProjectorOptions` | `from`, `into`: classes with descendants; `version`: an integer from 1; `handle(changes, out)`; `withBefore`; `onExpired: 'rebuild' \| 'error'` (`'rebuild'` rebuilds in batches); `batch`: changes in a batch (500, from 1 to 10,000); `pollMs`: fallback polling (1000 ms); `tenants`: ids of the participant tenants |
+| options `ProjectorOptions` | `from`, `into`: classes with descendants; `version`: an integer from 1; `handle(changes, out)`; `withBefore`; `onExpired: 'rebuild' \| 'error'` (`'rebuild'` rebuilds in batches); `batch`: changes in a batch (500, from 1 to 10,000); `pollMs`: fallback polling (1000 ms); `lockTimeout`: waiting for another transaction's row lock (5000 ms, 0 — no limit); `tenants`: ids of the participant tenants |
 | `run({ once })` | catch up with the journal (`once`) or follow it until `stop()` → `ProjectorReport` |
 | `rebuild({ chunked, tenant })` | rebuild from the current state: atomically, in batches or for one tenant → `ProjectorReport` |
 | `status()` | → `ProjectorStatus`: `{ name, state, version, cursor, at, lag, failed, rebuildingTenants }`; `failed` is `{ [tenant id]: ProjectorFailure }`, where `ProjectorFailure` is `{ cursor, code, message }` |
@@ -2384,7 +2407,7 @@ Database codes. Raw SQL gets them too: SQLSTATE class `LT`, the details are JSON
 | `confirm_mismatch` | LT020 | the reset confirmation does not match the schema name |
 | `derived_class` | LT021 | a row of a derived class (`derivedBy`) is written, edited or deleted by someone other than its projector; an end leads to such a row or to a derived class; a projector writes to a class outside its `into` or has found no tenant in which every `into` class is marked with its `derivedBy` |
 | `aggregate_field` | LT022 | the application passed or changed an aggregate field (`aggregate`): the database calculates it |
-| `projector_pending` | LT023 | `purge` of a deleted object whose deletion a projector of its class has not read yet: run the projector first |
+| `projector_pending` | LT023 | `purge` of a deleted object whose deletion a projector of its class has not read yet, or `trimHistory` whose first remaining version it has not read yet: run the projector first |
 
 Library codes:
 
@@ -2470,7 +2493,7 @@ runs) showed no write or read regressions against 1.1: two outliers did not repe
 
 ## 18. Limitations
 
-This section lists what letopis 1.2 deliberately does not do or does with caveats, and where you need to watch the
+This section lists what letopis 1.3 deliberately does not do or does with caveats, and where you need to watch the
 behavior.
 
 **Platform**
@@ -2556,8 +2579,10 @@ behavior.
   attempts.
 - When users link a taken identifier themselves, the answer is `acl_denied`, so a user with a recent sign-in learns
   this way that the identifier is taken. Permission changes in all tenants are serialized through one counter row.
-- The number of invisible rows that block a deletion or a class change (`reclass_denied`), and the existence of an
-  account by id (as a reference target), are not hidden.
+- Refusal texts name the class, role and id of a referencing row only if the actor can see it: a cascade delete,
+  unsetting an end, rewriting references on a class or key change, and a `parent` change conflict
+  (`tightening_conflict`). The number of invisible rows that block a deletion or a
+  class change (`reclass_denied`), and the existence of an account by id (as a reference target), are not hidden.
 - Tightening a class description and `rekeyClass` check all rows of the family, so they need the `READ` permission
   without conditions on all rows of the class and its descendants: otherwise a trial tightening (`maximum`, `enum`,
   `pattern`) would answer with the number of invisible rows that do not match it. A system administrator who tightens
@@ -2640,6 +2665,8 @@ behavior.
 - `purge()` waits for projectors: while a projector whose sources include the class of the object, and which has a
   derived class in the object's tenant, has not read the deletion, `purge` answers `projector_pending`. A projector
   that is no longer run holds `purge` of its sources while the tenant has its derived classes: run it or delete them.
+  `trimHistory` waits the same way: while the projector has not read the first remaining version, trimming answers
+  `projector_pending`.
 
 **Aggregates in the database**
 
@@ -2707,7 +2734,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # hash — the version hash chain, journal tampering and gaps, verify() (stage 1)
 # harness — the test harness: starting the database, a schema per file, two connection strings (stage 0)
 # jsonschema — compiling JSON Schema to jsonpath and checking data in the database (stage 1)
-# impersonation — impersonation: letopis.account only for a service with the permission, target restrictions, author and agent in the journal, sessionFor; the db.as() registry is one per tenant, does not empty, is re-read on a signal of its tenant (stage 5; the work after checkpoint B)
+# impersonation — impersonation: letopis.account only for a service with the permission, target restrictions, author and agent in the journal, sessionFor; the db.as() registry is one per tenant, does not empty, is re-read on a signal of its tenant (stage 5; the work after checkpoint B); the facade registry is not shared with the root, an empty registry is not cached (security review No. 3 leftovers)
 # install — the installer and roles: a repeated installation, two installations in one database, three tables (stage 1)
 # member — memberships: working in a tenant by roles, auth.switch, leaving with ownership transfer, system rows, tenant roles without System permissions (stage 5)
 # model — Zod models, the JSON Schema normalizer, pattern translation, agreement with the database metaschema (stage 2)
@@ -2731,6 +2758,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # cache — result cache: hits, own and others' writes, the key with the user, permissions, revoked sessions, listener drop, ttl, class marking, without LISTEN, a race, db.sql, the limit of signal counters (stage 6; plan 1.1, checkpoint A)
 # maintain — maintenance: expired sessions and codes, permissions, one process under a lock, schedule (stage 6)
 # up — the full installer: fresh installation, re-apply, custom seeds, automatic database creation, UTF8, version 17, upgrade with migrations, PGlite, the first tenant and user (up({ tenant }), createTenant) (stages 6, 8)
+# upgrade — schema upgrade from 1.1.0 (re-apply) and from 1.0.1 (upgrade: true, migration 0006) with the letopis-11 and letopis-1 packages: versions and hashes written by the old engine, verify(), the catalog against a clean installation, lock rows, the application, a subscription and a projector over old data, a repeated up() (work after 1.2.0, stage 1)
 # scenario-salon — end-to-end salon scenario: 21 acts from 0.21 (salon) with a coverage matrix of the 1.0 API (stage 6)
 # telemetry — onQuery and slowMs, describe() and class metadata with inheritance, describeText (stage 6)
 # history — diff and blame over the log, the reason of a change for verbs, db.begin() and batches; a version hidden by an ACL condition, the changed column, a missing version, row_changes over 20 thousand targets (plan 1.1, stage 1 and checkpoint A)

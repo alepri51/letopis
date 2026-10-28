@@ -1085,3 +1085,89 @@ test('ревью безопасности №3, №5: purge не стирает 
     p.close();
   }
 });
+
+test('хвост ревью безопасности №3: прерванную rebuild({ tenant, chunked: true }) продолжает любой run(), а не только с onExpired', async () => {
+  const x = await e.tenant('proj-resume-x');
+  await tickTenant(x, true);
+  const p = adm.projector('ticker', tickerDef({ batch: 1 }));
+  try {
+    await p.rebuild();
+    for (const v of [1, 2, 4]) await tick(x, v);
+    await p.run({ once: true });
+    // перестройка арендатора начата и брошена после первой пачки (процесс остановился)
+    const rep = { batches: 0, changes: 0, created: 0, updated: 0, deleted: 0, unchanged: 0, skipped: 0, rebuilds: 0 };
+    const inner = p as unknown as { startTenant(r: unknown, t: string, auto: boolean): Promise<string>; tenantChunk(r: unknown, t: string): Promise<string> };
+    assert.equal(await inner.startTenant(rep, x.id, false), 'ok');
+    assert.equal(await inner.tenantChunk(rep, x.id), 'more', 'первая пачка из трёх');
+    // тем временем арендатор пишет: изменения с id выше последней пачки хвост пропускает — их прочтёт перестройка
+    await tick(x, 8);
+    await tick(x, 16);
+    await p.run({ once: true });
+    assert.deepEqual((await p.status()).rebuildingTenants, [], 'перестройку довёл run() без onExpired');
+    assert.equal(await tickTotal(x), await tickSumOf(x), 'каждое изменение — ровно один раз');
+  } finally {
+    p.close();
+  }
+});
+
+test('хвост ревью безопасности №3: lockTimeout — пачка не висит на чужой блокировке строки; после освобождения изменение применено один раз', async () => {
+  const x = await e.tenant('proj-lock-x');
+  await tickTenant(x, true);
+  const p = adm.projector('ticker', tickerDef({ lockTimeout: 300 }));
+  const conn = await e.sql.reserve();
+  let open = false;
+  try {
+    await p.rebuild();
+    await tick(x, 1);
+    await p.run({ once: true });
+    // запись зафиксирована, затем транзакция арендатора держит строку итога (горизонт уже за записью): пачка ждёт
+    // строку не дольше lockTimeout, курсор остаётся
+    await tick(x, 2);
+    await conn.unsafe('begin');
+    open = true;
+    await conn.unsafe(`select 1 from ${e.S}.entity where class = 'TickSum' and tenant = $1 for update`, [x.id]);
+    const r = await Promise.race([p.run({ once: true }), new Promise<'висит'>((res) => setTimeout(() => res('висит'), 5000))]);
+    assert.notEqual(r, 'висит', 'run() не висит на чужой блокировке');
+    assert.ok(r !== 'висит' && r.skipped >= 1, 'проход пропущен');
+    assert.equal((await p.status()).failed[x.id], undefined, 'арендатор не выбыл');
+    await conn.unsafe('commit');
+    open = false;
+    await p.run({ once: true });
+    assert.equal(await tickTotal(x), await tickSumOf(x), 'изменение применено ровно один раз');
+  } finally {
+    if (open) await conn.unsafe('rollback').catch(() => {});
+    conn.release();
+    p.close();
+  }
+});
+
+test('хвост ревью безопасности №3: trimHistory версий, которые проектор ещё не прочёл, — projector_pending; после run() — проходит, итог без двойного счёта', async () => {
+  const x = await e.tenant('proj-trim-x');
+  await tickTenant(x, true);
+  const v = (r: { data: unknown } | null | undefined) => Number((r?.data as { v?: number } | undefined)?.v ?? 0);
+  // свёртка со знаком: прошлая версия вычитается, новая прибавляется
+  const signed = (changes: ProjectorChange[], out: ProjectorOut) => {
+    for (const c of changes) {
+      if (c.op === 'purge' || c.op === 'trim' || c.op === 'reset') continue;
+      const d = (c.row.$deleted ? 0 : v(c.row)) - v(c.before);
+      if (d) out.inc('TickSum', { k: 'all' }, { total: d }, { tenant: c.tenant });
+    }
+  };
+  const p = adm.projector('ticker', tickerDef({ withBefore: true, handle: signed }));
+  const q = (sql: string, params: unknown[] = []) => e.as(x.token, (tx) => tx.unsafe(sql, params as never[]));
+  try {
+    await p.run({ once: true });
+    const [row] = await q(`insert into ${e.S}.entity (class, data) values ('Tick', '{"v": 1}') returning id`);
+    await p.run({ once: true });
+    for (const n of [2, 3]) await q(`update ${e.S}.entity set data = $2::jsonb where id = $1`, [row.id, { v: n }]);
+    // проектор правок не прочёл: обрезка стёрла бы версию, которую он возьмёт как before
+    const trim = () => q(`select ${e.S}.trim_history(array[$1::uuid], null, now())`, [row.id]);
+    await assert.rejects(trim(), lt('projector_pending'));
+    await p.run({ once: true });
+    await trim();
+    await p.run({ once: true });
+    assert.equal(await tickTotal(x), 3, 'итог — последняя версия, без двойного счёта');
+  } finally {
+    p.close();
+  }
+});

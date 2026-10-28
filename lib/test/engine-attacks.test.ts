@@ -2,7 +2,8 @@
  * engine-attacks — атаки сырым SQL от прикладной роли (план, §7.3.1, строки этапа 1; план 1.1, §7.7 №31–35).
  * Каждая попытка проверяет конкретный исход: код ошибки, пустую выборку, ноль строк или находку verify();
  * №35 — агент через инструменты MCP (letopis/mcp); №36 — ревью безопасности №2 (смена parent, alias, derivedBy); №37 —
- * агент через MCP пишет классы прав, сессия системного администратора (О5); №38 и дальше — доработки после точки Б.
+ * агент через MCP пишет классы прав, сессия системного администратора (О5); №38–46 — доработки после точки Б; №47 и
+ * дальше — хвост ревью безопасности №3 (доработки после 1.2.0).
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -873,4 +874,202 @@ test('№46 (автоматическое ревью коммита 1bc6584): п
   await assert.rejects(write, lt('invalid_data'));
   const [{ n }] = await e.sql.unsafe(`select count(*)::int as n from ${S}.entity where class = 'Gx' and tenant = $1 and not data ? 'a'`, [a.id]);
   assert.equal(n, 0, 'строк, нарушающих ужесточённое описание, нет');
+});
+
+test('№47 (ревью безопасности №3): отказ каскада, снятия конца и перевода ссылки производной строки называет класс ссылающейся строки, только если актор её видит', async () => {
+  const { org, user } = await aclTenant();
+  const { resource, rule, sysRes } = await import('./_access.js');
+  const g = await sysRes(e, 'authenticated:ACCOUNT');
+  // Org из Твери пользователь удаляет; Master (каскад) и Memo (снятие конца) ему закрыты
+  await rule(e, org, g, await resource(e, org, 'org:DELETE', 'DELETE', { class: 'Org' }), 'allow', 10);
+  const memo = { name: 'Memo', kind: 'hub', fields: { properties: { text: { type: 'string' } } }, ends: { About: { class: 'Org', onDelete: 'unset' } } };
+  await e.asOwner((tx) => tx.unsafe(`select ${S}.sys_create(${S}.v5_id($1::uuid, 'Class', array[$2]), 'Class', $1::uuid, '{}', $3::jsonb)`,
+    [org, 'Memo', memo as never]));
+  const fails = (t: Tenant, sql: string, p: unknown[]) => as(t, sql, p).then(() => { throw new Error('операция прошла'); }, (x: Error) => x);
+  const t1 = await ownerIns(org, 'Org', { name: 'Т47-1', city: 'Тверь' });
+  await ownerIns(org, 'Master', { name: 'Скрытый' }, { Org: t1 });
+  const t2 = await ownerIns(org, 'Org', { name: 'Т47-2', city: 'Тверь' });
+  await ownerIns(org, 'Memo', { text: 'скрыто' }, { About: t2 });
+  const del = (id: string) => fails(user, `delete from ${S}.entity where id = $1`, [id]);
+  const e1 = await del(t1);
+  lt('acl_denied')(e1);
+  assert.ok(!e1.message.includes('Master'), e1.message);
+  const e2 = await del(t2);
+  lt('acl_denied')(e2);
+  assert.ok(!e2.message.includes('Memo'), e2.message);
+  // видимые классы называются: READ без DELETE и без WRITE
+  await rule(e, org, g, await resource(e, org, 'master:READ', 'READ', { class: 'Master' }), 'allow', 10);
+  await rule(e, org, g, await resource(e, org, 'memo:READ', 'READ', { class: 'Memo' }), 'allow', 10);
+  assert.match((await del(t1)).message, /нет права DELETE на класс Master в каскаде удаления/);
+  assert.match((await del(t2)).message, /нет права WRITE на класс Memo: снятие конца при удалении/);
+
+  // перевод ссылок при reclass: на строку ссылается строка производного класса — её пишет проектор
+  const x = await e.tenant('x47');
+  for (const c of [
+    { name: 'KA47', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' } }, required: ['code'] } },
+    { name: 'KB47', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' } }, required: ['code'] } },
+  ]) await e.defineClass(x, c);
+  for (const name of ['Tail47', 'Seen47']) {
+    await e.defineDerived(x, { name, kind: 'hub', derivedBy: 'p47', history: false, fields: { properties: {} },
+      ends: { [`Ref${name}`]: { class: ['KA47', 'KB47'], onDelete: 'unset' } } });
+  }
+  await rule(e, x.id, g, await resource(e, x.id, 'tail47:READ', 'READ', { class: 'Tail47' }), 'deny', 20);
+  const [k1] = await as(x, `insert into ${S}.entity (class, data) values ('KA47', '{"code": "1"}') returning id`);
+  const [k2] = await as(x, `insert into ${S}.entity (class, data) values ('KA47', '{"code": "2"}') returning id`);
+  await ownerIns(x.id, 'Tail47', {}, { RefTail47: k1.id });
+  await ownerIns(x.id, 'Seen47', {}, { RefSeen47: k2.id });
+  const e3 = await fails(x, `select ${S}.reclass($1::uuid, 'KB47')`, [k1.id]);
+  lt('derived_class')(e3);
+  assert.ok(!e3.message.includes('Tail47'), e3.message);
+  assert.match((await fails(x, `select ${S}.reclass($1::uuid, 'KB47')`, [k2.id])).message, /производного класса Seen47/);
+});
+
+test('№48 (ревью безопасности №3): история одноимённого класса арендатора не мешает администратору создать и удалить класс System; строки класса System — мешают', async () => {
+  const { sysadmin } = await import('./_access.js');
+  const admin = await sysadmin(e, 'admin48');
+  const t = await e.tenant('t48');
+  const u = await e.tenant('u48');
+  const desc = { name: 'Inv48', kind: 'hub', fields: { properties: { n: { type: 'integer' } } } };
+  await e.defineClass(t, desc);
+  const [row] = await as(t, `insert into ${S}.entity (class, data) values ('Inv48', '{"n": 1}') returning id`);
+  await as(t, `update ${S}.entity set data = '{"n": 2}' where id = $1`, [row.id]);
+  const sys = (sql: string, p: unknown[] = []) => e.as(admin.token, (tx) => tx.unsafe(sql, p as never[]));
+  const create = () => sys(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [desc]);
+  const drop = () => sys(`delete from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = 'Inv48'`, [SYSTEM_ID]);
+  // у t свой класс Inv48: его строки и их история — не строки класса System
+  await create();
+  await drop();
+  // u своего класса нет: его строки Inv48 — строки класса System
+  await create();
+  await as(u, `insert into ${S}.entity (class, data) values ('Inv48', '{"n": 3}')`);
+  await assert.rejects(drop(), /есть строки или потомки/);
+  await as(u, `delete from ${S}.entity where class = 'Inv48'`);
+  await assert.rejects(drop(), /история строк/);
+  assert.equal((await e.sql.unsafe(`select count(*)::int as n from ${S}.entity where class = 'Inv48' and tenant = $1`, [t.id]))[0].n, 1,
+    'строка класса арендатора на месте');
+});
+
+test('№49 (ревью безопасности №3): надгробие класса сверяется и по history; алиас предка не меняется, пока удалённые потомки хранят историю строк', async () => {
+  const x = await e.tenant('x49');
+  const q = (sql: string, p: unknown[] = []) => e.as(x.token, (tx) => tx.unsafe(sql, p as never[]));
+  const ins = async (cls: string) => (await q(`insert into ${S}.entity (class, data) values ($1, '{}') returning id`, [cls]))[0].id as string;
+  const create = (desc: object) => q(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [desc]);
+  const dropClass = (name: string) => q(`delete from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = $2`, [x.id, name]);
+  /** Удаление класса с историей строк, как его допускала 1.1: надгробие строки Class и снятие строки от владельца. */
+  const dropOld = (name: string) => e.asOwner(async (tx) => {
+    const [c] = await tx.unsafe(`select id from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = $2`, [x.id, name]);
+    await tx.unsafe(`insert into ${S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, op, prev_hash, changed)
+      select id, rev + 1, class, cv, tenant, owner, links, data, tags, now(), author, 'delete', hash, '[]' from ${S}.entity where id = $1`, [c.id]);
+    await tx.unsafe(`delete from ${S}.entity where id = $1`, [c.id]);
+  });
+  // политика хранения: другая history подставила бы старые версии строк под другое прореживание
+  const h = { name: 'H49', kind: 'hub', fields: { properties: {} } };
+  await create(h);
+  await q(`delete from ${S}.entity where id = $1`, [await ins('H49')]);
+  await dropOld('H49');
+  await assert.rejects(create({ ...h, history: false }), /журнал хранит историю строк класса H49/);
+  await assert.rejects(create({ ...h, history: { all: '1 day' } }), lt('invalid_class'));
+  await create(h);
+  // алиас предка: правила находят старые версии строк удалённого потомка и по алиасам его предков
+  const base = { name: 'Base49', kind: 'hub', alias: 'База49', fields: { properties: {} } };
+  const kid = { name: 'Kid49', kind: 'hub', parent: 'Base49' };
+  await create(base);
+  await create(kid);
+  const k = await ins('Kid49');
+  await q(`delete from ${S}.entity where id = $1`, [k]);
+  await dropOld('Kid49');
+  const realias = (alias: string) => q(`update ${S}.entity set data = data || $2::jsonb where class = 'Class' and tenant = $1 and data->>'name' = 'Base49'`,
+    [x.id, { alias }]);
+  await assert.rejects(realias('Основа49'), /удалённые потомки класса Base49 хранят историю строк/);
+  await dropClass('Base49');
+  await assert.rejects(create({ ...base, alias: 'Основа49' }), /журнал хранит историю строк класса Base49/);
+  await create(base);
+  // история потомка стёрта: прежний Kid49 пересоздан, его удалённая строка стёрта purge(), класс удалён — алиас меняется
+  await create(kid);
+  await q(`select ${S}.purge($1::uuid, true)`, [k]);
+  await dropClass('Kid49');
+  await realias('Основа49');
+});
+
+test('№50 (ревью безопасности №3): непроизводного предка производного класса правит только администратор — описание потомка без права letopis.projector не меняется', async () => {
+  const x = await e.tenant('x50');
+  type Run = (sql: string, p: unknown[]) => Promise<unknown>;
+  const app: Run = (sql, p) => e.as(x.token, (tx) => tx.unsafe(sql, p as never[]));
+  const admin: Run = (sql, p) => e.asAdmin(x.token, (tx) => tx.unsafe(sql, p as never[]));
+  await e.defineClass(x, { name: 'Base50', kind: 'hub', fields: { properties: { v: { type: 'string' } } } });
+  await e.defineDerived(x, { name: 'Roll50', kind: 'hub', parent: 'Base50', derivedBy: 'roll50', history: false });
+  await e.defineClass(x, { name: 'Plain50', kind: 'hub', fields: { properties: { v: { type: 'string' } } } });
+  const widen = (run: Run, name: string) => run(`update ${S}.entity set data = ${S}.merge(data, $2::jsonb)
+    where class = 'Class' and tenant = $1 and data->>'name' = $3`, [x.id, { fields: { properties: { v: { type: 'string' }, w: { type: 'integer' } } } }, name]);
+  const rollHasW = async () => (await e.sql.unsafe(`select data->'resolved'->'schema'->'properties' ? 'w' as w from ${S}.entity
+    where class = 'Class' and tenant = $1 and data->>'name' = 'Roll50'`, [x.id]))[0].w as boolean;
+  await assert.rejects(widen(app, 'Base50'), lt('acl_denied'));
+  await assert.rejects(widen(app, 'Base50'), /предок производного класса Roll50/);
+  assert.equal(await rollHasW(), false, 'описание производного потомка прежнее');
+  await widen(admin, 'Base50');
+  assert.equal(await rollHasW(), true, 'администраторское подключение правит предка, потомок пересчитан');
+  await widen(app, 'Plain50');
+});
+
+test('№51 (ревью безопасности №3): конфликт смены parent называет роль и id ссылающейся строки, только если актор её видит; видимая — первой', async () => {
+  const x = await e.tenant('x51');
+  const { resource, rule, sysRes } = await import('./_access.js');
+  const g = await sysRes(e, 'authenticated:ACCOUNT');
+  const q = (sql: string, p: unknown[] = []) => e.as(x.token, (tx) => tx.unsafe(sql, p as never[]));
+  for (const c of [
+    { name: 'PA51', kind: 'hub', fields: { properties: {} } },
+    { name: 'PB51', kind: 'hub', fields: { properties: {} } },
+    { name: 'Item51', kind: 'hub', parent: 'PA51' },
+    { name: 'Hid51', kind: 'hub', fields: { properties: {} }, ends: { HidRole: { class: 'PA51' } } },
+    { name: 'See51', kind: 'hub', fields: { properties: {} }, ends: { SeeRole: { class: 'PA51' } } },
+  ]) await e.defineClass(x, c);
+  const item = async () => (await q(`insert into ${S}.entity (class, data) values ('Item51', '{}') returning id`))[0].id as string;
+  const ref = async (cls: string, role: string, to: string) =>
+    (await q(`insert into ${S}.entity (class, data, links) values ($1, '{}', $2::jsonb) returning id`, [cls, { [role]: to }]))[0].id as string;
+  const [hidOnly, seenOnly, both] = [await item(), await item(), await item()];
+  await ref('Hid51', 'HidRole', hidOnly);
+  const s1 = await ref('See51', 'SeeRole', seenOnly);
+  await ref('Hid51', 'HidRole', both);
+  const s2 = await ref('See51', 'SeeRole', both);
+  await rule(e, x.id, g, await resource(e, x.id, 'hid51:READ', 'READ', { class: 'Hid51' }), 'deny', 20);
+  const err = await q(`update ${S}.entity set data = data || '{"parent": "PB51"}' where class = 'Class' and tenant = $1 and data->>'name' = 'Item51'`,
+    [x.id]).then(() => null, (y) => y);
+  lt('tightening_conflict')(err);
+  const rows = JSON.parse(err.detail).rows as { id: string; problem: string }[];
+  const problem = (id: string) => rows.find((r) => r.id === id)?.problem ?? '';
+  assert.ok(!problem(hidOnly).includes('HidRole'), problem(hidOnly));
+  assert.match(problem(hidOnly), /ссылается строка, которой актор не видит/);
+  assert.match(problem(seenOnly), new RegExp(`роль SeeRole строки ${s1}`));
+  assert.match(problem(both), new RegExp(`роль SeeRole строки ${s2}`), 'видимая ссылающаяся строка — первой');
+});
+
+test('№52 (/security-review, ревью безопасности №3): агрегат над классом, которого ещё нет, не описывается — источник потом заведёт другой, и права описавшего на его строки уже не проверить', async () => {
+  const x = await e.tenant('x52', { bare: true });
+  const { resource, rule, sysRes } = await import('./_access.js');
+  const g = await sysRes(e, 'authenticated:ACCOUNT');
+  await rule(e, x.id, g, await resource(e, x.id, 'class52:WRITE', 'WRITE', { class: 'Class' }), 'allow', 10);
+  const purse = { name: 'Purse52', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' }, total: { type: 'integer' } }, required: ['code'] },
+    aggregate: { total: { sum: 'v', of: 'Coin52', via: 'Purse52' } } };
+  const coin = { name: 'Coin52', kind: 'link', fields: { properties: { v: { type: 'integer' } } },
+    ends: { Purse52: { class: 'Purse52', required: true, onDelete: 'cascade' } } };
+  // пользователь без права READ на будущий источник описывает агрегат заранее — отказ: проверять право ещё не на чем
+  await assert.rejects(e.defineClass(x, purse), /агрегат Purse52\.total: класса-источника Coin52 и его потомков у арендатора нет/);
+  // источник заводит тот, кто читает всё; агрегат над ним — только с правом READ на все его строки
+  await e.asAdmin(x.token, (tx) => tx.unsafe(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [coin as never]));
+  await assert.rejects(e.defineClass(x, purse), /агрегат Purse52\.total: нужно право READ на все строки класса Coin52/);
+});
+
+test('№53 (автоматическое ревью коммита 5290be1): класс-источник не удаляется, пока его называет агрегат класса арендатора — иначе класс с этим именем заведёт потом другой, и право описавшего на его строки уже не проверить', async () => {
+  const x = await e.tenant('x53');
+  const q = (sql: string, p: unknown[] = []) => e.as(x.token, (tx) => tx.unsafe(sql, p as never[]));
+  await e.defineClass(x, { name: 'Coin53', kind: 'link', fields: { properties: { v: { type: 'integer' } } },
+    ends: { Purse53: { class: 'Purse53', required: true, onDelete: 'cascade' } } });
+  await e.defineClass(x, { name: 'Purse53', kind: 'hub', key: ['code'],
+    fields: { properties: { code: { type: 'string' }, total: { type: 'integer' } }, required: ['code'] },
+    aggregate: { total: { sum: 'v', of: 'Coin53', via: 'Purse53' } } });
+  const drop = (name: string) => q(`delete from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = $2`, [x.id, name]);
+  await assert.rejects(drop('Coin53'), /класс Coin53 — источник агрегата Purse53\.total/);
+  // агрегат убран из описания цели — источник удаляется
+  await q(`update ${S}.entity set data = data - 'aggregate' where class = 'Class' and tenant = $1 and data->>'name' = 'Purse53'`, [x.id]);
+  await drop('Coin53');
 });

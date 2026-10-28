@@ -1,4 +1,4 @@
-# letopis 1.2 — agent cheatsheet
+# letopis 1.3 — agent cheatsheet
 
 One page instead of [README.en.md](README.en.md), for an AI agent that writes code on top of the package. It ships in
 the package next to the README; in Russian: [Русская версия](AGENT-CHEATSHEET.md). Migration from 0.21:
@@ -263,7 +263,7 @@ const canDelete = await olga.acl.checkData('Wallet', 'DELETE')    // { allow: fa
 
 <!-- run -->
 ```ts
-const sub = db.watch({ from: 'start', classes: ['Wallet'] })  // from: 'now' (default) | 'start' | a cursor; pollMs
+const sub = db.watch({ from: 'start', classes: ['Wallet'] })  // from: 'now' (default) | 'start' | a cursor; pollMs; leaving classes — op 'delete'
 const lagMs = await sub.lag()                                  // lag, ms
 await db.Wallet(w).update({ balance: inc(1) }).rows()
 let cursor = ''
@@ -325,8 +325,8 @@ npx letopis import --from "$ADMIN" --from-schema v1.fixture --dsn "$ADMIN" --sch
 
 A projector builds rows of derived classes from the journal: summaries, cards, anything that may be computed with a
 lag. A derived class is marked with `derivedBy: 'projector-name'`, and only this projector writes its rows. The
-derived class itself (own or inherited) is created, edited and deleted only by an administrator: `syncModels` on an
-admin connection holding a tenant session (`connect({ dsn: ADMIN, schema, token, allowBypassRls: true })`) or an
+derived class itself (own or inherited) and its ancestors are created, edited and deleted only by an administrator:
+`syncModels` on an admin connection holding a tenant session (`connect({ dsn: ADMIN, schema, token, allowBypassRls: true })`) or an
 account with the System permission `letopis.projector`; for an application session it is `acl_denied`. Everyone whom
 the rules give `READ` on a derived class sees its totals, even without permissions on the source rows.
 ```ts
@@ -348,7 +348,7 @@ have no such field, so subtract `before` only after checking it for `null`. A cl
 without a key) and takes the row out of the `from` family comes as a deletion (`op` `delete`, `row` is the last
 version in the family with `$deleted`). `handle` gets the changes of one tenant. An error of its data (the
 database rejected its results, or `out` rejected its row or delta) rolls back only this tenant: it drops out
-(`status().failed`: `{ id: { cursor, code, message } }`) until `rebuild({ tenant: id })` (`{ tenant, chunked: true }` — in batches while the tail goes on for all;
+(`status().failed`: `{ id: { cursor, code, message } }`) until `rebuild({ tenant: id })` (`{ tenant, chunked: true }` — in batches while the tail goes on for all, an interrupted one is continued by any `run()`;
 `status().rebuildingTenants`), and the others go on; with `onExpired: 'rebuild'` a tenant dropped by the tier rebuilds
 itself in batches, in any process;
 `tenants: [id, …]` is an explicit list of participants.
@@ -374,7 +374,9 @@ A trigger recalculates the field after every statement (the library, raw SQL, a 
 `rekey`, the loader); going below `minimum` is `invalid_data`, every change is a version of the target. Live rows of
 the same tenant are counted (a System row is not). Repair: `adm.rebuildAggregates('Wallet')` on an admin connection;
 discrepancies: `verify({ data: true })`. Only someone who reads all rows of the source and its descendants without
-conditions can describe or change an aggregate, otherwise `acl_denied`. A hot counter (more than ~150 writes per
+conditions can describe or change an aggregate, otherwise `acl_denied`. The source is described before the aggregate:
+an aggregate over a class that does not exist yet is refused (`invalid_class`), and the `of` class is not deleted while an
+aggregate names it; `syncModels` puts sources before targets itself. A hot counter (more than ~150 writes per
 second per object) is a projector that folds a batch, not an aggregate.
 
 ### 14. Agents and MCP
@@ -422,7 +424,7 @@ await adm.close(); await db.close(); await svc.close()
    if the row was deleted between the lookup and the edit.
 3. **Verbs return a chain.** Without a terminal (`.rows()`, `.first()` …) nothing runs. `delete()` without
    `{ confirm: true }` is only a preview; `purge` works only on deleted entities (`not_deleted`) and once a projector
-   of the class has read the deletion (`projector_pending`).
+   of the class has read the deletion (`projector_pending`); `trimHistory`, once the projector has read the versions.
 4. **Money and counters**: `update({ balance: inc(n) })` — the database adds inside the statement, without a read and
    without lost updates; the `minimum` check in the schema catches a drop below zero. For a total computed from what
    you read, use `{ rev }` (re-read and retry on `conflict`) or `forUpdate()` in `db.begin()`. Idempotency comes from
