@@ -597,6 +597,7 @@ declare
   outv jsonb := '[]'::jsonb;
   a jsonb := @SCHEMA@.acl_actor('READ');
   vis boolean;
+  ref jsonb;
 begin
   for r in select e.* from @SCHEMA@.entity e
            where e.class = any (p_classes) and (e.tenant = p_tenant or p_tenant = '@SYSTEM@'::uuid)
@@ -622,13 +623,17 @@ begin
     if problem is null and p_incoming then
       inc := @SCHEMA@.incoming_conflicts(r.id, r.class, r.tenant);
       if inc <> '[]'::jsonb then
-        -- id ссылающейся строки — только если актор её видит (доработки после точки Б)
-        select @SCHEMA@.row_visible(x.tenant, x.class, x.id, x.owner, x.tags, x.data, x.links,
-                                    (a->>'tenant')::uuid, (a->>'account')::uuid, a->'plan') into vis
-        from @SCHEMA@.entity x where x.id = (inc->0->>'id')::uuid;
-        problem := case when coalesce(vis, false)
-          then format('на строку ссылается роль %s строки %s, которая не принимает класс', inc->0->>'role', inc->0->>'id')
-          else format('на строку ссылается роль %s строки, которой актор не видит, и она не принимает класс', inc->0->>'role') end;
+        -- роль и id ссылающейся строки — только если актор её видит (доработки после точки Б; ревью безопасности №3:
+        -- о невидимой — ни роли, ни id); видимые ссылающиеся строки — первыми, затем по id
+        select i.v, coalesce(@SCHEMA@.row_visible(x.tenant, x.class, x.id, x.owner, x.tags, x.data, x.links,
+                                                  (a->>'tenant')::uuid, (a->>'account')::uuid, a->'plan'), false) as seen
+          into ref, vis
+        from jsonb_array_elements(inc) i(v)
+        left join @SCHEMA@.entity x on x.id = (i.v->>'id')::uuid
+        order by seen desc, i.v->>'id' limit 1;
+        problem := case when vis
+          then format('на строку ссылается роль %s строки %s, которая не принимает класс', ref->>'role', ref->>'id')
+          else 'на строку ссылается строка, которой актор не видит, и она не принимает класс' end;
       end if;
     end if;
     if problem is not null then

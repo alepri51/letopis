@@ -1010,3 +1010,35 @@ test('№50 (ревью безопасности №3): непроизводно
   assert.equal(await rollHasW(), true, 'администраторское подключение правит предка, потомок пересчитан');
   await widen(app, 'Plain50');
 });
+
+test('№51 (ревью безопасности №3): конфликт смены parent называет роль и id ссылающейся строки, только если актор её видит; видимая — первой', async () => {
+  const x = await e.tenant('x51');
+  const { resource, rule, sysRes } = await import('./_access.js');
+  const g = await sysRes(e, 'authenticated:ACCOUNT');
+  const q = (sql: string, p: unknown[] = []) => e.as(x.token, (tx) => tx.unsafe(sql, p as never[]));
+  for (const c of [
+    { name: 'PA51', kind: 'hub', fields: { properties: {} } },
+    { name: 'PB51', kind: 'hub', fields: { properties: {} } },
+    { name: 'Item51', kind: 'hub', parent: 'PA51' },
+    { name: 'Hid51', kind: 'hub', fields: { properties: {} }, ends: { HidRole: { class: 'PA51' } } },
+    { name: 'See51', kind: 'hub', fields: { properties: {} }, ends: { SeeRole: { class: 'PA51' } } },
+  ]) await e.defineClass(x, c);
+  const item = async () => (await q(`insert into ${S}.entity (class, data) values ('Item51', '{}') returning id`))[0].id as string;
+  const ref = async (cls: string, role: string, to: string) =>
+    (await q(`insert into ${S}.entity (class, data, links) values ($1, '{}', $2::jsonb) returning id`, [cls, { [role]: to }]))[0].id as string;
+  const [hidOnly, seenOnly, both] = [await item(), await item(), await item()];
+  await ref('Hid51', 'HidRole', hidOnly);
+  const s1 = await ref('See51', 'SeeRole', seenOnly);
+  await ref('Hid51', 'HidRole', both);
+  const s2 = await ref('See51', 'SeeRole', both);
+  await rule(e, x.id, g, await resource(e, x.id, 'hid51:READ', 'READ', { class: 'Hid51' }), 'deny', 20);
+  const err = await q(`update ${S}.entity set data = data || '{"parent": "PB51"}' where class = 'Class' and tenant = $1 and data->>'name' = 'Item51'`,
+    [x.id]).then(() => null, (y) => y);
+  lt('tightening_conflict')(err);
+  const rows = JSON.parse(err.detail).rows as { id: string; problem: string }[];
+  const problem = (id: string) => rows.find((r) => r.id === id)?.problem ?? '';
+  assert.ok(!problem(hidOnly).includes('HidRole'), problem(hidOnly));
+  assert.match(problem(hidOnly), /ссылается строка, которой актор не видит/);
+  assert.match(problem(seenOnly), new RegExp(`роль SeeRole строки ${s1}`));
+  assert.match(problem(both), new RegExp(`роль SeeRole строки ${s2}`), 'видимая ссылающаяся строка — первой');
+});
