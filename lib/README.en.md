@@ -369,6 +369,13 @@ package. So a startup script that calls `up()` on every start will stop after a 
 `upgrade: true`. `up({ dsn, schema, upgrade: true })` applies the migrations from `sql/migrate/` and re-applies the
 functions; the data is kept.
 
+The revision does not change with every version: 1.1–1.4 share one, while their functions differ. So `up()` also writes
+an engine stamp into the schema comment: the package version and a hash of its SQL files. If the stamp does not match
+the package files, `connect()` warns. When the schema was applied by an older version (or by a version before 1.4,
+which has no stamp), it suggests `up({ schema })`. When a newer version has already upgraded the schema, it suggests
+updating the package: `up()` from the older version would bring the old functions back. A new package version without
+SQL changes keeps the stamp, and there is no warning.
+
 The first `up()` after moving to 1.2 builds the journal index `log_class_tenant_at (class, tenant, at)` instead of
 `log_class_at`: an `asOf` and `withDeleted` slice by class no longer reads the journal of other tenants with the same
 class name. While the index is being built, writes to the journal wait. On a large installation, build it in advance

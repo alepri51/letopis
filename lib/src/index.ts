@@ -30,6 +30,7 @@ import {
   type ResetOptions, type ResetResult, type VerifyResult,
 } from './admin.js';
 import type { AnyModelLike, StepsOf } from './typed.js';
+import { stampDrift } from './up.js';
 
 export { DDL_REVISION } from './types.js';
 export { uuidv5, v5Name, v5Id, idOf, type KeyedClass } from './uuid.js';
@@ -439,6 +440,11 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
     const rev = Number(/ddl_revision=(\d+)/.exec(String(rv?.c ?? ''))?.[1] ?? 0);
     if (!rv) throw new LetopisError('invalid_data', `connect: схемы ${opts.schema} нет — установите её: up({ schema })`);
     if (rev < DDL_REVISION) console.warn(`letopis: движок схемы ${opts.schema} ревизии ${rev}, библиотека ждёт ${DDL_REVISION} — обновите: up({ schema: '${opts.schema}', upgrade: true })`);
+    else if (rev === DDL_REVISION) {
+      // ревизия та же, а функции схемы ставила другая версия движка — штамп в комментарии схемы (99-revision.sql)
+      const drift = await stampDrift(opts.schema, String(rv.c ?? ''));
+      if (drift) console.warn(drift);
+    }
     // режим сигналов установки (план 1.1, §2.2); схема, накатанная до него (нет signal_mode()), — class
     const [sm] = await sql.unsafe(`select ${S}.signal_mode() as m`).catch((e: { code?: string }) => {
       if (e.code === '42883') return [{ m: 'class' }];

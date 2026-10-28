@@ -33,6 +33,20 @@ after(async () => {
   await sql.end({ timeout: 5 });
 });
 
+/** Предупреждения connect() текущей версии на схеме S — кроме «RLS не действует» администраторского подключения. */
+async function connectWarns(S: string): Promise<string[]> {
+  const warns: string[] = [];
+  const warn = console.warn;
+  console.warn = (m: string) => warns.push(String(m));
+  try {
+    const db = await connect({ dsn: ADMIN_DSN, schema: S, allowBypassRls: true, listen: false, max: 1 });
+    await db.close();
+  } finally {
+    console.warn = warn;
+  }
+  return warns.filter((w) => !/RLS не действует/.test(w));
+}
+
 /** Пул прикладной роли: роль letopis_app создаёт установщик, поэтому — после установки прежним пакетом. */
 async function appPool(): Promise<Sql> {
   await ensureAppRole(sql);
@@ -274,6 +288,8 @@ async function scenario(o: { old: OldLib; S: string; ref: string; signals?: Sign
   const opts = { dsn: ADMIN_DSN, quiet: true, ...(o.signals ? { signals: o.signals } : {}) };
   await o.old.up({ ...opts, schema: o.S, fresh: true, seeds: ['booking'] });
   const data = await writeOld(o.S);
+  // connect() текущей версии на схеме прежней: при той же ревизии предупреждает штамп движка, при отставшей — ревизия
+  assert.match((await connectWarns(o.S)).join('\n'), o.upgrade ? /ревизии 5, библиотека ждёт/ : /поставила версия до 1\.4\.0/);
   const before = await versions(o.S, data.tenant);
   assert.ok(before.log.length > 20 && before.ent.length > 5, 'прежний движок записал данные');
   // эталон — чистая установка текущей версии с теми же сидами и режимом сигналов; сверка обязана различать схему до наката
@@ -295,6 +311,7 @@ async function scenario(o: { old: OldLib; S: string; ref: string; signals?: Sign
   }
   assert.equal(r.serviceKey, null, 'ключ сервиса прежней установки сохранён, новый не выдан');
   assert.equal(r.signals, o.signals ?? 'class', 'режим сигналов сохранён');
+  assert.deepEqual(await connectWarns(o.S), [], 'после наката connect() не предупреждает');
 
   const after1 = await versions(o.S, data.tenant);
   const kept = new Set(after1.log);
