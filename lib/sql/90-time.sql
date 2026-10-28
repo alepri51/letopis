@@ -256,6 +256,28 @@ end $$;
 -- все версии удаляются, а на место версии 1 встаёт запись purge с числом стёртых версий и хэшем
 -- последней. Право DELETE на класс по последнему снимку. История системных классов — аудит прав и
 -- схемы: её не стирают.
+-- Проектор источника ещё не прочёл версию (p_tx, p_seq) строки арендатора p_tenant класса из p_classes (ревью
+-- безопасности №3, №5 — purge; хвост ревью №3 — обрезка истории). Проектор касается арендатора, у которого есть его
+-- производный класс (derivedBy — имя проектора): брошенный проектор с удалёнными производными классами не держит.
+-- Курсор «tx:seq~снимок»: транзакции, видимые в снимке, учла перестройка. Чекпоинт без from (до 1.2.0) касается всех
+-- классов.
+create or replace function @SCHEMA@.projector_behind(p_tenant uuid, p_classes text[], p_tx xid8, p_seq bigint) returns boolean
+language sql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+return exists (select 1 from @SCHEMA@.secret s
+               cross join lateral (select split_part(s.meta->>'cursor', '~', 1) as head,
+                                          nullif(split_part(s.meta->>'cursor', '~', 2), '') as snap) k
+               where s.kind = 'PROJECTOR' and s.account = '@SYSTEM@'::uuid and s.deleted_at is null
+                 and coalesce(s.meta->>'cursor', '') <> ''
+                 and exists (select 1 from @SCHEMA@.entity x where x.class = 'Class' and x.tenant = p_tenant
+                             and x.data->'resolved'->>'derivedBy' = s.ident)
+                 and (not s.meta ? 'from'
+                      or exists (select 1 from unnest(p_classes) c
+                                 where coalesce((@SCHEMA@.class_row(c, p_tenant)).data->'resolved'->'ancestors', jsonb_build_array(c))
+                                       ?| array(select jsonb_array_elements_text(s.meta->'from'))))
+                 and (p_tx, p_seq) > (split_part(k.head, ':', 1)::xid8, split_part(k.head, ':', 2)::bigint)
+                 and not coalesce(pg_visible_in_snapshot(p_tx, k.snap::pg_snapshot), false));
+
 create or replace function @SCHEMA@.purge(p_id uuid, p_confirm boolean default false) returns jsonb
 language plpgsql volatile security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -280,21 +302,8 @@ begin
     perform @SCHEMA@.lt_fail('acl_denied', format('нет права DELETE на класс %s', l.class));
   end if;
   -- проектор источника, чей курсор ещё не прошёл надгробие (в том числе надгробие этой транзакции), об удалении не
-  -- узнал бы — вклад строки остался бы в итогах навсегда (ревью безопасности №3, №5). Проектор касается арендатора, у
-  -- которого есть его производный класс (derivedBy — имя проектора): брошенный проектор с удалёнными производными
-  -- классами purge не держит. Курсор «tx:seq~снимок»: транзакции, видимые в снимке, учла перестройка. Чекпоинт без from
-  -- (до 1.2.0) касается всех классов.
-  if exists (select 1 from @SCHEMA@.secret s
-             cross join lateral (select split_part(s.meta->>'cursor', '~', 1) as head,
-                                        nullif(split_part(s.meta->>'cursor', '~', 2), '') as snap) k
-             where s.kind = 'PROJECTOR' and s.account = '@SYSTEM@'::uuid and s.deleted_at is null
-               and coalesce(s.meta->>'cursor', '') <> ''
-               and exists (select 1 from @SCHEMA@.entity x where x.class = 'Class' and x.tenant = l.tenant
-                           and x.data->'resolved'->>'derivedBy' = s.ident)
-               and (not s.meta ? 'from' or coalesce((@SCHEMA@.class_row(l.class, l.tenant)).data->'resolved'->'ancestors',
-                                                    jsonb_build_array(l.class)) ?| array(select jsonb_array_elements_text(s.meta->'from')))
-               and (l.tx, l.seq) > (split_part(k.head, ':', 1)::xid8, split_part(k.head, ':', 2)::bigint)
-               and not coalesce(pg_visible_in_snapshot(l.tx, k.snap::pg_snapshot), false)) then
+  -- узнал бы — вклад строки остался бы в итогах навсегда (ревью безопасности №3, №5)
+  if @SCHEMA@.projector_behind(l.tenant, array[l.class], l.tx, l.seq) then
     perform @SCHEMA@.lt_fail('projector_pending', 'проектор источника ещё не прочёл удаление: purge — после его run()');
   end if;
   select count(*)::int into n from @SCHEMA@.log x where x.id = p_id;
@@ -330,6 +339,7 @@ declare
   dplan jsonb;
   r @SCHEMA@.log;
   first @SCHEMA@.log;
+  nxt record;
   j int;
   h bytea;
   k int;
@@ -374,6 +384,14 @@ begin
     select x.* into first from @SCHEMA@.log x where x.id = r.id order by x.rev limit 1;
     -- до момента — только сама запись trim: стирать нечего
     continue when j = 1 and first.op = 'trim';
+    -- проектор источника, чей курсор ещё не прошёл первую оставшуюся версию: читая её, он возьмёт прошлую версию для
+    -- before, а её уже не будет — свёртка прибавила бы новую, не вычитая прежнюю (хвост ревью безопасности №3). Класс —
+    -- обеих версий у стыка: строка могла уйти из семейства источников сменой класса
+    select x.tx, x.seq, x.class into nxt from @SCHEMA@.log x where x.id = r.id and x.rev > j order by x.rev limit 1;
+    if @SCHEMA@.projector_behind(r.tenant, array[(select x.class from @SCHEMA@.log x where x.id = r.id and x.rev = j), nxt.class],
+                                 nxt.tx, nxt.seq) then
+      perform @SCHEMA@.lt_fail('projector_pending', 'проектор источника ещё не прочёл версии: trimHistory — после его run()');
+    end if;
     select x.hash into h from @SCHEMA@.log x where x.id = r.id and x.rev = j;
     with d as (delete from @SCHEMA@.log x where x.id = r.id and x.rev <= j returning 1)
     select count(*)::int into k from d;
@@ -1053,7 +1071,7 @@ begin
   foreach f in array array[
     'history_default()', 'history_policy(jsonb)', 'history_iv(text)', 'history_horizon(jsonb)',
     'history_keep(jsonb, timestamp, timestamp, timestamp)', 'admin_role()', 'letopis_allowed(text)', 'session_expires()', 'signal_mode()', 'signal_key()', 'class_stamp()',
-    'last_version_visible(uuid, uuid, jsonb)', 'restore(uuid)', 'purge(uuid, boolean)', 'trim_history(uuid[], text[], timestamptz)',
+    'last_version_visible(uuid, uuid, jsonb)', 'restore(uuid)', 'projector_behind(uuid, text[], xid8, bigint)', 'purge(uuid, boolean)', 'trim_history(uuid[], text[], timestamptz)',
     'rekey(uuid, jsonb, jsonb)', 'rekey_class(text, jsonb)', 'account_purge(uuid)', 'reset_mark(uuid, text, uuid)',
     'reset(text, text, uuid, int)', 'thin_batch(timestamptz, int)', 'maintain(timestamptz, int)', 'verify(boolean)',
     'watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot, boolean)', 'watch_head()'] loop

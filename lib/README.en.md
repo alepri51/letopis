@@ -988,7 +988,8 @@ version 1, a `purge` record stays with the number of erased versions. The histor
 While a projector whose `from` sources include the class of the object ([“Projectors”](#projectors)) has not read
 the deletion, `purge` refuses (`projector_pending`): the projector would never see an erased tombstone, and the
 object's contribution would stay in the totals. So a deletion and a `purge` in one transaction do not go through in
-such a class. To delete an account, use `db.auth.purgeAccount` ([section 10](#10-users-sign-in-and-permissions)).
+such a class. Likewise, `db.trimHistory` refuses while the projector has not read the first remaining version: it
+would no longer find the previous version for `before`. To delete an account, use `db.auth.purgeAccount` ([section 10](#10-users-sign-in-and-permissions)).
 
 ## 8. Transactions, batches and money
 
@@ -2403,7 +2404,7 @@ Database codes. Raw SQL gets them too: SQLSTATE class `LT`, the details are JSON
 | `confirm_mismatch` | LT020 | the reset confirmation does not match the schema name |
 | `derived_class` | LT021 | a row of a derived class (`derivedBy`) is written, edited or deleted by someone other than its projector; an end leads to such a row or to a derived class; a projector writes to a class outside its `into` or has found no tenant in which every `into` class is marked with its `derivedBy` |
 | `aggregate_field` | LT022 | the application passed or changed an aggregate field (`aggregate`): the database calculates it |
-| `projector_pending` | LT023 | `purge` of a deleted object whose deletion a projector of its class has not read yet: run the projector first |
+| `projector_pending` | LT023 | `purge` of a deleted object whose deletion a projector of its class has not read yet, or `trimHistory` whose first remaining version it has not read yet: run the projector first |
 
 Library codes:
 
@@ -2661,6 +2662,8 @@ behavior.
 - `purge()` waits for projectors: while a projector whose sources include the class of the object, and which has a
   derived class in the object's tenant, has not read the deletion, `purge` answers `projector_pending`. A projector
   that is no longer run holds `purge` of its sources while the tenant has its derived classes: run it or delete them.
+  `trimHistory` waits the same way: while the projector has not read the first remaining version, trimming answers
+  `projector_pending`.
 
 **Aggregates in the database**
 

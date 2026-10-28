@@ -1140,3 +1140,34 @@ test('хвост ревью безопасности №3: lockTimeout — па�
     p.close();
   }
 });
+
+test('хвост ревью безопасности №3: trimHistory версий, которые проектор ещё не прочёл, — projector_pending; после run() — проходит, итог без двойного счёта', async () => {
+  const x = await e.tenant('proj-trim-x');
+  await tickTenant(x, true);
+  const v = (r: { data: unknown } | null | undefined) => Number((r?.data as { v?: number } | undefined)?.v ?? 0);
+  // свёртка со знаком: прошлая версия вычитается, новая прибавляется
+  const signed = (changes: ProjectorChange[], out: ProjectorOut) => {
+    for (const c of changes) {
+      if (c.op === 'purge' || c.op === 'trim' || c.op === 'reset') continue;
+      const d = (c.row.$deleted ? 0 : v(c.row)) - v(c.before);
+      if (d) out.inc('TickSum', { k: 'all' }, { total: d }, { tenant: c.tenant });
+    }
+  };
+  const p = adm.projector('ticker', tickerDef({ withBefore: true, handle: signed }));
+  const q = (sql: string, params: unknown[] = []) => e.as(x.token, (tx) => tx.unsafe(sql, params as never[]));
+  try {
+    await p.run({ once: true });
+    const [row] = await q(`insert into ${e.S}.entity (class, data) values ('Tick', '{"v": 1}') returning id`);
+    await p.run({ once: true });
+    for (const n of [2, 3]) await q(`update ${e.S}.entity set data = $2::jsonb where id = $1`, [row.id, { v: n }]);
+    // проектор правок не прочёл: обрезка стёрла бы версию, которую он возьмёт как before
+    const trim = () => q(`select ${e.S}.trim_history(array[$1::uuid], null, now())`, [row.id]);
+    await assert.rejects(trim(), lt('projector_pending'));
+    await p.run({ once: true });
+    await trim();
+    await p.run({ once: true });
+    assert.equal(await tickTotal(x), 3, 'итог — последняя версия, без двойного счёта');
+  } finally {
+    p.close();
+  }
+});

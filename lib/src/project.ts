@@ -511,6 +511,7 @@ export class Projector {
         return rep;
       }
       await this.startTenant(rep, tenant, false);
+      const started = rep.rebuilds;
       for (;;) {
         // занятая строка (lockTimeout) — как занятая блокировка проектора: подождать и повторить пачку
         const r = await this.tenantChunk(rep, tenant).catch((e) => { if (lockWait(e)) return 'busy' as const; throw e; });
@@ -519,6 +520,9 @@ export class Projector {
         // ошибка данных арендатора — как у перестройки одной транзакцией: отказ, арендатор выбывший
         const f = (await this.tx(async (q) => this.state(q))).failed?.[tenant];
         if (f) throw new LetopisError(f.code as never, f.message);
+        // последнюю пачку мог записать run() другого процесса (он продвигает начатые перестройки): перестройка этого
+        // вызова всё равно завершена
+        if (rep.rebuilds === started) rep.rebuilds++;
         return rep;
       }
     }
