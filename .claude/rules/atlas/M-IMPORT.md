@@ -2,7 +2,7 @@
 paths:
   - 'lib/src/import.ts'
   - 'lib/test/fixtures/gen-v021.mjs'
-synced: 3033e57
+synced: f20b1cf
 ---
 # M-IMPORT — импорт из letopis 0.21 (этап 7)
 
@@ -23,7 +23,7 @@ synced: 3033e57
 - Фикстура (`test/fixtures/v021.sql`) пересобирается `node test/fixtures/gen-v021.mjs` (нужен контейнер 0.21); числа классов — `EXPECTED` в `import.test.ts`.
 
 **Проверка**
-- `cd lib && npx tsx --test --test-force-exit test/import.test.ts`; полный полигон — `npm run test:import-salon` (контейнеры 0.21 и 1.0; импорт держит весь источник в памяти).
+- `cd lib && npx tsx --test --test-force-exit test/import.test.ts`; `--initial` — `test/initial-load.test.ts` (7.4 №9); полный полигон — `npm run test:import-salon` (контейнеры 0.21 и 1.0; импорт держит весь источник в памяти).
 
 **Точки входа**
 - `lib/src/import.ts:import021` — импорт

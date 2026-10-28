@@ -1,7 +1,7 @@
 ---
 paths:
   - 'lib/sql/30-validate.sql'
-synced: f625ed8
+synced: f20b1cf
 ---
 # M-VALIDATE — v5 и JSON Schema → jsonpath
 
@@ -15,10 +15,11 @@ synced: f625ed8
 - NUL (`\u0000`) в строке `jsonb` не хранит — ограничение PostgreSQL.
 
 **Что ещё менять вместе**
-- Новое ключевое слово: `allowed` в `jp_compile`, ветка компиляции, тест в `jsonschema.test.ts`, при наличии — файл официального набора в `lib/test/vectors/json-schema-test-suite/`. На этапе 2 — то же в валидаторе на TypeScript (`validate.ts`) и дифференциальный тест.
+- Новое ключевое слово: `allowed` в `jp_compile`, ветка компиляции, тест в `jsonschema.test.ts`, при наличии — файл официального набора в `lib/test/vectors/json-schema-test-suite/`.
+- Любая правка правил, в том числе перевода шаблона (`jp_pattern`) и формы даты (`re` у правила `format`), — то же в валидаторе на TypeScript: `SUPPORTED` и `translatePattern` в `lib/src/jsonschema.ts`, `lib/src/validate.ts`. Он обязан давать те же пути и ключевые слова нарушений, что база.
 
 **Проверка**
-- `cd lib && npx tsx --test --test-force-exit test/jsonschema.test.ts` (официальный набор 2020-12, DateStyle/TimeZone) и `test/v5.test.ts`.
+- `cd lib && npx tsx --test --test-force-exit test/jsonschema.test.ts` (официальный набор 2020-12, DateStyle/TimeZone) и `test/v5.test.ts`; совпадение с TypeScript — `test/validator-parity.test.ts`, перевод шаблонов — тест «шаблоны» в `test/model.test.ts`.
 
 **Точки входа**
 - `lib/sql/30-validate.sql:jp_compile` — компиляция узла

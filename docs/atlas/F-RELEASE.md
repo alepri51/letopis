@@ -5,7 +5,7 @@
 ## Подготовка — dev
 1. [D] `lib/package.json#«"version"»` — бамп одним коммитом с новой верхней `## [x.y.z]` в `lib/CHANGELOG.md` и двумя строками version в `lib/package-lock.json` (корень и `packages[""]`). Предрелиз — с дефисом (`1.1.0-rc.1`).
 2. [N] `lib/scripts/gen-api-contract.mjs#«if (check)»` — `cd lib && npm run api:contract`, если менялись экспорты точек входа (`exports` в package.json), поверхность цепочки, охранники `removed` в `errors.ts` или тексты ошибок в `src/*.ts` и `sql/*.sql`; `docs/api-contract.json` коммитится.
-3. [N] `lib/scripts/check-docs.mjs` — `cd lib && npm run check:docs` (те же 9 сверок, что в CI, без БД), затем [D] `git push origin dev`.
+3. [N] `lib/scripts/check-docs.mjs` — `cd lib && npm run check:docs` (те же 10 сверок, что в CI, без БД), затем [D] `git push origin dev`.
 
 ## CI — push в dev
 4. [G] `.github/workflows/ci.yml#«cancel-in-progress»` — только push в dev; новый push отменяет прежний прогон. Сервис `postgres:18` на порту 15433.

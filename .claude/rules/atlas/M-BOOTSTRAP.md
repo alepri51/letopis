@@ -2,34 +2,43 @@
 paths:
   - 'lib/src/up.ts'
   - 'lib/src/pglite.ts'
-  - 'lib/sql/95-seed.system.sql'
-synced: 3033e57
+  - 'db/apply.mjs'
+synced: f20b1cf
 ---
-# M-BOOTSTRAP — установщик install(), up(), PGlite и системный сид
+# M-BOOTSTRAP — установщик install(), up(), штамп движка, createTenant, PGlite
 
 **Инварианты и грабли**
-- Схему создаёт установщик до `set role` (`create schema … authorization владелец`): у владельца может не быть права CREATE в базе.
-- Установщик берёт членство в роли-владельце `with inherit false, set true` и накатывает `lib/sql/NN-*.sql` по номеру под `set local role` одной транзакцией. Работает от роли с `CREATEROLE` без суперпользователя, если роли создаёт она сама (иначе нет ADMIN на роль владельца).
-- Подстановки `@SCHEMA@` и пр. — `substitute()`; неизвестный маркер — ошибка. Схема с точкой в имени: в SQL только `quoteIdent`, `sql(name)` из postgres.js режет по точке.
-- Системный сид (этап 5): ключ подписи и счётчик прав (`secret` id = System, kind `KEY`; в `meta.signals` — режим сигналов), классы `member`, `Resource`, `rule`, группы `anonymous`, `authenticated`, `any`, `service`, `admin` (роль в System), объекты `any:API`, `auth:API`, `letopis:API`, `signals:API`, `all:READ/WRITE/DELETE`, 8 правил; `sys_resource`, `sys_rule`, `sys_grant_all(арендатор)` — функции владельца для сида и обвязки.
-- Сид пишет владелец: триггеры не срабатывают, поэтому `sys_create` сам пишет журнал и для строк `Class` сам вызывает `class_prepare`. Сервисный ключ выдаётся при первой установке и при накате, когда в установке не осталось действующих `APIKEY` (`bootstrap_service`).
-- SQL читается из `lib/sql` рядом со сборкой (`../sql/` от `dist/up.js`) — каталог `sql` обязан быть в `files` пакета.
-
-- `up()` (этап 6): готовность и автосоздание базы, PostgreSQL 18+ и UTF8 (`checkServer`), `fresh`, отставшая ревизия — только `upgrade` (миграции `lib/sql/migrate/NNNN-*.sql` новее ревизии схемы, затем накат), сиды — имена или пути, свой ключ сервиса (`serviceKey`), `ANALYZE` только таблиц без статистики. Константа `@HISTORY_DEFAULT@` (`up({ history })`) проверяется `class_prepare`. Константа `@SIGNALS@` (план 1.1, этап 2) — опция `signals`, иначе `meta.signals` строки ключа (читается в транзакции наката под ролью владельца: у установщика без `inherit` прав на `secret` нет), иначе `class`; `seed_system()` пишет её в строку ключа (`on conflict do update`), поэтому повторный `up()` без опции и `reset({ all })` режим не меняют; `InstallResult.signals`. `checkServer` возвращает предупреждения (ниже 18.2 — CLOG и непрочитанные сигналы) → `UpResult.warnings`, без `quiet` — `console.warn`. Сид — функция `seed_system()` (её же вызывает `reset({ all })`). Обёртка CI — `db/apply.mjs`.
-- `up({ pglite })` (решение 6 точки А): `pglite.ts:startPglite` грузит `@electric-sql/pglite` (с pgcrypto) и `@electric-sql/pglite-socket` динамическим `import()` — это необязательные peer-зависимости, основная точка входа их не импортирует; нет пакета — ошибка с командой установки. Сокет на свободном порту `127.0.0.1`, база и пользователь `postgres`; одно соединение — `connect({ dsn: r.pglite.dsn, listen: false, max: 1 })`; ошибка `up()` останавливает PGlite, иначе останавливает вызывающий (`r.pglite.close()`).
-
-- `createTenant` / `up({ tenant })`: одной транзакцией от владельца — `sys_create` аккаунта-арендатора (`v5(System, 'Account', ['tenant:<имя>'])`, как `letopis import --tenant`), `sys_grant_all` (только при создании), пользователь (`user:<логин>`), `member` с ролями `user.roles` (по умолчанию `['owner']`; непустой список имён, не масок — проверка `checkTenant` до записи и до наката, иначе `invalid_data`), пароль в `secret` (scrypt, `confirmed`), `new_session(…, { tenant })`; существующие строки пропускаются: пароль и роли существующего членства не меняются; сессия — без способов входа (свой пароль по ней не сменить). Удалённые арендатор, аккаунт пользователя или членство (строки в `entity` нет, а в `log` id есть; `exists` внутри `createTenant`) — `invalid_data` с `detail { id, class }` и текстом «что удалено, как вернуть» (`db.Account(id).restore()` от системного администратора, `db.member(id).restore()` в арендаторе, либо другое имя или логин), транзакция откатывается целиком: повтор удалённое не воскрешает (`up({ tenant })` идёт при каждом запуске), а `sys_create` пишет версию 1, которую занимает история (иначе `23505` `log_id_rev`). Тест — `up` («createTenant после удаления»).
+- Установка от роли с `CREATEROLE` без суперпользователя проходит, только если роль владельца создала она сама: иначе у неё нет ADMIN на эту роль и выдать себе членство нельзя.
+- Идентификатор схемы в SQL — только `quoteIdent`: имя всегда с точкой (`v2.имя`), а хелпер `sql(name)` из postgres.js режет его по точке.
+- `up()` штамп движка не сверяет и не отказывает: если схему той же ревизии ставила более новая версия, накат старым пакетом молча вернёт прежние функции. Предупреждает только `connect()` через `stampDrift` (решение — коммит a8a9f51).
+- Сессия, которую выдаёт `createTenant`, — без способов входа (в `meta` нет `methods`): сменить по ней свой пароль нельзя.
 
 **Что ещё менять вместе**
-- Новый файл SQL: номер по порядку `lib/sql/README.md`; функции — `revoke … from public` в том же файле.
-- Новая подстановка: `vars` в `install()` и таблица в `lib/sql/README.md`.
+- Новая подстановка `@ИМЯ@` → `vars` в `install()` и таблица в `lib/sql/README.md`.
+- Новый файл ядра → имя по шаблону `engineFiles` (две цифры, дефис, строчная латиница; другое имя установщик пропустит, и в хэш штампа файл не войдёт), место — в порядке из `lib/sql/README.md`; функции — `revoke … from public` в том же файле.
+- Переименовал опцию `up()` или поле `UpResult` → `db/apply.mjs` (передаёт и печатает их поимённо). Обёртку не вызывают ни CI, ни тесты, ни бенчи — поломка сама не всплывёт; её флаги и вывод описаны в `docs/atlas/F-BOOT.md`.
+- Раскладка сборки: `SQL_DIR` и версия для штампа (package.json) берутся относительно файла модуля, поэтому собранный dist/up.js лежит на одном уровне с src/up.ts (`lib/tsconfig.build.json`), а каталог sql обязан входить в `files` пакета.
+
+**Состояние и побочки**
+- Любая правка файла ядра (`engineFiles`, в том числе `95-seed.system.sql`; даже комментарий) меняет хэш штампа: `connect()` предупреждает на существующих схемах той же ревизии, пока на них не накатят `up()`. Сиды `seed.*.sql` и миграции в хэш не входят.
+- Новый сервисный `APIKEY` `install()` выпускает на любом накате, где живых ключей не осталось, а не только при первой установке (как сказано у `InstallResult.serviceKey`).
+- `up({ pglite })` оставляет PGlite работать в процессе (сокет на `127.0.0.1`, без `dataDir` — данные в памяти): останавливает вызывающий — `r.pglite.close()`, при ошибке `up()` — сам.
+
+**Неимпортные связи**
+- Комментарий схемы `letopis ddl_revision=N engine=<версия> sql=<хэш>` пишет `lib/sql/99-revision.sql` (маркеры `@ENGINE_VERSION@`, `@ENGINE_SQL@`), а разбирают регэкспами `schemaRevision`, `stampDrift`, `connect()` в `lib/src/index.ts` (ревизию — своим регэкспом), `lib/scripts/check-docs.mjs` (ревизия = `DDL_REVISION`) и тесты `up`. Меняешь формат — правь всех.
 
 **Проверка**
-- `cd lib && npx tsx --test --test-force-exit test/install.test.ts`, `test/up.test.ts` (6.10, PGlite) и `test/roles.test.ts` (№3).
+- `cd lib && npx tsx --test --test-concurrency=1 --test-force-exit test/install.test.ts test/up.test.ts test/upgrade.test.ts test/roles.test.ts`
+- up: «штамп движка…», «6.10 отставшая ревизия…», «up({ pglite })…», «createTenant после удаления…»; upgrade: №1 (1.1.0 → текущая: предупреждение штампа до наката, после — нет), №2 (1.0.1, миграция 0006); roles: «7.3.8 №3» (CREATEROLE без суперпользователя).
+- Сигналы: `console.warn` из `connect()` с текстом `stampDrift`; `UpResult.warnings` (сервер ниже 18.2).
 
 **Точки входа**
-- `lib/src/up.ts:install` — накат
+- `lib/src/up.ts:install` — накат ядра, миграций и сидов; сервисный ключ
 - `lib/src/up.ts:up` — оркестратор
+- `lib/src/up.ts:stampDrift` — штамп схемы против файлов пакета
+- `lib/src/up.ts:createTenant` — первый арендатор и пользователь
 - `lib/src/pglite.ts:startPglite` — PGlite
-- `lib/sql/95-seed.system.sql:sys_create` — запись от владельца
 - `lib/sql/95-seed.system.sql:bootstrap_service` — сервисный аккаунт и ключ
+
+**Не здесь**
+- Содержание системного сида → M-SEEDS; файлы ядра и ревизия → M-ENGINE; режимы сигналов → M-TIME; предупреждения `connect()` → M-API.

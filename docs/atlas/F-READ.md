@@ -3,7 +3,7 @@
 Триггер: `const db = await connect({ dsn, schema, token }); await db.Org(org).Staff().skill().Service().rows()` (имя класса, алиас `Организация` или роль конца — одинаково)
 
 ## Построение (синхронно, без SQL)
-1. [N] `lib/src/index.ts:makeDb#«return new Proxy(core»` — свойства фасада `core`, охранники снесённого API (`removed`); иначе `startStep`.
+1. [N] `lib/src/index.ts:makeDb#«new Proxy(core»` — свойства фасада `core`, охранники снесённого API (`removed`); иначе `startStep`.
 2. [N] `lib/src/chain.ts:lookupStep` — класс или алиас из реестра; иначе роль — шаг её класса целей с `role`; неизвестное имя — `invalid_class`.
 3. [N] `lib/src/chain.ts:classProp#«ранняя проверка пути»` — повтор связи — возврат к её узлу (pivot); иначе `resolveHop` проверяет переход сразу (`no_path`).
 4. [N] `lib/src/chain.ts:makeChain` — модификатор = новая цепочка (шаговые правят последний шаг, `limit/sort/asOf/after/withDeleted/cache/forUpdate` — mods); `then` → undefined; глагол записи — звено плана (F-WRITE).
