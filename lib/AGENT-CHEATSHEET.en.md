@@ -374,7 +374,9 @@ A trigger recalculates the field after every statement (the library, raw SQL, a 
 `rekey`, the loader); going below `minimum` is `invalid_data`, every change is a version of the target. Live rows of
 the same tenant are counted (a System row is not). Repair: `adm.rebuildAggregates('Wallet')` on an admin connection;
 discrepancies: `verify({ data: true })`. Only someone who reads all rows of the source and its descendants without
-conditions can describe or change an aggregate, otherwise `acl_denied`. A hot counter (more than ~150 writes per
+conditions can describe or change an aggregate, otherwise `acl_denied`. The source is described before the aggregate:
+an aggregate over a class that does not exist yet is refused (`invalid_class`); `syncModels` puts sources before
+targets itself. A hot counter (more than ~150 writes per
 second per object) is a projector that folds a batch, not an aggregate.
 
 ### 14. Agents and MCP

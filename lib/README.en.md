@@ -565,13 +565,14 @@ const Movement = link('Movement', { amount: z.number().int() }, { ends: { Wallet
   the target is needed: the permission to write the source is enough.
 - The database checks the description (`invalid_class`): the field is in the schema, it is numeric and not part of the
   key; the `via` end is single and accepts the target class; the `sum` field is a number; aggregates do not form a
-  cycle; the target and the source are not system or derived classes. A source described after the target is checked
-  when it appears.
+  cycle; the target and the source are not system or derived classes. A source class is described before the
+  aggregate: an aggregate over a class that does not exist yet is refused. For a tenant class, the source is looked up
+  among the tenant's classes. `syncModels` describes sources before targets itself.
 - Rows get into an aggregate only with the knowledge of someone who reads them all: the field also counts rows that
   the author cannot see. Only someone who reads all rows of the source and its descendants without conditions can
   describe or change an aggregate. Only someone who reads all rows of a class and its descendants without conditions,
-  both before the change and after it, can make the class a source (a new class, a `parent` change, a source described
-  after the target). Otherwise `acl_denied`.
+  both before the change and after it, can make the class a source (a new descendant of a source, a `parent` change).
+  Otherwise `acl_denied`.
 - The option is inherited, and a descendant replaces it as a whole. Adding or changing an aggregate is a tightening:
   writes to the target and to the sources wait while the field is recalculated for all rows.
 - `db.rebuildAggregates(class)` recalculates the field from the current rows, for repair. A version is written only

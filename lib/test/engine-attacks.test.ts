@@ -1042,3 +1042,19 @@ test('№51 (ревью безопасности №3): конфликт сме�
   assert.match(problem(seenOnly), new RegExp(`роль SeeRole строки ${s1}`));
   assert.match(problem(both), new RegExp(`роль SeeRole строки ${s2}`), 'видимая ссылающаяся строка — первой');
 });
+
+test('№52 (/security-review, ревью безопасности №3): агрегат над классом, которого ещё нет, не описывается — источник потом заведёт другой, и права описавшего на его строки уже не проверить', async () => {
+  const x = await e.tenant('x52', { bare: true });
+  const { resource, rule, sysRes } = await import('./_access.js');
+  const g = await sysRes(e, 'authenticated:ACCOUNT');
+  await rule(e, x.id, g, await resource(e, x.id, 'class52:WRITE', 'WRITE', { class: 'Class' }), 'allow', 10);
+  const purse = { name: 'Purse52', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' }, total: { type: 'integer' } }, required: ['code'] },
+    aggregate: { total: { sum: 'v', of: 'Coin52', via: 'Purse52' } } };
+  const coin = { name: 'Coin52', kind: 'link', fields: { properties: { v: { type: 'integer' } } },
+    ends: { Purse52: { class: 'Purse52', required: true, onDelete: 'cascade' } } };
+  // пользователь без права READ на будущий источник описывает агрегат заранее — отказ: проверять право ещё не на чем
+  await assert.rejects(e.defineClass(x, purse), /агрегат Purse52\.total: класса-источника Coin52 и его потомков у арендатора нет/);
+  // источник заводит тот, кто читает всё; агрегат над ним — только с правом READ на все его строки
+  await e.asAdmin(x.token, (tx) => tx.unsafe(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [coin as never]));
+  await assert.rejects(e.defineClass(x, purse), /агрегат Purse52\.total: нужно право READ на все строки класса Coin52/);
+});

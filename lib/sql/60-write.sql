@@ -818,6 +818,13 @@ begin
   if data->'resolved' ? 'aggregate' then
     for e in select key, value from jsonb_each(data->'resolved'->'aggregate') order by key loop
       continue when prevd->'resolved'->'aggregate'->e.key is not distinct from e.value;
+      -- класс-источник должен уже быть (ревью безопасности №3, /security-review): пока его нет, проверять право READ не
+      -- на чем, а когда класс заведёт другой пользователь, проверялись бы только его права — и описавший агрегат читал бы
+      -- в истории цели вклад каждой строки источника. Поэтому источник описывают раньше агрегата
+      if cardinality(@SCHEMA@.agg_classes(e.value->>'of', p_tenant, p_tenant = '@SYSTEM@'::uuid)) = 0 then
+        perform @SCHEMA@.lt_fail('invalid_class', format('агрегат %s.%s: класса-источника %s и его потомков %s нет — источник описывают раньше агрегата',
+          data->>'name', e.key, e.value->>'of', case when p_tenant = '@SYSTEM@'::uuid then 'в System' else 'у арендатора' end));
+      end if;
       -- сам класс of первым, потомки — по имени
       foreach src in array array(select n from unnest(@SCHEMA@.agg_classes(e.value->>'of', p_tenant, p_tenant = '@SYSTEM@'::uuid)) n
                                  order by n = (e.value->>'of') desc, n) loop

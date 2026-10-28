@@ -35,11 +35,19 @@ function canon(v: unknown): string {
 export async function syncModels(db: Db, models: readonly AnyModel[], opts: { apply?: boolean } = {}): Promise<SyncResult> {
   const res: SyncResult = { applied: Boolean(opts.apply), created: [], updated: [], unchanged: [], skipped: [], lost: models.flatMap((m) => m.lostRules()) };
   const S = `"${db.schema.replace(/"/g, '""')}"`;
-  // предок раньше потомка
+  // предок раньше потомка; класс-источник агрегата раньше цели: агрегат над классом, которого ещё нет, база отклоняет.
+  // Цикл агрегатов база отклоняет сама — обход его только не зацикливает
   const ordered: AnyModel[] = [];
+  const visiting = new Set<AnyModel>();
   const visit = (m: AnyModel) => {
-    if (ordered.includes(m)) return;
+    if (ordered.includes(m) || visiting.has(m)) return;
+    visiting.add(m);
     if (m.parent && models.includes(m.parent)) visit(m.parent);
+    for (const a of Object.values(m.describe().aggregate ?? {})) {
+      const src = models.find((x) => x.name === a.of);
+      if (src) visit(src);
+    }
+    visiting.delete(m);
     ordered.push(m);
   };
   models.forEach(visit);
