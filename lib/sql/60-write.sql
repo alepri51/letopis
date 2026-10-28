@@ -705,6 +705,24 @@ return exists (select 1 from @SCHEMA@.log l
                                                     where x.class = 'Class' and x.data->>'name' = p_name
                                                       and x.tenant <> '@SYSTEM@'::uuid))));
 
+-- Хранят ли историю строк удалённые потомки класса p_name: надгробия строк Class (последняя версия их id — удаление),
+-- у которых в resolved.ancestors есть p_name (ревью безопасности №3). Правила находят старые версии строк и по алиасам
+-- предков, а надгробие потомка их не записывает: пока такая история есть, предок не меняет алиас ни правкой, ни
+-- удалением и созданием заново. У класса System — кроме арендаторов со своим одноимённым классом, как class_has_history
+create or replace function @SCHEMA@.class_orphan_history(p_name text, p_tenant uuid) returns boolean
+language sql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+return exists (select 1 from @SCHEMA@.log t
+               where t.class = 'Class' and t.op = 'delete' and t.data->>'name' <> p_name
+                 and t.data->'resolved'->'ancestors' ? p_name
+                 and (t.tenant = p_tenant
+                      or p_tenant = '@SYSTEM@'::uuid
+                         and t.tenant <> all (array(select x.tenant from @SCHEMA@.entity x
+                                                    where x.class = 'Class' and x.data->>'name' = p_name
+                                                      and x.tenant <> '@SYSTEM@'::uuid)))
+                 and not exists (select 1 from @SCHEMA@.log z where z.id = t.id and z.rev > t.rev)
+                 and @SCHEMA@.class_has_history(t.data->>'name', t.tenant));
+
 -- Проверки строки Class сверх метасхемы (этап 1, п. 6): признак system, имя системного класса,
 -- имена связей против методов цепочки, однозначность имени конца во всей схеме, право на агрегаты,
 -- алиас и право на смену предков, алиаса и derivedBy (ревью безопасности №2).
@@ -810,6 +828,13 @@ begin
           or prevd->>'alias' is distinct from data->>'alias'
           or prevd->'resolved'->'derivedBy' is distinct from data->'resolved'->'derivedBy') then
     perform @SCHEMA@.class_acl_admit(data->>'name', p_tenant);
+  end if;
+  -- алиас класса, у которого удалённые потомки хранят историю строк (ревью безопасности №3): правила находят их старые
+  -- версии и по алиасам предков, а надгробие потомка их не записывает — алиас меняется после purge() их строк
+  if prevd is not null and prevd->>'alias' is distinct from data->>'alias'
+     and @SCHEMA@.class_orphan_history(data->>'name', p_tenant) then
+    perform @SCHEMA@.lt_fail('invalid_class', format('удалённые потомки класса %s хранят историю строк: алиас меняется после purge() их строк',
+      data->>'name'));
   end if;
   -- политика хранения истории (доработки после точки Б): по ней maintain() прореживает журнал строк класса, а
   -- history: false выключает журнал. Одним правом WRITE на Class автор правки стирал бы аудит строк, на которые у него
@@ -969,12 +994,17 @@ begin
   -- старую историю под чужие правила. Поэтому, если журнал арендатора хранит версии строк класса с этим именем, класс
   -- создаётся только заново и с тем же описанием, что в надгробии его строки Class. Надгробия нет (история осталась от
   -- класса System, удалённого раньше, или строку Class стёрли мимо триггеров) — отказ: сначала purge() строк
-  if NEW.class = 'Class' and @SCHEMA@.class_has_history(NEW.data->>'name', NEW.tenant)
+  -- Так же — если историю хранят удалённые потомки класса (их правила находят старые версии и по алиасу предка), и
+  -- политика хранения прежняя: по ней maintain() прореживает старые версии (ревью безопасности №3; у описаний без ключа
+  -- history в resolved — значение по умолчанию true)
+  if NEW.class = 'Class'
+     and (@SCHEMA@.class_has_history(NEW.data->>'name', NEW.tenant) or @SCHEMA@.class_orphan_history(NEW.data->>'name', NEW.tenant))
      and not (coalesce(last.op = 'delete', false)
               and last.data->'resolved'->'ancestors' is not distinct from NEW.data->'resolved'->'ancestors'
               and last.data->>'alias' is not distinct from NEW.data->>'alias'
-              and last.data->'resolved'->'derivedBy' is not distinct from NEW.data->'resolved'->'derivedBy') then
-    perform @SCHEMA@.lt_fail('invalid_class', format('журнал хранит историю строк класса %s: создать его можно только заново и с прежними parent, alias и derivedBy (или сначала стереть её purge())',
+              and last.data->'resolved'->'derivedBy' is not distinct from NEW.data->'resolved'->'derivedBy'
+              and coalesce(last.data->'resolved'->'history', 'true'::jsonb) is not distinct from coalesce(NEW.data->'resolved'->'history', 'true'::jsonb)) then
+    perform @SCHEMA@.lt_fail('invalid_class', format('журнал хранит историю строк класса %s или его удалённых потомков: создать его можно только заново и с прежними parent, alias, derivedBy и history (или сначала стереть её purge())',
       NEW.data->>'name'));
   end if;
   ts := @SCHEMA@.now_ts();
@@ -1922,7 +1952,7 @@ begin
     'log_version(@SCHEMA@.entity)', 'sys_update(uuid, jsonb, jsonb, jsonpath, text, text)', 'tombstone(@SCHEMA@.entity, text, uuid)',
     'links_replace(jsonb, uuid, uuid)', 'move_row(@SCHEMA@.entity, uuid, text, jsonb, jsonb, text, jsonb)', 'reclass(uuid, text, jsonb)',
     'incoming_conflicts(uuid, text, uuid)', 'visible_detail(jsonb, uuid)', 'visible_class(jsonb)', 'class_change_safe(jsonb, jsonb)',
-    'family_conflicts(text[], uuid, boolean)', 'reserved_names()', 'class_acl_admit(text, uuid)', 'class_rows_admit(text, uuid, text[], text)', 'class_has_history(text, uuid)', 'class_admit(jsonb, uuid)',
+    'family_conflicts(text[], uuid, boolean)', 'reserved_names()', 'class_acl_admit(text, uuid)', 'class_rows_admit(text, uuid, text[], text)', 'class_has_history(text, uuid)', 'class_orphan_history(text, uuid)', 'class_admit(jsonb, uuid)',
     'trg_entity_bi()', 'trg_entity_bu()', 'trg_entity_ai()', 'trg_entity_au()', 'history_on(text, uuid)', 'signal_token(text, text, bytea)', 'signal_raw(text[])', 'signal(text[], uuid[])', 'class_evolve(@SCHEMA@.entity, @SCHEMA@.entity)',
     'trg_entity_bd()', 'trg_entity_ad()', 'owner_to_tenant(uuid, uuid)', 'ref_action(jsonb, jsonb, uuid[])', 'delete_preview(uuid[])', 'merge(jsonb, jsonb)', 'inc(jsonb, text[], numeric, numeric)', 'links_patch(jsonb, jsonb)'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);

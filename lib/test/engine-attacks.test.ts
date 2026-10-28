@@ -948,3 +948,45 @@ test('№48 (ревью безопасности №3): история одно�
   assert.equal((await e.sql.unsafe(`select count(*)::int as n from ${S}.entity where class = 'Inv48' and tenant = $1`, [t.id]))[0].n, 1,
     'строка класса арендатора на месте');
 });
+
+test('№49 (ревью безопасности №3): надгробие класса сверяется и по history; алиас предка не меняется, пока удалённые потомки хранят историю строк', async () => {
+  const x = await e.tenant('x49');
+  const q = (sql: string, p: unknown[] = []) => e.as(x.token, (tx) => tx.unsafe(sql, p as never[]));
+  const ins = async (cls: string) => (await q(`insert into ${S}.entity (class, data) values ($1, '{}') returning id`, [cls]))[0].id as string;
+  const create = (desc: object) => q(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [desc]);
+  const dropClass = (name: string) => q(`delete from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = $2`, [x.id, name]);
+  /** Удаление класса с историей строк, как его допускала 1.1: надгробие строки Class и снятие строки от владельца. */
+  const dropOld = (name: string) => e.asOwner(async (tx) => {
+    const [c] = await tx.unsafe(`select id from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = $2`, [x.id, name]);
+    await tx.unsafe(`insert into ${S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, op, prev_hash, changed)
+      select id, rev + 1, class, cv, tenant, owner, links, data, tags, now(), author, 'delete', hash, '[]' from ${S}.entity where id = $1`, [c.id]);
+    await tx.unsafe(`delete from ${S}.entity where id = $1`, [c.id]);
+  });
+  // политика хранения: другая history подставила бы старые версии строк под другое прореживание
+  const h = { name: 'H49', kind: 'hub', fields: { properties: {} } };
+  await create(h);
+  await q(`delete from ${S}.entity where id = $1`, [await ins('H49')]);
+  await dropOld('H49');
+  await assert.rejects(create({ ...h, history: false }), /журнал хранит историю строк класса H49/);
+  await assert.rejects(create({ ...h, history: { all: '1 day' } }), lt('invalid_class'));
+  await create(h);
+  // алиас предка: правила находят старые версии строк удалённого потомка и по алиасам его предков
+  const base = { name: 'Base49', kind: 'hub', alias: 'База49', fields: { properties: {} } };
+  const kid = { name: 'Kid49', kind: 'hub', parent: 'Base49' };
+  await create(base);
+  await create(kid);
+  const k = await ins('Kid49');
+  await q(`delete from ${S}.entity where id = $1`, [k]);
+  await dropOld('Kid49');
+  const realias = (alias: string) => q(`update ${S}.entity set data = data || $2::jsonb where class = 'Class' and tenant = $1 and data->>'name' = 'Base49'`,
+    [x.id, { alias }]);
+  await assert.rejects(realias('Основа49'), /удалённые потомки класса Base49 хранят историю строк/);
+  await dropClass('Base49');
+  await assert.rejects(create({ ...base, alias: 'Основа49' }), /журнал хранит историю строк класса Base49/);
+  await create(base);
+  // история потомка стёрта: прежний Kid49 пересоздан, его удалённая строка стёрта purge(), класс удалён — алиас меняется
+  await create(kid);
+  await q(`select ${S}.purge($1::uuid, true)`, [k]);
+  await dropClass('Kid49');
+  await realias('Основа49');
+});
