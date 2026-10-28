@@ -567,7 +567,8 @@ const Movement = link('Movement', { amount: z.number().int() }, { ends: { Wallet
   key; the `via` end is single and accepts the target class; the `sum` field is a number; aggregates do not form a
   cycle; the target and the source are not system or derived classes. A source class is described before the
   aggregate: an aggregate over a class that does not exist yet is refused. For a tenant class, the source is looked up
-  among the tenant's classes. `syncModels` describes sources before targets itself.
+  among the tenant's classes. `syncModels` describes sources before targets itself. The `of` class is not deleted while
+  an aggregate of a class of the same tenant names it: first the aggregate is removed from the target's description.
 - Rows get into an aggregate only with the knowledge of someone who reads them all: the field also counts rows that
   the author cannot see. Only someone who reads all rows of the source and its descendants without conditions can
   describe or change an aggregate. Only someone who reads all rows of a class and its descendants without conditions,

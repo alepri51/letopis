@@ -1058,3 +1058,18 @@ test('№52 (/security-review, ревью безопасности №3): агр
   await e.asAdmin(x.token, (tx) => tx.unsafe(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [coin as never]));
   await assert.rejects(e.defineClass(x, purse), /агрегат Purse52\.total: нужно право READ на все строки класса Coin52/);
 });
+
+test('№53 (автоматическое ревью коммита 5290be1): класс-источник не удаляется, пока его называет агрегат класса арендатора — иначе класс с этим именем заведёт потом другой, и право описавшего на его строки уже не проверить', async () => {
+  const x = await e.tenant('x53');
+  const q = (sql: string, p: unknown[] = []) => e.as(x.token, (tx) => tx.unsafe(sql, p as never[]));
+  await e.defineClass(x, { name: 'Coin53', kind: 'link', fields: { properties: { v: { type: 'integer' } } },
+    ends: { Purse53: { class: 'Purse53', required: true, onDelete: 'cascade' } } });
+  await e.defineClass(x, { name: 'Purse53', kind: 'hub', key: ['code'],
+    fields: { properties: { code: { type: 'string' }, total: { type: 'integer' } }, required: ['code'] },
+    aggregate: { total: { sum: 'v', of: 'Coin53', via: 'Purse53' } } });
+  const drop = (name: string) => q(`delete from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = $2`, [x.id, name]);
+  await assert.rejects(drop('Coin53'), /класс Coin53 — источник агрегата Purse53\.total/);
+  // агрегат убран из описания цели — источник удаляется
+  await q(`update ${S}.entity set data = data - 'aggregate' where class = 'Class' and tenant = $1 and data->>'name' = 'Purse53'`, [x.id]);
+  await drop('Coin53');
+});

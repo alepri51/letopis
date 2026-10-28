@@ -1458,6 +1458,20 @@ begin
     if r.derived and not @SCHEMA@.letopis_allowed('letopis.projector') then
       perform @SCHEMA@.lt_fail('acl_denied', format('класс %s производный: его описание задаёт только администратор (право letopis.projector)', r.name));
     end if;
+    -- класс-источник агрегата (автоматическое ревью коммита 5290be1): пока его называет агрегат класса того же
+    -- арендатора, класс не удаляется — иначе класс с этим именем завёл бы потом другой пользователь, и право READ
+    -- описавшего агрегат на его строки уже не проверить (класс of проверяется только при описании агрегата). Агрегаты
+    -- классов System описывает системный администратор: он читает всё
+    if r.tenant <> '@SYSTEM@'::uuid then
+      select x.data->>'name' || '.' || a.key into denied
+      from @SCHEMA@.entity x cross join lateral jsonb_each(x.data->'resolved'->'aggregate') a
+      where x.class = 'Class' and x.tenant = r.tenant and x.data->'resolved' ? 'aggregate' and a.value->>'of' = r.name
+      order by 1 limit 1;
+      if denied is not null then
+        perform @SCHEMA@.lt_fail('invalid_class', format('класс %s — источник агрегата %s: сначала уберите агрегат из описания цели',
+          r.name, denied));
+      end if;
+    end if;
     -- у класса System — строки и потомки любого арендатора, кроме арендаторов со своим одноимённым классом: их строки и
     -- потомки относятся к своему классу (class_row; ревью безопасности №3)
     own := case when r.tenant = '@SYSTEM@'::uuid
