@@ -36,18 +36,24 @@ export async function syncModels(db: Db, models: readonly AnyModel[], opts: { ap
   const res: SyncResult = { applied: Boolean(opts.apply), created: [], updated: [], unchanged: [], skipped: [], lost: models.flatMap((m) => m.lostRules()) };
   const S = `"${db.schema.replace(/"/g, '""')}"`;
   // предок раньше потомка; класс-источник агрегата раньше цели: агрегат над классом, которого ещё нет, база отклоняет.
-  // Цикл агрегатов база отклоняет сама — обход его только не зацикливает
+  // Круг (агрегат над собственным потомком, цикл агрегатов) так не упорядочить — отказ до записи с самим кругом (хвост
+  // ревью доработок после 1.2.0: раньше обход молча ставил потомка раньше предка)
   const ordered: AnyModel[] = [];
-  const visiting = new Set<AnyModel>();
+  const path: AnyModel[] = [];
   const visit = (m: AnyModel) => {
-    if (ordered.includes(m) || visiting.has(m)) return;
-    visiting.add(m);
+    if (ordered.includes(m)) return;
+    const at = path.indexOf(m);
+    if (at >= 0) {
+      throw new LetopisError('invalid_class', `syncModels: модели зависят друг от друга по кругу: ${[...path.slice(at), m].map((x) => x.name).join(' → ')} — `
+        + 'родителя и источник агрегата база ждёт раньше класса');
+    }
+    path.push(m);
     if (m.parent && models.includes(m.parent)) visit(m.parent);
     for (const a of Object.values(m.describe().aggregate ?? {})) {
       const src = models.find((x) => x.name === a.of);
       if (src) visit(src);
     }
-    visiting.delete(m);
+    path.pop();
     ordered.push(m);
   };
   models.forEach(visit);

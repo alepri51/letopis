@@ -91,3 +91,17 @@ test('доработки после 1.2.0: sync описывает класс-и
   assert.deepEqual(r.created, ['SCoin', 'SPurse']);
   assert.deepEqual(db.registry.find('SPurse')?.aggregate?.total, { sum: 'v', of: 'SCoin', via: 'SPurse' });
 });
+
+test('хвост ревью доработок после 1.2.0: модели по кругу (агрегат над собственным потомком) — понятный отказ sync до записи; база такой агрегат отклоняет как цикл', async () => {
+  const total = { sum: 'v', of: 'SLoopKid', via: 'SLoop' } as const;
+  const Base = hub('SLoop', { code: z.string(), total: z.number().int() }, { key: ['code'], aggregate: { total } });
+  const Kid = hub('SLoopKid', { fields: { v: z.number().int() }, extends: Base, ends: { SLoop: Base } });
+  // потомок ждёт родителя, а цель — источник агрегата: порядка нет ни в одну сторону
+  await assert.rejects(syncModels(db, [Base, Kid], { apply: true }), /по кругу: SLoop → SLoopKid → SLoop/);
+  await assert.rejects(syncModels(db, [Kid, Base], { apply: true }), /по кругу: SLoopKid → SLoop → SLoopKid/);
+  assert.equal(db.registry.has('SLoop'), false, 'ничего не записано');
+  // в два шага круга у sync нет — его отклоняет база: потомок наследует агрегат над самим собой
+  const Plain = hub('SLoop', { code: z.string(), total: z.number().int() }, { key: ['code'] });
+  await syncModels(db, [Plain, hub('SLoopKid', { fields: { v: z.number().int() }, extends: Plain, ends: { SLoop: Plain } })], { apply: true });
+  await assert.rejects(syncModels(db, [Base], { apply: true }), /цикл агрегатов: SLoopKid → SLoopKid/);
+});
