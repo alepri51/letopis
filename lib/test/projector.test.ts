@@ -8,7 +8,7 @@
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { engine, lt, SYSTEM_ID, type Engine, type Tenant } from './_engine.js';
+import { engine, lt, waitForLock, SYSTEM_ID, type Engine, type Tenant } from './_engine.js';
 import { ADMIN_DSN, appDsn } from './_harness.js';
 import { sysadmin, sqlAs } from './_access.js';
 import { install } from '../src/up.js';
@@ -1227,5 +1227,84 @@ test('хвост ревью доработок после 1.2.0: purge и trimHi
     assert.equal((await q(`select ${e.S}.trim_history(array[$1::uuid], null, now()) as n`, [r2.id]))[0].n, 2);
   } finally {
     p.close();
+  }
+});
+
+test('хвост ревью доработок после 1.2.0: rebuild({ tenant, chunked: true }) пережидает чужую блокировку строки арендатора — без сырой 55P03', async () => {
+  const x = await e.tenant('proj-start-lock');
+  await tickTenant(x, true);
+  const p = adm.projector('ticker', tickerDef({ lockTimeout: 100 }));
+  const conn = await e.sql.reserve();
+  let open = false;
+  try {
+    await p.rebuild();
+    await tick(x, 3);
+    await p.run({ once: true });
+    // перестройка удаляет производные строки арендатора, а одну из них держит его транзакция
+    await conn.unsafe('begin');
+    open = true;
+    await conn.unsafe(`select 1 from ${e.S}.entity where class = 'TickSum' and tenant = $1 for update`, [x.id]);
+    const rb = p.rebuild({ tenant: x.id, chunked: true });
+    rb.catch(() => {});
+    await waitForLock(e.sql);
+    await new Promise((res) => setTimeout(res, 400)); // несколько сроков lockTimeout
+    await conn.unsafe('commit');
+    open = false;
+    const rep = await rb;
+    assert.ok(rep.skipped >= 1, 'перестройка пережидала блокировку');
+    assert.equal(await tickTotal(x), await tickSumOf(x));
+  } finally {
+    if (open) await conn.unsafe('rollback').catch(() => {});
+    conn.release();
+    p.close();
+  }
+});
+
+test('хвост ревью доработок после 1.2.0: lockRetries — арендатор, чью строку держит чужая транзакция, выбывает, остальные идут дальше; отчёт называет его', async () => {
+  const x = await e.tenant('proj-lockr-x');
+  const y = await e.tenant('proj-lockr-y');
+  await tickTenant(x, true);
+  await tickTenant(y, true);
+  const plain = adm.projector('ticker', tickerDef({ lockTimeout: 100 }));
+  const conn = await e.sql.reserve();
+  let open = false;
+  try {
+    await plain.rebuild();
+    await tick(x, 1);
+    await tick(y, 1);
+    await plain.run({ once: true });
+    await tick(x, 2);
+    await tick(y, 2);
+    await conn.unsafe('begin');
+    open = true;
+    await conn.unsafe(`select 1 from ${e.S}.entity where class = 'TickSum' and tenant = $1 for update`, [x.id]);
+    // без lockRetries проход повторяется для всех: y ждёт вместе с x, отчёт называет x
+    const r1 = await plain.run({ once: true });
+    assert.deepEqual(r1.locked, [x.id]);
+    assert.ok(r1.skipped >= 1);
+    assert.equal(await tickTotal(y), 1, 'y ждёт вместе со всеми');
+    plain.close();
+    const iso = adm.projector('ticker', tickerDef({ lockTimeout: 100, lockRetries: 2 }));
+    try {
+      const r2 = await iso.run({ once: true });
+      assert.deepEqual(r2.locked, [x.id]);
+      assert.equal(await tickTotal(y), 1, 'первый проход — ещё повтор для всех');
+      const r3 = await iso.run({ once: true });
+      assert.deepEqual(r3.locked, [x.id]);
+      assert.equal(await tickTotal(y), 3, 'второй проход подряд: x выбыл, y пошёл дальше');
+      const f = (await iso.status()).failed[x.id];
+      assert.equal(f?.code, '55P03');
+      assert.match(f?.message ?? '', /2 проходов подряд дольше lockTimeout/);
+      await conn.unsafe('commit');
+      open = false;
+      await iso.rebuild({ tenant: x.id });
+      assert.equal(await tickTotal(x), await tickSumOf(x), 'перестроенный арендатор — как при догонке');
+    } finally {
+      iso.close();
+    }
+  } finally {
+    if (open) await conn.unsafe('rollback').catch(() => {});
+    conn.release();
+    plain.close();
   }
 });

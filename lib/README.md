@@ -1828,7 +1828,13 @@ sales.close()                                    // stop() после текущ
   проектор раньше.
 - `lockTimeout` — сколько транзакция проектора ждёт чужую блокировку строки (5000 мс; 0 — без предела). Транзакция
   любого арендатора, которая держит строку итога или цель конца, иначе держала бы пачку всех арендаторов. Дольше —
-  пачка откатывается, курсор остаётся, `run()` не отклоняется, а пропускает проход (`skipped`) и повторяет его.
+  пачка откатывается, курсор остаётся, `run()` не отклоняется, а пропускает проход (`skipped`) и повторяет его. Отчёт
+  называет арендатора, на чьей строке встала пачка (`locked`). `rebuild({ tenant, chunked: true })` такую блокировку
+  пережидает.
+- `lockRetries` — сколько проходов подряд запись одного арендатора может упираться в `lockTimeout`, прежде чем он
+  выбудет (по умолчанию 0 — не выбывает). Выбывший получает код `55P03`, и пачка идёт для остальных; его изменения
+  пропускаются до `rebuild({ tenant })`. Счёт ведёт процесс, удачная запись арендатора его сбрасывает. Учтите: долгая
+  исключительная блокировка семейства класса System (ужесточение описания) упрётся в каждого арендатора по очереди.
 - Каждая правка, которую `out` отправляет в базу, — отдельная правка строки, и скорость проектора задаёт число
   правок, а не число изменений. Свёртка `inc` сводит правки строки к одной за пачку, поэтому handle из примера выше
   (`out.inc` на каждое изменение) на машине замеров догонял 6 тысяч изменений в секунду при `batch` 500 и 33 тысячи
@@ -2269,12 +2275,12 @@ npx letopis import --from postgres://…/old --from-schema v1.salon --dsn postgr
 
 | Член | Что делает |
 |---|---|
-| опции `ProjectorOptions` | `from`, `into` — классы с потомками; `version` — целое от 1; `handle(changes, out)`; `withBefore`; `onExpired: 'rebuild' \| 'error'` (`'rebuild'` — пачками); `batch` — изменений в пачке (500, от 1 до 10 000); `pollMs` — запасной опрос (1000 мс); `lockTimeout` — ожидание чужой блокировки строки (5000 мс, 0 — без предела); `tenants` — id арендаторов-участников |
+| опции `ProjectorOptions` | `from`, `into` — классы с потомками; `version` — целое от 1; `handle(changes, out)`; `withBefore`; `onExpired: 'rebuild' \| 'error'` (`'rebuild'` — пачками); `batch` — изменений в пачке (500, от 1 до 10 000); `pollMs` — запасной опрос (1000 мс); `lockTimeout` — ожидание чужой блокировки строки (5000 мс, 0 — без предела); `lockRetries` — проходов подряд до выбывания арендатора с чужой блокировкой (0 — не выбывает); `tenants` — id арендаторов-участников |
 | `run({ once })` | догнать журнал (`once`) или следовать за ним до `stop()` → `ProjectorReport` |
 | `rebuild({ chunked, tenant })` | перестроить с текущего состояния: атомарно, пачками или одного арендатора → `ProjectorReport` |
 | `status()` | → `ProjectorStatus`: `{ name, state, version, cursor, at, lag, failed, rebuildingTenants }`; `failed` — `{ [id арендатора]: ProjectorFailure }`, где `ProjectorFailure` — `{ cursor, code, message }` |
 | `stop()`, `close()` | остановить `run()` после текущей пачки; то же и отписаться от сигналов |
-| `ProjectorReport` | `{ batches, changes, created, updated, deleted, unchanged, skipped, rebuilds }` |
+| `ProjectorReport` | `{ batches, changes, created, updated, deleted, unchanged, skipped, rebuilds, locked }` |
 | `ProjectorChange` | `{ cursor, id, class, tenant, op, rev, at, author, row }` и, если есть, `agent`, `reason`, `moved`, `before`, `rebuild` |
 | `ProjectorOut` | `upsert(класс, строка, { tenant })`, `inc(класс, строка, приращения, { tenant })`, `delete(класс, ключ или id, { tenant })`, `get(класс, ключ или id, { tenant })` → `Row \| null`; строка — `ProjectorRow` в формате загрузчика |
 

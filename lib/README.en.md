@@ -1896,7 +1896,13 @@ sales.close()                                    // stop() after the current bat
 - `lockTimeout` is how long a projector transaction waits for another transaction's row lock (5000 ms; 0 — no limit).
   Otherwise a transaction of any tenant holding a total row or an end target would hold the batch of all tenants.
   Longer than that, the batch rolls back, the cursor stays, and `run()` does not reject but skips the pass
-  (`skipped`) and repeats it.
+  (`skipped`) and repeats it. The report names the tenant whose row stopped the batch (`locked`).
+  `rebuild({ tenant, chunked: true })` waits such a lock out.
+- `lockRetries` is how many passes in a row the writes of one tenant may run into `lockTimeout` before it drops out
+  (0 by default — it never drops out). The dropped tenant gets the code `55P03`, and the batch goes on for the others;
+  its changes are skipped until `rebuild({ tenant })`. The process keeps the count, and a successful write of the
+  tenant resets it. Note: a long exclusive lock on the family of a System class (a tightening of its description) will
+  hit every tenant in turn.
 - Every edit that `out` sends to the database is a separate edit of a row, and the speed of a projector is set by the
   number of edits, not by the number of changes. The folding of `inc` brings the edits of a row down to one per batch,
   so the handle from the example above (`out.inc` for every change) caught up with 6 thousand changes per second with
@@ -2353,12 +2359,12 @@ give `invalid_data`.
 
 | Member | What it does |
 |---|---|
-| options `ProjectorOptions` | `from`, `into`: classes with descendants; `version`: an integer from 1; `handle(changes, out)`; `withBefore`; `onExpired: 'rebuild' \| 'error'` (`'rebuild'` rebuilds in batches); `batch`: changes in a batch (500, from 1 to 10,000); `pollMs`: fallback polling (1000 ms); `lockTimeout`: waiting for another transaction's row lock (5000 ms, 0 — no limit); `tenants`: ids of the participant tenants |
+| options `ProjectorOptions` | `from`, `into`: classes with descendants; `version`: an integer from 1; `handle(changes, out)`; `withBefore`; `onExpired: 'rebuild' \| 'error'` (`'rebuild'` rebuilds in batches); `batch`: changes in a batch (500, from 1 to 10,000); `pollMs`: fallback polling (1000 ms); `lockTimeout`: waiting for another transaction's row lock (5000 ms, 0 — no limit); `lockRetries`: passes in a row before a tenant with another transaction's lock drops out (0 — never); `tenants`: ids of the participant tenants |
 | `run({ once })` | catch up with the journal (`once`) or follow it until `stop()` → `ProjectorReport` |
 | `rebuild({ chunked, tenant })` | rebuild from the current state: atomically, in batches or for one tenant → `ProjectorReport` |
 | `status()` | → `ProjectorStatus`: `{ name, state, version, cursor, at, lag, failed, rebuildingTenants }`; `failed` is `{ [tenant id]: ProjectorFailure }`, where `ProjectorFailure` is `{ cursor, code, message }` |
 | `stop()`, `close()` | stop `run()` after the current batch; the same plus unsubscribing from signals |
-| `ProjectorReport` | `{ batches, changes, created, updated, deleted, unchanged, skipped, rebuilds }` |
+| `ProjectorReport` | `{ batches, changes, created, updated, deleted, unchanged, skipped, rebuilds, locked }` |
 | `ProjectorChange` | `{ cursor, id, class, tenant, op, rev, at, author, row }` and, when present, `agent`, `reason`, `moved`, `before`, `rebuild` |
 | `ProjectorOut` | `upsert(class, row, { tenant })`, `inc(class, row, deltas, { tenant })`, `delete(class, key or id, { tenant })`, `get(class, key or id, { tenant })` → `Row \| null`; a row is a `ProjectorRow` in the loader format |
 
