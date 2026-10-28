@@ -1073,7 +1073,10 @@ end $$;
 -- окна p_upto — последняя строка полной пачки watch_read), а строки — синтетические надгробия прежней версии: класс,
 -- концы и данные прежние; номер, время, автор, tx и seq — версии смены класса; вид delete; агента и причины нет. Только
 -- если нового класса нет в p_classes, а прежнюю версию актор видит (row_visible с его планом READ): о строке, которой он
--- не читал, подписчик не узнает. Функция владельца: версию с новым классом актору видеть не нужно.
+-- не читал, подписчик не узнает. Функция владельца: версию с новым классом актору видеть не нужно. Подключение в обход
+-- RLS (суперпользователь, BYPASSRLS, член роли-владельца — connect() пускает его только с allowBypassRls) видит в
+-- watch_read журнал всех арендаторов, поэтому и события ухода получает все, с автором (хвост ревью доработок после
+-- 1.2.0); роль сеанса — session_user: внутри функции владельца current_user — владелец.
 create or replace function @SCHEMA@.watch_leaving(p_tx xid8, p_seq bigint, p_classes text[], p_limit int,
   p_snap pg_snapshot default null, p_upto_tx xid8 default null, p_upto_seq bigint default null)
 returns setof @SCHEMA@.log
@@ -1083,12 +1086,15 @@ as $$
 declare
   horizon xid8 := pg_snapshot_xmin(pg_current_snapshot());
   a jsonb;
+  bypass boolean;
 begin
   if p_classes is null then
     return;
   end if;
-  a := @SCHEMA@.acl_actor('READ');
-  if a is null then
+  bypass := exists (select 1 from pg_roles r where r.rolname = session_user and (r.rolsuper or r.rolbypassrls))
+            or pg_has_role(session_user, '@OWNER_NAME@', 'USAGE') or pg_has_role(session_user, '@OWNER_NAME@', 'SET');
+  a := case when not bypass then @SCHEMA@.acl_actor('READ') end;
+  if a is null and not bypass then
     return;
   end if;
   -- новую версию актор не видит — надгробие при любом p_classes и без автора: перебором классов подписки он узнал бы её
@@ -1098,15 +1104,15 @@ begin
     from @SCHEMA@.log l
     cross join lateral (select x.* from @SCHEMA@.log x where x.id = l.id and x.rev < l.rev and x.op not in ('purge', 'trim', 'reset')
                         order by x.rev desc limit 1) p
-    cross join lateral (select @SCHEMA@.row_visible(l.tenant, l.class, l.id, l.owner, l.tags, l.data, l.links,
+    cross join lateral (select bypass or @SCHEMA@.row_visible(l.tenant, l.class, l.id, l.owner, l.tags, l.data, l.links,
                                (a->>'tenant')::uuid, (a->>'account')::uuid, a->'plan') as seen) v
     where (l.tx, l.seq) > (p_tx, p_seq) and l.tx < horizon
       and (p_upto_tx is null or (l.tx, l.seq) <= (p_upto_tx, p_upto_seq))
       and l.op = 'reclass' and l.moved is null and (not (l.class = any (p_classes)) or not v.seen)
       and p.class = any (p_classes) and p.op <> 'delete'
       and (p_snap is null or not pg_visible_in_snapshot(l.tx, p_snap))
-      and @SCHEMA@.row_visible(p.tenant, p.class, p.id, p.owner, p.tags, p.data, p.links,
-                               (a->>'tenant')::uuid, (a->>'account')::uuid, a->'plan')
+      and (bypass or @SCHEMA@.row_visible(p.tenant, p.class, p.id, p.owner, p.tags, p.data, p.links,
+                                          (a->>'tenant')::uuid, (a->>'account')::uuid, a->'plan'))
     order by l.tx, l.seq limit p_limit;
 end $$;
 
