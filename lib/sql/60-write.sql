@@ -1229,6 +1229,10 @@ begin
     -- прав после acl_bump видит новый класс
     perform @SCHEMA@.agg_source_admit(n.data->>'name', @SCHEMA@.agg_new_mark(null, n.data->'resolved'))
     from added n where n.class = 'Class' and n.data->'resolved' ? 'aggregatedBy';
+    -- и описавшему агрегат (хвост ревью доработок после 1.2.0): заведя потомка источника, читающий всё пользователь
+    -- иначе открыл бы его строки тому, кто описал агрегат без права на них
+    perform @SCHEMA@.agg_author_admit(n.data->>'name', n.tenant, null, n.data->'resolved')
+    from added n where n.class = 'Class' and n.data->'resolved' ? 'aggregatedBy';
     -- новая цель агрегатов (план 1.1, §2.4): метки её источников (aggregatedBy) — заново
     perform @SCHEMA@.agg_mark(n.tenant, @SCHEMA@.agg_of(n.data->'resolved'))
     from added n where n.class = 'Class' and n.data->'resolved' ? 'aggregate';
@@ -1286,6 +1290,7 @@ begin
     -- класс становится источником агрегата (смена parent; ревью коммита этапа 4б): право READ без условий на его строки
     -- и после правки — по новым предкам (до правки проверил class_admit)
     perform @SCHEMA@.agg_source_admit(n_row.data->>'name', @SCHEMA@.agg_new_mark(o_row.data->'resolved', n_row.data->'resolved'));
+    perform @SCHEMA@.agg_author_admit(n_row.data->>'name', n_row.tenant, o_row.data->'resolved', n_row.data->'resolved');
     perform @SCHEMA@.class_evolve(o_row, n_row);
   end loop;
   -- отключённый аккаунт: сессии гаснут (этап 5, п. 2), каждая — сигнал кэшу
@@ -1333,6 +1338,8 @@ begin
     if d.tenant = n.tenant then
       perform @SCHEMA@.agg_source_admit(d.data->>'name', @SCHEMA@.agg_new_mark(d.data->'resolved', prep.data->'resolved'));
     end if;
+    -- и описавшему агрегат — в объёме описания (agg_author_admit сам пропускает класс арендатора под агрегатом System)
+    perform @SCHEMA@.agg_author_admit(d.data->>'name', d.tenant, d.data->'resolved', prep.data->'resolved');
     classes := classes || (d.data->>'name');
     if d.data->'resolved'->'aggregate' is distinct from prep.data->'resolved'->'aggregate' then
       agg_names := agg_names || @SCHEMA@.agg_of(d.data->'resolved') || @SCHEMA@.agg_of(prep.data->'resolved');

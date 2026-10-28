@@ -581,6 +581,12 @@ const Movement = link('Movement', { amount: z.number().int() }, { ends: { Wallet
   describe or change an aggregate. Only someone who reads all rows of a class and its descendants without conditions,
   both before the change and after it, can make the class a source (a new descendant of a source, a `parent` change).
   Otherwise `acl_denied`.
+- A new source is also checked against whoever described the aggregate: they too must read all rows of the class
+  without conditions. The describer is the author of the version of the target's `Class` row from which the aggregate
+  description became the current one. If they cannot read those rows, the class does not become a source
+  (`acl_denied`) until someone who can read them describes the aggregate again. For an aggregate of a System class, the
+  describer is checked against System classes, as at description time. A tenant class under a System aggregate is
+  checked only for whoever creates it.
 - The option is inherited, and a descendant replaces it as a whole. Adding or changing an aggregate is a tightening:
   writes to the target and to the sources wait while the field is recalculated for all rows.
 - `db.rebuildAggregates(class)` recalculates the field from the current rows, for repair. A version is written only

@@ -1147,3 +1147,38 @@ test('№56 (автоматическое ревью коммита 1734d21): п
   assert.equal(a, true);
   assert.deepEqual((await e.sql.unsafe(`select l.id from ${S}.watch_leaving('0'::xid8, 0, array['Box56'], 1000) l`)).map((v) => v.id), [r.id]);
 });
+
+test('№57 (хвост ревью доработок после 1.2.0, решение владельца): новый источник агрегата принимается, только если и описавший агрегат читает все его строки', async () => {
+  const { account, member, resource, rule, session, sysRes } = await import('./_access.js');
+  const x = await e.tenant('x57', { bare: true });
+  await rule(e, x.id, await sysRes(e, 'authenticated:ACCOUNT'), await resource(e, x.id, 'class57:WRITE', 'WRITE', { class: 'Class' }), 'allow', 10);
+  // владелец арендатора может всё; описавший агрегат читает Coin57 и его потомков, кроме Gold57
+  const own = await resource(e, x.id, 'owner57:ACCOUNT', 'ACCOUNT', { roles: '{owner}' });
+  for (const op of ['READ', 'WRITE', 'DELETE']) await rule(e, x.id, own, await resource(e, x.id, `all57:${op}`, op, { class: '*' }), 'allow', 10);
+  const d = await account(e, 'd57');
+  await member(e, d.id, x.id, ['agg57']);
+  const dg = await resource(e, x.id, 'agg57:ACCOUNT', 'ACCOUNT', { roles: '{agg57}' });
+  await rule(e, x.id, dg, await resource(e, x.id, 'coin57:READ', 'READ', { class: 'Coin57' }), 'allow', 10);
+  await rule(e, x.id, dg, await resource(e, x.id, 'gold57:READ', 'READ', { class: 'Gold57' }), 'deny', 20);
+  const dTok = await session(e, d.id, { tenant: x.id });
+  const run = (tok: string, sql: string, p: unknown[] = []) => e.as(tok, (tx) => tx.unsafe(sql, p as never[]));
+  const cls = (tok: string, desc: unknown) => run(tok, `insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [desc]);
+  const edit = (name: string, patch: string) =>
+    run(x.token, `update ${S}.entity set data = ${patch} where class = 'Class' and tenant = $1 and data->>'name' = $2`, [x.id, name]);
+  const total = { sum: 'v', of: 'Coin57', via: 'Purse57' };
+  await cls(x.token, { name: 'Coin57', kind: 'hub', fields: { properties: { v: { type: 'integer' } } }, ends: { Purse57: { class: 'Purse57' } } });
+  // агрегат описывает d — он читает все строки Coin57
+  await cls(dTok, { name: 'Purse57', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' }, total: { type: 'integer' } }, required: ['code'] },
+    aggregate: { total } });
+  // потомок, которого d читает, становится источником; потомок, которого не читает, — отказ, хотя заводящий читает всё
+  await cls(x.token, { name: 'Silver57', kind: 'hub', parent: 'Coin57' });
+  await assert.rejects(cls(x.token, { name: 'Gold57', kind: 'hub', parent: 'Coin57' }), lt('acl_denied'));
+  await assert.rejects(cls(x.token, { name: 'Gold57', kind: 'hub', parent: 'Coin57' }), /Gold57 становится источником агрегата Purse57\.total, а описавший агрегат не читает/);
+  // перенос под источник сменой parent — так же
+  await cls(x.token, { name: 'Gold57', kind: 'hub', fields: { properties: { v: { type: 'integer' } } } });
+  await assert.rejects(edit('Gold57', `data || '{"parent": "Coin57"}'`), /описавший агрегат не читает/);
+  // агрегат заново описал владелец — он читает всё, и Gold57 становится источником
+  await edit('Purse57', `data - 'aggregate'`);
+  await edit('Purse57', `data || '${JSON.stringify({ aggregate: { total } })}'`);
+  await edit('Gold57', `data || '{"parent": "Coin57"}'`);
+});
