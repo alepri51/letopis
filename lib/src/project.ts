@@ -112,6 +112,11 @@ export interface ProjectorOptions {
   /** Запасной опрос журнала, мс (по умолчанию 1000; сигналы источников будят раньше). */
   pollMs?: number;
   /**
+   * Сколько транзакция проектора ждёт чужую блокировку строки, мс (по умолчанию 5000; 0 — без предела). Дольше —
+   * пачка откатывается, курсор остаётся, run() не отклоняется, а пропускает проход и повторяет его.
+   */
+  lockTimeout?: number;
+  /**
    * Явный список арендаторов проектора: участники — только они (и только те, у кого каждый класс into помечен
    * derivedBy). Без списка участник — любой арендатор с такими классами.
    */
@@ -256,6 +261,11 @@ function change(row: Row, cursor: string, rebuild = false): ProjectorChange {
  * значениями (22…) и пределами размера (54…). Сбой окружения (блокировки, отмена запроса, связь) — не причина
  * выводить арендатора: пачка откатывается целиком, повтор начнётся с того же курсора.
  */
+/** Ожидание чужой блокировки строки дольше lock_timeout (55P03): сбой окружения, проход повторяется. */
+function lockWait(e: unknown): boolean {
+  return (e as { code?: unknown } | null)?.code === '55P03';
+}
+
 function tenantFault(e: unknown): boolean {
   if (e instanceof LetopisError) return true;
   return /^(LT|22|54)/.test(String((e as { code?: unknown } | null)?.code ?? ''));
@@ -397,6 +407,7 @@ export class Projector {
   private off: (() => void) | null = null;
   private readonly batch: number;
   private readonly pollMs: number;
+  private readonly lockMs: number;
   private readonly only: ReadonlySet<string> | null;
 
   constructor(readonly env: ProjectorEnv, name: string, private def: ProjectorOptions) {
@@ -417,6 +428,8 @@ export class Projector {
     this.only = def.tenants ? new Set(def.tenants.map((x) => x.toLowerCase())) : null;
     this.batch = def.batch ?? 500;
     this.pollMs = def.pollMs ?? 1000;
+    this.lockMs = def.lockTimeout ?? 5000;
+    if (!Number.isInteger(this.lockMs) || this.lockMs < 0) throw new LetopisError('invalid_data', `проектор ${name}: lockTimeout — целое число мс, 0 и больше`);
     if (!Number.isInteger(this.batch) || this.batch < 1 || this.batch > 10_000) throw new LetopisError('invalid_data', `проектор ${name}: batch — от 1 до 10 000`);
     if (env.onSignal) {
       this.off = env.onSignal((s) => {
@@ -444,8 +457,12 @@ export class Projector {
         try {
           r = await this.step(rep);
         } catch (e) {
-          if (!(e instanceof LetopisError && e.code === 'cursor_expired' && this.def.onExpired === 'rebuild')) throw e;
-          r = 'rebuild';
+          if (lockWait(e)) {
+            rep.skipped++;
+            r = 'busy';
+          } else if (e instanceof LetopisError && e.code === 'cursor_expired' && this.def.onExpired === 'rebuild') {
+            r = 'rebuild';
+          } else throw e;
         }
         // курсор истёк у части арендаторов: с onExpired: 'rebuild' они перестраиваются сами, пачками (доработки после
         // точки Б). Состояние — в чекпоинте, поэтому перестройку продолжает run() любого процесса, а занятая
@@ -455,9 +472,15 @@ export class Projector {
         // последней пачки. Начинает перестройку выбывших по ярусу только onExpired: 'rebuild'. Блокировку проектора держит
         // другой процесс (busy) — перестройку продвинет он: чтение чекпоинта ждало бы его пачку
         const auto = this.def.onExpired === 'rebuild';
-        if (r !== 'rebuild' && r !== 'busy' && (auto || this.tenantsPending) && (await this.tenantWork(rep, auto))) r = 'more';
-        // пачку перестройки держит другой процесс того же проектора — подождать и продолжить
-        if (r === 'rebuild') r = (await this.rebuildNow(rep, 'auto')) === 'busy' ? 'busy' : 'more';
+        try {
+          if (r !== 'rebuild' && r !== 'busy' && (auto || this.tenantsPending) && (await this.tenantWork(rep, auto))) r = 'more';
+          // пачку перестройки держит другой процесс того же проектора — подождать и продолжить
+          if (r === 'rebuild') r = (await this.rebuildNow(rep, 'auto')) === 'busy' ? 'busy' : 'more';
+        } catch (e) {
+          if (!lockWait(e)) throw e;
+          rep.skipped++;
+          r = 'busy';
+        }
         if (r === 'more') continue;
         if (opts.once) return rep;
         await this.sleep();
@@ -489,7 +512,8 @@ export class Projector {
       }
       await this.startTenant(rep, tenant, false);
       for (;;) {
-        const r = await this.tenantChunk(rep, tenant);
+        // занятая строка (lockTimeout) — как занятая блокировка проектора: подождать и повторить пачку
+        const r = await this.tenantChunk(rep, tenant).catch((e) => { if (lockWait(e)) return 'busy' as const; throw e; });
         if (r === 'busy') await new Promise((res) => setTimeout(res, 20));
         if (r !== 'done') continue;
         // ошибка данных арендатора — как у перестройки одной транзакцией: отказ, арендатор выбывший
@@ -553,6 +577,9 @@ export class Projector {
       await q.unsafe('begin isolation level read committed');
       await q.unsafe(`set local role ${ident(this.env.ownerRole)}`);
       await q.unsafe(`set local timezone = 'UTC'`);
+      // чужая блокировка строки (транзакция любого арендатора держит итог или цель) не держит пачку всех арендаторов
+      // дольше lockTimeout (хвост ревью безопасности №3): 55P03 — проход пропускается, курсор остаётся
+      if (this.lockMs > 0) await q.unsafe(`set local lock_timeout = ${this.lockMs}`);
       const out = await fn(q);
       await q.unsafe('commit');
       return out;

@@ -1109,3 +1109,34 @@ test('хвост ревью безопасности №3: прерванную 
     p.close();
   }
 });
+
+test('хвост ревью безопасности №3: lockTimeout — пачка не висит на чужой блокировке строки; после освобождения изменение применено один раз', async () => {
+  const x = await e.tenant('proj-lock-x');
+  await tickTenant(x, true);
+  const p = adm.projector('ticker', tickerDef({ lockTimeout: 300 }));
+  const conn = await e.sql.reserve();
+  let open = false;
+  try {
+    await p.rebuild();
+    await tick(x, 1);
+    await p.run({ once: true });
+    // запись зафиксирована, затем транзакция арендатора держит строку итога (горизонт уже за записью): пачка ждёт
+    // строку не дольше lockTimeout, курсор остаётся
+    await tick(x, 2);
+    await conn.unsafe('begin');
+    open = true;
+    await conn.unsafe(`select 1 from ${e.S}.entity where class = 'TickSum' and tenant = $1 for update`, [x.id]);
+    const r = await Promise.race([p.run({ once: true }), new Promise<'висит'>((res) => setTimeout(() => res('висит'), 5000))]);
+    assert.notEqual(r, 'висит', 'run() не висит на чужой блокировке');
+    assert.ok(r !== 'висит' && r.skipped >= 1, 'проход пропущен');
+    assert.equal((await p.status()).failed[x.id], undefined, 'арендатор не выбыл');
+    await conn.unsafe('commit');
+    open = false;
+    await p.run({ once: true });
+    assert.equal(await tickTotal(x), await tickSumOf(x), 'изменение применено ровно один раз');
+  } finally {
+    if (open) await conn.unsafe('rollback').catch(() => {});
+    conn.release();
+    p.close();
+  }
+});

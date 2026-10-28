@@ -1876,6 +1876,10 @@ sales.close()                                    // stop() after the current bat
   tenant with `rebuild({ tenant })`.
 - `batch` is how many changes go into a batch (500), `pollMs` is fallback polling (1000 ms): source signals wake the
   projector earlier.
+- `lockTimeout` is how long a projector transaction waits for another transaction's row lock (5000 ms; 0 — no limit).
+  Otherwise a transaction of any tenant holding a total row or an end target would hold the batch of all tenants.
+  Longer than that, the batch rolls back, the cursor stays, and `run()` does not reject but skips the pass
+  (`skipped`) and repeats it.
 - Every edit that `out` sends to the database is a separate edit of a row, and the speed of a projector is set by the
   number of edits, not by the number of changes. The folding of `inc` brings the edits of a row down to one per batch,
   so the handle from the example above (`out.inc` for every change) caught up with 6 thousand changes per second with
@@ -2332,7 +2336,7 @@ give `invalid_data`.
 
 | Member | What it does |
 |---|---|
-| options `ProjectorOptions` | `from`, `into`: classes with descendants; `version`: an integer from 1; `handle(changes, out)`; `withBefore`; `onExpired: 'rebuild' \| 'error'` (`'rebuild'` rebuilds in batches); `batch`: changes in a batch (500, from 1 to 10,000); `pollMs`: fallback polling (1000 ms); `tenants`: ids of the participant tenants |
+| options `ProjectorOptions` | `from`, `into`: classes with descendants; `version`: an integer from 1; `handle(changes, out)`; `withBefore`; `onExpired: 'rebuild' \| 'error'` (`'rebuild'` rebuilds in batches); `batch`: changes in a batch (500, from 1 to 10,000); `pollMs`: fallback polling (1000 ms); `lockTimeout`: waiting for another transaction's row lock (5000 ms, 0 — no limit); `tenants`: ids of the participant tenants |
 | `run({ once })` | catch up with the journal (`once`) or follow it until `stop()` → `ProjectorReport` |
 | `rebuild({ chunked, tenant })` | rebuild from the current state: atomically, in batches or for one tenant → `ProjectorReport` |
 | `status()` | → `ProjectorStatus`: `{ name, state, version, cursor, at, lag, failed, rebuildingTenants }`; `failed` is `{ [tenant id]: ProjectorFailure }`, where `ProjectorFailure` is `{ cursor, code, message }` |
