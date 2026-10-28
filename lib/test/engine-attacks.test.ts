@@ -1073,3 +1073,112 @@ test('№53 (автоматическое ревью коммита 5290be1): к
   await q(`update ${S}.entity set data = data - 'aggregate' where class = 'Class' and tenant = $1 and data->>'name' = 'Purse53'`, [x.id]);
   await drop('Coin53');
 });
+
+test('№54 (хвост ревью доработок после 1.2.0): строки класса арендатора судятся по его классу — предки и алиас одноимённого класса System прав на них не дают', async () => {
+  const { resource, rule, sysRes, sysadmin } = await import('./_access.js');
+  const admin = await sysadmin(e, 'admin54');
+  const x = await e.tenant('x54', { bare: true });
+  const g = await sysRes(e, 'authenticated:ACCOUNT');
+  await rule(e, x.id, g, await resource(e, x.id, 'class54:WRITE', 'WRITE', { class: 'Class' }), 'allow', 10);
+  await rule(e, x.id, g, await resource(e, x.id, 'dup54:WRITE', 'WRITE', { class: 'Dup54' }), 'allow', 10);
+  // READ — только на классы с предком или алиасом Doc54: так правило арендатора называет класс System
+  await rule(e, x.id, g, await resource(e, x.id, 'doc54:READ', 'READ', { class: 'Doc54' }), 'allow', 10);
+  await rule(e, x.id, g, await resource(e, x.id, 'paper54:READ', 'READ', { class: 'Paper54' }), 'allow', 10);
+  const q = (sql: string, p: unknown[] = []) => e.as(x.token, (tx) => tx.unsafe(sql, p as never[]));
+  await e.defineClass(x, { name: 'Dup54', kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
+  await e.defineClass(x, { name: 'Alias54', kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
+  await q(`insert into ${S}.entity (class, data) values ('Dup54', '{"n": 1}')`);
+  const seen = async () => (await q(`select count(*)::int as n from ${S}.entity where class = 'Dup54'`))[0].n as number;
+  assert.equal(await seen(), 0, 'своё описание Dup54 права READ не даёт');
+  // администратор заводит одноимённый класс System с предком Doc54 и класс System с алиасом Paper54
+  const sys = (sql: string, p: unknown[] = []) => e.as(admin.token, (tx) => tx.unsafe(sql, p as never[]));
+  const cls = (d: unknown) => sys(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [d]);
+  await cls({ name: 'Doc54', kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
+  await cls({ name: 'Dup54', kind: 'hub', parent: 'Doc54' });
+  await cls({ name: 'Alias54', kind: 'hub', alias: 'Paper54', fields: { properties: { n: { type: 'integer' } } } });
+  assert.equal(await seen(), 0, 'предок класса System Dup54 строк класса арендатора Dup54 не открывает');
+  await e.asOwner((tx) => tx.unsafe(`select ${S}.sys_create(gen_random_uuid(), 'Alias54', $1::uuid, '{}', '{"n": 2}')`, [x.id]));
+  assert.equal((await q(`select count(*)::int as n from ${S}.entity where class = 'Alias54'`))[0].n, 0,
+    'алиас класса System Alias54 строк класса арендатора Alias54 не открывает');
+});
+
+test('№55 (хвост ревью доработок после 1.2.0): производный потомок одноимённого класса арендатора не мешает правке класса System без права letopis.projector', async () => {
+  const { account, member, resource, rule, session, sysadmin } = await import('./_access.js');
+  const admin = await sysadmin(e, 'admin55');
+  // автор правок System: пишет строки Class System, права letopis.* у него нет
+  const cw = await account(e, 'cw55');
+  await member(e, cw.id, SYSTEM_ID, ['classwriter55']);
+  const grp = await resource(e, SYSTEM_ID, 'cw55:ACCOUNT', 'ACCOUNT', { roles: '{classwriter55}' });
+  await rule(e, SYSTEM_ID, grp, await resource(e, SYSTEM_ID, 'cw55:WRITE', 'WRITE', { class: 'Class' }), 'allow', 10);
+  const cwTok = await session(e, cw.id, { tenant: SYSTEM_ID });
+  const x = await e.tenant('x55');
+  await e.defineClass(x, { name: 'Base55', kind: 'hub', fields: { properties: { v: { type: 'string' } } } });
+  await e.defineDerived(x, { name: 'Roll55', kind: 'hub', parent: 'Base55', derivedBy: 'roll55', history: false });
+  await e.as(admin.token, (tx) => tx.unsafe(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`,
+    [{ name: 'Base55', kind: 'hub', fields: { properties: { v: { type: 'string' } } } }] as never[]));
+  const widen = (w: string) => e.as(cwTok, (tx) => tx.unsafe(`update ${S}.entity set data = ${S}.merge(data, $2::jsonb)
+    where class = 'Class' and tenant = $1 and data->>'name' = 'Base55'`, [SYSTEM_ID, { fields: { properties: { [w]: { type: 'integer' } } } }] as never[]));
+  // Roll55 наследует класс арендатора Base55, а не класс System
+  await widen('w1');
+  // производный потомок самого класса System — по-прежнему только администратор
+  await e.asAdmin(admin.token, (tx) => tx.unsafe(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`,
+    [{ name: 'SysRoll55', kind: 'hub', parent: 'Base55', derivedBy: 'sysroll55', history: false }] as never[]));
+  await assert.rejects(widen('w2'), /предок производного класса SysRoll55/);
+});
+
+test('№56 (автоматическое ревью коммита 1734d21): привилегированный вход с ролью приложения (SET ROLE) — не администратор и не подключение в обход RLS', async () => {
+  const x = await e.tenant('x56', { bare: true });
+  const y = await e.tenant('y56');
+  for (const name of ['Box56', 'Bin56']) await e.defineClass(y, { name, kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
+  const [r] = await e.as(y.token, (tx) => tx.unsafe(`insert into ${S}.entity (class, data) values ('Box56', '{"n": 1}') returning id`));
+  await e.as(y.token, (tx) => tx.unsafe(`update ${S}.entity set class = 'Bin56' where id = $1`, [r.id]));
+  // суперпользователь входит и ставит роль приложения — так делает пул с одной привилегированной ролью входа
+  const priv = (sql: string, p: unknown[] = []) => e.sql.begin(async (tx) => {
+    await tx.unsafe('set local role letopis_app');
+    await tx`select set_config('letopis.token', ${x.token}, true)`;
+    return tx.unsafe(sql, p as never[]);
+  });
+  // verify — право letopis.verify или администраторская роль: администратором делает действующая роль, а не роль входа
+  await assert.rejects(priv(`select ${S}.verify()`), lt('acl_denied'));
+  const leaving = await priv(`select l.id from ${S}.watch_leaving('0'::xid8, 0, array['Box56'], 1000) l`);
+  assert.deepEqual(leaving.map((v) => v.id), [], 'уход строки чужого арендатора подписке арендатора не отдаётся');
+  // без роли приложения тот же вход — администраторский: в обход RLS и с событиями ухода всех арендаторов
+  const [{ a }] = await e.sql.unsafe(`select ${S}.admin_role() as a`);
+  assert.equal(a, true);
+  assert.deepEqual((await e.sql.unsafe(`select l.id from ${S}.watch_leaving('0'::xid8, 0, array['Box56'], 1000) l`)).map((v) => v.id), [r.id]);
+});
+
+test('№57 (хвост ревью доработок после 1.2.0, решение владельца): новый источник агрегата принимается, только если и описавший агрегат читает все его строки', async () => {
+  const { account, member, resource, rule, session, sysRes } = await import('./_access.js');
+  const x = await e.tenant('x57', { bare: true });
+  await rule(e, x.id, await sysRes(e, 'authenticated:ACCOUNT'), await resource(e, x.id, 'class57:WRITE', 'WRITE', { class: 'Class' }), 'allow', 10);
+  // владелец арендатора может всё; описавший агрегат читает Coin57 и его потомков, кроме Gold57
+  const own = await resource(e, x.id, 'owner57:ACCOUNT', 'ACCOUNT', { roles: '{owner}' });
+  for (const op of ['READ', 'WRITE', 'DELETE']) await rule(e, x.id, own, await resource(e, x.id, `all57:${op}`, op, { class: '*' }), 'allow', 10);
+  const d = await account(e, 'd57');
+  await member(e, d.id, x.id, ['agg57']);
+  const dg = await resource(e, x.id, 'agg57:ACCOUNT', 'ACCOUNT', { roles: '{agg57}' });
+  await rule(e, x.id, dg, await resource(e, x.id, 'coin57:READ', 'READ', { class: 'Coin57' }), 'allow', 10);
+  await rule(e, x.id, dg, await resource(e, x.id, 'gold57:READ', 'READ', { class: 'Gold57' }), 'deny', 20);
+  const dTok = await session(e, d.id, { tenant: x.id });
+  const run = (tok: string, sql: string, p: unknown[] = []) => e.as(tok, (tx) => tx.unsafe(sql, p as never[]));
+  const cls = (tok: string, desc: unknown) => run(tok, `insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [desc]);
+  const edit = (name: string, patch: string) =>
+    run(x.token, `update ${S}.entity set data = ${patch} where class = 'Class' and tenant = $1 and data->>'name' = $2`, [x.id, name]);
+  const total = { sum: 'v', of: 'Coin57', via: 'Purse57' };
+  await cls(x.token, { name: 'Coin57', kind: 'hub', fields: { properties: { v: { type: 'integer' } } }, ends: { Purse57: { class: 'Purse57' } } });
+  // агрегат описывает d — он читает все строки Coin57
+  await cls(dTok, { name: 'Purse57', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' }, total: { type: 'integer' } }, required: ['code'] },
+    aggregate: { total } });
+  // потомок, которого d читает, становится источником; потомок, которого не читает, — отказ, хотя заводящий читает всё
+  await cls(x.token, { name: 'Silver57', kind: 'hub', parent: 'Coin57' });
+  await assert.rejects(cls(x.token, { name: 'Gold57', kind: 'hub', parent: 'Coin57' }), lt('acl_denied'));
+  await assert.rejects(cls(x.token, { name: 'Gold57', kind: 'hub', parent: 'Coin57' }), /Gold57 становится источником агрегата Purse57\.total, а описавший агрегат не читает/);
+  // перенос под источник сменой parent — так же
+  await cls(x.token, { name: 'Gold57', kind: 'hub', fields: { properties: { v: { type: 'integer' } } } });
+  await assert.rejects(edit('Gold57', `data || '{"parent": "Coin57"}'`), /описавший агрегат не читает/);
+  // агрегат заново описал владелец — он читает всё, и Gold57 становится источником
+  await edit('Purse57', `data - 'aggregate'`);
+  await edit('Purse57', `data || '${JSON.stringify({ aggregate: { total } })}'`);
+  await edit('Gold57', `data || '{"parent": "Coin57"}'`);
+});

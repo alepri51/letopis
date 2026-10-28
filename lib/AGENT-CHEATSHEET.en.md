@@ -1,4 +1,4 @@
-# letopis 1.3 — agent cheatsheet
+# letopis 1.4 — agent cheatsheet
 
 One page instead of [README.en.md](README.en.md), for an AI agent that writes code on top of the package. It ships in
 the package next to the README; in Russian: [Русская версия](AGENT-CHEATSHEET.md). Migration from 0.21:
@@ -49,6 +49,9 @@ const r = await up({ dsn: ADMIN, schema: 'myapp',                  // schema 'v2
   schema: `up()` without the option keeps it; after a change, restart the processes. The signal key (precise cache
   clearing) goes to services — the `letopis.signals` permission. The `up()` result also has `signals` and `warnings`
   (PostgreSQL below 18.2 — upgrade).
+- After a package update, call `up()`: only it re-applies the schema functions. `connect()` warns if the engine stamp
+  in the schema comment (package version and a hash of its SQL) does not match the package: an older schema — `up()`,
+  a newer one — update the package.
 - `tenant` — the first tenant and user without a seed of your own: the tenant gets the rule "authenticated users may
   do everything" (`grantAll`, on by default, weight 10); the user gets a membership with the roles `user.roles`
   (`['owner']` by default), a password for signing in with the login `login`, and a session in the tenant. Repeating

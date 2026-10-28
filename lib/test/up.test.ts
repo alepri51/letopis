@@ -1,7 +1,8 @@
 /**
  * up — полный установщик (план, этап 6, п. 9–10; тест-план §7.8 №6.10): свежая установка, повторный
  * накат, свои сиды, автосоздание базы, база не в UTF8, проверка версии с подставленным номером 17,
- * отставшая ревизия — только с upgrade (миграции), connect() предупреждает об отставшем движке.
+ * отставшая ревизия — только с upgrade (миграции), connect() предупреждает об отставшем движке и о схеме, которую
+ * накатила другая версия той же ревизии (штамп движка в комментарии схемы).
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import postgres from 'postgres';
 import { ensureDatabase as harnessDb, ADMIN_DSN, adminSql, ident, appDsn, ensureAppRole, type Sql } from './_harness.js';
-import { up, checkServer, createTenant, SYSTEM_ID } from '../src/up.js';
+import { up, checkServer, createTenant, compareVersions, engineStamp, SYSTEM_ID } from '../src/up.js';
 import { connect, DDL_REVISION } from '../src/index.js';
 
 let sql: Sql;
@@ -97,6 +98,46 @@ test('6.10 отставшая ревизия: без upgrade — отказ, с 
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test('штамп движка: connect() предупреждает о схеме, которую накатила другая версия той же ревизии', async () => {
+  const st = await engineStamp();
+  const S = ident(SCHEMA);
+  const stamp = `letopis ddl_revision=${DDL_REVISION} engine=${st.version} sql=${st.sql}`;
+  const comment = async () =>
+    (await sql`select obj_description(n.oid, 'pg_namespace') as c from pg_namespace n where n.nspname = ${SCHEMA}`)[0].c as string;
+  const warnsOf = async (c?: string) => {
+    if (c !== undefined) await sql.unsafe(`comment on schema ${S} is '${c}'`);
+    const warns: string[] = [];
+    const warn = console.warn;
+    console.warn = (m: string) => warns.push(String(m));
+    try {
+      const db = await connect({ dsn: ADMIN_DSN, schema: SCHEMA, allowBypassRls: true, listen: false, max: 1 });
+      await db.close();
+    } finally {
+      console.warn = warn;
+    }
+    return warns.filter((w) => !/RLS не действует/.test(w)).join('\n');
+  };
+  assert.match(st.sql, /^[0-9a-f]{16}$/);
+  assert.equal(await comment(), stamp, 'up() пишет штамп в комментарий схемы');
+  assert.equal(await warnsOf(), '', 'штамп совпадает — предупреждения нет');
+  const rev = `letopis ddl_revision=${DDL_REVISION}`;
+  assert.match(await warnsOf(rev), /функции схемы v2\.t_up поставила версия до 1\.4\.0, библиотека — .+: накатите up\(\{ schema: 'v2\.t_up' \}\)/);
+  assert.match(await warnsOf(`${rev} engine=1.3.9 sql=0123456789abcdef`), /поставила letopis 1\.3\.9, библиотека — .+: накатите up/);
+  assert.match(await warnsOf(`${rev} engine=${st.version} sql=0123456789abcdef`), /поставила другая сборка letopis .+: накатите up/);
+  assert.match(await warnsOf(`${rev} engine=99.0.0 sql=0123456789abcdef`), /обновила letopis 99\.0\.0, библиотека старее .+ — обновите пакет/);
+  await up({ dsn: ADMIN_DSN, schema: SCHEMA, quiet: true });
+  assert.equal(await comment(), stamp, 'повторный up() пишет штамп своей версии');
+  assert.equal(await warnsOf(), '');
+  // порядок версий — semver
+  assert.ok(compareVersions('1.4.0', '1.4.0-alpha.0') > 0);
+  assert.ok(compareVersions('1.4.0-alpha.0', '1.4.0-alpha.1') < 0);
+  assert.ok(compareVersions('1.4.0-alpha.10', '1.4.0-alpha.9') > 0);
+  assert.ok(compareVersions('1.4.0-alpha.1', '1.4.0-beta') < 0);
+  assert.ok(compareVersions('1.4.0-alpha', '1.4.0-alpha.1') < 0);
+  assert.ok(compareVersions('1.10.0', '1.9.3') > 0);
+  assert.equal(compareVersions('2.0.0+build.5', '2.0.0'), 0);
 });
 
 test('6.10 автосоздание базы; база не в UTF8 — понятный отказ; версия 17 — понятный отказ', async () => {

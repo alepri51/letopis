@@ -8,7 +8,7 @@
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { engine, lt, SYSTEM_ID, type Engine, type Tenant } from './_engine.js';
+import { engine, lt, waitForLock, SYSTEM_ID, type Engine, type Tenant } from './_engine.js';
 import { ADMIN_DSN, appDsn } from './_harness.js';
 import { sysadmin, sqlAs } from './_access.js';
 import { install } from '../src/up.js';
@@ -1169,5 +1169,142 @@ test('хвост ревью безопасности №3: trimHistory верс�
     assert.equal(await tickTotal(x), 3, 'итог — последняя версия, без двойного счёта');
   } finally {
     p.close();
+  }
+});
+
+test('хвост ревью доработок после 1.2.0: purge и trimHistory проверяют каждую версию — у более поздней версии бывает меньший xid', async () => {
+  const x = await e.tenant('proj-xid');
+  await e.defineClass(x, { name: 'Xid', kind: 'hub', fields: { properties: { v: { type: 'integer' } }, required: ['v'] } });
+  await e.defineDerived(x, { name: 'XidSum', kind: 'hub', key: ['k'], derivedBy: 'xids', history: false,
+    fields: { properties: { k: { type: 'string' }, total: { type: 'integer' } }, required: ['k'] } });
+  const p = adm.projector('xids', { from: ['Xid'], into: ['XidSum'], version: 1, handle: () => {} });
+  const q = (s: string, params: unknown[] = []) => e.as(x.token, (tx) => tx.unsafe(s, params as never[]));
+  const bump = (id: string) => `update ${e.S}.entity set data = jsonb_build_object('v', (data->>'v')::int + 1) where id = '${id}'`;
+  const versions = async (id: string) => (await e.sql.unsafe(`select rev, tx::text as tx, seq::text as seq from ${e.S}.log where id = $1 order by rev`, [id]))
+    .map((r) => ({ rev: r.rev as number, tx: BigInt(r.tx as string), seq: r.seq as string }));
+  const setCursor = (cursor: string) => e.sql.unsafe(`update ${e.S}.secret set meta = jsonb_set(meta, '{cursor}', to_jsonb($1::text))
+    where kind = 'PROJECTOR' and ident = 'xids'`, [cursor]);
+  // транзакция B берёт xid раньше A, а пишет строку после фиксации A: следующая версия получает меньший xid
+  const permuted = async (id: string, last: string) => {
+    const b = await e.app.reserve();
+    try {
+      await b.unsafe('begin');
+      await b.unsafe(`select set_config('letopis.token', $1, true)`, [x.token]);
+      await b.unsafe('select pg_current_xact_id()');
+      await q(bump(id));
+      await b.unsafe(last);
+      await b.unsafe('commit');
+    } finally {
+      b.release();
+    }
+  };
+  try {
+    await p.run({ once: true });
+    const [r1] = await q(`insert into ${e.S}.entity (class, data) values ('Xid', '{"v": 1}') returning id`);
+    const [r2] = await q(`insert into ${e.S}.entity (class, data) values ('Xid', '{"v": 1}') returning id`);
+    await p.run({ once: true });
+
+    // purge: надгробие (меньший xid) курсор прошёл, а предыдущую версию (больший xid) — нет
+    await permuted(r1.id, `delete from ${e.S}.entity where id = '${r1.id}'`);
+    const v1 = await versions(r1.id);
+    const tomb = v1[v1.length - 1];
+    assert.ok(tomb.tx < v1[v1.length - 2].tx, 'у надгробия xid меньше, чем у предыдущей версии');
+    await setCursor(`${tomb.tx}:${tomb.seq}`);
+    await assert.rejects(q(`select ${e.S}.purge($1, true)`, [r1.id]), lt('projector_pending'));
+
+    // обрезка: курсор и снимок перестройки учли самую позднюю по (tx, seq) версию, а первую оставшуюся (меньший xid,
+    // фиксация после снимка) — нет
+    await permuted(r2.id, bump(r2.id));
+    const v2 = await versions(r2.id);
+    const [, a, nxt] = v2;
+    assert.ok(v2.length === 3 && nxt.tx < a.tx, 'у первой оставшейся версии xid меньше, чем у стираемой');
+    await setCursor(`${nxt.tx - 1n}:0~${nxt.tx}:${a.tx + 1n}:${nxt.tx}`);
+    await assert.rejects(q(`select ${e.S}.trim_history(array[$1::uuid], null, now())`, [r2.id]), lt('projector_pending'));
+
+    // проектор прочёл всё — обе операции проходят
+    await setCursor(`${a.tx > tomb.tx ? a.tx : tomb.tx}:${Number.MAX_SAFE_INTEGER}`);
+    await q(`select ${e.S}.purge($1, true)`, [r1.id]);
+    assert.equal((await q(`select ${e.S}.trim_history(array[$1::uuid], null, now()) as n`, [r2.id]))[0].n, 2);
+  } finally {
+    p.close();
+  }
+});
+
+test('хвост ревью доработок после 1.2.0: rebuild({ tenant, chunked: true }) пережидает чужую блокировку строки арендатора — без сырой 55P03', async () => {
+  const x = await e.tenant('proj-start-lock');
+  await tickTenant(x, true);
+  const p = adm.projector('ticker', tickerDef({ lockTimeout: 100 }));
+  const conn = await e.sql.reserve();
+  let open = false;
+  try {
+    await p.rebuild();
+    await tick(x, 3);
+    await p.run({ once: true });
+    // перестройка удаляет производные строки арендатора, а одну из них держит его транзакция
+    await conn.unsafe('begin');
+    open = true;
+    await conn.unsafe(`select 1 from ${e.S}.entity where class = 'TickSum' and tenant = $1 for update`, [x.id]);
+    const rb = p.rebuild({ tenant: x.id, chunked: true });
+    rb.catch(() => {});
+    await waitForLock(e.sql);
+    await new Promise((res) => setTimeout(res, 400)); // несколько сроков lockTimeout
+    await conn.unsafe('commit');
+    open = false;
+    const rep = await rb;
+    assert.ok(rep.skipped >= 1, 'перестройка пережидала блокировку');
+    assert.equal(await tickTotal(x), await tickSumOf(x));
+  } finally {
+    if (open) await conn.unsafe('rollback').catch(() => {});
+    conn.release();
+    p.close();
+  }
+});
+
+test('хвост ревью доработок после 1.2.0: lockRetries — арендатор, чью строку держит чужая транзакция, выбывает, остальные идут дальше; отчёт называет его', async () => {
+  const x = await e.tenant('proj-lockr-x');
+  const y = await e.tenant('proj-lockr-y');
+  await tickTenant(x, true);
+  await tickTenant(y, true);
+  const plain = adm.projector('ticker', tickerDef({ lockTimeout: 100 }));
+  const conn = await e.sql.reserve();
+  let open = false;
+  try {
+    await plain.rebuild();
+    await tick(x, 1);
+    await tick(y, 1);
+    await plain.run({ once: true });
+    await tick(x, 2);
+    await tick(y, 2);
+    await conn.unsafe('begin');
+    open = true;
+    await conn.unsafe(`select 1 from ${e.S}.entity where class = 'TickSum' and tenant = $1 for update`, [x.id]);
+    // без lockRetries проход повторяется для всех: y ждёт вместе с x, отчёт называет x
+    const r1 = await plain.run({ once: true });
+    assert.deepEqual(r1.locked, [x.id]);
+    assert.ok(r1.skipped >= 1);
+    assert.equal(await tickTotal(y), 1, 'y ждёт вместе со всеми');
+    plain.close();
+    const iso = adm.projector('ticker', tickerDef({ lockTimeout: 100, lockRetries: 2 }));
+    try {
+      const r2 = await iso.run({ once: true });
+      assert.deepEqual(r2.locked, [x.id]);
+      assert.equal(await tickTotal(y), 1, 'первый проход — ещё повтор для всех');
+      const r3 = await iso.run({ once: true });
+      assert.deepEqual(r3.locked, [x.id]);
+      assert.equal(await tickTotal(y), 3, 'второй проход подряд: x выбыл, y пошёл дальше');
+      const f = (await iso.status()).failed[x.id];
+      assert.equal(f?.code, '55P03');
+      assert.match(f?.message ?? '', /2 проходов подряд дольше lockTimeout/);
+      await conn.unsafe('commit');
+      open = false;
+      await iso.rebuild({ tenant: x.id });
+      assert.equal(await tickTotal(x), await tickSumOf(x), 'перестроенный арендатор — как при догонке');
+    } finally {
+      iso.close();
+    }
+  } finally {
+    if (open) await conn.unsafe('rollback').catch(() => {});
+    conn.release();
+    plain.close();
   }
 });

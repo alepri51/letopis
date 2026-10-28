@@ -760,6 +760,14 @@ begin
       perform @SCHEMA@.lt_fail('invalid_class', format('имя %s занято системным классом', p_data->>'name'));
     end if;
   end if;
+  -- родитель — под разделяемой блокировкой своего семейства (хвост ревью доработок после 1.2.0): удаление класса берёт
+  -- исключительную, поэтому родитель не удалится мимо нового потомка, а удалённый, пока ждали, class_prepare не найдёт
+  if p_data->>'parent' is not null then
+    tc := @SCHEMA@.class_row(p_data->>'parent', p_tenant);
+    if tc.id is not null then
+      perform @SCHEMA@.family_lock(tc, false);
+    end if;
+  end if;
   select c.data, c.validator into data, validator from @SCHEMA@.class_prepare(p_data, p_tenant) c;
   if data->>'kind' = 'link' and (data->>'name') = any (@SCHEMA@.reserved_names()) then
     perform @SCHEMA@.lt_fail('invalid_class', format('имя связи %s совпадает с методом цепочки', data->>'name'));
@@ -798,12 +806,15 @@ begin
       data->>'name'));
   end if;
   -- предок производного класса (ревью безопасности №3): правка предка пересчитывает описание потомка (class_evolve) —
-  -- поля, ключ, history, — поэтому класс с производными потомками (своего арендатора, у класса System — всех) меняет
-  -- тоже только администратор
+  -- поля, ключ, history, — поэтому класс с производными потомками (своего арендатора, у класса System — всех, кроме
+  -- арендаторов со своим одноимённым классом: их потомки наследуют свой класс) меняет тоже только администратор
   if prevd is not null and not @SCHEMA@.letopis_allowed('letopis.projector') then
     select x.data->>'name' into dkid from @SCHEMA@.entity x
     where x.class = 'Class' and x.data->>'name' <> data->>'name'
-      and (x.tenant = p_tenant or p_tenant = '@SYSTEM@'::uuid)
+      and (x.tenant = p_tenant
+           or p_tenant = '@SYSTEM@'::uuid
+              and x.tenant <> all (array(select y.tenant from @SCHEMA@.entity y
+                                         where y.class = 'Class' and y.data->>'name' = data->>'name' and y.tenant <> '@SYSTEM@'::uuid)))
       and x.data->'resolved'->'ancestors' ? (data->>'name') and x.data->'resolved' ? 'derivedBy'
     order by x.data->>'name' limit 1;
     if dkid is not null then
@@ -962,9 +973,12 @@ begin
   if cls.id is null then
     perform @SCHEMA@.lt_fail('invalid_class', format('класс %s не найден', NEW.class));
   end if;
-  -- разделяемая блокировка корня семейства, затем описание перечитывается под ней
+  -- разделяемая блокировка корня семейства, затем описание перечитывается под ней (класс могли удалить, пока ждали)
   perform @SCHEMA@.family_lock(cls, false);
   cls := @SCHEMA@.class_row(NEW.class, NEW.tenant);
+  if cls.id is null then
+    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s удалён', NEW.class));
+  end if;
   res := cls.data->'resolved';
   if coalesce((res->>'abstract')::boolean, false) then
     perform @SCHEMA@.lt_fail('invalid_class', format('класс %s абстрактный', NEW.class));
@@ -1091,6 +1105,9 @@ begin
   end if;
   perform @SCHEMA@.family_lock(cls, false);
   cls := @SCHEMA@.class_row(NEW.class, OLD.tenant);
+  if cls.id is null then
+    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s удалён', NEW.class));
+  end if;
   res := cls.data->'resolved';
   if coalesce((res->>'abstract')::boolean, false) then
     perform @SCHEMA@.lt_fail('invalid_class', format('класс %s абстрактный', NEW.class));
@@ -1212,6 +1229,10 @@ begin
     -- прав после acl_bump видит новый класс
     perform @SCHEMA@.agg_source_admit(n.data->>'name', @SCHEMA@.agg_new_mark(null, n.data->'resolved'))
     from added n where n.class = 'Class' and n.data->'resolved' ? 'aggregatedBy';
+    -- и описавшему агрегат (хвост ревью доработок после 1.2.0): заведя потомка источника, читающий всё пользователь
+    -- иначе открыл бы его строки тому, кто описал агрегат без права на них
+    perform @SCHEMA@.agg_author_admit(n.data->>'name', n.tenant, null, n.data->'resolved')
+    from added n where n.class = 'Class' and n.data->'resolved' ? 'aggregatedBy';
     -- новая цель агрегатов (план 1.1, §2.4): метки её источников (aggregatedBy) — заново
     perform @SCHEMA@.agg_mark(n.tenant, @SCHEMA@.agg_of(n.data->'resolved'))
     from added n where n.class = 'Class' and n.data->'resolved' ? 'aggregate';
@@ -1269,6 +1290,7 @@ begin
     -- класс становится источником агрегата (смена parent; ревью коммита этапа 4б): право READ без условий на его строки
     -- и после правки — по новым предкам (до правки проверил class_admit)
     perform @SCHEMA@.agg_source_admit(n_row.data->>'name', @SCHEMA@.agg_new_mark(o_row.data->'resolved', n_row.data->'resolved'));
+    perform @SCHEMA@.agg_author_admit(n_row.data->>'name', n_row.tenant, o_row.data->'resolved', n_row.data->'resolved');
     perform @SCHEMA@.class_evolve(o_row, n_row);
   end loop;
   -- отключённый аккаунт: сессии гаснут (этап 5, п. 2), каждая — сигнал кэшу
@@ -1316,6 +1338,8 @@ begin
     if d.tenant = n.tenant then
       perform @SCHEMA@.agg_source_admit(d.data->>'name', @SCHEMA@.agg_new_mark(d.data->'resolved', prep.data->'resolved'));
     end if;
+    -- и описавшему агрегат — в объёме описания (agg_author_admit сам пропускает класс арендатора под агрегатом System)
+    perform @SCHEMA@.agg_author_admit(d.data->>'name', d.tenant, d.data->'resolved', prep.data->'resolved');
     classes := classes || (d.data->>'name');
     if d.data->'resolved'->'aggregate' is distinct from prep.data->'resolved'->'aggregate' then
       agg_names := agg_names || @SCHEMA@.agg_of(d.data->'resolved') || @SCHEMA@.agg_of(prep.data->'resolved');
@@ -1438,6 +1462,7 @@ declare
   lvl_mems jsonb;
   drows jsonb;
   own uuid[];
+  cl @SCHEMA@.entity;
 begin
   select * into c from @SCHEMA@.ctx();
   -- права в замыкании (этап 5, п. 6): DELETE на каждую удаляемую каскадом строку, WRITE — на строку,
@@ -1453,6 +1478,13 @@ begin
   if denied is not null then
     perform @SCHEMA@.lt_fail('derived_class', format('класс %s производный: его строки удаляет проектор', denied));
   end if;
+  -- удаление класса (хвост ревью безопасности доработок после 1.2.0): проверки ниже — нет строк, потомков и истории —
+  -- не видят строку, которую писатель ещё не зафиксировал, и она осталась бы без класса, а с ней история удалённого
+  -- класса, от которой зависит смена алиаса предка. Писатели строк и создание потомка держат разделяемую блокировку
+  -- семейства: исключительная ждёт их, и следующие операторы проверок видят зафиксированное
+  for cl in select g.* from gone g where g.class = 'Class' order by @SCHEMA@.family_name(g.tenant, g.data), g.id loop
+    perform @SCHEMA@.family_lock(cl, true);
+  end loop;
   for r in select g.id, g.tenant, g.data->>'name' as name, g.data->'resolved' ? 'derivedBy' as derived from gone g where g.class = 'Class' loop
     -- производный класс удаляет только администратор (class_admit)
     if r.derived and not @SCHEMA@.letopis_allowed('letopis.projector') then
@@ -1808,6 +1840,9 @@ begin
   end if;
   perform @SCHEMA@.family_lock(cls, false);
   cls := @SCHEMA@.class_row(p_class, o.tenant);
+  if cls.id is null then
+    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s удалён', p_class));
+  end if;
   res := cls.data->'resolved';
   if coalesce((res->>'abstract')::boolean, false) then
     perform @SCHEMA@.lt_fail('invalid_class', format('класс %s абстрактный', p_class));

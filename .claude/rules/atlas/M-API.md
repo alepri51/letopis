@@ -1,36 +1,38 @@
 ---
 paths:
-  - 'lib/src/{index,errors,chain,typed}.ts'
-synced: 8b04c59
+  - 'lib/src/{index,errors,chain,typed,internal}.ts'
+synced: f20b1cf
 ---
 # M-API — connect(), фасад db, цепочки (Proxy), батч, ошибки
 
 **Инварианты и грабли**
-- План 1.1, этап 1: терминалы `diff(opts)` и `blame(opts)` (имена — в `CHAIN_METHODS`) проверяют номера и моменты до запроса (`versionRef`, `momentOf`: `invalid_query`) и читают режимами `diff`/`blame` построителя (параметры — `ChainMods.hist`); после глаголов — от результата плана, как `versions`. Опция `reason` глаголов кладётся в `PlanOp.reason` (`reasonOf`); `db.begin({ reason })` ставит причину в контекст транзакции (`setupSql`), `db.batch(имя, { reason })` — причину по умолчанию для глаголов батча (`ChainCtx.reason`; `txReason` — та, что стоит в транзакции); при постановке в очередь она записывается в `PlanOp.reason` (`withOp`): очередь общая по имени, и `run()` может позвать другой фасад (ревью №1 точки А).
-- `connect()` отказывает роли, которая обходит RLS (суперпользователь, BYPASSRLS, `pg_has_role(… 'USAGE' | 'SET')` на роль-владельца), без `allowBypassRls` — иначе подключение видело бы все арендаторы.
-- Фасад `db` строит `makeDb(shared, scope, exec, owner, tx)`; `Scope` — контекст транзакций, арендатор и реестр его классов (корень меняет их после `auth.switch`; реестры других арендаторов — `registryFor`, перечитываются по сигналу `Class`). `await db.as(account, { tenant, owner })` — асинхронно: база сразу проверяет имперсонацию и арендатора (`ctx()`), реестр берётся для арендатора пользователя. `db.auth` (`auth.ts`), `db.acl` (`acl.ts`) — свойства фасада; охранники `auth.sessions`, `acl.reload` — в их Proxy. Цепочки получают исполнитель через `ChainCtx.exec` — одна и та же цепочка работает и в пуле, и в явной транзакции (транзакции — карточка M-WRITE).
-- `db` и цепочка — Proxy (`chain.ts`): служебные свойства и зарезервированные имена разбираются раньше классов; дальше — класс, алиас или роль (`lookupStep`). Каждое имя в `case` файлов `chain.ts` и `index.ts` обязано быть в `RESERVED_CLASS_NAMES` (`types.ts`) — сверяет `check-docs` (поэтому ветки режимов там — `if`, а не `switch`); тот же список установщик подставляет в `reserved_names()` базы.
-- Глаголы записи — звенья плана (`withOp`): глагол на последнем шаге, глагол после глагола — шаг `self`; модификаторы цепочки на момент глагола уходят в `opMods` (сужают цели), цепочка после глагола начинает модификаторы заново. Модификатор шага после глагола и `entity()` цепочки с глаголами — `invalid_query`. Слот `.Роль.set/unset/add/remove` — свойство StepFn после create/update/upsert (`slotRole`: имя роли или класс, который принимает ровно одна роль).
-- Терминал цепочки с глаголами — `plan()` → `execPlan` одной транзакцией; результат приводится к виду ответа чтения (`q === null` — строки уже готовые). `forUpdate()` — `lockedRead` (только `exec.explicit`, иначе `tx_required`; только rows/first/ids, иначе `lock_unsupported`).
-- Батч `db.batch(имя)` (`makeBatch`): у каждого вызова класса своя `BatchRef`; первый глагол ставит план в очередь, следующие звенья и слоты его обновляют; терминал на плане из очереди — `invalid_query`; `run()` — `execBatch` одной транзакцией. Очереди — свои у фасада (локальная `batches` в `makeDb`, `Shared` их не держит): `run()` исполняет очередь в контексте того же `chainCtx`, чужих планов в ней нет (тест `tx`); очереди корня переживают `auth.switch()`.
-- Охранники снесённого API — `removed()` (код `removed`, «снят в 1.0.0 — замена»); `notYet()` (код `not_implemented`) — заготовка для имён будущих этапов, сейчас вызовов нет.
-- Типы по моделям — `typed.ts` (`TypedDb`, `TypedChain`, `PatchOf` — `inc()` только у числовых полей) через структурный `ModelLike`: основная точка входа не импортирует Zod даже в типах.
-- Реестр перечитывается по сигналу класса `Class` сразу (`reload`: одно перечитывание за раз, сигналы во время него — одно следующее; запуск — `bucket(…, 3, 5000)`: три подряд сразу, дальше не чаще раза в 5 с — заливка канала поддельными `Class`, атака №32, ревью №1 точки А); классы — собственные арендатора и системные.
-- Сигналы (план 1.1, этап 2): `connect()` читает `signal_mode()` (нет функции — `class`), в режимах `tenant`/`opaque` — `signal_key()` (`acl_denied`, `no_session` → процесс без ключа; ключ сменился после `reset({ all })` — кэш целиком: ответы с токенами старого ключа сигналы не узнают); `Shared.sig` (`Signals`) — разбор нагрузки, токены арендаторов (`tenantToken`), карта токенов классов по всем реестрам (`tokens()` после `refresh` и `registryFor`). `onSignal`: класс прав → `passes.clear()`; `Class` → `reload`; `*`, незнакомый токен, нагрузка не по режиму, opaque без ключа → `resync` (`throttle` 5 с: пропуска, ключ, реестр); затем `cache.signal(s)` и подписчики (разобранный `Signal`); переподключение слушателя — ещё `resync`. Режим none: без LISTEN и без нотификатора в контексте, `class_stamp()` раз в 5 с (корень и реестры `db.as()`). Подключение в обход RLS (`Shared.allTenants`) — кэш и подписка без точности по арендатору (`ResultCache(…, allTenants)`, `WatchCtx.tenant` → null); иначе подписке — токен арендатора фасада.
-- Тексты ошибок — `letopis: <код>: …`; новый код базы — `LT_NAMES` в `errors.ts` и `error_catalog()` в `lib/sql/15-errors.sql`. Нарушение условия ACL на новых значениях (42501, `routine = ExecWithCheckOptions`, без `USING`) → `acl_denied`; upsert на чужую строку («USING expression») остаётся 42501 — признак по функции сервера, не по тексту.
-- Этап 6: `db.verify`, `maintain`, `reset`, `trimHistory`, `rekeyClass`, `describe` — `admin.ts`; `db.watch` — `watch.ts` (подписчики сигналов — `Shared.signals`); `db.cache` — `cache.ts` (`ChainCtx.cache`, сброс своих записей — `TxContext.onChanged`, `db.sql` — `raw`); `connect({ listen, cache, maintain })`; ревизия схемы старше библиотеки — предупреждение в `connect()`.
-- Сигнал классов прав (`rule`, `Resource`, `member`, `Account`, `Class`) сбрасывает пропуска прав подключения; сессия продлевается `auth_refresh()` раз в минуту после успешных операций (`connect({ refreshSession: false })` — нет).
+- Фасады подключения (корень, `db.as()`, `db.begin()`) строит только `makeDb` и каждый заносит в `lib/src/internal.ts` (`registerDb`): по `internalsOf(db)` `letopis/mcp` узнаёт обход RLS и явную транзакцию по самому подключению, а не со слов вызывающего. Фасад мимо `makeDb` MCP отвергает (`checkCredentials` → `invalid_data`, M-MCP).
+- Обход RLS `connect()` пускает только с `allowBypassRls` (иначе `bypass_rls`). Признаков два: `Shared.allTenants` — любой обход (кэш и подписка без точности по арендатору, его же видит MCP); `Shared.admin` — обход с правом стать владельцем схемы (суперпользователь или `SET` на роль-владельца): только ему `load`, `projector`, `rebuildAggregates`, иначе `admin_required`.
+- Реестр классов `db.as()` — свой на арендатора (`registryFor`) и не общий с корнем даже в том же арендаторе: корень после `auth.switch()` перечитывает свой реестр классами нового арендатора (BACKLOG «Хвост ревью безопасности №3»). Загрузка под контекстом, который уже ушёл из арендатора, даёт `null`: прежний реестр не пустеет, пустой не кэшируется.
+- Метки `case '…':` в `lib/src/chain.ts` и `lib/src/index.ts` — только для имён, которые Proxy разбирает раньше классов: `check-docs` собирает их регэкспом и требует в `RESERVED_CLASS_NAMES`. Строковые `case` других `switch` сверка тоже примет за имена Proxy — прочие ветвления в этих файлах пишутся `if`.
 
 **Что ещё менять вместе**
-- Новый экспорт — `lib/src/index.ts`, `cd lib && npm run api:contract`, `npm run check:package`.
-- Новое свойство корня db — `DB_METHODS` (`types.ts`) и раздел «Зарезервированные имена» README (обе версии).
+- Новое имя Proxy (метод цепочки, свойство корня или батча, охранник снятого API) — `CHAIN_METHODS`, `DB_METHODS` или `BATCH_METHODS` (`lib/src/types.ts`) и раздел «Зарезервированные имена» README (обе версии); при накате список уходит в `reserved_names()` базы.
+- Новый метод цепочки — ещё `ChainCore`; если он отдаёт цепочку или строки класса — перегрузка в `TypedChain` и ключ в `Retyped` (`lib/src/typed.ts`); глагол — ещё `PlanOp` и его исполнение (`lib/src/write.ts`, M-WRITE).
+- Новый код ошибки базы (`LTnnn`) — `LT_NAMES` (`lib/src/errors.ts`) и `error_catalog()` в `lib/sql/15-errors.sql`.
+- Снятое API — охранник `removed('имя', 'замена')` с литералами в обоих аргументах, снятая опция `connect` — `REMOVED_OPTIONS`: `lib/scripts/gen-api-contract.mjs` собирает их регэкспом, а версию снятия берёт из текста `removed()` («снят в X.Y.Z»).
+
+**Неимпортные связи**
+- Комментарий схемы `ddl_revision=N engine=… sql=…` пишет накат (`lib/sql/99-revision.sql`); `connect()` берёт из него ревизию регэкспом, а при ревизии, равной `DDL_REVISION`, сверяет штамп движка (`stampDrift`, `lib/src/up.ts`, M-BOOTSTRAP). Формат комментария менять вместе с ними.
+- Канал LISTEN — имя схемы (`sql.listen(opts.schema, …)`); в него же шлют база (`pg_notify('@SCHEMA_NAME@', …)` в `lib/sql/60-write.sql`) и `Notifier` (`lib/src/tx.ts`). Нагрузку разбирает `Signals.parse` (`lib/src/signals.ts`, M-TIME); разобранный сигнал получают подписчики `Shared.signals` — `watch` и проекторы.
 
 **Проверка**
-- `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `connect`, `chain-read`, `chain-write`, `chain-api`, `chain-types`, `tx`, `signals`.
+- `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `connect`, `chain-read`, `chain-write`, `chain-api`, `chain-types`, `tx` (очередь батча — своя у фасада), `signals`, `history` (diff, blame, причина у глаголов, `db.begin()` и батча), `impersonation` (реестр `db.as()`), `up` (штамп движка в `connect()`), `mcp` (№10 — обход RLS).
+- Типы `lib/src/typed.ts` — `cd lib && npm run typecheck`: `@ts-expect-error` в `chain-types` проверяет только `tsc`, `tsx` типы не смотрит.
+- `cd lib && npm run check:docs` — сверка `reserved`: метки Proxy и README.
 
 **Точки входа**
-- `lib/src/index.ts:connect` — подключение
-- `lib/src/index.ts:makeDb` — фасад db (пул, as, begin)
-- `lib/src/chain.ts:makeChain` — Proxy цепочки
+- `lib/src/index.ts:connect` — подключение: ревизия, режим сигналов, реестры, слушатель
+- `lib/src/index.ts:makeDb` — фасад db: `as`, `begin`, `batch`, `projector`
+- `lib/src/chain.ts:makeChain` — Proxy цепочки, глаголы (`withOp`)
 - `lib/src/chain.ts:makeBatch` — батч
-- `lib/src/errors.ts:fromDbError` — ошибки базы
+- `lib/src/errors.ts:fromDbError` — ошибка базы → `LetopisError`
+- `lib/src/internal.ts:registerDb` — канал фасада для `letopis/mcp`
+
+**Не здесь**
+- Транзакции и исполнение планов → M-WRITE; построитель чтения → M-QUERY; сигналы, кэш, подписка, `verify`, `maintain`, `reset` → M-TIME; `auth`, `acl` → M-ACCESS; `up()` и штамп движка → M-BOOTSTRAP; проекторы и агрегаты → M-DERIVED; инструменты MCP → M-MCP.

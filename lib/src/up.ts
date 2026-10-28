@@ -11,6 +11,7 @@
  * выполняет ANALYZE только для таблиц без статистики.
  */
 import { readFile, readdir } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
@@ -93,6 +94,65 @@ export async function engineFiles(upTo = 99): Promise<string[]> {
   return files.filter((f) => Number(f.slice(0, 2)) <= upTo).sort();
 }
 
+/** Штамп движка: версия пакета и хэш файлов ядра (`99-revision.sql` пишет его в комментарий схемы). */
+export interface EngineStamp {
+  version: string;
+  sql: string;
+}
+
+let stamp: EngineStamp | undefined;
+
+/**
+ * Штамп движка этого пакета. Хэш — по исходному тексту файлов ядра до подстановок (переводы строк — LF): одна и та же
+ * сборка даёт один штамп при любых опциях установки, а версия пакета без правок SQL штамп не меняет.
+ */
+export async function engineStamp(): Promise<EngineStamp> {
+  if (stamp) return stamp;
+  const h = createHash('sha256');
+  for (const f of await engineFiles()) h.update(`${f}\n${(await readFile(join(SQL_DIR, f), 'utf8')).replace(/\r\n/g, '\n')}\n`);
+  const version = (createRequire(import.meta.url)('../package.json') as { version: string }).version;
+  return (stamp = { version, sql: h.digest('hex').slice(0, 16) });
+}
+
+/** Сравнение версий semver (метаданные сборки не учитываются): меньше нуля, ноль, больше нуля. */
+export function compareVersions(a: string, b: string): number {
+  const parse = (v: string) => {
+    const [core, pre] = v.split('+')[0].split(/-(.*)/s);
+    return { core: core.split('.').map(Number), pre: pre ? pre.split('.') : [] };
+  };
+  const x = parse(a);
+  const y = parse(b);
+  for (let i = 0; i < 3; i++) if ((x.core[i] ?? 0) !== (y.core[i] ?? 0)) return (x.core[i] ?? 0) - (y.core[i] ?? 0);
+  if (!x.pre.length || !y.pre.length) return y.pre.length - x.pre.length; // выпуск старше своих предварительных версий
+  for (let i = 0; i < Math.max(x.pre.length, y.pre.length); i++) {
+    const p = x.pre[i];
+    const q = y.pre[i];
+    if (p === undefined || q === undefined) return p === undefined ? -1 : 1;
+    if (p === q) continue;
+    const pn = /^\d+$/.test(p);
+    const qn = /^\d+$/.test(q);
+    if (pn && qn) return Number(p) - Number(q);
+    if (pn !== qn) return pn ? -1 : 1;
+    return p < q ? -1 : 1;
+  }
+  return 0;
+}
+
+/**
+ * Штамп схемы (комментарий схемы) против файлов ядра пакета — текст предупреждения или null. Ревизия та же, а
+ * функции поставила другая версия движка: после обновления пакета не накатили up() (так было при 1.1 → 1.2).
+ */
+export async function stampDrift(schema: string, comment: string): Promise<string | null> {
+  const code = await engineStamp().catch(() => null); // файлов ядра рядом со сборкой нет — сверять не с чем
+  if (!code || /\bsql=([0-9a-f]+)/.exec(comment)?.[1] === code.sql) return null;
+  const was = /\bengine=(\S+)/.exec(comment)?.[1];
+  if (was && compareVersions(was, code.version) > 0) {
+    return `letopis: схему ${schema} обновила letopis ${was}, библиотека старее (${code.version}) — обновите пакет: up() этой версией вернул бы прежние функции`;
+  }
+  const by = !was ? 'версия до 1.4.0' : was === code.version ? `другая сборка letopis ${was}` : `letopis ${was}`;
+  return `letopis: функции схемы ${schema} поставила ${by}, библиотека — ${code.version}: накатите up({ schema: '${schema}' })`;
+}
+
 export function substitute(text: string, vars: Record<string, string>): string {
   return text.replace(/@([A-Z_]+)@/g, (m, k: string) => {
     if (!(k in vars)) throw new Error(`letopis.up: неизвестный маркер ${m} в SQL`);
@@ -146,6 +206,10 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
     // режим сигналов — после set role: сохранённый режим лежит в строке ключа secret владельца
     SIGNALS: 'class',
   };
+  // штамп движка — в комментарий схемы (99-revision.sql): по нему connect() узнаёт схему, не накатанную этой версией
+  const st = await engineStamp();
+  vars.ENGINE_VERSION = st.version;
+  vars.ENGINE_SQL = st.sql;
 
   // Схема создаётся до set role: у владельца может не быть права CREATE в базе.
   await sql.unsafe(`create schema if not exists ${quoteIdent(opts.schema)} authorization ${quoteIdent(owner)}`);

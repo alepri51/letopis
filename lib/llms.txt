@@ -2,7 +2,7 @@
 
 > Versioned entity store for Node.js on PostgreSQL 18. Every change is a version in a journal (history, reads as of a date, cursor subscriptions). Integrity, tenant isolation and access rules are enforced by the database itself (triggers and row-level security), so they hold for raw SQL too. Data is read and written with chains like `db.Shop(shop).Product().rows()`.
 
-Key facts for writing code with letopis 1.3:
+Key facts for writing code with letopis 1.4:
 
 - ESM package, Node 22+, PostgreSQL 18+ with pgcrypto, database encoding UTF8. Runtime dependency: `postgres`. Zod 4 is an optional peer dependency needed only by `letopis/model`; `@modelcontextprotocol/server`, only by `letopis/mcp`.
 - Install a schema with `up({ dsn, schema })` from an admin role; the schema is named `v2.<name>`. The application connects with a LOGIN role that is a member of `letopis_app`: `connect({ dsn, schema: 'v2.<name>', token | apiKey })`. A role that bypasses RLS is refused (`bypass_rls`) unless `allowBypassRls: true`.

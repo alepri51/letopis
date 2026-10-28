@@ -1,4 +1,4 @@
-# letopis 1.3
+# letopis 1.4
 
 **letopis** is a Node.js library: a store of versioned entities on PostgreSQL 18. Every change is saved as a version
 in a journal. So every object has a history, a state as of any date and a change subscription. The database itself
@@ -369,6 +369,13 @@ package. So a startup script that calls `up()` on every start will stop after a 
 `upgrade: true`. `up({ dsn, schema, upgrade: true })` applies the migrations from `sql/migrate/` and re-applies the
 functions; the data is kept.
 
+The revision does not change with every version: 1.1–1.4 share one, while their functions differ. So `up()` also writes
+an engine stamp into the schema comment: the package version and a hash of its SQL files. If the stamp does not match
+the package files, `connect()` warns. When the schema was applied by an older version (or by a version before 1.4,
+which has no stamp), it suggests `up({ schema })`. When a newer version has already upgraded the schema, it suggests
+updating the package: `up()` from the older version would bring the old functions back. A new package version without
+SQL changes keeps the stamp, and there is no warning.
+
 The first `up()` after moving to 1.2 builds the journal index `log_class_tenant_at (class, tenant, at)` instead of
 `log_class_at`: an `asOf` and `withDeleted` slice by class no longer reads the journal of other tenants with the same
 class name. While the index is being built, writes to the journal wait. On a large installation, build it in advance
@@ -567,13 +574,21 @@ const Movement = link('Movement', { amount: z.number().int() }, { ends: { Wallet
   key; the `via` end is single and accepts the target class; the `sum` field is a number; aggregates do not form a
   cycle; the target and the source are not system or derived classes. A source class is described before the
   aggregate: an aggregate over a class that does not exist yet is refused. For a tenant class, the source is looked up
-  among the tenant's classes. `syncModels` describes sources before targets itself. The `of` class is not deleted while
-  an aggregate of a class of the same tenant names it: first the aggregate is removed from the target's description.
+  among the tenant's classes. `syncModels` describes sources before targets itself, and models in a circle (an
+  aggregate over the class's own descendant, a cycle of aggregates) it refuses before writing (`invalid_class` naming
+  the circle). The `of` class is not deleted while an aggregate of a class of the same tenant names it: first the
+  aggregate is removed from the target's description.
 - Rows get into an aggregate only with the knowledge of someone who reads them all: the field also counts rows that
   the author cannot see. Only someone who reads all rows of the source and its descendants without conditions can
   describe or change an aggregate. Only someone who reads all rows of a class and its descendants without conditions,
   both before the change and after it, can make the class a source (a new descendant of a source, a `parent` change).
   Otherwise `acl_denied`.
+- A new source is also checked against whoever described the aggregate: they too must read all rows of the class
+  without conditions. The describer is the author of the version of the target's `Class` row from which the aggregate
+  description became the current one. If they cannot read those rows, the class does not become a source
+  (`acl_denied`) until someone who can read them describes the aggregate again. For an aggregate of a System class, the
+  describer is checked against System classes, as at description time. A tenant class under a System aggregate is
+  checked only for whoever creates it.
 - The option is inherited, and a descendant replaces it as a whole. Adding or changing an aggregate is a tightening:
   writes to the target and to the sources wait while the field is recalculated for all rows.
 - `db.rebuildAggregates(class)` recalculates the field from the current rows, for repair. A version is written only
@@ -1883,7 +1898,13 @@ sales.close()                                    // stop() after the current bat
 - `lockTimeout` is how long a projector transaction waits for another transaction's row lock (5000 ms; 0 — no limit).
   Otherwise a transaction of any tenant holding a total row or an end target would hold the batch of all tenants.
   Longer than that, the batch rolls back, the cursor stays, and `run()` does not reject but skips the pass
-  (`skipped`) and repeats it.
+  (`skipped`) and repeats it. The report names the tenant whose row stopped the batch (`locked`).
+  `rebuild({ tenant, chunked: true })` waits such a lock out.
+- `lockRetries` is how many passes in a row the writes of one tenant may run into `lockTimeout` before it drops out
+  (0 by default — it never drops out). The dropped tenant gets the code `55P03`, and the batch goes on for the others;
+  its changes are skipped until `rebuild({ tenant })`. The process keeps the count, and a successful write of the
+  tenant resets it. Note: a long exclusive lock on the family of a System class (a tightening of its description) will
+  hit every tenant in turn.
 - Every edit that `out` sends to the database is a separate edit of a row, and the speed of a projector is set by the
   number of edits, not by the number of changes. The folding of `inc` brings the edits of a row down to one per batch,
   so the handle from the example above (`out.inc` for every change) caught up with 6 thousand changes per second with
@@ -2340,12 +2361,12 @@ give `invalid_data`.
 
 | Member | What it does |
 |---|---|
-| options `ProjectorOptions` | `from`, `into`: classes with descendants; `version`: an integer from 1; `handle(changes, out)`; `withBefore`; `onExpired: 'rebuild' \| 'error'` (`'rebuild'` rebuilds in batches); `batch`: changes in a batch (500, from 1 to 10,000); `pollMs`: fallback polling (1000 ms); `lockTimeout`: waiting for another transaction's row lock (5000 ms, 0 — no limit); `tenants`: ids of the participant tenants |
+| options `ProjectorOptions` | `from`, `into`: classes with descendants; `version`: an integer from 1; `handle(changes, out)`; `withBefore`; `onExpired: 'rebuild' \| 'error'` (`'rebuild'` rebuilds in batches); `batch`: changes in a batch (500, from 1 to 10,000); `pollMs`: fallback polling (1000 ms); `lockTimeout`: waiting for another transaction's row lock (5000 ms, 0 — no limit); `lockRetries`: passes in a row before a tenant with another transaction's lock drops out (0 — never); `tenants`: ids of the participant tenants |
 | `run({ once })` | catch up with the journal (`once`) or follow it until `stop()` → `ProjectorReport` |
 | `rebuild({ chunked, tenant })` | rebuild from the current state: atomically, in batches or for one tenant → `ProjectorReport` |
 | `status()` | → `ProjectorStatus`: `{ name, state, version, cursor, at, lag, failed, rebuildingTenants }`; `failed` is `{ [tenant id]: ProjectorFailure }`, where `ProjectorFailure` is `{ cursor, code, message }` |
 | `stop()`, `close()` | stop `run()` after the current batch; the same plus unsubscribing from signals |
-| `ProjectorReport` | `{ batches, changes, created, updated, deleted, unchanged, skipped, rebuilds }` |
+| `ProjectorReport` | `{ batches, changes, created, updated, deleted, unchanged, skipped, rebuilds, locked }` |
 | `ProjectorChange` | `{ cursor, id, class, tenant, op, rev, at, author, row }` and, when present, `agent`, `reason`, `moved`, `before`, `rebuild` |
 | `ProjectorOut` | `upsert(class, row, { tenant })`, `inc(class, row, deltas, { tenant })`, `delete(class, key or id, { tenant })`, `get(class, key or id, { tenant })` → `Row \| null`; a row is a `ProjectorRow` in the loader format |
 
@@ -2493,7 +2514,7 @@ runs) showed no write or read regressions against 1.1: two outliers did not repe
 
 ## 18. Limitations
 
-This section lists what letopis 1.3 deliberately does not do or does with caveats, and where you need to watch the
+This section lists what letopis 1.4 deliberately does not do or does with caveats, and where you need to watch the
 behavior.
 
 **Platform**

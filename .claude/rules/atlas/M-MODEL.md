@@ -1,32 +1,33 @@
 ---
 paths:
   - 'lib/src/{model,jsonschema,validate,registry,sync,cli,uuid}.ts'
-  - 'lib/src/demo/booking.ts'
-synced: fb1bdc2
+synced: f20b1cf
 ---
 # M-MODEL — модели на Zod, нормализатор, валидатор, реестр, CLI
 
 **Инварианты и грабли**
-- `describe()` отдаёт только собственное описание класса; наследование разворачивает база (`resolved`). Библиотека считает то же сама (`schema`, `ends`, `key` с предками) — расхождение ловят тесты `model` и `demo`.
-- JSON Schema полей — `z.toJSONSchema(…, { io: 'input' })` через `normalizeSchema`: шаблон Zod у `format` сохраняется (точность времени, пояс Z, версия uuid), `.meta()` уходит в `x-meta`, неизвестное ключевое слово JSON Schema — отказ. Поля ключа попадают в `required` даже с умолчанием.
+- `describe()` отдаёт только собственное описание класса; наследование разворачивает база (`class_resolve()` → `resolved`). С предками библиотека сама считает лишь `schema`, `ends`, `key` (расхождение ловят тесты `model` и `demo`); прочее, в том числе `aggregate` и `derivedBy`, — только реестр (`ClassInfo` из `resolved`).
 - `translatePattern` (TypeScript) и `jp_pattern` (база) — один алгоритм разбора по символам; менять только вместе (тест «шаблоны» в `model`).
-- `compileValidator` повторяет `compile_validator`/`validate_data`: одно нарушение на обычное правило, на каждый узел — у дополнительных проверок; новое ключевое слово — в обеих реализациях и в `validator-parity`.
-- Верхний уровень `model.schema` — `z.strictObject` (как `additionalProperties: false` в базе); вложенные `z.object` пропускают лишние ключи, база — тоже.
-- `seed.booking.sql` генерируется (`npm run seed:booking`); тест `demo` сверяет файл с моделями.
-- CLI: `--initial` у `load` и `import` (первая заливка, план 1.1, этап 3).
-- CLI (`cli.ts`) запускает `main` только как программа — `isMain()` сравнивает реальные пути (`realpathSync`) `process.argv[1]` и `import.meta.url`: на Linux и macOS `node_modules/.bin/letopis` — симлинк (в 1.0.0 сравнение без realpath молча выходило с кодом 0). Тест `load` («CLI через симлинк»), проверка пакета — `npm exec --no -- letopis --help`.
-- `Model<N, D, L, A>`: четвёртый параметр — литерал алиаса (шаги `TypedDb` по алиасу); `BOOKING` — кортеж `as const satisfies readonly AnyModel[]`, иначе типы цепочек по моделям схлопываются до `string`.
-- `syncModels` выполняет изменения одной транзакцией; сухой прогон её откатывает — ужесточение проверяет сама база.
+- Лишние ключи: верхний уровень `model.schema` — `z.strictObject`, вложенные `z.object` их пропускают — так же, как база.
+- `Model<N, D, L, A>`: `A` — литерал алиаса для шагов `TypedDb`; список моделей объявлять `as const satisfies readonly AnyModel[]` (как `BOOKING`), иначе типы цепочек схлопываются до `string`.
+- Статические импорты `cli.ts` и всего, что он тянет (`import type` не в счёт), не доходят до `mcp.ts` и `@modelcontextprotocol/*`: SDK — необязательная peer-зависимость, без него работают все команды, кроме `mcp` (тест `mcp` №12).
 
 **Что ещё менять вместе**
-- Новое поле метасхемы `Class`: `ClassDef`, `ClassDescription`, `describe()`, `class_metaschema()` в `lib/sql/40-class.sql`.
-- Новый класс демо-домена: `BOOKING`, `npm run seed:booking`, `SAMPLES` в `test/demo.test.ts`.
+- Новое свойство описания класса: `ClassDef`, `ClassDescription`, `describe()`; `ClassInfo` и `Registry.load`; `class_metaschema()` и `class_resolve()` в `lib/sql/40-class.sql` (M-ENGINE). Образцы — `d53dc8e` (`derivedBy`), `92be5d2` (`aggregate`).
+- Свойство ссылается на класс, который база ждёт раньше (как `parent`, `aggregate.of`), → добавить его в обход `visit` в `syncModels`: иначе sync пишет классы в порядке списка и база отклоняет ссылку вперёд; круг — отказ `invalid_class` до транзакции (образцы `5290be1`, `dbd1973`).
+- Новое ключевое слово JSON Schema: `SUPPORTED` и `normalizeSchema`, `compileValidator`, `jp_compile` и `compile_validator` в `lib/sql/30-validate.sql` (M-VALIDATE), случай в `validator-parity`.
+- Меняется вывод `describe()` или `normalizeSchema` для существующих моделей → `npm run seed:booking` (M-SEEDS): тест `demo` сверяет `lib/sql/seed.booking.sql` с моделями.
 
 **Проверка**
-- `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `model`, `validator-parity`, `demo`, `sync`, `v5`.
+- `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `model`, `validator-parity`, `demo`, `v5`; `sync` («класс-источник агрегата раньше цели», «модели по кругу»); `mcp` (№10, №12, «letopis mcp по stdio»); `load` («CLI через симлинк»). Команда из node_modules/.bin — `npm run check:package` (`npm exec --no -- letopis --help`).
 
 **Точки входа**
-- `lib/src/model.ts:makeModel` — описание класса
-- `lib/src/jsonschema.ts:normalizeSchema` — нормализация
+- `lib/src/model.ts:makeModel` — описание класса и ранние проверки
+- `lib/src/jsonschema.ts:normalizeSchema` — нормализация JSON Schema
 - `lib/src/validate.ts:compileValidator` — проверка данных
-- `lib/src/sync.ts:syncModels` — letopis sync
+- `lib/src/registry.ts:Registry` — классы из `resolved`
+- `lib/src/sync.ts:syncModels` — `letopis sync`, порядок записи классов
+- `lib/src/cli.ts:main` — команды CLI
+
+**Не здесь**
+- инструменты MCP (`createMcpServer`) → M-MCP; смысл агрегатов и проекторов → M-DERIVED; модели демо-домена → M-SEEDS.

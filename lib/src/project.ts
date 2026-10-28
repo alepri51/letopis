@@ -117,6 +117,12 @@ export interface ProjectorOptions {
    */
   lockTimeout?: number;
   /**
+   * Сколько проходов подряд запись одного арендатора может упираться в lockTimeout, прежде чем он выбудет (код 55P03,
+   * дальше — rebuild({ tenant })), а пачка пойдёт для остальных; по умолчанию 0 — не выбывает, проход повторяется для всех.
+   * Счёт — в процессе, удачная запись арендатора его сбрасывает.
+   */
+  lockRetries?: number;
+  /**
    * Явный список арендаторов проектора: участники — только они (и только те, у кого каждый класс into помечен
    * derivedBy). Без списка участник — любой арендатор с такими классами.
    */
@@ -132,10 +138,12 @@ export interface ProjectorReport {
   updated: number;
   deleted: number;
   unchanged: number;
-  /** Пачек, пропущенных из-за блокировки: проектор работает в другом процессе. */
+  /** Пачек, пропущенных из-за блокировки: проектор работает в другом процессе или строку держит чужая транзакция. */
   skipped: number;
   /** Перестроек. */
   rebuilds: number;
+  /** Арендаторы, чья запись упиралась в чужую блокировку строки дольше lockTimeout (по порядку, без повторов). */
+  locked: string[];
 }
 
 /** Выбывший арендатор: база отклонила запись его результатов. */
@@ -242,7 +250,7 @@ function withFailed(meta: Meta, failed: Failed): Meta {
   return next;
 }
 
-const emptyReport = (): ProjectorReport => ({ batches: 0, changes: 0, created: 0, updated: 0, deleted: 0, unchanged: 0, skipped: 0, rebuilds: 0 });
+const emptyReport = (): ProjectorReport => ({ batches: 0, changes: 0, created: 0, updated: 0, deleted: 0, unchanged: 0, skipped: 0, rebuilds: 0, locked: [] });
 
 function change(row: Row, cursor: string, rebuild = false): ProjectorChange {
   return {
@@ -408,6 +416,9 @@ export class Projector {
   private readonly batch: number;
   private readonly pollMs: number;
   private readonly lockMs: number;
+  private readonly lockRetries: number;
+  /** Проходов подряд, в которых запись арендатора упиралась в lockTimeout (lockRetries). */
+  private readonly lockHits = new Map<string, number>();
   private readonly only: ReadonlySet<string> | null;
 
   constructor(readonly env: ProjectorEnv, name: string, private def: ProjectorOptions) {
@@ -430,6 +441,8 @@ export class Projector {
     this.pollMs = def.pollMs ?? 1000;
     this.lockMs = def.lockTimeout ?? 5000;
     if (!Number.isInteger(this.lockMs) || this.lockMs < 0) throw new LetopisError('invalid_data', `проектор ${name}: lockTimeout — целое число мс, 0 и больше`);
+    this.lockRetries = def.lockRetries ?? 0;
+    if (!Number.isInteger(this.lockRetries) || this.lockRetries < 0) throw new LetopisError('invalid_data', `проектор ${name}: lockRetries — целое число, 0 и больше`);
     if (!Number.isInteger(this.batch) || this.batch < 1 || this.batch > 10_000) throw new LetopisError('invalid_data', `проектор ${name}: batch — от 1 до 10 000`);
     if (env.onSignal) {
       this.off = env.onSignal((s) => {
@@ -514,11 +527,16 @@ export class Projector {
       const started = rep.rebuilds;
       for (;;) {
         // занятая строка (lockTimeout) — как занятая блокировка проектора: подождать и повторить пачку
-        const r = await this.tenantChunk(rep, tenant).catch((e) => { if (lockWait(e)) return 'busy' as const; throw e; });
+        const r = await this.tenantChunk(rep, tenant).catch((e) => {
+          if (!lockWait(e)) throw e;
+          rep.skipped++;
+          return 'busy' as const;
+        });
         if (r === 'busy') await new Promise((res) => setTimeout(res, 20));
         if (r !== 'done') continue;
-        // ошибка данных арендатора — как у перестройки одной транзакцией: отказ, арендатор выбывший
-        const f = (await this.tx(async (q) => this.state(q))).failed?.[tenant];
+        // ошибка данных арендатора — как у перестройки одной транзакцией: отказ, арендатор выбывший; чекпоинт держит
+        // пачка run() другого процесса дольше lockTimeout — подождать
+        const f = (await this.untilFree(rep, () => this.tx(async (q) => this.state(q)))).failed?.[tenant];
         if (f) throw new LetopisError(f.code as never, f.message);
         // последнюю пачку мог записать run() другого процесса (он продвигает начатые перестройки): перестройка этого
         // вызова всё равно завершена
@@ -874,6 +892,26 @@ export class Projector {
       } catch (e) {
         // причина — первая ошибка базы группы (следом за ней база отвечает лишь «транзакция прервана»)
         const cause = out.aborted ?? e;
+        // строку арендатора держит чужая транзакция дольше lockTimeout (хвост ревью доработок после 1.2.0): отчёт
+        // называет арендатора; с lockRetries после стольких проходов подряд он выбывает, и пачка идёт для остальных,
+        // иначе откатывается вся пачка и проход повторяется
+        if (failed && lockWait(cause)) {
+          if (!rep.locked.includes(tenant)) rep.locked.push(tenant);
+          const hits = (this.lockHits.get(tenant) ?? 0) + 1;
+          if (this.lockRetries === 0 || hits < this.lockRetries) {
+            this.lockHits.set(tenant, hits);
+            throw e;
+          }
+          this.lockHits.delete(tenant);
+          await q.unsafe('rollback to savepoint letopis_projector');
+          await q.unsafe('release savepoint letopis_projector');
+          failed[tenant] = {
+            cursor: list[0].cursor || start,
+            code: '55P03',
+            message: `проектор ${this.name}: строку арендатора ${tenant} держит чужая транзакция — ${hits} проходов подряд дольше lockTimeout`,
+          };
+          continue;
+        }
         if (!failed || !out.owns(e) || !tenantFault(cause)) throw e;
         await q.unsafe('rollback to savepoint letopis_projector');
         await q.unsafe('release savepoint letopis_projector');
@@ -886,6 +924,7 @@ export class Projector {
         continue;
       }
       if (failed) await q.unsafe('release savepoint letopis_projector');
+      this.lockHits.delete(tenant);
       rep.created += out.stats.created;
       rep.updated += out.stats.updated;
       rep.deleted += out.stats.deleted;
@@ -1137,6 +1176,9 @@ export class Projector {
    */
   private async startTenant(rep: ProjectorReport, tenant: string, auto: boolean): Promise<'busy' | 'ok' | 'skip'> {
     for (;;) {
+      // строку арендатора (его производные строки удаляются) держит чужая транзакция дольше lockTimeout — как занятая
+      // блокировка проектора: run() повторит на следующем проходе, rebuild() подождёт (хвост ревью доработок после 1.2.0:
+      // rebuild({ tenant, chunked: true }) отдавал сырую 55P03)
       const r = await this.tx(async (q): Promise<'busy' | 'ok' | 'skip'> => {
         if (!(await this.lock(q))) return 'busy';
         await this.resolve(q);
@@ -1165,6 +1207,10 @@ export class Projector {
         if (!Object.keys(resync).length) delete next.resync;
         await this.advance(q, meta.cursor, withFailed(next, failed));
         return 'ok';
+      }).catch((e) => {
+        if (!lockWait(e)) throw e;
+        if (!auto) rep.skipped++;
+        return 'busy' as const;
       });
       if (r !== 'busy' || auto) {
         if (r === 'busy') rep.skipped++;
@@ -1249,6 +1295,19 @@ export class Projector {
     }
     this.tenantsPending = more;
     return more;
+  }
+
+  /** Повторять fn, пока строку держит чужая транзакция дольше lockTimeout (55P03): пауза 20 мс, проход — в skipped. */
+  private async untilFree<T>(rep: ProjectorReport, fn: () => Promise<T>): Promise<T> {
+    for (;;) {
+      try {
+        return await fn();
+      } catch (e) {
+        if (!lockWait(e)) throw e;
+        rep.skipped++;
+      }
+      await new Promise((res) => setTimeout(res, 20));
+    }
   }
 
   /** Ждать сигнал источников, остановку или запасной опрос. */

@@ -228,9 +228,13 @@ begin
                                         and jsonb_typeof(x.pattern->'class') <> 'string', false) as bad) m
     where x.deny or not m.bad
   ), cl as (
-    select c.data->>'name' as name, c.data->>'alias' as alias, c.data->'resolved'->'ancestors' as anc
+    -- один класс на имя — тот, что строки арендатора находят по имени (class_row): свой, иначе System. Одноимённый
+    -- класс System, заведённый после класса арендатора, в план не входит: его предки и алиас давали бы права на строки
+    -- класса арендатора (хвост ревью доработок после 1.2.0)
+    select distinct on (c.data->>'name') c.data->>'name' as name, c.data->>'alias' as alias, c.data->'resolved'->'ancestors' as anc
     from @SCHEMA@.entity c
     where c.class = 'Class' and c.tenant in (p_tenant, '@SYSTEM@'::uuid)
+    order by c.data->>'name', c.tenant = '@SYSTEM@'::uuid
   ), k as (
     select cl.name,
            array(select jsonb_array_elements_text(cl.anc))

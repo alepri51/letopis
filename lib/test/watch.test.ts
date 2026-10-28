@@ -6,7 +6,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { engine, type Engine, type Tenant } from './_engine.js';
-import { appDsn } from './_harness.js';
+import { ADMIN_DSN, appDsn } from './_harness.js';
 import { connect, type Db, type WatchEvent } from '../src/index.js';
 
 let e: Engine;
@@ -218,5 +218,31 @@ test('хвост ревью безопасности №3: уход строки
     await sub.close();
     await sub2.close();
     await xdb.close();
+  }
+});
+
+test('хвост ревью доработок после 1.2.0: подключение в обход RLS получает события ухода строки из классов подписки', async () => {
+  const { sysadmin } = await import('./_access.js');
+  const admin = await sysadmin(e, 'watch-admin');
+  // классы System: их видит реестр подключения без сессии; строки пишет арендатор
+  for (const name of ['Tray', 'Shelf']) {
+    await e.as(admin.token, (tx) => tx.unsafe(`insert into ${e.S}.entity (class, data) values ('Class', $1::jsonb)`,
+      [{ name, kind: 'hub', fields: { properties: { n: { type: 'integer' } } } }] as never[]));
+  }
+  const x = await e.tenant('watch-leave-adm');
+  const q = (sql: string, p: unknown[] = []) => e.as(x.token, (tx) => tx.unsafe(sql, p as never[]));
+  // сессии нет (acl_actor — null), а watch_read видит журнал всех арендаторов — события ухода тоже все, с автором
+  const adm = await connect({ dsn: ADMIN_DSN, schema: e.schema, allowBypassRls: true, max: 2, notifyIntervalMs: 10 });
+  const sub = adm.watch({ from: 'now', classes: ['Tray'], pollMs: 20 });
+  try {
+    await sub.ready();
+    const [{ id }] = await q(`insert into ${e.S}.entity (class, data) values ('Tray', '{"n": 1}') returning id`);
+    await q(`update ${e.S}.entity set class = 'Shelf' where id = $1`, [id]);
+    const evs = await take(sub, 2);
+    assert.deepEqual(evs.map((v) => [v.id, v.op, v.class]), [[id, 'create', 'Tray'], [id, 'delete', 'Tray']]);
+    assert.equal(evs[1].row.author, x.id, 'автор версии смены класса');
+  } finally {
+    await sub.close();
+    await adm.close();
   }
 });

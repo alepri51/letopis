@@ -143,6 +143,9 @@ begin
     -- как у писателей приложения: разделяемая блокировка семейства, описание — свежее под ней
     perform @SCHEMA@.family_lock(cls, false);
     cls := @SCHEMA@.class_row(cname, tid);
+    if cls.id is null then
+      perform @SCHEMA@.lt_fail('invalid_class', format('класс %s удалён', cname) || w);
+    end if;
     res := cls.data->'resolved';
     if res->>'derivedBy' is distinct from p_name then
       perform @SCHEMA@.lt_fail('derived_class', format('класс %s не производный проектора %s', cname, p_name) || w);
@@ -579,6 +582,82 @@ begin
     perform @SCHEMA@.lt_fail('acl_denied', format('класс %s становится источником агрегата %s.%s: нужно право READ на все его строки',
       p_class, p_mark->>'class', p_mark->>'field'));
   end if;
+end $$;
+
+-- Кто описал агрегат p_field цели p_target (строка Class): автор версии строки Class, с которой развёрнутое описание
+-- агрегата (своё или унаследованное) стало нынешним; надгробие обрывает описание — пересоздавший класс описал агрегат
+-- заново. Журнал строк Class не прореживается и не стирается (purge и обрезка их не берут). Сид и пути владельца без
+-- сессии пишут автора System.
+create or replace function @SCHEMA@.agg_author(p_target @SCHEMA@.entity, p_field text) returns uuid
+language sql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+return (select l.author from @SCHEMA@.log l
+        where l.id = p_target.id and l.op not in ('purge', 'trim', 'reset', 'delete')
+          and l.data->'resolved'->'aggregate'->p_field is not distinct from p_target.data->'resolved'->'aggregate'->p_field
+          and (select case when p.op = 'delete' then null else p.data->'resolved'->'aggregate'->p_field end
+               from @SCHEMA@.log p
+               where p.id = l.id and p.rev < l.rev and p.op not in ('purge', 'trim', 'reset')
+               order by p.rev desc limit 1) is distinct from p_target.data->'resolved'->'aggregate'->p_field
+        order by l.rev desc limit 1);
+
+-- Аккаунт p_account читает без условий все строки класса p_class арендатора p_tenant: план READ — как у acl_subject
+-- (аккаунт включён и лежит в System, арендатор — сам аккаунт или по членству), но без отказа: нет аккаунта или
+-- членства — права нет.
+create or replace function @SCHEMA@.agg_author_reads(p_account uuid, p_tenant uuid, p_class text) returns boolean
+language plpgsql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  a jsonb;
+  m jsonb;
+begin
+  select e.data into a from @SCHEMA@.entity e
+  where e.id = p_account and e.class = 'Account' and e.tenant = '@SYSTEM@'::uuid and coalesce((e.data->>'enabled')::boolean, true);
+  if a is null then
+    return false;
+  end if;
+  if p_tenant <> p_account then
+    select x.data into m from @SCHEMA@.entity x
+    where x.id = @SCHEMA@.v5_id(p_tenant, 'member', array[p_account::text, p_tenant::text]) and x.class = 'member' and x.tenant = p_tenant;
+    if m is null then
+      return false;
+    end if;
+  end if;
+  return coalesce(@SCHEMA@.acl_plan_for(p_account, p_tenant,
+      array(select jsonb_array_elements_text(coalesce(a->'categories', '[]'::jsonb))),
+      case when p_tenant = p_account then array['owner']
+           else array(select jsonb_array_elements_text(coalesce(m->'roles', '[]'::jsonb))) end,
+      'READ') -> p_class = '{}'::jsonb, false);
+end $$;
+
+-- Класс p_class арендатора p_tenant становится источником агрегатов — новые метки aggregatedBy описания p_new против
+-- p_old (хвост ревью безопасности доработок после 1.2.0, решение владельца): его строки войдут в агрегат, и описавший
+-- агрегат читал бы в истории цели вклад каждой из них, — поэтому право READ без условий на все строки класса нужно и
+-- описавшему, иначе acl_denied. Объём — тот же, что при описании (class_admit, agg_classes): у агрегата класса
+-- арендатора — классы арендатора, у агрегата класса System — классы System. Класс арендатора под агрегатом System
+-- описавший не проверял и при описании: его, как и прежде, проверяет только тот, кто заводит (agg_source_admit).
+-- Описавший System (сид, путь владельца без сессии) не проверяется.
+create or replace function @SCHEMA@.agg_author_admit(p_class text, p_tenant uuid, p_old jsonb, p_new jsonb) returns void
+language plpgsql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  mk jsonb;
+  tc @SCHEMA@.entity;
+  who uuid;
+begin
+  for mk in select x from jsonb_array_elements(coalesce(p_new->'aggregatedBy', '[]'::jsonb)) x
+            where not coalesce(p_old->'aggregatedBy', '[]'::jsonb) @> jsonb_build_array(x)
+            order by x->>'class', x->>'field' loop
+    tc := @SCHEMA@.class_row(mk->>'class', p_tenant);
+    continue when tc.id is null or (tc.tenant = '@SYSTEM@'::uuid and p_tenant <> '@SYSTEM@'::uuid);
+    who := @SCHEMA@.agg_author(tc, mk->>'field');
+    continue when who is null or who = '@SYSTEM@'::uuid;
+    if not @SCHEMA@.agg_author_reads(who, tc.tenant, p_class) then
+      perform @SCHEMA@.lt_fail('acl_denied', format('класс %s становится источником агрегата %s.%s, а описавший агрегат не читает все его строки (право READ без условий): агрегат описывает заново тот, кто их читает',
+        p_class, mk->>'class', mk->>'field'));
+    end if;
+  end loop;
 end $$;
 
 -- Метки источников заново: классы арендатора p_tenant (System — всех), в предках которых есть одно из имён p_names;
@@ -1142,7 +1221,8 @@ begin
   foreach f in array array['agg_fields(jsonb)', 'agg_of(jsonb)', 'agg_zero(jsonb, jsonb)', 'agg_num(jsonb)', 'agg_where_ok(jsonb, jsonb)',
     'agg_guard(jsonb, jsonb, jsonb, boolean)', 'agg_keep(text, uuid, jsonb, jsonb)', 'agg_check_source(jsonb, jsonb, text, jsonb)',
     'agg_cycle(uuid, jsonb)', 'agg_prepare(jsonb, jsonb, uuid)', 'agg_source(jsonb, uuid)', 'agg_marked(jsonb, jsonb)',
-    'agg_new_mark(jsonb, jsonb)', 'agg_source_admit(text, jsonb)', 'agg_mark(uuid, text[])', 'agg_lock_sources(jsonb, jsonb, uuid)',
+    'agg_new_mark(jsonb, jsonb)', 'agg_source_admit(text, jsonb)', 'agg_author(@SCHEMA@.entity, text)',
+    'agg_author_reads(uuid, uuid, text)', 'agg_author_admit(text, uuid, jsonb, jsonb)', 'agg_mark(uuid, text[])', 'agg_lock_sources(jsonb, jsonb, uuid)',
     'agg_classes(text, uuid, boolean)', 'agg_compute(jsonb, uuid, uuid)',
     'agg_check(text, uuid, jsonb)', 'agg_write(@SCHEMA@.entity, jsonb, boolean)', 'agg_token(text)', 'agg_held()',
     'agg_hold_begin(text)', 'agg_hold_end(boolean)', 'agg_merge(jsonb, jsonb)', 'agg_flush(jsonb)', 'agg_kind(text, uuid)',

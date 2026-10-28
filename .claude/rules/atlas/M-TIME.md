@@ -2,37 +2,40 @@
 paths:
   - 'lib/sql/90-time.sql'
   - 'lib/src/{watch,admin,cache,signals}.ts'
-synced: 3033e57
+synced: f20b1cf
 ---
-# M-TIME — история, хранение, подписка, кэш, сброс, обслуживание (этап 6)
+# M-TIME — история, хранение, подписка, кэш, сигналы, сброс, обслуживание
 
 **Инварианты и грабли**
-- У id, у которого в журнале есть запись, номер версии 1 всегда занят: `purge()` и `trim_history()` кладут свою запись (вид `purge`/`trim`) под номер 1; на этом держится `existing: 'error'` загрузчика. Записи `purge`, `trim`, `reset` — не версии объекта: срезы `find_*` и `sql.ts` (режим сверки) их пропускают (`op not in ('purge', 'trim', 'reset')`).
-- Запись `trim`: время прежней версии 1, `$trimmed` — номер последней стёртой, `$hash` — её хэш; `verify()` сверяет стык по ним. Обрезка, когда до момента лежит только сама запись `trim`, ничего не делает.
-- Воскрешение, `restore`, `purge`, обрезка и `move_row` берут последнюю запись журнала id `for update` — параллельные операции одного id упорядочены; `purge`, опоздавший к воскрешению, видит строку новым снимком и отказывает (`not_deleted`).
-- Итоговое ревью безопасности (`security-final`): `last_version_visible` блокирует только запись своего арендатора (`x.tenant = p_tenant`) — чужой id вызов не задерживает и по ожиданию не обнаружит; `account_purge` проверяет право до поиска и блокировки цели — без права ответ всегда `acl_denied`.
-- Прореживание (`thin_batch`): версия 1, текущая и виды `create, delete, reclass, rekey, restore, purge, reset, trim` не удаляются; ярус — календарно в поясе политики (`history_keep`: моложе срока, если позже «сейчас» минус срок); остаётся последняя версия периода яруса или любого более крупного (по следующей версии id); надгробие старше последнего яруса со сроком — история id целиком. Курсор участков — `meta.thin` строки ключа `secret` (id = System). Системные классы не прореживаются (`history_policy`).
-- `verify()`: разрыв законен после записи `trim` (стык) или после версии старше яруса `all` класса, у которого есть или была политика; иначе — находка. `verify(true)` — данные, концы, арендатор, владелец, id по ключу. Права — `letopis_allowed`: право `letopis.*` по правилам System или администраторская роль подключения (`admin_role`).
-- `reset`: флаг `@ALLOW_RESET@` (константа установки), право `letopis.reset`, подтверждение именем схемы; `all` — `truncate` трёх таблиц, запись `reset` (класс `#reset`), `seed_system()` (режим сигналов — из константы установки), новый ключ сервиса и с ним новый ключ сигналов. Сигналы `*`, `session:*` (`signal_raw`) сбрасывают кэш целиком; `*` у процессов — ещё ключ и реестр заново.
-- Подписка: только `tx < pg_snapshot_xmin` — без потерь и повторов; «now» — горизонт и снимок момента подписки (`watch_head`), берутся при создании подписки: транзакции, видимые в снимке, не отдаются (`watch_read(…, p_snap)`), снимок живёт в курсоре (`~снимок`), пока курсор не прошёл его xmax; колонки `watch_read` — явно, `changed` — null (приложению не выдана); сигнал только будит (`watch.ts:wakes`: свои классы и свой арендатор — токен `WatchCtx.tenant`; без ключа — любой сигнал, кроме сессий), запасной опрос `pollMs`; `cursor_expired` — по времени курсора против яруса `all`.
-- Кэш: ключ — текст, параметры, токен, актор, арендатор; свои записи — `onChanged` по нагрузкам `letopis.changed` сразу после фиксации; сброс — `ResultCache.apply` по разобранному сигналу (`signals.ts:Signals.parse`): класс с токеном арендатора — ответы этого арендатора и ответы без токена, без токена (режим class, System, процесс без ключа) — класс везде, класс прав, `*`, `session:*`, opaque без ключа, нагрузка не по режиму — весь кэш, незнакомый токен — ничего; гонка — счётчики класса, пары «класс, токен арендатора» (`pairEpoch`; ответ без токена — `anyEpoch`) и сессий (`token()`/`set()`), в каждой карте счётчиков (класс, пара, сессия, `anyEpoch`) больше 100 000 — сброс карты и `epoch` (`bump`: имена в нагрузке присылает любая роль базы, ревью №1 точки А); подключение в обход RLS — ответы без токена; переподключение слушателя (`onlisten`) — весь кэш.
-- Сигналы (план 1.1, этап 2): `signal_mode()` — константа `@SIGNALS@`; `signal_key()` — функция владельца, право `letopis.signals` (`letopis_allowed`), отдаёт HMAC ключа строки KEY по `'letopis:signals'`; `class_stamp()` — sha256 списка `id:rev` строк `Class` сессии и System под RLS (режим none: реестр сверяет его раз в 5 с). Токены библиотеки — `Signals` (как `signal_token` базы: «назначение:значение», 24 hex; карта токенов классов — по реестрам подключения, всегда с классами прав); `throttle` — первый вызов сразу, следующие в окне 5 с — один раз в его конце; `bucket` — ведро жетонов: перечитывание реестра по `Class` — три подряд сразу, дальше не чаще раза в 5 с (ревью №1 точки А).
-- `db.describe()` (`admin.ts:describe`) берёт поля, `required`, `anyOf` и `oneOf` из `resolved.schema` реестра — наследование уже развернула база (`class_resolve`); ключи `anyOf`/`oneOf` есть только у классов с условиями (план 1.1, этап 0). `describeText` печатает их строкой JSON.
-- `maintain()`: каждая пачка — своя транзакция (`runTx` из пула), её оператор `case when pg_try_advisory_xact_lock(19541, hashtext(схема)) then maintain(…) end` берёт транзакционную блокировку, фиксация пачки её снимает; сеансовой блокировки и зарезервированного соединения нет — работает за любым пулом, в том числе PgBouncer в режиме транзакций. Блокировка занята: до первой пачки — `skipped`, между пачками — выход с `more: true` (продолжит держатель). Тест — `maintain` («разбор в»).
+- У id с записью в журнале номер 1 всегда занят: `purge()` и `trim_history()` кладут свою запись (вид `purge`/`trim`) под номер 1 — на уникальности `log_id_rev` держится `existing: 'error'` загрузчика. Записи `purge`, `trim`, `reset` — не версии объекта: чтения версий их отбрасывают, подписка отдаёт событиями.
+- Последнюю запись журнала id берут `for update` все, кто продолжает или стирает цепочку: `last_version_visible` (restore, purge), `trim_history`, `trg_entity_bi` и `move_row` (`lib/sql/60-write.sql`), воскрешение проектором (`lib/sql/88-derived.sql`). Новая операция над историей id — под той же блокировкой.
+- «Администратор» (`admin_role`) и «обход RLS» (`watch_leaving`) в функциях владельца определяются только по `session_role()` — роли SET ROLE, иначе роли входа. Там `current_user` — владелец, `session_user` — роль входа, и привилегированный вход с `SET ROLE` на роль приложения сошёл бы за администратора (ревью коммита 1734d21; тест `engine-attacks` «№56»).
+- Сигнал — только подсказка: NOTIFY в канал схемы может послать любая роль базы, а данных он не несёт. По нему лишь будят подписку (`wakes`), сбрасывают кэш (`ResultCache.apply`) и пропуска прав, перечитывают ключ и реестр не чаще заданного (`throttle`, `bucket` в `lib/src/index.ts`); карты счётчиков кэша ограничены (`bump`) — ревью №1 точки А плана 1.1.
+- `maintain()`: один исполнитель — строка-замок `lock_try('@SCHEMA_NAME@:maintain')` (`lib/sql/60-write.sql`) в транзакции пачки, а не advisory-блокировка: её ключ может занять посторонняя роль (ревью безопасности №3, №2). Каждая пачка — своя транзакция, поэтому работает и за PgBouncer в режиме транзакций. Замок занят — база отвечает `null`: до первой пачки `skipped`, между пачками `more: true`.
+- `describe()` берёт `resolved.schema` реестра: наследование уже развернула база (`class_resolve`), предков не сливать.
 
 **Что ещё менять вместе**
-- Новая функция владельца: `roles.test.ts` №4 (негативный тест) и белый список функций приложения.
-- Новый формат нагрузки сигнала: `signal()`/`signal_raw()` (`60-write.sql`), `Signals.parse`, `wakes`, `ResultCache.apply`, `test/signals.test.ts`, формат в `security-final`.
-- Новый вид служебной записи журнала: фильтры `op not in (…)` в `70-read.sql` и `sql.ts`, `SPECIAL` в `thin_batch` и в эталоне `retention.test.ts`.
+- Новая функция владельца: перечень `alter function … owner` в конце `lib/sql/90-time.sql` (и `grant execute`, если её зовёт приложение), `lib/test/roles.test.ts` («№4» — негативный тест, белый список функций приложения); образец a25b432.
+- Формат нагрузки сигнала: `signal()`, `signal_raw()`, `signal_token()` (`lib/sql/60-write.sql`), `Signals.parse` и токены, `wakes`, `ResultCache.apply`, `onSignal` в `lib/src/index.ts`, тесты `signals` и `security-final`. `lib/src/signals.ts:NAME` = шаблон имени метасхемы Class (`lib/sql/40-class.sql`): на нём держится однозначный разбор `класс@токен`.
+- Новый вид служебной записи журнала: grep `'purge', 'trim', 'reset'` по `lib/sql` и `lib/src`; особые виды в `thin_batch` и `SPECIAL` в `lib/test/retention.test.ts`.
+- Ярус `all` — общая граница: `thin_batch` прореживает только старше него, `verify` считает законным разрыв после версии старше него, `watch_read` отказывает `cursor_expired`, проектор (`lib/src/project.ts`) проверяет свой курсор сам.
+- Окно, горизонт и снимок у `watch_read` и `watch_leaving` одни (`Subscription.fetch` зовёт обе одним оператором); `watch_read(…, p_leaving)` зовёт ещё `lib/src/project.ts`.
+- Новое свойство класса в реестре → `ModelDescription`, `describe`, `describeText`, тест `telemetry`; образец f38fbd7.
+
+**Состояние и побочки**
+- Строка KEY (`secret`, id = System) — общая. `material` — секрет пропусков прав (`acl_token`), ключа сигналов (`signal_key`) и признака агрегатов (`agg_token`); `reset` уровня all его пересоздаёт. В `meta`: `v` (`acl_bump`), `signals` (сид), `thin` — курсор прореживания, `default_policy` — метка для `verify`; пишут только слиянием (`||`, `-`). `thin_batch` держит строку `for update` до фиксации пачки — `acl_bump` ждёт.
+
+**Неимпортные связи**
+- `lib/src/index.ts` зовёт по имени `signal_mode()`, `signal_key()` (`fetchKey`) и `class_stamp()` (режим none, раз в 5 с); по `*` процессы перечитывают ключ сигналов и реестр и чистят кэш.
+- `projector_unread` (отказ `projector_pending` у `purge` и `trim_history`) разбирает чекпоинт проектора: строку `secret` вида `PROJECTOR`, `meta.cursor` «tx:seq~снимок» (`lib/src/project.ts:enc`) и `meta.from`; проектор ищет по `derivedBy` класса.
 
 **Проверка**
-- `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `time`, `rekey`, `reset`, `verify`, `retention`, `watch`, `cache`, `signals`, `maintain`, `up`.
+- `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `time`, `rekey`, `reset`, `verify`, `retention`, `watch`, `cache`, `signals`, `maintain` («7.8.1 №11», «разбор в)»), `projector`, `roles`, `engine-attacks`, `telemetry`, `security-final`, `up`.
 - Цена режимов сигналов: `cd lib && npx tsx bench/signals.bench.mjs`.
 
 **Точки входа**
 - `lib/sql/90-time.sql:thin_batch` — прореживание
-- `lib/sql/90-time.sql:verify` — проверка базы
-- `lib/sql/90-time.sql:reset` — сброс
+- `lib/sql/90-time.sql:watch_leaving` — уход строки из классов подписки
 - `lib/src/watch.ts:Subscription` — подписка
 - `lib/src/cache.ts:ResultCache` — кэш результатов
 - `lib/src/signals.ts:Signals` — разбор нагрузки сигнала и токены
