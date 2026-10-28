@@ -545,6 +545,18 @@ begin
   return jsonb_build_object('rows', vis, 'others', jsonb_array_length(p_rows) - jsonb_array_length(vis));
 end $$;
 
+-- Класс для текста отказа (ревью безопасности №3): наименьший класс среди строк p_rows (строки целиком, to_jsonb), которые
+-- актор видит; не видит ни одной — null, и текст класса не называет. Строки берутся из самих данных, а не из таблицы:
+-- удалённые каскадом в этом же операторе её уже не найдут.
+create or replace function @SCHEMA@.visible_class(p_rows jsonb) returns text
+language sql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+return (select min(r->>'class') from jsonb_array_elements(p_rows) r, (select @SCHEMA@.acl_actor('READ') as a) x
+        where x.a is not null
+          and @SCHEMA@.row_visible((r->>'tenant')::uuid, r->>'class', (r->>'id')::uuid, (r->>'owner')::uuid,
+                                   array(select jsonb_array_elements_text(r->'tags')), r->'data', r->'links',
+                                   (x.a->>'tenant')::uuid, (x.a->>'account')::uuid, x.a->'plan'));
+
 -- Безопасно ли изменение описания класса (этап 1, п. 10): новые необязательные поля и концы,
 -- метаданные, алиас, политика истории, кэш. Всё остальное — ужесточение с проверкой строк, в том числе
 -- любая правка условий anyOf и oneOf (1.0.1: прежде они не сравнивались, и строки не перепроверялись),
@@ -1361,6 +1373,7 @@ declare
   mems jsonb;
   lvl_accs uuid[];
   lvl_mems jsonb;
+  drows jsonb;
 begin
   select * into c from @SCHEMA@.ctx();
   -- права в замыкании (этап 5, п. 6): DELETE на каждую удаляемую каскадом строку, WRITE — на строку,
@@ -1439,12 +1452,15 @@ begin
     )
     select coalesce(array_agg(d.id), '{}'), coalesce(array_agg(distinct d.class), '{}'),
            coalesce(array_agg(distinct d.class || ' ' || d.tenant::text), '{}'),
-           min(d.class) filter (where not @SCHEMA@.acl_row_ok(dplan, d.class, d.id, d.owner, d.tenant, d.tags, d.data, d.links)),
+           jsonb_agg(to_jsonb(d)) filter (where not @SCHEMA@.acl_row_ok(dplan, d.class, d.id, d.owner, d.tenant, d.tags, d.data, d.links)),
            coalesce(array_agg(d.id) filter (where d.class = 'Account'), '{}'),
            coalesce(jsonb_agg(jsonb_build_object('tenant', d.tenant, 'user', d.links->>'User')) filter (where d.class = 'member'), '[]'::jsonb)
-      into lvl, lvl_classes, lvl_pairs, denied, lvl_accs, lvl_mems from d;
-    if denied is not null then
-      perform @SCHEMA@.lt_fail('acl_denied', format('нет права DELETE на класс %s в каскаде удаления', denied));
+      into lvl, lvl_classes, lvl_pairs, drows, lvl_accs, lvl_mems from d;
+    -- класс отказавшей строки называется, только если актор её видит (ревью безопасности №3)
+    if drows is not null then
+      denied := @SCHEMA@.visible_class(drows);
+      perform @SCHEMA@.lt_fail('acl_denied', case when denied is not null then format('нет права DELETE на класс %s в каскаде удаления', denied)
+                                                   else 'нет права DELETE на строки в каскаде удаления' end);
     end if;
     accs := accs || lvl_accs;
     mems := mems || lvl_mems;
@@ -1453,7 +1469,9 @@ begin
     -- unset: снять конец, новая версия
     for r in select x.* from @SCHEMA@.entity x where x.id = any (unsets) order by x.id for update loop
       if not @SCHEMA@.acl_row_ok(wplan, r.class, r.id, r.owner, r.tenant, r.tags, r.data, r.links) then
-        perform @SCHEMA@.lt_fail('acl_denied', format('нет права WRITE на класс %s: снятие конца при удалении', r.class));
+        perform @SCHEMA@.lt_fail('acl_denied', case when @SCHEMA@.visible_class(jsonb_build_array(to_jsonb(r))) is not null
+                                                     then format('нет права WRITE на класс %s: снятие конца при удалении', r.class)
+                                                     else 'нет права WRITE на ссылающуюся строку: снятие конца при удалении' end);
       end if;
       newlinks := '{}'::jsonb;
       for k in select key, value from jsonb_each(r.links) loop
@@ -1627,7 +1645,10 @@ begin
     -- строки производного класса пишет только проектор: перевод их ссылок мимо него оставил бы проекцию
     -- несогласованной (ревью безопасности №3, №3)
     if (@SCHEMA@.class_row(r.class, r.tenant)).data->'resolved' ? 'derivedBy' then
-      perform @SCHEMA@.lt_fail('derived_class', format('на строку ссылается строка производного класса %s: её пишет проектор', r.class));
+      perform @SCHEMA@.lt_fail('derived_class',
+        case when p_plan is null or @SCHEMA@.visible_class(jsonb_build_array(to_jsonb(r))) is not null
+             then format('на строку ссылается строка производного класса %s: её пишет проектор', r.class)
+             else 'на строку ссылается строка производного класса: её пишет проектор' end);
     end if;
     if p_plan is not null and not @SCHEMA@.acl_row_ok(p_plan, r.class, r.id, r.owner, r.tenant, r.tags, r.data, r.links) then
       perform @SCHEMA@.lt_fail('acl_denied', 'нет права WRITE на ссылающиеся строки');
@@ -1886,7 +1907,7 @@ begin
     'apply_defaults(jsonb, jsonb)', 'links_shape(jsonb, jsonb)', 'targets_bad(jsonb, boolean, jsonb)', 'check_links(jsonb, jsonb, uuid, boolean, jsonb)', 'key_id(jsonb, text, uuid, jsonb, jsonb)',
     'log_version(@SCHEMA@.entity)', 'sys_update(uuid, jsonb, jsonb, jsonpath, text, text)', 'tombstone(@SCHEMA@.entity, text, uuid)',
     'links_replace(jsonb, uuid, uuid)', 'move_row(@SCHEMA@.entity, uuid, text, jsonb, jsonb, text, jsonb)', 'reclass(uuid, text, jsonb)',
-    'incoming_conflicts(uuid, text, uuid)', 'visible_detail(jsonb, uuid)', 'class_change_safe(jsonb, jsonb)',
+    'incoming_conflicts(uuid, text, uuid)', 'visible_detail(jsonb, uuid)', 'visible_class(jsonb)', 'class_change_safe(jsonb, jsonb)',
     'family_conflicts(text[], uuid, boolean)', 'reserved_names()', 'class_acl_admit(text, uuid)', 'class_rows_admit(text, uuid, text[], text)', 'class_has_history(text, uuid)', 'class_admit(jsonb, uuid)',
     'trg_entity_bi()', 'trg_entity_bu()', 'trg_entity_ai()', 'trg_entity_au()', 'history_on(text, uuid)', 'signal_token(text, text, bytea)', 'signal_raw(text[])', 'signal(text[], uuid[])', 'class_evolve(@SCHEMA@.entity, @SCHEMA@.entity)',
     'trg_entity_bd()', 'trg_entity_ad()', 'owner_to_tenant(uuid, uuid)', 'ref_action(jsonb, jsonb, uuid[])', 'delete_preview(uuid[])', 'merge(jsonb, jsonb)', 'inc(jsonb, text[], numeric, numeric)', 'links_patch(jsonb, jsonb)'] loop

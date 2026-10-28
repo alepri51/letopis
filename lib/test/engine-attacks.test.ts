@@ -2,7 +2,8 @@
  * engine-attacks — атаки сырым SQL от прикладной роли (план, §7.3.1, строки этапа 1; план 1.1, §7.7 №31–35).
  * Каждая попытка проверяет конкретный исход: код ошибки, пустую выборку, ноль строк или находку verify();
  * №35 — агент через инструменты MCP (letopis/mcp); №36 — ревью безопасности №2 (смена parent, alias, derivedBy); №37 —
- * агент через MCP пишет классы прав, сессия системного администратора (О5); №38 и дальше — доработки после точки Б.
+ * агент через MCP пишет классы прав, сессия системного администратора (О5); №38–46 — доработки после точки Б; №47 и
+ * дальше — хвост ревью безопасности №3 (доработки после 1.2.0).
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -873,4 +874,52 @@ test('№46 (автоматическое ревью коммита 1bc6584): п
   await assert.rejects(write, lt('invalid_data'));
   const [{ n }] = await e.sql.unsafe(`select count(*)::int as n from ${S}.entity where class = 'Gx' and tenant = $1 and not data ? 'a'`, [a.id]);
   assert.equal(n, 0, 'строк, нарушающих ужесточённое описание, нет');
+});
+
+test('№47 (ревью безопасности №3): отказ каскада, снятия конца и перевода ссылки производной строки называет класс ссылающейся строки, только если актор её видит', async () => {
+  const { org, user } = await aclTenant();
+  const { resource, rule, sysRes } = await import('./_access.js');
+  const g = await sysRes(e, 'authenticated:ACCOUNT');
+  // Org из Твери пользователь удаляет; Master (каскад) и Memo (снятие конца) ему закрыты
+  await rule(e, org, g, await resource(e, org, 'org:DELETE', 'DELETE', { class: 'Org' }), 'allow', 10);
+  const memo = { name: 'Memo', kind: 'hub', fields: { properties: { text: { type: 'string' } } }, ends: { About: { class: 'Org', onDelete: 'unset' } } };
+  await e.asOwner((tx) => tx.unsafe(`select ${S}.sys_create(${S}.v5_id($1::uuid, 'Class', array[$2]), 'Class', $1::uuid, '{}', $3::jsonb)`,
+    [org, 'Memo', memo as never]));
+  const fails = (t: Tenant, sql: string, p: unknown[]) => as(t, sql, p).then(() => { throw new Error('операция прошла'); }, (x: Error) => x);
+  const t1 = await ownerIns(org, 'Org', { name: 'Т47-1', city: 'Тверь' });
+  await ownerIns(org, 'Master', { name: 'Скрытый' }, { Org: t1 });
+  const t2 = await ownerIns(org, 'Org', { name: 'Т47-2', city: 'Тверь' });
+  await ownerIns(org, 'Memo', { text: 'скрыто' }, { About: t2 });
+  const del = (id: string) => fails(user, `delete from ${S}.entity where id = $1`, [id]);
+  const e1 = await del(t1);
+  lt('acl_denied')(e1);
+  assert.ok(!e1.message.includes('Master'), e1.message);
+  const e2 = await del(t2);
+  lt('acl_denied')(e2);
+  assert.ok(!e2.message.includes('Memo'), e2.message);
+  // видимые классы называются: READ без DELETE и без WRITE
+  await rule(e, org, g, await resource(e, org, 'master:READ', 'READ', { class: 'Master' }), 'allow', 10);
+  await rule(e, org, g, await resource(e, org, 'memo:READ', 'READ', { class: 'Memo' }), 'allow', 10);
+  assert.match((await del(t1)).message, /нет права DELETE на класс Master в каскаде удаления/);
+  assert.match((await del(t2)).message, /нет права WRITE на класс Memo: снятие конца при удалении/);
+
+  // перевод ссылок при reclass: на строку ссылается строка производного класса — её пишет проектор
+  const x = await e.tenant('x47');
+  for (const c of [
+    { name: 'KA47', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' } }, required: ['code'] } },
+    { name: 'KB47', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' } }, required: ['code'] } },
+  ]) await e.defineClass(x, c);
+  for (const name of ['Tail47', 'Seen47']) {
+    await e.defineDerived(x, { name, kind: 'hub', derivedBy: 'p47', history: false, fields: { properties: {} },
+      ends: { [`Ref${name}`]: { class: ['KA47', 'KB47'], onDelete: 'unset' } } });
+  }
+  await rule(e, x.id, g, await resource(e, x.id, 'tail47:READ', 'READ', { class: 'Tail47' }), 'deny', 20);
+  const [k1] = await as(x, `insert into ${S}.entity (class, data) values ('KA47', '{"code": "1"}') returning id`);
+  const [k2] = await as(x, `insert into ${S}.entity (class, data) values ('KA47', '{"code": "2"}') returning id`);
+  await ownerIns(x.id, 'Tail47', {}, { RefTail47: k1.id });
+  await ownerIns(x.id, 'Seen47', {}, { RefSeen47: k2.id });
+  const e3 = await fails(x, `select ${S}.reclass($1::uuid, 'KB47')`, [k1.id]);
+  lt('derived_class')(e3);
+  assert.ok(!e3.message.includes('Tail47'), e3.message);
+  assert.match((await fails(x, `select ${S}.reclass($1::uuid, 'KB47')`, [k2.id])).message, /производного класса Seen47/);
 });

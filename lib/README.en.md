@@ -2561,8 +2561,9 @@ behavior.
   attempts.
 - When users link a taken identifier themselves, the answer is `acl_denied`, so a user with a recent sign-in learns
   this way that the identifier is taken. Permission changes in all tenants are serialized through one counter row.
-- The number of invisible rows that block a deletion or a class change (`reclass_denied`), and the existence of an
-  account by id (as a reference target), are not hidden.
+- Refusal texts name the class and id of a referencing row only if the actor can see it: a cascade delete, unsetting
+  an end, and rewriting references on a class or key change. The number of invisible rows that block a deletion or a
+  class change (`reclass_denied`), and the existence of an account by id (as a reference target), are not hidden.
 - Tightening a class description and `rekeyClass` check all rows of the family, so they need the `READ` permission
   without conditions on all rows of the class and its descendants: otherwise a trial tightening (`maximum`, `enum`,
   `pattern`) would answer with the number of invisible rows that do not match it. A system administrator who tightens
