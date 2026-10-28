@@ -923,3 +923,28 @@ test('№47 (ревью безопасности №3): отказ каскад�
   assert.ok(!e3.message.includes('Tail47'), e3.message);
   assert.match((await fails(x, `select ${S}.reclass($1::uuid, 'KB47')`, [k2.id])).message, /производного класса Seen47/);
 });
+
+test('№48 (ревью безопасности №3): история одноимённого класса арендатора не мешает администратору создать и удалить класс System; строки класса System — мешают', async () => {
+  const { sysadmin } = await import('./_access.js');
+  const admin = await sysadmin(e, 'admin48');
+  const t = await e.tenant('t48');
+  const u = await e.tenant('u48');
+  const desc = { name: 'Inv48', kind: 'hub', fields: { properties: { n: { type: 'integer' } } } };
+  await e.defineClass(t, desc);
+  const [row] = await as(t, `insert into ${S}.entity (class, data) values ('Inv48', '{"n": 1}') returning id`);
+  await as(t, `update ${S}.entity set data = '{"n": 2}' where id = $1`, [row.id]);
+  const sys = (sql: string, p: unknown[] = []) => e.as(admin.token, (tx) => tx.unsafe(sql, p as never[]));
+  const create = () => sys(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [desc]);
+  const drop = () => sys(`delete from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = 'Inv48'`, [SYSTEM_ID]);
+  // у t свой класс Inv48: его строки и их история — не строки класса System
+  await create();
+  await drop();
+  // u своего класса нет: его строки Inv48 — строки класса System
+  await create();
+  await as(u, `insert into ${S}.entity (class, data) values ('Inv48', '{"n": 3}')`);
+  await assert.rejects(drop(), /есть строки или потомки/);
+  await as(u, `delete from ${S}.entity where class = 'Inv48'`);
+  await assert.rejects(drop(), /история строк/);
+  assert.equal((await e.sql.unsafe(`select count(*)::int as n from ${S}.entity where class = 'Inv48' and tenant = $1`, [t.id]))[0].n, 1,
+    'строка класса арендатора на месте');
+});

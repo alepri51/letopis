@@ -690,14 +690,20 @@ begin
   end loop;
 end $$;
 
--- Есть ли в журнале версии строк класса p_name арендатора p_tenant (у класса System — любого арендатора); записи purge,
--- trim и reset — не версии (доработки после точки Б: удаление и пересоздание класса, остаток Н2 ревью №2).
+-- Есть ли в журнале версии строк класса p_name арендатора p_tenant; записи purge, trim и reset — не версии (доработки
+-- после точки Б: удаление и пересоздание класса, остаток Н2 ревью №2). У класса System — строки любого арендатора, кроме
+-- арендаторов со своим классом с тем же именем: их строки — строки своего класса, как их резолвит class_row (ревью
+-- безопасности №3: история такого класса не мешает администратору создать и удалить класс System)
 create or replace function @SCHEMA@.class_has_history(p_name text, p_tenant uuid) returns boolean
 language sql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 return exists (select 1 from @SCHEMA@.log l
-               where l.class = p_name and (l.tenant = p_tenant or p_tenant = '@SYSTEM@'::uuid)
-                 and l.op not in ('purge', 'trim', 'reset'));
+               where l.class = p_name and l.op not in ('purge', 'trim', 'reset')
+                 and (l.tenant = p_tenant
+                      or p_tenant = '@SYSTEM@'::uuid
+                         and l.tenant <> all (array(select x.tenant from @SCHEMA@.entity x
+                                                    where x.class = 'Class' and x.data->>'name' = p_name
+                                                      and x.tenant <> '@SYSTEM@'::uuid))));
 
 -- Проверки строки Class сверх метасхемы (этап 1, п. 6): признак system, имя системного класса,
 -- имена связей против методов цепочки, однозначность имени конца во всей схеме, право на агрегаты,
@@ -1374,6 +1380,7 @@ declare
   lvl_accs uuid[];
   lvl_mems jsonb;
   drows jsonb;
+  own uuid[];
 begin
   select * into c from @SCHEMA@.ctx();
   -- права в замыкании (этап 5, п. 6): DELETE на каждую удаляемую каскадом строку, WRITE — на строку,
@@ -1394,9 +1401,16 @@ begin
     if r.derived and not @SCHEMA@.letopis_allowed('letopis.projector') then
       perform @SCHEMA@.lt_fail('acl_denied', format('класс %s производный: его описание задаёт только администратор (право letopis.projector)', r.name));
     end if;
-    if exists (select 1 from @SCHEMA@.entity x where x.class = r.name and (x.tenant = r.tenant or r.tenant = '@SYSTEM@'::uuid))
+    -- у класса System — строки и потомки любого арендатора, кроме арендаторов со своим одноимённым классом: их строки и
+    -- потомки относятся к своему классу (class_row; ревью безопасности №3)
+    own := case when r.tenant = '@SYSTEM@'::uuid
+                then array(select x.tenant from @SCHEMA@.entity x
+                           where x.class = 'Class' and x.data->>'name' = r.name and x.tenant <> '@SYSTEM@'::uuid)
+                else '{}'::uuid[] end;
+    if exists (select 1 from @SCHEMA@.entity x
+               where x.class = r.name and (x.tenant = r.tenant or r.tenant = '@SYSTEM@'::uuid and x.tenant <> all (own)))
        or exists (select 1 from @SCHEMA@.entity x where x.class = 'Class' and x.data->>'parent' = r.name
-                  and (x.tenant = r.tenant or r.tenant = '@SYSTEM@'::uuid)) then
+                  and (x.tenant = r.tenant or r.tenant = '@SYSTEM@'::uuid and x.tenant <> all (own))) then
       perform @SCHEMA@.lt_fail('invalid_class', format('у класса %s есть строки или потомки', r.name));
     end if;
     -- и история строк (остаток Н2; доработки после точки Б): удалённый класс с историей, созданный заново с другими

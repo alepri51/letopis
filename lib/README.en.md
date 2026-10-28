@@ -1467,8 +1467,9 @@ alias in the tenant and System, and the name of a new class does not match anoth
 written for one class would act on the rows of another too. A violation gives `invalid_class`.
 
 By the same names, the rules also find the old versions of rows in the journal. So a class is deleted only when it has
-no rows, no descendants and no history of rows: `purge()` erases the history of deleted rows first. A class deleted
-with history before is created again only with the same `parent`, `alias` and `derivedBy` — otherwise `invalid_class`:
+no rows, no descendants and no history of rows: `purge()` erases the history of deleted rows first. For a System class,
+the rows, descendants and history of a tenant that has its own class with the same name do not count: they belong to
+that tenant's class. A class deleted with history before is created again only with the same `parent`, `alias` and `derivedBy` — otherwise `invalid_class`:
 the old versions of its rows would fall under other rules. If the journal holds rows of a class with this name but not
 its tombstone (for example, rows of a System class deleted in 1.1), a class with this name is not created until
 `purge()` erases the history.
