@@ -1480,7 +1480,10 @@ history.
 A derived class (`derivedBy`) is created, edited and deleted only by an administrator: an admin connection or an
 account with the System permission `letopis.projector` (the system administrator has it through the `letopis.*`
 mask). The projector writes totals over all source rows of the tenant into such a class, without read permissions,
-so a user who created it on their own would read totals over rows they may not read.
+so a user who created it on their own would read totals over rows they may not read. A class that has derived
+descendants is also edited only by an administrator: editing an ancestor changes the description of the descendant
+(fields, key, `history`). The database itself sets the `aggregatedBy` mark (the class became an aggregate source) on a
+derived class too: it does not change its fields or key.
 
 ### Granting a permission
 

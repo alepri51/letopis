@@ -741,6 +741,7 @@ declare
   src text;
   chk jsonb;
   m jsonb;
+  dkid text;
 begin
   if p_tenant <> '@SYSTEM@'::uuid then
     if (p_data->>'name') = any (array['Class', 'Account', 'member', 'Resource', 'rule']) then
@@ -790,6 +791,20 @@ begin
      and not @SCHEMA@.letopis_allowed('letopis.projector') then
     perform @SCHEMA@.lt_fail('acl_denied', format('класс %s производный: его описание задаёт только администратор (право letopis.projector)',
       data->>'name'));
+  end if;
+  -- предок производного класса (ревью безопасности №3): правка предка пересчитывает описание потомка (class_evolve) —
+  -- поля, ключ, history, — поэтому класс с производными потомками (своего арендатора, у класса System — всех) меняет
+  -- тоже только администратор
+  if prevd is not null and not @SCHEMA@.letopis_allowed('letopis.projector') then
+    select x.data->>'name' into dkid from @SCHEMA@.entity x
+    where x.class = 'Class' and x.data->>'name' <> data->>'name'
+      and (x.tenant = p_tenant or p_tenant = '@SYSTEM@'::uuid)
+      and x.data->'resolved'->'ancestors' ? (data->>'name') and x.data->'resolved' ? 'derivedBy'
+    order by x.data->>'name' limit 1;
+    if dkid is not null then
+      perform @SCHEMA@.lt_fail('acl_denied', format('класс %s — предок производного класса %s: его описание задаёт только администратор (право letopis.projector)',
+        data->>'name', dkid));
+    end if;
   end if;
   -- агрегат развёрнутого описания (свой или унаследованный), новый или изменённый против прежнего — описание
   -- агрегата, новый потомок цели, смена parent, — задаёт только тот, кто без условий читает все строки каждого

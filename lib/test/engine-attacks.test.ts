@@ -990,3 +990,23 @@ test('№49 (ревью безопасности №3): надгробие кл�
   await dropClass('Kid49');
   await realias('Основа49');
 });
+
+test('№50 (ревью безопасности №3): непроизводного предка производного класса правит только администратор — описание потомка без права letopis.projector не меняется', async () => {
+  const x = await e.tenant('x50');
+  type Run = (sql: string, p: unknown[]) => Promise<unknown>;
+  const app: Run = (sql, p) => e.as(x.token, (tx) => tx.unsafe(sql, p as never[]));
+  const admin: Run = (sql, p) => e.asAdmin(x.token, (tx) => tx.unsafe(sql, p as never[]));
+  await e.defineClass(x, { name: 'Base50', kind: 'hub', fields: { properties: { v: { type: 'string' } } } });
+  await e.defineDerived(x, { name: 'Roll50', kind: 'hub', parent: 'Base50', derivedBy: 'roll50', history: false });
+  await e.defineClass(x, { name: 'Plain50', kind: 'hub', fields: { properties: { v: { type: 'string' } } } });
+  const widen = (run: Run, name: string) => run(`update ${S}.entity set data = ${S}.merge(data, $2::jsonb)
+    where class = 'Class' and tenant = $1 and data->>'name' = $3`, [x.id, { fields: { properties: { v: { type: 'string' }, w: { type: 'integer' } } } }, name]);
+  const rollHasW = async () => (await e.sql.unsafe(`select data->'resolved'->'schema'->'properties' ? 'w' as w from ${S}.entity
+    where class = 'Class' and tenant = $1 and data->>'name' = 'Roll50'`, [x.id]))[0].w as boolean;
+  await assert.rejects(widen(app, 'Base50'), lt('acl_denied'));
+  await assert.rejects(widen(app, 'Base50'), /предок производного класса Roll50/);
+  assert.equal(await rollHasW(), false, 'описание производного потомка прежнее');
+  await widen(admin, 'Base50');
+  assert.equal(await rollHasW(), true, 'администраторское подключение правит предка, потомок пересчитан');
+  await widen(app, 'Plain50');
+});

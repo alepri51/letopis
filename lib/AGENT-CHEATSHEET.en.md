@@ -325,8 +325,8 @@ npx letopis import --from "$ADMIN" --from-schema v1.fixture --dsn "$ADMIN" --sch
 
 A projector builds rows of derived classes from the journal: summaries, cards, anything that may be computed with a
 lag. A derived class is marked with `derivedBy: 'projector-name'`, and only this projector writes its rows. The
-derived class itself (own or inherited) is created, edited and deleted only by an administrator: `syncModels` on an
-admin connection holding a tenant session (`connect({ dsn: ADMIN, schema, token, allowBypassRls: true })`) or an
+derived class itself (own or inherited) and its ancestors are created, edited and deleted only by an administrator:
+`syncModels` on an admin connection holding a tenant session (`connect({ dsn: ADMIN, schema, token, allowBypassRls: true })`) or an
 account with the System permission `letopis.projector`; for an application session it is `acl_denied`. Everyone whom
 the rules give `READ` on a derived class sees its totals, even without permissions on the source rows.
 ```ts
