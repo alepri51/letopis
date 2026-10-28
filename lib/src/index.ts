@@ -233,7 +233,8 @@ interface Shared {
   /** Арендатор и реестр корня — меняются после auth.switch. */
   root: { tenant: string | null; registry: Registry };
   /** Реестр классов арендатора (System + арендатор), загруженный контекстом txc. */
-  registryFor: (tenant: string, txc: TxContext) => Promise<Registry>;
+  /** Реестр арендатора для db.as(); null — контекст уже не в этом арендаторе (реестр не загружен и не кэширован). */
+  registryFor: (tenant: string, txc: TxContext) => Promise<Registry | null>;
   refresh: () => Promise<void>;
   onQuery?: (e: QueryEvent) => void;
   slowMs?: number;
@@ -329,11 +330,18 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
       }
       // имперсонация и арендатор проверяются базой сразу: ошибка — здесь, а не на первой цепочке
       const scoped: TxContext = { ...txc, account: id ?? txc.account, tenant: o?.tenant ?? (id === undefined ? txc.tenant : undefined) };
-      const [r] = await runTx(scoped, (q) => q.unsafe(`select account, tenant from ${sh.S}.ctx()`), { read: true });
+      let [r] = await runTx(scoped, (q) => q.unsafe(`select account, tenant from ${sh.S}.ctx()`), { read: true });
       if (!r?.account) throw new LetopisError('no_session', 'db.as(): нет действующей сессии');
-      const tenant = r.tenant as string;
-      const registry = await sh.registryFor(tenant, scoped);
-      return makeDb(sh, { txc: scoped, tenant: () => tenant, registry: () => registry, root: false }, poolExecutor(scoped), nextOwner);
+      // контекст сессии между запросами ушёл из арендатора (сменился или кончился): реестр не загружен и не
+      // кэширован (хвост ревью безопасности №3) — контекст читается заново, не больше трёх раз
+      for (let attempt = 1; ; attempt++) {
+        const tenant = r.tenant as string;
+        const registry = await sh.registryFor(tenant, scoped);
+        if (registry) return makeDb(sh, { txc: scoped, tenant: () => tenant, registry: () => registry, root: false }, poolExecutor(scoped), nextOwner);
+        if (attempt === 3) throw new LetopisError('no_session', 'db.as(): контекст сессии меняется — реестр арендатора не загружен');
+        [r] = await runTx(scoped, (q) => q.unsafe(`select account, tenant from ${sh.S}.ctx()`), { read: true });
+        if (!r?.account) throw new LetopisError('no_session', 'db.as(): нет действующей сессии');
+      }
     },
     begin: async (o) => {
       if (tx) throw new LetopisError('invalid_query', 'вложенных транзакций нет: db.begin() внутри db.begin()');
@@ -466,7 +474,7 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
     }, { read: true });
     // реестры db.as() — общие на арендатора; txc — контекст последнего успешного as() этого арендатора
     const others = new Map<string, { registry: Registry; txc: TxContext }>();
-    const loading = new Map<string, Promise<Registry>>();
+    const loading = new Map<string, Promise<Registry | null>>();
     // токены классов (режим opaque) — по именам всех реестров подключения
     const tokens = () => sig.setClasses([root.registry, ...[...others.values()].map((o) => o.registry)].flatMap((r) => r.all().map((c) => c.name)));
     // only — токены арендаторов из сигналов Class (режимы tenant и opaque): реестры db.as() только этих арендаторов
@@ -484,8 +492,9 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
       }
       tokens();
     };
-    const registryFor = async (tenant: string, txc: TxContext): Promise<Registry> => {
-      if (tenant === root.tenant) return root.registry;
+    // фасад db.as() не делит реестр с корнем, даже в том же арендаторе: корень после auth.switch() перечитывает свой
+    // реестр классами нового арендатора (хвост ревью безопасности №3)
+    const registryFor = async (tenant: string, txc: TxContext): Promise<Registry | null> => {
       const known = others.get(tenant);
       if (known) {
         known.txc = txc;
@@ -495,8 +504,10 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
       let pending = loading.get(tenant);
       if (!pending) {
         pending = (async () => {
+          const rows = await loadClasses(txc, tenant);
+          if (!rows) return null;
           const registry = new Registry();
-          registry.load(((await loadClasses(txc, tenant)) ?? []) as never);
+          registry.load(rows as never);
           others.set(tenant, { registry, txc });
           tokens();
           return registry;

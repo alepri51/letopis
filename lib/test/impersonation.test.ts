@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { engine, lt, SYSTEM_ID, type Engine } from './_engine.js';
 import { install } from '../src/up.js';
 import { appDsn } from './_harness.js';
-import { account, member, sqlAs, sysadmin, type Acc } from './_access.js';
+import { account, member, session, sqlAs, sysadmin, type Acc } from './_access.js';
 import { connect, type Db } from '../src/index.js';
 
 let e: Engine;
@@ -164,4 +164,32 @@ test('доработки после точки Б: сигнал Class с ток�
     await svcT.close();
     await install(e.sql, { schema: e.schema, allowReset: true });
   }
+});
+
+test('хвост ревью безопасности №3: фасад db.as() арендатора корня не делит реестр с корнем — после auth.switch() корня видит классы своего арендатора', async () => {
+  await addClass(user.id, 'OnlyMine');
+  await addClass(org, 'OnlyOrg');
+  const root = await connect({ dsn: appDsn(), schema: e.schema, token: await session(e, user.id), max: 2 });
+  dbs.push(root);
+  const mine = await root.as(null, { tenant: user.id });
+  assert.ok(names(mine).includes('OnlyMine'));
+  await root.auth.switch(org);
+  assert.ok(names(root).includes('OnlyOrg'), 'корень — в новом арендаторе');
+  assert.ok(names(mine).includes('OnlyMine') && !names(mine).includes('OnlyOrg'), 'фасад — в своём арендаторе');
+});
+
+test('хвост ревью безопасности №3: пустой реестр db.as() не кэшируется — контекст разошёлся на первой загрузке, следующий as() загружает классы', async () => {
+  const shop = await shopWithNote('Магазин-контекст');
+  const u = await account(e, 'Третий');
+  await member(e, u.id, shop.id);
+  // ctx_tenant() на время as() отвечает другим арендатором: загрузка реестра видит, что контекст ушёл из арендатора
+  const swap = (body: string) => e.asOwner((tx) => tx.unsafe(`create or replace function ${S}.ctx_tenant() returns uuid language sql stable return ${body}`));
+  await swap(`'${SYSTEM_ID}'::uuid`);
+  try {
+    await assert.rejects(svc.as(u.id, { tenant: shop.id }), lt('no_session'));
+  } finally {
+    await swap(`(select c.tenant from ${S}.ctx() c)`);
+  }
+  const f = await svc.as(u.id, { tenant: shop.id });
+  assert.ok(names(f).includes('Note'), 'реестр загружен, а не пуст');
 });
