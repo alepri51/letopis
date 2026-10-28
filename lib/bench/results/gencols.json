@@ -1,0 +1,22 @@
+{
+  "name": "gencols",
+  "at": "2026-10-28T17:01:31.600Z",
+  "scale": 0.5,
+  "server": {
+    "v": "18.6 (Debian 18.6-1.pgdg13+2)",
+    "sb": "128MB"
+  },
+  "node": "v24.15.0",
+  "rows": 100000,
+  "rounds": 3,
+  "mismatches": {
+    "links": 0,
+    "snap": 0
+  },
+  "base": 14,
+  "link_ids": 206,
+  "link_ids_c": 170,
+  "snapshot": 251,
+  "snapshot_c": 471,
+  "version_hash": 290
+}

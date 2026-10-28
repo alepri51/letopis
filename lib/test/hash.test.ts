@@ -113,3 +113,25 @@ test('7.3.7 №4: законные разрывы этапа 6 — purge, обр
   const v = await verify();
   assert.equal(v.ok, true, JSON.stringify(v.issues));
 });
+
+test('доработки после 1.2.0: link_ids на plpgsql с быстрым путём — побайтно как прежнее SQL-тело на краевых и случайных концах', async () => {
+  const S = e.S;
+  await e.asOwner((tx) => tx.unsafe(`create or replace function ${S}.link_ids_ref(links jsonb) returns uuid[] language sql immutable return (
+    select coalesce(array_agg(distinct (v #>> '{}')::uuid order by (v #>> '{}')::uuid), '{}'::uuid[])
+    from jsonb_path_query(coalesce(links, '{}'::jsonb), 'lax $.*[*]') as v)`));
+  try {
+    const [r] = await e.asOwner((tx) => tx.unsafe(`with c(links) as (
+        select null::jsonb union all select '{}'::jsonb union all select '{"A": []}'::jsonb
+        union all select jsonb_build_object('A', '00000000-0000-0000-0000-000000000001')
+        union all select jsonb_build_object('A', jsonb_build_array('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001'),
+                                            'B', '00000000-0000-0000-0000-000000000002')
+        union all select jsonb_build_object('R' || (g % 3), case when g % 2 = 0 then to_jsonb(gen_random_uuid()::text)
+                                                              else jsonb_build_array(gen_random_uuid(), gen_random_uuid()) end,
+                                            'S', case when g % 5 = 0 then jsonb_build_array() else to_jsonb(gen_random_uuid()::text) end)
+        from generate_series(1, 5000) g)
+      select count(*)::int as n, count(*) filter (where ${S}.link_ids(links) is distinct from ${S}.link_ids_ref(links))::int as bad from c`));
+    assert.equal(r.bad, 0, `расхождений нет из ${r.n}`);
+  } finally {
+    await e.asOwner((tx) => tx.unsafe(`drop function ${S}.link_ids_ref(jsonb)`));
+  }
+});
