@@ -1,4 +1,4 @@
-# letopis 1.2 — шпаргалка для агента
+# letopis 1.3 — шпаргалка для агента
 
 Одна страница вместо [README.md](README.md) — для ИИ-агента, который пишет код поверх пакета. Лежит в пакете рядом с
 README; английская версия — [AGENT-CHEATSHEET.en.md](AGENT-CHEATSHEET.en.md). Переход с 0.21 — [MIGRATION.md](MIGRATION.md);

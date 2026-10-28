@@ -1,4 +1,4 @@
-# letopis 1.2
+# letopis 1.3
 
 **letopis** is a Node.js library: a store of versioned entities on PostgreSQL 18. Every change is saved as a version
 in a journal. So every object has a history, a state as of any date and a change subscription. The database itself
@@ -2493,7 +2493,7 @@ runs) showed no write or read regressions against 1.1: two outliers did not repe
 
 ## 18. Limitations
 
-This section lists what letopis 1.2 deliberately does not do or does with caveats, and where you need to watch the
+This section lists what letopis 1.3 deliberately does not do or does with caveats, and where you need to watch the
 behavior.
 
 **Platform**
