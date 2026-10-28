@@ -254,7 +254,7 @@ const canDelete = await olga.acl.checkData('Wallet', 'DELETE')    // { allow: fa
 
 <!-- run -->
 ```ts
-const sub = db.watch({ from: 'start', classes: ['Wallet'] })  // from: 'now' (по умолчанию) | 'start' | курсор; pollMs
+const sub = db.watch({ from: 'start', classes: ['Wallet'] })  // from: 'now' (по умолчанию) | 'start' | курсор; pollMs; уход из classes — op 'delete'
 const lagMs = await sub.lag()                                  // отставание, мс
 await db.Wallet(w).update({ balance: inc(1) }).rows()
 let cursor = ''

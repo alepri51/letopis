@@ -174,3 +174,43 @@ test('доработки после точки Б: sub.ready() — началь�
   sub.close();
   for (const w of await Promise.all(waiting)) assert.equal(w.done, true);
 });
+
+test('хвост ревью безопасности №3: уход строки из классов подписки сменой класса без смены id — событие удаления в прежнем классе; уход в чужом арендаторе — без события', async () => {
+  const x = await e.tenant('watch-leave');
+  const { account, member, resource, rule, session } = await import('./_access.js');
+  for (const name of ['Inbox', 'Archive', 'Vault']) await e.defineClass(x, { name, kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
+  // подписчик — читатель арендатора: Vault ему не виден; пишет владелец арендатора
+  const reader = await account(e, 'watch-reader');
+  await member(e, reader.id, x.id, ['reader']);
+  const grp = await resource(e, x.id, 'reader:ACCOUNT', 'ACCOUNT', { roles: '{reader}' });
+  await rule(e, x.id, grp, await resource(e, x.id, 'vault:READ', 'READ', { class: 'Vault' }), 'deny', 20);
+  const q = (sql: string, p: unknown[] = []) => e.as(x.token, (tx) => tx.unsafe(sql, p as never[]));
+  const ins = async (cls: string, n: number) => (await q(`insert into ${e.S}.entity (class, data) values ($1, $2::jsonb) returning id`, [cls, { n }]))[0].id as string;
+  const move = (id: string, cls: string) => q(`update ${e.S}.entity set class = $2 where id = $1`, [id, cls]);
+  const xdb = await connect({ dsn: appDsn(), schema: e.schema, token: await session(e, reader.id, { tenant: x.id }), max: 2, notifyIntervalMs: 10 });
+  const sub = xdb.watch({ from: 'now', classes: ['Inbox'], pollMs: 20 });
+  try {
+    await sub.ready();
+    const a = await ins('Inbox', 1);
+    const b = await ins('Inbox', 2);
+    await move(a, 'Archive');
+    await move(b, 'Vault');
+    const evs = await take(sub, 4);
+    assert.deepEqual(evs.map((v) => [v.id, v.op, v.class]), [[a, 'create', 'Inbox'], [b, 'create', 'Inbox'], [a, 'delete', 'Inbox'], [b, 'delete', 'Inbox']],
+      'уход — событием удаления в прежнем классе, и когда новый класс подписчику не виден');
+    assert.equal(evs[2].row.$deleted, true);
+    assert.equal((evs[2].row.data as { n: number }).n, 1, 'прежние данные');
+    // уход строки в чужом арендаторе (прежнюю версию подписчик не видит) — события нет; вход строки в класс — обычное
+    const y = await e.tenant('watch-leave-y');
+    for (const name of ['Inbox', 'Archive']) await e.defineClass(y, { name, kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
+    const [yr] = await e.as(y.token, (tx) => tx.unsafe(`insert into ${e.S}.entity (class, data) values ('Inbox', '{"n": 3}') returning id`));
+    await e.as(y.token, (tx) => tx.unsafe(`update ${e.S}.entity set class = 'Archive' where id = $1`, [yr.id]));
+    const d = await ins('Archive', 4);
+    await move(d, 'Inbox');
+    const [next] = await take(sub, 1);
+    assert.deepEqual([next.id, next.op, next.class], [d, 'reclass', 'Inbox']);
+  } finally {
+    await sub.close();
+    await xdb.close();
+  }
+});

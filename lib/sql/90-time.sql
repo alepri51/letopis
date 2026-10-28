@@ -1052,6 +1052,44 @@ begin
     order by l.tx, l.seq limit p_limit;
 end $$;
 
+-- Уход строки из классов подписки сменой класса без смены id (хвост ревью безопасности №3): версия пишется уже с новым
+-- классом, и подписка по классам её не видит. Здесь — те же окно, горизонт и снимок, что у watch_read (и верхняя граница
+-- окна p_upto — последняя строка полной пачки watch_read), а строки — синтетические надгробия прежней версии: класс,
+-- концы и данные прежние; номер, время, автор, tx и seq — версии смены класса; вид delete; агента и причины нет. Только
+-- если нового класса нет в p_classes, а прежнюю версию актор видит (row_visible с его планом READ): о строке, которой он
+-- не читал, подписчик не узнает. Функция владельца: версию с новым классом актору видеть не нужно.
+create or replace function @SCHEMA@.watch_leaving(p_tx xid8, p_seq bigint, p_classes text[], p_limit int,
+  p_snap pg_snapshot default null, p_upto_tx xid8 default null, p_upto_seq bigint default null)
+returns setof @SCHEMA@.log
+language plpgsql stable security definer
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  horizon xid8 := pg_snapshot_xmin(pg_current_snapshot());
+  a jsonb;
+begin
+  if p_classes is null then
+    return;
+  end if;
+  a := @SCHEMA@.acl_actor('READ');
+  if a is null then
+    return;
+  end if;
+  return query select l.seq, l.tx, p.id, l.rev, p.class, p.cv, p.tenant, p.owner, p.links, p.data, p.tags, l.at, l.author,
+      null::text, 'delete'::text, null::text, null::uuid, null::bytea, null::bytea, null::jsonb
+    from @SCHEMA@.log l
+    cross join lateral (select x.* from @SCHEMA@.log x where x.id = l.id and x.rev < l.rev and x.op not in ('purge', 'trim', 'reset')
+                        order by x.rev desc limit 1) p
+    where (l.tx, l.seq) > (p_tx, p_seq) and l.tx < horizon
+      and (p_upto_tx is null or (l.tx, l.seq) <= (p_upto_tx, p_upto_seq))
+      and l.op = 'reclass' and l.moved is null and not (l.class = any (p_classes))
+      and p.class = any (p_classes) and p.op <> 'delete'
+      and (p_snap is null or not pg_visible_in_snapshot(l.tx, p_snap))
+      and @SCHEMA@.row_visible(p.tenant, p.class, p.id, p.owner, p.tags, p.data, p.links,
+                               (a->>'tenant')::uuid, (a->>'account')::uuid, a->'plan')
+    order by l.tx, l.seq limit p_limit;
+end $$;
+
 -- Точка подписки «с этого момента»: курсор — горизонт завершённых транзакций, снимок — чтобы не
 -- отдавать транзакции, зафиксированные до подписки, но ещё не ушедшие за горизонт.
 drop function if exists @SCHEMA@.watch_head();
@@ -1074,7 +1112,7 @@ begin
     'last_version_visible(uuid, uuid, jsonb)', 'restore(uuid)', 'projector_behind(uuid, text[], xid8, bigint)', 'purge(uuid, boolean)', 'trim_history(uuid[], text[], timestamptz)',
     'rekey(uuid, jsonb, jsonb)', 'rekey_class(text, jsonb)', 'account_purge(uuid)', 'reset_mark(uuid, text, uuid)',
     'reset(text, text, uuid, int)', 'thin_batch(timestamptz, int)', 'maintain(timestamptz, int)', 'verify(boolean)',
-    'watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot, boolean)', 'watch_head()'] loop
+    'watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot, boolean)', 'watch_leaving(xid8, bigint, text[], int, pg_snapshot, xid8, bigint)', 'watch_head()'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);
     execute format('revoke all on function @SCHEMA@.%s from public', f);
   end loop;
@@ -1083,6 +1121,6 @@ end $$;
 grant execute on function @SCHEMA@.restore(uuid), @SCHEMA@.purge(uuid, boolean), @SCHEMA@.trim_history(uuid[], text[], timestamptz),
   @SCHEMA@.rekey(uuid, jsonb, jsonb), @SCHEMA@.rekey_class(text, jsonb), @SCHEMA@.account_purge(uuid),
   @SCHEMA@.reset(text, text, uuid, int), @SCHEMA@.maintain(timestamptz, int), @SCHEMA@.verify(boolean),
-  @SCHEMA@.session_expires(), @SCHEMA@.watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot, boolean), @SCHEMA@.watch_head(),
+  @SCHEMA@.session_expires(), @SCHEMA@.watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot, boolean), @SCHEMA@.watch_leaving(xid8, bigint, text[], int, pg_snapshot, xid8, bigint), @SCHEMA@.watch_head(),
   @SCHEMA@.history_default(), @SCHEMA@.history_policy(jsonb), @SCHEMA@.history_iv(text),
   @SCHEMA@.signal_mode(), @SCHEMA@.signal_key(), @SCHEMA@.class_stamp() to @APP@;

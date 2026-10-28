@@ -148,6 +148,11 @@ test('7.3.8 №4: перечень функций владельца — search_
     maintain: () => assert.rejects(q(`select ${S}.maintain()`), lt('acl_denied')),
     // ключ сигналов (план 1.1, этап 2): только с правом letopis.signals по правилам System
     signal_key: () => assert.rejects(q(`select ${S}.signal_key()`), lt('acl_denied')),
+    // уход строки из классов подписки (хвост ревью №3): без сессии — ничего
+    watch_leaving: async () => {
+      const r = await e.as(null, (tx) => tx.unsafe(`select * from ${S}.watch_leaving('0'::xid8, 0, array['Note'], 10)`));
+      assert.equal(r.length, 0);
+    },
     trg_entity_bi: () => assert.rejects(q(`select ${S}.trg_entity_bi()`), lt('42501')),
     trg_entity_bu: () => assert.rejects(q(`select ${S}.trg_entity_bu()`), lt('42501')),
     trg_entity_ai: () => assert.rejects(q(`select ${S}.trg_entity_ai()`), lt('42501')),
@@ -221,7 +226,7 @@ test('права по каталогу: функции приложения — 
     'history_default', 'history_iv', 'history_policy', 'inc', 'issue_session', 'jsonb_changes', 'link_ids', 'links_patch', 'login_apikey', 'login_keysecret',
     'login_otp', 'maintain', 'merge', 'purge', 'reclass', 'rekey', 'rekey_class', 'reserved_names', 'reset', 'restore', 'role_has', 'role_ids', 'row_changes',
     'row_leaves', 'session_expires', 'signal_key', 'signal_mode', 'snapshot', 'trim_history', 'uuid_v5', 'v5_id', 'v5_name', 'verify', 'version_hash',
-    'version_paths', 'watch_head', 'watch_read',
+    'version_paths', 'watch_head', 'watch_leaving', 'watch_read',
   ]);
   const pubFns = await e.sql.unsafe(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = $1 and has_function_privilege('public', p.oid, 'execute')`, [e.schema]);

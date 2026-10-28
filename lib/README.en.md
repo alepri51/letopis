@@ -1723,7 +1723,10 @@ for await (const ev of sub) {             // ev: { cursor, row, id, class, op, r
   moment: a write after it comes to the stream. The example above reads from `'start'`.
 - Calls of `sub.next()` go in turn: parallel calls get different events. A call abandoned by a timeout
   (`Promise.race`) still gets its event — keep its promise and wait for it again.
-- `classes`: only these classes with their descendants; `pollMs`: fallback polling (1000 ms).
+- `classes`: only these classes with their descendants; `pollMs`: fallback polling (1000 ms). A row that left these
+  classes through a class change without an id change arrives as a deletion event in the previous class (`op:
+  'delete'`, `row` is the previous version with `$deleted`), even if the subscriber cannot see the new class. The
+  event comes if the subscriber could see the previous version.
 - Events come without losses or repeats, under the reader's permissions, in the order of transaction numbers, and
   within a transaction in the order of writing. This is not the commit order: compare versions of one object by `rev`.
 - A long write transaction in any database of the cluster delays the stream: `await sub.lag()` shows the lag in ms.
