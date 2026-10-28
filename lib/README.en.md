@@ -375,6 +375,11 @@ class name. While the index is being built, writes to the journal wait. On a lar
 without stopping writes: `create index concurrently log_class_tenant_at on "v2.<schema>".log (class, tenant, at)` as
 the owner role — then `up()` only drops the old one.
 
+The `upgrade` test checks upgrading 1.1.0 and 1.0.1 schemas. The old package installs the schema and the old engine
+writes the data, then the current version's `up()` runs. After it, the versions and hashes written by the old engine
+are in place, `verify({ data: true })` is clean, and the schema catalog matches a clean installation. A 1.1.0 schema is
+upgraded with a plain `up()`, since its revision is the same. A 1.0.1 schema is upgraded with `up({ upgrade: true })`.
+
 ### Development without PostgreSQL: PGlite
 
 `up({ pglite: true })` starts PGlite (PostgreSQL 18 on WebAssembly) with pgcrypto and a socket on a free port. It needs
@@ -2731,6 +2736,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # cache — result cache: hits, own and others' writes, the key with the user, permissions, revoked sessions, listener drop, ttl, class marking, without LISTEN, a race, db.sql, the limit of signal counters (stage 6; plan 1.1, checkpoint A)
 # maintain — maintenance: expired sessions and codes, permissions, one process under a lock, schedule (stage 6)
 # up — the full installer: fresh installation, re-apply, custom seeds, automatic database creation, UTF8, version 17, upgrade with migrations, PGlite, the first tenant and user (up({ tenant }), createTenant) (stages 6, 8)
+# upgrade — schema upgrade from 1.1.0 (re-apply) and from 1.0.1 (upgrade: true, migration 0006) with the letopis-11 and letopis-1 packages: versions and hashes written by the old engine, verify(), the catalog against a clean installation, lock rows, the application, a subscription and a projector over old data, a repeated up() (work after 1.2.0, stage 1)
 # scenario-salon — end-to-end salon scenario: 21 acts from 0.21 (salon) with a coverage matrix of the 1.0 API (stage 6)
 # telemetry — onQuery and slowMs, describe() and class metadata with inheritance, describeText (stage 6)
 # history — diff and blame over the log, the reason of a change for verbs, db.begin() and batches; a version hidden by an ACL condition, the changed column, a missing version, row_changes over 20 thousand targets (plan 1.1, stage 1 and checkpoint A)
