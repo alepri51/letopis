@@ -806,12 +806,15 @@ begin
       data->>'name'));
   end if;
   -- предок производного класса (ревью безопасности №3): правка предка пересчитывает описание потомка (class_evolve) —
-  -- поля, ключ, history, — поэтому класс с производными потомками (своего арендатора, у класса System — всех) меняет
-  -- тоже только администратор
+  -- поля, ключ, history, — поэтому класс с производными потомками (своего арендатора, у класса System — всех, кроме
+  -- арендаторов со своим одноимённым классом: их потомки наследуют свой класс) меняет тоже только администратор
   if prevd is not null and not @SCHEMA@.letopis_allowed('letopis.projector') then
     select x.data->>'name' into dkid from @SCHEMA@.entity x
     where x.class = 'Class' and x.data->>'name' <> data->>'name'
-      and (x.tenant = p_tenant or p_tenant = '@SYSTEM@'::uuid)
+      and (x.tenant = p_tenant
+           or p_tenant = '@SYSTEM@'::uuid
+              and x.tenant <> all (array(select y.tenant from @SCHEMA@.entity y
+                                         where y.class = 'Class' and y.data->>'name' = data->>'name' and y.tenant <> '@SYSTEM@'::uuid)))
       and x.data->'resolved'->'ancestors' ? (data->>'name') and x.data->'resolved' ? 'derivedBy'
     order by x.data->>'name' limit 1;
     if dkid is not null then

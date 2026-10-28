@@ -1073,3 +1073,55 @@ test('№53 (автоматическое ревью коммита 5290be1): к
   await q(`update ${S}.entity set data = data - 'aggregate' where class = 'Class' and tenant = $1 and data->>'name' = 'Purse53'`, [x.id]);
   await drop('Coin53');
 });
+
+test('№54 (хвост ревью доработок после 1.2.0): строки класса арендатора судятся по его классу — предки и алиас одноимённого класса System прав на них не дают', async () => {
+  const { resource, rule, sysRes, sysadmin } = await import('./_access.js');
+  const admin = await sysadmin(e, 'admin54');
+  const x = await e.tenant('x54', { bare: true });
+  const g = await sysRes(e, 'authenticated:ACCOUNT');
+  await rule(e, x.id, g, await resource(e, x.id, 'class54:WRITE', 'WRITE', { class: 'Class' }), 'allow', 10);
+  await rule(e, x.id, g, await resource(e, x.id, 'dup54:WRITE', 'WRITE', { class: 'Dup54' }), 'allow', 10);
+  // READ — только на классы с предком или алиасом Doc54: так правило арендатора называет класс System
+  await rule(e, x.id, g, await resource(e, x.id, 'doc54:READ', 'READ', { class: 'Doc54' }), 'allow', 10);
+  await rule(e, x.id, g, await resource(e, x.id, 'paper54:READ', 'READ', { class: 'Paper54' }), 'allow', 10);
+  const q = (sql: string, p: unknown[] = []) => e.as(x.token, (tx) => tx.unsafe(sql, p as never[]));
+  await e.defineClass(x, { name: 'Dup54', kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
+  await e.defineClass(x, { name: 'Alias54', kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
+  await q(`insert into ${S}.entity (class, data) values ('Dup54', '{"n": 1}')`);
+  const seen = async () => (await q(`select count(*)::int as n from ${S}.entity where class = 'Dup54'`))[0].n as number;
+  assert.equal(await seen(), 0, 'своё описание Dup54 права READ не даёт');
+  // администратор заводит одноимённый класс System с предком Doc54 и класс System с алиасом Paper54
+  const sys = (sql: string, p: unknown[] = []) => e.as(admin.token, (tx) => tx.unsafe(sql, p as never[]));
+  const cls = (d: unknown) => sys(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [d]);
+  await cls({ name: 'Doc54', kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
+  await cls({ name: 'Dup54', kind: 'hub', parent: 'Doc54' });
+  await cls({ name: 'Alias54', kind: 'hub', alias: 'Paper54', fields: { properties: { n: { type: 'integer' } } } });
+  assert.equal(await seen(), 0, 'предок класса System Dup54 строк класса арендатора Dup54 не открывает');
+  await e.asOwner((tx) => tx.unsafe(`select ${S}.sys_create(gen_random_uuid(), 'Alias54', $1::uuid, '{}', '{"n": 2}')`, [x.id]));
+  assert.equal((await q(`select count(*)::int as n from ${S}.entity where class = 'Alias54'`))[0].n, 0,
+    'алиас класса System Alias54 строк класса арендатора Alias54 не открывает');
+});
+
+test('№55 (хвост ревью доработок после 1.2.0): производный потомок одноимённого класса арендатора не мешает правке класса System без права letopis.projector', async () => {
+  const { account, member, resource, rule, session, sysadmin } = await import('./_access.js');
+  const admin = await sysadmin(e, 'admin55');
+  // автор правок System: пишет строки Class System, права letopis.* у него нет
+  const cw = await account(e, 'cw55');
+  await member(e, cw.id, SYSTEM_ID, ['classwriter55']);
+  const grp = await resource(e, SYSTEM_ID, 'cw55:ACCOUNT', 'ACCOUNT', { roles: '{classwriter55}' });
+  await rule(e, SYSTEM_ID, grp, await resource(e, SYSTEM_ID, 'cw55:WRITE', 'WRITE', { class: 'Class' }), 'allow', 10);
+  const cwTok = await session(e, cw.id, { tenant: SYSTEM_ID });
+  const x = await e.tenant('x55');
+  await e.defineClass(x, { name: 'Base55', kind: 'hub', fields: { properties: { v: { type: 'string' } } } });
+  await e.defineDerived(x, { name: 'Roll55', kind: 'hub', parent: 'Base55', derivedBy: 'roll55', history: false });
+  await e.as(admin.token, (tx) => tx.unsafe(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`,
+    [{ name: 'Base55', kind: 'hub', fields: { properties: { v: { type: 'string' } } } }] as never[]));
+  const widen = (w: string) => e.as(cwTok, (tx) => tx.unsafe(`update ${S}.entity set data = ${S}.merge(data, $2::jsonb)
+    where class = 'Class' and tenant = $1 and data->>'name' = 'Base55'`, [SYSTEM_ID, { fields: { properties: { [w]: { type: 'integer' } } } }] as never[]));
+  // Roll55 наследует класс арендатора Base55, а не класс System
+  await widen('w1');
+  // производный потомок самого класса System — по-прежнему только администратор
+  await e.asAdmin(admin.token, (tx) => tx.unsafe(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`,
+    [{ name: 'SysRoll55', kind: 'hub', parent: 'Base55', derivedBy: 'sysroll55', history: false }] as never[]));
+  await assert.rejects(widen('w2'), /предок производного класса SysRoll55/);
+});
