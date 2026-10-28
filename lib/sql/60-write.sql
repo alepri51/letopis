@@ -760,6 +760,14 @@ begin
       perform @SCHEMA@.lt_fail('invalid_class', format('имя %s занято системным классом', p_data->>'name'));
     end if;
   end if;
+  -- родитель — под разделяемой блокировкой своего семейства (хвост ревью доработок после 1.2.0): удаление класса берёт
+  -- исключительную, поэтому родитель не удалится мимо нового потомка, а удалённый, пока ждали, class_prepare не найдёт
+  if p_data->>'parent' is not null then
+    tc := @SCHEMA@.class_row(p_data->>'parent', p_tenant);
+    if tc.id is not null then
+      perform @SCHEMA@.family_lock(tc, false);
+    end if;
+  end if;
   select c.data, c.validator into data, validator from @SCHEMA@.class_prepare(p_data, p_tenant) c;
   if data->>'kind' = 'link' and (data->>'name') = any (@SCHEMA@.reserved_names()) then
     perform @SCHEMA@.lt_fail('invalid_class', format('имя связи %s совпадает с методом цепочки', data->>'name'));
@@ -962,9 +970,12 @@ begin
   if cls.id is null then
     perform @SCHEMA@.lt_fail('invalid_class', format('класс %s не найден', NEW.class));
   end if;
-  -- разделяемая блокировка корня семейства, затем описание перечитывается под ней
+  -- разделяемая блокировка корня семейства, затем описание перечитывается под ней (класс могли удалить, пока ждали)
   perform @SCHEMA@.family_lock(cls, false);
   cls := @SCHEMA@.class_row(NEW.class, NEW.tenant);
+  if cls.id is null then
+    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s удалён', NEW.class));
+  end if;
   res := cls.data->'resolved';
   if coalesce((res->>'abstract')::boolean, false) then
     perform @SCHEMA@.lt_fail('invalid_class', format('класс %s абстрактный', NEW.class));
@@ -1091,6 +1102,9 @@ begin
   end if;
   perform @SCHEMA@.family_lock(cls, false);
   cls := @SCHEMA@.class_row(NEW.class, OLD.tenant);
+  if cls.id is null then
+    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s удалён', NEW.class));
+  end if;
   res := cls.data->'resolved';
   if coalesce((res->>'abstract')::boolean, false) then
     perform @SCHEMA@.lt_fail('invalid_class', format('класс %s абстрактный', NEW.class));
@@ -1438,6 +1452,7 @@ declare
   lvl_mems jsonb;
   drows jsonb;
   own uuid[];
+  cl @SCHEMA@.entity;
 begin
   select * into c from @SCHEMA@.ctx();
   -- права в замыкании (этап 5, п. 6): DELETE на каждую удаляемую каскадом строку, WRITE — на строку,
@@ -1453,6 +1468,13 @@ begin
   if denied is not null then
     perform @SCHEMA@.lt_fail('derived_class', format('класс %s производный: его строки удаляет проектор', denied));
   end if;
+  -- удаление класса (хвост ревью безопасности доработок после 1.2.0): проверки ниже — нет строк, потомков и истории —
+  -- не видят строку, которую писатель ещё не зафиксировал, и она осталась бы без класса, а с ней история удалённого
+  -- класса, от которой зависит смена алиаса предка. Писатели строк и создание потомка держат разделяемую блокировку
+  -- семейства: исключительная ждёт их, и следующие операторы проверок видят зафиксированное
+  for cl in select g.* from gone g where g.class = 'Class' order by @SCHEMA@.family_name(g.tenant, g.data), g.id loop
+    perform @SCHEMA@.family_lock(cl, true);
+  end loop;
   for r in select g.id, g.tenant, g.data->>'name' as name, g.data->'resolved' ? 'derivedBy' as derived from gone g where g.class = 'Class' loop
     -- производный класс удаляет только администратор (class_admit)
     if r.derived and not @SCHEMA@.letopis_allowed('letopis.projector') then
@@ -1808,6 +1830,9 @@ begin
   end if;
   perform @SCHEMA@.family_lock(cls, false);
   cls := @SCHEMA@.class_row(p_class, o.tenant);
+  if cls.id is null then
+    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s удалён', p_class));
+  end if;
   res := cls.data->'resolved';
   if coalesce((res->>'abstract')::boolean, false) then
     perform @SCHEMA@.lt_fail('invalid_class', format('класс %s абстрактный', p_class));

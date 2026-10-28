@@ -143,6 +143,9 @@ begin
     -- как у писателей приложения: разделяемая блокировка семейства, описание — свежее под ней
     perform @SCHEMA@.family_lock(cls, false);
     cls := @SCHEMA@.class_row(cname, tid);
+    if cls.id is null then
+      perform @SCHEMA@.lt_fail('invalid_class', format('класс %s удалён', cname) || w);
+    end if;
     res := cls.data->'resolved';
     if res->>'derivedBy' is distinct from p_name then
       perform @SCHEMA@.lt_fail('derived_class', format('класс %s не производный проектора %s', cname, p_name) || w);

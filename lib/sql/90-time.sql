@@ -209,6 +209,9 @@ begin
   end if;
   perform @SCHEMA@.family_lock(cls, false);
   cls := @SCHEMA@.class_row(l.class, l.tenant);
+  if cls.id is null then
+    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s удалён', l.class));
+  end if;
   res := cls.data->'resolved';
   if coalesce((res->>'abstract')::boolean, false) then
     perform @SCHEMA@.lt_fail('invalid_class', format('класс %s абстрактный', l.class));
@@ -462,6 +465,9 @@ begin
   cls := @SCHEMA@.class_row(o.class, o.tenant);
   perform @SCHEMA@.family_lock(cls, false);
   cls := @SCHEMA@.class_row(o.class, o.tenant);
+  if cls.id is null then
+    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s удалён', o.class));
+  end if;
   res := cls.data->'resolved';
   if res ? 'derivedBy' then
     perform @SCHEMA@.lt_fail('derived_class', format('класс %s производный: его строки пишет проектор %s', o.class, res->>'derivedBy'));

@@ -303,3 +303,42 @@ test('№16: удаление корня с каскадом и ссылка н�
   assert.equal(await dangling(), 0);
   await verifyOk();
 });
+
+test('хвост ревью доработок после 1.2.0: удаление класса и параллельная запись его строки или потомка — без строк и потомков без класса', async () => {
+  const delClass = (name: string) => `delete from ${S}.entity where class = 'Class' and tenant = '${t.id}' and data->>'name' = '${name}'`;
+  const def = (name: string, extra: Record<string, unknown> = {}) =>
+    e.defineClass(t, { name, kind: 'hub', fields: { properties: { v: { type: 'integer' } } }, ...extra });
+  const orphans = async () => (await e.sql.unsafe(`select count(*)::int as n from ${S}.entity x
+    where (${S}.class_row(x.class, x.tenant)).id is null
+       or x.class = 'Class' and x.data ? 'parent' and (${S}.class_row(x.data->>'parent', x.tenant)).id is null`))[0].n;
+  // писатель строки первым: удаление класса ждёт исключительную блокировку семейства и видит его строку
+  await def('Gone1');
+  const A1 = await e.hold(t.token, (tx) => tx.unsafe(insSql, ['Gone1', { v: 1 }, {}] as never[]));
+  const B1 = q(delClass('Gone1'));
+  await waitForLock(e.sql);
+  await A1.finish(true);
+  await assert.rejects(B1, lt('invalid_class'));
+  // удаление первым: писатель ждёт и класса уже не находит
+  await def('Gone2');
+  const B2 = await e.hold(t.token, (tx) => tx.unsafe(delClass('Gone2')));
+  const A2 = ins('Gone2', { v: 1 });
+  await waitForLock(e.sql);
+  await B2.finish(true);
+  await assert.rejects(A2, lt('invalid_class'));
+  // создание потомка первым: удаление родителя ждёт и видит потомка
+  await def('Gone3');
+  const A3 = await e.hold(t.token, (tx) => tx.unsafe(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb) returning id`,
+    [{ name: 'Gone3Kid', kind: 'hub', parent: 'Gone3' }] as never[]));
+  const B3 = q(delClass('Gone3'));
+  await waitForLock(e.sql);
+  await A3.finish(true);
+  await assert.rejects(B3, lt('invalid_class'));
+  // удаление родителя первым: создание потомка ждёт и родителя не находит
+  await def('Gone4');
+  const B4 = await e.hold(t.token, (tx) => tx.unsafe(delClass('Gone4')));
+  const A4 = def('Gone4Kid', { parent: 'Gone4' });
+  await waitForLock(e.sql);
+  await B4.finish(true);
+  await assert.rejects(A4, lt('invalid_class'));
+  assert.equal(await orphans(), 0, 'строк и потомков без класса нет');
+});
