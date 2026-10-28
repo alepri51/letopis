@@ -389,6 +389,8 @@ export class Projector {
   /** Источники арендатора без журнала (history: false): их изменений проектор не увидит — арендатор выбывает. */
   private blind = new Map<string, string[]>();
   private stale = true;
+  /** В чекпоинте есть начатая перестройка арендатора пачками (по последней пачке; до первой — проверить). */
+  private tenantsPending = true;
   private running = false;
   private stopped = false;
   private wake: (() => void) | null = null;
@@ -447,8 +449,13 @@ export class Projector {
         }
         // курсор истёк у части арендаторов: с onExpired: 'rebuild' они перестраиваются сами, пачками (доработки после
         // точки Б). Состояние — в чекпоинте, поэтому перестройку продолжает run() любого процесса, а занятая
-        // блокировка — только повтор на следующем проходе; ошибка данных выводит арендатора с её кодом, без повторов
-        if (this.def.onExpired === 'rebuild' && r !== 'rebuild' && (await this.tenantWork(rep)) && r !== 'busy') r = 'more';
+        // блокировка — только повтор на следующем проходе; ошибка данных выводит арендатора с её кодом, без повторов.
+        // Начатую перестройку арендатора пачками — и прерванную rebuild({ tenant, chunked: true }) — продвигает run()
+        // и без onExpired (ревью безопасности №3): иначе хвост бессрочно пропускал бы изменения арендатора с id выше
+        // последней пачки. Начинает перестройку выбывших по ярусу только onExpired: 'rebuild'. Блокировку проектора держит
+        // другой процесс (busy) — перестройку продвинет он: чтение чекпоинта ждало бы его пачку
+        const auto = this.def.onExpired === 'rebuild';
+        if (r !== 'rebuild' && r !== 'busy' && (auto || this.tenantsPending) && (await this.tenantWork(rep, auto))) r = 'more';
         // пачку перестройки держит другой процесс того же проектора — подождать и продолжить
         if (r === 'rebuild') r = (await this.rebuildNow(rep, 'auto')) === 'busy' ? 'busy' : 'more';
         if (r === 'more') continue;
@@ -665,6 +672,7 @@ export class Projector {
       const meta = await this.state(q);
       if (!meta.cursor || meta.state === 'rebuilding') return 'rebuild';
       if (meta.version !== this.def.version) throw this.versionError(meta);
+      this.tenantsPending = Object.values(meta.retenant ?? {}).some((v) => !v.done);
       const cur = dec(meta.cursor);
       const rows = await q.unsafe(`select l.tx::text as tx, l.seq::text as seq, ${rowJson('l')} as row
         from ${this.env.S}.watch_read($1::text::xid8, $2::bigint, null, $3::text[], $4::int, $5::text::pg_snapshot, true) l`,
@@ -1189,22 +1197,26 @@ export class Projector {
   }
 
   /**
-   * Автоматическая перестройка выбывших по cursor_expired (onExpired: 'rebuild') — проход run(): начинает перестройку
-   * пачками у каждого такого арендатора и продвигает начатые на пачку. true — работа ещё осталась.
+   * Перестройка арендаторов пачками — проход run(): с start (onExpired: 'rebuild') начинает её у каждого выбывшего по
+   * cursor_expired, затем продвигает на пачку каждую начатую — автоматическую и прерванную rebuild({ tenant, chunked:
+   * true }). true — работа ещё осталась.
    */
-  private async tenantWork(rep: ProjectorReport): Promise<boolean> {
+  private async tenantWork(rep: ProjectorReport, start: boolean): Promise<boolean> {
     const meta = await this.tx(async (q) => this.state(q));
     if (!meta.cursor || meta.state === 'rebuilding' || meta.version !== this.def.version) return false;
     let more = false;
-    for (const [t, f] of Object.entries(meta.failed ?? {})) {
-      if (f.code !== 'cursor_expired' || this.blind.has(t) || !this.scopes.has(t)) continue;
-      if ((await this.startTenant(rep, t, true)) === 'ok') more = true;
+    if (start) {
+      for (const [t, f] of Object.entries(meta.failed ?? {})) {
+        if (f.code !== 'cursor_expired' || this.blind.has(t) || !this.scopes.has(t)) continue;
+        if ((await this.startTenant(rep, t, true)) === 'ok') more = true;
+      }
     }
-    const fresh = await this.tx(async (q) => this.state(q));
+    const fresh = start ? await this.tx(async (q) => this.state(q)) : meta;
     for (const [t, v] of Object.entries(fresh.retenant ?? {})) {
       if (v.done) continue;
       if ((await this.tenantChunk(rep, t)) === 'more') more = true;
     }
+    this.tenantsPending = more;
     return more;
   }
 

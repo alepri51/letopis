@@ -1846,7 +1846,8 @@ sales.close()                                    // stop() after the current bat
   on for all: the tail skips the tenant's changes above the last batch (a batch will read them) and, in a passed batch,
   those whose transaction is visible in its snapshot. The tenant's derived rows are deleted at once and are incomplete
   until the end of the rebuild (`status().rebuildingTenants`); the rebuild waits out a lock held by `run()` of another
-  process.
+  process. An interrupted rebuild (the process stopped) is continued by `run()` of any process, with or without
+  `onExpired`.
 - `status().state` describes the projection in the database, not a process: `'new'` means there is no projection yet,
   and the first `run()` or `rebuild()` builds it; `'running'` means the projection is built and kept up with the
   journal (it does not mean that some process is executing `run()` right now); `'rebuilding'` means a batch rebuild

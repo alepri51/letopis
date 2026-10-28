@@ -1085,3 +1085,27 @@ test('ревью безопасности №3, №5: purge не стирает 
     p.close();
   }
 });
+
+test('хвост ревью безопасности №3: прерванную rebuild({ tenant, chunked: true }) продолжает любой run(), а не только с onExpired', async () => {
+  const x = await e.tenant('proj-resume-x');
+  await tickTenant(x, true);
+  const p = adm.projector('ticker', tickerDef({ batch: 1 }));
+  try {
+    await p.rebuild();
+    for (const v of [1, 2, 4]) await tick(x, v);
+    await p.run({ once: true });
+    // перестройка арендатора начата и брошена после первой пачки (процесс остановился)
+    const rep = { batches: 0, changes: 0, created: 0, updated: 0, deleted: 0, unchanged: 0, skipped: 0, rebuilds: 0 };
+    const inner = p as unknown as { startTenant(r: unknown, t: string, auto: boolean): Promise<string>; tenantChunk(r: unknown, t: string): Promise<string> };
+    assert.equal(await inner.startTenant(rep, x.id, false), 'ok');
+    assert.equal(await inner.tenantChunk(rep, x.id), 'more', 'первая пачка из трёх');
+    // тем временем арендатор пишет: изменения с id выше последней пачки хвост пропускает — их прочтёт перестройка
+    await tick(x, 8);
+    await tick(x, 16);
+    await p.run({ once: true });
+    assert.deepEqual((await p.status()).rebuildingTenants, [], 'перестройку довёл run() без onExpired');
+    assert.equal(await tickTotal(x), await tickSumOf(x), 'каждое изменение — ровно один раз');
+  } finally {
+    p.close();
+  }
+});
