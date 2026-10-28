@@ -80,13 +80,22 @@ begin
   return false;
 end $$;
 
+-- Действующая роль сеанса, под которой вызывающий работает вне функций владельца: роль SET ROLE (и параметра запуска
+-- role), иначе роль входа. Внутри функции владельца current_user — владелец, а session_user — роль входа, даже если
+-- поверх неё поставлена роль приложения: привилегированный вход с ролью приложения выглядел бы администратором
+-- (автоматическое ревью коммита 1734d21). Подменить её нельзя: SET ROLE проверяет членство.
+create or replace function @SCHEMA@.session_role() returns name
+language sql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+return coalesce(nullif(current_setting('role'), 'none'), session_user)::name;
+
 -- Роль подключения — администраторская (суперпользователь или может стать владельцем): verify,
 -- reset и maintain доступны ей и без сессии (CLI, обслуживание по расписанию).
 create or replace function @SCHEMA@.admin_role() returns boolean
 language sql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
-return exists (select 1 from pg_roles where rolname = session_user and rolsuper)
-    or pg_has_role(session_user, '@OWNER_NAME@', 'SET');
+return exists (select 1 from pg_roles where rolname = @SCHEMA@.session_role() and rolsuper)
+    or pg_has_role(@SCHEMA@.session_role(), '@OWNER_NAME@', 'SET');
 
 -- Право letopis.* актора сессии по правилам System или администраторская роль подключения.
 create or replace function @SCHEMA@.letopis_allowed(p_endpoint text) returns boolean
@@ -1074,9 +1083,9 @@ end $$;
 -- концы и данные прежние; номер, время, автор, tx и seq — версии смены класса; вид delete; агента и причины нет. Только
 -- если нового класса нет в p_classes, а прежнюю версию актор видит (row_visible с его планом READ): о строке, которой он
 -- не читал, подписчик не узнает. Функция владельца: версию с новым классом актору видеть не нужно. Подключение в обход
--- RLS (суперпользователь, BYPASSRLS, член роли-владельца — connect() пускает его только с allowBypassRls) видит в
--- watch_read журнал всех арендаторов, поэтому и события ухода получает все, с автором (хвост ревью доработок после
--- 1.2.0); роль сеанса — session_user: внутри функции владельца current_user — владелец.
+-- RLS (суперпользователь, BYPASSRLS, член роли-владельца с наследованием — connect() пускает его только с
+-- allowBypassRls) видит в watch_read журнал всех арендаторов, поэтому и события ухода получает все, с автором (хвост
+-- ревью доработок после 1.2.0). Роль — действующая роль сеанса (session_role): та, к которой watch_read применяет RLS.
 create or replace function @SCHEMA@.watch_leaving(p_tx xid8, p_seq bigint, p_classes text[], p_limit int,
   p_snap pg_snapshot default null, p_upto_tx xid8 default null, p_upto_seq bigint default null)
 returns setof @SCHEMA@.log
@@ -1091,8 +1100,8 @@ begin
   if p_classes is null then
     return;
   end if;
-  bypass := exists (select 1 from pg_roles r where r.rolname = session_user and (r.rolsuper or r.rolbypassrls))
-            or pg_has_role(session_user, '@OWNER_NAME@', 'USAGE') or pg_has_role(session_user, '@OWNER_NAME@', 'SET');
+  bypass := exists (select 1 from pg_roles r where r.rolname = @SCHEMA@.session_role() and (r.rolsuper or r.rolbypassrls))
+            or pg_has_role(@SCHEMA@.session_role(), '@OWNER_NAME@', 'USAGE');
   a := case when not bypass then @SCHEMA@.acl_actor('READ') end;
   if a is null and not bypass then
     return;
@@ -1134,7 +1143,7 @@ declare f text;
 begin
   foreach f in array array[
     'history_default()', 'history_policy(jsonb)', 'history_iv(text)', 'history_horizon(jsonb)',
-    'history_keep(jsonb, timestamp, timestamp, timestamp)', 'admin_role()', 'letopis_allowed(text)', 'session_expires()', 'signal_mode()', 'signal_key()', 'class_stamp()',
+    'history_keep(jsonb, timestamp, timestamp, timestamp)', 'session_role()', 'admin_role()', 'letopis_allowed(text)', 'session_expires()', 'signal_mode()', 'signal_key()', 'class_stamp()',
     'last_version_visible(uuid, uuid, jsonb)', 'restore(uuid)', 'projector_unread(uuid, uuid, int)', 'purge(uuid, boolean)', 'trim_history(uuid[], text[], timestamptz)',
     'rekey(uuid, jsonb, jsonb)', 'rekey_class(text, jsonb)', 'account_purge(uuid)', 'reset_mark(uuid, text, uuid)',
     'reset(text, text, uuid, int)', 'thin_batch(timestamptz, int)', 'maintain(timestamptz, int)', 'verify(boolean)',

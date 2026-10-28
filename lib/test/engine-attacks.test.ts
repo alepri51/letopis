@@ -1125,3 +1125,25 @@ test('№55 (хвост ревью доработок после 1.2.0): про�
     [{ name: 'SysRoll55', kind: 'hub', parent: 'Base55', derivedBy: 'sysroll55', history: false }] as never[]));
   await assert.rejects(widen('w2'), /предок производного класса SysRoll55/);
 });
+
+test('№56 (автоматическое ревью коммита 1734d21): привилегированный вход с ролью приложения (SET ROLE) — не администратор и не подключение в обход RLS', async () => {
+  const x = await e.tenant('x56', { bare: true });
+  const y = await e.tenant('y56');
+  for (const name of ['Box56', 'Bin56']) await e.defineClass(y, { name, kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
+  const [r] = await e.as(y.token, (tx) => tx.unsafe(`insert into ${S}.entity (class, data) values ('Box56', '{"n": 1}') returning id`));
+  await e.as(y.token, (tx) => tx.unsafe(`update ${S}.entity set class = 'Bin56' where id = $1`, [r.id]));
+  // суперпользователь входит и ставит роль приложения — так делает пул с одной привилегированной ролью входа
+  const priv = (sql: string, p: unknown[] = []) => e.sql.begin(async (tx) => {
+    await tx.unsafe('set local role letopis_app');
+    await tx`select set_config('letopis.token', ${x.token}, true)`;
+    return tx.unsafe(sql, p as never[]);
+  });
+  // verify — право letopis.verify или администраторская роль: администратором делает действующая роль, а не роль входа
+  await assert.rejects(priv(`select ${S}.verify()`), lt('acl_denied'));
+  const leaving = await priv(`select l.id from ${S}.watch_leaving('0'::xid8, 0, array['Box56'], 1000) l`);
+  assert.deepEqual(leaving.map((v) => v.id), [], 'уход строки чужого арендатора подписке арендатора не отдаётся');
+  // без роли приложения тот же вход — администраторский: в обход RLS и с событиями ухода всех арендаторов
+  const [{ a }] = await e.sql.unsafe(`select ${S}.admin_role() as a`);
+  assert.equal(a, true);
+  assert.deepEqual((await e.sql.unsafe(`select l.id from ${S}.watch_leaving('0'::xid8, 0, array['Box56'], 1000) l`)).map((v) => v.id), [r.id]);
+});
