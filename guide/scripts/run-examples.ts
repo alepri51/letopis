@@ -100,16 +100,16 @@ async function capture(admin: ReturnType<typeof adminSql>, schema: string, base:
   if (!tables.some((t) => t !== 'counts')) return { entity: [], log: [], secret: [], counts };
   const show = (cls: string) => !base.classes.has(cls) || (ex.classes ?? []).includes(cls);
   const entity = (await admin.unsafe(`
-    select e.id, e.class, e.rev, e.tenant, e.owner, e.links, e.data, e.tags, e.op, e.author, e.agent, e.reason, e.at
+    select e.id, e.class, e.rev, e.tenant, e.owner, e.links, e.data, e.tags, e.op, e.author, e.agent, e.reason, e.at::text as at
     from ${q}.entity e left join (select id, min(seq) s from ${q}.log group by id) f using (id)
     order by f.s nulls last, e.created_at`)).filter((r) => show(String(r.class)));
   const log = (await admin.unsafe(`
-    select seq, id, rev, class, tenant, links, data, tags, op, author, agent, reason, at
+    select seq, id, rev, class, tenant, links, data, tags, op, author, agent, reason, at::text as at
     from ${q}.log where seq > $1 order by seq`, [base.seq])).filter((r) => show(String(r.class)));
   // строки-замки (LOCK) — служебные, в показ не идут; id строки secret читателю ничего не говорит
   const secret = tables.includes('secret')
     ? (await admin.unsafe(`
-        select id, account, kind, ident, meta, expires_at, created_at, deleted_at
+        select id, account, kind, ident, meta, expires_at::text as expires_at, created_at::text as created_at, deleted_at::text as deleted_at
         from ${q}.secret where kind <> 'LOCK' order by created_at, kind`))
         .filter((r) => !base.secrets.has(String(r.id)) || r.deleted_at)
     : [];
@@ -153,8 +153,15 @@ class Labels {
     this.perClass.set(cls, n);
     this.name(id, `${cls}·${n}`);
   }
-  noteTime(ms: number): void {
-    if (ms >= this.clock.start && ms <= this.clock.end) this.times.push(ms);
+  /** Время строкой ISO или PostgreSQL → микросекунды от эпохи (точность базы). */
+  static micros(s: string): number {
+    const m = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.(\d+))?(Z|[+-]\d{2}(?::?\d{2})?)?$/.exec(s.trim());
+    if (!m) return Date.parse(s) * 1000;
+    const tz = !m[4] || m[4] === 'Z' ? 'Z' : m[4].length === 3 ? `${m[4]}:00` : m[4].includes(':') ? m[4] : `${m[4].slice(0, 3)}:${m[4].slice(3)}`;
+    return Date.parse(`${m[1]}T${m[2]}${tz}`) * 1000 + Number((m[3] ?? '').padEnd(6, '0').slice(0, 6));
+  }
+  noteTime(us: number): void {
+    if (us >= this.clock.start * 1000 && us <= this.clock.end * 1000 + 999) this.times.push(us);
   }
   /**
    * Время в снимке не должно зависеть от дня прогона:
@@ -163,16 +170,17 @@ class Labels {
    * - позже конца шагов (срок сессии, кода) — «через N дн/ч/мин»;
    * - раньше установки (даты, заданные примером явно) — как есть.
    */
-  time(ms: number): string {
+  time(us: number): string {
+    const ms = Math.floor(us / 1000);
     const { setup, start, end } = this.clock;
     if (ms < setup) return new Date(ms).toISOString().replace('T', ' ').replace(/\.\d+Z$/, 'Z');
-    if (ms < start) return 'установка';
-    if (ms > end) {
+    if (us < start * 1000) return 'установка';
+    if (us > end * 1000 + 999) {
       const min = Math.round((ms - end) / 60000);
       return min >= 1440 ? `через ${Math.round(min / 1440)} дн` : min >= 60 ? `через ${Math.round(min / 60)} ч` : `через ${min} мин`;
     }
     const uniq = [...new Set(this.times)].sort((a, b) => a - b);
-    return `t${uniq.indexOf(ms) + 1}`;
+    return `t${uniq.indexOf(us) + 1}`;
   }
   text(s: string): string {
     s = s.replace(VERSION_RX, '‹версия пакета›').replace(/sql=[0-9a-f]{16}/g, 'sql=‹хэш SQL›');
@@ -180,7 +188,7 @@ class Labels {
       if (!this.tokens.has(s)) this.tokens.set(s, `‹токен ${this.tokens.size + 1}›`);
       return this.tokens.get(s)!;
     }
-    if (ISO.test(s) && !Number.isNaN(Date.parse(s))) return this.time(Date.parse(s));
+    if (ISO.test(s) && Number.isFinite(Labels.micros(s))) return this.time(Labels.micros(s));
     return s.replace(UUID, (u) => {
       const k = u.toLowerCase();
       if (!this.ids.has(k)) this.name(k, `id·${this.ids.size + 1}`);
@@ -188,14 +196,14 @@ class Labels {
     });
   }
   collectTimes(v: unknown): void {
-    if (v instanceof Date) return this.noteTime(v.getTime());
-    if (typeof v === 'string' && ISO.test(v) && !Number.isNaN(Date.parse(v))) return this.noteTime(Date.parse(v));
+    if (v instanceof Date) return this.noteTime(v.getTime() * 1000);
+    if (typeof v === 'string' && ISO.test(v) && Number.isFinite(Labels.micros(v))) return this.noteTime(Labels.micros(v));
     if (Array.isArray(v)) return v.forEach((x) => this.collectTimes(x));
     if (v && typeof v === 'object') Object.values(v).forEach((x) => this.collectTimes(x));
   }
   value(v: unknown): unknown {
     if (v === undefined) return null;
-    if (v instanceof Date) return this.time(v.getTime());
+    if (v instanceof Date) return this.time(v.getTime() * 1000);
     if (typeof v === 'bigint') return Number(v);
     if (Buffer.isBuffer(v)) return '‹байты›';
     if (typeof v === 'string') return this.text(v);

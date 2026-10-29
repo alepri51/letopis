@@ -2728,7 +2728,7 @@
             "login_at": "t1"
           },
           "expires_at": "через 7 дн",
-          "created_at": "t1",
+          "created_at": "t2",
           "deleted_at": null,
           "$new": true
         }
@@ -3713,7 +3713,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t2",
+          "at": "t3",
           "$changed": [
             "*"
           ]
@@ -3808,7 +3808,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t2",
+          "at": "t3",
           "$new": true
         }
       ],
@@ -3826,7 +3826,7 @@
             "login_at": "t1"
           },
           "expires_at": "через 7 дн",
-          "created_at": "t1",
+          "created_at": "t2",
           "deleted_at": null,
           "$new": false
         }
@@ -3840,7 +3840,7 @@
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Note</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Позвонить поставщику'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
-          "at": "t3",
+          "at": "t4",
           "id": "Note·1",
           "op": "create",
           "rev": 1,
@@ -4828,7 +4828,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t2",
+          "at": "t3",
           "$changed": []
         },
         {
@@ -4846,7 +4846,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t3",
+          "at": "t4",
           "$changed": [
             "*"
           ]
@@ -4941,7 +4941,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t2",
+          "at": "t3",
           "$new": false
         },
         {
@@ -4959,7 +4959,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t3",
+          "at": "t4",
           "$new": true
         }
       ],
@@ -4977,7 +4977,7 @@
             "login_at": "t1"
           },
           "expires_at": "через 7 дн",
-          "created_at": "t1",
+          "created_at": "t2",
           "deleted_at": null,
           "$new": false
         }

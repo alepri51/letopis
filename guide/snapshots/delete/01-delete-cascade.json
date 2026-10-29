@@ -1624,7 +1624,7 @@
           "$deleted": true
         },
         {
-          "at": "t18",
+          "at": "t19",
           "id": "line·2",
           "op": "delete",
           "rev": 2,
@@ -2425,7 +2425,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t18",
+          "at": "t19",
           "$new": true
         }
       ],
@@ -3163,7 +3163,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t18",
+          "at": "t19",
           "$new": false
         }
       ],
@@ -3905,7 +3905,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t18",
+          "at": "t19",
           "$new": false
         }
       ],
@@ -3919,7 +3919,7 @@
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.dishes).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
-          "at": "t19",
+          "at": "t20",
           "id": "Category «Посуда»",
           "op": "delete",
           "rev": 2,
@@ -4042,7 +4042,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t20",
+          "at": "t21",
           "$changed": [
             "rev",
             "links.Category",
@@ -4126,7 +4126,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t21",
+          "at": "t22",
           "$changed": [
             "rev",
             "links.Category",
@@ -4658,7 +4658,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t18",
+          "at": "t19",
           "$new": false
         },
         {
@@ -4676,7 +4676,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t19",
+          "at": "t20",
           "$new": true
         },
         {
@@ -4707,7 +4707,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t20",
+          "at": "t21",
           "$new": true
         },
         {
@@ -4733,7 +4733,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t21",
+          "at": "t22",
           "$new": true
         }
       ],
