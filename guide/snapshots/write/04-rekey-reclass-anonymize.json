@@ -39,7 +39,7 @@
           "class": "line",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»"
+            "Product": "Product «Кружка»·2"
           },
           "owner": "Ромашка",
           "author": "Анна",
@@ -70,7 +70,7 @@
           ]
         },
         {
-          "id": "Product «Кружка»",
+          "id": "Product «Кружка»·2",
           "class": "Product",
           "rev": 1,
           "tenant": "Ромашка",
@@ -146,7 +146,7 @@
           "owner": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»"
+            "Product": "Product «Кружка»·2"
           },
           "data": {
             "qty": 1,
@@ -185,7 +185,7 @@
         },
         {
           "seq": "42",
-          "id": "Product «Кружка»",
+          "id": "Product «Кружка»·2",
           "rev": 1,
           "class": "Product",
           "tenant": "Ромашка",
@@ -254,7 +254,7 @@
           "tenant": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»"
+            "Product": "Product «Кружка»·2"
           },
           "data": {
             "qty": 1,
@@ -280,7 +280,7 @@
       "result": [
         {
           "at": "t6",
-          "id": "Product «Кружка»·2",
+          "id": "Product «Кружка»",
           "op": "rekey",
           "rev": 1,
           "data": {
@@ -297,7 +297,7 @@
           "author": "Анна",
           "tenant": "Ромашка",
           "agent": "service",
-          "moved": "Product «Кружка»"
+          "moved": "Product «Кружка»·2"
         }
       ],
       "error": null,
@@ -362,7 +362,7 @@
           "$changed": []
         },
         {
-          "id": "Product «Кружка»·2",
+          "id": "Product «Кружка»",
           "class": "Product",
           "rev": 1,
           "tenant": "Ромашка",
@@ -393,7 +393,7 @@
           "owner": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»·2"
+            "Product": "Product «Кружка»"
           },
           "data": {
             "qty": 1,
@@ -412,7 +412,7 @@
       ],
       "removed": [
         {
-          "id": "Product «Кружка»",
+          "id": "Product «Кружка»·2",
           "class": "Product",
           "rev": 1,
           "tenant": "Ромашка",
@@ -440,7 +440,7 @@
           "owner": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»"
+            "Product": "Product «Кружка»·2"
           },
           "data": {
             "qty": 1,
@@ -475,7 +475,7 @@
         },
         {
           "seq": "42",
-          "id": "Product «Кружка»",
+          "id": "Product «Кружка»·2",
           "rev": 1,
           "class": "Product",
           "tenant": "Ромашка",
@@ -544,7 +544,7 @@
           "tenant": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»"
+            "Product": "Product «Кружка»·2"
           },
           "data": {
             "qty": 1,
@@ -560,7 +560,7 @@
         },
         {
           "seq": "46",
-          "id": "Product «Кружка»·2",
+          "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
           "tenant": "Ромашка",
@@ -588,7 +588,7 @@
           "tenant": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»·2"
+            "Product": "Product «Кружка»"
           },
           "data": {
             "qty": 1,
@@ -610,7 +610,7 @@
           "tenant": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»"
+            "Product": "Product «Кружка»·2"
           },
           "data": {
             "qty": 1,
@@ -626,7 +626,7 @@
         },
         {
           "seq": "49",
-          "id": "Product «Кружка»",
+          "id": "Product «Кружка»·2",
           "rev": 2,
           "class": "Product",
           "tenant": "Ромашка",
@@ -744,7 +744,7 @@
           "$changed": []
         },
         {
-          "id": "Product «Кружка»·2",
+          "id": "Product «Кружка»",
           "class": "Product",
           "rev": 1,
           "tenant": "Ромашка",
@@ -773,7 +773,7 @@
           "owner": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»·2"
+            "Product": "Product «Кружка»"
           },
           "data": {
             "qty": 1,
@@ -810,7 +810,7 @@
         },
         {
           "seq": "42",
-          "id": "Product «Кружка»",
+          "id": "Product «Кружка»·2",
           "rev": 1,
           "class": "Product",
           "tenant": "Ромашка",
@@ -879,7 +879,7 @@
           "tenant": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»"
+            "Product": "Product «Кружка»·2"
           },
           "data": {
             "qty": 1,
@@ -895,7 +895,7 @@
         },
         {
           "seq": "46",
-          "id": "Product «Кружка»·2",
+          "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
           "tenant": "Ромашка",
@@ -923,7 +923,7 @@
           "tenant": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»·2"
+            "Product": "Product «Кружка»"
           },
           "data": {
             "qty": 1,
@@ -945,7 +945,7 @@
           "tenant": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»"
+            "Product": "Product «Кружка»·2"
           },
           "data": {
             "qty": 1,
@@ -961,7 +961,7 @@
         },
         {
           "seq": "49",
-          "id": "Product «Кружка»",
+          "id": "Product «Кружка»·2",
           "rev": 2,
           "class": "Product",
           "tenant": "Ромашка",
@@ -1103,7 +1103,7 @@
           "$changed": []
         },
         {
-          "id": "Product «Кружка»·2",
+          "id": "Product «Кружка»",
           "class": "Product",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1132,7 +1132,7 @@
           "owner": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»·2"
+            "Product": "Product «Кружка»"
           },
           "data": {
             "qty": 1,
@@ -1169,7 +1169,7 @@
         },
         {
           "seq": "42",
-          "id": "Product «Кружка»",
+          "id": "Product «Кружка»·2",
           "rev": 1,
           "class": "Product",
           "tenant": "Ромашка",
@@ -1238,7 +1238,7 @@
           "tenant": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»"
+            "Product": "Product «Кружка»·2"
           },
           "data": {
             "qty": 1,
@@ -1254,7 +1254,7 @@
         },
         {
           "seq": "46",
-          "id": "Product «Кружка»·2",
+          "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
           "tenant": "Ромашка",
@@ -1282,7 +1282,7 @@
           "tenant": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»·2"
+            "Product": "Product «Кружка»"
           },
           "data": {
             "qty": 1,
@@ -1304,7 +1304,7 @@
           "tenant": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»"
+            "Product": "Product «Кружка»·2"
           },
           "data": {
             "qty": 1,
@@ -1320,7 +1320,7 @@
         },
         {
           "seq": "49",
-          "id": "Product «Кружка»",
+          "id": "Product «Кружка»·2",
           "rev": 2,
           "class": "Product",
           "tenant": "Ромашка",

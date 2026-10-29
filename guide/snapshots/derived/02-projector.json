@@ -350,7 +350,7 @@
           ]
         },
         {
-          "id": "line·2",
+          "id": "line·4",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -398,7 +398,7 @@
           ]
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -731,7 +731,7 @@
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·4",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -775,7 +775,7 @@
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -797,7 +797,7 @@
           "$changed": []
         },
         {
-          "id": "ProductSales·1",
+          "id": "ProductSales·2",
           "class": "ProductSales",
           "rev": 1,
           "tenant": "Ромашка",
@@ -820,7 +820,7 @@
           ]
         },
         {
-          "id": "ProductSales·2",
+          "id": "ProductSales·1",
           "class": "ProductSales",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1180,7 +1180,7 @@
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·4",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1224,7 +1224,7 @@
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1246,7 +1246,7 @@
           "$changed": []
         },
         {
-          "id": "line·4",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1270,7 +1270,7 @@
           ]
         },
         {
-          "id": "ProductSales·1",
+          "id": "ProductSales·2",
           "class": "ProductSales",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1291,7 +1291,7 @@
           "$changed": []
         },
         {
-          "id": "ProductSales·2",
+          "id": "ProductSales·1",
           "class": "ProductSales",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1649,7 +1649,7 @@
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·4",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1693,7 +1693,7 @@
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1715,7 +1715,7 @@
           "$changed": []
         },
         {
-          "id": "line·4",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1737,7 +1737,7 @@
           "$changed": []
         },
         {
-          "id": "ProductSales·1",
+          "id": "ProductSales·2",
           "class": "ProductSales",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1758,7 +1758,7 @@
           "$changed": []
         },
         {
-          "id": "ProductSales·2",
+          "id": "ProductSales·1",
           "class": "ProductSales",
           "rev": 1,
           "tenant": "Ромашка",

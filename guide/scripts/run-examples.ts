@@ -347,7 +347,11 @@ async function runExample(file: string, admin: ReturnType<typeof adminSql>): Pro
   }
   for (const x of [{ state: before }, ...raw]) {
     // сначала журнал (порядок создания), затем текущие строки — метки «Класс·N» идут по времени появления
-    for (const e of [...x.state.log, ...x.state.entity]) labels.row(String(e.id), String(e.class), e.data);
+    // метки строк без названия — по рангу id в классе за весь пример: не зависят ни от порядка журнала внутри
+    // оператора, ни от того, на каком шаге строка впервые попала в снимок (v5-id выводится из ключа)
+    const rows = raw.flatMap((y) => [...y.state.log, ...y.state.entity]).map((e) => ({ id: String(e.id), cls: String(e.class), data: e.data }));
+    rows.sort((a, b) => (a.cls === b.cls ? (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) : a.cls < b.cls ? -1 : 1));
+    for (const e of rows) labels.row(e.id, e.cls, e.data);
     labels.collectTimes(x);
   }
 

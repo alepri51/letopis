@@ -344,7 +344,7 @@
           ]
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -392,7 +392,7 @@
           ]
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -711,7 +711,7 @@
         },
         {
           "seq": "54",
-          "id": "line·2",
+          "id": "line·3",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -755,7 +755,7 @@
         },
         {
           "seq": "56",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -831,7 +831,7 @@
         },
         {
           "at": "t14",
-          "id": "line·2",
+          "id": "line·3",
           "op": "create",
           "rev": 1,
           "data": {
@@ -1146,7 +1146,7 @@
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1190,7 +1190,7 @@
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1507,7 +1507,7 @@
         },
         {
           "seq": "54",
-          "id": "line·2",
+          "id": "line·3",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -1551,7 +1551,7 @@
         },
         {
           "seq": "56",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -1604,6 +1604,27 @@
         },
         {
           "at": "t18",
+          "id": "line·3",
+          "op": "delete",
+          "rev": 2,
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "class": "line",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Сенча»"
+          },
+          "owner": "Ромашка",
+          "author": "Анна",
+          "tenant": "Ромашка",
+          "agent": "service",
+          "$deleted": true
+        },
+        {
+          "at": "t19",
           "id": "line·1",
           "op": "delete",
           "rev": 2,
@@ -1616,27 +1637,6 @@
           "links": {
             "Order": "Order «A-1»",
             "Product": "Product «Чайник»"
-          },
-          "owner": "Ромашка",
-          "author": "Анна",
-          "tenant": "Ромашка",
-          "agent": "service",
-          "$deleted": true
-        },
-        {
-          "at": "t19",
-          "id": "line·2",
-          "op": "delete",
-          "rev": 2,
-          "data": {
-            "qty": 2,
-            "price": 900
-          },
-          "tags": [],
-          "class": "line",
-          "links": {
-            "Order": "Order «A-1»",
-            "Product": "Product «Сенча»"
           },
           "owner": "Ромашка",
           "author": "Анна",
@@ -1917,7 +1917,7 @@
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1983,7 +1983,7 @@
           "at": "t13"
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -2298,7 +2298,7 @@
         },
         {
           "seq": "54",
-          "id": "line·2",
+          "id": "line·3",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -2342,7 +2342,7 @@
         },
         {
           "seq": "56",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -2386,17 +2386,17 @@
         },
         {
           "seq": "58",
-          "id": "line·1",
+          "id": "line·3",
           "rev": 2,
           "class": "line",
           "tenant": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Чайник»"
+            "Product": "Product «Сенча»"
           },
           "data": {
-            "qty": 1,
-            "price": 2500
+            "qty": 2,
+            "price": 900
           },
           "tags": [],
           "op": "delete",
@@ -2408,17 +2408,17 @@
         },
         {
           "seq": "59",
-          "id": "line·2",
+          "id": "line·1",
           "rev": 2,
           "class": "line",
           "tenant": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Сенча»"
+            "Product": "Product «Чайник»"
           },
           "data": {
-            "qty": 2,
-            "price": 900
+            "qty": 1,
+            "price": 2500
           },
           "tags": [],
           "op": "delete",
@@ -2719,7 +2719,7 @@
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -3036,7 +3036,7 @@
         },
         {
           "seq": "54",
-          "id": "line·2",
+          "id": "line·3",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -3080,7 +3080,7 @@
         },
         {
           "seq": "56",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -3124,17 +3124,17 @@
         },
         {
           "seq": "58",
-          "id": "line·1",
+          "id": "line·3",
           "rev": 2,
           "class": "line",
           "tenant": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Чайник»"
+            "Product": "Product «Сенча»"
           },
           "data": {
-            "qty": 1,
-            "price": 2500
+            "qty": 2,
+            "price": 900
           },
           "tags": [],
           "op": "delete",
@@ -3146,17 +3146,17 @@
         },
         {
           "seq": "59",
-          "id": "line·2",
+          "id": "line·1",
           "rev": 2,
           "class": "line",
           "tenant": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Сенча»"
+            "Product": "Product «Чайник»"
           },
           "data": {
-            "qty": 2,
-            "price": 900
+            "qty": 1,
+            "price": 2500
           },
           "tags": [],
           "op": "delete",
@@ -3461,7 +3461,7 @@
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -3778,7 +3778,7 @@
         },
         {
           "seq": "54",
-          "id": "line·2",
+          "id": "line·3",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -3822,7 +3822,7 @@
         },
         {
           "seq": "56",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -3866,17 +3866,17 @@
         },
         {
           "seq": "58",
-          "id": "line·1",
+          "id": "line·3",
           "rev": 2,
           "class": "line",
           "tenant": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Чайник»"
+            "Product": "Product «Сенча»"
           },
           "data": {
-            "qty": 1,
-            "price": 2500
+            "qty": 2,
+            "price": 900
           },
           "tags": [],
           "op": "delete",
@@ -3888,17 +3888,17 @@
         },
         {
           "seq": "59",
-          "id": "line·2",
+          "id": "line·1",
           "rev": 2,
           "class": "line",
           "tenant": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Сенча»"
+            "Product": "Product «Чайник»"
           },
           "data": {
-            "qty": 2,
-            "price": 900
+            "qty": 1,
+            "price": 2500
           },
           "tags": [],
           "op": "delete",
@@ -4196,7 +4196,7 @@
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -4531,7 +4531,7 @@
         },
         {
           "seq": "54",
-          "id": "line·2",
+          "id": "line·3",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -4575,7 +4575,7 @@
         },
         {
           "seq": "56",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -4619,17 +4619,17 @@
         },
         {
           "seq": "58",
-          "id": "line·1",
+          "id": "line·3",
           "rev": 2,
           "class": "line",
           "tenant": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Чайник»"
+            "Product": "Product «Сенча»"
           },
           "data": {
-            "qty": 1,
-            "price": 2500
+            "qty": 2,
+            "price": 900
           },
           "tags": [],
           "op": "delete",
@@ -4641,17 +4641,17 @@
         },
         {
           "seq": "59",
-          "id": "line·2",
+          "id": "line·1",
           "rev": 2,
           "class": "line",
           "tenant": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Сенча»"
+            "Product": "Product «Чайник»"
           },
           "data": {
-            "qty": 2,
-            "price": 900
+            "qty": 1,
+            "price": 2500
           },
           "tags": [],
           "op": "delete",
