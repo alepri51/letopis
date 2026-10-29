@@ -1604,27 +1604,6 @@
         },
         {
           "at": "t18",
-          "id": "line·3",
-          "op": "delete",
-          "rev": 2,
-          "data": {
-            "qty": 2,
-            "price": 900
-          },
-          "tags": [],
-          "class": "line",
-          "links": {
-            "Order": "Order «A-1»",
-            "Product": "Product «Сенча»"
-          },
-          "owner": "Ромашка",
-          "author": "Анна",
-          "tenant": "Ромашка",
-          "agent": "service",
-          "$deleted": true
-        },
-        {
-          "at": "t19",
           "id": "line·1",
           "op": "delete",
           "rev": 2,
@@ -1637,6 +1616,27 @@
           "links": {
             "Order": "Order «A-1»",
             "Product": "Product «Чайник»"
+          },
+          "owner": "Ромашка",
+          "author": "Анна",
+          "tenant": "Ромашка",
+          "agent": "service",
+          "$deleted": true
+        },
+        {
+          "at": "t19",
+          "id": "line·3",
+          "op": "delete",
+          "rev": 2,
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "class": "line",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Сенча»"
           },
           "owner": "Ромашка",
           "author": "Анна",
@@ -2386,28 +2386,6 @@
         },
         {
           "seq": "58",
-          "id": "line·3",
-          "rev": 2,
-          "class": "line",
-          "tenant": "Ромашка",
-          "links": {
-            "Order": "Order «A-1»",
-            "Product": "Product «Сенча»"
-          },
-          "data": {
-            "qty": 2,
-            "price": 900
-          },
-          "tags": [],
-          "op": "delete",
-          "author": "Анна",
-          "agent": "service",
-          "reason": null,
-          "at": "t18",
-          "$new": true
-        },
-        {
-          "seq": "59",
           "id": "line·1",
           "rev": 2,
           "class": "line",
@@ -2419,6 +2397,28 @@
           "data": {
             "qty": 1,
             "price": 2500
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t18",
+          "$new": true
+        },
+        {
+          "seq": "59",
+          "id": "line·3",
+          "rev": 2,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Сенча»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
           },
           "tags": [],
           "op": "delete",
@@ -3124,28 +3124,6 @@
         },
         {
           "seq": "58",
-          "id": "line·3",
-          "rev": 2,
-          "class": "line",
-          "tenant": "Ромашка",
-          "links": {
-            "Order": "Order «A-1»",
-            "Product": "Product «Сенча»"
-          },
-          "data": {
-            "qty": 2,
-            "price": 900
-          },
-          "tags": [],
-          "op": "delete",
-          "author": "Анна",
-          "agent": "service",
-          "reason": null,
-          "at": "t18",
-          "$new": false
-        },
-        {
-          "seq": "59",
           "id": "line·1",
           "rev": 2,
           "class": "line",
@@ -3157,6 +3135,28 @@
           "data": {
             "qty": 1,
             "price": 2500
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t18",
+          "$new": false
+        },
+        {
+          "seq": "59",
+          "id": "line·3",
+          "rev": 2,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Сенча»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
           },
           "tags": [],
           "op": "delete",
@@ -3866,28 +3866,6 @@
         },
         {
           "seq": "58",
-          "id": "line·3",
-          "rev": 2,
-          "class": "line",
-          "tenant": "Ромашка",
-          "links": {
-            "Order": "Order «A-1»",
-            "Product": "Product «Сенча»"
-          },
-          "data": {
-            "qty": 2,
-            "price": 900
-          },
-          "tags": [],
-          "op": "delete",
-          "author": "Анна",
-          "agent": "service",
-          "reason": null,
-          "at": "t18",
-          "$new": false
-        },
-        {
-          "seq": "59",
           "id": "line·1",
           "rev": 2,
           "class": "line",
@@ -3899,6 +3877,28 @@
           "data": {
             "qty": 1,
             "price": 2500
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t18",
+          "$new": false
+        },
+        {
+          "seq": "59",
+          "id": "line·3",
+          "rev": 2,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Сенча»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
           },
           "tags": [],
           "op": "delete",
@@ -4619,28 +4619,6 @@
         },
         {
           "seq": "58",
-          "id": "line·3",
-          "rev": 2,
-          "class": "line",
-          "tenant": "Ромашка",
-          "links": {
-            "Order": "Order «A-1»",
-            "Product": "Product «Сенча»"
-          },
-          "data": {
-            "qty": 2,
-            "price": 900
-          },
-          "tags": [],
-          "op": "delete",
-          "author": "Анна",
-          "agent": "service",
-          "reason": null,
-          "at": "t18",
-          "$new": false
-        },
-        {
-          "seq": "59",
           "id": "line·1",
           "rev": 2,
           "class": "line",
@@ -4652,6 +4630,28 @@
           "data": {
             "qty": 1,
             "price": 2500
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t18",
+          "$new": false
+        },
+        {
+          "seq": "59",
+          "id": "line·3",
+          "rev": 2,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Сенча»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
           },
           "tags": [],
           "op": "delete",

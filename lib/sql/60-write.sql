@@ -1526,13 +1526,16 @@ begin
   perform @SCHEMA@.agg_mark(g.tenant, @SCHEMA@.agg_of(g.data->'resolved'))
   from gone g where g.class = 'Class' and g.data->'resolved' ? 'aggregate';
   v_author := coalesce(c.author, '@SYSTEM@'::uuid);
-  -- надгробия: последний снимок следующей версией с видом delete — одной вставкой на уровень
+  -- надгробия: последний снимок следующей версией с видом delete — одной вставкой на уровень, в порядке id: без
+  -- order by порядок seq (а с ним итог delete() и время at) зависел от плана соединения и менялся от прогона к
+  -- прогону; время now_ts() (volatile) планировщик вычисляет уже после сортировки
   insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash, changed)
   select g.id, g.rev + 1, g.class, g.cv, g.tenant, g.owner, g.links, g.data, g.tags,
          greatest(@SCHEMA@.now_ts(), g.at + interval '1 microsecond'), v_author, c.agent, 'delete', v_reason, null, g.hash, '[]'::jsonb
   from gone g
   join (select d.class, d.tenant from (select distinct x.class, x.tenant from gone x) d
-        where @SCHEMA@.history_on(d.class, d.tenant)) h on h.class = g.class and h.tenant = g.tenant;
+        where @SCHEMA@.history_on(d.class, d.tenant)) h on h.class = g.class and h.tenant = g.tenant
+  order by g.id;
   -- пары «класс, арендатор» для сигнала — строкой «класс арендатор» (пробела нет ни в имени, ни в uuid)
   select coalesce(array_agg(g.id), '{}'), coalesce(array_agg(distinct g.class), '{}'),
          coalesce(array_agg(distinct g.class || ' ' || g.tenant::text), '{}'),
@@ -1566,6 +1569,7 @@ begin
       from d
       join (select dd.class, dd.tenant from (select distinct x.class, x.tenant from d x) dd
             where @SCHEMA@.history_on(dd.class, dd.tenant)) h on h.class = d.class and h.tenant = d.tenant
+      order by d.id  -- надгробия уровня в порядке id, как и на уровне 0
     )
     select coalesce(array_agg(d.id), '{}'), coalesce(array_agg(distinct d.class), '{}'),
            coalesce(array_agg(distinct d.class || ' ' || d.tenant::text), '{}'),

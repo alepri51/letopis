@@ -550,9 +550,12 @@ async function deleteOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<Write
   const tombs = await query<{ row: Record<string, unknown> }>(w,
     `select ${rowJson('l')} as row from ${S}.log l where l.tx = pg_current_xact_id() and l.seq > $1::bigint and l.op = 'delete' order by l.seq`, [mark]);
   const out = tombs.map((r) => toRow(r.row) as WriteRow);
-  // строки классов без журнала (history: false) надгробий не оставляют — берём их из returning
+  // строки классов без журнала (history: false) надгробий не оставляют — берём их из returning, по id (порядок
+  // returning зависит от плана, а итог delete() — нет: надгробия идут по seq, триггер пишет их в порядке id)
   const have = new Set(out.map((r) => r.id));
-  for (const g of gone) {
+  const byId = (a: { row: Record<string, unknown> }, b: { row: Record<string, unknown> }) =>
+    String(a.row.id) < String(b.row.id) ? -1 : String(a.row.id) > String(b.row.id) ? 1 : 0;
+  for (const g of [...gone].sort(byId)) {
     if (have.has(g.row.id as string)) continue;
     const row = toRow(g.row) as WriteRow;
     row.$deleted = true;

@@ -965,9 +965,10 @@ try {
 `delete()` without `{ confirm: true }` is only a preview: the whole cascade closure. Every preview row has `$action`
 (`delete`, `unset` or `restrict`) and `$depth`, the cascade level (0 is the target itself; `unset` and `restrict` rows
 do not have it). With the confirmation, all targets of the step are deleted in one statement, and the cascade applies
-the rules of the ends. The preview does not take permissions into account: a row with `$action: 'delete'` may fail to
-be deleted for a user without the permission (`acl_denied`), so a user interface should ask
-`acl.checkData(class, 'DELETE')`. The rules of the ends:
+the rules of the ends. The result is the tombstones level by level, by id within a level (the journal has them in the
+same order); targets of classes without a journal (`history: false`) come last. The preview does not take permissions
+into account: a row with `$action: 'delete'` may fail to be deleted for a user without the permission (`acl_denied`),
+so a user interface should ask `acl.checkData(class, 'DELETE')`. The rules of the ends:
 
 - `restrict`: deletion is forbidden while the target is referenced (`delete_restricted` with a list of the visible rows
   and the number of the others);
