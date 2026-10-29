@@ -102,6 +102,61 @@ const nuances: Nuance[] = [
     text: 'history: false — нет журнала: ни версий, ни среза на дату, ни восстановления, ни событий подписки.',
     source: 'lib/README.md, раздел 4',
   },
+  {
+    id: 'update-merge',
+    text: 'update сливает патч внутри базы: вложенные объекты — рекурсивно, массивы и скаляры заменяются.',
+    source: 'lib/README.md, раздел 5',
+  },
+  {
+    id: 'update-empty-target',
+    text: 'update без найденных строк возвращает пустой список без ошибки — проверяйте длину ответа.',
+    source: 'lib/README.md, раздел 5',
+  },
+  {
+    id: 'upsert-replaces',
+    text: 'upsert заменяет данные целиком: поля, которых нет в объекте, пропадают; затирает параллельные приращения.',
+    source: 'lib/README.md, раздел 5',
+  },
+  {
+    id: 'links-from-path',
+    text: 'Ссылки создаваемой строки берутся из пути цепочки: db.Shop(shop).Product().create() ссылается на shop.',
+    source: 'lib/README.md, раздел 5',
+  },
+  {
+    id: 'slots-atomic',
+    text: 'Слоты .Роль.set/unset/add/remove меняют links атомарно, без чтения списка.',
+    source: 'lib/README.md, раздел 5',
+  },
+  {
+    id: 'inc-min-check',
+    text: 'inc проверяет правило модели (min) над итогом: уход в минус — invalid_data.',
+    source: 'lib/README.md, раздел 5',
+  },
+  {
+    id: 'inc-start',
+    text: 'inc по отсутствующему полю — ошибка; inc(n, { start }) начинает с заданного значения.',
+    source: 'lib/README.md, раздел 5',
+  },
+  {
+    id: 'rekey-new-id',
+    text: 'rekey — новый id; ссылки переводятся, строки с этим концом в ключе тоже получают новый id.',
+    source: 'lib/README.md, раздел 5',
+  },
+  {
+    id: 'anonymize-history',
+    text: 'anonymize пишет новую версию с [erased] и тегом anonymized; прежние версии остаются в журнале.',
+    source: 'lib/README.md, раздел 5',
+  },
+  {
+    id: 'reason-in-log',
+    text: 'Причина изменения (reason) записывается в версию журнала рядом с автором и временем.',
+    source: 'lib/README.md, раздел 11',
+  },
+  {
+    id: 'batch-own-queue',
+    text: 'Очередь батча своя у каждого фасада (db, db.as(), db.begin()); план исполняется от имени поставившего фасада.',
+    source: 'lib/README.md, раздел 8',
+  },
 ];
 
 export default nuances;

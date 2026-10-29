@@ -1,0 +1,2083 @@
+{
+  "id": "write/01-create-update-upsert",
+  "title": "Создать, изменить, создать-или-заменить",
+  "summary": "create только создаёт, update только правит, upsert создаёт или заменяет целиком. Глагол ничего не делает сам: план исполняет терминал (rows, first, ids, count), и весь план — одна транзакция.",
+  "covers": [
+    "chain.create",
+    "chain.update",
+    "chain.upsert",
+    "chain.first",
+    "export.gte",
+    "error.no_key",
+    "nuance.update-merge",
+    "nuance.update-empty-target",
+    "nuance.upsert-replaces"
+  ],
+  "tables": [
+    "entity",
+    "log"
+  ],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": null
+  },
+  "steps": [
+    {
+      "title": "Модель магазина и магазин",
+      "text": null,
+      "code": "[shop] = await db.Shop().create({ name: 'Ромашка', city: 'Казань' }).rows();\nreturn shop;",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[shop] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, city: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Казань'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> shop;</span></span></code></pre>",
+      "result": {
+        "at": "t1",
+        "id": "Shop «Ромашка»",
+        "op": "create",
+        "rev": 1,
+        "data": {
+          "city": "Казань",
+          "name": "Ромашка"
+        },
+        "tags": [],
+        "class": "Shop",
+        "links": {},
+        "owner": "Ромашка",
+        "author": "Анна",
+        "tenant": "Ромашка",
+        "agent": "service"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": [
+            "*"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Два товара",
+      "text": "Ссылка на магазин берётся из пути цепочки `db.Shop(shop).Product()`.",
+      "code": "[kettle] = await db.Shop(shop).Product()\n  .create({ sku: 'K-1', title: 'Чайник', price: 2500, specs: { color: 'белый', volume: 1.7 }, labels: ['хит'] }).rows();\nreturn db.Shop(shop).Product().create({ sku: 'M-1', title: 'Кружка', price: 400 }).rows();",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[kettle] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  .</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'K-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2500</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, specs: { color: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'белый'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, volume: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1.7</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'хит'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'M-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Кружка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">400</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span></code></pre>",
+      "result": [
+        {
+          "at": "t3",
+          "id": "Product «Кружка»",
+          "op": "create",
+          "rev": 1,
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "class": "Product",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "owner": "Ромашка",
+          "author": "Анна",
+          "tenant": "Ромашка",
+          "agent": "service"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Product «Чайник»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Product «Кружка»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$changed": [
+            "*"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "42",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$new": true
+        },
+        {
+          "seq": "43",
+          "id": "Product «Кружка»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "update сливает патч с данными",
+      "text": "Вложенный объект `specs` сливается: меняем только цвет, объём остался. Массив `labels` и скаляры заменяются целиком. Слияние идёт внутри базы, поэтому параллельные правки разных полей не теряются.",
+      "code": "db.Product(kettle).update({ specs: { color: 'чёрный' }, labels: ['хит', 'новинка'] }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ specs: { color: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'чёрный'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'хит'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'новинка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "result": [
+        {
+          "at": "t4",
+          "id": "Product «Чайник»",
+          "op": "update",
+          "rev": 2,
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "class": "Product",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "owner": "Ромашка",
+          "author": "Анна",
+          "tenant": "Ромашка",
+          "agent": "service"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Product «Чайник»",
+          "class": "Product",
+          "rev": 2,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$changed": [
+            "rev",
+            "data.specs",
+            "data.labels",
+            "op",
+            "at"
+          ]
+        },
+        {
+          "id": "Product «Кружка»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "42",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "43",
+          "id": "Product «Кружка»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "44",
+          "id": "Product «Чайник»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "update по фильтру правит все найденные",
+      "text": "Шаг с фильтром `price ≥ 1000` нашёл один товар — он и изменён. Без фильтра `update` правит все строки шага.",
+      "code": "db.Shop(shop).Product({ price: gte(1000) }).update({ title: 'Чайник стеклянный' }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">gte</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник стеклянный'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "result": [
+        {
+          "at": "t5",
+          "id": "Product «Чайник»",
+          "op": "update",
+          "rev": 3,
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "class": "Product",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "owner": "Ромашка",
+          "author": "Анна",
+          "tenant": "Ромашка",
+          "agent": "service"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Product «Чайник»",
+          "class": "Product",
+          "rev": 3,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$changed": [
+            "rev",
+            "data.title",
+            "at"
+          ]
+        },
+        {
+          "id": "Product «Кружка»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "42",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "43",
+          "id": "Product «Кружка»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "44",
+          "id": "Product «Чайник»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$new": false
+        },
+        {
+          "seq": "45",
+          "id": "Product «Чайник»",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Ничего не нашлось — пустой ответ, не ошибка",
+      "text": "Если шаг не нашёл строк, `update` возвращает пустой список. Проверяйте длину ответа.",
+      "code": "db.Shop(shop).Product({ price: gte(100_000) }).update({ title: 'Золотой чайник' }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">gte</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">100_000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Золотой чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "result": [],
+      "error": null,
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Product «Чайник»",
+          "class": "Product",
+          "rev": 3,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$changed": []
+        },
+        {
+          "id": "Product «Кружка»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "42",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "43",
+          "id": "Product «Кружка»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "44",
+          "id": "Product «Чайник»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$new": false
+        },
+        {
+          "seq": "45",
+          "id": "Product «Чайник»",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "upsert: такого нет — создать",
+      "text": "`upsert` — один оператор `INSERT … ON CONFLICT`: гонки «проверил, что нет, — создал» не бывает. Ответ несёт `$upsert`.",
+      "code": "db.Shop().upsert({ name: 'Лютик', city: 'Уфа' }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, city: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Уфа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "result": [
+        {
+          "at": "t6",
+          "id": "Shop «Лютик»",
+          "op": "create",
+          "rev": 1,
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "class": "Shop",
+          "links": {},
+          "owner": "Ромашка",
+          "author": "Анна",
+          "tenant": "Ромашка",
+          "agent": "service",
+          "$upsert": "created"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Product «Чайник»",
+          "class": "Product",
+          "rev": 3,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$changed": []
+        },
+        {
+          "id": "Product «Кружка»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$changed": []
+        },
+        {
+          "id": "Shop «Лютик»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t6",
+          "$changed": [
+            "*"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "42",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "43",
+          "id": "Product «Кружка»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "44",
+          "id": "Product «Чайник»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$new": false
+        },
+        {
+          "seq": "45",
+          "id": "Product «Чайник»",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$new": false
+        },
+        {
+          "seq": "46",
+          "id": "Shop «Лютик»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t6",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "upsert: то же самое — без изменений",
+      "text": null,
+      "code": "db.Shop().upsert({ name: 'Лютик', city: 'Уфа' }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, city: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Уфа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "result": [
+        {
+          "at": "t6",
+          "id": "Shop «Лютик»",
+          "op": "create",
+          "rev": 1,
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "class": "Shop",
+          "links": {},
+          "owner": "Ромашка",
+          "author": "Анна",
+          "tenant": "Ромашка",
+          "agent": "service",
+          "$upsert": "unchanged"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Product «Чайник»",
+          "class": "Product",
+          "rev": 3,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$changed": []
+        },
+        {
+          "id": "Product «Кружка»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$changed": []
+        },
+        {
+          "id": "Shop «Лютик»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t6",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "42",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "43",
+          "id": "Product «Кружка»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "44",
+          "id": "Product «Чайник»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$new": false
+        },
+        {
+          "seq": "45",
+          "id": "Product «Чайник»",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$new": false
+        },
+        {
+          "seq": "46",
+          "id": "Shop «Лютик»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t6",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "upsert заменяет целиком",
+      "text": "Объект передаётся целиком: поля, которых нет в переданном объекте, пропадают. Здесь не передали `city` — город исчез. Для денег `upsert` не годится: он затирает параллельные приращения.",
+      "code": "db.Shop().upsert({ name: 'Лютик' }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "result": [
+        {
+          "at": "t7",
+          "id": "Shop «Лютик»",
+          "op": "update",
+          "rev": 2,
+          "data": {
+            "name": "Лютик"
+          },
+          "tags": [],
+          "class": "Shop",
+          "links": {},
+          "owner": "Ромашка",
+          "author": "Анна",
+          "tenant": "Ромашка",
+          "agent": "service",
+          "$upsert": "updated"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Product «Чайник»",
+          "class": "Product",
+          "rev": 3,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$changed": []
+        },
+        {
+          "id": "Product «Кружка»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$changed": []
+        },
+        {
+          "id": "Shop «Лютик»",
+          "class": "Shop",
+          "rev": 2,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t7",
+          "$changed": [
+            "rev",
+            "data.city",
+            "op",
+            "at"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "42",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "43",
+          "id": "Product «Кружка»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "44",
+          "id": "Product «Чайник»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$new": false
+        },
+        {
+          "seq": "45",
+          "id": "Product «Чайник»",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$new": false
+        },
+        {
+          "seq": "46",
+          "id": "Shop «Лютик»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t6",
+          "$new": false
+        },
+        {
+          "seq": "47",
+          "id": "Shop «Лютик»",
+          "rev": 2,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t7",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "upsert без ключа невозможен",
+      "text": "У покупателя нет ключа — найти «тот же» объект не по чему. Отказ `no_key` приходит ещё до обращения к базе.",
+      "code": "db.Customer().upsert({ name: 'Ольга', email: 'olga@mail.ru' }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ольга'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'olga@mail.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "result": null,
+      "error": {
+        "code": "no_key",
+        "message": "letopis: no_key: upsert(): у класса Customer нет ключа — сравнивать не с чем, используйте create()",
+        "detail": null,
+        "expected": true
+      },
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Product «Чайник»",
+          "class": "Product",
+          "rev": 3,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$changed": []
+        },
+        {
+          "id": "Product «Кружка»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$changed": []
+        },
+        {
+          "id": "Shop «Лютик»",
+          "class": "Shop",
+          "rev": 2,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t7",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "42",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "43",
+          "id": "Product «Кружка»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "44",
+          "id": "Product «Чайник»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$new": false
+        },
+        {
+          "seq": "45",
+          "id": "Product «Чайник»",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$new": false
+        },
+        {
+          "seq": "46",
+          "id": "Shop «Лютик»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t6",
+          "$new": false
+        },
+        {
+          "seq": "47",
+          "id": "Shop «Лютик»",
+          "rev": 2,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t7",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null
+    }
+  ]
+}

@@ -33,6 +33,7 @@ export default defineConfig({
           { text: '1. Что такое letopis', link: '/basics/what-is' },
           { text: '2. Установка и подключение', link: '/install/' },
           { text: '3. Модели', link: '/models/' },
+          { text: '4. Запись', link: '/write/' },
         ],
       },
       {
