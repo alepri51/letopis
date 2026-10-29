@@ -1,0 +1,637 @@
+{
+  "id": "basics/01-first-object",
+  "title": "Первый объект: создать, изменить, удалить, вернуть",
+  "summary": "Как одна запись живёт в letopis. Текущее состояние объекта лежит в таблице entity, а каждая его версия — в журнале log. Журнал только растёт: правка и удаление не стирают прошлое.",
+  "covers": [
+    "export.syncModels",
+    "model.hub",
+    "chain.create",
+    "chain.update",
+    "chain.versions",
+    "chain.delete",
+    "chain.restore",
+    "chain.rows",
+    "nuance.delete-preview"
+  ],
+  "tables": [
+    "entity",
+    "log"
+  ],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "title": "Описываем класс «Клиент»",
+      "text": "Прежде чем хранить клиентов, базе нужно описание класса: какие у него поля. `syncModels` записывает описание в базу. Данных клиентов пока нет — таблицы пусты.",
+      "code": "await syncModels(db, [Client], { apply: true });",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, [Client], { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span></code></pre>",
+      "result": null,
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "title": "Создаём клиента Анну",
+      "text": "В `entity` появилась строка: это Анна сейчас, версия `rev = 1`. В журнале `log` — запись `create` с теми же данными, автором и временем.",
+      "code": "[anna] = await db.Client().create({ name: 'Анна', phone: '+7 900 111-22-33' }).rows();\nreturn anna;",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[anna] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Client</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Анна'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, phone: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'+7 900 111-22-33'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> anna;</span></span></code></pre>",
+      "result": {
+        "at": "t1",
+        "id": "Client «Анна»",
+        "op": "create",
+        "rev": 1,
+        "data": {
+          "name": "Анна",
+          "phone": "+7 900 111-22-33"
+        },
+        "tags": [],
+        "class": "Client",
+        "links": {},
+        "owner": "Ромашка",
+        "author": "Анна",
+        "tenant": "Ромашка",
+        "agent": "service"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Client «Анна»",
+          "class": "Client",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 111-22-33"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": [
+            "*"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "35",
+          "id": "Client «Анна»",
+          "rev": 1,
+          "class": "Client",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 111-22-33"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": true
+        }
+      ],
+      "secret": []
+    },
+    {
+      "title": "Меняем телефон",
+      "text": "Строка в `entity` та же, но теперь `rev = 2` и новый телефон (подсвечен). В журнал добавилась вторая запись — `update`. Первая версия никуда не делась.",
+      "code": "db.Client(anna).update({ phone: '+7 900 444-55-66' }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Client</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(anna).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ phone: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'+7 900 444-55-66'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "result": [
+        {
+          "at": "t2",
+          "id": "Client «Анна»",
+          "op": "update",
+          "rev": 2,
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "class": "Client",
+          "links": {},
+          "owner": "Ромашка",
+          "author": "Анна",
+          "tenant": "Ромашка",
+          "agent": "service"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "Client «Анна»",
+          "class": "Client",
+          "rev": 2,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$changed": [
+            "rev",
+            "data.phone",
+            "op",
+            "at"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "35",
+          "id": "Client «Анна»",
+          "rev": 1,
+          "class": "Client",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 111-22-33"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "36",
+          "id": "Client «Анна»",
+          "rev": 2,
+          "class": "Client",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$new": true
+        }
+      ],
+      "secret": []
+    },
+    {
+      "title": "Смотрим историю",
+      "text": "`versions()` читает журнал: обе версии Анны по порядку. Таблицы не меняются — это только чтение.",
+      "code": "db.Client(anna).versions()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Client</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(anna).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">versions</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "result": [
+        {
+          "at": "t1",
+          "id": "Client «Анна»",
+          "op": "create",
+          "rev": 1,
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 111-22-33"
+          },
+          "tags": [],
+          "class": "Client",
+          "links": {},
+          "owner": "Ромашка",
+          "author": "Анна",
+          "tenant": "Ромашка",
+          "agent": "service"
+        },
+        {
+          "at": "t2",
+          "id": "Client «Анна»",
+          "op": "update",
+          "rev": 2,
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "class": "Client",
+          "links": {},
+          "owner": "Ромашка",
+          "author": "Анна",
+          "tenant": "Ромашка",
+          "agent": "service"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "Client «Анна»",
+          "class": "Client",
+          "rev": 2,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "35",
+          "id": "Client «Анна»",
+          "rev": 1,
+          "class": "Client",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 111-22-33"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "36",
+          "id": "Client «Анна»",
+          "rev": 2,
+          "class": "Client",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        }
+      ],
+      "secret": []
+    },
+    {
+      "title": "Удаление, шаг 1: превью",
+      "text": "`delete()` без подтверждения ничего не удаляет. Он показывает, что удалится: саму Анну (`$action: delete`) и всё, что удалилось бы вместе с ней.",
+      "code": "db.Client(anna).delete().rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Client</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(anna).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "result": [
+        {
+          "at": "t2",
+          "id": "Client «Анна»",
+          "op": "update",
+          "rev": 2,
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "class": "Client",
+          "links": {},
+          "owner": "Ромашка",
+          "author": "Анна",
+          "tenant": "Ромашка",
+          "agent": "service",
+          "$action": "delete",
+          "$depth": 0
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "Client «Анна»",
+          "class": "Client",
+          "rev": 2,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "35",
+          "id": "Client «Анна»",
+          "rev": 1,
+          "class": "Client",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 111-22-33"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "36",
+          "id": "Client «Анна»",
+          "rev": 2,
+          "class": "Client",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        }
+      ],
+      "secret": []
+    },
+    {
+      "title": "Удаление, шаг 2: по-настоящему",
+      "text": "С `{ confirm: true }` строка уходит из `entity`, а в журнале появляется надгробие — запись `delete`. История Анны осталась целиком.",
+      "code": "db.Client(anna).delete({ confirm: true }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Client</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(anna).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "result": [
+        {
+          "at": "t3",
+          "id": "Client «Анна»",
+          "op": "delete",
+          "rev": 3,
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "class": "Client",
+          "links": {},
+          "owner": "Ромашка",
+          "author": "Анна",
+          "tenant": "Ромашка",
+          "agent": "service",
+          "$deleted": true
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [
+        {
+          "id": "Client «Анна»",
+          "class": "Client",
+          "rev": 2,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2"
+        }
+      ],
+      "log": [
+        {
+          "seq": "35",
+          "id": "Client «Анна»",
+          "rev": 1,
+          "class": "Client",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 111-22-33"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "36",
+          "id": "Client «Анна»",
+          "rev": 2,
+          "class": "Client",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "37",
+          "id": "Client «Анна»",
+          "rev": 3,
+          "class": "Client",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$new": true
+        }
+      ],
+      "secret": []
+    },
+    {
+      "title": "Возвращаем Анну",
+      "text": "`restore()` возвращает последний снимок новой версией: `rev = 4`, id прежний. В журнале теперь четыре записи — вся жизнь объекта.",
+      "code": "db.Client(anna).restore().rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Client</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(anna).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "result": [
+        {
+          "at": "t4",
+          "id": "Client «Анна»",
+          "op": "restore",
+          "rev": 4,
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "class": "Client",
+          "links": {},
+          "owner": "Ромашка",
+          "author": "Анна",
+          "tenant": "Ромашка",
+          "agent": "service"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "Client «Анна»",
+          "class": "Client",
+          "rev": 4,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "restore",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$changed": [
+            "*"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "35",
+          "id": "Client «Анна»",
+          "rev": 1,
+          "class": "Client",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 111-22-33"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "36",
+          "id": "Client «Анна»",
+          "rev": 2,
+          "class": "Client",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "37",
+          "id": "Client «Анна»",
+          "rev": 3,
+          "class": "Client",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "38",
+          "id": "Client «Анна»",
+          "rev": 4,
+          "class": "Client",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "restore",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$new": true
+        }
+      ],
+      "secret": []
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+/* Код в плеере примеров: двойная тема shiki (светлая и тёмная), как у блоков кода VitePress. */
+html.dark .lt-ex-code span {
+  color: var(--shiki-dark) !important;
+}
+html.dark .lt-ex-code pre {
+  background-color: var(--vp-code-block-bg) !important;
+}
+.lt-ex-code pre {
+  background-color: var(--vp-code-block-bg) !important;
+}
+
+/* Таблицам данных нужно место: на широком экране колонка текста шире стандартной. */
+@media (min-width: 1280px) {
+  .VPDoc.has-aside .content-container {
+    max-width: 880px !important;
+  }
+}

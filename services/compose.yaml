@@ -1,0 +1,33 @@
+# Локальный стенд документации letopis: PostgreSQL 18, сайт и (по этапам) сервисы-примеры.
+#
+#   docker compose -f services/compose.yaml up --build
+#
+# Сайт — http://127.0.0.1:8080. Все порты открыты только на 127.0.0.1: стенд для своей машины,
+# наружу его не публикуют. Порт базы 15440 не пересекается с тестовыми 15433 и 15432.
+name: letopis-guide
+
+services:
+  pg:
+    image: postgres:18
+    environment:
+      POSTGRES_PASSWORD: guide
+      POSTGRES_DB: letopis
+    ports: ['127.0.0.1:15440:5432']
+    volumes: ['pgdata:/var/lib/postgresql']
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d letopis']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  guide:
+    build:
+      context: ..
+      dockerfile: guide/Dockerfile
+    ports: ['127.0.0.1:8080:8080']
+    depends_on:
+      pg:
+        condition: service_healthy
+
+volumes:
+  pgdata: {}
