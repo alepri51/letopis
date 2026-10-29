@@ -1,0 +1,84 @@
+{
+  "id": "mcp/02-options",
+  "title": "Опции сервера MCP: лимиты ответа и доступ к классам прав",
+  "summary": "maxRows и maxBytes ограничивают ответ инструмента — агенту не уйдёт вся база разом, а продолжение — по курсору. allowAclWrite открывает запись в классы прав, allowSystemAdmin — работу в арендаторе System.",
+  "covers": [
+    "mcpopt.maxRows",
+    "mcpopt.maxBytes",
+    "mcpopt.allowAclWrite",
+    "mcpopt.allowSystemAdmin"
+  ],
+  "tables": [],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": null
+  },
+  "steps": [
+    {
+      "title": "maxRows: не больше двух строк за ответ",
+      "text": "Строк больше — в ответе `more: true` и `cursor`: следующий вызов с ним продолжит.",
+      "code": "await seedShop(db);\nconst page = (await tool(db, { maxRows: 2 }, 'letopis_query', { class: 'Product' })) as { rows: { data: { title: string } }[]; more?: boolean; cursor?: unknown };\nreturn { 'строк': page.rows.length, more: page.more ?? false, 'курсор есть': page.cursor !== undefined };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> seedShop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> page</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> tool</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, { maxRows: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'letopis_query'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { class: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Product'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">rows</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">data</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">title</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } }[]; </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">more</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">?:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> boolean</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">; </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">cursor</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">?:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> unknown</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> };</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'строк'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: page.rows.</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, more: page.more </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">??</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> false</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'курсор есть'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: page.cursor </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!==</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> undefined</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> };</span></span></code></pre>",
+      "result": {
+        "строк": 2,
+        "more": true,
+        "курсор есть": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "maxBytes: ответ не больше 1000 байт",
+      "text": null,
+      "code": "const page = (await tool(db, { maxBytes: 1000 }, 'letopis_query', { class: 'Product' })) as { rows: unknown[]; more?: boolean };\nreturn { 'строк': page.rows.length, more: page.more ?? false };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> page</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> tool</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, { maxBytes: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'letopis_query'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { class: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Product'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">rows</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> unknown</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[]; </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">more</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">?:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> boolean</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> };</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'строк'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: page.rows.</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, more: page.more </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">??</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> false</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> };</span></span></code></pre>",
+      "result": {
+        "строк": 1,
+        "more": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Запись в классы прав — только с allowAclWrite",
+      "text": "Без опции агент не может завести себе ресурс или правило: `acl_denied`.",
+      "code": "({\n        'без опции': await tool(db, { write: true }, 'letopis_write', { op: 'create', class: 'Resource', data: { alias: 'x:API', category: 'API', pattern: { endpoint: 'x.*' } } }),\n        'с allowAclWrite': await tool(db, { write: true, allowAclWrite: true }, 'letopis_write', { op: 'create', class: 'Resource', data: { alias: 'y:API', category: 'API', pattern: { endpoint: 'y.*' } } })\n          .then((r) => ((r as { rows?: unknown[] })?.rows ? 'создан' : r)),\n      })",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'без опции'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> tool</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, { write: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'letopis_write'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { op: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'create'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, class: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Resource'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, data: { alias: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'x:API'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, category: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'API'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, pattern: { endpoint: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'x.*'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } } }),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'с allowAclWrite'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> tool</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, { write: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, allowAclWrite: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'letopis_write'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { op: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'create'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, class: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Resource'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, data: { alias: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'y:API'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, category: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'API'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, pattern: { endpoint: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'y.*'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } } })</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">          .</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ((r </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">rows</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">?:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> unknown</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[] })?.rows </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">?</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'создан'</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> :</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r)),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      })</span></span></code></pre>",
+      "result": {
+        "без опции": {
+          "ошибка": "acl_denied"
+        },
+        "с allowAclWrite": "создан"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "allowSystemAdmin",
+      "text": "Для обычного пользователя ничего не меняет; без опции сессия в арендаторе System (системный администратор) получает `user_session_required`.",
+      "code": "tool(db, { allowSystemAdmin: true }, 'letopis_model', {}).then((r) => ((r as { classes?: unknown[] })?.classes ? 'сервер открыт' : r))",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">tool</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, { allowSystemAdmin: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'letopis_model'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, {}).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ((r </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">classes</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">?:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> unknown</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[] })?.classes </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">?</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'сервер открыт'</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> :</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r))</span></span></code></pre>",
+      "result": "сервер открыт",
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null
+    }
+  ]
+}
