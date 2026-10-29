@@ -1,0 +1,708 @@
+{
+  "id": "install/01-up-and-connect",
+  "title": "Установка, первый арендатор и вход",
+  "summary": "up() ставит схему: таблицы, проверки и системные объекты. createTenant заводит арендатора и его первого пользователя. Приложение подключается отдельной ролью и действует от имени пользователя.",
+  "covers": [
+    "export.up",
+    "up.dsn",
+    "up.schema",
+    "up.quiet",
+    "export.createTenant",
+    "connect.dsn",
+    "connect.schema",
+    "connect.apiKey",
+    "connect.token",
+    "connect.allowBypassRls",
+    "db.as",
+    "db.schema",
+    "db.tenant",
+    "db.token",
+    "error.bypass_rls",
+    "nuance.up-idempotent",
+    "nuance.service-key-once"
+  ],
+  "tables": [
+    "counts",
+    "secret"
+  ],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": {
+      "entity": {},
+      "log": {},
+      "secret": {}
+    }
+  },
+  "steps": [
+    {
+      "title": "Ставим схему",
+      "text": "`up()` вызывают от администратора (`dsn.admin` — его строка подключения). Схема пустая, поэтому `up()` создаёт всё: три таблицы, системные классы, аккаунты System и сервиса, ресурсы и правила доступа. В `secret` — ключ сервиса (`APIKEY`) и служебный ключ установки (`KEY`). Сам ключ сервиса приходит в ответе — `serviceKey`: его нужно сохранить, повторно он не выдаётся.",
+      "code": "r = await up({ dsn: dsn.admin, schema, quiet: true });\nreturn { schema: r.schema, created: r.created, revision: r.revision, signals: r.signals, serviceKey: r.serviceKey };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">r </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { schema: r.schema, created: r.created, revision: r.revision, signals: r.signals, serviceKey: r.serviceKey };</span></span></code></pre>",
+      "result": {
+        "schema": "v2.g_install_01_up_and_connect",
+        "created": true,
+        "revision": 6,
+        "signals": "class",
+        "serviceKey": "‹токен 1›"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "System",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 27,
+            "signals": "class"
+          },
+          "expires_at": null,
+          "created_at": "t1",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "service",
+          "kind": "APIKEY",
+          "ident": "‹токен 2›",
+          "meta": {},
+          "expires_at": null,
+          "created_at": "t2",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": {
+        "entity": {
+          "Account": 2,
+          "Class": 5,
+          "Resource": 12,
+          "rule": 8
+        },
+        "log": {
+          "create": 27
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1
+        }
+      }
+    },
+    {
+      "title": "Повторный up() безопасен",
+      "text": "Второй вызов ничего не дублирует: `created: false`, данные на месте (сводка не изменилась), а ключ сервиса не выдаётся — `serviceKey: null`. Поэтому `up()` можно вызывать при каждом старте приложения.",
+      "code": "const again = await up({ dsn: dsn.admin, schema, quiet: true });\nreturn { created: again.created, serviceKey: again.serviceKey };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> again</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { created: again.created, serviceKey: again.serviceKey };</span></span></code></pre>",
+      "result": {
+        "created": false,
+        "serviceKey": null
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "System",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 27,
+            "signals": "class"
+          },
+          "expires_at": null,
+          "created_at": "t1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "service",
+          "kind": "APIKEY",
+          "ident": "‹токен 2›",
+          "meta": {},
+          "expires_at": null,
+          "created_at": "t2",
+          "deleted_at": null,
+          "$new": false
+        }
+      ],
+      "counts": {
+        "entity": {
+          "Account": 2,
+          "Class": 5,
+          "Resource": 12,
+          "rule": 8
+        },
+        "log": {
+          "create": 27
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1
+        }
+      }
+    },
+    {
+      "title": "Первый арендатор и пользователь",
+      "text": "Арендатор — это «чьи данные»: магазин, салон, компания. `createTenant` одной транзакцией заводит арендатора «Ромашка», правила «своим можно всё», пользователя Анну с членством, пароль и сессию. В сводке: +2 аккаунта (арендатор и Анна), +1 членство (`member`), +3 правила (`rule`), пароль и сессия в `secret`.",
+      "code": "tenant = await createTenant(admin, schema, {\n  name: 'Ромашка',\n  user: { name: 'Анна', login: 'anna@romashka.ru', password: 'Ромашка-2026!' },\n});\nreturn tenant;",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">tenant </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> createTenant</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(admin, schema, {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  user: { name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Анна'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, login: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'anna@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка-2026!'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">});</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tenant;</span></span></code></pre>",
+      "result": {
+        "tenant": "Ромашка",
+        "user": "Анна",
+        "token": "‹токен 3›",
+        "created": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "System",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 33,
+            "signals": "class"
+          },
+          "expires_at": null,
+          "created_at": "t1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "service",
+          "kind": "APIKEY",
+          "ident": "‹токен 2›",
+          "meta": {},
+          "expires_at": null,
+          "created_at": "t2",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "PASSWORD",
+          "ident": "anna@romashka.ru",
+          "meta": {
+            "confirmed": true
+          },
+          "expires_at": null,
+          "created_at": "t3",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "Ромашка",
+            "login_at": "t4"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t4",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 5,
+          "member": 1,
+          "Resource": 12,
+          "rule": 11
+        },
+        "log": {
+          "create": 33
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 1
+        }
+      }
+    },
+    {
+      "title": "Сервис входит по ключу и действует от имени Анны",
+      "text": "Приложение подключается своей ролью (`dsn.app`, она состоит в `letopis_app`) по ключу сервиса. Сессий стало на две больше: вход сервиса по ключу — тоже сессия, а `verifyPassword` проверил пароль и выдал сессию Анне. `svc.as()` — тот же пул соединений, но запросы идут от имени Анны в её арендаторе.",
+      "code": "const svc = await connect({ dsn: dsn.app, schema, apiKey: r.serviceKey! });\nconst login = await svc.auth.verifyPassword({ identifier: 'anna@romashka.ru', password: 'Ромашка-2026!' });\nconst db = await svc.as(login!.account, { tenant: tenant.tenant });\nreturn { schema: db.schema, tenant: db.tenant, account: login!.account };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> svc</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.app, schema, apiKey: r.serviceKey</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> login</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyPassword</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ identifier: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'anna@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка-2026!'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> db</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">as</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(login</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.account, { tenant: tenant.tenant });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { schema: db.schema, tenant: db.tenant, account: login</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.account };</span></span></code></pre>",
+      "result": {
+        "schema": "v2.g_install_01_up_and_connect",
+        "tenant": "Ромашка",
+        "account": "Анна"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "System",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 33,
+            "signals": "class"
+          },
+          "expires_at": null,
+          "created_at": "t1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "service",
+          "kind": "APIKEY",
+          "ident": "‹токен 2›",
+          "meta": {},
+          "expires_at": null,
+          "created_at": "t2",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "PASSWORD",
+          "ident": "anna@romashka.ru",
+          "meta": {
+            "confirmed": true
+          },
+          "expires_at": null,
+          "created_at": "t3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "Ромашка",
+            "login_at": "t4"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t4",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "service",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "id·5",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "t5"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t5",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "t6"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t6",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 5,
+          "member": 1,
+          "Resource": 12,
+          "rule": 11
+        },
+        "log": {
+          "create": 33
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 3
+        }
+      }
+    },
+    {
+      "title": "Своё подключение по токену сессии",
+      "text": "Другой процесс может подключиться прямо по токену сессии Анны. `db.tenant` — арендатор этой сессии.",
+      "code": "const anna = await connect({ dsn: dsn.app, schema, token: tenant.token! });\nreturn { tenant: anna.tenant, token: anna.token };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> anna</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.app, schema, token: tenant.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { tenant: anna.tenant, token: anna.token };</span></span></code></pre>",
+      "result": {
+        "tenant": "Ромашка",
+        "token": "‹токен 3›"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "System",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 33,
+            "signals": "class"
+          },
+          "expires_at": null,
+          "created_at": "t1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "service",
+          "kind": "APIKEY",
+          "ident": "‹токен 2›",
+          "meta": {},
+          "expires_at": null,
+          "created_at": "t2",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "PASSWORD",
+          "ident": "anna@romashka.ru",
+          "meta": {
+            "confirmed": true
+          },
+          "expires_at": null,
+          "created_at": "t3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "Ромашка",
+            "login_at": "t4"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t4",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "service",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "id·5",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "t5"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t5",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "t6"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t6",
+          "deleted_at": null,
+          "$new": false
+        }
+      ],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 5,
+          "member": 1,
+          "Resource": 12,
+          "rule": 11
+        },
+        "log": {
+          "create": 33
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 3
+        }
+      }
+    },
+    {
+      "title": "Роль в обход проверок доступа не пускают",
+      "text": "Администратор базы обходит политики доступа (RLS). Если приложение по ошибке подключится им, изоляция арендаторов пропала бы. Поэтому `connect()` такую роль отклоняет: ошибка `bypass_rls`.",
+      "code": "await connect({ dsn: dsn.admin, schema, token: tenant.token! });",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema, token: tenant.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span></code></pre>",
+      "result": null,
+      "error": {
+        "code": "bypass_rls",
+        "message": "letopis: bypass_rls: роль подключения обходит RLS (суперпользователь, BYPASSRLS или член роли-владельца); администраторское подключение — только с опцией allowBypassRls",
+        "expected": true
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "System",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 33,
+            "signals": "class"
+          },
+          "expires_at": null,
+          "created_at": "t1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "service",
+          "kind": "APIKEY",
+          "ident": "‹токен 2›",
+          "meta": {},
+          "expires_at": null,
+          "created_at": "t2",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "PASSWORD",
+          "ident": "anna@romashka.ru",
+          "meta": {
+            "confirmed": true
+          },
+          "expires_at": null,
+          "created_at": "t3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "Ромашка",
+            "login_at": "t4"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t4",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "service",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "id·5",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "t5"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t5",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "t6"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t6",
+          "deleted_at": null,
+          "$new": false
+        }
+      ],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 5,
+          "member": 1,
+          "Resource": 12,
+          "rule": 11
+        },
+        "log": {
+          "create": 33
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 3
+        }
+      }
+    },
+    {
+      "title": "Администраторское подключение — только явно",
+      "text": "Загрузчику и проекторам администраторское подключение нужно. Его разрешают явно — `allowBypassRls: true`, и библиотека печатает предупреждение. Держите такое подключение в отдельном процессе, не в веб-приложении. (`warnings(…)` — помощник документации: собирает напечатанные предупреждения.)",
+      "code": "const { result: adm, warnings: printed } = await warnings(() =>\n  connect({ dsn: dsn.admin, schema, token: tenant.token!, allowBypassRls: true }));\nreturn { tenant: adm.tenant, printed };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">result</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">adm</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">warnings</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">printed</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> warnings</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">  connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema, token: tenant.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, allowBypassRls: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }));</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { tenant: adm.tenant, printed };</span></span></code></pre>",
+      "result": {
+        "tenant": "Ромашка",
+        "printed": [
+          "letopis: администраторское подключение — RLS не действует, данные всех арендаторов видны"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "System",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 33,
+            "signals": "class"
+          },
+          "expires_at": null,
+          "created_at": "t1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "service",
+          "kind": "APIKEY",
+          "ident": "‹токен 2›",
+          "meta": {},
+          "expires_at": null,
+          "created_at": "t2",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "PASSWORD",
+          "ident": "anna@romashka.ru",
+          "meta": {
+            "confirmed": true
+          },
+          "expires_at": null,
+          "created_at": "t3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "Ромашка",
+            "login_at": "t4"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t4",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "service",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "id·5",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "t5"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t5",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "t6"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t6",
+          "deleted_at": null,
+          "$new": false
+        }
+      ],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 5,
+          "member": 1,
+          "Resource": 12,
+          "rule": 11
+        },
+        "log": {
+          "create": 33
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 3
+        }
+      }
+    }
+  ]
+}

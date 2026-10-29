@@ -6,7 +6,7 @@
  * Код шага, который видит читатель, — это тело функции `run` из исходника примера: что показано, то и исполнено.
  * Строки с комментарием `// скрыть` в показ не попадают.
  */
-import type { Db, UpResult } from 'letopis';
+import type { ConnectOptions, Db, UpResult } from 'letopis';
 import type postgres from 'postgres';
 
 export interface Ctx {
@@ -24,6 +24,10 @@ export interface Ctx {
   dsn: { admin: string; app: string };
   /** Логин и пароль первого пользователя. */
   user: { login: string; password: string };
+  /** Подключение, которое раннер сам закроет после примера (`connect` с теми же опциями). */
+  connect: (opts: ConnectOptions) => Promise<Db>;
+  /** Выполнить функцию и собрать предупреждения `console.warn`, которые она напечатала. */
+  warnings: <T>(fn: () => Promise<T>) => Promise<{ result: T; warnings: string[] }>;
 }
 
 export interface Expect {
@@ -33,7 +37,8 @@ export interface Expect {
   check?: (result: any, ctx: Ctx) => void | Promise<void>;
 }
 
-export type Table = 'entity' | 'log' | 'secret';
+/** entity, log, secret — строки таблиц; counts — сводка: сколько строк каких классов, версий каких действий, секретов каких видов. */
+export type Table = 'entity' | 'log' | 'secret' | 'counts';
 
 export interface Step {
   /** Что делаем — коротко, как заголовок шага. */
@@ -54,6 +59,11 @@ export interface Example {
   tables?: Table[];
   /** Классы, чьи строки показывать, даже если они служебные (например, `Class`). */
   classes?: string[];
+  /**
+   * Подготовка схемы: `tenant` (по умолчанию) — установка с арендатором «Ромашка», сервис и вход Анны;
+   * `none` — пустая схема: пример сам вызывает `up()` (глава об установке); `ctx.up`, `ctx.svc`, `ctx.db` не заданы.
+   */
+  setup?: 'tenant' | 'none';
   steps: Step[];
 }
 

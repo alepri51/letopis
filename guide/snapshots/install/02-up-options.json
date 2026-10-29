@@ -1,0 +1,185 @@
+{
+  "id": "install/02-up-options",
+  "title": "Опции up(): сиды, режим сигналов, свой ключ, история, обновление, установка заново",
+  "summary": "up() настраивает установку опциями. Часть настроек хранится в самой схеме (режим сигналов), поэтому повторный up() без опции их не меняет. fresh ставит схему заново и стирает данные.",
+  "covers": [
+    "up.seeds",
+    "up.signals",
+    "up.serviceKey",
+    "up.allowReset",
+    "up.history",
+    "up.upgrade",
+    "up.fresh",
+    "up.waitTimeoutMs",
+    "signals.tenant",
+    "signals.opaque",
+    "nuance.signals-mode-sticky",
+    "nuance.fresh-drops-data"
+  ],
+  "tables": [
+    "counts"
+  ],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": {
+      "entity": {},
+      "log": {},
+      "secret": {}
+    }
+  },
+  "steps": [
+    {
+      "title": "Установка с демо-доменом салона и своими настройками",
+      "text": "`seeds: ['booking']` добавляет готовые классы салона (мастера, услуги, брони) — в сводке классов стало больше. `signals` — режим сигналов, `serviceKey` — свой ключ вместо случайного, `allowReset` разрешает `db.reset()`, `history` — политика хранения истории для классов без своей, `waitTimeoutMs` — сколько ждать базу.",
+      "code": "const r = await up({\n  dsn: dsn.admin, schema, quiet: true, waitTimeoutMs: 10_000,\n  seeds: ['booking'],\n  signals: 'tenant',\n  serviceKey: MY_KEY,\n  allowReset: true,\n  history: { all: '1 day', daily: '1 week', weekly: '1 month', monthly: '1 year', yearly: 'forever', tz: 'Europe/Moscow' },\n});\nreturn { created: r.created, signals: r.signals, ourKey: r.serviceKey === MY_KEY };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  dsn: dsn.admin, schema, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, waitTimeoutMs: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">10_000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  seeds: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'booking'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  signals: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'tenant'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  serviceKey: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">MY_KEY</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  allowReset: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  history: { all: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'1 day'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, daily: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'1 week'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, weekly: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'1 month'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, monthly: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'1 year'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, yearly: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'forever'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, tz: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Europe/Moscow'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">});</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { created: r.created, signals: r.signals, ourKey: r.serviceKey </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> MY_KEY</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> };</span></span></code></pre>",
+      "result": {
+        "created": true,
+        "signals": "tenant",
+        "ourKey": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 2,
+          "Class": 23,
+          "Resource": 12,
+          "rule": 8
+        },
+        "log": {
+          "create": 45
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1
+        }
+      }
+    },
+    {
+      "title": "Режим сигналов хранится в схеме",
+      "text": "Повторный `up()` без опции `signals` режим не трогает — он остался `tenant`.",
+      "code": "const r = await up({ dsn: dsn.admin, schema, quiet: true });\nreturn { signals: r.signals };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { signals: r.signals };</span></span></code></pre>",
+      "result": {
+        "signals": "tenant"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 2,
+          "Class": 23,
+          "Resource": 12,
+          "rule": 8
+        },
+        "log": {
+          "create": 45
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1
+        }
+      }
+    },
+    {
+      "title": "Сменить режим — только явно",
+      "text": "С опцией режим меняется: `opaque` скрывает из сигналов имена классов. После смены режима процессы приложения перезапускают: режим читается при подключении.",
+      "code": "const r = await up({ dsn: dsn.admin, schema, quiet: true, signals: 'opaque' });\nreturn { signals: r.signals };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, signals: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'opaque'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { signals: r.signals };</span></span></code></pre>",
+      "result": {
+        "signals": "opaque"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 2,
+          "Class": 23,
+          "Resource": 12,
+          "rule": 8
+        },
+        "log": {
+          "create": 45
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1
+        }
+      }
+    },
+    {
+      "title": "upgrade на свежей схеме ничего не делает",
+      "text": "`upgrade: true` нужен, когда новая версия пакета принесла новую ревизию схемы: тогда он применяет миграции. Здесь ревизия уже текущая — миграций нет, `upgraded: false`.",
+      "code": "const r = await up({ dsn: dsn.admin, schema, quiet: true, upgrade: true });\nreturn { upgraded: r.upgraded, revision: r.revision, migrations: r.migrations };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, upgrade: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { upgraded: r.upgraded, revision: r.revision, migrations: r.migrations };</span></span></code></pre>",
+      "result": {
+        "upgraded": false,
+        "revision": 6,
+        "migrations": []
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 2,
+          "Class": 23,
+          "Resource": 12,
+          "rule": 8
+        },
+        "log": {
+          "create": 45
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1
+        }
+      }
+    },
+    {
+      "title": "fresh — поставить заново (данные теряются)",
+      "text": "`fresh: true` удаляет схему и ставит её с нуля. Классы салона исчезли из сводки, потому что `seeds` не указан. Ключ сервиса выдан новый — старый больше не работает.",
+      "code": "const r = await up({ dsn: dsn.admin, schema, quiet: true, fresh: true });\nreturn { created: r.created, signals: r.signals, newKey: r.serviceKey !== null && r.serviceKey !== MY_KEY };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, fresh: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { created: r.created, signals: r.signals, newKey: r.serviceKey </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!==</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> null</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> &#x26;&#x26;</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.serviceKey </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!==</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> MY_KEY</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> };</span></span></code></pre>",
+      "result": {
+        "created": true,
+        "signals": "class",
+        "newKey": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 2,
+          "Class": 5,
+          "Resource": 12,
+          "rule": 8
+        },
+        "log": {
+          "create": 27
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1
+        }
+      }
+    }
+  ]
+}

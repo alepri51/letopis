@@ -29,7 +29,10 @@ export default defineConfig({
     sidebar: [
       {
         text: 'Основы',
-        items: [{ text: '1. Что такое letopis', link: '/basics/what-is' }],
+        items: [
+          { text: '1. Что такое letopis', link: '/basics/what-is' },
+          { text: '2. Установка и подключение', link: '/install/' },
+        ],
       },
       {
         text: 'Сервисы-примеры',

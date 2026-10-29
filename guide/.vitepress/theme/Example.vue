@@ -13,18 +13,20 @@ interface Step {
   code: string;
   html: string;
   result: unknown;
-  error: { code: string | null; message: string } | null;
+  error: { code: string | null; message: string; expected?: boolean } | null;
   entity: Rec[];
   removed: Rec[];
   log: Rec[];
   secret: Rec[];
+  counts?: Counts | null;
 }
+interface Counts { entity: Record<string, number>; log: Record<string, number>; secret: Record<string, number> }
 interface Snapshot {
   id: string;
   title: string;
   summary: string | null;
   tables: string[];
-  initial: { entity: Rec[]; log: Rec[]; secret: Rec[] };
+  initial: { entity: Rec[]; log: Rec[]; secret: Rec[]; counts?: Counts | null };
   steps: Step[];
 }
 
@@ -81,6 +83,22 @@ const resultLines = computed(() => resultText.value.split('\n'));
 const RESULT_LINES = 14;
 
 const show = (t: string) => snap.value?.tables.includes(t);
+// Сводка: сколько строк каждого класса, версий каждого действия, секретов каждого вида — и прирост за шаг.
+const countsNow = computed(() => step.value?.counts ?? null);
+const countsPrev = computed(() => (i.value > 0 ? snap.value?.steps[i.value - 1].counts : snap.value?.initial.counts) ?? null);
+const COUNT_GROUPS: [keyof Counts, string, string][] = [
+  ['entity', 'entity — объекты по классам', 'класс'],
+  ['log', 'log — версии по действиям', 'действие'],
+  ['secret', 'secret — секреты по видам', 'вид'],
+];
+const countRows = (g: keyof Counts) => {
+  const now = countsNow.value?.[g] ?? {}, prev = countsPrev.value?.[g] ?? {};
+  return [...new Set([...Object.keys(prev), ...Object.keys(now)])].sort().map((k) => ({
+    k,
+    n: now[k] ?? 0,
+    d: (now[k] ?? 0) - (prev[k] ?? 0),
+  }));
+};
 const isNew = (row: Rec) => row.$changed?.includes('*');
 // Строки, которые были ещё до первого шага (служебные описания классов и т. п.) и на этом шаге не менялись, — свёрнуты.
 const showOld = ref(false);
@@ -126,7 +144,7 @@ function onKey(e: KeyboardEvent) {
             v-for="(s, k) in snap.steps"
             :key="k"
             class="lt-dot"
-            :class="{ active: k === i, done: k < i, failed: !!s.error }"
+            :class="{ active: k === i, done: k < i, failed: !!s.error && !s.error.expected, expected: !!s.error?.expected }"
             :title="s.title"
             @click="go(k)"
           >{{ k + 1 }}</button>
@@ -140,7 +158,8 @@ function onKey(e: KeyboardEvent) {
         <p v-if="step.text" class="lt-ex-text" v-html="md(step.text)" />
         <div class="lt-ex-code" v-html="step.html" />
 
-        <div v-if="step.error" class="lt-ex-error">
+        <div v-if="step.error" class="lt-ex-error" :class="{ expected: step.error.expected }">
+          <div v-if="step.error.expected" class="lt-ex-expected">Отказ — так и задумано: шаг показывает, как база защищается.</div>
           <strong>Ошибка<template v-if="step.error.code"> <code>{{ step.error.code }}</code></template>:</strong>
           {{ step.error.message }}
         </div>
@@ -179,6 +198,24 @@ function onKey(e: KeyboardEvent) {
           <button v-if="resultLines.length > RESULT_LINES" class="lt-link" @click="showAllResult = !showAllResult">
             {{ showAllResult ? 'свернуть' : `показать всё (${resultLines.length} строк)` }}
           </button>
+        </div>
+      </div>
+
+      <div v-if="show('counts') && countsNow" class="lt-ex-table">
+        <div class="lt-ex-label">Сводка по таблицам после шага (в скобках — сколько добавилось на этом шаге)</div>
+        <div class="lt-counts">
+          <div v-for="[g, label, col] in COUNT_GROUPS" :key="g" class="lt-counts-col">
+            <table>
+              <thead><tr><th colspan="2">{{ label }}</th></tr></thead>
+              <tbody>
+                <tr v-if="!countRows(g).length"><td colspan="2" class="lt-empty">пусто</td></tr>
+                <tr v-for="row in countRows(g)" :key="row.k" :class="{ 'lt-new': row.d > 0, 'lt-removed-soft': row.d < 0 }">
+                  <td><code>{{ row.k }}</code></td>
+                  <td class="lt-num">{{ row.n }}<span v-if="row.d" class="lt-delta"> ({{ row.d > 0 ? '+' : '' }}{{ row.d }})</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -355,6 +392,9 @@ function onKey(e: KeyboardEvent) {
 .lt-dot.done { background: var(--vp-c-brand-soft); }
 .lt-dot.active { background: var(--vp-c-brand-1); color: var(--vp-c-white); border-color: var(--vp-c-brand-1); }
 .lt-dot.failed { border-color: var(--vp-c-danger-1); }
+.lt-dot.expected { border: 2px dashed var(--vp-c-warning-1); }
+.lt-ex-error.expected { background: var(--vp-c-warning-soft); color: var(--vp-c-text-1); }
+.lt-ex-expected { font-size: 13px; margin-bottom: 4px; color: var(--vp-c-warning-1); font-weight: 600; }
 .lt-ex-step { border-top: 1px dashed var(--vp-c-divider); padding-top: 12px; }
 .lt-ex-step-title { font-weight: 700; font-size: 16px; }
 .lt-ex-text { margin: 6px 0 10px; }
@@ -403,6 +443,10 @@ function onKey(e: KeyboardEvent) {
 .lt-op.op-delete, .lt-op.op-purge { background: var(--vp-c-danger-soft); }
 .lt-op.op-restore { background: var(--vp-c-brand-soft); }
 .lt-link { background: none; border: 0; color: var(--vp-c-brand-1); cursor: pointer; padding: 0; font-size: 13px; }
+.lt-counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+.lt-num { text-align: right !important; white-space: nowrap; }
+.lt-delta { color: var(--vp-c-green-1); font-weight: 600; }
+.lt-removed-soft td { background: var(--vp-c-danger-soft); }
 .lt-ex-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; font-size: 12px; color: var(--vp-c-text-2); }
 .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 4px; }
 .sw.new { background: var(--vp-c-green-soft); border: 1px solid var(--vp-c-green-2); }

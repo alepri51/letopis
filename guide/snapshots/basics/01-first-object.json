@@ -20,7 +20,8 @@
   "initial": {
     "entity": [],
     "log": [],
-    "secret": []
+    "secret": [],
+    "counts": null
   },
   "steps": [
     {
@@ -33,7 +34,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "counts": null
     },
     {
       "title": "Создаём клиента Анну",
@@ -103,7 +105,8 @@
           "$new": true
         }
       ],
-      "secret": []
+      "secret": [],
+      "counts": null
     },
     {
       "title": "Меняем телефон",
@@ -197,7 +200,8 @@
           "$new": true
         }
       ],
-      "secret": []
+      "secret": [],
+      "counts": null
     },
     {
       "title": "Смотрим историю",
@@ -303,7 +307,8 @@
           "$new": false
         }
       ],
-      "secret": []
+      "secret": [],
+      "counts": null
     },
     {
       "title": "Удаление, шаг 1: превью",
@@ -394,7 +399,8 @@
           "$new": false
         }
       ],
-      "secret": []
+      "secret": [],
+      "counts": null
     },
     {
       "title": "Удаление, шаг 2: по-настоящему",
@@ -502,7 +508,8 @@
           "$new": true
         }
       ],
-      "secret": []
+      "secret": [],
+      "counts": null
     },
     {
       "title": "Возвращаем Анну",
@@ -631,7 +638,8 @@
           "$new": true
         }
       ],
-      "secret": []
+      "secret": [],
+      "counts": null
     }
   ]
 }

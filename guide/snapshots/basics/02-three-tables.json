@@ -895,7 +895,8 @@
       }
     ],
     "log": [],
-    "secret": []
+    "secret": [],
+    "counts": null
   },
   "steps": [
     {
@@ -1813,7 +1814,8 @@
       ],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "counts": null
     },
     {
       "title": "Вход по паролю — новая строка в secret",
@@ -2730,7 +2732,8 @@
           "deleted_at": null,
           "$new": true
         }
-      ]
+      ],
+      "counts": null
     },
     {
       "title": "Описание класса — тоже объект",
@@ -3827,7 +3830,8 @@
           "deleted_at": null,
           "$new": false
         }
-      ]
+      ],
+      "counts": null
     },
     {
       "title": "Первая заметка",
@@ -4977,7 +4981,8 @@
           "deleted_at": null,
           "$new": false
         }
-      ]
+      ],
+      "counts": null
     }
   ]
 }

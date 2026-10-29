@@ -17,7 +17,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { codeToHtml } from 'shiki';
 import { up, connect, LetopisError } from 'letopis';
-import type { Db } from 'letopis';
+import type { ConnectOptions, Db } from 'letopis';
 import { ADMIN_DSN, appDsn, ensureDatabase, ensureAppRole, adminSql, ident } from '../../lib/test/_harness.ts';
 import type { Ctx, Example, Table } from '../kit/example.ts';
 
@@ -27,6 +27,10 @@ const SNAPSHOTS = join(ROOT, 'snapshots');
 const SYSTEM = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
 const USER = { name: 'Анна', login: 'anna@romashka.ru', password: 'Ромашка-2026!' };
 const TENANT = 'Ромашка';
+// Версия пакета и хэш его SQL-файлов меняются от выпуска к выпуску — в снимке они метки, иначе снимки менялись бы
+// при каждом поднятии версии. «до 1.4.0» в тексте предупреждения — не текущая версия, его не трогаем.
+const PKG_VERSION = JSON.parse(readFileSync(join(ROOT, '..', 'lib', 'package.json'), 'utf8')).version as string;
+const VERSION_RX = new RegExp(`(?<!до )${PKG_VERSION.replace(/[.]/g, '\\.')}(?![0-9])`, 'g');
 
 const args = process.argv.slice(2);
 const check = args.includes('--check');
@@ -76,10 +80,24 @@ function stepCodes(file: string): string[] {
 // ---------- снимок данных ----------
 
 type Rec = Record<string, unknown>;
-interface State { entity: Rec[]; log: Rec[]; secret: Rec[] }
+interface Counts { entity: Record<string, number>; log: Record<string, number>; secret: Record<string, number> }
+interface State { entity: Rec[]; log: Rec[]; secret: Rec[]; counts: Counts | null }
 
 async function capture(admin: ReturnType<typeof adminSql>, schema: string, base: Baseline, ex: Example): Promise<State> {
   const q = ident(schema);
+  const exists = (await admin.unsafe('select 1 from pg_namespace where nspname = $1', [schema])).length > 0;
+  const tables = ex.tables ?? ['entity', 'log'];
+  if (!exists) return { entity: [], log: [], secret: [], counts: tables.includes('counts') ? { entity: {}, log: {}, secret: {} } : null };
+  const group = async (sql: string) =>
+    Object.fromEntries((await admin.unsafe(sql)).map((x) => [String(x.k), Number(x.n)])) as Record<string, number>;
+  const counts = tables.includes('counts')
+    ? {
+        entity: await group(`select class k, count(*) n from ${q}.entity group by class order by class`),
+        log: await group(`select op k, count(*) n from ${q}.log group by op order by op`),
+        secret: await group(`select kind k, count(*) n from ${q}.secret where deleted_at is null and kind <> 'LOCK' group by kind order by kind`),
+      }
+    : null;
+  if (!tables.some((t) => t !== 'counts')) return { entity: [], log: [], secret: [], counts };
   const show = (cls: string) => !base.classes.has(cls) || (ex.classes ?? []).includes(cls);
   const entity = (await admin.unsafe(`
     select e.id, e.class, e.rev, e.tenant, e.owner, e.links, e.data, e.tags, e.op, e.author, e.agent, e.reason, e.at
@@ -89,16 +107,17 @@ async function capture(admin: ReturnType<typeof adminSql>, schema: string, base:
     select seq, id, rev, class, tenant, links, data, tags, op, author, agent, reason, at
     from ${q}.log where seq > $1 order by seq`, [base.seq])).filter((r) => show(String(r.class)));
   // строки-замки (LOCK) — служебные, в показ не идут; id строки secret читателю ничего не говорит
-  const secret = (ex.tables ?? []).includes('secret')
+  const secret = tables.includes('secret')
     ? (await admin.unsafe(`
         select id, account, kind, ident, meta, expires_at, created_at, deleted_at
         from ${q}.secret where kind <> 'LOCK' order by created_at, kind`))
         .filter((r) => !base.secrets.has(String(r.id)) || r.deleted_at)
     : [];
   return {
-    entity: entity.map((r) => ({ ...r })),
-    log: log.map((r) => ({ ...r })),
+    entity: tables.includes('entity') ? entity.map((r) => ({ ...r })) : [],
+    log: tables.includes('log') ? log.map((r) => ({ ...r })) : [],
     secret: secret.map(({ id: _id, ...r }) => ({ ...r })),
+    counts,
   };
 }
 
@@ -156,6 +175,7 @@ class Labels {
     return `t${uniq.indexOf(ms) + 1}`;
   }
   text(s: string): string {
+    s = s.replace(VERSION_RX, '‹версия пакета›').replace(/sql=[0-9a-f]{16}/g, 'sql=‹хэш SQL›');
     if (/^lts_[0-9a-f]+$/i.test(s) || (s.length >= 40 && /^[A-Za-z0-9_\-.]+$/.test(s) && /\d/.test(s))) {
       if (!this.tokens.has(s)) this.tokens.set(s, `‹токен ${this.tokens.size + 1}›`);
       return this.tokens.get(s)!;
@@ -214,11 +234,12 @@ interface StepRecord {
   code: string;
   html: string;
   result: unknown;
-  error: { code: string | null; message: string } | null;
+  error: { code: string | null; message: string; expected?: boolean } | null;
   entity: Rec[];
   removed: Rec[];
   log: Rec[];
   secret: Rec[];
+  counts: Counts | null;
 }
 
 async function runExample(file: string, admin: ReturnType<typeof adminSql>): Promise<{ id: string; snapshot: unknown; failures: string[] }> {
@@ -230,20 +251,47 @@ async function runExample(file: string, admin: ReturnType<typeof adminSql>): Pro
 
   const now = async (): Promise<number> => ((await admin.unsafe('select clock_timestamp() t'))[0].t as Date).getTime();
   const setupAt = await now();
-  const r = await up({ dsn: ADMIN_DSN, schema, fresh: true, quiet: true, tenant: { name: TENANT, user: USER } });
-  await ensureAppRole(admin as never);
-  const svc: Db = await connect({ dsn: appDsn(), schema: r.schema, apiKey: r.serviceKey! });
-  const login = await svc.auth.verifyPassword({ identifier: USER.login, password: USER.password });
-  const db = await svc.as(login!.account, { tenant: r.tenant!.tenant });
-  const ctx: Ctx = { schema: r.schema, up: r, svc, db, admin: admin as never, dsn: { admin: ADMIN_DSN, app: appDsn() }, user: USER };
-
-  const q = ident(r.schema);
-  const base: Baseline = {
-    classes: new Set((await admin.unsafe(`select distinct class from ${q}.entity`)).map((x) => String(x.class))),
-    seq: Number((await admin.unsafe(`select coalesce(max(seq), 0) s from ${q}.log`))[0].s),
-    secrets: new Set((await admin.unsafe(`select id from ${q}.secret`)).map((x) => String(x.id))),
+  const opened: Db[] = [];
+  const track = async (opts: ConnectOptions) => {
+    // роль приложения нужна до первого подключения от её имени (пример сам ставит схему — setup: none)
+    if (opts.dsn === appDsn()) await ensureAppRole(admin as never).catch(() => {});
+    const d = await connect(opts);
+    opened.push(d);
+    return d;
   };
-  const before = await capture(admin, r.schema, base, ex); // состояние «до первого шага»
+  const warnings: Ctx['warnings'] = async (fn) => {
+    const seen: string[] = [];
+    const orig = console.warn;
+    console.warn = (...a: unknown[]) => void seen.push(a.map(String).join(' '));
+    try {
+      return { result: await fn(), warnings: seen };
+    } finally {
+      console.warn = orig;
+    }
+  };
+  let r: Awaited<ReturnType<typeof up>> | undefined;
+  let login: { account: string } | null = null;
+  const ctx = { schema, admin: admin as never, dsn: { admin: ADMIN_DSN, app: appDsn() }, user: USER, connect: track, warnings } as unknown as Ctx;
+  if ((ex.setup ?? 'tenant') === 'tenant') {
+    r = await up({ dsn: ADMIN_DSN, schema, fresh: true, quiet: true, tenant: { name: TENANT, user: USER } });
+    await ensureAppRole(admin as never);
+    const svc = await track({ dsn: appDsn(), schema: r.schema, apiKey: r.serviceKey! });
+    login = await svc.auth.verifyPassword({ identifier: USER.login, password: USER.password });
+    Object.assign(ctx, { up: r, svc, db: await svc.as(login!.account, { tenant: r.tenant!.tenant }) });
+  } else {
+    await admin.unsafe(`drop schema if exists ${ident(schema)} cascade`);
+  }
+
+  const q = ident(schema);
+  const has = (await admin.unsafe('select 1 from pg_namespace where nspname = $1', [schema])).length > 0;
+  const base: Baseline = has
+    ? {
+        classes: new Set((await admin.unsafe(`select distinct class from ${q}.entity`)).map((x) => String(x.class))),
+        seq: Number((await admin.unsafe(`select coalesce(max(seq), 0) s from ${q}.log`))[0].s),
+        secrets: new Set((await admin.unsafe(`select id from ${q}.secret`)).map((x) => String(x.id))),
+      }
+    : { classes: new Set(), seq: 0, secrets: new Set() };
+  const before = await capture(admin, schema, base, ex); // состояние «до первого шага»
   const startAt = await now();
   const raw: { result: unknown; error: StepRecord['error']; state: State }[] = [];
 
@@ -260,18 +308,21 @@ async function runExample(file: string, admin: ReturnType<typeof adminSql>): Pro
       if (!step.expect?.error) failures.push(`шаг ${i + 1} «${step.title}»: ${code ?? ''} ${(e as Error).message}`);
       else if (step.expect.error !== code) failures.push(`шаг ${i + 1} «${step.title}»: ожидалась ошибка ${step.expect.error}, получена ${code}`);
     }
-    raw.push({ result, error, state: await capture(admin, r.schema, base, ex) });
+    raw.push({ result, error, state: await capture(admin, schema, base, ex) });
   }
   const endAt = await now();
 
   // метки: сначала аккаунты (арендатор, пользователь, сервис), затем строки в порядке появления
   const labels = new Labels({ setup: setupAt - 1000, start: startAt, end: endAt });
   labels.name(SYSTEM, 'System');
-  for (const a of await admin.unsafe(`select id, data from ${q}.entity where class = 'Account'`)) {
+  const accounts = (await admin.unsafe('select 1 from pg_namespace where nspname = $1', [schema])).length
+    ? await admin.unsafe(`select id, data from ${q}.entity where class = 'Account'`)
+    : [];
+  for (const a of accounts) {
     const d = a.data as Rec;
     const nm = String(d.name ?? d.login ?? '');
-    if (a.id === r.tenant!.tenant) labels.name(String(a.id), nm || TENANT);
-    else if (a.id === login!.account) labels.name(String(a.id), nm || USER.name);
+    if (r && a.id === r.tenant!.tenant) labels.name(String(a.id), nm || TENANT);
+    else if (login && a.id === login.account) labels.name(String(a.id), nm || USER.name);
     else if (nm) labels.name(String(a.id), nm);
   }
   for (const x of [{ state: before }, ...raw]) {
@@ -298,20 +349,22 @@ async function runExample(file: string, admin: ReturnType<typeof adminSql>): Pro
       code,
       html: await codeToHtml(code, { lang: 'ts', themes: { light: 'github-light', dark: 'github-dark' } }),
       result: labels.value(x.result),
-      error: x.error ? { code: x.error.code, message: labels.text(x.error.message) } : null,
+      error: x.error ? { code: x.error.code, message: labels.text(x.error.message), expected: ex.steps[i].expect?.error === x.error.code } : null,
       entity: labels.value(entity) as Rec[],
       removed: labels.value(removed) as Rec[],
       log: (labels.value(x.state.log) as Rec[]).map((l, k) => ({ ...l, $new: newLog.some((n) => n.seq === x.state.log[k].seq) })),
       secret: (labels.value(x.state.secret) as Rec[]).map((z, k) => ({ ...z, $new: newSecret.includes(x.state.secret[k]) })),
+      counts: x.state.counts,
     });
   }
 
-  await svc.close();
+  for (const d of opened.reverse()) await d.close().catch(() => {});
   await admin.unsafe(`drop schema if exists ${q} cascade`);
   const initial = {
     entity: labels.value(before.entity) as Rec[],
     log: labels.value(before.log) as Rec[],
     secret: labels.value(before.secret) as Rec[],
+    counts: before.counts,
   };
   return {
     id,
