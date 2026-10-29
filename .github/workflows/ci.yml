@@ -116,6 +116,10 @@ jobs:
         working-directory: guide
         run: npm run coverage
 
+      - name: Nuances page up to date
+        working-directory: guide
+        run: npx tsx scripts/gen-nuances.ts --check
+
       - name: Build site
         working-directory: guide
         run: npm run build

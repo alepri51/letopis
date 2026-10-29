@@ -46,6 +46,9 @@ export default defineConfig({
           { text: '13. Массовая загрузка и импорт', link: '/load/' },
           { text: '14. Эксплуатация', link: '/ops/' },
           { text: '15. ИИ-агенты: MCP', link: '/mcp/' },
+          { text: '17. Все нюансы', link: '/nuances/' },
+          { text: '18. Переход с 0.21', link: '/migrate/' },
+          { text: 'Глоссарий', link: '/glossary/' },
         ],
       },
       {
