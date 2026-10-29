@@ -234,7 +234,7 @@ interface StepRecord {
   code: string;
   html: string;
   result: unknown;
-  error: { code: string | null; message: string; expected?: boolean } | null;
+  error: { code: string | null; message: string; detail?: unknown; expected?: boolean } | null;
   entity: Rec[];
   removed: Rec[];
   log: Rec[];
@@ -304,7 +304,9 @@ async function runExample(file: string, admin: ReturnType<typeof adminSql>): Pro
       else await step.expect?.check?.(result, ctx);
     } catch (e) {
       const code = e instanceof LetopisError ? e.code : ((e as { code?: string }).code ?? null);
-      error = { code, message: (e as Error).message };
+      // подробности: нарушения проверки данных (ValidationError.issues) и detail ошибки letopis
+      const more = e as { issues?: unknown; detail?: unknown };
+      error = { code, message: (e as Error).message, detail: more.issues ?? more.detail ?? null };
       if (!step.expect?.error) failures.push(`шаг ${i + 1} «${step.title}»: ${code ?? ''} ${(e as Error).message}`);
       else if (step.expect.error !== code) failures.push(`шаг ${i + 1} «${step.title}»: ожидалась ошибка ${step.expect.error}, получена ${code}`);
     }
@@ -349,7 +351,9 @@ async function runExample(file: string, admin: ReturnType<typeof adminSql>): Pro
       code,
       html: await codeToHtml(code, { lang: 'ts', themes: { light: 'github-light', dark: 'github-dark' } }),
       result: labels.value(x.result),
-      error: x.error ? { code: x.error.code, message: labels.text(x.error.message), expected: ex.steps[i].expect?.error === x.error.code } : null,
+      error: x.error
+        ? { code: x.error.code, message: labels.text(x.error.message), detail: labels.value(x.error.detail ?? null), expected: ex.steps[i].expect?.error === x.error.code }
+        : null,
       entity: labels.value(entity) as Rec[],
       removed: labels.value(removed) as Rec[],
       log: (labels.value(x.state.log) as Rec[]).map((l, k) => ({ ...l, $new: newLog.some((n) => n.seq === x.state.log[k].seq) })),

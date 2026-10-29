@@ -13,7 +13,7 @@ interface Step {
   code: string;
   html: string;
   result: unknown;
-  error: { code: string | null; message: string; expected?: boolean } | null;
+  error: { code: string | null; message: string; detail?: unknown; expected?: boolean } | null;
   entity: Rec[];
   removed: Rec[];
   log: Rec[];
@@ -58,6 +58,11 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 const md = (s: string | null) =>
   s ? esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>') : '';
 
+// Результат { $mermaid } — схема (например, ER-схема модели из db.describe()).
+const resultMermaid = computed(() => {
+  const r = step.value?.result as Rec | null;
+  return r && typeof r === 'object' && typeof r.$mermaid === 'string' ? (r.$mermaid as string) : null;
+});
 // Результат-строки (то, что вернул .rows(), versions() и т. п.) показываем таблицей, остальное — JSON.
 const resultRows = computed<Rec[] | null>(() => {
   const r = step.value?.result as unknown;
@@ -162,6 +167,11 @@ function onKey(e: KeyboardEvent) {
           <div v-if="step.error.expected" class="lt-ex-expected">Отказ — так и задумано: шаг показывает, как база защищается.</div>
           <strong>Ошибка<template v-if="step.error.code"> <code>{{ step.error.code }}</code></template>:</strong>
           {{ step.error.message }}
+          <pre v-if="step.error.detail" class="lt-ex-detail">{{ JSON.stringify(step.error.detail, null, 2) }}</pre>
+        </div>
+        <div v-else-if="resultMermaid" class="lt-ex-result">
+          <div class="lt-ex-label">Схема</div>
+          <Mermaid :code="encodeURIComponent(resultMermaid)" />
         </div>
         <div v-else-if="resultRows" class="lt-ex-result lt-ex-table">
           <div class="lt-ex-label">Результат: {{ resultRows.length }} {{ resultRows.length === 1 ? 'строка' : resultRows.length < 5 ? 'строки' : 'строк' }}</div>
@@ -394,6 +404,7 @@ function onKey(e: KeyboardEvent) {
 .lt-dot.failed { border-color: var(--vp-c-danger-1); }
 .lt-dot.expected { border: 2px dashed var(--vp-c-warning-1); }
 .lt-ex-error.expected { background: var(--vp-c-warning-soft); color: var(--vp-c-text-1); }
+.lt-ex-detail { margin: 6px 0 0; font-size: 12px; line-height: 1.45; white-space: pre-wrap; background: transparent; }
 .lt-ex-expected { font-size: 13px; margin-bottom: 4px; color: var(--vp-c-warning-1); font-weight: 600; }
 .lt-ex-step { border-top: 1px dashed var(--vp-c-divider); padding-top: 12px; }
 .lt-ex-step-title { font-weight: 700; font-size: 16px; }

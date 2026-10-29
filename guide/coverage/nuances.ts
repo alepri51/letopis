@@ -57,6 +57,51 @@ const nuances: Nuance[] = [
     text: 'up() пишет штамп движка в комментарий схемы; connect() предупреждает, если штамп не совпал с пакетом (схему не накатили или накатила новее).',
     source: 'lib/README.md, раздел 3; lib/src/up.ts:stampDrift',
   },
+  {
+    id: 'sync-dry-run',
+    text: 'syncModels без apply — сухой прогон: ничего не пишет, отвечает, что будет создано и изменено.',
+    source: 'lib/README.md, раздел 4',
+  },
+  {
+    id: 'key-case',
+    text: 'Значения ключа берутся как есть: email в разном регистре даёт разные id.',
+    source: 'lib/README.md, раздел 4',
+  },
+  {
+    id: 'keyless-repeat',
+    text: 'Класс без ключа не защищён от повтора: повтор create после сбоя создаёт второй объект.',
+    source: 'lib/README.md, раздел 5',
+  },
+  {
+    id: 'no-id-in-create',
+    text: 'Поле id в данных create — лишнее поле (invalid_data): id вычисляет или выдаёт база.',
+    source: 'пример models/02-keys-and-ids',
+  },
+  {
+    id: 'polymorphic-read',
+    text: 'Шаг по классу находит и строки потомков; .exact() — только сам класс.',
+    source: 'lib/README.md, раздел 4',
+  },
+  {
+    id: 'refine-lost',
+    text: 'refine, superRefine и transform база не исполняет: syncModels возвращает их в lost.',
+    source: 'lib/README.md, раздел 4',
+  },
+  {
+    id: 'defaults-by-db',
+    text: 'Умолчания .default() модели подставляет сама база при вставке.',
+    source: 'lib/README.md, раздел 4',
+  },
+  {
+    id: 'safe-change',
+    text: 'Новое необязательное поле, конец, meta, алиас применяются сразу; остальное — ужесточение с проверкой строк.',
+    source: 'lib/README.md, раздел 4',
+  },
+  {
+    id: 'history-false',
+    text: 'history: false — нет журнала: ни версий, ни среза на дату, ни восстановления, ни событий подписки.',
+    source: 'lib/README.md, раздел 4',
+  },
 ];
 
 export default nuances;

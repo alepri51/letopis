@@ -476,6 +476,7 @@
       "error": {
         "code": "bypass_rls",
         "message": "letopis: bypass_rls: роль подключения обходит RLS (суперпользователь, BYPASSRLS или член роли-владельца); администраторское подключение — только с опцией allowBypassRls",
+        "detail": null,
         "expected": true
       },
       "entity": [],

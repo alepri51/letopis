@@ -1,0 +1,376 @@
+{
+  "id": "models/04-validation",
+  "title": "Проверка данных: база не примет неправильное",
+  "summary": "Модель превращается в JSON Schema, и каждую запись проверяет сама база — даже сырой SQL. Умолчания подставляет база. Новое обязательное поле — ужесточение: база проверит, что старые строки ему не мешают.",
+  "covers": [
+    "error.invalid_data",
+    "error.tightening_conflict",
+    "nuance.refine-lost",
+    "nuance.defaults-by-db",
+    "nuance.safe-change"
+  ],
+  "tables": [
+    "entity",
+    "log"
+  ],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": null
+  },
+  "steps": [
+    {
+      "title": "Класс «Товар»",
+      "text": null,
+      "code": "(await syncModels(db, [Product], { apply: true })).created",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, [Product], { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })).created</span></span></code></pre>",
+      "result": [
+        "Product"
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Умолчание подставляет база",
+      "text": "Поле `status` не передали — база подставила `draft` из `.default()` модели.",
+      "code": "db.Product().create({ title: 'Чайник', price: 2500 }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2500</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "result": [
+        {
+          "at": "t1",
+          "id": "Product «Чайник»",
+          "op": "create",
+          "rev": 1,
+          "data": {
+            "price": 2500,
+            "title": "Чайник",
+            "status": "draft"
+          },
+          "tags": [],
+          "class": "Product",
+          "links": {},
+          "owner": "Ромашка",
+          "author": "Анна",
+          "tenant": "Ромашка",
+          "agent": "service"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "Product «Чайник»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "price": 2500,
+            "title": "Чайник",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": [
+            "*"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "35",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "price": 2500,
+            "title": "Чайник",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Отрицательная цена — отказ",
+      "text": "Цена по модели — целое число не меньше 0. Строка с `-1` в базу не попадёт: `invalid_data`, данные не изменились.",
+      "code": "db.Product().create({ title: 'Кружка', price: -1 }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Кружка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">-</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "result": null,
+      "error": {
+        "code": "invalid_data",
+        "message": "letopis: invalid_data: данные не проходят описание класса Product",
+        "detail": [
+          {
+            "path": [
+              "price"
+            ],
+            "keyword": "minimum",
+            "message": "нарушено правило minimum"
+          }
+        ],
+        "expected": true
+      },
+      "entity": [
+        {
+          "id": "Product «Чайник»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "price": 2500,
+            "title": "Чайник",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "35",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "price": 2500,
+            "title": "Чайник",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Новое обязательное поле — ужесточение",
+      "text": "У «Чайника» нет поля `sku`, а модель теперь требует его. Такое изменение — ужесточение: база проверяет все строки класса и отвечает `tightening_conflict` со списком мешающих строк. Описание не изменилось.",
+      "code": "syncModels(db, [ProductV2], { apply: true })",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, [ProductV2], { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })</span></span></code></pre>",
+      "result": null,
+      "error": {
+        "code": "tightening_conflict",
+        "message": "letopis: tightening_conflict: новому описанию класса Product не соответствуют строки",
+        "detail": {
+          "rows": [
+            {
+              "id": "Product «Чайник»",
+              "class": "Product",
+              "problem": "данные: [{\"path\": [\"sku\"], \"keyword\": \"required\", \"message\": \"нарушено правило required\"}]"
+            }
+          ],
+          "others": 0
+        },
+        "expected": true
+      },
+      "entity": [
+        {
+          "id": "Product «Чайник»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "price": 2500,
+            "title": "Чайник",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "35",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "price": 2500,
+            "title": "Чайник",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Необязательное поле — безопасно",
+      "text": "Новое необязательное поле старым строкам не мешает — изменение применяется сразу (`updated`).",
+      "code": "const r = await syncModels(db, [ProductV3], { apply: true });\nreturn { updated: r.updated };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, [ProductV3], { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { updated: r.updated };</span></span></code></pre>",
+      "result": {
+        "updated": [
+          "Product"
+        ]
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Product «Чайник»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "price": 2500,
+            "title": "Чайник",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "35",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "price": 2500,
+            "title": "Чайник",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Правила refine база не исполняет",
+      "text": "`refine`, `superRefine` и `transform` в JSON Schema не выражаются. `syncModels` не теряет их молча: возвращает в `lost`. Такие правила проверяйте в приложении.",
+      "code": "const r = await syncModels(db, [Coupon], { apply: true });\nreturn { created: r.created, lost: r.lost };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, [Coupon], { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { created: r.created, lost: r.lost };</span></span></code></pre>",
+      "result": {
+        "created": [
+          "Coupon"
+        ],
+        "lost": [
+          {
+            "path": "Coupon.code",
+            "kind": "refine"
+          }
+        ]
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Product «Чайник»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "price": 2500,
+            "title": "Чайник",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "35",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "price": 2500,
+            "title": "Чайник",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null
+    }
+  ]
+}

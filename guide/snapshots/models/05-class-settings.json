@@ -1,0 +1,308 @@
+{
+  "id": "models/05-class-settings",
+  "title": "Настройки класса: без истории, владелец-автор, метаданные, описание модели",
+  "summary": "history: false выключает журнал класса. ownerDefault: 'actor' делает владельцем новой строки самого пользователя. meta — свободные метаданные для интерфейса. db.describe() отдаёт описание всей модели.",
+  "covers": [
+    "class.history",
+    "class.ownerDefault",
+    "db.describe",
+    "export.describeText",
+    "nuance.history-false"
+  ],
+  "tables": [
+    "entity",
+    "log"
+  ],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": null
+  },
+  "steps": [
+    {
+      "title": "Три класса с настройками",
+      "text": null,
+      "code": "(await syncModels(db, [Ping, Draft, Product], { apply: true })).created",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, [Ping, Draft, Product], { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })).created</span></span></code></pre>",
+      "result": [
+        "Ping",
+        "Draft",
+        "Product"
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Класс без истории: журнал пуст",
+      "text": "Строка `Ping` есть в `entity`, а в журнале `log` для неё ничего нет: у класса `history: false`. Нет версий, среза на дату, восстановления и событий подписки — зато запись дешевле. `versions()` вернёт пустой список и предупредит в консоли.",
+      "code": "[ping] = await db.Ping().create({ source: 'датчик-1' }).rows();\nawait db.Ping(ping).update({ source: 'датчик-2' }).rows();\nconst { result: versions, warnings: printed } = await warnings(() => db.Ping(ping).versions());\nreturn { versions, printed };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[ping] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Ping</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ source: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'датчик-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Ping</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(ping).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ source: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'датчик-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">result</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">versions</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">warnings</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">printed</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> warnings</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Ping</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(ping).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">versions</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">());</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { versions, printed };</span></span></code></pre>",
+      "result": {
+        "versions": [],
+        "printed": [
+          "letopis: .versions() у класса Ping без журнала (history: false) — истории нет"
+        ]
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Ping·1",
+          "class": "Ping",
+          "rev": 2,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "source": "датчик-2"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": [
+            "*"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Владелец — автор, а не арендатор",
+      "text": "У обычной строки владелец — арендатор («Ромашка»). У класса с `ownerDefault: 'actor'` владелец — пользователь, который её создал. Это пригодится для правила «каждый видит свои черновики».",
+      "code": "const [draft] = await db.Draft().create({ text: 'План на неделю' }).rows();\nconst [product] = await db.Product().create({ title: 'Чайник' }).rows();\nreturn { draftOwner: draft.owner, productOwner: product.owner };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">draft</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Draft</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'План на неделю'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { draftOwner: draft.owner, productOwner: product.owner };</span></span></code></pre>",
+      "result": {
+        "draftOwner": "Анна",
+        "productOwner": "Ромашка"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Draft·1",
+          "class": "Draft",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {},
+          "data": {
+            "text": "План на неделю"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Product «Чайник»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Ping·1",
+          "class": "Ping",
+          "rev": 2,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "source": "датчик-2"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "37",
+          "id": "Draft·1",
+          "rev": 1,
+          "class": "Draft",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "text": "План на неделю"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$new": true
+        },
+        {
+          "seq": "38",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Описание модели для интерфейса",
+      "text": "`db.describe()` отдаёт классы с полями и метаданными; `describeText` — то же коротким текстом (удобно для подсказки ИИ).",
+      "code": "const d = await db.describe();\nconst product = d.classes.find((c) => c.name === 'Product');\nreturn { productMeta: product?.meta, text: describeText(d).split('\\n').filter((l) => /Product|Ping|Draft/.test(l)) };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> d</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">describe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> product</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> d.classes.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">find</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">c</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> c.name </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'Product'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { productMeta: product?.meta, text: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">describeText</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">split</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">\\n</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">filter</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">l</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> /</span><span style=\"color:#032F62;--shiki-dark:#DBEDFF\">Product</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">|</span><span style=\"color:#032F62;--shiki-dark:#DBEDFF\">Ping</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">|</span><span style=\"color:#032F62;--shiki-dark:#DBEDFF\">Draft</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">/</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">test</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(l)) };</span></span></code></pre>",
+      "result": {
+        "productMeta": {
+          "icon": "mdi:package-variant",
+          "order": 1,
+          "title": "Товар"
+        },
+        "text": [
+          "## Draft",
+          "## Ping",
+          "## Product — Товар"
+        ]
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Draft·1",
+          "class": "Draft",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {},
+          "data": {
+            "text": "План на неделю"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Product «Чайник»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$changed": []
+        },
+        {
+          "id": "Ping·1",
+          "class": "Ping",
+          "rev": 2,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "source": "датчик-2"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "37",
+          "id": "Draft·1",
+          "rev": 1,
+          "class": "Draft",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "text": "План на неделю"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "38",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null
+    }
+  ]
+}

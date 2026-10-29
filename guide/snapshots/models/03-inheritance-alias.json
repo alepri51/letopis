@@ -1,0 +1,548 @@
+{
+  "id": "models/03-inheritance-alias",
+  "title": "Наследование, абстрактный класс и алиас",
+  "summary": "Потомок получает поля, концы и ключ предка. Шаг по классу находит и строки потомков, .exact() — только сам класс. Абстрактный класс своих строк не имеет. Алиас — второе имя класса, например по-русски.",
+  "covers": [
+    "class.extends",
+    "class.abstract",
+    "class.alias",
+    "chain.exact",
+    "nuance.polymorphic-read"
+  ],
+  "tables": [
+    "entity",
+    "log"
+  ],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": null
+  },
+  "steps": [
+    {
+      "title": "Описываем: человек → клиент → VIP",
+      "text": null,
+      "code": "const r = await syncModels(db, [Person, Customer, Vip], { apply: true });\nreturn r.created;",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, [Person, Customer, Vip], { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.created;</span></span></code></pre>",
+      "result": [
+        "Person",
+        "Customer",
+        "Vip"
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Клиент и VIP-клиент",
+      "text": "У VIP есть все поля клиента (`name`, `email`) и своё поле `discount`.",
+      "code": "await db.Customer().create({ name: 'Ольга', email: 'olga@mail.ru' }).rows();\nreturn db.Vip().create({ name: 'Иван', email: 'ivan@mail.ru', discount: 10 }).rows();",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ольга'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'olga@mail.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Vip</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Иван'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'ivan@mail.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, discount: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">10</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span></code></pre>",
+      "result": [
+        {
+          "at": "t2",
+          "id": "Vip «Иван»",
+          "op": "create",
+          "rev": 1,
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "class": "Vip",
+          "links": {},
+          "owner": "Ромашка",
+          "author": "Анна",
+          "tenant": "Ромашка",
+          "agent": "service"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "Customer «Ольга»",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Vip «Иван»",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$changed": [
+            "*"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "37",
+          "id": "Customer «Ольга»",
+          "rev": 1,
+          "class": "Customer",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": true
+        },
+        {
+          "seq": "38",
+          "id": "Vip «Иван»",
+          "rev": 1,
+          "class": "Vip",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Шаг по классу находит и потомков",
+      "text": "`db.Customer()` отдаёт и Ольгу (Customer), и Ивана (Vip): VIP — тоже клиент.",
+      "code": "(await db.Customer().sort('data.name').rows()).map((r) => ({ name: r.data.name, class: r.class }))",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sort</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'data.name'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ name: r.data.name, class: r.class }))</span></span></code></pre>",
+      "result": [
+        {
+          "name": "Иван",
+          "class": "Vip"
+        },
+        {
+          "name": "Ольга",
+          "class": "Customer"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "Customer «Ольга»",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Vip «Иван»",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "37",
+          "id": "Customer «Ольга»",
+          "rev": 1,
+          "class": "Customer",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "38",
+          "id": "Vip «Иван»",
+          "rev": 1,
+          "class": "Vip",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": ".exact() — только сам класс",
+      "text": null,
+      "code": "(await db.Customer().exact().rows()).map((r) => ({ name: r.data.name, class: r.class }))",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">exact</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ name: r.data.name, class: r.class }))</span></span></code></pre>",
+      "result": [
+        {
+          "name": "Ольга",
+          "class": "Customer"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "Customer «Ольга»",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Vip «Иван»",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "37",
+          "id": "Customer «Ольга»",
+          "rev": 1,
+          "class": "Customer",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "38",
+          "id": "Vip «Иван»",
+          "rev": 1,
+          "class": "Vip",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Алиас — второе имя для шага",
+      "text": "У класса `Customer` алиас `Клиент`: шаг `db.Клиент()` — то же самое.",
+      "code": "db.Клиент().count()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Клиент</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "result": 2,
+      "error": null,
+      "entity": [
+        {
+          "id": "Customer «Ольга»",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Vip «Иван»",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "37",
+          "id": "Customer «Ольга»",
+          "rev": 1,
+          "class": "Customer",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "38",
+          "id": "Vip «Иван»",
+          "rev": 1,
+          "class": "Vip",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "У абстрактного класса нет своих строк",
+      "text": "`Person` — абстрактный: создать «просто человека» нельзя, только клиента или VIP.",
+      "code": "db.Person().create({ name: 'Никто' }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Person</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Никто'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "result": null,
+      "error": {
+        "code": "invalid_class",
+        "message": "letopis: invalid_class: класс Person абстрактный",
+        "detail": {},
+        "expected": true
+      },
+      "entity": [
+        {
+          "id": "Customer «Ольга»",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Vip «Иван»",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "37",
+          "id": "Customer «Ольга»",
+          "rev": 1,
+          "class": "Customer",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "38",
+          "id": "Vip «Иван»",
+          "rev": 1,
+          "class": "Vip",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null
+    }
+  ]
+}
