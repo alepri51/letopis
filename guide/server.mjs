@@ -29,11 +29,18 @@ async function file(path) {
   }
 }
 
-createServer(async (req, res) => {
+async function handle(req, res) {
   const url = new URL(req.url ?? '/', 'http://localhost');
-  const rel = normalize(decodeURIComponent(url.pathname)).replace(/^[/\\]+/, '');
+  let rel;
+  try {
+    rel = normalize(decodeURIComponent(url.pathname)).replace(/^[/\\]+/, '');
+  } catch {
+    res.writeHead(400).end(); // битая %-последовательность в адресе
+    return;
+  }
   const base = join(DIST, rel);
-  if (!base.startsWith(DIST)) {
+  // только внутри DIST: префикс с разделителем, иначе прошёл бы соседний каталог «dist-что-то»
+  if (base !== DIST && !base.startsWith(DIST + sep)) {
     res.writeHead(400).end();
     return;
   }
@@ -46,4 +53,12 @@ createServer(async (req, res) => {
     'cache-control': path.includes(`${sep}assets${sep}`) ? 'public, max-age=31536000, immutable' : 'no-cache',
   });
   res.end(body);
+}
+
+// Ошибка одного запроса не должна ронять сервер: необработанный отказ промиса завершил бы процесс.
+createServer((req, res) => {
+  handle(req, res).catch(() => {
+    if (!res.headersSent) res.writeHead(500);
+    res.end();
+  });
 }).listen(PORT, '0.0.0.0', () => console.log(`guide: http://127.0.0.1:${PORT}/`));
