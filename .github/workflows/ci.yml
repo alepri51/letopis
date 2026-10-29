@@ -114,7 +114,7 @@ jobs:
 
       - name: Coverage
         working-directory: guide
-        run: npm run coverage
+        run: npm run coverage -- --strict
 
       - name: Nuances page up to date
         working-directory: guide

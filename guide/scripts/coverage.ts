@@ -120,6 +120,13 @@ for (const file of walk(join(ROOT, 'examples'))) {
   };
   visit(sf);
 }
+// коды, которые примером не вызвать, — исключения с объяснением (их же примечания — на странице главы 16)
+const EXEMPT: Record<string, string> = {
+  'error.not_implemented': 'в 1.4 не бросается: объявлен, но нигде не вызывается',
+  'error.commit_unknown': 'нужен обрыв связи во время COMMIT — тесты balance с прокси',
+  'error.projector_busy': 'нужна гонка двух процессов перестройки',
+};
+for (const [item, why] of Object.entries(EXEMPT)) if (!covered.has(item)) covered.set(item, [`исключение: ${why}`]);
 
 // ---------- отчёт ----------
 const groups = new Map<string, { total: number; done: number; missing: string[] }>();
