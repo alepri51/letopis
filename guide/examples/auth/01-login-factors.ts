@@ -1,0 +1,87 @@
+import { totpCode } from 'letopis';
+import { example } from '../../kit/example.ts';
+
+let keyId: string, key: string, secret: string;
+
+export default example({
+  title: 'Вход: пароль, ключ API, одноразовый код, TOTP, внешняя учётная запись',
+  summary:
+    'Все способы входа живут в таблице secret: пароль — хэшем, ключ и код — хэшем, сессия — хэшем токена. ' +
+    'Проверяет их сервис приложения (вошёл по ключу), а при успехе выдаёт сессию пользователя.',
+  tables: ['secret'],
+  covers: [
+    'auth.verifyPassword', 'auth.setPassword', 'auth.issueApiKey', 'auth.verifyApiKey', 'auth.revokeCredential',
+    'auth.issueOtp', 'auth.verifyOtp', 'auth.enrollTotp', 'auth.verifyTotp', 'auth.totpEnabled', 'auth.link', 'auth.lookup',
+    'auth.sessionFor', 'export.totpCode', 'nuance.login-case-insensitive', 'nuance.password-change-revokes',
+  ],
+  steps: [
+    {
+      title: 'Пароль: верный, неверный, другой регистр',
+      text: 'Неверный пароль — `null`, без подсказки, есть ли такой логин. Идентификатор сравнивается без учёта регистра.',
+      run: async ({ svc, user }) => ({
+        'верный': !!(await svc.auth.verifyPassword({ identifier: user.login, password: user.password })),
+        'неверный': await svc.auth.verifyPassword({ identifier: user.login, password: 'не тот' }),
+        'ЗАГЛАВНЫМИ': !!(await svc.auth.verifyPassword({ identifier: user.login.toUpperCase(), password: user.password })),
+      }),
+    },
+    {
+      title: 'Смена пароля гасит остальные сессии',
+      text: 'Новый пароль хранится хэшем scrypt; сессии Анны погашены (в `secret` у них появилось «погашен»), старый пароль больше не подходит.',
+      run: async ({ svc, up, user }) => {
+        await svc.auth.setPassword({ account: up.tenant!.user!, identifier: user.login, password: 'Новый-пароль-2026', confirmed: true });
+        return { 'старый пароль': await svc.auth.verifyPassword({ identifier: user.login, password: user.password }) };
+      },
+    },
+    {
+      title: 'Ключ API для интеграции',
+      text: 'Ключ отдаётся один раз — в базе только его хэш. По ключу входит программа, а не человек.',
+      run: async ({ svc, up }) => {
+        ({ key, id: keyId } = await svc.auth.issueApiKey({ account: up.tenant!.user!, name: 'интеграция' }));
+        const viaKey = await svc.auth.verifyApiKey(key);
+        return { 'вход по ключу': !!viaKey };
+      },
+    },
+    {
+      title: 'Отозвать ключ',
+      run: async ({ svc }) => {
+        await svc.auth.revokeCredential(keyId);
+        return { 'вход по отозванному ключу': await svc.auth.verifyApiKey(key) };
+      },
+    },
+    {
+      title: 'Одноразовый код (OTP)',
+      text: 'Код отдаёт сервис — отправить его письмом или СМС должен сам сервис. Успешная проверка сжигает код.',
+      run: async ({ svc, up, user }) => {
+        const { code } = await svc.auth.issueOtp({ account: up.tenant!.user!, identifier: user.login, ttl: 300 });
+        const first = await svc.auth.verifyOtp({ identifier: user.login, code });
+        const again = await svc.auth.verifyOtp({ identifier: user.login, code });
+        return { 'первый раз': !!first, 'тот же код снова': again };
+      },
+    },
+    {
+      title: 'Второй фактор: TOTP',
+      text: '`enrollTotp` даёт секрет и адрес `otpauth://` для QR-кода; первая верная проверка включает фактор. `totpCode` — помощник для тестов.',
+      run: async ({ svc, up }) => {
+        ({ secret } = await svc.auth.enrollTotp({ account: up.tenant!.user!, issuer: 'Ромашка' }));
+        const ok = await svc.auth.verifyTotp({ account: up.tenant!.user!, code: totpCode(secret) });
+        return { 'код принят': ok, 'TOTP включён': await svc.auth.totpEnabled(up.tenant!.user!) };
+      },
+    },
+    {
+      title: 'Внешняя учётная запись и вход по ней',
+      text: 'Telegram, Google, SSO: их токен проверяет сервис, база хранит связку. `lookup` — вход по связке.',
+      run: async ({ svc, up }) => {
+        await svc.auth.link({ account: up.tenant!.user!, kind: 'TELEGRAM', identifier: '100500', confirmed: true });
+        return { 'вход через Telegram': !!(await svc.auth.lookup({ kind: 'TELEGRAM', identifier: '100500' })) };
+      },
+    },
+    {
+      title: 'Короткая сессия для другого процесса',
+      run: async ({ svc, up, connect, dsn, schema }) => {
+        const token = await svc.auth.sessionFor(up.tenant!.user!, { ttl: 600 });
+        const other = await connect({ dsn: dsn.app, schema, token });
+        return { tenant: other.tenant };
+      },
+    },
+  ],
+});

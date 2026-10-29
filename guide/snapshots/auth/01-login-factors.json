@@ -1,0 +1,1069 @@
+{
+  "id": "auth/01-login-factors",
+  "title": "Вход: пароль, ключ API, одноразовый код, TOTP, внешняя учётная запись",
+  "summary": "Все способы входа живут в таблице secret: пароль — хэшем, ключ и код — хэшем, сессия — хэшем токена. Проверяет их сервис приложения (вошёл по ключу), а при успехе выдаёт сессию пользователя.",
+  "covers": [
+    "auth.verifyPassword",
+    "auth.setPassword",
+    "auth.issueApiKey",
+    "auth.verifyApiKey",
+    "auth.revokeCredential",
+    "auth.issueOtp",
+    "auth.verifyOtp",
+    "auth.enrollTotp",
+    "auth.verifyTotp",
+    "auth.totpEnabled",
+    "auth.link",
+    "auth.lookup",
+    "auth.sessionFor",
+    "export.totpCode",
+    "nuance.login-case-insensitive",
+    "nuance.password-change-revokes"
+  ],
+  "tables": [
+    "secret"
+  ],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": null
+  },
+  "steps": [
+    {
+      "title": "Пароль: верный, неверный, другой регистр",
+      "text": "Неверный пароль — `null`, без подсказки, есть ли такой логин. Идентификатор сравнивается без учёта регистра.",
+      "code": "({\n        'верный': !!(await svc.auth.verifyPassword({ identifier: user.login, password: user.password })),\n        'неверный': await svc.auth.verifyPassword({ identifier: user.login, password: 'не тот' }),\n        'ЗАГЛАВНЫМИ': !!(await svc.auth.verifyPassword({ identifier: user.login.toUpperCase(), password: user.password })),\n      })",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'верный'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyPassword</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ identifier: user.login, password: user.password })),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'неверный'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyPassword</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ identifier: user.login, password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'не тот'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'ЗАГЛАВНЫМИ'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyPassword</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ identifier: user.login.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">toUpperCase</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(), password: user.password })),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      })</span></span></code></pre>",
+      "result": {
+        "верный": true,
+        "неверный": null,
+        "ЗАГЛАВНЫМИ": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "t1"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t2",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "t3"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t4",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": null
+    },
+    {
+      "title": "Смена пароля гасит остальные сессии",
+      "text": "Новый пароль хранится хэшем scrypt; сессии Анны погашены (в `secret` у них появилось «погашен»), старый пароль больше не подходит.",
+      "code": "await svc.auth.setPassword({ account: up.tenant!.user!, identifier: user.login, password: 'Новый-пароль-2026', confirmed: true });\nreturn { 'старый пароль': await svc.auth.verifyPassword({ identifier: user.login, password: user.password }) };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">setPassword</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ account: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, identifier: user.login, password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Новый-пароль-2026'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, confirmed: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'старый пароль'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyPassword</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ identifier: user.login, password: user.password }) };</span></span></code></pre>",
+      "result": {
+        "старый пароль": null
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "Ромашка",
+            "login_at": "установка"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "t5",
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "установка"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "t6",
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "t1"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t2",
+          "deleted_at": "t7",
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "t3"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t4",
+          "deleted_at": "t8",
+          "$new": true
+        }
+      ],
+      "counts": null
+    },
+    {
+      "title": "Ключ API для интеграции",
+      "text": "Ключ отдаётся один раз — в базе только его хэш. По ключу входит программа, а не человек.",
+      "code": "({ key, id: keyId } = await svc.auth.issueApiKey({ account: up.tenant!.user!, name: 'интеграция' }));\nconst viaKey = await svc.auth.verifyApiKey(key);\nreturn { 'вход по ключу': !!viaKey };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ key, id: keyId } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">issueApiKey</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ account: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'интеграция'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }));</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> viaKey</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyApiKey</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(key);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'вход по ключу'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">viaKey };</span></span></code></pre>",
+      "result": {
+        "вход по ключу": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "Ромашка",
+            "login_at": "установка"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "t5",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "установка"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "t6",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "t1"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t2",
+          "deleted_at": "t7",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "t3"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t4",
+          "deleted_at": "t8",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "APIKEY",
+          "ident": "‹токен 1›",
+          "meta": {
+            "name": "интеграция",
+            "confirmed": true
+          },
+          "expires_at": null,
+          "created_at": "t9",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "id·5",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "t10"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t11",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": null
+    },
+    {
+      "title": "Отозвать ключ",
+      "text": null,
+      "code": "await svc.auth.revokeCredential(keyId);\nreturn { 'вход по отозванному ключу': await svc.auth.verifyApiKey(key) };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">revokeCredential</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(keyId);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'вход по отозванному ключу'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyApiKey</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(key) };</span></span></code></pre>",
+      "result": {
+        "вход по отозванному ключу": null
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "Ромашка",
+            "login_at": "установка"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "t5",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "установка"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "t6",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "t1"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t2",
+          "deleted_at": "t7",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "t3"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t4",
+          "deleted_at": "t8",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "APIKEY",
+          "ident": "‹токен 1›",
+          "meta": {
+            "name": "интеграция",
+            "confirmed": true
+          },
+          "expires_at": null,
+          "created_at": "t9",
+          "deleted_at": "t12",
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "id·5",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "t10"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t11",
+          "deleted_at": "t13",
+          "$new": true
+        }
+      ],
+      "counts": null
+    },
+    {
+      "title": "Одноразовый код (OTP)",
+      "text": "Код отдаёт сервис — отправить его письмом или СМС должен сам сервис. Успешная проверка сжигает код.",
+      "code": "const { code } = await svc.auth.issueOtp({ account: up.tenant!.user!, identifier: user.login, ttl: 300 });\nconst first = await svc.auth.verifyOtp({ identifier: user.login, code });\nconst again = await svc.auth.verifyOtp({ identifier: user.login, code });\nreturn { 'первый раз': !!first, 'тот же код снова': again };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">code</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">issueOtp</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ account: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, identifier: user.login, ttl: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">300</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> first</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyOtp</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ identifier: user.login, code });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> again</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyOtp</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ identifier: user.login, code });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'первый раз'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">first, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'тот же код снова'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: again };</span></span></code></pre>",
+      "result": {
+        "первый раз": true,
+        "тот же код снова": null
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "Ромашка",
+            "login_at": "установка"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "t5",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "установка"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "t6",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "t1"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t2",
+          "deleted_at": "t7",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "t3"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t4",
+          "deleted_at": "t8",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "APIKEY",
+          "ident": "‹токен 1›",
+          "meta": {
+            "name": "интеграция",
+            "confirmed": true
+          },
+          "expires_at": null,
+          "created_at": "t9",
+          "deleted_at": "t12",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "id·5",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "t10"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t11",
+          "deleted_at": "t13",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "OTP",
+          "ident": "anna@romashka.ru",
+          "meta": {
+            "attempts": 0,
+            "confirmed": true,
+            "max_attempts": 5
+          },
+          "expires_at": "через 5 мин",
+          "created_at": "t14",
+          "deleted_at": "t15",
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "OTP"
+            ],
+            "login_at": "t16"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t17",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": null
+    },
+    {
+      "title": "Второй фактор: TOTP",
+      "text": "`enrollTotp` даёт секрет и адрес `otpauth://` для QR-кода; первая верная проверка включает фактор. `totpCode` — помощник для тестов.",
+      "code": "({ secret } = await svc.auth.enrollTotp({ account: up.tenant!.user!, issuer: 'Ромашка' }));\nconst ok = await svc.auth.verifyTotp({ account: up.tenant!.user!, code: totpCode(secret) });\nreturn { 'код принят': ok, 'TOTP включён': await svc.auth.totpEnabled(up.tenant!.user!) };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ secret } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">enrollTotp</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ account: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, issuer: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }));</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> ok</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyTotp</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ account: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, code: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">totpCode</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(secret) });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'код принят'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: ok, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'TOTP включён'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">totpEnabled</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) };</span></span></code></pre>",
+      "result": {
+        "код принят": true,
+        "TOTP включён": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "Ромашка",
+            "login_at": "установка"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "t5",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "установка"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "t6",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "t1"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t2",
+          "deleted_at": "t7",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "t3"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t4",
+          "deleted_at": "t8",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "APIKEY",
+          "ident": "‹токен 1›",
+          "meta": {
+            "name": "интеграция",
+            "confirmed": true
+          },
+          "expires_at": null,
+          "created_at": "t9",
+          "deleted_at": "t12",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "id·5",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "t10"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t11",
+          "deleted_at": "t13",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "OTP",
+          "ident": "anna@romashka.ru",
+          "meta": {
+            "attempts": 0,
+            "confirmed": true,
+            "max_attempts": 5
+          },
+          "expires_at": "через 5 мин",
+          "created_at": "t14",
+          "deleted_at": "t15",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "OTP"
+            ],
+            "login_at": "t16"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t17",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "TOTP",
+          "ident": "Анна",
+          "meta": {
+            "confirmed": true,
+            "last_step": "‹шаг TOTP›"
+          },
+          "expires_at": null,
+          "created_at": "t18",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": null
+    },
+    {
+      "title": "Внешняя учётная запись и вход по ней",
+      "text": "Telegram, Google, SSO: их токен проверяет сервис, база хранит связку. `lookup` — вход по связке.",
+      "code": "await svc.auth.link({ account: up.tenant!.user!, kind: 'TELEGRAM', identifier: '100500', confirmed: true });\nreturn { 'вход через Telegram': !!(await svc.auth.lookup({ kind: 'TELEGRAM', identifier: '100500' })) };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">link</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ account: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, kind: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'TELEGRAM'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, identifier: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'100500'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, confirmed: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'вход через Telegram'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">lookup</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ kind: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'TELEGRAM'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, identifier: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'100500'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })) };</span></span></code></pre>",
+      "result": {
+        "вход через Telegram": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "Ромашка",
+            "login_at": "установка"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "t5",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "установка"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "t6",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "t1"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t2",
+          "deleted_at": "t7",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "t3"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t4",
+          "deleted_at": "t8",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "APIKEY",
+          "ident": "‹токен 1›",
+          "meta": {
+            "name": "интеграция",
+            "confirmed": true
+          },
+          "expires_at": null,
+          "created_at": "t9",
+          "deleted_at": "t12",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "id·5",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "t10"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t11",
+          "deleted_at": "t13",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "OTP",
+          "ident": "anna@romashka.ru",
+          "meta": {
+            "attempts": 0,
+            "confirmed": true,
+            "max_attempts": 5
+          },
+          "expires_at": "через 5 мин",
+          "created_at": "t14",
+          "deleted_at": "t15",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "OTP"
+            ],
+            "login_at": "t16"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t17",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "TOTP",
+          "ident": "Анна",
+          "meta": {
+            "confirmed": true,
+            "last_step": "‹шаг TOTP›"
+          },
+          "expires_at": null,
+          "created_at": "t18",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "TELEGRAM",
+          "ident": "100500",
+          "meta": {
+            "confirmed": true
+          },
+          "expires_at": null,
+          "created_at": "t19",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "TELEGRAM"
+            ],
+            "service": "service",
+            "login_at": "t20"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t21",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": null
+    },
+    {
+      "title": "Короткая сессия для другого процесса",
+      "text": null,
+      "code": "const token = await svc.auth.sessionFor(up.tenant!.user!, { ttl: 600 });\nconst other = await connect({ dsn: dsn.app, schema, token });\nreturn { tenant: other.tenant };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sessionFor</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { ttl: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">600</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> other</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.app, schema, token });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { tenant: other.tenant };</span></span></code></pre>",
+      "result": {
+        "tenant": "Анна"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "Ромашка",
+            "login_at": "установка"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "t5",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "установка"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "t6",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "t1"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t2",
+          "deleted_at": "t7",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "service",
+            "login_at": "t3"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t4",
+          "deleted_at": "t8",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "APIKEY",
+          "ident": "‹токен 1›",
+          "meta": {
+            "name": "интеграция",
+            "confirmed": true
+          },
+          "expires_at": null,
+          "created_at": "t9",
+          "deleted_at": "t12",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "id·5",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "t10"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t11",
+          "deleted_at": "t13",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "OTP",
+          "ident": "anna@romashka.ru",
+          "meta": {
+            "attempts": 0,
+            "confirmed": true,
+            "max_attempts": 5
+          },
+          "expires_at": "через 5 мин",
+          "created_at": "t14",
+          "deleted_at": "t15",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "OTP"
+            ],
+            "login_at": "t16"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t17",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "TOTP",
+          "ident": "Анна",
+          "meta": {
+            "confirmed": true,
+            "last_step": "‹шаг TOTP›"
+          },
+          "expires_at": null,
+          "created_at": "t18",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "TELEGRAM",
+          "ident": "100500",
+          "meta": {
+            "confirmed": true
+          },
+          "expires_at": null,
+          "created_at": "t19",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "TELEGRAM"
+            ],
+            "service": "service",
+            "login_at": "t20"
+          },
+          "expires_at": "через 7 дн",
+          "created_at": "t21",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "00:10:00",
+            "methods": [
+              "SERVICE"
+            ],
+            "service": "service",
+            "login_at": "t22"
+          },
+          "expires_at": "через 10 мин",
+          "created_at": "t23",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": null
+    }
+  ]
+}

@@ -237,6 +237,16 @@ const nuances: Nuance[] = [
     text: 'Реестр классов другого подключения узнаёт о новом классе по сигналу с задержкой; сразу — db.refresh().',
     source: 'lib/src/index.ts:refresh; пример derived/02-projector',
   },
+  {
+    id: 'login-case-insensitive',
+    text: 'Идентификатор при входе сравнивается без учёта регистра (Anna@ и anna@ — один вход).',
+    source: 'lib/README.md, раздел 10',
+  },
+  {
+    id: 'password-change-revokes',
+    text: 'Смена пароля гасит остальные сессии аккаунта; keepCurrent оставляет текущую.',
+    source: 'lib/README.md, раздел 10',
+  },
 ];
 
 export default nuances;
