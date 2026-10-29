@@ -6,12 +6,7 @@
 
 <Example id="ops/01-verify-corrupt" />
 
-```mermaid
-flowchart LR
-  V1["v1<br/>hash₁ = sha256(данные₁)"] --> V2["v2<br/>hash₂ = sha256(hash₁ + данные₂)"]
-  V2 --> V3["v3<br/>hash₃ = sha256(hash₂ + данные₃)"]
-  X["UPDATE log … rev = 2<br/>в обход библиотеки"] -. "hash₂ пересчитан — не сходится с prev_hash v3" .-> V3
-```
+<Flow name="verify" />
 
 | Находка `verify()` | Что случилось |
 |---|---|

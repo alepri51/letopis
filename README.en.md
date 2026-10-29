@@ -41,7 +41,7 @@ models (`letopis/model`). TimescaleDB, Redis and Docker are not needed. MIT lice
 | I want | File |
 |---|---|
 | **to get started quickly / I am an AI agent** | [`lib/AGENT-CHEATSHEET.en.md`](lib/AGENT-CHEATSHEET.en.md) — the working cycle on one page and common mistakes (shipped in the package); [`lib/llms.txt`](lib/llms.txt) — an index for language models |
-| to learn by example | [`guide/`](guide/) (in Russian) — the documentation site for people: chapters with runnable examples (the data after every step), diagrams and four sample services; local only — `cd guide && npm install && npm run dev` (http://127.0.0.1:5173) or the stand `docker compose -f services/compose.yaml up --build` (site — http://127.0.0.1:8080, services — 8081–8084) |
+| to learn by example | [`guide/`](guide/) (in Russian) — the documentation site for people: chapters with runnable examples (the data after every step), diagrams and four sample services; local only — `cd guide && npm install && npm run dev` (http://127.0.0.1:5173) or the stand `docker compose -f services/compose.yaml up --build` (site with the sandbox — http://127.0.0.1:8080, services — 8081–8084) |
 | the full guide | [`lib/README.en.md`](lib/README.en.md) — by task: quick start, installation, model, writing, reading, transactions and money, loading, sign-in and access rules, history, subscription, operations; API reference, errors, limitations |
 | to move from 0.21 | [`lib/MIGRATION.md`](lib/MIGRATION.md) (in Russian) — data import and the API replacement table |
 | to see what changed | [`lib/CHANGELOG.md`](lib/CHANGELOG.md) (in Russian) — the source of truth for the version, together with `lib/package.json` |

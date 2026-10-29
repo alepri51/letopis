@@ -6,6 +6,12 @@
 
 <Example id="history/01-versions-asof-diff-blame" />
 
+<Flow name="history" />
+
+Ползунок ниже листает версии того же товара из снимка примера: на каждой видно, что было в объекте на тот момент и что изменилось.
+
+<TimeTravel id="history/01-versions-asof-diff-blame" object="Product «Чайник»" />
+
 | Вопрос | Вызов | Ответ |
 |---|---|---|
 | какие были версии | `versions()` | строки версий: `rev`, `op`, `at`, `author`, `reason`, данные |
@@ -30,6 +36,8 @@ flowchart LR
 ## Хранение по ярусам
 
 <Example id="history/03-retention-maintain-trim" />
+
+<Flow name="retention" />
 
 ```mermaid
 timeline

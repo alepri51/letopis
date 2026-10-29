@@ -124,6 +124,22 @@ jobs:
         working-directory: guide
         run: npm run build
 
+      # Песочница сайта: сервер с SANDBOX=1 прогоняет присланный со страницы пример в свежей схеме — снимок обязан
+      # совпасть с записанным; запрос без Origin сайта сервер отклоняет.
+      - name: Sandbox run
+        working-directory: guide
+        env:
+          ENTITY_DSN: postgres://postgres:test@localhost:15433/letopis
+          SANDBOX: '1'
+          PORT: '8095'
+        run: |
+          node server.mjs &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8095/api/sandbox && break; sleep 1; done
+          node -e "const fs = require('fs'); const id = 'basics/01-first-object'; fs.writeFileSync('/tmp/sbx.json', JSON.stringify({ id, source: fs.readFileSync('examples/' + id + '.ts', 'utf8') }))"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'content-type: application/json' --data-binary @/tmp/sbx.json http://127.0.0.1:8095/api/run)" = 403
+          curl -sf -X POST -H 'origin: http://127.0.0.1:8095' -H 'content-type: application/json' --data-binary @/tmp/sbx.json http://127.0.0.1:8095/api/run > /tmp/sbx-out.json
+          node -e "const fs = require('fs'); const r = JSON.parse(fs.readFileSync('/tmp/sbx-out.json', 'utf8')); const want = fs.readFileSync('snapshots/basics/01-first-object.json', 'utf8').replace(/\r\n/g, '\n'); if (r.error || r.failures.length || JSON.stringify(r.snapshot, null, 2) + '\n' !== want) { console.error(r.error ?? r.failures); process.exit(1) } console.log('песочница: снимок совпал')"
+
       # Сервисы-примеры: сценарий «день работы» через HTTP в том же процессе, на сервисе postgres:18.
       - name: Salon day-of-work scenario
         env:

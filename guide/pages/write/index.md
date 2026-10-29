@@ -13,6 +13,8 @@ await db.Shop(shop).Product({ price: gte(1000) }).update({ title: 'Чайник 
 
 <Example id="write/01-create-update-upsert" />
 
+<Flow name="write" />
+
 Как выбрать глагол:
 
 | Глагол | Если объекта нет | Если объект есть |

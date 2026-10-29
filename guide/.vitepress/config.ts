@@ -10,6 +10,8 @@ export default defineConfig({
   head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }]],
   cleanUrls: true,
   lastUpdated: false,
+  // песочница: dev-сервер (5173) отправляет /api на сервер сайта с включённой песочницей (`npm run sandbox`, 8080)
+  vite: { server: { proxy: { '/api': { target: 'http://127.0.0.1:8080', changeOrigin: true } } } },
   markdown: {
     // ```mermaid → компонент <Mermaid>: схема рисуется в браузере
     config(md) {
@@ -50,6 +52,7 @@ export default defineConfig({
           { text: '17. Все нюансы', link: '/nuances/' },
           { text: '18. Переход с 0.21', link: '/migrate/' },
           { text: 'Глоссарий', link: '/glossary/' },
+          { text: 'Песочница', link: '/sandbox' },
         ],
       },
       {

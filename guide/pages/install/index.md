@@ -16,6 +16,8 @@ grant letopis_app to shop_app;
 
 <Example id="install/01-up-and-connect" />
 
+<Flow name="install" />
+
 Что видно в сводке:
 
 - `up()` завёл служебные объекты: описания системных классов (`Class`), аккаунты (`Account`), ресурсы и правила доступа. Это одинаково для любой установки.

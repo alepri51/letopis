@@ -4,7 +4,9 @@
  * Данные — снимок прогона на настоящей базе (`snapshots/<id>.json`, пишет `npm run examples`):
  * код шага, его результат или ошибка и таблицы entity, log, secret после шага с подсветкой изменений.
  */
-import { computed, onMounted, ref, shallowRef } from 'vue';
+import { computed, onMounted, ref, shallowRef, watch } from 'vue';
+import Sandbox from './Sandbox.vue';
+import { players, report } from './sync';
 
 type Rec = Record<string, any>;
 interface Step {
@@ -30,9 +32,15 @@ interface Snapshot {
   steps: Step[];
 }
 
-const props = defineProps<{ id: string }>();
+// sandbox — открыть редактор песочницы сразу (страница «Песочница»)
+const props = defineProps<{ id: string; sandbox?: boolean }>();
 const files = import.meta.glob<{ default: Snapshot }>('../../snapshots/**/*.json');
 const snap = shallowRef<Snapshot | null>(null);
+// записанный снимок; в плеере может быть и снимок прогона из песочницы (mine)
+const recorded = shallowRef<Snapshot | null>(null);
+const opened = ref(false);
+const editing = ref(false);
+const mine = ref(false);
 const missing = ref(false);
 const i = ref(0);
 const showAllResult = ref(false);
@@ -43,8 +51,22 @@ onMounted(async () => {
     missing.value = true;
     return;
   }
-  snap.value = (await load()).default;
+  snap.value = recorded.value = (await load()).default;
+  if (props.sandbox) opened.value = editing.value = true;
 });
+
+function toggleEditor() {
+  opened.value = true;
+  editing.value = !editing.value;
+}
+function display(s: Snapshot, own: boolean) {
+  snap.value = s;
+  mine.value = own;
+  open.value = new Set();
+  go(0);
+}
+const onResult = (s: unknown) => display(s as Snapshot, true);
+const onReset = () => recorded.value && display(recorded.value, false);
 
 const step = computed(() => snap.value?.steps[i.value] ?? null);
 const total = computed(() => snap.value?.steps.length ?? 0);
@@ -52,6 +74,16 @@ const go = (n: number) => {
   i.value = Math.max(0, Math.min(total.value - 1, n));
   showAllResult.value = false;
 };
+// схема процесса на странице (<Flow>) подсвечивает стадии текущего шага и может попросить перейти к шагу
+watch(i, (n) => report(props.id, n), { immediate: true });
+watch(
+  () => players[props.id]?.want,
+  (n) => {
+    if (n === null || n === undefined) return;
+    go(n);
+    players[props.id].want = null;
+  },
+);
 
 // Пояснение шага: `код` → <code>, **жирный** → <strong>; остальное — как текст.
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -137,10 +169,14 @@ function onKey(e: KeyboardEvent) {
     <div v-if="missing" class="lt-ex-missing">Снимка примера «{{ id }}» нет: запустите <code>npm run examples</code>.</div>
     <template v-else-if="snap && step">
       <div class="lt-ex-head">
-        <div class="lt-ex-badge">Пример на настоящей базе</div>
+        <div class="lt-ex-top">
+          <div class="lt-ex-badge" :class="{ mine }">{{ mine ? 'Ваш прогон в песочнице' : 'Пример на настоящей базе' }}</div>
+          <button class="lt-link" @click="toggleEditor">{{ editing ? 'Скрыть редактор' : 'Изменить код и запустить' }}</button>
+        </div>
         <div class="lt-ex-title">{{ snap.title }}</div>
         <p v-if="snap.summary" class="lt-ex-summary">{{ snap.summary }}</p>
       </div>
+      <Sandbox v-if="opened" v-show="editing" :id="id" @result="onResult" @reset="onReset" />
 
       <div class="lt-ex-nav">
         <button class="lt-btn" :disabled="i === 0" @click="go(i - 1)">← Назад</button>
@@ -347,7 +383,7 @@ function onKey(e: KeyboardEvent) {
         <span><i class="sw new" /> новая строка</span>
         <span><i class="sw chg" /> изменилось на этом шаге</span>
         <span><i class="sw del" /> строка ушла</span>
-        <span>t1, t2… — моменты по порядку: одна транзакция — один момент</span>
+        <span>t1, t2… — моменты по порядку: у каждой версии свой, даже внутри одной транзакции</span>
         <span>← → — листать шаги с клавиатуры</span>
       </div>
     </template>
@@ -375,6 +411,8 @@ function onKey(e: KeyboardEvent) {
   padding: 2px 10px;
   margin-bottom: 6px;
 }
+.lt-ex-badge.mine { color: var(--vp-c-brand-1); background: var(--vp-c-brand-soft); }
+.lt-ex-top { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; justify-content: space-between; }
 .lt-ex-title { font-size: 18px; font-weight: 700; line-height: 1.4; }
 .lt-ex-summary { margin: 6px 0 0; color: var(--vp-c-text-2); }
 .lt-ex-nav { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 14px 0; }

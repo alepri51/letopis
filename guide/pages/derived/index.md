@@ -13,6 +13,8 @@
 
 <Example id="derived/01-aggregate" />
 
+<Flow name="aggregate" />
+
 ```mermaid
 sequenceDiagram
   autonumber
@@ -29,12 +31,7 @@ sequenceDiagram
 
 <Example id="derived/02-projector" />
 
-```mermaid
-flowchart LR
-  A[строки заказов line] -- журнал log --> P[проектор product-sales]
-  P -- "handle: out.inc / out.upsert" --> D[ProductSales — производный класс]
-  P -- чекпоинт --> C[(курсор в secret)]
-```
+<Flow name="projector" />
 
 ## Подводные камни
 

@@ -6,6 +6,8 @@
 
 <Example id="auth/01-login-factors" />
 
+<Flow name="auth" />
+
 ```mermaid
 sequenceDiagram
   autonumber

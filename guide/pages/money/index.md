@@ -6,9 +6,13 @@
 
 <Example id="money/01-transactions" />
 
+<Flow name="tx" />
+
 ## Деньги без двойного списания
 
 <Example id="money/02-wallet-opid" />
+
+<Flow name="opid" />
 
 Как это защищает от повтора:
 

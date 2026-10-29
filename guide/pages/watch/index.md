@@ -6,6 +6,8 @@
 
 <Example id="watch/01-subscription" />
 
+<Flow name="watch" />
+
 ```mermaid
 sequenceDiagram
   autonumber

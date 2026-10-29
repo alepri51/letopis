@@ -15,3 +15,10 @@ html.dark .lt-ex-code pre {
     max-width: 880px !important;
   }
 }
+
+/* Подписи узлов схем Mermaid: размер узла Mermaid считает вне страницы (высота строки body), а .vp-doc p задаёт
+   свою — без сброса текст в узле обрезался. */
+.vp-doc .lt-mermaid svg p,
+.vp-doc .lt-flow svg p {
+  line-height: inherit;
+}

@@ -13,6 +13,8 @@ await db.Shop(romashka).Order().Customer().rows()
 
 <Example id="read/01-steps" />
 
+<Flow name="read" />
+
 ## Что внутри: один запрос на всю цепочку
 
 ```mermaid
