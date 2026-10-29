@@ -38,6 +38,7 @@ export default defineConfig({
           { text: '5. Чтение', link: '/read/' },
           { text: '6. Удаление и восстановление', link: '/delete/' },
           { text: '7. Транзакции и деньги', link: '/money/' },
+          { text: '12. Агрегаты и проекторы', link: '/derived/' },
         ],
       },
       {

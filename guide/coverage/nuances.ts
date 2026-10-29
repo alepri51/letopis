@@ -222,6 +222,21 @@ const nuances: Nuance[] = [
     text: 'С нуля: up() → роль приложения → createTenant → connect по ключу и вход → syncModels → данные.',
     source: 'guide/start/start.mjs',
   },
+  {
+    id: 'aggregate-by-db',
+    text: 'Агрегатное поле пересчитывает триггер базы после каждого оператора; писать в него нельзя (aggregate_field); min проверяется над итогом.',
+    source: 'lib/README.md, раздел 4 «Агрегаты в базе»',
+  },
+  {
+    id: 'projector-lag',
+    text: 'Проектор пишет итоги из журнала с отставанием: результат — после прохода run(); писатели не ждут друг друга.',
+    source: 'lib/README.md, раздел 12 «Проекторы»',
+  },
+  {
+    id: 'registry-refresh',
+    text: 'Реестр классов другого подключения узнаёт о новом классе по сигналу с задержкой; сразу — db.refresh().',
+    source: 'lib/src/index.ts:refresh; пример derived/02-projector',
+  },
 ];
 
 export default nuances;
