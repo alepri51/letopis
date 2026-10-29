@@ -164,7 +164,8 @@ export interface AuthApi {
   /**
    * Удалить аккаунт (этап 6; accounts.purge 0.21): системный администратор или владелец его
    * арендатора; себя и последнего владельца арендатора — нельзя. Данные арендатора стираются,
-   * владение строками в чужих арендаторах переходит им, сессии гаснут, креды удаляются.
+   * владение строками в чужих арендаторах переходит им, сессии гаснут, креды удаляются. Владелец стирает
+   * и арендатора, в котором работает: его сессия возвращается в личный арендатор.
    */
   purgeAccount(account: AccountRef): Promise<{ account: string; rows: number; versions: number; memberships: number; owned: number }>;
 }
@@ -287,8 +288,11 @@ function makeAuthCore(S: string, exec: Executor, onSwitch: () => Promise<void>, 
       return rows.map((r) => ({ tenant: r.tenant as string, roles: r.roles as string[] }));
     },
     async purgeAccount(account) {
-      return (await one<{ r: { account: string; rows: number; versions: number; memberships: number; owned: number } }>(
+      const r = (await one<{ r: { account: string; rows: number; versions: number; memberships: number; owned: number } }>(
         `select ${S}.account_purge($1::uuid) as r`, [accId(account)])).r;
+      // стёрт арендатор, в котором работала сессия корня: база вернула её в личный арендатор — перечитать
+      if (canSwitch) await onSwitch();
+      return r;
     },
   };
 }

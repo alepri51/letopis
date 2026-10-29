@@ -1557,7 +1557,8 @@ Fields of the system permission classes:
 
 `db.auth.purgeAccount(account)` deletes an account and the data of its tenant. The system administrator or the owner of
 its tenant can call it; you cannot delete yourself or the last owner of a tenant. Ownership of rows in other tenants
-passes to those tenants, sessions are revoked, credentials are deleted.
+passes to those tenants, sessions are revoked, credentials are deleted. An owner can also delete the tenant they are
+working in right now: their session returns to their personal tenant.
 
 ## 11. History and point-in-time reads
 

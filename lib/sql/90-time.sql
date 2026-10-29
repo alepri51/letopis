@@ -658,6 +658,14 @@ begin
   if a.id is null or p_account = '@SYSTEM@'::uuid then
     perform @SCHEMA@.lt_fail('target_not_found', 'аккаунт не найден');
   end if;
+  -- владелец стирает арендатора, в котором работает: его членство уйдёт вместе с данными, а надгробия и
+  -- передача владения ниже перечитывают ctx() — остаток операции идёт в личном арендаторе вызывающего,
+  -- и его сессия больше не указывает на стёртого арендатора (иначе tenant_denied и откат всего вызова)
+  if c.tenant = p_account then
+    perform set_config('letopis.tenant', c.account::text, true);
+    update @SCHEMA@.secret s set meta = s.meta - 'tenant'
+    where s.id = c.session and s.kind = 'SESSION' and s.meta->>'tenant' = p_account::text;
+  end if;
   -- последний владелец: в каждом чужом арендаторе, где цель — владелец, должен остаться другой
   for t in select x.tenant from @SCHEMA@.entity x
            where x.class = 'member' and x.links->>'User' = p_account::text and x.tenant <> p_account

@@ -272,6 +272,31 @@ const nuances: Nuance[] = [
     text: 'Сервер MCP работает с правами пользователя, чьим подключением создан; правка через letopis_write — только с rev.',
     source: 'lib/README.md, раздел 13 «MCP»',
   },
+  {
+    id: 'session-starts-personal',
+    text: 'Свежая сессия входа работает в личном арендаторе учётной записи; в компанию её переводит auth.switch() — смена видна всем подключениям с этим токеном.',
+    source: 'lib/sql/20-context.sql:ctx, lib/sql/80-auth.sql:auth_switch',
+  },
+  {
+    id: 'purge-current-tenant',
+    text: 'Владелец может стереть арендатора, в котором работает (purgeAccount): сессия возвращается в его личный арендатор. В 1.4.0 такой вызов откатывался с tenant_denied.',
+    source: 'пример auth/02-sessions-tenants; lib/sql/90-time.sql:account_purge',
+  },
+  {
+    id: 'refresh-never-shortens',
+    text: 'auth.refresh({ ttl }) не укорачивает сессию и не продлевает дальше срока входа: новый срок — позднейшее из текущего и «сейчас + min(ttl, срок входа)».',
+    source: 'lib/sql/80-auth.sql:auth_refresh',
+  },
+  {
+    id: 'revoked-session-empty',
+    text: 'Погашенная или истёкшая сессия на чтении ошибки не даёт: контекст пустой, база ничего не показывает. no_session бросают функции входа (auth.*) — сервис проверяет сессию на входе запроса.',
+    source: 'lib/sql/20-context.sql:ctx; сервис helpdesk',
+  },
+  {
+    id: 'service-enforces-2fa',
+    text: 'letopis не навязывает второй фактор: verifyPassword без totp даёт сессию и при включённом TOTP — требовать код должен сервис (totpEnabled).',
+    source: 'lib/src/auth.ts:verifyPassword; сервис helpdesk',
+  },
 ];
 
 export default nuances;

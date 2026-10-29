@@ -116,10 +116,15 @@ async function capture(admin: ReturnType<typeof adminSql>, schema: string, base:
   return {
     entity: tables.includes('entity') ? entity.map((r) => ({ ...r })) : [],
     log: tables.includes('log') ? log.map((r) => ({ ...r })) : [],
-    // шаг TOTP (номер 30-секундного окна) зависит от времени прогона — в снимке это метка
+    // шаг TOTP (номер 30-секундного окна) зависит от времени прогона — в снимке это метка; ключ пары
+    // «ключ + секрет» (16 hex, без префикса lts_) случаен — тоже метка
     secret: secret.map(({ id: _id, ...r }) => {
       const meta = r.meta as Rec | null;
-      return { ...r, meta: meta && 'last_step' in meta ? { ...meta, last_step: '‹шаг TOTP›' } : meta };
+      return {
+        ...r,
+        ident: r.kind === 'KEYSECRET' && r.ident ? '‹ключ пары›' : r.ident,
+        meta: meta && 'last_step' in meta ? { ...meta, last_step: '‹шаг TOTP›' } : meta,
+      };
     }),
     counts,
   };
