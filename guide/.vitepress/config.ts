@@ -40,7 +40,10 @@ export default defineConfig({
       },
       {
         text: 'Сервисы-примеры',
-        items: [{ text: 'Обзор', link: '/services/' }],
+        items: [
+          { text: 'Обзор', link: '/services/' },
+          { text: 'Салон записи', link: '/services/salon' },
+        ],
       },
     ],
     outline: { level: [2, 3], label: 'На странице' },

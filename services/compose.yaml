@@ -29,5 +29,18 @@ services:
       pg:
         condition: service_healthy
 
+  salon:
+    build:
+      context: ..
+      dockerfile: services/salon/Dockerfile
+    environment:
+      ADMIN_DSN: postgres://postgres:guide@pg:5432/letopis
+      APP_DSN: postgres://salon_app:salon-app-secret@pg:5432/letopis
+      PORT: '8081'
+    ports: ['127.0.0.1:8081:8081']
+    depends_on:
+      pg:
+        condition: service_healthy
+
 volumes:
   pgdata: {}

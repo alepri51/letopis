@@ -119,3 +119,13 @@ jobs:
       - name: Build site
         working-directory: guide
         run: npm run build
+
+      # Сервисы-примеры: сценарий «день работы» через HTTP в том же процессе, на сервисе postgres:18.
+      - name: Salon day-of-work scenario
+        env:
+          ADMIN_DSN: postgres://postgres:test@localhost:15433/letopis
+          APP_DSN: postgres://salon_app:salon-app-secret@localhost:15433/letopis
+        run: |
+          npm run build --prefix lib
+          npm install --prefix services/salon --no-audit --no-fund
+          node services/salon/scenario.mjs
