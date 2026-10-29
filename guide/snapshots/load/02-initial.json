@@ -1,0 +1,137 @@
+{
+  "id": "load/02-initial",
+  "title": "Первая заливка: db.load(…, { initial: true })",
+  "summary": "Для переезда с другой системы: пустая схема, одна транзакция, COPY без построчных триггеров и индексов — их база включает в конце и тогда же проверяет всё разом. Быстрее обычной загрузки в разы.",
+  "covers": [
+    "load.initial",
+    "error.not_empty",
+    "nuance.initial-empty-schema"
+  ],
+  "tables": [
+    "counts"
+  ],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": {
+      "entity": {},
+      "log": {},
+      "secret": {}
+    }
+  },
+  "steps": [
+    {
+      "title": "Свежая установка и модель",
+      "text": null,
+      "code": "const r = await up({ dsn: dsn.admin, schema, fresh: true, quiet: true, tenant: { name: 'Ромашка', user: { name: 'Анна', login: 'anna@romashka.ru', password: 'Ромашка-2026!' } } });\nadm = await connect({ dsn: dsn.admin, schema: r.schema, token: r.tenant!.token!, allowBypassRls: true });\nawait syncShop(adm);\nawait adm.refresh();\nreturn 'классы записаны — данных нет';",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema, fresh: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, tenant: { name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, user: { name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Анна'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, login: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'anna@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка-2026!'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } } });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">adm </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema: r.schema, token: r.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, allowBypassRls: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncShop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(adm);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">refresh</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'классы записаны — данных нет'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span></code></pre>",
+      "result": "классы записаны — данных нет",
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 12,
+          "member": 1,
+          "Resource": 12,
+          "rule": 11
+        },
+        "log": {
+          "create": 40
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 1
+        }
+      }
+    },
+    {
+      "title": "Залить магазин и 300 товаров",
+      "text": null,
+      "code": "adm.load({\n        Shop: [{ name: 'Ромашка' }],\n        Product: Array.from({ length: 300 }, (_, i) => ({ sku: `P-${i + 1}`, title: `Товар ${i + 1}`, price: 100 + i, Shop: { $key: ['Ромашка'] } })),\n      }, { initial: true })",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">load</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        Shop: [{ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        Product: Array.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">from</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ length: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">300</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">_</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">i</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`P-${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">i</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> 1</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`Товар ${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">i</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> 1</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">100</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> i, Shop: { $key: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] } })),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      }, { initial: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })</span></span></code></pre>",
+      "result": {
+        "rows": 301,
+        "loaded": 301,
+        "updated": 0,
+        "skipped": 0,
+        "duplicates": 0,
+        "byClass": {
+          "Shop": 1,
+          "Product": 300
+        },
+        "external": 0,
+        "portions": 1,
+        "ms": "‹мс›"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 12,
+          "member": 1,
+          "Product": 300,
+          "Resource": 12,
+          "rule": 11,
+          "Shop": 1
+        },
+        "log": {
+          "create": 341
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 1
+        }
+      }
+    },
+    {
+      "title": "Вторая первая заливка — нельзя",
+      "text": "Схема должна быть пустой: допустимы только классы, аккаунты, членства и права.",
+      "code": "adm.load({ Shop: [{ name: 'Лютик' }] }, { initial: true })",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">load</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ Shop: [{ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }] }, { initial: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })</span></span></code></pre>",
+      "result": null,
+      "error": {
+        "code": "not_empty",
+        "message": "letopis: not_empty: первая заливка — только в пустую схему: в entity и log, кроме строк системных классов (Class, Account, member, Resource, rule) и записей reset, ничего быть не должно",
+        "detail": null,
+        "expected": true
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 12,
+          "member": 1,
+          "Product": 300,
+          "Resource": 12,
+          "rule": 11,
+          "Shop": 1
+        },
+        "log": {
+          "create": 341
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 1
+        }
+      }
+    }
+  ]
+}

@@ -219,7 +219,8 @@ class Labels {
     if (Array.isArray(v)) return v.map((x) => this.value(x));
     if (v && typeof v === 'object') {
       const out: Rec = {};
-      for (const [k, x] of Object.entries(v)) out[k] = this.value(x);
+      // длительность (ms в отчётах load, import, maintain) от прогона к прогону разная — метка
+      for (const [k, x] of Object.entries(v)) out[k] = k === 'ms' && typeof x === 'number' ? '‹мс›' : this.value(x);
       return out;
     }
     return v;

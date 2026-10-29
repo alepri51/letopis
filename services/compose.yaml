@@ -73,5 +73,19 @@ services:
       pg:
         condition: service_healthy
 
+  documents:
+    build:
+      context: ..
+      dockerfile: services/documents/Dockerfile
+    environment:
+      ADMIN_DSN: postgres://postgres:guide@pg:5432/letopis
+      APP_DSN: postgres://documents_app:documents-app-secret@pg:5432/letopis
+      PORT: '8084'
+      HOST: 0.0.0.0
+    ports: ['127.0.0.1:8084:8084']
+    depends_on:
+      pg:
+        condition: service_healthy
+
 volumes:
   pgdata: {}

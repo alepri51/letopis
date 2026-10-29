@@ -1,0 +1,17 @@
+{
+  "name": "letopis-documents",
+  "private": true,
+  "type": "module",
+  "description": "Сервис-пример «Документы с аудитом» на letopis: интерфейс на shadcnblocks, версии и срезы на дату, diff и blame, хранение по ярусам, стирание, проверка целостности, первая заливка архива",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "build:web": "npm --prefix web ci && npm --prefix web run build",
+    "scenario": "node scenario.mjs"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "letopis": "file:../../lib",
+    "postgres": "^3.4.9",
+    "zod": "^4.1.0"
+  }
+}

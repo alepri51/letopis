@@ -293,6 +293,46 @@ const nuances: Nuance[] = [
     source: 'lib/sql/20-context.sql:ctx; сервис helpdesk',
   },
   {
+    id: 'versions-follow',
+    text: 'versions() отдаёт версии одного id; versions({ follow: true }) идёт по moved через rekey и reclass — вся жизнь объекта одной лентой, с надгробиями прежних id.',
+    source: 'lib/src/sql.ts (versions, follow); пример history/02',
+  },
+  {
+    id: 'reclass-keyed-new-id',
+    text: 'Класс входит в v5-id: reclass строки класса с ключом даёт новый id (старый — надгробие с moved), у класса без ключа id прежний.',
+    source: 'lib/sql/60-write.sql:move_row; пример history/02',
+  },
+  {
+    id: 'thinning-not-gap',
+    text: 'Прореживание по политике — не разрыв журнала: verify() считает законными пропуски номеров версий старше яруса all.',
+    source: 'lib/sql/90-time.sql:verify; пример history/03',
+  },
+  {
+    id: 'load-admin-only',
+    text: 'db.load — только администраторское подключение (обход RLS и право стать владельцем схемы): иначе admin_required. От имени пользователя — опция as.',
+    source: 'lib/src/load.ts; пример load/01',
+  },
+  {
+    id: 'initial-empty-schema',
+    text: 'Первая заливка (load({ initial: true })) — только в пустую схему: допустимы классы, аккаунты, членства и права; иначе not_empty.',
+    source: 'lib/src/load.ts:initial; пример load/02',
+  },
+  {
+    id: 'import-checks-first',
+    text: 'letopis import проверяет всё, что его остановит (дубли id, нарушенный ключ), до первой записи и называет строки; --keyless переносит класс без ключа.',
+    source: 'lib/src/import.ts; пример load/03',
+  },
+  {
+    id: 'reset-tenant-memberships',
+    text: 'reset({ level: "tenant" }) стирает и членства, и правила арендатора: сессии его пользователей в нём получают tenant_denied, а createTenant правила «можно всё» заново не выдаёт.',
+    source: 'lib/sql/90-time.sql:reset; пример ops/02',
+  },
+  {
+    id: 'verify-hash-chain',
+    text: 'Хэш версии включает хэш предыдущей: правка журнала в обход библиотеки ломает цепочку, и verify() называет id и номер версии.',
+    source: 'lib/sql/10-core.sql (hash); пример ops/01',
+  },
+  {
     id: 'service-enforces-2fa',
     text: 'letopis не навязывает второй фактор: verifyPassword без totp даёт сессию и при включённом TOTP — требовать код должен сервис (totpEnabled).',
     source: 'lib/src/auth.ts:verifyPassword; сервис helpdesk',

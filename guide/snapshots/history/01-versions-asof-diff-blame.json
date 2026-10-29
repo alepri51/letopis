@@ -1,0 +1,796 @@
+{
+  "id": "history/01-versions-asof-diff-blame",
+  "title": "Версии, срез на момент, сравнение и «кто менял»",
+  "summary": "Каждая правка — новая версия в журнале: что стало, кто, когда и почему. versions() отдаёт их по порядку, asOf(момент) — состояние на любой момент, diff — что изменилось между версиями, blame — кто последним менял каждое поле.",
+  "covers": [
+    "chain.versions",
+    "chain.asOf",
+    "chain.diff",
+    "chain.blame",
+    "nuance.reason-in-log"
+  ],
+  "tables": [
+    "log"
+  ],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": null
+  },
+  "steps": [
+    {
+      "title": "Товар и три правки — с причинами",
+      "text": "Причина — опция `reason` глагола; она ложится в журнал рядом с версией.",
+      "code": "[kettle] = await db.Shop(shop).Product().create({ sku: 'K-1', title: 'Чайник', price: 2500 }, { reason: 'новый товар' }).rows();\nt1 = (await db.Product(kettle).first())!.at;\nawait db.Product(kettle).update({ price: 2200 }, { reason: 'осенняя скидка' }).rows();\nawait db.Product(kettle).update({ title: 'Чайник стеклянный' }, { reason: 'уточнили название' }).rows();\nreturn db.Product(kettle).update({ price: 2400 }, { reason: 'скидка кончилась' }).rows();",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[kettle] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'K-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2500</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'новый товар'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">t1 </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.at;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2200</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'осенняя скидка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник стеклянный'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'уточнили название'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2400</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'скидка кончилась'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span></code></pre>",
+      "result": [
+        {
+          "at": "t5",
+          "id": "Product «Чайник»",
+          "op": "update",
+          "rev": 4,
+          "data": {
+            "sku": "K-1",
+            "price": 2400,
+            "title": "Чайник стеклянный"
+          },
+          "tags": [],
+          "class": "Product",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "owner": "Ромашка",
+          "author": "Анна",
+          "tenant": "Ромашка",
+          "agent": "service",
+          "reason": "скидка кончилась"
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": true
+        },
+        {
+          "seq": "42",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новый товар",
+          "at": "t2",
+          "$new": true
+        },
+        {
+          "seq": "43",
+          "id": "Product «Чайник»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2200,
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "осенняя скидка",
+          "at": "t3",
+          "$new": true
+        },
+        {
+          "seq": "44",
+          "id": "Product «Чайник»",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2200,
+            "title": "Чайник стеклянный"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "уточнили название",
+          "at": "t4",
+          "$new": true
+        },
+        {
+          "seq": "45",
+          "id": "Product «Чайник»",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2400,
+            "title": "Чайник стеклянный"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "скидка кончилась",
+          "at": "t5",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Все версии",
+      "text": null,
+      "code": "(await db.Product(kettle).versions()).map((v) => ({ rev: v.rev, op: v.op, title: v.data.title, price: v.data.price, reason: v.reason }))",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">versions</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">v</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ rev: v.rev, op: v.op, title: v.data.title, price: v.data.price, reason: v.reason }))</span></span></code></pre>",
+      "result": [
+        {
+          "rev": 1,
+          "op": "create",
+          "title": "Чайник",
+          "price": 2500,
+          "reason": "новый товар"
+        },
+        {
+          "rev": 2,
+          "op": "update",
+          "title": "Чайник",
+          "price": 2200,
+          "reason": "осенняя скидка"
+        },
+        {
+          "rev": 3,
+          "op": "update",
+          "title": "Чайник стеклянный",
+          "price": 2200,
+          "reason": "уточнили название"
+        },
+        {
+          "rev": 4,
+          "op": "update",
+          "title": "Чайник стеклянный",
+          "price": 2400,
+          "reason": "скидка кончилась"
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "42",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новый товар",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "43",
+          "id": "Product «Чайник»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2200,
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "осенняя скидка",
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "44",
+          "id": "Product «Чайник»",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2200,
+            "title": "Чайник стеклянный"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "уточнили название",
+          "at": "t4",
+          "$new": false
+        },
+        {
+          "seq": "45",
+          "id": "Product «Чайник»",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2400,
+            "title": "Чайник стеклянный"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "скидка кончилась",
+          "at": "t5",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Товар на момент создания",
+      "text": "`asOf(момент)` — тот же запрос, но по состоянию журнала на этот момент. Время — строка ISO или `Date`.",
+      "code": "const [row] = await db.Product(kettle).asOf(t1).rows();\nreturn { title: row.data.title, price: row.data.price, rev: row.rev };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">row</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">asOf</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(t1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { title: row.data.title, price: row.data.price, rev: row.rev };</span></span></code></pre>",
+      "result": {
+        "title": "Чайник",
+        "price": 2500,
+        "rev": 1
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "42",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новый товар",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "43",
+          "id": "Product «Чайник»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2200,
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "осенняя скидка",
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "44",
+          "id": "Product «Чайник»",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2200,
+            "title": "Чайник стеклянный"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "уточнили название",
+          "at": "t4",
+          "$new": false
+        },
+        {
+          "seq": "45",
+          "id": "Product «Чайник»",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2400,
+            "title": "Чайник стеклянный"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "скидка кончилась",
+          "at": "t5",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Что изменилось между первой и последней версией",
+      "text": "`diff({ from, to })` сравнивает две версии по полям: путь, было, стало.",
+      "code": "db.Product(kettle).diff({ from: 1, to: 4 })",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">diff</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ from: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, to: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">4</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })</span></span></code></pre>",
+      "result": [
+        {
+          "id": "Product «Чайник»",
+          "to": {
+            "at": "t5",
+            "rev": 4
+          },
+          "from": {
+            "at": "t2",
+            "rev": 1
+          },
+          "class": "Product",
+          "changes": [
+            {
+              "kind": "changed",
+              "path": [
+                "data",
+                "price"
+              ],
+              "after": 2400,
+              "before": 2500
+            },
+            {
+              "kind": "changed",
+              "path": [
+                "data",
+                "title"
+              ],
+              "after": "Чайник стеклянный",
+              "before": "Чайник"
+            }
+          ]
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "42",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новый товар",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "43",
+          "id": "Product «Чайник»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2200,
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "осенняя скидка",
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "44",
+          "id": "Product «Чайник»",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2200,
+            "title": "Чайник стеклянный"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "уточнили название",
+          "at": "t4",
+          "$new": false
+        },
+        {
+          "seq": "45",
+          "id": "Product «Чайник»",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2400,
+            "title": "Чайник стеклянный"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "скидка кончилась",
+          "at": "t5",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Кто последним менял каждое поле",
+      "text": "`blame()` — для каждого поля версия, которая его последней изменила: номер, автор, время, вид операции.",
+      "code": "db.Product(kettle).blame()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">blame</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "result": [
+        {
+          "id": "Product «Чайник»",
+          "rev": 4,
+          "class": "Product",
+          "fields": [
+            {
+              "at": "t2",
+              "op": "create",
+              "rev": 1,
+              "path": [
+                "class"
+              ],
+              "agent": "service",
+              "exact": true,
+              "author": "Анна",
+              "reason": "новый товар"
+            },
+            {
+              "at": "t5",
+              "op": "update",
+              "rev": 4,
+              "path": [
+                "data",
+                "price"
+              ],
+              "agent": "service",
+              "exact": true,
+              "author": "Анна",
+              "reason": "скидка кончилась"
+            },
+            {
+              "at": "t2",
+              "op": "create",
+              "rev": 1,
+              "path": [
+                "data",
+                "sku"
+              ],
+              "agent": "service",
+              "exact": true,
+              "author": "Анна",
+              "reason": "новый товар"
+            },
+            {
+              "at": "t4",
+              "op": "update",
+              "rev": 3,
+              "path": [
+                "data",
+                "title"
+              ],
+              "agent": "service",
+              "exact": true,
+              "author": "Анна",
+              "reason": "уточнили название"
+            },
+            {
+              "at": "t2",
+              "op": "create",
+              "rev": 1,
+              "path": [
+                "links",
+                "Shop"
+              ],
+              "agent": "service",
+              "exact": true,
+              "author": "Анна",
+              "reason": "новый товар"
+            },
+            {
+              "at": "t2",
+              "op": "create",
+              "rev": 1,
+              "path": [
+                "owner"
+              ],
+              "agent": "service",
+              "exact": true,
+              "author": "Анна",
+              "reason": "новый товар"
+            }
+          ],
+          "complete": true
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "42",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новый товар",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "43",
+          "id": "Product «Чайник»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2200,
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "осенняя скидка",
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "44",
+          "id": "Product «Чайник»",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2200,
+            "title": "Чайник стеклянный"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "уточнили название",
+          "at": "t4",
+          "$new": false
+        },
+        {
+          "seq": "45",
+          "id": "Product «Чайник»",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2400,
+            "title": "Чайник стеклянный"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "скидка кончилась",
+          "at": "t5",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null
+    }
+  ]
+}

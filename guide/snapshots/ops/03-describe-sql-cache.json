@@ -1,0 +1,139 @@
+{
+  "id": "ops/03-describe-sql-cache",
+  "title": "Описание модели, сырой SQL под правами, кэш по сроку, сигналы",
+  "summary": "describe() — модель машинно (для агентов и генераторов), describeText — то же текстом. db.sql и db.transaction — сырой SQL под той же сессией и RLS. Кэш может жить и без сигналов — по сроку.",
+  "covers": [
+    "db.registry",
+    "db.sql",
+    "db.transaction",
+    "db.flushSignals",
+    "cache.ttlOnly",
+    "cache.max",
+    "watch.batch",
+    "watch.pollMs",
+    "signals.class",
+    "connect.sql"
+  ],
+  "tables": [],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": null
+  },
+  "steps": [
+    {
+      "title": "Что знает реестр подключения",
+      "text": "`db.registry` — описания классов арендатора: `family()` — класс и потомки, `resolve()` — описание с ключом и концами.",
+      "code": "\nawait seedShop(db);\r\nreturn { 'семейство Customer': db.registry.family('Customer').map((c) => c.name), 'ключ Product': db.registry.resolve('Product').key };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> seedShop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'семейство Customer'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: db.registry.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">family</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Customer'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">c</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> c.name), </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'ключ Product'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: db.registry.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">resolve</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Product'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).key };</span></span></code></pre>",
+      "result": {
+        "семейство Customer": [
+          "Customer",
+          "Vip"
+        ],
+        "ключ Product": [
+          "Shop",
+          "sku"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "describe и describeText",
+      "text": null,
+      "code": "\nconst d = db.describe();\r\nreturn { 'классов (не системных)': d.classes.filter((c) => !c.system).length, 'текст, начало': describeText(d).split('\\n').slice(0, 3) };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> d</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">describe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'классов (не системных)'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: d.classes.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">filter</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">c</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> !</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">c.system).</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'текст, начало'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">describeText</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">split</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">\\n</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">slice</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">0</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">3</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) };</span></span></code></pre>",
+      "result": {
+        "классов (не системных)": 7,
+        "текст, начало": [
+          "# letopis: модель схемы v2.g_ops_03_describe_sql_cache",
+          "",
+          "Цепочка: db.Класс(фильтр).Связь().Класс().rows(); запись — create, update, upsert, delete; история — versions(), asOf(), withDeleted()."
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Сырой SQL под сессией",
+      "text": "`db.sql` — одна транзакция с контекстом сессии: RLS действует, чужого арендатора не видно. Запись через него сбрасывает весь кэш.",
+      "code": "({\r\n        'db.sql': await db.sql`select ${'Ромашка'}::text as tenant_name, current_setting('letopis.reason', true) as reason`,\r\n        'db.transaction — только свой арендатор': await db.transaction((tx) =>\r\n          tx.unsafe(`select class, count(*)::int as n from \"${schema}\".entity where class in ('Shop', 'Product') group by class order by class`)),\r\n      })",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'db.sql'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sql</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`select ${'Ромашка'}::text as tenant_name, current_setting('letopis.reason', true) as reason`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'db.transaction — только свой арендатор'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">transaction</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">tx</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">          tx.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">unsafe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`select class, count(*)::int as n from \"${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">schema</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}\".entity where class in ('Shop', 'Product') group by class order by class`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      })</span></span></code></pre>",
+      "result": {
+        "db.sql": [
+          {
+            "tenant_name": "Ромашка",
+            "reason": ""
+          }
+        ],
+        "db.transaction — только свой арендатор": [
+          {
+            "class": "Product",
+            "n": 4
+          },
+          {
+            "class": "Shop",
+            "n": 2
+          }
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Кэш только по сроку и отправка сигналов сейчас",
+      "text": "`cache: { ttlOnly: true, max }` — кэш без LISTEN (за PgBouncer). `flushSignals()` шлёт накопленные сигналы, не дожидаясь интервала.",
+      "code": "\nconst tok = up.tenant!.token!;\r\nconst c = await connect({ sql: admin as never, schema, token: tok, allowBypassRls: true, cache: { ttlOnly: true, max: 2 }, listen: false });\r\nawait c.Product().cache({ ttl: 30 }).count();\r\nawait c.Product().cache({ ttl: 30 }).count();\r\nawait c.flushSignals();\r\nconst mode = (await c.transaction((tx) => tx.unsafe(`select \"${schema}\".signal_mode() as m`)))[0].m;\r\nreturn { stats: c.cache.stats(), 'режим сигналов': mode };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> tok</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> c</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sql: admin </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> never</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, schema, token: tok, allowBypassRls: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, cache: { ttlOnly: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, max: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, listen: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">false</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> c.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">cache</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ ttl: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">30</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> c.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">cache</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ ttl: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">30</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> c.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">flushSignals</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> mode</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> c.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">transaction</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">tx</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tx.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">unsafe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`select \"${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">schema</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}\".signal_mode() as m`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)))[</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">0</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">].m;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { stats: c.cache.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">stats</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(), </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'режим сигналов'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: mode };</span></span></code></pre>",
+      "result": {
+        "stats": {
+          "size": 1,
+          "hits": 1,
+          "misses": 1,
+          "stores": 1,
+          "raced": 0,
+          "signals": 0,
+          "listens": 0,
+          "enabled": true
+        },
+        "режим сигналов": "class"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Подписка: размер пачки и запасной опрос",
+      "text": null,
+      "code": "\nconst sub = db.watch({ from: 'start', classes: ['Shop'], batch: 1, pollMs: 200 });\r\nconst ev = (await sub.next()).value;\r\nawait sub.close();\r\nreturn { op: ev.op, class: ev.class };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> sub</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">watch</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ from: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'start'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, classes: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Shop'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">], batch: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, pollMs: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">200</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> ev</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> sub.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">next</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).value;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> sub.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">close</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { op: ev.op, class: ev.class };</span></span></code></pre>",
+      "result": {
+        "op": "create",
+        "class": "Shop"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null
+    }
+  ]
+}

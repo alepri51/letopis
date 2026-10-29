@@ -1,0 +1,98 @@
+{
+  "id": "ops/01-verify-corrupt",
+  "title": "Проверка целостности: verify() и правка журнала в обход библиотеки",
+  "summary": "Каждая версия хранит хэш своих данных вместе с хэшем предыдущей — цепочка. verify() пересчитывает её: правку журнала руками в SQL, удалённую версию, расхождение строки с журналом видно сразу. С { data: true } — ещё и данные против описания класса, ключи, ссылки, агрегаты.",
+  "covers": [
+    "db.verify",
+    "nuance.verify-hash-chain"
+  ],
+  "tables": [],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": null
+  },
+  "steps": [
+    {
+      "title": "Данные и проверка",
+      "text": "`verify` — администраторская операция (право `letopis.verify` или администраторское подключение).",
+      "code": "d = await seedShop(db);\nawait db.Product(d.kettle).update({ price: 2400 }).rows();\nawait db.Product(d.kettle).update({ price: 2300 }).rows();\nadm = await connect({ dsn: dsn.admin, schema, token: up.tenant!.token!, allowBypassRls: true });\nreturn adm.verify({ data: true });",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">d </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> seedShop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2400</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2300</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">adm </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema, token: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, allowBypassRls: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verify</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ data: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span></code></pre>",
+      "result": {
+        "ok": true,
+        "anchor": "‹токен 1›",
+        "issues": []
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Кто-то поправил цену во второй версии прямо в SQL",
+      "text": "Хэш версии пересчитался от новых данных — и больше не совпадает с `prev_hash` третьей версии.",
+      "code": "[{ data: saved }] = await admin.unsafe(`select data from ${S(schema)}.log where id = $1 and rev = 2`, [d.kettle]);\nawait admin.unsafe(`update ${S(schema)}.log set data = jsonb_set(data, '{price}', '1') where id = $1 and rev = 2`, [d.kettle]);\nreturn adm.verify();",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[{ data: saved }] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> admin.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">unsafe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`select data from ${</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">S</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">(</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">schema</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">)</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}.log where id = $1 and rev = 2`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, [d.kettle]);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> admin.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">unsafe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`update ${</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">S</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">(</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">schema</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">)</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}.log set data = jsonb_set(data, '{price}', '1') where id = $1 and rev = 2`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, [d.kettle]);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verify</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span></code></pre>",
+      "result": {
+        "ok": false,
+        "anchor": "‹токен 1›",
+        "issues": [
+          {
+            "id": "id·5",
+            "rev": 2,
+            "problem": "хэш версии не совпадает с prev_hash следующей"
+          }
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Вернули байт в байт — цепочка снова сходится",
+      "text": null,
+      "code": "await admin.unsafe(`update ${S(schema)}.log set data = $2::jsonb where id = $1 and rev = 2`, [d.kettle, saved as never]);\nreturn adm.verify();",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> admin.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">unsafe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`update ${</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">S</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">(</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">schema</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">)</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}.log set data = $2::jsonb where id = $1 and rev = 2`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, [d.kettle, saved </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> never</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">]);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verify</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span></code></pre>",
+      "result": {
+        "ok": true,
+        "anchor": "‹токен 1›",
+        "issues": []
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Удалили версию из журнала",
+      "text": null,
+      "code": "await admin.unsafe(`delete from ${S(schema)}.log where id = $1 and rev = 2`, [d.kettle]);\nreturn adm.verify();",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> admin.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">unsafe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`delete from ${</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">S</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">(</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">schema</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">)</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}.log where id = $1 and rev = 2`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, [d.kettle]);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verify</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span></code></pre>",
+      "result": {
+        "ok": false,
+        "anchor": "‹токен 1›",
+        "issues": [
+          {
+            "id": "id·5",
+            "rev": 2,
+            "problem": "разрыв: нет версий 2…2"
+          }
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null
+    }
+  ]
+}

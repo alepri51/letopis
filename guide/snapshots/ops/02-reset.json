@@ -1,0 +1,235 @@
+{
+  "id": "ops/02-reset",
+  "title": "Сброс: reset({ level }) — сессии, данные арендатора, всё",
+  "summary": "reset — для стендов и тестов: погасить все сессии, стереть данные арендатора или всю установку. Включается только флагом установки allowReset, требует права letopis.reset и подтверждения именем схемы.",
+  "covers": [
+    "db.reset",
+    "reset.level",
+    "reset.confirm",
+    "reset.tenant",
+    "error.reset_disabled",
+    "error.confirm_mismatch",
+    "error.tenant_denied",
+    "nuance.reset-tenant-memberships"
+  ],
+  "tables": [
+    "counts"
+  ],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": {
+      "entity": {},
+      "log": {},
+      "secret": {}
+    }
+  },
+  "steps": [
+    {
+      "title": "Установка без allowReset — сброс выключен",
+      "text": null,
+      "code": "\nconst r = await up({ dsn: dsn.admin, schema, fresh: true, quiet: true, tenant: TENANT });\r\ntenant = r.tenant!.tenant;\r\nadm = await track({ dsn: dsn.admin, schema: r.schema, token: r.tenant!.token!, allowBypassRls: true });\r\nreturn adm.reset({ level: 'sessions', confirm: r.schema });",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema, fresh: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, tenant: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">TENANT</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">tenant </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.tenant;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">adm </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> track</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema: r.schema, token: r.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, allowBypassRls: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">reset</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ level: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'sessions'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, confirm: r.schema });</span></span></code></pre>",
+      "result": null,
+      "error": {
+        "code": "reset_disabled",
+        "message": "letopis: reset_disabled: reset выключен в этой установке (up({ allowReset }))",
+        "detail": {},
+        "expected": true
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 5,
+          "member": 1,
+          "Resource": 12,
+          "rule": 11
+        },
+        "log": {
+          "create": 33
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 1
+        }
+      }
+    },
+    {
+      "title": "Накат с allowReset; неверное подтверждение",
+      "text": "Флаг — константа установки: его переставляет каждый `up()`. `confirm` — полное имя схемы.",
+      "code": "\nawait up({ dsn: dsn.admin, schema, quiet: true, allowReset: true });\r\nreturn adm.reset({ level: 'sessions', confirm: 'не та схема' });",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, allowReset: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">reset</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ level: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'sessions'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, confirm: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'не та схема'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span></code></pre>",
+      "result": null,
+      "error": {
+        "code": "confirm_mismatch",
+        "message": "letopis: confirm_mismatch: подтверждение сброса — имя схемы установки",
+        "detail": {},
+        "expected": true
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 5,
+          "member": 1,
+          "Resource": 12,
+          "rule": 11
+        },
+        "log": {
+          "create": 33
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 1
+        }
+      }
+    },
+    {
+      "title": "Погасить все сессии, кроме текущей",
+      "text": null,
+      "code": "adm.reset({ level: 'sessions', confirm: schema })",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">reset</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ level: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'sessions'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, confirm: schema })</span></span></code></pre>",
+      "result": {
+        "level": "sessions",
+        "sessions": 0
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 5,
+          "member": 1,
+          "Resource": 12,
+          "rule": 11
+        },
+        "log": {
+          "create": 33,
+          "reset": 1
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 1
+        }
+      }
+    },
+    {
+      "title": "Стереть данные арендатора",
+      "text": "Строки и журнал арендатора — пачками; аккаунт, креды и сессии остаются. В журнале — запись `reset`.",
+      "code": "\nawait syncShop(adm);\r\nawait adm.refresh();\r\nawait adm.Shop().create({ name: 'Ромашка' }).rows();\r\nreturn adm.reset({ level: 'tenant', tenant, confirm: schema });",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncShop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(adm);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">refresh</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">reset</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ level: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'tenant'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, tenant, confirm: schema });</span></span></code></pre>",
+      "result": {
+        "level": "tenant",
+        "tenant": "id·3",
+        "rows": 12,
+        "versions": 12
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 5,
+          "Resource": 12,
+          "rule": 8
+        },
+        "log": {
+          "create": 29,
+          "reset": 2
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 1
+        }
+      }
+    },
+    {
+      "title": "Сессия в стёртом арендаторе больше не работает",
+      "text": "Членства — тоже данные арендатора: `reset` их стёр, и сессия Анны в «Ромашке» получает `tenant_denied`.",
+      "code": "adm.Shop().count()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "result": null,
+      "error": {
+        "code": "tenant_denied",
+        "message": "letopis: tenant_denied: нет членства в арендаторе",
+        "detail": {},
+        "expected": true
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 5,
+          "Resource": 12,
+          "rule": 8
+        },
+        "log": {
+          "create": 29,
+          "reset": 2
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 1
+        }
+      }
+    },
+    {
+      "title": "Стереть всё: классы, данные, креды, сессии",
+      "text": "Администраторское подключение без сессии (право — у администраторской роли). Остаётся пустая установка с новым сервисным ключом.",
+      "code": "\nconst root = await track({ dsn: dsn.admin, schema, allowBypassRls: true });\r\nconst res = await root.reset({ level: 'all', confirm: schema });\r\nreturn { ...res, serviceKey: res.serviceKey ? 'новый ключ lts_…' : null };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> root</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> track</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema, allowBypassRls: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> res</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> root.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">reset</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ level: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'all'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, confirm: schema });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">...</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">res, serviceKey: res.serviceKey </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">?</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'новый ключ lts_…'</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> :</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> null</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> };</span></span></code></pre>",
+      "result": {
+        "level": "all",
+        "serviceKey": "новый ключ lts_…"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 2,
+          "Class": 5,
+          "Resource": 12,
+          "rule": 8
+        },
+        "log": {
+          "create": 27,
+          "reset": 1
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1
+        }
+      }
+    }
+  ]
+}

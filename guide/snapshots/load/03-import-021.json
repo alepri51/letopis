@@ -1,0 +1,187 @@
+{
+  "id": "load/03-import-021",
+  "title": "Импорт из letopis 0.21: letopis import",
+  "summary": "Команда читает схему 0.21 (классы, объекты с историей, аккаунты, креды, права) и переносит её в установку 1.x: классы — в System, данные — по арендаторам с историей. Всё, что остановит импорт, проверяется до первой записи; в конце — verify().",
+  "covers": [
+    "cli.import",
+    "nuance.import-checks-first"
+  ],
+  "tables": [
+    "counts"
+  ],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": {
+      "entity": {},
+      "log": {},
+      "secret": {}
+    }
+  },
+  "steps": [
+    {
+      "title": "Источник 0.21 и пустая установка 1.x",
+      "text": "Источник — дамп схемы 0.21 из тестов letopis (`lib/test/fixtures/v021.sql`): два салона, клиенты, услуги, история правок.",
+      "code": "const dump = await readFile(new URL('../../../lib/test/fixtures/v021.sql', import.meta.url), 'utf8');\nawait admin.unsafe(`drop schema if exists \"${SRC}\" cascade`);\nawait admin.unsafe(dump.replaceAll('<SCHEMA>', SRC));\nawait up({ dsn: dsn.admin, schema, fresh: true, quiet: true });\nbase = ['import', '--from', dsn.admin, '--from-schema', SRC, '--dsn', dsn.admin, '--schema', schema, '--tenant', 'Импорт'];\nreturn (await admin.unsafe(`select count(*)::int as n from \"${SRC}\".\"Entity\"`))[0];",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> dump</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> readFile</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">new</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> URL</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'../../../lib/test/fixtures/v021.sql'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">meta</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.url), </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'utf8'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> admin.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">unsafe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`drop schema if exists \"${</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">SRC</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}\" cascade`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> admin.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">unsafe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(dump.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">replaceAll</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'&#x3C;SCHEMA>'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">SRC</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">));</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema, fresh: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">base </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'import'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'--from'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, dsn.admin, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'--from-schema'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">SRC</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'--dsn'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, dsn.admin, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'--schema'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, schema, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'--tenant'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Импорт'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">];</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> admin.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">unsafe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`select count(*)::int as n from \"${</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">SRC</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}\".\"Entity\"`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">))[</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">0</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">];</span></span></code></pre>",
+      "result": {
+        "n": 30
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 2,
+          "Class": 5,
+          "Resource": 12,
+          "rule": 8
+        },
+        "log": {
+          "create": 27
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1
+        }
+      }
+    },
+    {
+      "title": "Первая попытка: в источнике нарушен ключ",
+      "text": "В 0.21 две услуги «Стрижка» с одним ключом. Импорт останавливается до записи и называет строки (код выхода 1).",
+      "code": "const r = await cli(base);\nreturn { 'код выхода': r.code, 'ошибка': r.err.split('\\n')[0].slice(0, 160) };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> cli</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(base);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'код выхода'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: r.code, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'ошибка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: r.err.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">split</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">\\n</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)[</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">0</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">].</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">slice</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">0</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">160</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) };</span></span></code></pre>",
+      "result": {
+        "код выхода": 1,
+        "ошибка": "letopis: duplicate: import: остановлен до записи — Service id·7: тот же id 1.0 (id·8), что у Ser"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 2,
+          "Class": 5,
+          "Resource": 12,
+          "rule": 8
+        },
+        "log": {
+          "create": 27
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1
+        }
+      }
+    },
+    {
+      "title": "С --keyless Service: услуги без ключа",
+      "text": "`--keyless C` переносит класс без ключа (id случайные). Флаг `--tenant` — арендатор для данных, что в 0.21 лежали у System.",
+      "code": "const r = await cli([...base, '--keyless', 'Service']);\nconst report = JSON.parse(r.out.slice(r.out.indexOf('{')));\nreturn { 'код выхода': r.code, classes: report.classes, tenants: report.tenants, objects: report.objects, 'verify.ok': report.verify.ok };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> cli</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">([</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">...</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">base, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'--keyless'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Service'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">]);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> report</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> JSON</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">parse</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(r.out.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">slice</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(r.out.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">indexOf</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'{'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)));</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'код выхода'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: r.code, classes: report.classes, tenants: report.tenants, objects: report.objects, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'verify.ok'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: report.verify.ok };</span></span></code></pre>",
+      "result": {
+        "код выхода": 0,
+        "classes": {
+          "created": [
+            "address",
+            "compo",
+            "content",
+            "Element",
+            "Folder",
+            "Location",
+            "Org",
+            "Person",
+            "price",
+            "Schedule",
+            "skill",
+            "slot",
+            "booking",
+            "Complex",
+            "Customer",
+            "Product",
+            "Service",
+            "Staff"
+          ],
+          "existing": [],
+          "omitted": [
+            "Entity",
+            "link"
+          ],
+          "renamed": {},
+          "keyless": [
+            "Service"
+          ]
+        },
+        "tenants": [
+          {
+            "old": "System",
+            "id": "Импорт",
+            "name": "Импорт"
+          },
+          {
+            "old": "id·9",
+            "id": "Салон А",
+            "name": "id·9"
+          },
+          {
+            "old": "id·10",
+            "id": "Салон Б",
+            "name": "id·10"
+          }
+        ],
+        "objects": {
+          "loaded": 24,
+          "skipped": 0,
+          "updated": 0
+        },
+        "verify.ok": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 6,
+          "address": 1,
+          "booking": 1,
+          "Class": 23,
+          "Complex": 1,
+          "compo": 2,
+          "content": 1,
+          "Customer": 1,
+          "Folder": 3,
+          "Location": 1,
+          "Org": 3,
+          "price": 1,
+          "Product": 1,
+          "Resource": 25,
+          "rule": 20,
+          "Schedule": 1,
+          "Service": 5,
+          "skill": 1,
+          "Staff": 1
+        },
+        "log": {
+          "create": 100,
+          "delete": 2,
+          "update": 2
+        },
+        "secret": {
+          "APIKEY": 2,
+          "KEY": 1,
+          "KEYSECRET": 1,
+          "PASSWORD": 1,
+          "TELEGRAM": 1,
+          "TOTP": 1
+        }
+      }
+    }
+  ]
+}
