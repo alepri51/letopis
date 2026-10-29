@@ -247,6 +247,21 @@ const nuances: Nuance[] = [
     text: 'Смена пароля гасит остальные сессии аккаунта; keepCurrent оставляет текущую.',
     source: 'lib/README.md, раздел 10',
   },
+  {
+    id: 'deny-by-default',
+    text: 'Права включены всегда и по умолчанию запрещают всё; createTenant даёт правило «своим можно всё» (вес 10).',
+    source: 'lib/README.md, раздел 3',
+  },
+  {
+    id: 'rule-weight',
+    text: 'Правило с большим весом сильнее: запрет с весом 50 перекрывает «можно всё» с весом 10.',
+    source: 'lib/README.md, раздел 10 «Выдать право»',
+  },
+  {
+    id: 'tenant-classes',
+    text: 'Классы, записанные syncModels, принадлежат арендатору: другой арендатор не видит даже класса (invalid_class).',
+    source: 'пример access/01-rules',
+  },
 ];
 
 export default nuances;
