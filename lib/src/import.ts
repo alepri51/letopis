@@ -724,7 +724,15 @@ export async function import021(opts: ImportOptions): Promise<ImportReport> {
     }
     if (secretRows.length) {
       await x.begin(async (tx) => {
+        // кред аккаунта, которого в установке нет (его нет и в Account 0.21), привязать не к чему: строка secret ссылается
+        // на аккаунт внешним ключом (ревизия 7) — такой кред пропускается и считается в skipped
+        const known = new Set((await tx.unsafe(`select id::text as id from ${S}.entity where id = any ($1::uuid[])`,
+          [[...new Set(secretRows.map((s) => s.account))]])).map((r) => r.id as string));
         for (const s of secretRows) {
+          if (!known.has(s.account)) {
+            report.credentials.skipped++;
+            continue;
+          }
           const [dup] = await tx.unsafe(`select account::text as account from ${S}.secret
             where kind = $1 and casefold(ident) collate pg_unicode_fast = casefold($2) collate pg_unicode_fast and deleted_at is null`, [s.kind, s.ident]);
           if (dup) {

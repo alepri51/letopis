@@ -78,6 +78,12 @@ declare
   o_signals uuid;
   op text;
 begin
+  -- аккаунт System — раньше строки ключа: служебные строки secret (KEY, LOCK, PROJECTOR) принадлежат ему, а внешний
+  -- ключ secret.account (ревизия 7) требует строку аккаунта в entity. Счётчик прав sys_create повышает, только когда
+  -- строка ключа уже есть, — на свежей установке и после reset({ all }) ей неоткуда взяться, и начальный v — 0
+  perform @SCHEMA@.sys_create('@SYSTEM@'::uuid, 'Account', '@SYSTEM@'::uuid, '{}',
+    '{"name": "System", "categories": ["System"], "enabled": true}');
+
   -- Ключ подписи пропуска прав и счётчик изменений прав (50-acl.sql: acl_token, acl_bump); от ключа же
   -- выводится ключ сигналов. Режим сигналов (up({ signals })) хранится в meta этой строки: установщик
   -- читает его перед накатом, поэтому повторный up() без опции режим не меняет, а reset({ all }) кладёт
@@ -86,9 +92,6 @@ begin
   values ('@SYSTEM@'::uuid, '@SYSTEM@'::uuid, 'KEY', @PGCRYPTO@.gen_random_bytes(32), '{"v": 0, "signals": "@SIGNALS@"}')
   on conflict (id) do update set meta = k.meta || '{"signals": "@SIGNALS@"}'
   where k.meta->>'signals' is distinct from '@SIGNALS@';
-
-  perform @SCHEMA@.sys_create('@SYSTEM@'::uuid, 'Account', '@SYSTEM@'::uuid, '{}',
-    '{"name": "System", "categories": ["System"], "enabled": true}');
 
   -- Строка Class, описывающая саму себя, и системные классы. Полная метасхема и развёрнутое
   -- описание resolved — в 40-class.sql (этап 1, п. 6).

@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_48d24c5359947604b6f8b0170fabd5b2f3df11d4085a29a96d07543ac6045fd0",
+      "serviceKey": "lts_0fbc8bf88829077c8c3babf7f2272ffc3ed665afbea2421e49b8bf688c545301",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "620ea6900845d63b1585a131e23f5b224f5be7c2ce3c287b864a92c17c33ec15",
+        "token": "4d0cfe74eb4df3b9d9ded6b54dd21b5ba8a7d58369b3b9b33696ce634b0bd140",
         "created": true
       }
     }
@@ -27,7 +27,7 @@
   },
   "steps": [
     {
-      "result": "letopis ddl_revision=6 engine=1.4.1-alpha.0 sql=15458dd025d1c0fb",
+      "result": "letopis ddl_revision=7 engine=1.4.1-alpha.0 sql=5f82214869be7696",
       "error": null,
       "entity": [],
       "removed": [],

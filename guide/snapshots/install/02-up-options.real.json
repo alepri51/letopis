@@ -53,7 +53,7 @@
     {
       "result": {
         "upgraded": false,
-        "revision": 6,
+        "revision": 7,
         "migrations": []
       },
       "error": null,

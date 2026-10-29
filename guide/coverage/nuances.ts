@@ -293,6 +293,11 @@ const nuances: Nuance[] = [
     source: 'пример auth/02-sessions-tenants; lib/sql/90-time.sql:account_purge',
   },
   {
+    id: 'account-delete-secrets',
+    text: 'Начиная с 1.4.1 удаление учётной записи сразу стирает её строки secret — сессии, пароли, ключи, секреты TOTP, внешние учётные записи; сессии гаснут с сигналом, и кэш их ответов сбрасывается. Учётную запись System удалить нельзя (acl_denied).',
+    source: 'пример auth/03-delete-account; lib/sql/60-write.sql:trg_entity_bd_account, внешний ключ secret.account',
+  },
+  {
     id: 'refresh-never-shortens',
     text: 'auth.refresh({ ttl }) не укорачивает сессию и не продлевает дальше срока входа: новый срок — позднейшее из текущего и «сейчас + min(ttl, срок входа)».',
     source: 'lib/sql/80-auth.sql:auth_refresh',

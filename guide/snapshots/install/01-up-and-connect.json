@@ -62,7 +62,7 @@
       "result": {
         "schema": "v2.g_install_01_up_and_connect",
         "created": true,
-        "revision": 6,
+        "revision": 7,
         "signals": "class",
         "serviceKey": "‹токен 1›"
       },
@@ -76,7 +76,7 @@
           "kind": "KEY",
           "ident": null,
           "meta": {
-            "v": 27,
+            "v": 26,
             "signals": "class"
           },
           "material": "‹хэш›",
@@ -136,7 +136,7 @@
           "kind": "KEY",
           "ident": null,
           "meta": {
-            "v": 27,
+            "v": 26,
             "signals": "class"
           },
           "material": "‹хэш›",
@@ -198,7 +198,7 @@
           "kind": "KEY",
           "ident": null,
           "meta": {
-            "v": 33,
+            "v": 32,
             "signals": "class"
           },
           "material": "‹хэш›",
@@ -289,7 +289,7 @@
           "kind": "KEY",
           "ident": null,
           "meta": {
-            "v": 33,
+            "v": 32,
             "signals": "class"
           },
           "material": "‹хэш›",
@@ -382,7 +382,7 @@
           "kind": "KEY",
           "ident": null,
           "meta": {
-            "v": 33,
+            "v": 32,
             "signals": "class"
           },
           "material": "‹хэш›",
@@ -510,7 +510,7 @@
           "kind": "KEY",
           "ident": null,
           "meta": {
-            "v": 33,
+            "v": 32,
             "signals": "class"
           },
           "material": "‹хэш›",
@@ -640,7 +640,7 @@
           "kind": "KEY",
           "ident": null,
           "meta": {
-            "v": 33,
+            "v": 32,
             "signals": "class"
           },
           "material": "‹хэш›",
@@ -771,7 +771,7 @@
           "kind": "KEY",
           "ident": null,
           "meta": {
-            "v": 33,
+            "v": 32,
             "signals": "class"
           },
           "material": "‹хэш›",

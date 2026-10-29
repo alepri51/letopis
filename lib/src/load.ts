@@ -1081,12 +1081,17 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
   }
 }
 
-/** Определения из каталога: ограничения (первичный ключ, уникальные), прочие индексы, триггеры с режимом, колонки. */
+/**
+ * Определения из каталога: ограничения (первичный ключ, уникальные), внешние ключи других таблиц на entity и log
+ * (secret.account, ревизия 7), прочие индексы, триггеры с режимом, колонки.
+ */
 async function catalogOf(conn: Sql, S: string) {
   const rels = [`${S}.entity`, `${S}.log`];
   const sel = `(select x::regclass from unnest($1::text[]) x)`;
   const constraints = await conn.unsafe(`select conname as name, conrelid::regclass::text as tbl, pg_get_constraintdef(oid) as def
     from pg_constraint where conrelid in ${sel} and contype in ('p', 'u') order by conrelid, conname`, [rels]);
+  const foreign = await conn.unsafe(`select conname as name, conrelid::regclass::text as tbl, pg_get_constraintdef(oid) as def
+    from pg_constraint where confrelid in ${sel} and contype = 'f' order by conrelid, conname`, [rels]);
   const indexes = await conn.unsafe(`select i.indexrelid::regclass::text as name, pg_get_indexdef(i.indexrelid) as def
     from pg_index i where i.indrelid in ${sel}
       and not exists (select 1 from pg_constraint c where c.conindid = i.indexrelid and c.conrelid = i.indrelid and c.contype in ('p', 'u', 'x'))
@@ -1098,6 +1103,7 @@ async function catalogOf(conn: Sql, S: string) {
     where attrelid = $1::regclass and attnum > 0 and not attisdropped and attgenerated = ''`, [rel]))[0].c as string);
   return {
     constraints: constraints as unknown as { name: string; tbl: string; def: string }[],
+    foreign: foreign as unknown as { name: string; tbl: string; def: string }[],
     indexes: indexes as unknown as { name: string; def: string }[],
     triggers: triggers as unknown as { name: string; tbl: string; def: string; enabled: string }[],
     entityCols: await cols(rels[0]),
@@ -1109,7 +1115,8 @@ async function catalogOf(conn: Sql, S: string) {
  * Первая заливка (план 1.1, §2.3): загрузки fn — одной транзакцией в пустую схему. Блокировка таблиц до
  * проверки; в схеме только строки системных классов и записи reset (иначе not_empty); они (с seq и tx
  * журнала) и определения ограничений, индексов и триггеров из каталога (с режимом включения tgenabled:
- * pg_get_triggerdef его не передаёт) сохраняются в памяти; TRUNCATE; триггеры, ограничения и индексы
+ * pg_get_triggerdef его не передаёт) сохраняются в памяти; внешний ключ secret.account снимается до TRUNCATE и
+ * возвращается после первичного ключа entity; TRUNCATE; триггеры, ограничения и индексы
  * снимаются — BEFORE ROW делает COPY построчным одним своим наличием, триггеры после оператора копят
  * переходные таблицы; системные строки возвращаются (seq журнала — generated always: overriding system
  * value); загрузки пишут COPY FREEZE. В конце — ограничения (дубликат найдёт сортировка), индексы,
@@ -1142,7 +1149,10 @@ export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) =>
     const triggers = tune.keepTriggers ? [] : cat.triggers;
     const keys = tune.keepKeys ? [] : cat.constraints;
     const indexes = cat.indexes.filter((i) => !(tune.keepGin && /\busing gin\b/i.test(i.def)));
-    // 4. TRUNCATE; триггеры, ограничения и индексы — снять
+    // 4. TRUNCATE; триггеры, ограничения и индексы — снять. Внешний ключ secret.account на entity (ревизия 7) — до
+    // TRUNCATE при любом keepKeys: таблицу, на которую ссылается внешний ключ, TRUNCATE без неё не очищает, а secret
+    // (ключ установки, сессии, креды) заливка не трогает
+    for (const f of cat.foreign) await q(`alter table ${f.tbl} drop constraint ${ident(f.name)}`);
     await q(`truncate ${S}.entity, ${S}.log`);
     for (const t of triggers) await q(`drop trigger ${ident(t.name)} on ${t.tbl}`);
     for (const c of keys) await q(`alter table ${c.tbl} drop constraint ${ident(c.name)}`);
@@ -1164,6 +1174,9 @@ export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) =>
       set_config('max_parallel_maintenance_workers', greatest(current_setting('max_parallel_maintenance_workers')::int,
         least(current_setting('max_parallel_workers')::int, 4))::text, true)`);
     for (const c of keys) await q(`alter table ${c.tbl} add constraint ${ident(c.name)} ${c.def}`);
+    // внешние ключи на entity — после её первичного ключа: системные строки вернулись с прежними id, строки secret
+    // ссылаются на них
+    for (const f of cat.foreign) await q(`alter table ${f.tbl} add constraint ${ident(f.name)} ${f.def}`);
     for (const i of indexes) await q(i.def);
     // 8. триггеры — с прежним режимом включения (ENABLE ALWAYS работает и при session_replication_role = replica)
     for (const t of triggers) {

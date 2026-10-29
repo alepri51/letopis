@@ -974,7 +974,7 @@ describeText(d: ModelDescription): string
 ### DDL_REVISION {#export-ddl-revision}
 
 ```ts
-const DDL_REVISION = 6
+const DDL_REVISION = 7
 ```
 
 Ревизия движка в базе: штамп в lib/sql/99-revision.sql должен совпадать.

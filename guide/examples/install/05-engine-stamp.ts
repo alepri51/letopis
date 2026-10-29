@@ -1,4 +1,4 @@
-import { up } from 'letopis';
+import { up, DDL_REVISION } from 'letopis';
 import { example } from '../../kit/example.ts';
 
 export default example({
@@ -25,7 +25,7 @@ export default example({
         'Изображаем схему версии до 1.4: в комментарии только ревизия, штампа нет. Ревизия та же, поэтому ' +
         '`connect()` подключается, но предупреждает и называет команду, которая всё исправит.',
       run: async ({ admin, connect, warnings, dsn, schema, up }) => {
-        await admin.unsafe(`comment on schema "${schema}" is 'letopis ddl_revision=6'`);
+        await admin.unsafe(`comment on schema "${schema}" is 'letopis ddl_revision=${DDL_REVISION}'`);
         const { warnings: printed } = await warnings(() => connect({ dsn: dsn.app, schema, token: up.tenant!.token! }));
         return printed;
       },

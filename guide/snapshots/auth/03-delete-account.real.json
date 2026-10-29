@@ -1,0 +1,190 @@
+{
+  "id": "auth/03-delete-account",
+  "context": {
+    "schema": "v2.g_auth_03_delete_account",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_a8bd083c42b1b99763e8a20a97c3eef0687ae8fab117fc7479cc32362e43af09",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "c01f4a03317bdd18e35cac53693706c21f34ce5037ac5e13963d06e1f2575ac1",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "Анна работает в": "System"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "35324f4e-6d93-5ef3-8bc4-5135fb200b21",
+            "login_at": "2026-10-29T21:55:26.2556+00:00"
+          },
+          "material": "e86a4790e19f0c04fe8158f57f69441410758a4d25c954b7edb996c43e4b0994",
+          "expires_at": "2026-11-05 21:55:26.255607+00",
+          "created_at": "2026-10-29 21:55:26.255608+00",
+          "deleted_at": null
+        }
+      ]
+    },
+    {
+      "result": {
+        "правил в кэше": 3,
+        "кэш": 1
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "35324f4e-6d93-5ef3-8bc4-5135fb200b21",
+            "login_at": "2026-10-29T21:55:26.2556+00:00"
+          },
+          "material": "e86a4790e19f0c04fe8158f57f69441410758a4d25c954b7edb996c43e4b0994",
+          "expires_at": "2026-11-05 21:55:26.255607+00",
+          "created_at": "2026-10-29 21:55:26.255608+00",
+          "deleted_at": null
+        },
+        {
+          "account": "23dc6878-f3af-5ecf-a062-e5329b9f1638",
+          "kind": "PASSWORD",
+          "ident": "boris@lutik.ru",
+          "meta": {
+            "confirmed": true
+          },
+          "material": "7363727970742433323736382438243124782b51492f4839675451575953367471706f4b5248413d3d24542f3443494b78624a7a62614c5855344d43324b786930306f52722b414a496b416e34313441346d4d4a553d",
+          "expires_at": null,
+          "created_at": "2026-10-29 21:55:26.735754+00",
+          "deleted_at": null
+        },
+        {
+          "account": "23dc6878-f3af-5ecf-a062-e5329b9f1638",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "68466b9a-4722-5a50-ba68-378a96b6beb8",
+            "login_at": "2026-10-29T21:55:26.73678+00:00"
+          },
+          "material": "84ae014705960fe26624cbaf9f88ecee87d25846f535beb88b2bb76fed0050af",
+          "expires_at": "2026-11-05 21:55:26.736786+00",
+          "created_at": "2026-10-29 21:55:26.736787+00",
+          "deleted_at": null
+        },
+        {
+          "account": "23dc6878-f3af-5ecf-a062-e5329b9f1638",
+          "kind": "KEYSECRET",
+          "ident": "f2cf26245ba199bd",
+          "meta": {
+            "name": "касса",
+            "confirmed": true
+          },
+          "material": "e8cd045ecdd1eecb8c0ee2db823c1b22b597cdb40ed39da7c4af0ecdb160fe0a",
+          "expires_at": null,
+          "created_at": "2026-10-29 21:55:26.742383+00",
+          "deleted_at": null
+        }
+      ]
+    },
+    {
+      "result": {
+        "строк Бориса в secret": 0,
+        "правил по кэшированному запросу": 0,
+        "сессия по токену": null
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "35324f4e-6d93-5ef3-8bc4-5135fb200b21",
+            "login_at": "2026-10-29T21:55:26.2556+00:00"
+          },
+          "material": "e86a4790e19f0c04fe8158f57f69441410758a4d25c954b7edb996c43e4b0994",
+          "expires_at": "2026-11-05 21:55:26.255607+00",
+          "created_at": "2026-10-29 21:55:26.255608+00",
+          "deleted_at": null
+        }
+      ]
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "acl_denied",
+        "message": "letopis: acl_denied: аккаунт System не удаляется: ему принадлежат служебные строки установки",
+        "detail": {}
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "35324f4e-6d93-5ef3-8bc4-5135fb200b21",
+            "login_at": "2026-10-29T21:55:26.2556+00:00"
+          },
+          "material": "e86a4790e19f0c04fe8158f57f69441410758a4d25c954b7edb996c43e4b0994",
+          "expires_at": "2026-11-05 21:55:26.255607+00",
+          "created_at": "2026-10-29 21:55:26.255608+00",
+          "deleted_at": null
+        }
+      ]
+    }
+  ]
+}

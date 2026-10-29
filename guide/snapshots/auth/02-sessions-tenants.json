@@ -526,7 +526,7 @@
           "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "установка",
-          "deleted_at": "t12",
+          "deleted_at": "t16",
           "$new": true
         },
         {
@@ -544,7 +544,7 @@
           "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "установка",
-          "deleted_at": "t13",
+          "deleted_at": "t12",
           "$new": true
         },
         {
@@ -563,7 +563,7 @@
           "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t2",
-          "deleted_at": "t16",
+          "deleted_at": "t15",
           "$new": true
         },
         {
@@ -596,7 +596,7 @@
           "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t5",
-          "deleted_at": "t14",
+          "deleted_at": "t13",
           "$new": true
         },
         {
@@ -628,7 +628,7 @@
           "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t8",
-          "deleted_at": "t15",
+          "deleted_at": "t14",
           "$new": true
         },
         {
@@ -689,7 +689,7 @@
           "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "установка",
-          "deleted_at": "t12",
+          "deleted_at": "t16",
           "$new": false
         },
         {
@@ -707,7 +707,7 @@
           "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "установка",
-          "deleted_at": "t13",
+          "deleted_at": "t12",
           "$new": false
         },
         {
@@ -726,7 +726,7 @@
           "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t2",
-          "deleted_at": "t16",
+          "deleted_at": "t15",
           "$new": false
         },
         {
@@ -759,7 +759,7 @@
           "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t5",
-          "deleted_at": "t14",
+          "deleted_at": "t13",
           "$new": false
         },
         {
@@ -791,7 +791,7 @@
           "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t8",
-          "deleted_at": "t15",
+          "deleted_at": "t14",
           "$new": false
         },
         {
@@ -865,7 +865,7 @@
           "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "установка",
-          "deleted_at": "t12",
+          "deleted_at": "t16",
           "$new": false
         },
         {
@@ -883,7 +883,7 @@
           "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "установка",
-          "deleted_at": "t13",
+          "deleted_at": "t12",
           "$new": false
         },
         {
@@ -902,7 +902,7 @@
           "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t2",
-          "deleted_at": "t16",
+          "deleted_at": "t15",
           "$new": false
         },
         {
@@ -935,7 +935,7 @@
           "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t5",
-          "deleted_at": "t14",
+          "deleted_at": "t13",
           "$new": false
         },
         {
@@ -967,7 +967,7 @@
           "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t8",
-          "deleted_at": "t15",
+          "deleted_at": "t14",
           "$new": false
         },
         {

@@ -365,13 +365,15 @@ const adm = await connect({ dsn: ADMIN, schema: r.schema, token: r.tenant!.token
 
 ### Upgrading the package and schema
 
-The schema has an engine revision (currently 6). If a new package version brings a new revision, `connect()` only warns
+The schema has an engine revision (currently 7). If a new package version brings a new revision, `connect()` only warns
 and names the command. It is `up()` that refuses: a lagging schema without `upgrade: true`, and a schema newer than the
 package. So a startup script that calls `up()` on every start will stop after a package update until it gets
 `upgrade: true`. `up({ dsn, schema, upgrade: true })` applies the migrations from `sql/migrate/` and re-applies the
-functions; the data is kept.
+functions; the data is kept. Revision 7 (1.4.1) adds the foreign key `secret.account`: migration `0007` first erases
+the `secret` rows whose accounts are already gone (the credentials of accounts deleted earlier were kept with the
+`deleted_at` mark), and then sets the key.
 
-The revision does not change with every version: 1.1–1.4 share one, while their functions differ. So `up()` also writes
+The revision does not change with every version: 1.1–1.4.0 share one (6), while their functions differ. So `up()` also writes
 an engine stamp into the schema comment: the package version and a hash of its SQL files. If the stamp does not match
 the package files, `connect()` warns. When the schema was applied by an older version (or by a version before 1.4,
 which has no stamp), it suggests `up({ schema })`. When a newer version has already upgraded the schema, it suggests
@@ -386,8 +388,9 @@ the owner role — then `up()` only drops the old one.
 
 The `upgrade` test checks upgrading 1.1.0 and 1.0.1 schemas. The old package installs the schema and the old engine
 writes the data, then the current version's `up()` runs. After it, the versions and hashes written by the old engine
-are in place, `verify({ data: true })` is clean, and the schema catalog matches a clean installation. A 1.1.0 schema is
-upgraded with a plain `up()`, since its revision is the same. A 1.0.1 schema is upgraded with `up({ upgrade: true })`.
+are in place, `verify({ data: true })` is clean, and the schema catalog matches a clean installation. Both schemas are
+upgraded with `up({ upgrade: true })`: 1.1.0 (revision 6) with migration `0007`, 1.0.1 (revision 5) with migrations
+`0006` and `0007`.
 
 ### Development without PostgreSQL: PGlite
 
@@ -1575,6 +1578,13 @@ its tenant can call it; you cannot delete yourself or the last owner of a tenant
 passes to those tenants, sessions are revoked, credentials are deleted. An owner can also delete the tenant they are
 working in right now: their session returns to their personal tenant.
 
+The system administrator can also delete the account row itself — `db.Account(id).delete({ confirm: true })` in the
+System tenant; the data of the account's tenant stays then. Either way, the account's rows in `secret` are erased at
+once: sessions, password and key hashes, TOTP secrets, external accounts (the foreign key `secret.account` with a
+cascade, revision 7). Before that, the sessions are revoked with a signal, and processes drop the cached answers of
+these sessions. The System account cannot be deleted (`acl_denied`): the service rows of the installation in `secret`
+belong to it.
+
 ## 11. History and point-in-time reads
 
 ### Versions
@@ -2033,8 +2043,9 @@ const report = await adm.maintain()     // { sessions, codes, thinned, batches, 
 
 `maintain()` deletes sessions and one-time codes of the `OTP` kind from the `secret` table — expired ones, as well as
 revoked sessions and codes that were used, replaced by a new one or ran out of attempts, — thins the journal by the
-retention policy and checks the PostgreSQL signal queue: if it is more than half full, you get a warning. The system
-administrator, a role with the `letopis.maintain` permission or an admin connection can call it. An external scheduler
+retention policy and checks the PostgreSQL signal queue: if it is more than half full, you get a warning. You do not
+need `maintain()` for the rows of a deleted account: the deletion itself erases them ([Deleting an account](#deleting-an-account)).
+The system administrator, a role with the `letopis.maintain` permission or an admin connection can call it. An external scheduler
 runs it (`letopis maintain`), or the library itself does: `connect({ maintain: '1h' })`. The interval is a number of
 milliseconds or a string (`'500ms'`, `'30s'`, `'15m'`, `'1h'`, `'1d'`) from 1 ms to 2³¹−1 ms (about 24 days):
 `connect()` rejects any other value, including zero, a negative number or `NaN`, with `invalid_data` without opening
@@ -2809,7 +2820,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # cache — result cache: hits, own and others' writes, the key with the user, permissions, revoked sessions, listener drop, ttl, class marking, without LISTEN, a race, db.sql, the limit of signal counters (stage 6; plan 1.1, checkpoint A)
 # maintain — maintenance: expired sessions and codes, permissions, one process under a lock, schedule (stage 6)
 # up — the full installer: fresh installation, re-apply, custom seeds, automatic database creation, UTF8, version 17, upgrade with migrations, PGlite, the first tenant and user (up({ tenant }), createTenant) (stages 6, 8)
-# upgrade — schema upgrade from 1.1.0 (re-apply) and from 1.0.1 (upgrade: true, migration 0006) with the letopis-11 and letopis-1 packages: versions and hashes written by the old engine, verify(), the catalog against a clean installation, lock rows, the application, a subscription and a projector over old data, a repeated up() (work after 1.2.0, stage 1)
+# upgrade — schema upgrade from 1.1.0 (upgrade: true, migration 0007) and from 1.0.1 (upgrade: true, migrations 0006 and 0007) with the letopis-11 and letopis-1 packages: versions and hashes written by the old engine, verify(), the catalog against a clean installation, lock rows, secret rows without an account erased, the application, a subscription and a projector over old data, a repeated up() (work after 1.2.0, stage 1; revision 7)
 # scenario-salon — end-to-end salon scenario: 21 acts from 0.21 (salon) with a coverage matrix of the 1.0 API (stage 6)
 # telemetry — onQuery and slowMs, describe() and class metadata with inheritance, describeText (stage 6)
 # history — diff and blame over the log, the reason of a change for verbs, db.begin() and batches; a version hidden by an ACL condition, the changed column, a missing version, row_changes over 20 thousand targets (plan 1.1, stage 1 and checkpoint A)

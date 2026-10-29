@@ -163,6 +163,8 @@ test('7.3.8 №4: перечень функций владельца — search_
     trg_entity_ai: () => assert.rejects(q(`select ${S}.trg_entity_ai()`), lt('42501')),
     trg_entity_au: () => assert.rejects(q(`select ${S}.trg_entity_au()`), lt('42501')),
     trg_entity_bd: () => assert.rejects(q(`select ${S}.trg_entity_bd()`), lt('42501')),
+    // удаление аккаунта (ревизия 7): гашение сессий и запрет удалить System — триггерная функция приложению не выдана
+    trg_entity_bd_account: () => assert.rejects(q(`select ${S}.trg_entity_bd_account()`), lt('42501')),
     trg_entity_ad: () => assert.rejects(q(`select ${S}.trg_entity_ad()`), lt('42501')),
     // агрегаты в базе (план 1.1, этап 4б): триггерные функции приложению не выданы
     trg_entity_total_ai: () => assert.rejects(q(`select ${S}.trg_entity_total_ai()`), lt('42501')),
@@ -186,10 +188,10 @@ test('7.3.8 №6: приложение не создаёт постоянных 
   await assert.rejects(q(`create function ${S}.lt_evil() returns int language sql return 1`), lt('42501'));
 });
 
-test('7.3.8 №7: триггеры entity по каталогу — условие для владельца и enable always; триггеры агрегатов — без условия', async () => {
+test('7.3.8 №7: триггеры entity по каталогу — условие для владельца и enable always; триггеры агрегатов и удаления аккаунта — без условия для владельца', async () => {
   const trg = await e.sql.unsafe(`select tgname, tgenabled, pg_get_triggerdef(oid) as def from pg_trigger
     where tgrelid = $1::regclass and not tgisinternal order by tgname`, [`${S}.entity`]);
-  assert.deepEqual(trg.map((r) => r.tgname), ['entity_ad', 'entity_ai', 'entity_au', 'entity_bd', 'entity_bi', 'entity_bu',
+  assert.deepEqual(trg.map((r) => r.tgname), ['entity_ad', 'entity_ai', 'entity_au', 'entity_bd', 'entity_bd_account', 'entity_bi', 'entity_bu',
     'entity_total_ad', 'entity_total_ai', 'entity_total_au']);
   for (const r of trg) {
     assert.equal(r.tgenabled, 'A', r.tgname);
@@ -197,6 +199,11 @@ test('7.3.8 №7: триггеры entity по каталогу — услови
       // агрегаты в базе (план 1.1, §2.4): срабатывают и для владельца — каскад, функции владельца, загрузчик
       assert.doesNotMatch(r.def, /WHEN/, r.tgname);
       assert.match(r.def, /AFTER (INSERT|UPDATE|DELETE) ON .* REFERENCING .* FOR EACH STATEMENT/, r.tgname);
+    } else if (r.tgname === 'entity_bd_account') {
+      // удаление аккаунта (ревизия 7): аккаунты удаляют и функции владельца (каскад trg_entity_ad, account_purge) — сессии
+      // гаснут с сигналом до каскада внешнего ключа secret.account при любой роли
+      assert.doesNotMatch(r.def, /CURRENT_USER/, r.tgname);
+      assert.match(r.def, /BEFORE DELETE ON .* FOR EACH ROW WHEN \(+old\.class = 'Account'::text\)+/, r.tgname);
     } else {
       assert.match(r.def, /WHEN \(+CURRENT_USER <> 'letopis_owner'::name\)+/, r.tgname);
     }

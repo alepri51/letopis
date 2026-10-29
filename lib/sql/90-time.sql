@@ -622,7 +622,7 @@ end $$;
 -- последнего включённого владельца. Данные и журнал арендатора-цели стираются физически; в чужих
 -- арендаторах членства снимаются (надгробия), владение строками переходит арендаторам (§2.10);
 -- остались ссылки на аккаунт — delete_restricted. Строка Account удаляется с надгробием (история
--- аккаунтов — аудит), сессии гаснут, креды удаляются.
+-- аккаунтов — аудит), сессии гаснут с сигналом, строки secret аккаунта стирает каскад внешнего ключа.
 create or replace function @SCHEMA@.account_purge(p_account uuid) returns jsonb
 language plpgsql volatile security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -695,10 +695,10 @@ begin
   if blockers <> '[]'::jsonb then
     perform @SCHEMA@.lt_fail('delete_restricted', 'на аккаунт ссылаются другие строки', @SCHEMA@.visible_detail(blockers, c.tenant));
   end if;
+  -- сессии аккаунта гасит с сигналом триггер до удаления (trg_entity_bd_account, срабатывает и для владельца), а его
+  -- строки secret — сессии и креды — стирает каскад внешнего ключа secret.account (ревизия 7)
   delete from @SCHEMA@.entity x where x.id = p_account;
   perform @SCHEMA@.tombstone(a);
-  perform @SCHEMA@.auth_kill(p_account, null);
-  delete from @SCHEMA@.secret s where s.account = p_account;
   -- данные арендатора-цели — его парами; Account и member — классы прав, их сигнал сбрасывает всё
   perform @SCHEMA@.signal(classes || array['Account', 'member'],
     array(select p_account from unnest(classes)) || array['@SYSTEM@'::uuid, '@SYSTEM@'::uuid]);
