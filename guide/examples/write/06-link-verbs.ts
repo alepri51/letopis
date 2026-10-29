@@ -10,7 +10,7 @@ export default example({
     'продолжить с готовой строки — entity(), повтор чтения взять из кэша — cache(). await цепочки ничего не читает — нужен rows().',
   tables: ['entity'],
   classes: ['Product', 'Category'],
-  covers: ['chain.set', 'chain.unset', 'chain.add', 'chain.remove', 'chain.then', 'chain.entity', 'chain.cache', 'class.fields', 'class.cache', 'nuance.chain-not-thenable'],
+  covers: ['chain.set', 'chain.unset', 'chain.add', 'chain.remove', 'chain.then', 'chain.entity', 'chain.cache', 'class.fields', 'class.cache', 'nuance.chain-not-thenable', 'nuance.cache-raced'],
   steps: [
     {
       title: 'Кружке — две категории (множественный конец)',
@@ -44,13 +44,17 @@ export default example({
     },
     {
       title: 'Кэш результатов и описание класса',
-      text: '`.cache()` — повтор того же чтения без запроса, пока данные не изменились. В описании класса — его поля (`fields`) и настройка кэша (`cache`).',
-      run: async ({ db }) => {
-        const before = db.cache.stats().hits;
-        await db.Product().cache({ ttl: 30 }).count();
-        await db.Product().cache({ ttl: 30 }).count();
-        const desc = db.describe().classes.find((c) => c.name === 'Product')!;
-        return { 'попаданий в кэш': db.cache.stats().hits - before, 'поля Product': Object.keys((desc.fields as { properties?: object }).properties ?? desc.fields).slice(0, 4), cache: desc.cache ?? null };
+      text:
+        '`.cache()` — повтор того же чтения без запроса, пока данные не изменились. Попадания считаем на свежем ' +
+        'подключении Анны: у `db` сигнал о записи прошлого шага мог бы прийти во время первого чтения, а такой ответ ' +
+        'кэш не кладёт — защита от гонки, счётчик `raced`. В описании класса — его поля (`fields`) и настройка кэша (`cache`).',
+      run: async ({ connect, dsn, schema, up }) => {
+        const anna = await connect({ dsn: dsn.app, schema, token: up.tenant!.token! });
+        await anna.Product().cache({ ttl: 30 }).count(); // запрос к базе — ответ ложится в кэш
+        await anna.Product().cache({ ttl: 30 }).count(); // то же чтение — из кэша
+        const { hits, raced } = anna.cache.stats();
+        const desc = anna.describe().classes.find((c) => c.name === 'Product')!;
+        return { 'попаданий в кэш': hits, raced, 'поля Product': Object.keys((desc.fields as { properties?: object }).properties ?? desc.fields).slice(0, 4), cache: desc.cache ?? null };
       },
     },
   ],

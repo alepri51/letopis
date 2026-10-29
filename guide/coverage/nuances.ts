@@ -343,6 +343,11 @@ const nuances: Nuance[] = [
     source: 'lib/src/chain.ts (then → undefined); пример write/06',
   },
   {
+    id: 'cache-raced',
+    text: 'Ответ, во время чтения которого пришёл сигнал, способный его изменить (в том числе запоздалый сигнал своей же прошлой записи), в кэш не кладётся: такое же следующее чтение снова пойдёт в базу. Счётчик — raced в db.cache.stats().',
+    source: 'lib/src/cache.ts (гонка запроса и сигнала); пример write/06',
+  },
+  {
     id: 'service-enforces-2fa',
     text: 'letopis не навязывает второй фактор: verifyPassword без totp даёт сессию и при включённом TOTP — требовать код должен сервис (totpEnabled).',
     source: 'lib/src/auth.ts:verifyPassword; сервис helpdesk',
