@@ -147,42 +147,42 @@
         {
           "api": "connect({ container })",
           "code": "removed",
-          "что вместо": "опция connect({ container }) снят в 1.0.0 — Docker в up() не нужен"
+          "что вместо": "опция connect({ container }) снята в 1.0.0 — Docker в up() не нужен"
         },
         {
           "api": "connect({ dataDir })",
           "code": "removed",
-          "что вместо": "опция connect({ dataDir }) снят в 1.0.0 — Docker в up() не нужен"
+          "что вместо": "опция connect({ dataDir }) снята в 1.0.0 — Docker в up() не нужен"
         },
         {
           "api": "connect({ enforceAccount })",
           "code": "removed",
-          "что вместо": "опция connect({ enforceAccount }) снят в 1.0.0 — изоляция арендаторов включена всегда (RLS)"
+          "что вместо": "опция connect({ enforceAccount }) снята в 1.0.0 — изоляция арендаторов включена всегда (RLS)"
         },
         {
           "api": "connect({ enforceAcl })",
           "code": "removed",
-          "что вместо": "опция connect({ enforceAcl }) снят в 1.0.0 — права включены всегда (этап 5)"
+          "что вместо": "опция connect({ enforceAcl }) снята в 1.0.0 — права включены всегда (этап 5)"
         },
         {
           "api": "connect({ image })",
           "code": "removed",
-          "что вместо": "опция connect({ image }) снят в 1.0.0 — Docker в up() не нужен"
+          "что вместо": "опция connect({ image }) снята в 1.0.0 — Docker в up() не нужен"
         },
         {
           "api": "connect({ partition })",
           "code": "removed",
-          "что вместо": "опция connect({ partition }) снят в 1.0.0 — отдельные схемы установки (v2.<имя>)"
+          "что вместо": "опция connect({ partition }) снята в 1.0.0 — отдельные схемы установки (v2.<имя>)"
         },
         {
           "api": "connect({ redisPort })",
           "code": "removed",
-          "что вместо": "опция connect({ redisPort }) снят в 1.0.0 — Redis не нужен: сессии в базе"
+          "что вместо": "опция connect({ redisPort }) снята в 1.0.0 — Redis не нужен: сессии в базе"
         },
         {
           "api": "connect({ version })",
           "code": "removed",
-          "что вместо": "опция connect({ version }) снят в 1.0.0 — версия схемы — константа движка"
+          "что вместо": "опция connect({ version }) снята в 1.0.0 — версия схемы — константа движка"
         }
       ],
       "error": null,

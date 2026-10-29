@@ -1,7 +1,7 @@
 {
   "id": "delete/01-delete-cascade",
   "title": "Удаление: предпросмотр, каскад, запрет, снятие ссылки",
-  "summary": "delete() без подтверждения — только предпросмотр: что удалится и как. С { confirm: true } удаляются цели, а ссылки на них обрабатываются по правилу конца: cascade — удалить вместе, restrict — запретить, unset — снять ссылку.",
+  "summary": "delete() без подтверждения — только предпросмотр: что удалится и как. С { confirm: true } удаляются цели, а что делать со ссылками на них, решает действие при удалении у конца: cascade — удалить вместе, restrict — запретить, unset — снять ссылку.",
   "covers": [
     "chain.delete",
     "error.delete_restricted",
@@ -781,7 +781,7 @@
     },
     {
       "title": "Предпросмотр удаления заказа",
-      "text": "Строки заказа ссылаются на заказ с правилом `cascade` — они удалятся вместе с ним. В каждой строке предпросмотра — `$action` (что будет) и `$depth` (уровень каскада: 0 — сама цель). В базе ничего не изменилось.",
+      "text": "Строки заказа ссылаются на заказ с действием при удалении `cascade` — они удалятся вместе с ним. В каждой строке предпросмотра — `$action` (что будет) и `$depth` (уровень каскада: 0 — сама цель). В базе ничего не изменилось.",
       "code": "db.Order(d.order1).delete().rows()",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
@@ -2434,7 +2434,7 @@
     },
     {
       "title": "Магазин с товарами: предпросмотр показывает запрет",
-      "text": "Товары ссылаются на магазин с правилом по умолчанию — `restrict`. Предпросмотр помечает их `$action: restrict`.",
+      "text": "Товары ссылаются на магазин с действием при удалении по умолчанию — `restrict`. Предпросмотр помечает их `$action: restrict`.",
       "code": "(await db.Shop(d.lutik).delete().rows()).map((r) => ({ id: r.id, action: r.$action }))",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.lutik).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ id: r.id, action: r.$action }))</span></span></code></pre>",
       "result": [
@@ -3914,7 +3914,7 @@
     },
     {
       "title": "Удалить категорию — ссылки снимутся",
-      "text": "У товаров конец `Category` с правилом `unset`. Удаляем «Посуду»: категория ушла, а у Чайника и Кружки ссылка на неё снята (подсвечено) — это новая версия каждого товара.",
+      "text": "У товаров конец `Category` с действием при удалении `unset`. Удаляем «Посуду»: категория ушла, а у Чайника и Кружки ссылка на неё снята (подсвечено) — это новая версия каждого товара.",
       "code": "db.Category(d.dishes).delete({ confirm: true }).rows()",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.dishes).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [

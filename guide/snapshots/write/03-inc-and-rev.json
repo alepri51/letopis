@@ -1427,7 +1427,7 @@
       "result": null,
       "error": {
         "code": "rev_ambiguous",
-        "message": "letopis: rev_ambiguous: update(patch, { rev }): у шага Product 2 целей — строгий режим только для одной",
+        "message": "letopis: rev_ambiguous: update(patch, { rev }): у шага Product 2 целей — проверить версию { rev } можно только у одной цели",
         "detail": null,
         "expected": true
       },

@@ -189,7 +189,7 @@ const nuances: Nuance[] = [
   },
   {
     id: 'cascade-unset-restrict',
-    text: 'Правило конца решает судьбу ссылок при удалении цели: cascade — удалить вместе, unset — снять ссылку, restrict — отказ delete_restricted.',
+    text: 'Действие при удалении, заданное у конца, решает судьбу ссылок на удаляемую цель: cascade — удалить вместе, unset — снять ссылку, restrict — отказ delete_restricted.',
     source: 'lib/README.md, раздел 7',
   },
   {

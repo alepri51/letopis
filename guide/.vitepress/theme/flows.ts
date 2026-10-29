@@ -203,7 +203,7 @@ export const flows: Record<string, FlowDef> = {
   req["операция с opId"] --> seen{"Movement(opId)<br/>уже есть?"}
   seen -- "нет" --> move["Movement и inc баланса<br/>одной транзакцией"]
   seen -- "да" --> dup["«уже было» —<br/>второго списания нет"]
-  move --> rule{"правило модели:<br/>баланс ≥ 0?"}
+  move --> rule{"ограничение модели:<br/>баланс ≥ 0?"}
   rule -- "да" --> done["проведено"]
   rule -- "нет" --> bad["отказ invalid_data"]`,
     steps: {
@@ -258,7 +258,7 @@ export const flows: Record<string, FlowDef> = {
     example: 'derived/01-aggregate',
     code: `flowchart LR
   src["строка источника:<br/>операция кошелька"] --> trg["триггер после оператора:<br/>приращение агрегата"]
-  trg --> rule{"правило модели<br/>над итогом"}
+  trg --> rule{"ограничение модели<br/>для итога"}
   rule -- "выполнено" --> ver["новая версия кошелька<br/>в журнале"]
   rule -- "нарушено" --> bad["отказ invalid_data"]
   direct["запись в агрегатное поле<br/>напрямую"] --> agg["отказ aggregate_field"]
@@ -267,7 +267,7 @@ export const flows: Record<string, FlowDef> = {
       1: { nodes: [], note: 'Кошелёк и класс операций — источник агрегата balance.' },
       2: { nodes: ['src', 'trg', 'rule', 'ver'], note: 'Пополнение 1000: баланс пересчитала сама база.' },
       3: { nodes: ['src', 'trg', 'rule', 'ver'], note: 'Списание −300 — баланс 700.' },
-      4: { nodes: ['src', 'trg', 'rule', 'bad'], note: 'Уйти в минус нельзя: правило над итогом — invalid_data.' },
+      4: { nodes: ['src', 'trg', 'rule', 'bad'], note: 'Уйти в минус нельзя: ограничение модели для итога — invalid_data.' },
       5: { nodes: ['direct', 'agg'], note: 'Писать в агрегатное поле нельзя: aggregate_field.' },
       6: { nodes: ['rebuild', 'ver'], note: 'Ремонт: итог пересчитан из источника.' },
     },
