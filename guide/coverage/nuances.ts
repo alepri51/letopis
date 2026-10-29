@@ -187,6 +187,21 @@ const nuances: Nuance[] = [
     text: 'count() — сущности без повторов; count({ paths: true }) — число путей до них.',
     source: 'lib/README.md, раздел 6',
   },
+  {
+    id: 'cascade-unset-restrict',
+    text: 'Правило конца решает судьбу ссылок при удалении цели: cascade — удалить вместе, unset — снять ссылку, restrict — отказ delete_restricted.',
+    source: 'lib/README.md, раздел 7',
+  },
+  {
+    id: 'restore-only-targets',
+    text: 'restore() возвращает только цели шага; строки, удалённые каскадом, возвращают отдельно через withDeleted().',
+    source: 'lib/README.md, раздел 7',
+  },
+  {
+    id: 'purge-record',
+    text: 'purge стирает версии удалённого объекта, на месте версии 1 остаётся запись purge с числом стёртых версий.',
+    source: 'lib/README.md, раздел 7',
+  },
 ];
 
 export default nuances;

@@ -517,7 +517,7 @@
           "tags": [],
           "class": "line",
           "links": {
-            "Order": "Order·1",
+            "Order": "Order «A-1»",
             "Product": "Product «Сенча»"
           },
           "owner": "Ромашка",
@@ -632,7 +632,7 @@
           ]
         },
         {
-          "id": "Order·1",
+          "id": "Order «A-1»",
           "class": "Order",
           "rev": 1,
           "tenant": "Ромашка",
@@ -661,7 +661,7 @@
           "tenant": "Ромашка",
           "owner": "Ромашка",
           "links": {
-            "Order": "Order·1",
+            "Order": "Order «A-1»",
             "Product": "Product «Сенча»"
           },
           "data": {
@@ -784,7 +784,7 @@
         },
         {
           "seq": "51",
-          "id": "Order·1",
+          "id": "Order «A-1»",
           "rev": 1,
           "class": "Order",
           "tenant": "Ромашка",
@@ -810,7 +810,7 @@
           "class": "line",
           "tenant": "Ромашка",
           "links": {
-            "Order": "Order·1",
+            "Order": "Order «A-1»",
             "Product": "Product «Сенча»"
           },
           "data": {
@@ -946,7 +946,7 @@
           "$changed": []
         },
         {
-          "id": "Order·1",
+          "id": "Order «A-1»",
           "class": "Order",
           "rev": 1,
           "tenant": "Ромашка",
@@ -973,7 +973,7 @@
           "tenant": "Ромашка",
           "owner": "Ромашка",
           "links": {
-            "Order": "Order·1",
+            "Order": "Order «A-1»",
             "Product": "Product «Сенча»"
           },
           "data": {
@@ -1094,7 +1094,7 @@
         },
         {
           "seq": "51",
-          "id": "Order·1",
+          "id": "Order «A-1»",
           "rev": 1,
           "class": "Order",
           "tenant": "Ромашка",
@@ -1120,7 +1120,7 @@
           "class": "line",
           "tenant": "Ромашка",
           "links": {
-            "Order": "Order·1",
+            "Order": "Order «A-1»",
             "Product": "Product «Сенча»"
           },
           "data": {

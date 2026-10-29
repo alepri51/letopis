@@ -35,6 +35,7 @@ export default defineConfig({
           { text: '3. Модели', link: '/models/' },
           { text: '4. Запись', link: '/write/' },
           { text: '5. Чтение', link: '/read/' },
+          { text: '6. Удаление и восстановление', link: '/delete/' },
         ],
       },
       {

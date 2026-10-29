@@ -147,7 +147,7 @@ class Labels {
   row(id: string, cls: string, data: unknown): void {
     if (this.ids.has(id)) return;
     const d = (data ?? {}) as Rec;
-    const title = [d.name, d.title, d.login].find((v) => typeof v === 'string' && v) as string | undefined;
+    const title = [d.name, d.title, d.login, d.number].find((v) => typeof v === 'string' && v) as string | undefined;
     if (title) return this.name(id, `${cls} «${title.length > 24 ? title.slice(0, 23) + '…' : title}»`);
     const n = (this.perClass.get(cls) ?? 0) + 1;
     this.perClass.set(cls, n);
@@ -328,7 +328,8 @@ async function runExample(file: string, admin: ReturnType<typeof adminSql>): Pro
     else if (nm) labels.name(String(a.id), nm);
   }
   for (const x of [{ state: before }, ...raw]) {
-    for (const e of [...x.state.entity, ...x.state.log]) labels.row(String(e.id), String(e.class), e.data);
+    // сначала журнал (порядок создания), затем текущие строки — метки «Класс·N» идут по времени появления
+    for (const e of [...x.state.log, ...x.state.entity]) labels.row(String(e.id), String(e.class), e.data);
     labels.collectTimes(x);
   }
 
