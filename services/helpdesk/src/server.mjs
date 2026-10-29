@@ -149,7 +149,7 @@ class HttpError extends Error { constructor(status, message, code) { super(messa
 
 export async function createApp() {
   const admin = postgres(ENV.admin, { max: 2, onnotice: () => {} });
-  const r = await up({ dsn: ENV.admin, schema: ENV.schema, fresh: ENV.fresh, serviceKey: ENV.serviceKey, signals: ENV.signals, quiet: true });
+  const r = await up({ dsn: ENV.admin, schema: ENV.schema, upgrade: true, fresh: ENV.fresh, serviceKey: ENV.serviceKey, signals: ENV.signals, quiet: true });
   const appUrl = new URL(ENV.app);
   await admin.unsafe(`do $$ begin if not exists (select 1 from pg_roles where rolname = '${appUrl.username}') then
     create role ${appUrl.username} login password '${decodeURIComponent(appUrl.password)}'; end if; end $$`);

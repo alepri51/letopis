@@ -39,7 +39,7 @@ export const SALONS = [
 export async function createApp() {
   // ---------- установка и подключение ----------
   const admin = postgres(ENV.admin, { max: 2, onnotice: () => {} });
-  const r = await up({ dsn: ENV.admin, schema: ENV.schema, seeds: ['booking'], serviceKey: ENV.serviceKey, quiet: true });
+  const r = await up({ dsn: ENV.admin, schema: ENV.schema, upgrade: true, seeds: ['booking'], serviceKey: ENV.serviceKey, quiet: true });
   const appUrl = new URL(ENV.app);
   await admin.unsafe(`do $$ begin
     if not exists (select 1 from pg_roles where rolname = '${appUrl.username}') then
