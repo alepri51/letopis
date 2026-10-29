@@ -1,0 +1,1987 @@
+{
+  "id": "write/01-create-update-upsert",
+  "context": {
+    "schema": "v2.g_write_01_create_update_upsert",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_2890371dbec80402b45f28b4a8b58ffd6007bac55657bda2d789a9739ef61e52",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "06f28d3fa0ab897cf45fa32c9c73e73a944f7ea5a5892d6cbb304c796ff0f665",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "at": "2026-10-29T18:44:09.571264+00:00",
+        "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+        "op": "create",
+        "rev": 1,
+        "data": {
+          "city": "Казань",
+          "name": "Ромашка"
+        },
+        "tags": [],
+        "class": "Shop",
+        "links": {},
+        "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "agent": "5c67be07-dd11-5ff2-9614-4d067af12215"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.571264+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.571264+00",
+          "tx": "2382088"
+        }
+      ],
+      "secret": []
+    },
+    {
+      "result": [
+        {
+          "at": "2026-10-29T18:44:09.603149+00:00",
+          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "op": "create",
+          "rev": 1,
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "class": "Product",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.571264+00"
+        },
+        {
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.587503+00"
+        },
+        {
+          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.603149+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.571264+00",
+          "tx": "2382088"
+        },
+        {
+          "seq": "42",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.587503+00",
+          "tx": "2382090"
+        },
+        {
+          "seq": "43",
+          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.603149+00",
+          "tx": "2382092"
+        }
+      ],
+      "secret": []
+    },
+    {
+      "result": [
+        {
+          "at": "2026-10-29T18:44:09.628529+00:00",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "op": "update",
+          "rev": 2,
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "class": "Product",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.571264+00"
+        },
+        {
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "class": "Product",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.628529+00"
+        },
+        {
+          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.603149+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.571264+00",
+          "tx": "2382088"
+        },
+        {
+          "seq": "42",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.587503+00",
+          "tx": "2382090"
+        },
+        {
+          "seq": "43",
+          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.603149+00",
+          "tx": "2382092"
+        },
+        {
+          "seq": "44",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.628529+00",
+          "tx": "2382094"
+        }
+      ],
+      "secret": []
+    },
+    {
+      "result": [
+        {
+          "at": "2026-10-29T18:44:09.660178+00:00",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "op": "update",
+          "rev": 3,
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "class": "Product",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.571264+00"
+        },
+        {
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "class": "Product",
+          "rev": 3,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.660178+00"
+        },
+        {
+          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.603149+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.571264+00",
+          "tx": "2382088"
+        },
+        {
+          "seq": "42",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.587503+00",
+          "tx": "2382090"
+        },
+        {
+          "seq": "43",
+          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.603149+00",
+          "tx": "2382092"
+        },
+        {
+          "seq": "44",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.628529+00",
+          "tx": "2382094"
+        },
+        {
+          "seq": "45",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.660178+00",
+          "tx": "2382096"
+        }
+      ],
+      "secret": []
+    },
+    {
+      "result": [],
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.571264+00"
+        },
+        {
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "class": "Product",
+          "rev": 3,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.660178+00"
+        },
+        {
+          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.603149+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.571264+00",
+          "tx": "2382088"
+        },
+        {
+          "seq": "42",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.587503+00",
+          "tx": "2382090"
+        },
+        {
+          "seq": "43",
+          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.603149+00",
+          "tx": "2382092"
+        },
+        {
+          "seq": "44",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.628529+00",
+          "tx": "2382094"
+        },
+        {
+          "seq": "45",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.660178+00",
+          "tx": "2382096"
+        }
+      ],
+      "secret": []
+    },
+    {
+      "result": [
+        {
+          "at": "2026-10-29T18:44:09.691134+00:00",
+          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "op": "create",
+          "rev": 1,
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "class": "Shop",
+          "links": {},
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "$upsert": "created"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.571264+00"
+        },
+        {
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "class": "Product",
+          "rev": 3,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.660178+00"
+        },
+        {
+          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.603149+00"
+        },
+        {
+          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.691134+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.571264+00",
+          "tx": "2382088"
+        },
+        {
+          "seq": "42",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.587503+00",
+          "tx": "2382090"
+        },
+        {
+          "seq": "43",
+          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.603149+00",
+          "tx": "2382092"
+        },
+        {
+          "seq": "44",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.628529+00",
+          "tx": "2382094"
+        },
+        {
+          "seq": "45",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.660178+00",
+          "tx": "2382096"
+        },
+        {
+          "seq": "46",
+          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.691134+00",
+          "tx": "2382099"
+        }
+      ],
+      "secret": []
+    },
+    {
+      "result": [
+        {
+          "at": "2026-10-29T18:44:09.691134+00:00",
+          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "op": "create",
+          "rev": 1,
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "class": "Shop",
+          "links": {},
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "$upsert": "unchanged"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.571264+00"
+        },
+        {
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "class": "Product",
+          "rev": 3,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.660178+00"
+        },
+        {
+          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.603149+00"
+        },
+        {
+          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.691134+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.571264+00",
+          "tx": "2382088"
+        },
+        {
+          "seq": "42",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.587503+00",
+          "tx": "2382090"
+        },
+        {
+          "seq": "43",
+          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.603149+00",
+          "tx": "2382092"
+        },
+        {
+          "seq": "44",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.628529+00",
+          "tx": "2382094"
+        },
+        {
+          "seq": "45",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.660178+00",
+          "tx": "2382096"
+        },
+        {
+          "seq": "46",
+          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.691134+00",
+          "tx": "2382099"
+        }
+      ],
+      "secret": []
+    },
+    {
+      "result": [
+        {
+          "at": "2026-10-29T18:44:09.729614+00:00",
+          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "op": "update",
+          "rev": 2,
+          "data": {
+            "name": "Лютик"
+          },
+          "tags": [],
+          "class": "Shop",
+          "links": {},
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "$upsert": "updated"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.571264+00"
+        },
+        {
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "class": "Product",
+          "rev": 3,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.660178+00"
+        },
+        {
+          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.603149+00"
+        },
+        {
+          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "class": "Shop",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.729614+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.571264+00",
+          "tx": "2382088"
+        },
+        {
+          "seq": "42",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.587503+00",
+          "tx": "2382090"
+        },
+        {
+          "seq": "43",
+          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.603149+00",
+          "tx": "2382092"
+        },
+        {
+          "seq": "44",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.628529+00",
+          "tx": "2382094"
+        },
+        {
+          "seq": "45",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.660178+00",
+          "tx": "2382096"
+        },
+        {
+          "seq": "46",
+          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.691134+00",
+          "tx": "2382099"
+        },
+        {
+          "seq": "47",
+          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "rev": 2,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.729614+00",
+          "tx": "2382103"
+        }
+      ],
+      "secret": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "no_key",
+        "message": "letopis: no_key: upsert(): у класса Customer нет ключа — сравнивать не с чем, используйте create()",
+        "detail": null
+      },
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.571264+00"
+        },
+        {
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "class": "Product",
+          "rev": 3,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.660178+00"
+        },
+        {
+          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.603149+00"
+        },
+        {
+          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "class": "Shop",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.729614+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.571264+00",
+          "tx": "2382088"
+        },
+        {
+          "seq": "42",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.587503+00",
+          "tx": "2382090"
+        },
+        {
+          "seq": "43",
+          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.603149+00",
+          "tx": "2382092"
+        },
+        {
+          "seq": "44",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.628529+00",
+          "tx": "2382094"
+        },
+        {
+          "seq": "45",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.660178+00",
+          "tx": "2382096"
+        },
+        {
+          "seq": "46",
+          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.691134+00",
+          "tx": "2382099"
+        },
+        {
+          "seq": "47",
+          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "rev": 2,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5c67be07-dd11-5ff2-9614-4d067af12215",
+          "reason": null,
+          "at": "2026-10-29 18:44:09.729614+00",
+          "tx": "2382103"
+        }
+      ],
+      "secret": []
+    }
+  ]
+}

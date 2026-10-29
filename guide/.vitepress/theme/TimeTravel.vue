@@ -9,7 +9,7 @@ import { computed, onMounted, ref, shallowRef } from 'vue';
 
 type Rec = Record<string, any>;
 const props = defineProps<{ id: string; object: string }>();
-const files = import.meta.glob<{ default: { steps: { log: Rec[] }[] } }>('../../snapshots/**/*.json');
+const files = import.meta.glob<{ default: { steps: { log: Rec[] }[] } }>(['../../snapshots/**/*.json', '!../../snapshots/**/*.real.json']);
 const versions = shallowRef<Rec[]>([]);
 const missing = ref(false);
 const k = ref(0);

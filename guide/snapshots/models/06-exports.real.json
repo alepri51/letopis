@@ -1,0 +1,96 @@
+{
+  "id": "models/06-exports",
+  "context": {
+    "schema": "v2.g_models_06_exports",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_a2f6437090182783b65187d3f78daceaf1253d3bf6b777cdc1a6a9ac75e888cb",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "a3dec59248257bcf172c3451a5ab1226abefe1ffb8df924673a59b127029a9d2",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "idOf совпал с id строки": true,
+        "uuidv5(v5Name(…), арендатор) — то же": true,
+        "v5Name": "[\"Shop\", \"Ромашка\"]"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "хэш начинается с": "scrypt$",
+        "верный": true,
+        "неверный": false
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "ошибки на неполных данных": [
+          "price"
+        ],
+        "умолчания": {
+          "qty": 1
+        },
+        "ValidationError": "invalid_data"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "generateTypes, начало": "export interface CategoryData {",
+        "schemaToTs": "{\n  \"n\": number;\n}",
+        "реестр — экземпляр Registry": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "методов цепочки": 44,
+        "методов db": 35,
+        "зарезервировано имён": 80,
+        "среди них where?": false,
+        "ревизия движка": 6
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    }
+  ]
+}

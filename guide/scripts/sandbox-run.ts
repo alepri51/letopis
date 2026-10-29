@@ -44,7 +44,7 @@ try {
       await admin.unsafe(`drop schema if exists "${String(nspname).replace(/"/g, '""')}" cascade`);
     }
     const res = await runExample(file, admin, { id: name, schema: `v2.sbx_${tag}` });
-    out = { snapshot: res.snapshot, failures: res.failures };
+    out = { snapshot: res.snapshot, real: res.real, failures: res.failures };
   } finally {
     await admin.end({ timeout: 5 });
   }

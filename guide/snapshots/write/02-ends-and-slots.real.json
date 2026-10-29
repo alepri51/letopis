@@ -1,0 +1,1347 @@
+{
+  "id": "write/02-ends-and-slots",
+  "context": {
+    "schema": "v2.g_write_02_ends_and_slots",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_0856314fecc58516dab7f68c0dca7f8ecbf4a06f78491a81cd7ed2db1ba187e1",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "b8f2d5aedee694132d20637daeff41ecd88918c9e872b15c90de9302efe04ed9",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "at": "2026-10-29T18:44:11.147039+00:00",
+        "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+        "op": "create",
+        "rev": 1,
+        "data": {
+          "name": "Зелёный чай"
+        },
+        "tags": [],
+        "class": "Category",
+        "links": {
+          "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+        },
+        "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.126569+00"
+        },
+        {
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.136059+00"
+        },
+        {
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.147039+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.126569+00",
+          "tx": "2382123"
+        },
+        {
+          "seq": "42",
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.136059+00",
+          "tx": "2382125"
+        },
+        {
+          "seq": "43",
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.147039+00",
+          "tx": "2382127"
+        }
+      ],
+      "secret": []
+    },
+    {
+      "result": {
+        "at": "2026-10-29T18:44:11.167926+00:00",
+        "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+        "op": "create",
+        "rev": 1,
+        "data": {
+          "sku": "T-7",
+          "price": 900,
+          "title": "Сенча"
+        },
+        "tags": [],
+        "class": "Product",
+        "links": {
+          "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "Category": [
+            "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+          ]
+        },
+        "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.126569+00"
+        },
+        {
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.136059+00"
+        },
+        {
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.147039+00"
+        },
+        {
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.167926+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.126569+00",
+          "tx": "2382123"
+        },
+        {
+          "seq": "42",
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.136059+00",
+          "tx": "2382125"
+        },
+        {
+          "seq": "43",
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.147039+00",
+          "tx": "2382127"
+        },
+        {
+          "seq": "44",
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.167926+00",
+          "tx": "2382129"
+        }
+      ],
+      "secret": []
+    },
+    {
+      "result": [
+        {
+          "at": "2026-10-29T18:44:11.196911+00:00",
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "op": "update",
+          "rev": 2,
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "class": "Product",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+              "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            ]
+          },
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.126569+00"
+        },
+        {
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.136059+00"
+        },
+        {
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.147039+00"
+        },
+        {
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "class": "Product",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+              "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.196911+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.126569+00",
+          "tx": "2382123"
+        },
+        {
+          "seq": "42",
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.136059+00",
+          "tx": "2382125"
+        },
+        {
+          "seq": "43",
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.147039+00",
+          "tx": "2382127"
+        },
+        {
+          "seq": "44",
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.167926+00",
+          "tx": "2382129"
+        },
+        {
+          "seq": "45",
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+              "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.196911+00",
+          "tx": "2382131"
+        }
+      ],
+      "secret": []
+    },
+    {
+      "result": [
+        {
+          "at": "2026-10-29T18:44:11.237403+00:00",
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "op": "update",
+          "rev": 3,
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "class": "Product",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.126569+00"
+        },
+        {
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.136059+00"
+        },
+        {
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.147039+00"
+        },
+        {
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "class": "Product",
+          "rev": 3,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.237403+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.126569+00",
+          "tx": "2382123"
+        },
+        {
+          "seq": "42",
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.136059+00",
+          "tx": "2382125"
+        },
+        {
+          "seq": "43",
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.147039+00",
+          "tx": "2382127"
+        },
+        {
+          "seq": "44",
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.167926+00",
+          "tx": "2382129"
+        },
+        {
+          "seq": "45",
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+              "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.196911+00",
+          "tx": "2382131"
+        },
+        {
+          "seq": "46",
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.237403+00",
+          "tx": "2382134"
+        }
+      ],
+      "secret": []
+    },
+    {
+      "result": [
+        {
+          "at": "2026-10-29T18:44:11.271034+00:00",
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "op": "update",
+          "rev": 2,
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "class": "Category",
+          "links": {},
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.126569+00"
+        },
+        {
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.136059+00"
+        },
+        {
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "class": "Category",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.271034+00"
+        },
+        {
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "class": "Product",
+          "rev": 3,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.237403+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.126569+00",
+          "tx": "2382123"
+        },
+        {
+          "seq": "42",
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.136059+00",
+          "tx": "2382125"
+        },
+        {
+          "seq": "43",
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.147039+00",
+          "tx": "2382127"
+        },
+        {
+          "seq": "44",
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.167926+00",
+          "tx": "2382129"
+        },
+        {
+          "seq": "45",
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+              "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.196911+00",
+          "tx": "2382131"
+        },
+        {
+          "seq": "46",
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.237403+00",
+          "tx": "2382134"
+        },
+        {
+          "seq": "47",
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "rev": 2,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.271034+00",
+          "tx": "2382136"
+        }
+      ],
+      "secret": []
+    },
+    {
+      "result": [
+        {
+          "at": "2026-10-29T18:44:11.300277+00:00",
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "op": "update",
+          "rev": 3,
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "class": "Category",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.126569+00"
+        },
+        {
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.136059+00"
+        },
+        {
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "class": "Category",
+          "rev": 3,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.300277+00"
+        },
+        {
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "class": "Product",
+          "rev": 3,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.237403+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.126569+00",
+          "tx": "2382123"
+        },
+        {
+          "seq": "42",
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.136059+00",
+          "tx": "2382125"
+        },
+        {
+          "seq": "43",
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.147039+00",
+          "tx": "2382127"
+        },
+        {
+          "seq": "44",
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.167926+00",
+          "tx": "2382129"
+        },
+        {
+          "seq": "45",
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+              "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.196911+00",
+          "tx": "2382131"
+        },
+        {
+          "seq": "46",
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.237403+00",
+          "tx": "2382134"
+        },
+        {
+          "seq": "47",
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "rev": 2,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.271034+00",
+          "tx": "2382136"
+        },
+        {
+          "seq": "48",
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "rev": 3,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3cf67690-76d6-5351-86bd-99eedce7e42f",
+          "reason": null,
+          "at": "2026-10-29 18:44:11.300277+00",
+          "tx": "2382138"
+        }
+      ],
+      "secret": []
+    }
+  ]
+}

@@ -1,0 +1,97 @@
+{
+  "id": "errors/03-derived-mcp-errors",
+  "context": {
+    "schema": "v2.g_errors_03_derived_mcp_errors",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_3c40d72d5f7fc0e02faa3a5d1397b3ff21263043f937664eb9f654b9fb590ee7",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "915412b2ec5200026d59cf6f215802833d92f6073ebef7f5c084247303eb0725",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": null,
+      "error": {
+        "code": "derived_class",
+        "message": "letopis: derived_class: класс DayTotal производный: его строки пишет проектор daily",
+        "detail": {}
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "projector_pending",
+        "message": "letopis: projector_pending: проектор источника ещё не прочёл удаление: purge — после его run()",
+        "detail": {}
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "rebuild_required",
+        "message": "letopis: rebuild_required: проектор daily: проекция построена версией 1, а проектор — версии 2: нужна перестройка rebuild()",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "код": "confirmation_required"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "reclass_denied",
+        "message": "letopis: reclass_denied: роли ссылающихся строк не принимают класс Dog",
+        "detail": {
+          "rows": [
+            {
+              "id": "e54f56ee-29a2-57aa-92bc-a0c5da3594ec",
+              "role": "Pet",
+              "class": "Holder"
+            }
+          ],
+          "others": 0
+        }
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    }
+  ]
+}

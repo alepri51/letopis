@@ -48,21 +48,24 @@ const dedent = (text: string): string => {
 };
 
 /** Тела функций `run` шагов — ровно тот код, что исполняется; строки с `// скрыть` убираются. */
-function stepCodes(file: string): string[] {
+function stepCodes(file: string): { code: string; params: string[] }[] {
   const src = readFileSync(file, 'utf8');
   const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-  const codes: string[] = [];
+  const codes: { code: string; params: string[] }[] = [];
   const visit = (node: ts.Node): void => {
     if (ts.isPropertyAssignment(node) && node.name.getText(sf) === 'steps' && ts.isArrayLiteralExpression(node.initializer)) {
       for (const el of node.initializer.elements) {
-        if (!ts.isObjectLiteralExpression(el)) { codes.push(''); continue; }
+        if (!ts.isObjectLiteralExpression(el)) { codes.push({ code: '', params: [] }); continue; }
         const run = el.properties.find((p) => p.name?.getText(sf) === 'run');
         let body = '';
         const fn = run && ts.isPropertyAssignment(run) ? run.initializer : run;
         if (fn && (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn) || ts.isMethodDeclaration(fn)) && fn.body) {
           body = ts.isBlock(fn.body) ? src.slice(fn.body.getStart(sf) + 1, fn.body.getEnd() - 1) : fn.body.getText(sf);
         }
-        codes.push(dedent(body.split('\n').filter((l) => !/\/\/\s*скрыть\s*$/.test(l)).join('\n')));
+        // что шаг берёт из ctx (dsn, schema, db…) — для блока «Дано» плеера
+        const p0 = fn && (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn) || ts.isMethodDeclaration(fn)) ? fn.parameters[0] : undefined;
+        const params = p0 && ts.isObjectBindingPattern(p0.name) ? p0.name.elements.map((e) => (e.propertyName ?? e.name).getText(sf)) : [];
+        codes.push({ code: dedent(body.split('\n').filter((l) => !/\/\/\s*скрыть\s*$/.test(l)).join('\n')), params });
       }
       return;
     }
@@ -104,23 +107,15 @@ async function capture(admin: ReturnType<typeof adminSql>, schema: string, base:
   // строки-замки (LOCK) — служебные, в показ не идут; id строки secret читателю ничего не говорит
   const secret = tables.includes('secret')
     ? (await admin.unsafe(`
-        select id, account, kind, ident, meta, expires_at::text as expires_at, created_at::text as created_at, deleted_at::text as deleted_at
+        select id, account, kind, ident, meta, encode(material, 'hex') as material, expires_at::text as expires_at, created_at::text as created_at, deleted_at::text as deleted_at
         from ${q}.secret where kind <> 'LOCK' order by created_at, kind`))
         .filter((r) => !base.secrets.has(String(r.id)) || r.deleted_at)
     : [];
   return {
     entity: tables.includes('entity') ? entity.map((r) => ({ ...r })) : [],
     log: tables.includes('log') ? log.map((r) => ({ ...r })) : [],
-    // шаг TOTP (номер 30-секундного окна) зависит от времени прогона — в снимке это метка; ключ пары
-    // «ключ + секрет» (16 hex, без префикса lts_) случаен — тоже метка
-    secret: secret.map(({ id: _id, ...r }) => {
-      const meta = r.meta as Rec | null;
-      return {
-        ...r,
-        ident: r.kind === 'KEYSECRET' && r.ident ? '‹ключ пары›' : r.ident,
-        meta: meta && 'last_step' in meta ? { ...meta, last_step: '‹шаг TOTP›' } : meta,
-      };
-    }),
+    // как в базе; метками случайное становится только в снимке с метками (labelSecret)
+    secret: secret.map(({ id: _id, ...r }) => ({ ...r })),
     counts,
   };
 }
@@ -238,7 +233,32 @@ class Labels {
   }
 }
 
-/** Номер транзакции версии нужен только меткам времени — в снимок он не идёт. */
+/**
+ * Секрет для снимка с метками: шаг TOTP (номер 30-секундного окна) зависит от времени прогона, ключ пары «ключ +
+ * секрет» (16 hex, без префикса lts_) и хэш секрета случайны — метки. В снимке с реальными значениями они как есть.
+ */
+const labelSecret = (r: Rec): Rec => {
+  const meta = r.meta as Rec | null;
+  return {
+    ...r,
+    ident: r.kind === 'KEYSECRET' && r.ident ? '‹ключ пары›' : r.ident,
+    meta: meta && 'last_step' in meta ? { ...meta, last_step: '‹шаг TOTP›' } : meta,
+    material: r.material ? '‹хэш›' : null,
+  };
+};
+
+/** Значение как в базе — для снимка с реальными значениями (`<id>.real.json`): байты — hex, bigint — число. */
+function realValue(v: unknown): unknown {
+  if (v === undefined) return null;
+  if (v instanceof Date) return v.toISOString();
+  if (typeof v === 'bigint') return Number(v);
+  if (Buffer.isBuffer(v)) return v.toString('hex');
+  if (Array.isArray(v)) return v.map(realValue);
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, realValue(x)]));
+  return v;
+}
+
+/** Номер транзакции версии нужен только меткам времени — в снимок с метками он не идёт. */
 const noTx = ({ tx: _tx, ...r }: Rec): Rec => r;
 
 // ---------- изменения между шагами ----------
@@ -264,6 +284,8 @@ interface StepRecord {
   title: string;
   text: string | null;
   code: string;
+  /** Что шаг берёт из ctx: dsn, schema, db… */
+  params: string[];
   html: string;
   result: unknown;
   error: { code: string | null; message: string; detail?: unknown; expected?: boolean } | null;
@@ -285,7 +307,7 @@ export async function runExample(
   file: string,
   admin: ReturnType<typeof adminSql>,
   opts: RunOptions = {},
-): Promise<{ id: string; snapshot: unknown; failures: string[] }> {
+): Promise<{ id: string; snapshot: unknown; real: unknown; failures: string[] }> {
   const id = opts.id ?? relative(EXAMPLES, file).split(sep).join('/').replace(/\.ts$/, '');
   const schema = opts.schema ?? `v2.g_${id.replace(/[^a-z0-9]+/gi, '_').toLowerCase()}`.slice(0, 60);
   const ex = (await import(pathToFileURL(file).href)).default as Example;
@@ -380,6 +402,7 @@ export async function runExample(
   }
 
   const steps: StepRecord[] = [];
+  const reals: Rec[] = [];
   let prev = before;
   for (const [i, x] of raw.entries()) {
     const entity = x.state.entity.map((e) => {
@@ -391,11 +414,14 @@ export async function runExample(
     const secretKey = (z: Rec) => JSON.stringify([z.account, z.kind, z.ident, z.created_at]);
     const newSecret = x.state.secret.filter((z) => !prev.secret.some((p) => secretKey(p) === secretKey(z) && p.deleted_at === z.deleted_at));
     prev = x.state;
-    const code = codes[i] ?? '';
+    const { code, params } = codes[i] ?? { code: '', params: [] };
+    reals.push({ result: realValue(x.result), error: x.error ? realValue(x.error) : null, entity: realValue(x.state.entity),
+      removed: realValue(removed), log: realValue(x.state.log), secret: realValue(x.state.secret) });
     steps.push({
       title: ex.steps[i].title,
       text: ex.steps[i].text ?? null,
       code,
+      params,
       html: await codeToHtml(code, { lang: 'ts', themes: { light: 'github-light', dark: 'github-dark' } }),
       result: labels.value(x.result),
       error: x.error
@@ -404,7 +430,7 @@ export async function runExample(
       entity: labels.value(entity) as Rec[],
       removed: labels.value(removed) as Rec[],
       log: (labels.value(x.state.log.map(noTx)) as Rec[]).map((l, k) => ({ ...l, $new: newLog.some((n) => n.seq === x.state.log[k].seq) })),
-      secret: (labels.value(x.state.secret) as Rec[]).map((z, k) => ({ ...z, $new: newSecret.includes(x.state.secret[k]) })),
+      secret: (labels.value(x.state.secret.map(labelSecret)) as Rec[]).map((z, k) => ({ ...z, $new: newSecret.includes(x.state.secret[k]) })),
       counts: x.state.counts,
     });
   }
@@ -414,12 +440,26 @@ export async function runExample(
   const initial = {
     entity: labels.value(before.entity) as Rec[],
     log: labels.value(before.log.map(noTx)) as Rec[],
-    secret: labels.value(before.secret) as Rec[],
+    secret: labels.value(before.secret.map(labelSecret)) as Rec[],
     counts: before.counts,
   };
+  // «Дано»: что раннер передаёт шагам в run(ctx) и чему это равно в этом прогоне; весь код примера — для показа
+  const given = {
+    schema, dsn: { admin: ADMIN_DSN, app: appDsn() }, user: { login: USER.login, password: USER.password },
+    up: r ? { serviceKey: r.serviceKey ?? null, tenant: r.tenant ?? null } : null,
+  };
+  const source = readFileSync(file, 'utf8');
+  const sourceHtml = await codeToHtml(source, { lang: 'ts', themes: { light: 'github-light', dark: 'github-dark' } });
   return {
     id,
-    snapshot: { id, title: ex.title, summary: ex.summary ?? null, covers: ex.covers, tables: ex.tables ?? ['entity', 'log'], initial, steps },
+    snapshot: {
+      id, title: ex.title, summary: ex.summary ?? null, covers: ex.covers, tables: ex.tables ?? ['entity', 'log'],
+      context: labels.value(given), source, sourceHtml, initial, steps,
+    },
+    real: {
+      id, context: realValue(given),
+      initial: { entity: realValue(before.entity), log: realValue(before.log), secret: realValue(before.secret) }, steps: reals,
+    },
     failures,
   };
 }

@@ -318,11 +318,6 @@ const nuances: Nuance[] = [
     source: 'lib/src/load.ts:initial; пример load/02',
   },
   {
-    id: 'import-checks-first',
-    text: 'letopis import проверяет всё, что его остановит (дубли id, нарушенный ключ), до первой записи и называет строки; --keyless переносит класс без ключа.',
-    source: 'lib/src/import.ts; пример load/03',
-  },
-  {
     id: 'reset-tenant-memberships',
     text: 'reset({ level: "tenant" }) стирает и членства, и правила арендатора: сессии его пользователей в нём получают tenant_denied, а createTenant правила «можно всё» заново не выдаёт.',
     source: 'lib/sql/90-time.sql:reset; пример ops/02',

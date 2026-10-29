@@ -44,6 +44,8 @@ for (const file of files) {
   } else {
     mkdirSync(dirname(out), { recursive: true });
     writeFileSync(out, json);
+    // тот же снимок с реальными значениями (id, время, токены) — только для показа, сверка его не трогает
+    writeFileSync(out.replace(/\.json$/, '.real.json'), JSON.stringify(res.real, null, 2) + '\n');
   }
   const ms = Date.now() - t0;
   if (res.failures.length) {

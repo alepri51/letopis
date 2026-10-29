@@ -1,0 +1,56 @@
+{
+  "id": "install/05-engine-stamp",
+  "context": {
+    "schema": "v2.g_install_05_engine_stamp",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_48d24c5359947604b6f8b0170fabd5b2f3df11d4085a29a96d07543ac6045fd0",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "620ea6900845d63b1585a131e23f5b224f5be7c2ce3c287b864a92c17c33ec15",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": "letopis ddl_revision=6 engine=1.4.1-alpha.0 sql=15458dd025d1c0fb",
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": [
+        "letopis: функции схемы v2.g_install_05_engine_stamp поставила версия до 1.4.0, библиотека — 1.4.1-alpha.0: обновите схему — вызовите up({ schema: 'v2.g_install_05_engine_stamp' })"
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": [],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    }
+  ]
+}

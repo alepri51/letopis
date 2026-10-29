@@ -1,0 +1,1065 @@
+{
+  "id": "models/01-shop-model",
+  "context": {
+    "schema": "v2.g_models_01_shop_model",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_b3f8d75b73f216876d8c533accdb26d5109aa1627c52f9061260b3d3c6a1d7cc",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "453bf185fe3c37929a602e255ea3951f36adeabeed85c88d613b25249e5a2779",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "applied": false,
+        "created": [
+          "Shop",
+          "Category",
+          "Product",
+          "Customer",
+          "Order",
+          "line"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "applied": true,
+        "created": [
+          "Shop",
+          "Category",
+          "Product",
+          "Customer",
+          "Order",
+          "line"
+        ],
+        "lost": []
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "$mermaid": "erDiagram\n  Category {\n    text name PK \"ключ, обязательное\"\n  }\n  Customer {\n    text name \"обязательное\"\n    text email \"обязательное\"\n  }\n  line {\n    int qty \"обязательное\"\n    int price \"обязательное\"\n  }\n  Order {\n    text number PK \"ключ, обязательное\"\n  }\n  Product {\n    text sku PK \"ключ, обязательное\"\n    int price \"обязательное\"\n    text title \"обязательное\"\n  }\n  Shop {\n    text city \"необязательное\"\n    text name PK \"ключ, обязательное\"\n  }\n  Category }o--o| Category : \"Parent, unset\"\n  line }o--|| Order : \"Order, в ключе, cascade\"\n  line }o--|| Product : \"Product, в ключе\"\n  Order }o--|| Shop : \"Shop, в ключе\"\n  Order }o--|| Customer : \"Customer\"\n  Product }o--|| Shop : \"Shop, в ключе\"\n  Product }o--o{ Category : \"Category, unset\""
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "sameId": true
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.833222+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "46",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.833222+00",
+          "tx": "2381445"
+        }
+      ],
+      "secret": []
+    },
+    {
+      "result": {
+        "at": "2026-10-29T18:43:26.857127+00:00",
+        "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+        "op": "create",
+        "rev": 1,
+        "data": {
+          "name": "Зелёный чай"
+        },
+        "tags": [],
+        "class": "Category",
+        "links": {
+          "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+        },
+        "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "agent": "33064188-02a8-57a0-bf62-9763f1ee6375"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.833222+00"
+        },
+        {
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.848283+00"
+        },
+        {
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.857127+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "46",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.833222+00",
+          "tx": "2381445"
+        },
+        {
+          "seq": "47",
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.848283+00",
+          "tx": "2381447"
+        },
+        {
+          "seq": "48",
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.857127+00",
+          "tx": "2381449"
+        }
+      ],
+      "secret": []
+    },
+    {
+      "result": {
+        "at": "2026-10-29T18:43:26.876025+00:00",
+        "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+        "op": "create",
+        "rev": 1,
+        "data": {
+          "sku": "T-7",
+          "price": 900,
+          "title": "Сенча"
+        },
+        "tags": [],
+        "class": "Product",
+        "links": {
+          "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "Category": [
+            "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+          ]
+        },
+        "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "agent": "33064188-02a8-57a0-bf62-9763f1ee6375"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.833222+00"
+        },
+        {
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.848283+00"
+        },
+        {
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.857127+00"
+        },
+        {
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.876025+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "46",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.833222+00",
+          "tx": "2381445"
+        },
+        {
+          "seq": "47",
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.848283+00",
+          "tx": "2381447"
+        },
+        {
+          "seq": "48",
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.857127+00",
+          "tx": "2381449"
+        },
+        {
+          "seq": "49",
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.876025+00",
+          "tx": "2381451"
+        }
+      ],
+      "secret": []
+    },
+    {
+      "result": [
+        {
+          "at": "2026-10-29T18:43:26.911101+00:00",
+          "id": "fd3a3416-55d6-5445-bfbf-d33631bab515",
+          "op": "create",
+          "rev": 1,
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "class": "line",
+          "links": {
+            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+          },
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.833222+00"
+        },
+        {
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.848283+00"
+        },
+        {
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.857127+00"
+        },
+        {
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.876025+00"
+        },
+        {
+          "id": "d9aefff0-bd46-5d98-b24d-d9a06f36d478",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.893634+00"
+        },
+        {
+          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "d9aefff0-bd46-5d98-b24d-d9a06f36d478"
+          },
+          "data": {
+            "number": "A-1"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.902274+00"
+        },
+        {
+          "id": "fd3a3416-55d6-5445-bfbf-d33631bab515",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.911101+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "46",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.833222+00",
+          "tx": "2381445"
+        },
+        {
+          "seq": "47",
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.848283+00",
+          "tx": "2381447"
+        },
+        {
+          "seq": "48",
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.857127+00",
+          "tx": "2381449"
+        },
+        {
+          "seq": "49",
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.876025+00",
+          "tx": "2381451"
+        },
+        {
+          "seq": "50",
+          "id": "d9aefff0-bd46-5d98-b24d-d9a06f36d478",
+          "rev": 1,
+          "class": "Customer",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.893634+00",
+          "tx": "2381453"
+        },
+        {
+          "seq": "51",
+          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "rev": 1,
+          "class": "Order",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "d9aefff0-bd46-5d98-b24d-d9a06f36d478"
+          },
+          "data": {
+            "number": "A-1"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.902274+00",
+          "tx": "2381455"
+        },
+        {
+          "seq": "52",
+          "id": "fd3a3416-55d6-5445-bfbf-d33631bab515",
+          "rev": 1,
+          "class": "line",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.911101+00",
+          "tx": "2381455"
+        }
+      ],
+      "secret": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "exists",
+        "message": "letopis: exists: объект класса Shop уже существует (id 820d0964-969f-5ad6-bc38-f38710912f70)",
+        "detail": {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70"
+        }
+      },
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.833222+00"
+        },
+        {
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.848283+00"
+        },
+        {
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.857127+00"
+        },
+        {
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.876025+00"
+        },
+        {
+          "id": "d9aefff0-bd46-5d98-b24d-d9a06f36d478",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.893634+00"
+        },
+        {
+          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "d9aefff0-bd46-5d98-b24d-d9a06f36d478"
+          },
+          "data": {
+            "number": "A-1"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.902274+00"
+        },
+        {
+          "id": "fd3a3416-55d6-5445-bfbf-d33631bab515",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.911101+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "46",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.833222+00",
+          "tx": "2381445"
+        },
+        {
+          "seq": "47",
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.848283+00",
+          "tx": "2381447"
+        },
+        {
+          "seq": "48",
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.857127+00",
+          "tx": "2381449"
+        },
+        {
+          "seq": "49",
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.876025+00",
+          "tx": "2381451"
+        },
+        {
+          "seq": "50",
+          "id": "d9aefff0-bd46-5d98-b24d-d9a06f36d478",
+          "rev": 1,
+          "class": "Customer",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.893634+00",
+          "tx": "2381453"
+        },
+        {
+          "seq": "51",
+          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "rev": 1,
+          "class": "Order",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "d9aefff0-bd46-5d98-b24d-d9a06f36d478"
+          },
+          "data": {
+            "number": "A-1"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.902274+00",
+          "tx": "2381455"
+        },
+        {
+          "seq": "52",
+          "id": "fd3a3416-55d6-5445-bfbf-d33631bab515",
+          "rev": 1,
+          "class": "line",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "33064188-02a8-57a0-bf62-9763f1ee6375",
+          "reason": null,
+          "at": "2026-10-29 18:43:26.911101+00",
+          "tx": "2381455"
+        }
+      ],
+      "secret": []
+    }
+  ]
+}

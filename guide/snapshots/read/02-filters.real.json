@@ -1,0 +1,238 @@
+{
+  "id": "read/02-filters",
+  "context": {
+    "schema": "v2.g_read_02_filters",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_9441b45376c26ac93657258fb16480dcaa4a14f8ba1f432427485387d591a480",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "5d2dd3fe839c8859d32ca06e8e8819ae3079f6f5f5e409bfebbc03f8484ac531",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": [
+        {
+          "title": "Кружка",
+          "price": 400,
+          "labels": [
+            "стекло"
+          ]
+        },
+        {
+          "title": "Сенча",
+          "price": 900,
+          "labels": [
+            "хит"
+          ]
+        },
+        {
+          "title": "Пуэр",
+          "price": 1500,
+          "labels": null
+        },
+        {
+          "title": "Чайник",
+          "price": 2500,
+          "labels": [
+            "хит",
+            "стекло"
+          ]
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "ne(900)": [
+          "Кружка",
+          "Пуэр",
+          "Чайник"
+        ],
+        "gt(1500)": [
+          "Чайник"
+        ],
+        "gte(1500)": [
+          "Пуэр",
+          "Чайник"
+        ],
+        "lt(900)": [
+          "Кружка"
+        ],
+        "lte(900)": [
+          "Кружка",
+          "Сенча"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "between(500, 2000)": [
+          "Пуэр",
+          "Сенча"
+        ],
+        "inList(['K-1', 'M-1'])": [
+          "Кружка",
+          "Чайник"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "like('%а%')": [
+          "Кружка",
+          "Сенча",
+          "Чайник"
+        ],
+        "ilike('ч%')": [
+          "Чайник"
+        ],
+        "starts('T-')": [
+          "Пуэр",
+          "Сенча"
+        ],
+        "ends('-1')": [
+          "Кружка",
+          "Чайник"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "has('хит')": [
+          "Сенча",
+          "Чайник"
+        ],
+        "hasAny(['стекло', 'акция'])": [
+          "Кружка",
+          "Чайник"
+        ],
+        "hasAll(['хит', 'стекло'])": [
+          "Чайник"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "labels: exists(true)": [
+          "Кружка",
+          "Сенча",
+          "Чайник"
+        ],
+        "labels: exists(false)": [
+          "Пуэр"
+        ],
+        "specs: isNull()": [
+          "Кружка",
+          "Пуэр",
+          "Сенча"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "not('paid')": [
+          "A-1"
+        ],
+        "not(gte(1000))": [
+          "Кружка",
+          "Сенча"
+        ],
+        "or({ sku: 'K-1' }, { price: lt(500) })": [
+          "Кружка",
+          "Чайник"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "товары «Лютика»": [
+          "Кружка"
+        ],
+        "корневые категории": [
+          "Посуда",
+          "Чай"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "price: 900": [
+          "Сенча"
+        ],
+        "price: '900'": []
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "isOp(gt(1))": true,
+        "isOp(1)": false
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    }
+  ]
+}

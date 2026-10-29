@@ -118,7 +118,7 @@ jobs:
 
       - name: Nuances page up to date
         working-directory: guide
-        run: npx tsx scripts/gen-nuances.ts --check && npx tsx scripts/gen-errors.ts --check
+        run: npx tsx scripts/gen-nuances.ts --check && npx tsx scripts/gen-errors.ts --check && npx tsx scripts/gen-api.ts --check
 
       - name: Build site
         working-directory: guide

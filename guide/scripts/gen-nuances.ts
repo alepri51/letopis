@@ -12,7 +12,7 @@ const TITLES: Record<string, string> = {
   start: 'Старт с нуля', basics: '1. Что такое letopis', install: '2. Установка', models: '3. Модели', write: '4. Запись',
   read: '5. Чтение', delete: '6. Удаление', money: '7. Транзакции и деньги', access: '8. Права', auth: '9. Вход',
   history: '10. История и время', watch: '11. Подписка, кэш, сигналы', derived: '12. Агрегаты и проекторы',
-  load: '13. Загрузка и импорт', ops: '14. Эксплуатация', mcp: '15. MCP', errors: '16. Ошибки', migrate: '18. Переход с 0.21',
+  load: '13. Массовая загрузка', ops: '14. Эксплуатация', mcp: '15. MCP', errors: '16. Ошибки',
 };
 
 const where = new Map<string, Set<string>>();

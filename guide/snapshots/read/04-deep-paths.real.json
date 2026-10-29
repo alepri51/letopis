@@ -1,0 +1,119 @@
+{
+  "id": "read/04-deep-paths",
+  "context": {
+    "schema": "v2.g_read_04_deep_paths",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_4f1321cd4302dfafff950de86d7a9e3b4340b99e44d923bdf0d122005eb57085",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "77f32fd833aef9eab3df04a8f2a1db9679e9d68f40b57038c28bccfb457e17e5",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": [
+        {
+          "at": "2026-10-29T18:43:55.453431+00:00",
+          "id": "7174b492-be79-5307-bb74-060c11cc6dd5",
+          "op": "create",
+          "rev": 1,
+          "data": {
+            "name": "Улун"
+          },
+          "tags": [],
+          "class": "Category",
+          "links": {
+            "Parent": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+          },
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "0c43e016-ac4e-5d32-b3b8-758a8387f775"
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": [
+        {
+          "name": "Зелёный чай",
+          "depth": 1
+        },
+        {
+          "name": "Улун",
+          "depth": 2
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": [
+        {
+          "qty": 2,
+          "product": "Сенча"
+        },
+        {
+          "qty": 1,
+          "product": "Чайник"
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": [
+        {
+          "qty": 2,
+          "product": "Сенча"
+        },
+        {
+          "qty": 1,
+          "product": "Чайник"
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "магазинов у заказов": 1,
+        "путей до них": 2
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    }
+  ]
+}

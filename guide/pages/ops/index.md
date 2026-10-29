@@ -37,7 +37,6 @@
 | `letopis describe [--format text]` | модель для людей и ИИ-агентов |
 | `letopis verify [--data]` | проверка журнала; код 1 при находках |
 | `letopis maintain [--batches N]` | обслуживание: прореживание, истёкшие сессии и коды |
-| `letopis import …` | импорт из 0.21 ([глава 13](../load/)) |
 | `letopis mcp [--write]` | сервер MCP по stdio ([глава 15](../mcp/)) |
 
 Запуск из репозитория без сборки: `node --import tsx lib/src/cli.ts <команда> …`.

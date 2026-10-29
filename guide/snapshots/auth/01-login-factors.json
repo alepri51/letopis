@@ -23,6 +23,28 @@
   "tables": [
     "secret"
   ],
+  "context": {
+    "schema": "v2.g_auth_01_login_factors",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "‹токен 2›",
+      "tenant": {
+        "tenant": "Ромашка",
+        "user": "Анна",
+        "token": "‹токен 3›",
+        "created": true
+      }
+    }
+  },
+  "source": "import { totpCode } from 'letopis';\nimport { example } from '../../kit/example.ts';\n\nlet keyId: string, key: string, secret: string;\n\nexport default example({\n  title: 'Вход: пароль, ключ API, одноразовый код, TOTP, внешняя учётная запись',\n  summary:\n    'Все способы входа хранятся в таблице secret: пароль — хэшем, ключ и код — хэшем, сессия — хэшем токена. ' +\n    'Проверяет их сервис приложения (он подключён по ключу сервиса), а при успехе выдаёт сессию пользователя.',\n  tables: ['secret'],\n  covers: [\n    'auth.verifyPassword', 'auth.setPassword', 'auth.issueApiKey', 'auth.verifyApiKey', 'auth.revokeCredential',\n    'auth.issueOtp', 'auth.verifyOtp', 'auth.enrollTotp', 'auth.verifyTotp', 'auth.totpEnabled', 'auth.link', 'auth.lookup',\n    'auth.sessionFor', 'export.totpCode', 'nuance.login-case-insensitive', 'nuance.password-change-revokes',\n  ],\n  steps: [\n    {\n      title: 'Пароль: верный, неверный, другой регистр',\n      text: 'Неверный пароль — `null`, без подсказки, есть ли такой логин. Идентификатор сравнивается без учёта регистра.',\n      run: async ({ svc, user }) => ({\n        'верный': !!(await svc.auth.verifyPassword({ identifier: user.login, password: user.password })),\n        'неверный': await svc.auth.verifyPassword({ identifier: user.login, password: 'не тот' }),\n        'ЗАГЛАВНЫМИ': !!(await svc.auth.verifyPassword({ identifier: user.login.toUpperCase(), password: user.password })),\n      }),\n    },\n    {\n      title: 'Смена пароля завершает остальные сессии',\n      text: 'Новый пароль хранится хэшем scrypt; сессии Анны завершены (в `secret` у них заполнена колонка «погашен»), старый пароль больше не подходит.',\n      run: async ({ svc, up, user }) => {\n        await svc.auth.setPassword({ account: up.tenant!.user!, identifier: user.login, password: 'Новый-пароль-2026', confirmed: true });\n        return { 'старый пароль': await svc.auth.verifyPassword({ identifier: user.login, password: user.password }) };\n      },\n    },\n    {\n      title: 'Ключ API для интеграции',\n      text: 'Ключ отдаётся один раз — в базе только его хэш. По ключу входит программа, а не человек.',\n      run: async ({ svc, up }) => {\n        ({ key, id: keyId } = await svc.auth.issueApiKey({ account: up.tenant!.user!, name: 'интеграция' }));\n        const viaKey = await svc.auth.verifyApiKey(key);\n        return { 'вход по ключу': !!viaKey };\n      },\n    },\n    {\n      title: 'Отозвать ключ',\n      run: async ({ svc }) => {\n        await svc.auth.revokeCredential(keyId);\n        return { 'вход по отозванному ключу': await svc.auth.verifyApiKey(key) };\n      },\n    },\n    {\n      title: 'Одноразовый код (OTP)',\n      text: '`issueOtp` возвращает код сервису, а отправить его письмом или СМС сервис должен сам. После успешной проверки код больше не действует.',\n      run: async ({ svc, up, user }) => {\n        const { code } = await svc.auth.issueOtp({ account: up.tenant!.user!, identifier: user.login, ttl: 300 });\n        const first = await svc.auth.verifyOtp({ identifier: user.login, code });\n        const again = await svc.auth.verifyOtp({ identifier: user.login, code });\n        return { 'первый раз': !!first, 'тот же код снова': again };\n      },\n    },\n    {\n      title: 'Второй фактор: TOTP',\n      text: '`enrollTotp` даёт секрет и адрес `otpauth://` для QR-кода; первая верная проверка включает второй фактор. `totpCode` — помощник для тестов.',\n      run: async ({ svc, up }) => {\n        ({ secret } = await svc.auth.enrollTotp({ account: up.tenant!.user!, issuer: 'Ромашка' }));\n        const ok = await svc.auth.verifyTotp({ account: up.tenant!.user!, code: totpCode(secret) });\n        return { 'код принят': ok, 'TOTP включён': await svc.auth.totpEnabled(up.tenant!.user!) };\n      },\n    },\n    {\n      title: 'Внешняя учётная запись и вход по ней',\n      text: 'Telegram, Google, корпоративный вход (SSO): их токен проверяет сервис, а база хранит привязку к учётной записи. `lookup` — вход по этой привязке.',\n      run: async ({ svc, up }) => {\n        await svc.auth.link({ account: up.tenant!.user!, kind: 'TELEGRAM', identifier: '100500', confirmed: true });\n        return { 'вход через Telegram': !!(await svc.auth.lookup({ kind: 'TELEGRAM', identifier: '100500' })) };\n      },\n    },\n    {\n      title: 'Короткая сессия для другого процесса',\n      run: async ({ svc, up, connect, dsn, schema }) => {\n        const token = await svc.auth.sessionFor(up.tenant!.user!, { ttl: 600 });\n        const other = await connect({ dsn: dsn.app, schema, token });\n        return { tenant: other.tenant };\n      },\n    },\n  ],\n});\n",
+  "sourceHtml": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { totpCode } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'letopis'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { example } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> '../../kit/example.ts'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">let</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> keyId</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, key</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, secret</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">export</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> default</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> example</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Вход: пароль, ключ API, одноразовый код, TOTP, внешняя учётная запись'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  summary:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'Все способы входа хранятся в таблице secret: пароль — хэшем, ключ и код — хэшем, сессия — хэшем токена. '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'Проверяет их сервис приложения (он подключён по ключу сервиса), а при успехе выдаёт сессию пользователя.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  tables: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'secret'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  covers: [</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'auth.verifyPassword'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'auth.setPassword'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'auth.issueApiKey'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'auth.verifyApiKey'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'auth.revokeCredential'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'auth.issueOtp'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'auth.verifyOtp'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'auth.enrollTotp'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'auth.verifyTotp'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'auth.totpEnabled'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'auth.link'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'auth.lookup'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'auth.sessionFor'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'export.totpCode'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.login-case-insensitive'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.password-change-revokes'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  ],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  steps: [</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Пароль: верный, неверный, другой регистр'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Неверный пароль — `null`, без подсказки, есть ли такой логин. Идентификатор сравнивается без учёта регистра.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">svc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">user</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'верный'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyPassword</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ identifier: user.login, password: user.password })),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'неверный'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyPassword</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ identifier: user.login, password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'не тот'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'ЗАГЛАВНЫМИ'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyPassword</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ identifier: user.login.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">toUpperCase</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(), password: user.password })),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      }),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Смена пароля завершает остальные сессии'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Новый пароль хранится хэшем scrypt; сессии Анны завершены (в `secret` у них заполнена колонка «погашен»), старый пароль больше не подходит.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">svc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">user</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">setPassword</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ account: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, identifier: user.login, password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Новый-пароль-2026'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, confirmed: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'старый пароль'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyPassword</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ identifier: user.login, password: user.password }) };</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ключ API для интеграции'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ключ отдаётся один раз — в базе только его хэш. По ключу входит программа, а не человек.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">svc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        ({ key, id: keyId } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">issueApiKey</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ account: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'интеграция'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }));</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> viaKey</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyApiKey</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(key);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'вход по ключу'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">viaKey };</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Отозвать ключ'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">svc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">revokeCredential</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(keyId);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'вход по отозванному ключу'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyApiKey</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(key) };</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Одноразовый код (OTP)'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'`issueOtp` возвращает код сервису, а отправить его письмом или СМС сервис должен сам. После успешной проверки код больше не действует.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">svc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">user</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">code</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">issueOtp</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ account: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, identifier: user.login, ttl: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">300</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> first</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyOtp</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ identifier: user.login, code });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> again</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyOtp</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ identifier: user.login, code });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'первый раз'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">first, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'тот же код снова'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: again };</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Второй фактор: TOTP'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'`enrollTotp` даёт секрет и адрес `otpauth://` для QR-кода; первая верная проверка включает второй фактор. `totpCode` — помощник для тестов.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">svc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        ({ secret } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">enrollTotp</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ account: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, issuer: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }));</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> ok</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyTotp</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ account: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, code: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">totpCode</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(secret) });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'код принят'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: ok, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'TOTP включён'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">totpEnabled</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) };</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Внешняя учётная запись и вход по ней'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Telegram, Google, корпоративный вход (SSO): их токен проверяет сервис, а база хранит привязку к учётной записи. `lookup` — вход по этой привязке.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">svc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">link</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ account: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, kind: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'TELEGRAM'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, identifier: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'100500'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, confirmed: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'вход через Telegram'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">lookup</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ kind: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'TELEGRAM'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, identifier: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'100500'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })) };</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Короткая сессия для другого процесса'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">svc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">dsn</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">schema</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sessionFor</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { ttl: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">600</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> other</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.app, schema, token });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { tenant: other.tenant };</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  ],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">});</span></span>\n<span class=\"line\"></span></code></pre>",
   "initial": {
     "entity": [],
     "log": [],
@@ -34,6 +56,10 @@
       "title": "Пароль: верный, неверный, другой регистр",
       "text": "Неверный пароль — `null`, без подсказки, есть ли такой логин. Идентификатор сравнивается без учёта регистра.",
       "code": "({\n        'верный': !!(await svc.auth.verifyPassword({ identifier: user.login, password: user.password })),\n        'неверный': await svc.auth.verifyPassword({ identifier: user.login, password: 'не тот' }),\n        'ЗАГЛАВНЫМИ': !!(await svc.auth.verifyPassword({ identifier: user.login.toUpperCase(), password: user.password })),\n      })",
+      "params": [
+        "svc",
+        "user"
+      ],
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'верный'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyPassword</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ identifier: user.login, password: user.password })),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'неверный'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyPassword</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ identifier: user.login, password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'не тот'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'ЗАГЛАВНЫМИ'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyPassword</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ identifier: user.login.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">toUpperCase</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(), password: user.password })),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      })</span></span></code></pre>",
       "result": {
         "верный": true,
@@ -57,6 +83,7 @@
             "service": "service",
             "login_at": "t1"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t2",
           "deleted_at": null,
@@ -74,6 +101,7 @@
             "service": "service",
             "login_at": "t3"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t4",
           "deleted_at": null,
@@ -86,6 +114,11 @@
       "title": "Смена пароля завершает остальные сессии",
       "text": "Новый пароль хранится хэшем scrypt; сессии Анны завершены (в `secret` у них заполнена колонка «погашен»), старый пароль больше не подходит.",
       "code": "await svc.auth.setPassword({ account: up.tenant!.user!, identifier: user.login, password: 'Новый-пароль-2026', confirmed: true });\nreturn { 'старый пароль': await svc.auth.verifyPassword({ identifier: user.login, password: user.password }) };",
+      "params": [
+        "svc",
+        "up",
+        "user"
+      ],
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">setPassword</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ account: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, identifier: user.login, password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Новый-пароль-2026'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, confirmed: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'старый пароль'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyPassword</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ identifier: user.login, password: user.password }) };</span></span></code></pre>",
       "result": {
         "старый пароль": null
@@ -104,6 +137,7 @@
             "tenant": "Ромашка",
             "login_at": "установка"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "установка",
           "deleted_at": "t5",
@@ -121,6 +155,7 @@
             "service": "service",
             "login_at": "установка"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "установка",
           "deleted_at": "t6",
@@ -138,6 +173,7 @@
             "service": "service",
             "login_at": "t1"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t2",
           "deleted_at": "t7",
@@ -155,6 +191,7 @@
             "service": "service",
             "login_at": "t3"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t4",
           "deleted_at": "t8",
@@ -167,6 +204,10 @@
       "title": "Ключ API для интеграции",
       "text": "Ключ отдаётся один раз — в базе только его хэш. По ключу входит программа, а не человек.",
       "code": "({ key, id: keyId } = await svc.auth.issueApiKey({ account: up.tenant!.user!, name: 'интеграция' }));\nconst viaKey = await svc.auth.verifyApiKey(key);\nreturn { 'вход по ключу': !!viaKey };",
+      "params": [
+        "svc",
+        "up"
+      ],
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ key, id: keyId } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">issueApiKey</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ account: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'интеграция'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }));</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> viaKey</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyApiKey</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(key);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'вход по ключу'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">viaKey };</span></span></code></pre>",
       "result": {
         "вход по ключу": true
@@ -185,6 +226,7 @@
             "tenant": "Ромашка",
             "login_at": "установка"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "установка",
           "deleted_at": "t5",
@@ -202,6 +244,7 @@
             "service": "service",
             "login_at": "установка"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "установка",
           "deleted_at": "t6",
@@ -219,6 +262,7 @@
             "service": "service",
             "login_at": "t1"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t2",
           "deleted_at": "t7",
@@ -236,6 +280,7 @@
             "service": "service",
             "login_at": "t3"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t4",
           "deleted_at": "t8",
@@ -249,6 +294,7 @@
             "name": "интеграция",
             "confirmed": true
           },
+          "material": "‹хэш›",
           "expires_at": null,
           "created_at": "t9",
           "deleted_at": null,
@@ -266,6 +312,7 @@
             ],
             "login_at": "t10"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t11",
           "deleted_at": null,
@@ -278,6 +325,9 @@
       "title": "Отозвать ключ",
       "text": null,
       "code": "await svc.auth.revokeCredential(keyId);\nreturn { 'вход по отозванному ключу': await svc.auth.verifyApiKey(key) };",
+      "params": [
+        "svc"
+      ],
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">revokeCredential</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(keyId);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'вход по отозванному ключу'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyApiKey</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(key) };</span></span></code></pre>",
       "result": {
         "вход по отозванному ключу": null
@@ -296,6 +346,7 @@
             "tenant": "Ромашка",
             "login_at": "установка"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "установка",
           "deleted_at": "t5",
@@ -313,6 +364,7 @@
             "service": "service",
             "login_at": "установка"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "установка",
           "deleted_at": "t6",
@@ -330,6 +382,7 @@
             "service": "service",
             "login_at": "t1"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t2",
           "deleted_at": "t7",
@@ -347,6 +400,7 @@
             "service": "service",
             "login_at": "t3"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t4",
           "deleted_at": "t8",
@@ -360,6 +414,7 @@
             "name": "интеграция",
             "confirmed": true
           },
+          "material": "‹хэш›",
           "expires_at": null,
           "created_at": "t9",
           "deleted_at": "t12",
@@ -377,6 +432,7 @@
             ],
             "login_at": "t10"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t11",
           "deleted_at": "t13",
@@ -389,6 +445,11 @@
       "title": "Одноразовый код (OTP)",
       "text": "`issueOtp` возвращает код сервису, а отправить его письмом или СМС сервис должен сам. После успешной проверки код больше не действует.",
       "code": "const { code } = await svc.auth.issueOtp({ account: up.tenant!.user!, identifier: user.login, ttl: 300 });\nconst first = await svc.auth.verifyOtp({ identifier: user.login, code });\nconst again = await svc.auth.verifyOtp({ identifier: user.login, code });\nreturn { 'первый раз': !!first, 'тот же код снова': again };",
+      "params": [
+        "svc",
+        "up",
+        "user"
+      ],
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">code</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">issueOtp</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ account: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, identifier: user.login, ttl: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">300</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> first</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyOtp</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ identifier: user.login, code });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> again</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyOtp</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ identifier: user.login, code });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'первый раз'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">first, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'тот же код снова'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: again };</span></span></code></pre>",
       "result": {
         "первый раз": true,
@@ -408,6 +469,7 @@
             "tenant": "Ромашка",
             "login_at": "установка"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "установка",
           "deleted_at": "t5",
@@ -425,6 +487,7 @@
             "service": "service",
             "login_at": "установка"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "установка",
           "deleted_at": "t6",
@@ -442,6 +505,7 @@
             "service": "service",
             "login_at": "t1"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t2",
           "deleted_at": "t7",
@@ -459,6 +523,7 @@
             "service": "service",
             "login_at": "t3"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t4",
           "deleted_at": "t8",
@@ -472,6 +537,7 @@
             "name": "интеграция",
             "confirmed": true
           },
+          "material": "‹хэш›",
           "expires_at": null,
           "created_at": "t9",
           "deleted_at": "t12",
@@ -489,6 +555,7 @@
             ],
             "login_at": "t10"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t11",
           "deleted_at": "t13",
@@ -503,6 +570,7 @@
             "confirmed": true,
             "max_attempts": 5
           },
+          "material": "‹хэш›",
           "expires_at": "через 5 мин",
           "created_at": "t14",
           "deleted_at": "t15",
@@ -519,6 +587,7 @@
             ],
             "login_at": "t16"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t17",
           "deleted_at": null,
@@ -531,6 +600,10 @@
       "title": "Второй фактор: TOTP",
       "text": "`enrollTotp` даёт секрет и адрес `otpauth://` для QR-кода; первая верная проверка включает второй фактор. `totpCode` — помощник для тестов.",
       "code": "({ secret } = await svc.auth.enrollTotp({ account: up.tenant!.user!, issuer: 'Ромашка' }));\nconst ok = await svc.auth.verifyTotp({ account: up.tenant!.user!, code: totpCode(secret) });\nreturn { 'код принят': ok, 'TOTP включён': await svc.auth.totpEnabled(up.tenant!.user!) };",
+      "params": [
+        "svc",
+        "up"
+      ],
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ secret } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">enrollTotp</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ account: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, issuer: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }));</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> ok</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyTotp</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ account: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, code: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">totpCode</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(secret) });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'код принят'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: ok, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'TOTP включён'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">totpEnabled</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) };</span></span></code></pre>",
       "result": {
         "код принят": true,
@@ -550,6 +623,7 @@
             "tenant": "Ромашка",
             "login_at": "установка"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "установка",
           "deleted_at": "t5",
@@ -567,6 +641,7 @@
             "service": "service",
             "login_at": "установка"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "установка",
           "deleted_at": "t6",
@@ -584,6 +659,7 @@
             "service": "service",
             "login_at": "t1"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t2",
           "deleted_at": "t7",
@@ -601,6 +677,7 @@
             "service": "service",
             "login_at": "t3"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t4",
           "deleted_at": "t8",
@@ -614,6 +691,7 @@
             "name": "интеграция",
             "confirmed": true
           },
+          "material": "‹хэш›",
           "expires_at": null,
           "created_at": "t9",
           "deleted_at": "t12",
@@ -631,6 +709,7 @@
             ],
             "login_at": "t10"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t11",
           "deleted_at": "t13",
@@ -645,6 +724,7 @@
             "confirmed": true,
             "max_attempts": 5
           },
+          "material": "‹хэш›",
           "expires_at": "через 5 мин",
           "created_at": "t14",
           "deleted_at": "t15",
@@ -661,6 +741,7 @@
             ],
             "login_at": "t16"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t17",
           "deleted_at": null,
@@ -674,6 +755,7 @@
             "confirmed": true,
             "last_step": "‹шаг TOTP›"
           },
+          "material": "‹хэш›",
           "expires_at": null,
           "created_at": "t18",
           "deleted_at": null,
@@ -686,6 +768,10 @@
       "title": "Внешняя учётная запись и вход по ней",
       "text": "Telegram, Google, корпоративный вход (SSO): их токен проверяет сервис, а база хранит привязку к учётной записи. `lookup` — вход по этой привязке.",
       "code": "await svc.auth.link({ account: up.tenant!.user!, kind: 'TELEGRAM', identifier: '100500', confirmed: true });\nreturn { 'вход через Telegram': !!(await svc.auth.lookup({ kind: 'TELEGRAM', identifier: '100500' })) };",
+      "params": [
+        "svc",
+        "up"
+      ],
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">link</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ account: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, kind: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'TELEGRAM'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, identifier: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'100500'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, confirmed: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'вход через Telegram'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">lookup</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ kind: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'TELEGRAM'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, identifier: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'100500'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })) };</span></span></code></pre>",
       "result": {
         "вход через Telegram": true
@@ -704,6 +790,7 @@
             "tenant": "Ромашка",
             "login_at": "установка"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "установка",
           "deleted_at": "t5",
@@ -721,6 +808,7 @@
             "service": "service",
             "login_at": "установка"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "установка",
           "deleted_at": "t6",
@@ -738,6 +826,7 @@
             "service": "service",
             "login_at": "t1"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t2",
           "deleted_at": "t7",
@@ -755,6 +844,7 @@
             "service": "service",
             "login_at": "t3"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t4",
           "deleted_at": "t8",
@@ -768,6 +858,7 @@
             "name": "интеграция",
             "confirmed": true
           },
+          "material": "‹хэш›",
           "expires_at": null,
           "created_at": "t9",
           "deleted_at": "t12",
@@ -785,6 +876,7 @@
             ],
             "login_at": "t10"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t11",
           "deleted_at": "t13",
@@ -799,6 +891,7 @@
             "confirmed": true,
             "max_attempts": 5
           },
+          "material": "‹хэш›",
           "expires_at": "через 5 мин",
           "created_at": "t14",
           "deleted_at": "t15",
@@ -815,6 +908,7 @@
             ],
             "login_at": "t16"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t17",
           "deleted_at": null,
@@ -828,6 +922,7 @@
             "confirmed": true,
             "last_step": "‹шаг TOTP›"
           },
+          "material": "‹хэш›",
           "expires_at": null,
           "created_at": "t18",
           "deleted_at": null,
@@ -840,6 +935,7 @@
           "meta": {
             "confirmed": true
           },
+          "material": null,
           "expires_at": null,
           "created_at": "t19",
           "deleted_at": null,
@@ -857,6 +953,7 @@
             "service": "service",
             "login_at": "t20"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t21",
           "deleted_at": null,
@@ -869,6 +966,13 @@
       "title": "Короткая сессия для другого процесса",
       "text": null,
       "code": "const token = await svc.auth.sessionFor(up.tenant!.user!, { ttl: 600 });\nconst other = await connect({ dsn: dsn.app, schema, token });\nreturn { tenant: other.tenant };",
+      "params": [
+        "svc",
+        "up",
+        "connect",
+        "dsn",
+        "schema"
+      ],
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sessionFor</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { ttl: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">600</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> other</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.app, schema, token });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { tenant: other.tenant };</span></span></code></pre>",
       "result": {
         "tenant": "Анна"
@@ -887,6 +991,7 @@
             "tenant": "Ромашка",
             "login_at": "установка"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "установка",
           "deleted_at": "t5",
@@ -904,6 +1009,7 @@
             "service": "service",
             "login_at": "установка"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "установка",
           "deleted_at": "t6",
@@ -921,6 +1027,7 @@
             "service": "service",
             "login_at": "t1"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t2",
           "deleted_at": "t7",
@@ -938,6 +1045,7 @@
             "service": "service",
             "login_at": "t3"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t4",
           "deleted_at": "t8",
@@ -951,6 +1059,7 @@
             "name": "интеграция",
             "confirmed": true
           },
+          "material": "‹хэш›",
           "expires_at": null,
           "created_at": "t9",
           "deleted_at": "t12",
@@ -968,6 +1077,7 @@
             ],
             "login_at": "t10"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t11",
           "deleted_at": "t13",
@@ -982,6 +1092,7 @@
             "confirmed": true,
             "max_attempts": 5
           },
+          "material": "‹хэш›",
           "expires_at": "через 5 мин",
           "created_at": "t14",
           "deleted_at": "t15",
@@ -998,6 +1109,7 @@
             ],
             "login_at": "t16"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t17",
           "deleted_at": null,
@@ -1011,6 +1123,7 @@
             "confirmed": true,
             "last_step": "‹шаг TOTP›"
           },
+          "material": "‹хэш›",
           "expires_at": null,
           "created_at": "t18",
           "deleted_at": null,
@@ -1023,6 +1136,7 @@
           "meta": {
             "confirmed": true
           },
+          "material": null,
           "expires_at": null,
           "created_at": "t19",
           "deleted_at": null,
@@ -1040,6 +1154,7 @@
             "service": "service",
             "login_at": "t20"
           },
+          "material": "‹хэш›",
           "expires_at": "через 7 дн",
           "created_at": "t21",
           "deleted_at": null,
@@ -1057,6 +1172,7 @@
             "service": "service",
             "login_at": "t22"
           },
+          "material": "‹хэш›",
           "expires_at": "через 10 мин",
           "created_at": "t23",
           "deleted_at": null,

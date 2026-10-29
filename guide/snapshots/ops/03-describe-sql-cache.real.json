@@ -1,0 +1,118 @@
+{
+  "id": "ops/03-describe-sql-cache",
+  "context": {
+    "schema": "v2.g_ops_03_describe_sql_cache",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_f991308b4b590255a99f9e9892d0b74f813685f22cefd3a4f766137ece324996",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "890de97fd99f82d2682eea726695bf99acf71ceb047ab68ea3f843cf7f3aada9",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "семейство Customer": [
+          "Customer",
+          "Vip"
+        ],
+        "ключ Product": [
+          "Shop",
+          "sku"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "классов (не системных)": 7,
+        "текст, начало": [
+          "# letopis: модель схемы v2.g_ops_03_describe_sql_cache",
+          "",
+          "Цепочка: db.Класс(фильтр).Связь().Класс().rows(); запись — create, update, upsert, delete; история — versions(), asOf(), withDeleted()."
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "db.sql": [
+          {
+            "tenant_name": "Ромашка",
+            "reason": ""
+          }
+        ],
+        "db.transaction — только свой арендатор": [
+          {
+            "class": "Product",
+            "n": 4
+          },
+          {
+            "class": "Shop",
+            "n": 2
+          }
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "stats": {
+          "size": 1,
+          "hits": 1,
+          "misses": 1,
+          "stores": 1,
+          "raced": 0,
+          "signals": 0,
+          "listens": 0,
+          "enabled": true
+        },
+        "режим сигналов": "class"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "op": "create",
+        "class": "Shop"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    }
+  ]
+}

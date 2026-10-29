@@ -1,0 +1,1025 @@
+{
+  "id": "auth/01-login-factors",
+  "context": {
+    "schema": "v2.g_auth_01_login_factors",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_8faf17528d93d29d9496ac6a8e095796ff198e18728ed8b54a95ab4735cfcecb",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "5221990c532cf79b7d1511bbcac8dedeb12593c81c7cd48659a10e9f9ccc2c1b",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "верный": true,
+        "неверный": null,
+        "ЗАГЛАВНЫМИ": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:35.74741+00:00"
+          },
+          "material": "5f83b8e7fb046489313a4da9e8cf935f6db2e404c3a61c927e96e3a31a492b89",
+          "expires_at": "2026-11-05 18:42:35.747423+00",
+          "created_at": "2026-10-29 18:42:35.747424+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:35.909672+00:00"
+          },
+          "material": "6e5efefc804fb851b8fed524ad234b26b0e4e4c216fbb6188deb6b8294ba1e46",
+          "expires_at": "2026-11-05 18:42:35.909685+00",
+          "created_at": "2026-10-29 18:42:35.909687+00",
+          "deleted_at": null
+        }
+      ]
+    },
+    {
+      "result": {
+        "старый пароль": null
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+            "login_at": "2026-10-29T18:42:35.49105+00:00"
+          },
+          "material": "7ec4a2a0df47ad8f8afc6785f35455f7a40d1142bbb853b0ddbadd25649c935f",
+          "expires_at": "2026-11-05 18:42:35.491058+00",
+          "created_at": "2026-10-29 18:42:35.491059+00",
+          "deleted_at": "2026-10-29 18:42:35.98324+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:35.641778+00:00"
+          },
+          "material": "f0e78a893d2df1691d480f2ec5b7945ec80bdfe722766240d46d2a4685ad518c",
+          "expires_at": "2026-11-05 18:42:35.641791+00",
+          "created_at": "2026-10-29 18:42:35.641793+00",
+          "deleted_at": "2026-10-29 18:42:35.983254+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:35.74741+00:00"
+          },
+          "material": "5f83b8e7fb046489313a4da9e8cf935f6db2e404c3a61c927e96e3a31a492b89",
+          "expires_at": "2026-11-05 18:42:35.747423+00",
+          "created_at": "2026-10-29 18:42:35.747424+00",
+          "deleted_at": "2026-10-29 18:42:35.983258+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:35.909672+00:00"
+          },
+          "material": "6e5efefc804fb851b8fed524ad234b26b0e4e4c216fbb6188deb6b8294ba1e46",
+          "expires_at": "2026-11-05 18:42:35.909685+00",
+          "created_at": "2026-10-29 18:42:35.909687+00",
+          "deleted_at": "2026-10-29 18:42:35.983261+00"
+        }
+      ]
+    },
+    {
+      "result": {
+        "вход по ключу": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+            "login_at": "2026-10-29T18:42:35.49105+00:00"
+          },
+          "material": "7ec4a2a0df47ad8f8afc6785f35455f7a40d1142bbb853b0ddbadd25649c935f",
+          "expires_at": "2026-11-05 18:42:35.491058+00",
+          "created_at": "2026-10-29 18:42:35.491059+00",
+          "deleted_at": "2026-10-29 18:42:35.98324+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:35.641778+00:00"
+          },
+          "material": "f0e78a893d2df1691d480f2ec5b7945ec80bdfe722766240d46d2a4685ad518c",
+          "expires_at": "2026-11-05 18:42:35.641791+00",
+          "created_at": "2026-10-29 18:42:35.641793+00",
+          "deleted_at": "2026-10-29 18:42:35.983254+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:35.74741+00:00"
+          },
+          "material": "5f83b8e7fb046489313a4da9e8cf935f6db2e404c3a61c927e96e3a31a492b89",
+          "expires_at": "2026-11-05 18:42:35.747423+00",
+          "created_at": "2026-10-29 18:42:35.747424+00",
+          "deleted_at": "2026-10-29 18:42:35.983258+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:35.909672+00:00"
+          },
+          "material": "6e5efefc804fb851b8fed524ad234b26b0e4e4c216fbb6188deb6b8294ba1e46",
+          "expires_at": "2026-11-05 18:42:35.909685+00",
+          "created_at": "2026-10-29 18:42:35.909687+00",
+          "deleted_at": "2026-10-29 18:42:35.983261+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "APIKEY",
+          "ident": "lts_a2c88e21",
+          "meta": {
+            "name": "интеграция",
+            "confirmed": true
+          },
+          "material": "fedb6572b5ccf4597203a0615c39673113c534db4fc74dfbf10997ffa1c854fa",
+          "expires_at": null,
+          "created_at": "2026-10-29 18:42:36.069827+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "06ce3864-2089-4e57-8c88-091e486cd911",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-10-29T18:42:36.075727+00:00"
+          },
+          "material": "70a588e709e8c42f7c2165993ba0232dc197bd6fef971e595dfe453f44bbf168",
+          "expires_at": "2026-11-05 18:42:36.075737+00",
+          "created_at": "2026-10-29 18:42:36.075738+00",
+          "deleted_at": null
+        }
+      ]
+    },
+    {
+      "result": {
+        "вход по отозванному ключу": null
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+            "login_at": "2026-10-29T18:42:35.49105+00:00"
+          },
+          "material": "7ec4a2a0df47ad8f8afc6785f35455f7a40d1142bbb853b0ddbadd25649c935f",
+          "expires_at": "2026-11-05 18:42:35.491058+00",
+          "created_at": "2026-10-29 18:42:35.491059+00",
+          "deleted_at": "2026-10-29 18:42:35.98324+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:35.641778+00:00"
+          },
+          "material": "f0e78a893d2df1691d480f2ec5b7945ec80bdfe722766240d46d2a4685ad518c",
+          "expires_at": "2026-11-05 18:42:35.641791+00",
+          "created_at": "2026-10-29 18:42:35.641793+00",
+          "deleted_at": "2026-10-29 18:42:35.983254+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:35.74741+00:00"
+          },
+          "material": "5f83b8e7fb046489313a4da9e8cf935f6db2e404c3a61c927e96e3a31a492b89",
+          "expires_at": "2026-11-05 18:42:35.747423+00",
+          "created_at": "2026-10-29 18:42:35.747424+00",
+          "deleted_at": "2026-10-29 18:42:35.983258+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:35.909672+00:00"
+          },
+          "material": "6e5efefc804fb851b8fed524ad234b26b0e4e4c216fbb6188deb6b8294ba1e46",
+          "expires_at": "2026-11-05 18:42:35.909685+00",
+          "created_at": "2026-10-29 18:42:35.909687+00",
+          "deleted_at": "2026-10-29 18:42:35.983261+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "APIKEY",
+          "ident": "lts_a2c88e21",
+          "meta": {
+            "name": "интеграция",
+            "confirmed": true
+          },
+          "material": "fedb6572b5ccf4597203a0615c39673113c534db4fc74dfbf10997ffa1c854fa",
+          "expires_at": null,
+          "created_at": "2026-10-29 18:42:36.069827+00",
+          "deleted_at": "2026-10-29 18:42:36.087414+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "06ce3864-2089-4e57-8c88-091e486cd911",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-10-29T18:42:36.075727+00:00"
+          },
+          "material": "70a588e709e8c42f7c2165993ba0232dc197bd6fef971e595dfe453f44bbf168",
+          "expires_at": "2026-11-05 18:42:36.075737+00",
+          "created_at": "2026-10-29 18:42:36.075738+00",
+          "deleted_at": "2026-10-29 18:42:36.087919+00"
+        }
+      ]
+    },
+    {
+      "result": {
+        "первый раз": true,
+        "тот же код снова": null
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+            "login_at": "2026-10-29T18:42:35.49105+00:00"
+          },
+          "material": "7ec4a2a0df47ad8f8afc6785f35455f7a40d1142bbb853b0ddbadd25649c935f",
+          "expires_at": "2026-11-05 18:42:35.491058+00",
+          "created_at": "2026-10-29 18:42:35.491059+00",
+          "deleted_at": "2026-10-29 18:42:35.98324+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:35.641778+00:00"
+          },
+          "material": "f0e78a893d2df1691d480f2ec5b7945ec80bdfe722766240d46d2a4685ad518c",
+          "expires_at": "2026-11-05 18:42:35.641791+00",
+          "created_at": "2026-10-29 18:42:35.641793+00",
+          "deleted_at": "2026-10-29 18:42:35.983254+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:35.74741+00:00"
+          },
+          "material": "5f83b8e7fb046489313a4da9e8cf935f6db2e404c3a61c927e96e3a31a492b89",
+          "expires_at": "2026-11-05 18:42:35.747423+00",
+          "created_at": "2026-10-29 18:42:35.747424+00",
+          "deleted_at": "2026-10-29 18:42:35.983258+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:35.909672+00:00"
+          },
+          "material": "6e5efefc804fb851b8fed524ad234b26b0e4e4c216fbb6188deb6b8294ba1e46",
+          "expires_at": "2026-11-05 18:42:35.909685+00",
+          "created_at": "2026-10-29 18:42:35.909687+00",
+          "deleted_at": "2026-10-29 18:42:35.983261+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "APIKEY",
+          "ident": "lts_a2c88e21",
+          "meta": {
+            "name": "интеграция",
+            "confirmed": true
+          },
+          "material": "fedb6572b5ccf4597203a0615c39673113c534db4fc74dfbf10997ffa1c854fa",
+          "expires_at": null,
+          "created_at": "2026-10-29 18:42:36.069827+00",
+          "deleted_at": "2026-10-29 18:42:36.087414+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "06ce3864-2089-4e57-8c88-091e486cd911",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-10-29T18:42:36.075727+00:00"
+          },
+          "material": "70a588e709e8c42f7c2165993ba0232dc197bd6fef971e595dfe453f44bbf168",
+          "expires_at": "2026-11-05 18:42:36.075737+00",
+          "created_at": "2026-10-29 18:42:36.075738+00",
+          "deleted_at": "2026-10-29 18:42:36.087919+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "OTP",
+          "ident": "anna@romashka.ru",
+          "meta": {
+            "attempts": 0,
+            "confirmed": true,
+            "max_attempts": 5
+          },
+          "material": "377fa8232ad235c587a396c4dc23b6c29f58f7f7c0d1dfed978788876bdf9cf7",
+          "expires_at": "2026-10-29 18:47:36.105253+00",
+          "created_at": "2026-10-29 18:42:36.105254+00",
+          "deleted_at": "2026-10-29 18:42:36.116802+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "OTP"
+            ],
+            "login_at": "2026-10-29T18:42:36.117466+00:00"
+          },
+          "material": "80d0a5c24c74a3583ef479bc70d3480d7b4fe56ee6dddebc93855deaa5099479",
+          "expires_at": "2026-11-05 18:42:36.117473+00",
+          "created_at": "2026-10-29 18:42:36.117475+00",
+          "deleted_at": null
+        }
+      ]
+    },
+    {
+      "result": {
+        "код принят": true,
+        "TOTP включён": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+            "login_at": "2026-10-29T18:42:35.49105+00:00"
+          },
+          "material": "7ec4a2a0df47ad8f8afc6785f35455f7a40d1142bbb853b0ddbadd25649c935f",
+          "expires_at": "2026-11-05 18:42:35.491058+00",
+          "created_at": "2026-10-29 18:42:35.491059+00",
+          "deleted_at": "2026-10-29 18:42:35.98324+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:35.641778+00:00"
+          },
+          "material": "f0e78a893d2df1691d480f2ec5b7945ec80bdfe722766240d46d2a4685ad518c",
+          "expires_at": "2026-11-05 18:42:35.641791+00",
+          "created_at": "2026-10-29 18:42:35.641793+00",
+          "deleted_at": "2026-10-29 18:42:35.983254+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:35.74741+00:00"
+          },
+          "material": "5f83b8e7fb046489313a4da9e8cf935f6db2e404c3a61c927e96e3a31a492b89",
+          "expires_at": "2026-11-05 18:42:35.747423+00",
+          "created_at": "2026-10-29 18:42:35.747424+00",
+          "deleted_at": "2026-10-29 18:42:35.983258+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:35.909672+00:00"
+          },
+          "material": "6e5efefc804fb851b8fed524ad234b26b0e4e4c216fbb6188deb6b8294ba1e46",
+          "expires_at": "2026-11-05 18:42:35.909685+00",
+          "created_at": "2026-10-29 18:42:35.909687+00",
+          "deleted_at": "2026-10-29 18:42:35.983261+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "APIKEY",
+          "ident": "lts_a2c88e21",
+          "meta": {
+            "name": "интеграция",
+            "confirmed": true
+          },
+          "material": "fedb6572b5ccf4597203a0615c39673113c534db4fc74dfbf10997ffa1c854fa",
+          "expires_at": null,
+          "created_at": "2026-10-29 18:42:36.069827+00",
+          "deleted_at": "2026-10-29 18:42:36.087414+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "06ce3864-2089-4e57-8c88-091e486cd911",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-10-29T18:42:36.075727+00:00"
+          },
+          "material": "70a588e709e8c42f7c2165993ba0232dc197bd6fef971e595dfe453f44bbf168",
+          "expires_at": "2026-11-05 18:42:36.075737+00",
+          "created_at": "2026-10-29 18:42:36.075738+00",
+          "deleted_at": "2026-10-29 18:42:36.087919+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "OTP",
+          "ident": "anna@romashka.ru",
+          "meta": {
+            "attempts": 0,
+            "confirmed": true,
+            "max_attempts": 5
+          },
+          "material": "377fa8232ad235c587a396c4dc23b6c29f58f7f7c0d1dfed978788876bdf9cf7",
+          "expires_at": "2026-10-29 18:47:36.105253+00",
+          "created_at": "2026-10-29 18:42:36.105254+00",
+          "deleted_at": "2026-10-29 18:42:36.116802+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "OTP"
+            ],
+            "login_at": "2026-10-29T18:42:36.117466+00:00"
+          },
+          "material": "80d0a5c24c74a3583ef479bc70d3480d7b4fe56ee6dddebc93855deaa5099479",
+          "expires_at": "2026-11-05 18:42:36.117473+00",
+          "created_at": "2026-10-29 18:42:36.117475+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "TOTP",
+          "ident": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "meta": {
+            "confirmed": true,
+            "last_step": 59776645
+          },
+          "material": "903842f9278fb68d50e595d3afa3b78d3debcc31",
+          "expires_at": null,
+          "created_at": "2026-10-29 18:42:36.136354+00",
+          "deleted_at": null
+        }
+      ]
+    },
+    {
+      "result": {
+        "вход через Telegram": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+            "login_at": "2026-10-29T18:42:35.49105+00:00"
+          },
+          "material": "7ec4a2a0df47ad8f8afc6785f35455f7a40d1142bbb853b0ddbadd25649c935f",
+          "expires_at": "2026-11-05 18:42:35.491058+00",
+          "created_at": "2026-10-29 18:42:35.491059+00",
+          "deleted_at": "2026-10-29 18:42:35.98324+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:35.641778+00:00"
+          },
+          "material": "f0e78a893d2df1691d480f2ec5b7945ec80bdfe722766240d46d2a4685ad518c",
+          "expires_at": "2026-11-05 18:42:35.641791+00",
+          "created_at": "2026-10-29 18:42:35.641793+00",
+          "deleted_at": "2026-10-29 18:42:35.983254+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:35.74741+00:00"
+          },
+          "material": "5f83b8e7fb046489313a4da9e8cf935f6db2e404c3a61c927e96e3a31a492b89",
+          "expires_at": "2026-11-05 18:42:35.747423+00",
+          "created_at": "2026-10-29 18:42:35.747424+00",
+          "deleted_at": "2026-10-29 18:42:35.983258+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:35.909672+00:00"
+          },
+          "material": "6e5efefc804fb851b8fed524ad234b26b0e4e4c216fbb6188deb6b8294ba1e46",
+          "expires_at": "2026-11-05 18:42:35.909685+00",
+          "created_at": "2026-10-29 18:42:35.909687+00",
+          "deleted_at": "2026-10-29 18:42:35.983261+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "APIKEY",
+          "ident": "lts_a2c88e21",
+          "meta": {
+            "name": "интеграция",
+            "confirmed": true
+          },
+          "material": "fedb6572b5ccf4597203a0615c39673113c534db4fc74dfbf10997ffa1c854fa",
+          "expires_at": null,
+          "created_at": "2026-10-29 18:42:36.069827+00",
+          "deleted_at": "2026-10-29 18:42:36.087414+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "06ce3864-2089-4e57-8c88-091e486cd911",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-10-29T18:42:36.075727+00:00"
+          },
+          "material": "70a588e709e8c42f7c2165993ba0232dc197bd6fef971e595dfe453f44bbf168",
+          "expires_at": "2026-11-05 18:42:36.075737+00",
+          "created_at": "2026-10-29 18:42:36.075738+00",
+          "deleted_at": "2026-10-29 18:42:36.087919+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "OTP",
+          "ident": "anna@romashka.ru",
+          "meta": {
+            "attempts": 0,
+            "confirmed": true,
+            "max_attempts": 5
+          },
+          "material": "377fa8232ad235c587a396c4dc23b6c29f58f7f7c0d1dfed978788876bdf9cf7",
+          "expires_at": "2026-10-29 18:47:36.105253+00",
+          "created_at": "2026-10-29 18:42:36.105254+00",
+          "deleted_at": "2026-10-29 18:42:36.116802+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "OTP"
+            ],
+            "login_at": "2026-10-29T18:42:36.117466+00:00"
+          },
+          "material": "80d0a5c24c74a3583ef479bc70d3480d7b4fe56ee6dddebc93855deaa5099479",
+          "expires_at": "2026-11-05 18:42:36.117473+00",
+          "created_at": "2026-10-29 18:42:36.117475+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "TOTP",
+          "ident": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "meta": {
+            "confirmed": true,
+            "last_step": 59776645
+          },
+          "material": "903842f9278fb68d50e595d3afa3b78d3debcc31",
+          "expires_at": null,
+          "created_at": "2026-10-29 18:42:36.136354+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "TELEGRAM",
+          "ident": "100500",
+          "meta": {
+            "confirmed": true
+          },
+          "material": null,
+          "expires_at": null,
+          "created_at": "2026-10-29 18:42:36.161165+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "TELEGRAM"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:36.174031+00:00"
+          },
+          "material": "3e14f14647c0d86a58c1696e1da8e391724e0ac17d8ab004aa7dce46a001bf70",
+          "expires_at": "2026-11-05 18:42:36.17404+00",
+          "created_at": "2026-10-29 18:42:36.174041+00",
+          "deleted_at": null
+        }
+      ]
+    },
+    {
+      "result": {
+        "tenant": "3defbabb-a94d-5359-8463-dc947de193e1"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+            "login_at": "2026-10-29T18:42:35.49105+00:00"
+          },
+          "material": "7ec4a2a0df47ad8f8afc6785f35455f7a40d1142bbb853b0ddbadd25649c935f",
+          "expires_at": "2026-11-05 18:42:35.491058+00",
+          "created_at": "2026-10-29 18:42:35.491059+00",
+          "deleted_at": "2026-10-29 18:42:35.98324+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:35.641778+00:00"
+          },
+          "material": "f0e78a893d2df1691d480f2ec5b7945ec80bdfe722766240d46d2a4685ad518c",
+          "expires_at": "2026-11-05 18:42:35.641791+00",
+          "created_at": "2026-10-29 18:42:35.641793+00",
+          "deleted_at": "2026-10-29 18:42:35.983254+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:35.74741+00:00"
+          },
+          "material": "5f83b8e7fb046489313a4da9e8cf935f6db2e404c3a61c927e96e3a31a492b89",
+          "expires_at": "2026-11-05 18:42:35.747423+00",
+          "created_at": "2026-10-29 18:42:35.747424+00",
+          "deleted_at": "2026-10-29 18:42:35.983258+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:35.909672+00:00"
+          },
+          "material": "6e5efefc804fb851b8fed524ad234b26b0e4e4c216fbb6188deb6b8294ba1e46",
+          "expires_at": "2026-11-05 18:42:35.909685+00",
+          "created_at": "2026-10-29 18:42:35.909687+00",
+          "deleted_at": "2026-10-29 18:42:35.983261+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "APIKEY",
+          "ident": "lts_a2c88e21",
+          "meta": {
+            "name": "интеграция",
+            "confirmed": true
+          },
+          "material": "fedb6572b5ccf4597203a0615c39673113c534db4fc74dfbf10997ffa1c854fa",
+          "expires_at": null,
+          "created_at": "2026-10-29 18:42:36.069827+00",
+          "deleted_at": "2026-10-29 18:42:36.087414+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "06ce3864-2089-4e57-8c88-091e486cd911",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-10-29T18:42:36.075727+00:00"
+          },
+          "material": "70a588e709e8c42f7c2165993ba0232dc197bd6fef971e595dfe453f44bbf168",
+          "expires_at": "2026-11-05 18:42:36.075737+00",
+          "created_at": "2026-10-29 18:42:36.075738+00",
+          "deleted_at": "2026-10-29 18:42:36.087919+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "OTP",
+          "ident": "anna@romashka.ru",
+          "meta": {
+            "attempts": 0,
+            "confirmed": true,
+            "max_attempts": 5
+          },
+          "material": "377fa8232ad235c587a396c4dc23b6c29f58f7f7c0d1dfed978788876bdf9cf7",
+          "expires_at": "2026-10-29 18:47:36.105253+00",
+          "created_at": "2026-10-29 18:42:36.105254+00",
+          "deleted_at": "2026-10-29 18:42:36.116802+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "OTP"
+            ],
+            "login_at": "2026-10-29T18:42:36.117466+00:00"
+          },
+          "material": "80d0a5c24c74a3583ef479bc70d3480d7b4fe56ee6dddebc93855deaa5099479",
+          "expires_at": "2026-11-05 18:42:36.117473+00",
+          "created_at": "2026-10-29 18:42:36.117475+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "TOTP",
+          "ident": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "meta": {
+            "confirmed": true,
+            "last_step": 59776645
+          },
+          "material": "903842f9278fb68d50e595d3afa3b78d3debcc31",
+          "expires_at": null,
+          "created_at": "2026-10-29 18:42:36.136354+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "TELEGRAM",
+          "ident": "100500",
+          "meta": {
+            "confirmed": true
+          },
+          "material": null,
+          "expires_at": null,
+          "created_at": "2026-10-29 18:42:36.161165+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "TELEGRAM"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:36.174031+00:00"
+          },
+          "material": "3e14f14647c0d86a58c1696e1da8e391724e0ac17d8ab004aa7dce46a001bf70",
+          "expires_at": "2026-11-05 18:42:36.17404+00",
+          "created_at": "2026-10-29 18:42:36.174041+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "00:10:00",
+            "methods": [
+              "SERVICE"
+            ],
+            "service": "6986c8c3-f159-5514-93b9-a62b9a373ec8",
+            "login_at": "2026-10-29T18:42:36.187251+00:00"
+          },
+          "material": "00292298f718cfd5521762aca8ba1eb67a4926bb1d71a89cba40b76bb540ba61",
+          "expires_at": "2026-10-29 18:52:36.187258+00",
+          "created_at": "2026-10-29 18:42:36.187259+00",
+          "deleted_at": null
+        }
+      ]
+    }
+  ]
+}

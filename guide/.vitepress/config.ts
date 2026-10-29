@@ -26,6 +26,7 @@ export default defineConfig({
   themeConfig: {
     nav: [
       { text: 'Начать', link: '/basics/what-is' },
+      { text: 'Справочник API', link: '/reference/' },
       { text: 'Сервисы-примеры', link: '/services/' },
     ],
     sidebar: [
@@ -45,14 +46,32 @@ export default defineConfig({
           { text: '10. История и время', link: '/history/' },
           { text: '11. Подписка, кэш, сигналы', link: '/watch/' },
           { text: '12. Агрегаты и проекторы', link: '/derived/' },
-          { text: '13. Массовая загрузка и импорт', link: '/load/' },
+          { text: '13. Массовая загрузка', link: '/load/' },
           { text: '14. Эксплуатация', link: '/ops/' },
           { text: '15. ИИ-агенты: MCP', link: '/mcp/' },
           { text: '16. Ошибки', link: '/errors/' },
           { text: '17. Все нюансы', link: '/nuances/' },
-          { text: '18. Переход с 0.21', link: '/migrate/' },
           { text: 'Глоссарий', link: '/glossary/' },
           { text: 'Песочница', link: '/sandbox' },
+        ],
+      },
+      {
+        text: 'Справочник API',
+        items: [
+          { text: 'Обзор', link: '/reference/' },
+          { text: 'Цепочка', link: '/reference/chain' },
+          { text: 'Корень db', link: '/reference/db' },
+          { text: 'Вход: db.auth', link: '/reference/auth' },
+          { text: 'Права: db.acl', link: '/reference/acl' },
+          { text: 'Подписка и кэш', link: '/reference/watch' },
+          { text: 'Проекторы и агрегаты', link: '/reference/derived' },
+          { text: 'Загрузка', link: '/reference/load' },
+          { text: 'Установка и подключение', link: '/reference/setup' },
+          { text: 'Модели: letopis/model', link: '/reference/model' },
+          { text: 'Служебные экспорты', link: '/reference/utils' },
+          { text: 'MCP: letopis/mcp', link: '/reference/mcp' },
+          { text: 'Командная строка', link: '/reference/cli' },
+          { text: 'Типы', link: '/reference/types' },
         ],
       },
       {

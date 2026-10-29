@@ -1,0 +1,738 @@
+{
+  "id": "history/02-follow-rekey-reclass",
+  "context": {
+    "schema": "v2.g_history_02_follow_rekey_reclass",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_c8afa3b48d20bd7831d6e9008c3332f0a828faa884b588093c96610e45bd0501",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "788a688dfd5ecc41251885a70d7bd0b2c24e8135d33c23e41e0cf80473238690",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": [
+        {
+          "at": "2026-10-29T18:43:02.312985+00:00",
+          "id": "dd9e3c88-063f-543a-8fbd-823bd14397cb",
+          "op": "update",
+          "rev": 2,
+          "data": {
+            "title": "Аренда склада",
+            "amount": 120000,
+            "number": "Д-1",
+            "status": "draft"
+          },
+          "tags": [],
+          "class": "Draft",
+          "links": {},
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "торг"
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [
+        {
+          "seq": "38",
+          "id": "dd9e3c88-063f-543a-8fbd-823bd14397cb",
+          "rev": 1,
+          "class": "Draft",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Аренда склада",
+            "amount": 100000,
+            "number": "Д-1",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "новый черновик",
+          "at": "2026-10-29 18:43:02.292146+00",
+          "tx": "2381150"
+        },
+        {
+          "seq": "39",
+          "id": "dd9e3c88-063f-543a-8fbd-823bd14397cb",
+          "rev": 2,
+          "class": "Draft",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Аренда склада",
+            "amount": 120000,
+            "number": "Д-1",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "торг",
+          "at": "2026-10-29 18:43:02.312985+00",
+          "tx": "2381152"
+        }
+      ],
+      "secret": []
+    },
+    {
+      "result": {
+        "id сменился": true,
+        "class": "Contract",
+        "moved — прежний id": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [
+        {
+          "seq": "38",
+          "id": "dd9e3c88-063f-543a-8fbd-823bd14397cb",
+          "rev": 1,
+          "class": "Draft",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Аренда склада",
+            "amount": 100000,
+            "number": "Д-1",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "новый черновик",
+          "at": "2026-10-29 18:43:02.292146+00",
+          "tx": "2381150"
+        },
+        {
+          "seq": "39",
+          "id": "dd9e3c88-063f-543a-8fbd-823bd14397cb",
+          "rev": 2,
+          "class": "Draft",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Аренда склада",
+            "amount": 120000,
+            "number": "Д-1",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "торг",
+          "at": "2026-10-29 18:43:02.312985+00",
+          "tx": "2381152"
+        },
+        {
+          "seq": "40",
+          "id": "7f7033b5-0705-5e20-8270-14b8ce8a0196",
+          "rev": 1,
+          "class": "Contract",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Аренда склада",
+            "amount": 120000,
+            "number": "Д-1",
+            "signedBy": "Борис"
+          },
+          "tags": [],
+          "op": "reclass",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "подписан",
+          "at": "2026-10-29 18:43:02.343236+00",
+          "tx": "2381154"
+        },
+        {
+          "seq": "41",
+          "id": "dd9e3c88-063f-543a-8fbd-823bd14397cb",
+          "rev": 3,
+          "class": "Draft",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Аренда склада",
+            "amount": 120000,
+            "number": "Д-1",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "подписан",
+          "at": "2026-10-29 18:43:02.346968+00",
+          "tx": "2381154"
+        }
+      ],
+      "secret": []
+    },
+    {
+      "result": {
+        "id сменился": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [
+        {
+          "seq": "38",
+          "id": "dd9e3c88-063f-543a-8fbd-823bd14397cb",
+          "rev": 1,
+          "class": "Draft",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Аренда склада",
+            "amount": 100000,
+            "number": "Д-1",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "новый черновик",
+          "at": "2026-10-29 18:43:02.292146+00",
+          "tx": "2381150"
+        },
+        {
+          "seq": "39",
+          "id": "dd9e3c88-063f-543a-8fbd-823bd14397cb",
+          "rev": 2,
+          "class": "Draft",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Аренда склада",
+            "amount": 120000,
+            "number": "Д-1",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "торг",
+          "at": "2026-10-29 18:43:02.312985+00",
+          "tx": "2381152"
+        },
+        {
+          "seq": "40",
+          "id": "7f7033b5-0705-5e20-8270-14b8ce8a0196",
+          "rev": 1,
+          "class": "Contract",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Аренда склада",
+            "amount": 120000,
+            "number": "Д-1",
+            "signedBy": "Борис"
+          },
+          "tags": [],
+          "op": "reclass",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "подписан",
+          "at": "2026-10-29 18:43:02.343236+00",
+          "tx": "2381154"
+        },
+        {
+          "seq": "41",
+          "id": "dd9e3c88-063f-543a-8fbd-823bd14397cb",
+          "rev": 3,
+          "class": "Draft",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Аренда склада",
+            "amount": 120000,
+            "number": "Д-1",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "подписан",
+          "at": "2026-10-29 18:43:02.346968+00",
+          "tx": "2381154"
+        },
+        {
+          "seq": "42",
+          "id": "c755b100-7949-5dc7-8d5b-6d47f215f929",
+          "rev": 1,
+          "class": "Contract",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Аренда склада",
+            "amount": 120000,
+            "number": "Д-2026-1",
+            "signedBy": "Борис"
+          },
+          "tags": [],
+          "op": "rekey",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "перенумерация реестра",
+          "at": "2026-10-29 18:43:02.372339+00",
+          "tx": "2381156"
+        },
+        {
+          "seq": "43",
+          "id": "7f7033b5-0705-5e20-8270-14b8ce8a0196",
+          "rev": 2,
+          "class": "Contract",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Аренда склада",
+            "amount": 120000,
+            "number": "Д-1",
+            "signedBy": "Борис"
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "перенумерация реестра",
+          "at": "2026-10-29 18:43:02.374929+00",
+          "tx": "2381156"
+        }
+      ],
+      "secret": []
+    },
+    {
+      "result": {
+        "без follow": [
+          "Contract v1 rekey"
+        ],
+        "с follow": [
+          "Draft v1 create — новый черновик",
+          "Draft v2 update — торг",
+          "Contract v1 reclass — подписан",
+          "Draft v3 delete — подписан",
+          "Contract v1 rekey — перенумерация реестра",
+          "Contract v2 delete — перенумерация реестра"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [
+        {
+          "seq": "38",
+          "id": "dd9e3c88-063f-543a-8fbd-823bd14397cb",
+          "rev": 1,
+          "class": "Draft",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Аренда склада",
+            "amount": 100000,
+            "number": "Д-1",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "новый черновик",
+          "at": "2026-10-29 18:43:02.292146+00",
+          "tx": "2381150"
+        },
+        {
+          "seq": "39",
+          "id": "dd9e3c88-063f-543a-8fbd-823bd14397cb",
+          "rev": 2,
+          "class": "Draft",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Аренда склада",
+            "amount": 120000,
+            "number": "Д-1",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "торг",
+          "at": "2026-10-29 18:43:02.312985+00",
+          "tx": "2381152"
+        },
+        {
+          "seq": "40",
+          "id": "7f7033b5-0705-5e20-8270-14b8ce8a0196",
+          "rev": 1,
+          "class": "Contract",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Аренда склада",
+            "amount": 120000,
+            "number": "Д-1",
+            "signedBy": "Борис"
+          },
+          "tags": [],
+          "op": "reclass",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "подписан",
+          "at": "2026-10-29 18:43:02.343236+00",
+          "tx": "2381154"
+        },
+        {
+          "seq": "41",
+          "id": "dd9e3c88-063f-543a-8fbd-823bd14397cb",
+          "rev": 3,
+          "class": "Draft",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Аренда склада",
+            "amount": 120000,
+            "number": "Д-1",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "подписан",
+          "at": "2026-10-29 18:43:02.346968+00",
+          "tx": "2381154"
+        },
+        {
+          "seq": "42",
+          "id": "c755b100-7949-5dc7-8d5b-6d47f215f929",
+          "rev": 1,
+          "class": "Contract",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Аренда склада",
+            "amount": 120000,
+            "number": "Д-2026-1",
+            "signedBy": "Борис"
+          },
+          "tags": [],
+          "op": "rekey",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "перенумерация реестра",
+          "at": "2026-10-29 18:43:02.372339+00",
+          "tx": "2381156"
+        },
+        {
+          "seq": "43",
+          "id": "7f7033b5-0705-5e20-8270-14b8ce8a0196",
+          "rev": 2,
+          "class": "Contract",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Аренда склада",
+            "amount": 120000,
+            "number": "Д-1",
+            "signedBy": "Борис"
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "перенумерация реестра",
+          "at": "2026-10-29 18:43:02.374929+00",
+          "tx": "2381156"
+        }
+      ],
+      "secret": []
+    },
+    {
+      "result": {
+        "перенесено": 2,
+        "ключ": [
+          "code",
+          "region"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [
+        {
+          "seq": "38",
+          "id": "dd9e3c88-063f-543a-8fbd-823bd14397cb",
+          "rev": 1,
+          "class": "Draft",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Аренда склада",
+            "amount": 100000,
+            "number": "Д-1",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "новый черновик",
+          "at": "2026-10-29 18:43:02.292146+00",
+          "tx": "2381150"
+        },
+        {
+          "seq": "39",
+          "id": "dd9e3c88-063f-543a-8fbd-823bd14397cb",
+          "rev": 2,
+          "class": "Draft",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Аренда склада",
+            "amount": 120000,
+            "number": "Д-1",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "торг",
+          "at": "2026-10-29 18:43:02.312985+00",
+          "tx": "2381152"
+        },
+        {
+          "seq": "40",
+          "id": "7f7033b5-0705-5e20-8270-14b8ce8a0196",
+          "rev": 1,
+          "class": "Contract",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Аренда склада",
+            "amount": 120000,
+            "number": "Д-1",
+            "signedBy": "Борис"
+          },
+          "tags": [],
+          "op": "reclass",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "подписан",
+          "at": "2026-10-29 18:43:02.343236+00",
+          "tx": "2381154"
+        },
+        {
+          "seq": "41",
+          "id": "dd9e3c88-063f-543a-8fbd-823bd14397cb",
+          "rev": 3,
+          "class": "Draft",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Аренда склада",
+            "amount": 120000,
+            "number": "Д-1",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "подписан",
+          "at": "2026-10-29 18:43:02.346968+00",
+          "tx": "2381154"
+        },
+        {
+          "seq": "42",
+          "id": "c755b100-7949-5dc7-8d5b-6d47f215f929",
+          "rev": 1,
+          "class": "Contract",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Аренда склада",
+            "amount": 120000,
+            "number": "Д-2026-1",
+            "signedBy": "Борис"
+          },
+          "tags": [],
+          "op": "rekey",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "перенумерация реестра",
+          "at": "2026-10-29 18:43:02.372339+00",
+          "tx": "2381156"
+        },
+        {
+          "seq": "43",
+          "id": "7f7033b5-0705-5e20-8270-14b8ce8a0196",
+          "rev": 2,
+          "class": "Contract",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Аренда склада",
+            "amount": 120000,
+            "number": "Д-1",
+            "signedBy": "Борис"
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": "перенумерация реестра",
+          "at": "2026-10-29 18:43:02.374929+00",
+          "tx": "2381156"
+        },
+        {
+          "seq": "44",
+          "id": "839d2024-6d0b-5a58-953a-7f36a3ee10b9",
+          "rev": 1,
+          "class": "Code",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "code": "A",
+            "region": "Москва"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": null,
+          "at": "2026-10-29 18:43:02.431971+00",
+          "tx": "2381159"
+        },
+        {
+          "seq": "45",
+          "id": "644c39d3-b3f8-5e65-9234-ff92dee056e5",
+          "rev": 1,
+          "class": "Code",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "code": "B",
+            "region": "Казань"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": null,
+          "at": "2026-10-29 18:43:02.443312+00",
+          "tx": "2381161"
+        },
+        {
+          "seq": "47",
+          "id": "0b34cb79-46c8-5303-99dc-b3d8833704a3",
+          "rev": 1,
+          "class": "Code",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "code": "B",
+            "region": "Казань"
+          },
+          "tags": [],
+          "op": "rekey",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": null,
+          "at": "2026-10-29 18:43:02.470538+00",
+          "tx": "2381163"
+        },
+        {
+          "seq": "48",
+          "id": "644c39d3-b3f8-5e65-9234-ff92dee056e5",
+          "rev": 2,
+          "class": "Code",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "code": "B",
+            "region": "Казань"
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": null,
+          "at": "2026-10-29 18:43:02.473641+00",
+          "tx": "2381163"
+        },
+        {
+          "seq": "49",
+          "id": "10aa8a2e-83df-594c-b391-e5cc18d15dc8",
+          "rev": 1,
+          "class": "Code",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "code": "A",
+            "region": "Москва"
+          },
+          "tags": [],
+          "op": "rekey",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": null,
+          "at": "2026-10-29 18:43:02.476106+00",
+          "tx": "2381163"
+        },
+        {
+          "seq": "50",
+          "id": "839d2024-6d0b-5a58-953a-7f36a3ee10b9",
+          "rev": 2,
+          "class": "Code",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "code": "A",
+            "region": "Москва"
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "bd26a48c-e536-5204-bb62-793b06686a0d",
+          "reason": null,
+          "at": "2026-10-29 18:43:02.478414+00",
+          "tx": "2381163"
+        }
+      ],
+      "secret": []
+    }
+  ]
+}

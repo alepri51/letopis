@@ -4,12 +4,13 @@
  *   npx tsx scripts/coverage.ts [--strict] [--list]
  *
  * Инвентарь собирается из кода, а не руками:
- * - экспорты точек входа, методы цепочки, `db` и батча, снятое API — `docs/api-contract.json`;
+ * - экспорты точек входа, методы цепочки, `db` и батча — `docs/api-contract.json`;
  * - опции `connect`, `up`, проектора, `watch`, `load`, кэша, `maintain`, `reset`, MCP, методы `db.auth`,
  *   свойства описания класса — члены интерфейсов в `lib/src`;
  * - коды ошибок — каталог базы (`LT_NAMES`) и коды, которые бросает библиотека (`new LetopisError('…')`);
  * - режимы сигналов, команды CLI, инструменты MCP;
  * - нюансы — ручной список `coverage/nuances.ts`.
+ * Переход с 0.21 сайт не описывает (решение владельца): снятого API и команды `letopis import` в инвентаре нет.
  *
  * Пример объявляет, что покрывает, в `covers`. Неизвестный пункт в `covers` (опечатка) — всегда ошибка.
  * С `--strict` ошибка и непокрытый пункт (так будет к концу работы, этап 5).
@@ -25,9 +26,18 @@ const LIB = join(ROOT, '..', 'lib');
 const strict = process.argv.includes('--strict');
 const list = process.argv.includes('--list');
 
+// Не входят в инвентарь: охранники API, снятого после 0.21 (бросают `removed`, перечень — поле `removed` контракта;
+// фасад `db.<…>` — это accounts, credentials, resources, rules), и команда `letopis import` — перенос данных из 0.21.
+// Переход с 0.21 сайт не описывает (решение владельца).
+const OUT_OF_SCOPE = new Set([
+  'export.LETOPIS_NS', 'export.uuidv7',
+  'chain.account', 'chain.execute', 'chain.run',
+  'db.accounts', 'db.compact', 'db.credentials', 'db.reloadSchema', 'db.resources', 'db.rules',
+  'cli.import',
+]);
 const inventory = new Map<string, string>(); // пункт → группа
 const add = (group: string, prefix: string, names: Iterable<string>) => {
-  for (const n of names) inventory.set(`${prefix}.${n}`, group);
+  for (const n of names) if (!OUT_OF_SCOPE.has(`${prefix}.${n}`)) inventory.set(`${prefix}.${n}`, group);
 };
 
 // ---------- контракт API ----------
@@ -38,7 +48,6 @@ add('экспорты letopis/mcp', 'mcp', contract.exports['./mcp'].values);
 add('методы цепочки', 'chain', contract.chain);
 add('методы db', 'db', contract.db);
 add('методы батча', 'batch', contract.batch);
-add('снятое API', 'removed', (contract.removed as { removed: string }[]).map((r) => r.removed.replace(/\(\)$/, '')));
 
 // ---------- члены интерфейсов ----------
 function members(file: string, name: string): string[] {
@@ -120,10 +129,12 @@ for (const file of walk(join(ROOT, 'examples'))) {
   };
   visit(sf);
 }
-// коды, которые примером не вызвать, — исключения с объяснением (их же примечания — на странице главы 16)
+// коды без примера — исключения с объяснением: примером не вызвать или сайт их не показывает
+// (их же примечания — на странице главы 16)
 const EXEMPT: Record<string, string> = {
   'error.commit_unknown': 'нужен обрыв связи во время COMMIT — тесты balance с прокси',
   'error.projector_busy': 'нужна гонка двух процессов перестройки',
+  'error.removed': 'охранники API, снятого после 0.21: переход с 0.21 сайт не описывает (решение владельца)',
 };
 for (const [item, why] of Object.entries(EXEMPT)) if (!covered.has(item)) covered.set(item, [`исключение: ${why}`]);
 

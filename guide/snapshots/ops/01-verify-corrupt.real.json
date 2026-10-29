@@ -1,0 +1,90 @@
+{
+  "id": "ops/01-verify-corrupt",
+  "context": {
+    "schema": "v2.g_ops_01_verify_corrupt",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_c3fd7963e177285368a7a47df1784a5ca2ad3aea0a9df4f7124c7bef06734d15",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "c793b38f347be97d6ba16f0f6923b0b68693e29dc76601e2925cff8d7409bdf6",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "ok": true,
+        "anchor": "e856c4953b4ec6179e8d7072b7300f37fff3bcdd7c2ed588e40117b4b5a5bafb",
+        "issues": []
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "ok": false,
+        "anchor": "e856c4953b4ec6179e8d7072b7300f37fff3bcdd7c2ed588e40117b4b5a5bafb",
+        "issues": [
+          {
+            "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+            "rev": 2,
+            "problem": "хэш версии не совпадает с prev_hash следующей"
+          }
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "ok": true,
+        "anchor": "e856c4953b4ec6179e8d7072b7300f37fff3bcdd7c2ed588e40117b4b5a5bafb",
+        "issues": []
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "ok": false,
+        "anchor": "e856c4953b4ec6179e8d7072b7300f37fff3bcdd7c2ed588e40117b4b5a5bafb",
+        "issues": [
+          {
+            "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+            "rev": 2,
+            "problem": "разрыв: нет версий 2…2"
+          }
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    }
+  ]
+}

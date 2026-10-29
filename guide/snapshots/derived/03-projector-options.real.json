@@ -1,0 +1,63 @@
+{
+  "id": "derived/03-projector-options",
+  "context": {
+    "schema": "v2.g_derived_03_projector_options",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_a8c53c5b856ac09a1d3d620ab587c577c84993d9781372f4cc483b57012790fd",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "e645ad857c91b5940e6ac36b14668e04a6b5e67d40ae264f4969cd8a8bca8cdc",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "report": {
+          "batches": 0,
+          "changes": 5,
+          "created": 1,
+          "updated": 2,
+          "deleted": 0,
+          "unchanged": 0,
+          "skipped": 0,
+          "rebuilds": 1,
+          "locked": []
+        },
+        "итог дня": 1500
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "tenant_denied",
+        "message": "letopis: tenant_denied: проектор daily: арендатор 00000000-0000-4000-8000-000000000000 не участник — у него не все классы DayTotal помечены derivedBy: 'daily' или его нет в списке tenants",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    }
+  ]
+}

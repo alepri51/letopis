@@ -1,0 +1,115 @@
+{
+  "id": "history/03-retention-maintain-trim",
+  "context": {
+    "schema": "v2.g_history_03_retention_maintain_trim",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": null
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "all": "1 day",
+        "daily": "1 week",
+        "weekly": "1 month",
+        "monthly": "1 year"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "строк на входе": 93,
+        "объектов": 1,
+        "версий у объекта": 93
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "удалено версий": 80,
+        "осталось": [
+          "v1 2025-01-01 create",
+          "v31 2025-01-31",
+          "v59 2025-02-28",
+          "v61 2025-03-02",
+          "v68 2025-03-09",
+          "v75 2025-03-16",
+          "v82 2025-03-23",
+          "v85 2025-03-26",
+          "v86 2025-03-27",
+          "v87 2025-03-28",
+          "v88 2025-03-29",
+          "v89 2025-03-30",
+          "v93 2025-03-31"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "ok": true,
+        "anchor": "2780ba0278456178a94a932f1462bae96bae7b1ae634959f07844a6decbced38",
+        "issues": []
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "стёрто": 7,
+        "осталось": [
+          "v1 2025-01-01 trim",
+          "v85 2025-03-26",
+          "v86 2025-03-27",
+          "v87 2025-03-28",
+          "v88 2025-03-29",
+          "v89 2025-03-30",
+          "v93 2025-03-31"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "cursor_expired",
+        "message": "letopis: cursor_expired: курсор подписки старше яруса all — события могли проредиться, перечитайте текущее состояние",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    }
+  ]
+}

@@ -8,7 +8,8 @@ import { onMounted, ref } from 'vue';
 import { withBase } from 'vitepress';
 
 const props = defineProps<{ id: string }>();
-const emit = defineEmits<{ result: [snapshot: unknown]; reset: [] }>();
+// result: снимок с метками и тот же прогон с настоящими значениями (вкладка «Реальная таблица»; null — сервер их не прислал)
+const emit = defineEmits<{ result: [snapshot: unknown, real: unknown]; reset: [] }>();
 const sources = import.meta.glob<string>('../../examples/**/*.ts', { query: '?raw', import: 'default' });
 
 const original = ref('');
@@ -50,7 +51,7 @@ async function run() {
     }
     failures.value = body.failures ?? [];
     ran.value = true;
-    emit('result', body.snapshot);
+    emit('result', body.snapshot, body.real ?? null);
   } catch {
     error.value = 'сервер песочницы недоступен';
   } finally {

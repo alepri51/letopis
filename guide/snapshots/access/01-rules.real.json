@@ -1,0 +1,5485 @@
+{
+  "id": "access/01-rules",
+  "context": {
+    "schema": "v2.g_access_01_rules",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_c9cc6417b81aef8e7051a6272405737f77c917fc69e16d350b35ea2608e7e1e1",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "744697d1deb5c3b58af6553e65adc48e3aea36208d119474c0c108f6aaaa890e",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [
+      {
+        "id": "119dfcbb-59e0-5d0a-bc27-84e12f080e26",
+        "class": "Resource",
+        "rev": 1,
+        "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "links": {},
+        "data": {
+          "alias": "anonymous:ACCOUNT",
+          "pattern": {
+            "categories": "{Anonymous,Shadow}"
+          },
+          "category": "ACCOUNT"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "agent": null,
+        "reason": null,
+        "at": "2026-10-29 18:42:33.384315+00"
+      },
+      {
+        "id": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+        "class": "Resource",
+        "rev": 1,
+        "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "links": {},
+        "data": {
+          "alias": "authenticated:ACCOUNT",
+          "pattern": {
+            "categories": "!{Anonymous,Shadow}"
+          },
+          "category": "ACCOUNT"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "agent": null,
+        "reason": null,
+        "at": "2026-10-29 18:42:33.38479+00"
+      },
+      {
+        "id": "8480ebe7-78c5-5bb1-af92-d3f7345e5e31",
+        "class": "Resource",
+        "rev": 1,
+        "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "links": {},
+        "data": {
+          "alias": "any:ACCOUNT",
+          "category": "ACCOUNT"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "agent": null,
+        "reason": null,
+        "at": "2026-10-29 18:42:33.38526+00"
+      },
+      {
+        "id": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+        "class": "Resource",
+        "rev": 1,
+        "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "links": {},
+        "data": {
+          "alias": "service:ACCOUNT",
+          "pattern": {
+            "categories": "{Service}"
+          },
+          "category": "ACCOUNT"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "agent": null,
+        "reason": null,
+        "at": "2026-10-29 18:42:33.385707+00"
+      },
+      {
+        "id": "3dc680e8-f312-52e4-89de-f7713757ce16",
+        "class": "Resource",
+        "rev": 1,
+        "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "links": {},
+        "data": {
+          "alias": "admin:ACCOUNT",
+          "pattern": {
+            "roles": "{admin}"
+          },
+          "category": "ACCOUNT"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "agent": null,
+        "reason": null,
+        "at": "2026-10-29 18:42:33.386138+00"
+      },
+      {
+        "id": "ad9e1531-ea24-527b-85f6-931ff9e00720",
+        "class": "Resource",
+        "rev": 1,
+        "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "links": {},
+        "data": {
+          "alias": "any:API",
+          "category": "API"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "agent": null,
+        "reason": null,
+        "at": "2026-10-29 18:42:33.386632+00"
+      },
+      {
+        "id": "9af9baec-4209-5387-9fb7-b85d9b205453",
+        "class": "Resource",
+        "rev": 1,
+        "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "links": {},
+        "data": {
+          "alias": "auth:API",
+          "pattern": {
+            "endpoint": "auth.*"
+          },
+          "category": "API"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "agent": null,
+        "reason": null,
+        "at": "2026-10-29 18:42:33.387314+00"
+      },
+      {
+        "id": "f3b9fd80-8cef-575e-abb9-c8b5b1170c43",
+        "class": "Resource",
+        "rev": 1,
+        "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "links": {},
+        "data": {
+          "alias": "letopis:API",
+          "pattern": {
+            "endpoint": "letopis.*"
+          },
+          "category": "API"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "agent": null,
+        "reason": null,
+        "at": "2026-10-29 18:42:33.387742+00"
+      },
+      {
+        "id": "d176df5c-a823-56b3-b6d4-d145c52a45b2",
+        "class": "Resource",
+        "rev": 1,
+        "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "links": {},
+        "data": {
+          "alias": "signals:API",
+          "pattern": {
+            "endpoint": "letopis.signals"
+          },
+          "category": "API"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "agent": null,
+        "reason": null,
+        "at": "2026-10-29 18:42:33.388197+00"
+      },
+      {
+        "id": "3490678a-6711-56d2-9d5d-9f0d23928bd0",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "links": {
+          "Group": "8480ebe7-78c5-5bb1-af92-d3f7345e5e31",
+          "Object": "ad9e1531-ea24-527b-85f6-931ff9e00720"
+        },
+        "data": {
+          "code": 403,
+          "weight": 0,
+          "enabled": true,
+          "message": "Доступ запрещён по умолчанию",
+          "permission": "deny"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "agent": null,
+        "reason": null,
+        "at": "2026-10-29 18:42:33.388899+00"
+      },
+      {
+        "id": "4ecea0ae-3813-5c73-9ca6-e35faf0c227a",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "links": {
+          "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+          "Object": "9af9baec-4209-5387-9fb7-b85d9b205453"
+        },
+        "data": {
+          "weight": 100,
+          "enabled": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "agent": null,
+        "reason": null,
+        "at": "2026-10-29 18:42:33.390183+00"
+      },
+      {
+        "id": "5646a5e0-0298-5f40-9fce-59d27211a0fa",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "links": {
+          "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+          "Object": "d176df5c-a823-56b3-b6d4-d145c52a45b2"
+        },
+        "data": {
+          "weight": 100,
+          "enabled": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "agent": null,
+        "reason": null,
+        "at": "2026-10-29 18:42:33.391301+00"
+      },
+      {
+        "id": "1d8fc7f0-053d-5495-8bbe-ae85feaf290c",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "links": {
+          "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+          "Object": "9af9baec-4209-5387-9fb7-b85d9b205453"
+        },
+        "data": {
+          "weight": 100,
+          "enabled": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "agent": null,
+        "reason": null,
+        "at": "2026-10-29 18:42:33.39225+00"
+      },
+      {
+        "id": "52acc9d2-b850-59bd-980b-59717be1c8b9",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "links": {
+          "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+          "Object": "f3b9fd80-8cef-575e-abb9-c8b5b1170c43"
+        },
+        "data": {
+          "weight": 100,
+          "enabled": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "agent": null,
+        "reason": null,
+        "at": "2026-10-29 18:42:33.392927+00"
+      },
+      {
+        "id": "9e1249cc-5986-5314-81ae-6dd4154b5970",
+        "class": "Resource",
+        "rev": 1,
+        "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "links": {},
+        "data": {
+          "alias": "all:READ",
+          "category": "READ"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "agent": null,
+        "reason": null,
+        "at": "2026-10-29 18:42:33.393434+00"
+      },
+      {
+        "id": "40fd537a-d2f9-52df-9f6b-d970b68da1cd",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "links": {
+          "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+          "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+        },
+        "data": {
+          "weight": 100,
+          "enabled": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "agent": null,
+        "reason": null,
+        "at": "2026-10-29 18:42:33.39395+00"
+      },
+      {
+        "id": "682403e8-c9ca-55f2-a8ea-62786cd83758",
+        "class": "Resource",
+        "rev": 1,
+        "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "links": {},
+        "data": {
+          "alias": "all:WRITE",
+          "category": "WRITE"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "agent": null,
+        "reason": null,
+        "at": "2026-10-29 18:42:33.394324+00"
+      },
+      {
+        "id": "0342fcd5-4d89-51ac-a388-43bf77b7446e",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "links": {
+          "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+          "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
+        },
+        "data": {
+          "weight": 100,
+          "enabled": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "agent": null,
+        "reason": null,
+        "at": "2026-10-29 18:42:33.394691+00"
+      },
+      {
+        "id": "42495a98-5543-51d5-a60c-5525c21b7a05",
+        "class": "Resource",
+        "rev": 1,
+        "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "links": {},
+        "data": {
+          "alias": "all:DELETE",
+          "category": "DELETE"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "agent": null,
+        "reason": null,
+        "at": "2026-10-29 18:42:33.395081+00"
+      },
+      {
+        "id": "4777d615-8e88-54a2-9763-30b8a25da7e4",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "links": {
+          "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+          "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
+        },
+        "data": {
+          "weight": 100,
+          "enabled": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "agent": null,
+        "reason": null,
+        "at": "2026-10-29 18:42:33.39543+00"
+      },
+      {
+        "id": "6b03bfcd-cff4-5632-95df-6ca3331c21b8",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "links": {
+          "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+          "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+        },
+        "data": {
+          "weight": 10,
+          "enabled": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "agent": null,
+        "reason": null,
+        "at": "2026-10-29 18:42:33.540006+00"
+      },
+      {
+        "id": "121fc800-6baa-51d2-a1c7-bdeb46c1d202",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "links": {
+          "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+          "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
+        },
+        "data": {
+          "weight": 10,
+          "enabled": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "agent": null,
+        "reason": null,
+        "at": "2026-10-29 18:42:33.541887+00"
+      },
+      {
+        "id": "6a9b2b23-6e10-5a74-916a-e46bf16ccb81",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "links": {
+          "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+          "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
+        },
+        "data": {
+          "weight": 10,
+          "enabled": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "agent": null,
+        "reason": null,
+        "at": "2026-10-29 18:42:33.543299+00"
+      },
+      {
+        "id": "8ab3db6d-1952-542b-bea2-087e90b8a9d3",
+        "class": "member",
+        "rev": 1,
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "links": {
+          "User": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "Tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a"
+        },
+        "data": {
+          "roles": [
+            "owner"
+          ]
+        },
+        "tags": [],
+        "op": "create",
+        "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+        "agent": null,
+        "reason": null,
+        "at": "2026-10-29 18:42:33.553535+00"
+      }
+    ],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": [
+        {
+          "at": "2026-10-29T18:42:34.188491+00:00",
+          "id": "898b92c0-46a5-5059-8142-da8b7abf702a",
+          "op": "update",
+          "rev": 2,
+          "data": {
+            "roles": [
+              "staff"
+            ]
+          },
+          "tags": [],
+          "class": "member",
+          "links": {
+            "User": "cd05b3de-daf5-5a18-a52b-d8d2a86183c8",
+            "Tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a"
+          },
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "119dfcbb-59e0-5d0a-bc27-84e12f080e26",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "anonymous:ACCOUNT",
+            "pattern": {
+              "categories": "{Anonymous,Shadow}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.384315+00"
+        },
+        {
+          "id": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "authenticated:ACCOUNT",
+            "pattern": {
+              "categories": "!{Anonymous,Shadow}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.38479+00"
+        },
+        {
+          "id": "8480ebe7-78c5-5bb1-af92-d3f7345e5e31",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "any:ACCOUNT",
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.38526+00"
+        },
+        {
+          "id": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "service:ACCOUNT",
+            "pattern": {
+              "categories": "{Service}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.385707+00"
+        },
+        {
+          "id": "3dc680e8-f312-52e4-89de-f7713757ce16",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "admin:ACCOUNT",
+            "pattern": {
+              "roles": "{admin}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.386138+00"
+        },
+        {
+          "id": "ad9e1531-ea24-527b-85f6-931ff9e00720",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "any:API",
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.386632+00"
+        },
+        {
+          "id": "9af9baec-4209-5387-9fb7-b85d9b205453",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "auth:API",
+            "pattern": {
+              "endpoint": "auth.*"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.387314+00"
+        },
+        {
+          "id": "f3b9fd80-8cef-575e-abb9-c8b5b1170c43",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "letopis:API",
+            "pattern": {
+              "endpoint": "letopis.*"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.387742+00"
+        },
+        {
+          "id": "d176df5c-a823-56b3-b6d4-d145c52a45b2",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "signals:API",
+            "pattern": {
+              "endpoint": "letopis.signals"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.388197+00"
+        },
+        {
+          "id": "3490678a-6711-56d2-9d5d-9f0d23928bd0",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "8480ebe7-78c5-5bb1-af92-d3f7345e5e31",
+            "Object": "ad9e1531-ea24-527b-85f6-931ff9e00720"
+          },
+          "data": {
+            "code": 403,
+            "weight": 0,
+            "enabled": true,
+            "message": "Доступ запрещён по умолчанию",
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.388899+00"
+        },
+        {
+          "id": "4ecea0ae-3813-5c73-9ca6-e35faf0c227a",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "9af9baec-4209-5387-9fb7-b85d9b205453"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.390183+00"
+        },
+        {
+          "id": "5646a5e0-0298-5f40-9fce-59d27211a0fa",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "d176df5c-a823-56b3-b6d4-d145c52a45b2"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.391301+00"
+        },
+        {
+          "id": "1d8fc7f0-053d-5495-8bbe-ae85feaf290c",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "9af9baec-4209-5387-9fb7-b85d9b205453"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.39225+00"
+        },
+        {
+          "id": "52acc9d2-b850-59bd-980b-59717be1c8b9",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "f3b9fd80-8cef-575e-abb9-c8b5b1170c43"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.392927+00"
+        },
+        {
+          "id": "9e1249cc-5986-5314-81ae-6dd4154b5970",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:READ",
+            "category": "READ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.393434+00"
+        },
+        {
+          "id": "40fd537a-d2f9-52df-9f6b-d970b68da1cd",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.39395+00"
+        },
+        {
+          "id": "682403e8-c9ca-55f2-a8ea-62786cd83758",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:WRITE",
+            "category": "WRITE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.394324+00"
+        },
+        {
+          "id": "0342fcd5-4d89-51ac-a388-43bf77b7446e",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.394691+00"
+        },
+        {
+          "id": "42495a98-5543-51d5-a60c-5525c21b7a05",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:DELETE",
+            "category": "DELETE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.395081+00"
+        },
+        {
+          "id": "4777d615-8e88-54a2-9763-30b8a25da7e4",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.39543+00"
+        },
+        {
+          "id": "6b03bfcd-cff4-5632-95df-6ca3331c21b8",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.540006+00"
+        },
+        {
+          "id": "121fc800-6baa-51d2-a1c7-bdeb46c1d202",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+            "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.541887+00"
+        },
+        {
+          "id": "6a9b2b23-6e10-5a74-916a-e46bf16ccb81",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+            "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.543299+00"
+        },
+        {
+          "id": "8ab3db6d-1952-542b-bea2-087e90b8a9d3",
+          "class": "member",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "User": "3defbabb-a94d-5359-8463-dc947de193e1",
+            "Tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a"
+          },
+          "data": {
+            "roles": [
+              "owner"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.553535+00"
+        },
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.895764+00"
+        },
+        {
+          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.908754+00"
+        },
+        {
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.917851+00"
+        },
+        {
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.930327+00"
+        },
+        {
+          "id": "1f88c837-a39c-5c94-802f-df6ce272198c",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.947987+00"
+        },
+        {
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "1f88c837-a39c-5c94-802f-df6ce272198c"
+            ]
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.963284+00"
+        },
+        {
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.975763+00"
+        },
+        {
+          "id": "f131b655-37ba-56ed-9572-de867c43ba2a",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            ]
+          },
+          "data": {
+            "sku": "T-9",
+            "price": 1500,
+            "title": "Пуэр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.988134+00"
+        },
+        {
+          "id": "5e7e56ac-d1e8-5064-9bdb-c099c4b6c7c7",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+            "Category": [
+              "1f88c837-a39c-5c94-802f-df6ce272198c"
+            ]
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.00229+00"
+        },
+        {
+          "id": "07fc74b1-60d6-5f6a-9888-0ea656a6123c",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.011931+00"
+        },
+        {
+          "id": "931dcdfb-8a62-5730-8a32-8a451237c0cf",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.018651+00"
+        },
+        {
+          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "07fc74b1-60d6-5f6a-9888-0ea656a6123c"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.032284+00"
+        },
+        {
+          "id": "3dcabc48-7dc6-59da-a051-7bc9cdb97d99",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+            "Product": "099dcd72-c15a-5fe8-a95f-70da339186f0"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.046092+00"
+        },
+        {
+          "id": "fd3a3416-55d6-5445-bfbf-d33631bab515",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.058378+00"
+        },
+        {
+          "id": "78dbb446-b5b9-5308-a154-7af69a653b79",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "931dcdfb-8a62-5730-8a32-8a451237c0cf"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.070318+00"
+        },
+        {
+          "id": "c2318e76-1d3d-59e7-a678-5be39e5e9aad",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "78dbb446-b5b9-5308-a154-7af69a653b79",
+            "Product": "f131b655-37ba-56ed-9572-de867c43ba2a"
+          },
+          "data": {
+            "qty": 1,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.078414+00"
+        },
+        {
+          "id": "898b92c0-46a5-5059-8142-da8b7abf702a",
+          "class": "member",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "User": "cd05b3de-daf5-5a18-a52b-d8d2a86183c8",
+            "Tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a"
+          },
+          "data": {
+            "roles": [
+              "staff"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.188491+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": [
+        {
+          "at": "2026-10-29T18:42:34.256279+00:00",
+          "id": "66f389f3-55a7-59d7-9975-ccd0a16f61bc",
+          "op": "create",
+          "rev": 1,
+          "data": {
+            "weight": 50,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "class": "rule",
+          "links": {
+            "Group": "c7b1e90f-4df8-5086-be08-f5b2550a73c9",
+            "Object": "98deb125-5fef-5c90-aab1-ca563560aa39"
+          },
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "119dfcbb-59e0-5d0a-bc27-84e12f080e26",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "anonymous:ACCOUNT",
+            "pattern": {
+              "categories": "{Anonymous,Shadow}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.384315+00"
+        },
+        {
+          "id": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "authenticated:ACCOUNT",
+            "pattern": {
+              "categories": "!{Anonymous,Shadow}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.38479+00"
+        },
+        {
+          "id": "8480ebe7-78c5-5bb1-af92-d3f7345e5e31",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "any:ACCOUNT",
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.38526+00"
+        },
+        {
+          "id": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "service:ACCOUNT",
+            "pattern": {
+              "categories": "{Service}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.385707+00"
+        },
+        {
+          "id": "3dc680e8-f312-52e4-89de-f7713757ce16",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "admin:ACCOUNT",
+            "pattern": {
+              "roles": "{admin}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.386138+00"
+        },
+        {
+          "id": "ad9e1531-ea24-527b-85f6-931ff9e00720",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "any:API",
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.386632+00"
+        },
+        {
+          "id": "9af9baec-4209-5387-9fb7-b85d9b205453",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "auth:API",
+            "pattern": {
+              "endpoint": "auth.*"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.387314+00"
+        },
+        {
+          "id": "f3b9fd80-8cef-575e-abb9-c8b5b1170c43",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "letopis:API",
+            "pattern": {
+              "endpoint": "letopis.*"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.387742+00"
+        },
+        {
+          "id": "d176df5c-a823-56b3-b6d4-d145c52a45b2",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "signals:API",
+            "pattern": {
+              "endpoint": "letopis.signals"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.388197+00"
+        },
+        {
+          "id": "3490678a-6711-56d2-9d5d-9f0d23928bd0",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "8480ebe7-78c5-5bb1-af92-d3f7345e5e31",
+            "Object": "ad9e1531-ea24-527b-85f6-931ff9e00720"
+          },
+          "data": {
+            "code": 403,
+            "weight": 0,
+            "enabled": true,
+            "message": "Доступ запрещён по умолчанию",
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.388899+00"
+        },
+        {
+          "id": "4ecea0ae-3813-5c73-9ca6-e35faf0c227a",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "9af9baec-4209-5387-9fb7-b85d9b205453"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.390183+00"
+        },
+        {
+          "id": "5646a5e0-0298-5f40-9fce-59d27211a0fa",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "d176df5c-a823-56b3-b6d4-d145c52a45b2"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.391301+00"
+        },
+        {
+          "id": "1d8fc7f0-053d-5495-8bbe-ae85feaf290c",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "9af9baec-4209-5387-9fb7-b85d9b205453"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.39225+00"
+        },
+        {
+          "id": "52acc9d2-b850-59bd-980b-59717be1c8b9",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "f3b9fd80-8cef-575e-abb9-c8b5b1170c43"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.392927+00"
+        },
+        {
+          "id": "9e1249cc-5986-5314-81ae-6dd4154b5970",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:READ",
+            "category": "READ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.393434+00"
+        },
+        {
+          "id": "40fd537a-d2f9-52df-9f6b-d970b68da1cd",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.39395+00"
+        },
+        {
+          "id": "682403e8-c9ca-55f2-a8ea-62786cd83758",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:WRITE",
+            "category": "WRITE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.394324+00"
+        },
+        {
+          "id": "0342fcd5-4d89-51ac-a388-43bf77b7446e",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.394691+00"
+        },
+        {
+          "id": "42495a98-5543-51d5-a60c-5525c21b7a05",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:DELETE",
+            "category": "DELETE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.395081+00"
+        },
+        {
+          "id": "4777d615-8e88-54a2-9763-30b8a25da7e4",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.39543+00"
+        },
+        {
+          "id": "6b03bfcd-cff4-5632-95df-6ca3331c21b8",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.540006+00"
+        },
+        {
+          "id": "121fc800-6baa-51d2-a1c7-bdeb46c1d202",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+            "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.541887+00"
+        },
+        {
+          "id": "6a9b2b23-6e10-5a74-916a-e46bf16ccb81",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+            "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.543299+00"
+        },
+        {
+          "id": "8ab3db6d-1952-542b-bea2-087e90b8a9d3",
+          "class": "member",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "User": "3defbabb-a94d-5359-8463-dc947de193e1",
+            "Tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a"
+          },
+          "data": {
+            "roles": [
+              "owner"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.553535+00"
+        },
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.895764+00"
+        },
+        {
+          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.908754+00"
+        },
+        {
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.917851+00"
+        },
+        {
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.930327+00"
+        },
+        {
+          "id": "1f88c837-a39c-5c94-802f-df6ce272198c",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.947987+00"
+        },
+        {
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "1f88c837-a39c-5c94-802f-df6ce272198c"
+            ]
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.963284+00"
+        },
+        {
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.975763+00"
+        },
+        {
+          "id": "f131b655-37ba-56ed-9572-de867c43ba2a",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            ]
+          },
+          "data": {
+            "sku": "T-9",
+            "price": 1500,
+            "title": "Пуэр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.988134+00"
+        },
+        {
+          "id": "5e7e56ac-d1e8-5064-9bdb-c099c4b6c7c7",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+            "Category": [
+              "1f88c837-a39c-5c94-802f-df6ce272198c"
+            ]
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.00229+00"
+        },
+        {
+          "id": "07fc74b1-60d6-5f6a-9888-0ea656a6123c",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.011931+00"
+        },
+        {
+          "id": "931dcdfb-8a62-5730-8a32-8a451237c0cf",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.018651+00"
+        },
+        {
+          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "07fc74b1-60d6-5f6a-9888-0ea656a6123c"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.032284+00"
+        },
+        {
+          "id": "3dcabc48-7dc6-59da-a051-7bc9cdb97d99",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+            "Product": "099dcd72-c15a-5fe8-a95f-70da339186f0"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.046092+00"
+        },
+        {
+          "id": "fd3a3416-55d6-5445-bfbf-d33631bab515",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.058378+00"
+        },
+        {
+          "id": "78dbb446-b5b9-5308-a154-7af69a653b79",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "931dcdfb-8a62-5730-8a32-8a451237c0cf"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.070318+00"
+        },
+        {
+          "id": "c2318e76-1d3d-59e7-a678-5be39e5e9aad",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "78dbb446-b5b9-5308-a154-7af69a653b79",
+            "Product": "f131b655-37ba-56ed-9572-de867c43ba2a"
+          },
+          "data": {
+            "qty": 1,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.078414+00"
+        },
+        {
+          "id": "898b92c0-46a5-5059-8142-da8b7abf702a",
+          "class": "member",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "User": "cd05b3de-daf5-5a18-a52b-d8d2a86183c8",
+            "Tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a"
+          },
+          "data": {
+            "roles": [
+              "staff"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.188491+00"
+        },
+        {
+          "id": "c7b1e90f-4df8-5086-be08-f5b2550a73c9",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "alias": "staff:ACCOUNT",
+            "pattern": {
+              "roles": "{staff}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.212774+00"
+        },
+        {
+          "id": "078ac94a-5d0c-5330-8269-56e32415ca98",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "alias": "product:DELETE",
+            "pattern": {
+              "class": "Product"
+            },
+            "category": "DELETE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.224296+00"
+        },
+        {
+          "id": "83ce44ae-4c79-5075-99b3-067636823a40",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Group": "c7b1e90f-4df8-5086-be08-f5b2550a73c9",
+            "Object": "078ac94a-5d0c-5330-8269-56e32415ca98"
+          },
+          "data": {
+            "weight": 50,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.234884+00"
+        },
+        {
+          "id": "98deb125-5fef-5c90-aab1-ca563560aa39",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "alias": "reports:API",
+            "pattern": {
+              "endpoint": "shop.reports.*"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.248556+00"
+        },
+        {
+          "id": "66f389f3-55a7-59d7-9975-ccd0a16f61bc",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Group": "c7b1e90f-4df8-5086-be08-f5b2550a73c9",
+            "Object": "98deb125-5fef-5c90-aab1-ca563560aa39"
+          },
+          "data": {
+            "weight": 50,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.256279+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "читать товары": true,
+        "удалять товары": false,
+        "отчёты shop.reports.daily": true
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "119dfcbb-59e0-5d0a-bc27-84e12f080e26",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "anonymous:ACCOUNT",
+            "pattern": {
+              "categories": "{Anonymous,Shadow}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.384315+00"
+        },
+        {
+          "id": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "authenticated:ACCOUNT",
+            "pattern": {
+              "categories": "!{Anonymous,Shadow}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.38479+00"
+        },
+        {
+          "id": "8480ebe7-78c5-5bb1-af92-d3f7345e5e31",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "any:ACCOUNT",
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.38526+00"
+        },
+        {
+          "id": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "service:ACCOUNT",
+            "pattern": {
+              "categories": "{Service}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.385707+00"
+        },
+        {
+          "id": "3dc680e8-f312-52e4-89de-f7713757ce16",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "admin:ACCOUNT",
+            "pattern": {
+              "roles": "{admin}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.386138+00"
+        },
+        {
+          "id": "ad9e1531-ea24-527b-85f6-931ff9e00720",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "any:API",
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.386632+00"
+        },
+        {
+          "id": "9af9baec-4209-5387-9fb7-b85d9b205453",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "auth:API",
+            "pattern": {
+              "endpoint": "auth.*"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.387314+00"
+        },
+        {
+          "id": "f3b9fd80-8cef-575e-abb9-c8b5b1170c43",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "letopis:API",
+            "pattern": {
+              "endpoint": "letopis.*"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.387742+00"
+        },
+        {
+          "id": "d176df5c-a823-56b3-b6d4-d145c52a45b2",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "signals:API",
+            "pattern": {
+              "endpoint": "letopis.signals"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.388197+00"
+        },
+        {
+          "id": "3490678a-6711-56d2-9d5d-9f0d23928bd0",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "8480ebe7-78c5-5bb1-af92-d3f7345e5e31",
+            "Object": "ad9e1531-ea24-527b-85f6-931ff9e00720"
+          },
+          "data": {
+            "code": 403,
+            "weight": 0,
+            "enabled": true,
+            "message": "Доступ запрещён по умолчанию",
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.388899+00"
+        },
+        {
+          "id": "4ecea0ae-3813-5c73-9ca6-e35faf0c227a",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "9af9baec-4209-5387-9fb7-b85d9b205453"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.390183+00"
+        },
+        {
+          "id": "5646a5e0-0298-5f40-9fce-59d27211a0fa",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "d176df5c-a823-56b3-b6d4-d145c52a45b2"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.391301+00"
+        },
+        {
+          "id": "1d8fc7f0-053d-5495-8bbe-ae85feaf290c",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "9af9baec-4209-5387-9fb7-b85d9b205453"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.39225+00"
+        },
+        {
+          "id": "52acc9d2-b850-59bd-980b-59717be1c8b9",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "f3b9fd80-8cef-575e-abb9-c8b5b1170c43"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.392927+00"
+        },
+        {
+          "id": "9e1249cc-5986-5314-81ae-6dd4154b5970",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:READ",
+            "category": "READ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.393434+00"
+        },
+        {
+          "id": "40fd537a-d2f9-52df-9f6b-d970b68da1cd",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.39395+00"
+        },
+        {
+          "id": "682403e8-c9ca-55f2-a8ea-62786cd83758",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:WRITE",
+            "category": "WRITE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.394324+00"
+        },
+        {
+          "id": "0342fcd5-4d89-51ac-a388-43bf77b7446e",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.394691+00"
+        },
+        {
+          "id": "42495a98-5543-51d5-a60c-5525c21b7a05",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:DELETE",
+            "category": "DELETE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.395081+00"
+        },
+        {
+          "id": "4777d615-8e88-54a2-9763-30b8a25da7e4",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.39543+00"
+        },
+        {
+          "id": "6b03bfcd-cff4-5632-95df-6ca3331c21b8",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.540006+00"
+        },
+        {
+          "id": "121fc800-6baa-51d2-a1c7-bdeb46c1d202",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+            "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.541887+00"
+        },
+        {
+          "id": "6a9b2b23-6e10-5a74-916a-e46bf16ccb81",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+            "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.543299+00"
+        },
+        {
+          "id": "8ab3db6d-1952-542b-bea2-087e90b8a9d3",
+          "class": "member",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "User": "3defbabb-a94d-5359-8463-dc947de193e1",
+            "Tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a"
+          },
+          "data": {
+            "roles": [
+              "owner"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.553535+00"
+        },
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.895764+00"
+        },
+        {
+          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.908754+00"
+        },
+        {
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.917851+00"
+        },
+        {
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.930327+00"
+        },
+        {
+          "id": "1f88c837-a39c-5c94-802f-df6ce272198c",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.947987+00"
+        },
+        {
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "1f88c837-a39c-5c94-802f-df6ce272198c"
+            ]
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.963284+00"
+        },
+        {
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.975763+00"
+        },
+        {
+          "id": "f131b655-37ba-56ed-9572-de867c43ba2a",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            ]
+          },
+          "data": {
+            "sku": "T-9",
+            "price": 1500,
+            "title": "Пуэр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.988134+00"
+        },
+        {
+          "id": "5e7e56ac-d1e8-5064-9bdb-c099c4b6c7c7",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+            "Category": [
+              "1f88c837-a39c-5c94-802f-df6ce272198c"
+            ]
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.00229+00"
+        },
+        {
+          "id": "07fc74b1-60d6-5f6a-9888-0ea656a6123c",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.011931+00"
+        },
+        {
+          "id": "931dcdfb-8a62-5730-8a32-8a451237c0cf",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.018651+00"
+        },
+        {
+          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "07fc74b1-60d6-5f6a-9888-0ea656a6123c"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.032284+00"
+        },
+        {
+          "id": "3dcabc48-7dc6-59da-a051-7bc9cdb97d99",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+            "Product": "099dcd72-c15a-5fe8-a95f-70da339186f0"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.046092+00"
+        },
+        {
+          "id": "fd3a3416-55d6-5445-bfbf-d33631bab515",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.058378+00"
+        },
+        {
+          "id": "78dbb446-b5b9-5308-a154-7af69a653b79",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "931dcdfb-8a62-5730-8a32-8a451237c0cf"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.070318+00"
+        },
+        {
+          "id": "c2318e76-1d3d-59e7-a678-5be39e5e9aad",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "78dbb446-b5b9-5308-a154-7af69a653b79",
+            "Product": "f131b655-37ba-56ed-9572-de867c43ba2a"
+          },
+          "data": {
+            "qty": 1,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.078414+00"
+        },
+        {
+          "id": "898b92c0-46a5-5059-8142-da8b7abf702a",
+          "class": "member",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "User": "cd05b3de-daf5-5a18-a52b-d8d2a86183c8",
+            "Tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a"
+          },
+          "data": {
+            "roles": [
+              "staff"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.188491+00"
+        },
+        {
+          "id": "c7b1e90f-4df8-5086-be08-f5b2550a73c9",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "alias": "staff:ACCOUNT",
+            "pattern": {
+              "roles": "{staff}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.212774+00"
+        },
+        {
+          "id": "078ac94a-5d0c-5330-8269-56e32415ca98",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "alias": "product:DELETE",
+            "pattern": {
+              "class": "Product"
+            },
+            "category": "DELETE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.224296+00"
+        },
+        {
+          "id": "83ce44ae-4c79-5075-99b3-067636823a40",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Group": "c7b1e90f-4df8-5086-be08-f5b2550a73c9",
+            "Object": "078ac94a-5d0c-5330-8269-56e32415ca98"
+          },
+          "data": {
+            "weight": 50,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.234884+00"
+        },
+        {
+          "id": "98deb125-5fef-5c90-aab1-ca563560aa39",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "alias": "reports:API",
+            "pattern": {
+              "endpoint": "shop.reports.*"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.248556+00"
+        },
+        {
+          "id": "66f389f3-55a7-59d7-9975-ccd0a16f61bc",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Group": "c7b1e90f-4df8-5086-be08-f5b2550a73c9",
+            "Object": "98deb125-5fef-5c90-aab1-ca563560aa39"
+          },
+          "data": {
+            "weight": 50,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.256279+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "acl_denied",
+        "message": "letopis: acl_denied: строки видны, но изменить их нельзя: 5e7e56ac-d1e8-5064-9bdb-c099c4b6c7c7",
+        "detail": {
+          "ids": [
+            "5e7e56ac-d1e8-5064-9bdb-c099c4b6c7c7"
+          ]
+        }
+      },
+      "entity": [
+        {
+          "id": "119dfcbb-59e0-5d0a-bc27-84e12f080e26",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "anonymous:ACCOUNT",
+            "pattern": {
+              "categories": "{Anonymous,Shadow}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.384315+00"
+        },
+        {
+          "id": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "authenticated:ACCOUNT",
+            "pattern": {
+              "categories": "!{Anonymous,Shadow}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.38479+00"
+        },
+        {
+          "id": "8480ebe7-78c5-5bb1-af92-d3f7345e5e31",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "any:ACCOUNT",
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.38526+00"
+        },
+        {
+          "id": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "service:ACCOUNT",
+            "pattern": {
+              "categories": "{Service}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.385707+00"
+        },
+        {
+          "id": "3dc680e8-f312-52e4-89de-f7713757ce16",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "admin:ACCOUNT",
+            "pattern": {
+              "roles": "{admin}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.386138+00"
+        },
+        {
+          "id": "ad9e1531-ea24-527b-85f6-931ff9e00720",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "any:API",
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.386632+00"
+        },
+        {
+          "id": "9af9baec-4209-5387-9fb7-b85d9b205453",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "auth:API",
+            "pattern": {
+              "endpoint": "auth.*"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.387314+00"
+        },
+        {
+          "id": "f3b9fd80-8cef-575e-abb9-c8b5b1170c43",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "letopis:API",
+            "pattern": {
+              "endpoint": "letopis.*"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.387742+00"
+        },
+        {
+          "id": "d176df5c-a823-56b3-b6d4-d145c52a45b2",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "signals:API",
+            "pattern": {
+              "endpoint": "letopis.signals"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.388197+00"
+        },
+        {
+          "id": "3490678a-6711-56d2-9d5d-9f0d23928bd0",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "8480ebe7-78c5-5bb1-af92-d3f7345e5e31",
+            "Object": "ad9e1531-ea24-527b-85f6-931ff9e00720"
+          },
+          "data": {
+            "code": 403,
+            "weight": 0,
+            "enabled": true,
+            "message": "Доступ запрещён по умолчанию",
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.388899+00"
+        },
+        {
+          "id": "4ecea0ae-3813-5c73-9ca6-e35faf0c227a",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "9af9baec-4209-5387-9fb7-b85d9b205453"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.390183+00"
+        },
+        {
+          "id": "5646a5e0-0298-5f40-9fce-59d27211a0fa",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "d176df5c-a823-56b3-b6d4-d145c52a45b2"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.391301+00"
+        },
+        {
+          "id": "1d8fc7f0-053d-5495-8bbe-ae85feaf290c",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "9af9baec-4209-5387-9fb7-b85d9b205453"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.39225+00"
+        },
+        {
+          "id": "52acc9d2-b850-59bd-980b-59717be1c8b9",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "f3b9fd80-8cef-575e-abb9-c8b5b1170c43"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.392927+00"
+        },
+        {
+          "id": "9e1249cc-5986-5314-81ae-6dd4154b5970",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:READ",
+            "category": "READ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.393434+00"
+        },
+        {
+          "id": "40fd537a-d2f9-52df-9f6b-d970b68da1cd",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.39395+00"
+        },
+        {
+          "id": "682403e8-c9ca-55f2-a8ea-62786cd83758",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:WRITE",
+            "category": "WRITE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.394324+00"
+        },
+        {
+          "id": "0342fcd5-4d89-51ac-a388-43bf77b7446e",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.394691+00"
+        },
+        {
+          "id": "42495a98-5543-51d5-a60c-5525c21b7a05",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:DELETE",
+            "category": "DELETE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.395081+00"
+        },
+        {
+          "id": "4777d615-8e88-54a2-9763-30b8a25da7e4",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.39543+00"
+        },
+        {
+          "id": "6b03bfcd-cff4-5632-95df-6ca3331c21b8",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.540006+00"
+        },
+        {
+          "id": "121fc800-6baa-51d2-a1c7-bdeb46c1d202",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+            "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.541887+00"
+        },
+        {
+          "id": "6a9b2b23-6e10-5a74-916a-e46bf16ccb81",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+            "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.543299+00"
+        },
+        {
+          "id": "8ab3db6d-1952-542b-bea2-087e90b8a9d3",
+          "class": "member",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "User": "3defbabb-a94d-5359-8463-dc947de193e1",
+            "Tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a"
+          },
+          "data": {
+            "roles": [
+              "owner"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.553535+00"
+        },
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.895764+00"
+        },
+        {
+          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.908754+00"
+        },
+        {
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.917851+00"
+        },
+        {
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.930327+00"
+        },
+        {
+          "id": "1f88c837-a39c-5c94-802f-df6ce272198c",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.947987+00"
+        },
+        {
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "1f88c837-a39c-5c94-802f-df6ce272198c"
+            ]
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.963284+00"
+        },
+        {
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.975763+00"
+        },
+        {
+          "id": "f131b655-37ba-56ed-9572-de867c43ba2a",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            ]
+          },
+          "data": {
+            "sku": "T-9",
+            "price": 1500,
+            "title": "Пуэр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.988134+00"
+        },
+        {
+          "id": "5e7e56ac-d1e8-5064-9bdb-c099c4b6c7c7",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+            "Category": [
+              "1f88c837-a39c-5c94-802f-df6ce272198c"
+            ]
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.00229+00"
+        },
+        {
+          "id": "07fc74b1-60d6-5f6a-9888-0ea656a6123c",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.011931+00"
+        },
+        {
+          "id": "931dcdfb-8a62-5730-8a32-8a451237c0cf",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.018651+00"
+        },
+        {
+          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "07fc74b1-60d6-5f6a-9888-0ea656a6123c"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.032284+00"
+        },
+        {
+          "id": "3dcabc48-7dc6-59da-a051-7bc9cdb97d99",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+            "Product": "099dcd72-c15a-5fe8-a95f-70da339186f0"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.046092+00"
+        },
+        {
+          "id": "fd3a3416-55d6-5445-bfbf-d33631bab515",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.058378+00"
+        },
+        {
+          "id": "78dbb446-b5b9-5308-a154-7af69a653b79",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "931dcdfb-8a62-5730-8a32-8a451237c0cf"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.070318+00"
+        },
+        {
+          "id": "c2318e76-1d3d-59e7-a678-5be39e5e9aad",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "78dbb446-b5b9-5308-a154-7af69a653b79",
+            "Product": "f131b655-37ba-56ed-9572-de867c43ba2a"
+          },
+          "data": {
+            "qty": 1,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.078414+00"
+        },
+        {
+          "id": "898b92c0-46a5-5059-8142-da8b7abf702a",
+          "class": "member",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "User": "cd05b3de-daf5-5a18-a52b-d8d2a86183c8",
+            "Tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a"
+          },
+          "data": {
+            "roles": [
+              "staff"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.188491+00"
+        },
+        {
+          "id": "c7b1e90f-4df8-5086-be08-f5b2550a73c9",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "alias": "staff:ACCOUNT",
+            "pattern": {
+              "roles": "{staff}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.212774+00"
+        },
+        {
+          "id": "078ac94a-5d0c-5330-8269-56e32415ca98",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "alias": "product:DELETE",
+            "pattern": {
+              "class": "Product"
+            },
+            "category": "DELETE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.224296+00"
+        },
+        {
+          "id": "83ce44ae-4c79-5075-99b3-067636823a40",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Group": "c7b1e90f-4df8-5086-be08-f5b2550a73c9",
+            "Object": "078ac94a-5d0c-5330-8269-56e32415ca98"
+          },
+          "data": {
+            "weight": 50,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.234884+00"
+        },
+        {
+          "id": "98deb125-5fef-5c90-aab1-ca563560aa39",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "alias": "reports:API",
+            "pattern": {
+              "endpoint": "shop.reports.*"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.248556+00"
+        },
+        {
+          "id": "66f389f3-55a7-59d7-9975-ccd0a16f61bc",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Group": "c7b1e90f-4df8-5086-be08-f5b2550a73c9",
+            "Object": "98deb125-5fef-5c90-aab1-ca563560aa39"
+          },
+          "data": {
+            "weight": 50,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.256279+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "invalid_class",
+        "message": "letopis: invalid_class: класс или роль Product не найдены",
+        "detail": null
+      },
+      "entity": [
+        {
+          "id": "119dfcbb-59e0-5d0a-bc27-84e12f080e26",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "anonymous:ACCOUNT",
+            "pattern": {
+              "categories": "{Anonymous,Shadow}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.384315+00"
+        },
+        {
+          "id": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "authenticated:ACCOUNT",
+            "pattern": {
+              "categories": "!{Anonymous,Shadow}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.38479+00"
+        },
+        {
+          "id": "8480ebe7-78c5-5bb1-af92-d3f7345e5e31",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "any:ACCOUNT",
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.38526+00"
+        },
+        {
+          "id": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "service:ACCOUNT",
+            "pattern": {
+              "categories": "{Service}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.385707+00"
+        },
+        {
+          "id": "3dc680e8-f312-52e4-89de-f7713757ce16",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "admin:ACCOUNT",
+            "pattern": {
+              "roles": "{admin}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.386138+00"
+        },
+        {
+          "id": "ad9e1531-ea24-527b-85f6-931ff9e00720",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "any:API",
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.386632+00"
+        },
+        {
+          "id": "9af9baec-4209-5387-9fb7-b85d9b205453",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "auth:API",
+            "pattern": {
+              "endpoint": "auth.*"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.387314+00"
+        },
+        {
+          "id": "f3b9fd80-8cef-575e-abb9-c8b5b1170c43",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "letopis:API",
+            "pattern": {
+              "endpoint": "letopis.*"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.387742+00"
+        },
+        {
+          "id": "d176df5c-a823-56b3-b6d4-d145c52a45b2",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "signals:API",
+            "pattern": {
+              "endpoint": "letopis.signals"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.388197+00"
+        },
+        {
+          "id": "3490678a-6711-56d2-9d5d-9f0d23928bd0",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "8480ebe7-78c5-5bb1-af92-d3f7345e5e31",
+            "Object": "ad9e1531-ea24-527b-85f6-931ff9e00720"
+          },
+          "data": {
+            "code": 403,
+            "weight": 0,
+            "enabled": true,
+            "message": "Доступ запрещён по умолчанию",
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.388899+00"
+        },
+        {
+          "id": "4ecea0ae-3813-5c73-9ca6-e35faf0c227a",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "9af9baec-4209-5387-9fb7-b85d9b205453"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.390183+00"
+        },
+        {
+          "id": "5646a5e0-0298-5f40-9fce-59d27211a0fa",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "d176df5c-a823-56b3-b6d4-d145c52a45b2"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.391301+00"
+        },
+        {
+          "id": "1d8fc7f0-053d-5495-8bbe-ae85feaf290c",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "9af9baec-4209-5387-9fb7-b85d9b205453"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.39225+00"
+        },
+        {
+          "id": "52acc9d2-b850-59bd-980b-59717be1c8b9",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "f3b9fd80-8cef-575e-abb9-c8b5b1170c43"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.392927+00"
+        },
+        {
+          "id": "9e1249cc-5986-5314-81ae-6dd4154b5970",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:READ",
+            "category": "READ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.393434+00"
+        },
+        {
+          "id": "40fd537a-d2f9-52df-9f6b-d970b68da1cd",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.39395+00"
+        },
+        {
+          "id": "682403e8-c9ca-55f2-a8ea-62786cd83758",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:WRITE",
+            "category": "WRITE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.394324+00"
+        },
+        {
+          "id": "0342fcd5-4d89-51ac-a388-43bf77b7446e",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.394691+00"
+        },
+        {
+          "id": "42495a98-5543-51d5-a60c-5525c21b7a05",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:DELETE",
+            "category": "DELETE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.395081+00"
+        },
+        {
+          "id": "4777d615-8e88-54a2-9763-30b8a25da7e4",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.39543+00"
+        },
+        {
+          "id": "6b03bfcd-cff4-5632-95df-6ca3331c21b8",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.540006+00"
+        },
+        {
+          "id": "121fc800-6baa-51d2-a1c7-bdeb46c1d202",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+            "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.541887+00"
+        },
+        {
+          "id": "6a9b2b23-6e10-5a74-916a-e46bf16ccb81",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+            "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.543299+00"
+        },
+        {
+          "id": "8ab3db6d-1952-542b-bea2-087e90b8a9d3",
+          "class": "member",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "User": "3defbabb-a94d-5359-8463-dc947de193e1",
+            "Tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a"
+          },
+          "data": {
+            "roles": [
+              "owner"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:33.553535+00"
+        },
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.895764+00"
+        },
+        {
+          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.908754+00"
+        },
+        {
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.917851+00"
+        },
+        {
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.930327+00"
+        },
+        {
+          "id": "1f88c837-a39c-5c94-802f-df6ce272198c",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.947987+00"
+        },
+        {
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "1f88c837-a39c-5c94-802f-df6ce272198c"
+            ]
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.963284+00"
+        },
+        {
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.975763+00"
+        },
+        {
+          "id": "f131b655-37ba-56ed-9572-de867c43ba2a",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            ]
+          },
+          "data": {
+            "sku": "T-9",
+            "price": 1500,
+            "title": "Пуэр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:33.988134+00"
+        },
+        {
+          "id": "5e7e56ac-d1e8-5064-9bdb-c099c4b6c7c7",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+            "Category": [
+              "1f88c837-a39c-5c94-802f-df6ce272198c"
+            ]
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.00229+00"
+        },
+        {
+          "id": "07fc74b1-60d6-5f6a-9888-0ea656a6123c",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.011931+00"
+        },
+        {
+          "id": "931dcdfb-8a62-5730-8a32-8a451237c0cf",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.018651+00"
+        },
+        {
+          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "07fc74b1-60d6-5f6a-9888-0ea656a6123c"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.032284+00"
+        },
+        {
+          "id": "3dcabc48-7dc6-59da-a051-7bc9cdb97d99",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+            "Product": "099dcd72-c15a-5fe8-a95f-70da339186f0"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.046092+00"
+        },
+        {
+          "id": "fd3a3416-55d6-5445-bfbf-d33631bab515",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.058378+00"
+        },
+        {
+          "id": "78dbb446-b5b9-5308-a154-7af69a653b79",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "931dcdfb-8a62-5730-8a32-8a451237c0cf"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.070318+00"
+        },
+        {
+          "id": "c2318e76-1d3d-59e7-a678-5be39e5e9aad",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "78dbb446-b5b9-5308-a154-7af69a653b79",
+            "Product": "f131b655-37ba-56ed-9572-de867c43ba2a"
+          },
+          "data": {
+            "qty": 1,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.078414+00"
+        },
+        {
+          "id": "898b92c0-46a5-5059-8142-da8b7abf702a",
+          "class": "member",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "User": "cd05b3de-daf5-5a18-a52b-d8d2a86183c8",
+            "Tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a"
+          },
+          "data": {
+            "roles": [
+              "staff"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.188491+00"
+        },
+        {
+          "id": "c7b1e90f-4df8-5086-be08-f5b2550a73c9",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "alias": "staff:ACCOUNT",
+            "pattern": {
+              "roles": "{staff}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.212774+00"
+        },
+        {
+          "id": "078ac94a-5d0c-5330-8269-56e32415ca98",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "alias": "product:DELETE",
+            "pattern": {
+              "class": "Product"
+            },
+            "category": "DELETE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.224296+00"
+        },
+        {
+          "id": "83ce44ae-4c79-5075-99b3-067636823a40",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Group": "c7b1e90f-4df8-5086-be08-f5b2550a73c9",
+            "Object": "078ac94a-5d0c-5330-8269-56e32415ca98"
+          },
+          "data": {
+            "weight": 50,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.234884+00"
+        },
+        {
+          "id": "98deb125-5fef-5c90-aab1-ca563560aa39",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "alias": "reports:API",
+            "pattern": {
+              "endpoint": "shop.reports.*"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.248556+00"
+        },
+        {
+          "id": "66f389f3-55a7-59d7-9975-ccd0a16f61bc",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Group": "c7b1e90f-4df8-5086-be08-f5b2550a73c9",
+            "Object": "98deb125-5fef-5c90-aab1-ca563560aa39"
+          },
+          "data": {
+            "weight": 50,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "85ff5020-4849-5fe6-aaec-e15c52affff5",
+          "reason": null,
+          "at": "2026-10-29 18:42:34.256279+00"
+        },
+        {
+          "id": "01d6d74a-76c9-5f7b-9944-578326ce5422",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "68466b9a-4722-5a50-ba68-378a96b6beb8",
+          "owner": "68466b9a-4722-5a50-ba68-378a96b6beb8",
+          "links": {
+            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:34.391064+00"
+        },
+        {
+          "id": "eeed6ec1-30b3-5ebb-9a93-7ab4c3e0cf9f",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "68466b9a-4722-5a50-ba68-378a96b6beb8",
+          "owner": "68466b9a-4722-5a50-ba68-378a96b6beb8",
+          "links": {
+            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+            "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:34.392133+00"
+        },
+        {
+          "id": "fa7041b4-da54-548a-a8ea-471165d74d0f",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "68466b9a-4722-5a50-ba68-378a96b6beb8",
+          "owner": "68466b9a-4722-5a50-ba68-378a96b6beb8",
+          "links": {
+            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+            "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:34.392924+00"
+        },
+        {
+          "id": "eab05595-3be7-5b33-8454-8b4f7b18662a",
+          "class": "member",
+          "rev": 1,
+          "tenant": "68466b9a-4722-5a50-ba68-378a96b6beb8",
+          "owner": "68466b9a-4722-5a50-ba68-378a96b6beb8",
+          "links": {
+            "User": "23dc6878-f3af-5ecf-a062-e5329b9f1638",
+            "Tenant": "68466b9a-4722-5a50-ba68-378a96b6beb8"
+          },
+          "data": {
+            "roles": [
+              "owner"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-10-29 18:42:34.402205+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": []
+    }
+  ]
+}

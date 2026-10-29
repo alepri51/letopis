@@ -1,0 +1,211 @@
+{
+  "id": "load/01-load-options",
+  "context": {
+    "schema": "v2.g_load_01_load_options",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_842358831443fd2d5defcbee7934aed3db8c5e51e848db1a356323182ce487c6",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "ed0fe3cb41a6e1d8df9119a83c68277e13268e9b9dfec0cc94420eb33a42a32e",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "rows": 3,
+        "loaded": 3,
+        "updated": 0,
+        "skipped": 0,
+        "duplicates": 0,
+        "byClass": {
+          "Shop": 1,
+          "Product": 2
+        },
+        "external": 0,
+        "portions": 1,
+        "ms": 242.43469999999797
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "duplicate",
+        "message": "letopis: duplicate: загрузка отменена: строка 2 — id d5a04473-a3ea-52e1-96ed-2b4eda507bb3 уже был в строке 1",
+        "detail": {
+          "rows": [
+            {
+              "line": 2,
+              "code": "duplicate",
+              "message": "id d5a04473-a3ea-52e1-96ed-2b4eda507bb3 уже был в строке 1",
+              "id": "d5a04473-a3ea-52e1-96ed-2b4eda507bb3",
+              "class": "Product"
+            }
+          ],
+          "total": 1,
+          "truncated": false,
+          "limit": 100,
+          "complete": true
+        }
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "rows": 2,
+        "loaded": 0,
+        "updated": 1,
+        "skipped": 0,
+        "duplicates": 1,
+        "byClass": {},
+        "external": 1,
+        "portions": 1,
+        "ms": 25.07719999999972
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "exists",
+        "message": "letopis: exists: загрузка отменена: строка 1 — объект уже есть в базе",
+        "detail": {
+          "rows": [
+            {
+              "line": 1,
+              "code": "exists",
+              "message": "объект уже есть в базе",
+              "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+              "class": "Product"
+            }
+          ],
+          "total": 1,
+          "truncated": false,
+          "limit": 100,
+          "complete": true
+        }
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "rows": 2,
+        "loaded": 2,
+        "updated": 0,
+        "skipped": 0,
+        "duplicates": 0,
+        "byClass": {
+          "Customer": 2
+        },
+        "external": 0,
+        "portions": 2,
+        "ms": 549.9347999999954
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "report": {
+          "rows": 1,
+          "loaded": 1,
+          "updated": 0,
+          "skipped": 0,
+          "duplicates": 0,
+          "byClass": {
+            "Customer": 1
+          },
+          "external": 0,
+          "portions": 1,
+          "ms": 226.92609999999695
+        },
+        "автор": "3defbabb-a94d-5359-8463-dc947de193e1"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "class_not_loadable",
+        "message": "letopis: class_not_loadable: загрузка отменена: строка 1 — строки Class задают letopis sync и create — там база компилирует проверку",
+        "detail": {
+          "rows": [
+            {
+              "line": 1,
+              "code": "class_not_loadable",
+              "message": "строки Class задают letopis sync и create — там база компилирует проверку",
+              "class": "Class"
+            }
+          ],
+          "total": 1,
+          "truncated": false,
+          "limit": 100,
+          "complete": true
+        }
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "admin_required",
+        "message": "letopis: admin_required: загрузчику нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы)",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    }
+  ]
+}

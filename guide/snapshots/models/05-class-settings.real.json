@@ -1,0 +1,281 @@
+{
+  "id": "models/05-class-settings",
+  "context": {
+    "schema": "v2.g_models_05_class_settings",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_83c65f4ae121f125bbb4d75715b26cdd64e616a361a761140d0992625c1c50f8",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "5b50ae1e512bb280ec0f3e0527e35e053977e49d8cea3e4ad9b2e2581f3e784b",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": [
+        "Ping",
+        "Draft",
+        "Product"
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "versions": [],
+        "printed": [
+          "letopis: .versions() у класса Ping без журнала (history: false) — истории нет"
+        ]
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "eeab9496-4129-54ba-85a2-3902a2760a63",
+          "class": "Ping",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "source": "датчик-2"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "0cc79748-7af3-5c3f-aacd-c48f36f9d940",
+          "reason": null,
+          "at": "2026-10-29 18:43:37.271526+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "draftOwner": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "productOwner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "7eff7e9f-da24-5091-9a6c-365e11fcbe9a",
+          "class": "Draft",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "links": {},
+          "data": {
+            "text": "План на неделю"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "0cc79748-7af3-5c3f-aacd-c48f36f9d940",
+          "reason": null,
+          "at": "2026-10-29 18:43:37.294175+00"
+        },
+        {
+          "id": "3b8e4308-1faa-5540-98ae-e594811f3416",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "0cc79748-7af3-5c3f-aacd-c48f36f9d940",
+          "reason": null,
+          "at": "2026-10-29 18:43:37.303279+00"
+        },
+        {
+          "id": "eeab9496-4129-54ba-85a2-3902a2760a63",
+          "class": "Ping",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "source": "датчик-2"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "0cc79748-7af3-5c3f-aacd-c48f36f9d940",
+          "reason": null,
+          "at": "2026-10-29 18:43:37.271526+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "37",
+          "id": "7eff7e9f-da24-5091-9a6c-365e11fcbe9a",
+          "rev": 1,
+          "class": "Draft",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "text": "План на неделю"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "0cc79748-7af3-5c3f-aacd-c48f36f9d940",
+          "reason": null,
+          "at": "2026-10-29 18:43:37.294175+00",
+          "tx": "2381541"
+        },
+        {
+          "seq": "38",
+          "id": "3b8e4308-1faa-5540-98ae-e594811f3416",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "0cc79748-7af3-5c3f-aacd-c48f36f9d940",
+          "reason": null,
+          "at": "2026-10-29 18:43:37.303279+00",
+          "tx": "2381543"
+        }
+      ],
+      "secret": []
+    },
+    {
+      "result": {
+        "productMeta": {
+          "icon": "mdi:package-variant",
+          "order": 1,
+          "title": "Товар"
+        },
+        "text": [
+          "## Draft",
+          "## Ping",
+          "## Product — Товар"
+        ]
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "7eff7e9f-da24-5091-9a6c-365e11fcbe9a",
+          "class": "Draft",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "links": {},
+          "data": {
+            "text": "План на неделю"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "0cc79748-7af3-5c3f-aacd-c48f36f9d940",
+          "reason": null,
+          "at": "2026-10-29 18:43:37.294175+00"
+        },
+        {
+          "id": "3b8e4308-1faa-5540-98ae-e594811f3416",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "0cc79748-7af3-5c3f-aacd-c48f36f9d940",
+          "reason": null,
+          "at": "2026-10-29 18:43:37.303279+00"
+        },
+        {
+          "id": "eeab9496-4129-54ba-85a2-3902a2760a63",
+          "class": "Ping",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "source": "датчик-2"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "0cc79748-7af3-5c3f-aacd-c48f36f9d940",
+          "reason": null,
+          "at": "2026-10-29 18:43:37.271526+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "37",
+          "id": "7eff7e9f-da24-5091-9a6c-365e11fcbe9a",
+          "rev": 1,
+          "class": "Draft",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "text": "План на неделю"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "0cc79748-7af3-5c3f-aacd-c48f36f9d940",
+          "reason": null,
+          "at": "2026-10-29 18:43:37.294175+00",
+          "tx": "2381541"
+        },
+        {
+          "seq": "38",
+          "id": "3b8e4308-1faa-5540-98ae-e594811f3416",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "0cc79748-7af3-5c3f-aacd-c48f36f9d940",
+          "reason": null,
+          "at": "2026-10-29 18:43:37.303279+00",
+          "tx": "2381543"
+        }
+      ],
+      "secret": []
+    }
+  ]
+}
