@@ -34,6 +34,7 @@ export default defineConfig({
           { text: '2. Установка и подключение', link: '/install/' },
           { text: '3. Модели', link: '/models/' },
           { text: '4. Запись', link: '/write/' },
+          { text: '5. Чтение', link: '/read/' },
         ],
       },
       {

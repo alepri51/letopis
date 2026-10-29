@@ -157,6 +157,36 @@ const nuances: Nuance[] = [
     text: 'Очередь батча своя у каждого фасада (db, db.as(), db.begin()); план исполняется от имени поставившего фасада.',
     source: 'lib/README.md, раздел 8',
   },
+  {
+    id: 'step-direction',
+    text: 'Переход цепочки идёт по концам: назад — к тем, кто ссылается; вперёд — к цели; к тому же классу — к детям.',
+    source: 'lib/README.md, раздел 6',
+  },
+  {
+    id: 'filter-no-cast',
+    text: 'Простое значение фильтра сравнивается без приведения типов: { price: 900 } не найдёт "900".',
+    source: 'lib/README.md, раздел 6',
+  },
+  {
+    id: 'filter-end-null',
+    text: 'Роль конца в фильтре — id цели или null («ссылки нет»): так находятся корневые узлы дерева.',
+    source: 'lib/README.md, раздел 6',
+  },
+  {
+    id: 'cursor-json',
+    text: 'Курсор страницы { v, id } переживает JSON; поле cursorOf совпадает с sort; тип проверяется до запроса.',
+    source: 'lib/README.md, раздел 6',
+  },
+  {
+    id: 'countby-limit-groups',
+    text: 'limit перед countBy относится к группам: самые частые значения.',
+    source: 'lib/README.md, раздел 6',
+  },
+  {
+    id: 'count-paths',
+    text: 'count() — сущности без повторов; count({ paths: true }) — число путей до них.',
+    source: 'lib/README.md, раздел 6',
+  },
 ];
 
 export default nuances;
