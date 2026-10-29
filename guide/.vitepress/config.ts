@@ -51,6 +51,7 @@ export default defineConfig({
           { text: 'Обзор', link: '/services/' },
           { text: 'Салон записи', link: '/services/salon' },
           { text: 'Кошелёк и биллинг', link: '/services/wallet' },
+          { text: 'Helpdesk', link: '/services/helpdesk' },
         ],
       },
     ],

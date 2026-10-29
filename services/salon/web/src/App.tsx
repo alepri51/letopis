@@ -32,7 +32,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 export default function App() {
   const [me, setMe] = useState<{ salon: string; name: string } | null | undefined>(undefined);
-  useEffect(() => { api<{ salon: string; name: string }>('/api/me').then(setMe, () => setMe(null)); }, []);
+  useEffect(() => { api<{ salon: string; name: string } | null>('/api/me').then(setMe, () => setMe(null)); }, []);
   if (me === undefined) return null;
   return me ? <Salon me={me} onLogout={() => setMe(null)} /> : <Login onLogin={setMe} />;
 }

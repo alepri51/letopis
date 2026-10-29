@@ -122,7 +122,8 @@ export async function createApp() {
     req.s = s;
     next();
   };
-  app.get('/api/me', auth, (req, res) => res.json({ salon: req.s.salon, name: req.s.name }));
+  // без входа — 200 и null, а не 401: страница входа открывается без ошибки в консоли браузера
+  app.get('/api/me', (req, res) => { const s = sessionOf(req); res.json(s ? { salon: s.salon, name: s.name } : null); });
 
   // ---------- API: расписание ----------
   async function schedule(s, day) {

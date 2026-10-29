@@ -31,7 +31,7 @@ const newOp = () => `op-${Date.now().toString(36)}`;
 
 export default function App() {
   const [me, setMe] = useState<{ name: string } | null | undefined>(undefined);
-  useEffect(() => { api<{ name: string }>('/api/me').then(setMe, () => setMe(null)); }, []);
+  useEffect(() => { api<{ name: string } | null>('/api/me').then(setMe, () => setMe(null)); }, []);
   if (me === undefined) return null;
   if (!me) {
     return <LoginScreen onLogin={setMe} />;

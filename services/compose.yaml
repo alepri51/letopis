@@ -57,5 +57,19 @@ services:
       pg:
         condition: service_healthy
 
+  helpdesk:
+    build:
+      context: ..
+      dockerfile: services/helpdesk/Dockerfile
+    environment:
+      ADMIN_DSN: postgres://postgres:guide@pg:5432/letopis
+      APP_DSN: postgres://helpdesk_app:helpdesk-app-secret@pg:5432/letopis
+      PORT: '8083'
+      HOST: 0.0.0.0
+    ports: ['127.0.0.1:8083:8083']
+    depends_on:
+      pg:
+        condition: service_healthy
+
 volumes:
   pgdata: {}

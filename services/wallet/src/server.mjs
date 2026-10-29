@@ -151,11 +151,12 @@ export async function createApp() {
     const sid = randomBytes(24).toString('hex');
     sessions.set(sid, { db: await svc.as(login.account, { tenant: t.tenant }), name: OPERATOR.name, trace: [] });
     res.setHeader('Set-Cookie', `sid=${sid}; HttpOnly; SameSite=Lax; Path=/`);
-    res.json({ salon: 'Копейка', name: OPERATOR.name });
+    res.json({ company: 'Копейка', name: OPERATOR.name });
   });
   app.get('/logout', (req, res) => { sessions.delete(sidOf(req)); res.setHeader('Set-Cookie', 'sid=; Max-Age=0; Path=/'); res.redirect('/'); });
   const auth = (req, res, next) => { const s = sessions.get(sidOf(req)); if (!s) return res.status(401).json({ error: 'нужен вход' }); req.s = s; next(); };
-  app.get('/api/me', auth, (req, res) => res.json({ salon: 'Копейка', name: req.s.name }));
+  // без входа — 200 и null, а не 401: страница входа открывается без ошибки в консоли браузера
+  app.get('/api/me', (req, res) => { const s = sessions.get(sidOf(req)); res.json(s ? { company: 'Копейка', name: s.name } : null); });
 
   app.get('/api/wallets', auth, async (req, res) => {
     const db = req.s.db;
