@@ -165,8 +165,12 @@ test('7.8.1 №5: срез на момент внутри прореженног
 test('7.8.1 №7: verify — прореживание не разрыв; удаление версии моложе яруса all — разрыв с id и номером', async () => {
   let v = (await e.sql.unsafe(`select ${e.S}.verify() as v`))[0].v;
   assert.equal(v.ok, true, JSON.stringify(v.issues));
+  // свежие версии — от настоящего времени: verify() судит о ярусе all по нему, а «сейчас» эталона (NOW) с 29-го числа
+  // уходит в прошлое на 1–3 дня, и последние версии истории для verify() уже не моложе яруса all. Удаляется средняя из
+  // трёх свежих: перед разрывом — тоже свежая версия, такой разрыв законным прореживанием не объяснить
+  for (const n of [1, 2, 3]) await db.Gauge(g1).update({ n: 100_000 + n }).rows();
   const left = await revs(g1);
-  const young = left[left.length - 3];
+  const young = left[left.length - 2];
   await e.sql.unsafe(`delete from ${e.S}.log where id = $1 and rev = $2`, [g1, young]);
   v = (await e.sql.unsafe(`select ${e.S}.verify() as v`))[0].v;
   assert.ok(v.issues.some((i: { id: string; rev: number; problem: string }) => i.id === g1 && i.rev === young && /разрыв/.test(i.problem)), JSON.stringify(v.issues));

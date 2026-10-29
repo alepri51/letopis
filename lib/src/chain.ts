@@ -104,7 +104,7 @@ export interface ChainCore {
   entity(x: Chain | Row): Chain;
   /** Создать объект: концы — из пути и слотов; занятый ключ — ошибка exists с id. */
   create(data?: Record<string, unknown>, opts?: { reason?: string }): Chain;
-  /** Новая версия каждой цели шага: слияние патча в базе; inc(n) — приращение; { rev } — строгий режим. */
+  /** Новая версия каждой цели шага: слияние патча в базе; inc(n) — приращение; { rev } — с проверкой версии. */
   update(patch?: Record<string, unknown>, opts?: { rev?: number; reason?: string }): Chain;
   /** Создать или заменить целиком (класс с ключом); строка ответа несёт $upsert. */
   upsert(data: Record<string, unknown>, opts?: { reason?: string }): Chain;

@@ -499,7 +499,7 @@ async function updateOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<Write
   const { id: dataId, ...data } = op.data;
   const ids = await targetIds(w, steps, opStep, useDataId ? (dataId as string) : undefined);
   if (op.rev !== undefined) {
-    if (ids.length > 1) fail('rev_ambiguous', `update(patch, { rev }): у шага ${opStep.name} ${ids.length} целей — строгий режим только для одной`);
+    if (ids.length > 1) fail('rev_ambiguous', `update(patch, { rev }): у шага ${opStep.name} ${ids.length} целей — проверить версию { rev } можно только у одной цели`);
     if (!ids.length) fail('target_not_found', `update(patch, { rev }): у шага ${opStep.name} нет цели`);
   }
   if (!ids.length) return [];

@@ -150,7 +150,7 @@ export async function stampDrift(schema: string, comment: string): Promise<strin
     return `letopis: схему ${schema} обновила letopis ${was}, библиотека старее (${code.version}) — обновите пакет: up() этой версией вернул бы прежние функции`;
   }
   const by = !was ? 'версия до 1.4.0' : was === code.version ? `другая сборка letopis ${was}` : `letopis ${was}`;
-  return `letopis: функции схемы ${schema} поставила ${by}, библиотека — ${code.version}: накатите up({ schema: '${schema}' })`;
+  return `letopis: функции схемы ${schema} поставила ${by}, библиотека — ${code.version}: обновите схему — вызовите up({ schema: '${schema}' })`;
 }
 
 export function substitute(text: string, vars: Record<string, string>): string {
