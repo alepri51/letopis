@@ -129,3 +129,11 @@ jobs:
           npm run build --prefix lib
           npm install --prefix services/salon --no-audit --no-fund
           node services/salon/scenario.mjs
+
+      - name: Wallet day-of-work scenario
+        env:
+          ADMIN_DSN: postgres://postgres:test@localhost:15433/letopis
+          APP_DSN: postgres://wallet_app:wallet-app-secret@localhost:15433/letopis
+        run: |
+          npm install --prefix services/wallet --no-audit --no-fund
+          node services/wallet/scenario.mjs
