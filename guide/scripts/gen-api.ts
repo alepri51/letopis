@@ -508,7 +508,7 @@ const PAGES: Page[] = [
       { title: 'Одноразовые коды', ids: ['auth.issueOtp', 'auth.verifyOtp'] },
       { title: 'Внешние учётные записи', ids: ['auth.link', 'auth.lookup'] },
       { title: 'Креды', ids: ['auth.credentials', 'auth.revokeCredential', 'auth.setFlags'] },
-      { title: 'Сессии', ids: ['auth.sessionFor', 'auth.refresh', 'auth.revoke', 'auth.revokeAll'] },
+      { title: 'Сессии', ids: ['auth.sessionFor', 'auth.session', 'auth.refresh', 'auth.revoke', 'auth.revokeAll'] },
       { title: 'Арендаторы', ids: ['auth.tenants', 'auth.switch'] },
       { title: 'Удаление аккаунта', ids: ['auth.purgeAccount'] },
     ],

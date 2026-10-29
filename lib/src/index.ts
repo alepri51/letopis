@@ -41,7 +41,7 @@ export { syncModels, generateTypes, schemaToTs, type SyncResult } from './sync.j
 export { ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends, has, hasAny, hasAll, exists, isNull, not, or, isOp } from './ops.js';
 export { cursorOf } from './sql.js';
 export { inc, isInc, type IncMarker, type WriteRow } from './write.js';
-export { totpCode, hashPassword, verifyHash, type AuthApi, type LoginResult, type Credential } from './auth.js';
+export { totpCode, hashPassword, verifyHash, type AuthApi, type LoginResult, type Credential, type SessionInfo } from './auth.js';
 export type { AclApi, AclDecision, AclDataDecision, AclOp } from './acl.js';
 export type { LoadOptions, LoadReport, LoadIssue, LoadInput } from './load.js';
 export type { Chain, ChainCore, StepFn, BatchEntry } from './chain.js';

@@ -99,6 +99,25 @@ export interface LoginResult {
   token: string;
 }
 
+/** Сведения о сессии по её токену (db.auth.session). Время — строкой ISO 8601. */
+export interface SessionInfo {
+  /** Аккаунт сессии. */
+  account: string;
+  /** Рабочий арендатор сессии: выбранный auth.switch() или собственный арендатор аккаунта. */
+  tenant: string;
+  /** Членство в рабочем арендаторе цело и арендатор включён; в собственном арендаторе — всегда true. */
+  member: boolean;
+  /** Когда сессия истечёт, если ею не пользоваться (подключение продлевает её само). */
+  expiresAt: string;
+  /** Время входа. */
+  loginAt: string;
+  /**
+   * Способы входа: вид креда, по которому вошли (PASSWORD, APIKEY, KEYSECRET, OTP, TELEGRAM и т. п.), SERVICE —
+   * сессию выпустил сервис (sessionFor), TOTP — пройден второй фактор. У сессии от createTenant список пуст.
+   */
+  methods: string[];
+}
+
 /** Кред без секретного материала. */
 export interface Credential {
   id: string;
@@ -151,6 +170,18 @@ export interface AuthApi {
   setFlags(id: string, flags: { confirmed?: boolean; enabled?: boolean }): Promise<boolean>;
   /** Короткая сессия пользователя для другого процесса (право auth.session). */
   sessionFor(account: AccountRef, opts?: { ttl?: number }): Promise<string>;
+  /**
+   * Сведения о сессии по её токену — для сервиса, который держит токен пользователя (например, в cookie): чья это
+   * сессия, в каком арендаторе она работает, цело ли там членство, когда истечёт, когда и как был вход. Подключение
+   * по этому токену не открывается, срок сессии не продлевается. Вызывает сервис или системный администратор
+   * (право auth.session).
+   * @param token Токен сессии пользователя — тот, что выдали вход или sessionFor.
+   * @returns Сведения о сессии или null: токен неверный, сессия погашена или истекла, аккаунт отключён — причина
+   * не различается.
+   * @throws LetopisError `acl_denied` — у вызывающего нет права auth.session (например, это обычный пользователь);
+   * `no_session` — у подключения нет действующей сессии.
+   */
+  session(token: string): Promise<SessionInfo | null>;
   /** Продлить текущую сессию; новый срок — от сейчас. */
   refresh(opts?: { ttl?: number }): Promise<string>;
   /** Выход: погасить текущую сессию. */
@@ -268,6 +299,11 @@ function makeAuthCore(S: string, exec: Executor, onSwitch: () => Promise<void>, 
     },
     async sessionFor(account, opts) {
       return (await login(accId(account), opts?.ttl, ['SERVICE']))!.token;
+    },
+    async session(token) {
+      const r = (await one<{ r: SessionInfo | null }>(`select ${S}.auth_session_info($1) as r`, [token])).r;
+      // jsonb хранит ключи в своём порядке — объект собирается в порядке описания SessionInfo
+      return r && { account: r.account, tenant: r.tenant, member: r.member, expiresAt: r.expiresAt, loginAt: r.loginAt, methods: r.methods };
     },
     async refresh(opts) {
       return (await one<{ e: string }>(`select ${S}.auth_refresh(coalesce($1::interval, interval '7 days')) as e`, [ttlOf(opts?.ttl)])).e;

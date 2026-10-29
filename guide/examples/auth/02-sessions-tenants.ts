@@ -13,7 +13,7 @@ export default example({
   tables: ['secret'],
   covers: [
     'auth.tenants', 'auth.switch', 'auth.credentials', 'auth.issueKeySecret', 'auth.verifyKeySecret', 'auth.setFlags',
-    'auth.refresh', 'auth.revoke', 'auth.revokeAll', 'auth.purgeAccount',
+    'auth.refresh', 'auth.revoke', 'auth.revokeAll', 'auth.purgeAccount', 'auth.session',
     'nuance.session-starts-personal', 'nuance.purge-current-tenant', 'nuance.service-enforces-2fa', 'nuance.refresh-never-shortens', 'nuance.revoked-session-empty',
   ],
   steps: [
@@ -107,6 +107,19 @@ export default example({
         const res = await inTemp.auth.purgeAccount(temp.tenant);
         return { 'работала в': was, 'стёрто': { rows: res.rows, versions: res.versions }, 'теперь': inTemp.tenant === temp.tenant ? 'пробная компания' : 'личный арендатор' };
       },
+    },
+    {
+      title: 'Сервис узнаёт сессию по токену',
+      text:
+        'Веб-сервис хранит токен в cookie и в начале каждого запроса спрашивает базу `svc.auth.session(token)`: чья ' +
+        'сессия, в каком арендаторе работает, цело ли там членство, когда истечёт, как был вход. Подключение по токену ' +
+        'не открывается, срок не продлевается. Сессия, которой Анна закрыла пробную компанию, жива и вернулась в личный ' +
+        'арендатор; способов входа у неё нет — её выдал `createTenant`. Сессия после «выйти везде» — `null`, как и ' +
+        'неверный или истёкший токен. Спросить может только сервис (право `auth.session`).',
+      run: async ({ svc }) => ({
+        'сессия из пробной компании': await svc.auth.session(temp.token!),
+        'после «выйти везде»': await svc.auth.session(anna.token!),
+      }),
     },
   ],
 });

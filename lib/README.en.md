@@ -1432,8 +1432,10 @@ denial that the identifier is taken ([section 18](#18-limitations)).
 <!-- run: guide -->
 ```ts
 const shortToken = await svc.auth.sessionFor(BORIS, { ttl: 600 })   // a session for 10 minutes of idle time for another process
+const whose = await svc.auth.session(shortToken)                     // { account, tenant, member, expiresAt, loginAt, methods }
 const boris = await connect({ dsn: APP, schema: r.schema, token: shortToken })
 await boris.auth.revoke()                                            // sign-out: the session is revoked
+const ended = await svc.auth.session(shortToken)                     // null
 await boris.close()
 ```
 
@@ -1445,6 +1447,16 @@ at sign-in; it returns the new expiration time. `connect()` extends the session 
 account is deleted. Deleting a credential revokes the other sessions of the account, while revoking an API key or a
 "key + secret" pair revokes only the sessions opened by that key (and old sessions of the same sign-in method without
 a key mark); the current session stays unless you pass `keepCurrent: false`.
+
+A service that holds a user's token (for example, in a cookie) learns about the session with `svc.auth.session(token)`:
+no connection is opened with that token, and the session is not extended. The answer tells whose session it is
+(`account`), which tenant it works in (`tenant`: the one chosen by `auth.switch()` or the account's own tenant),
+whether the membership there is intact (`member`; always `true` in the own tenant), when it expires (`expiresAt`), and
+when and how the sign-in happened (`loginAt`, `methods`: `PASSWORD`, `APIKEY`, `SERVICE`, `TOTP` …). A wrong, revoked
+or expired token and a disabled account give `null`; the reason is not told apart. This is how a web service checks the
+session at the start of every request: reading under a revoked session gives no error, the answers are simply empty.
+The method is called by the service or the system administrator (the `auth.session` permission); a user gets
+`acl_denied`.
 
 ### Working in another tenant
 
@@ -2343,16 +2355,17 @@ Removed 0.21 names (`uuidv7`, `LETOPIS_NS` and the methods listed below) throw `
 | `link`, `lookup` | `{ account, kind, identifier, meta?, confirmed? }` → id; `{ kind, identifier, requireConfirmed?, ttl?, totp? }` → sign-in or `null` |
 | `credentials`, `revokeCredential`, `setFlags` | `(account)` → credentials without secrets; `(id, { keepCurrent? })`; `(id, { confirmed?, enabled? })` |
 | `sessionFor`, `refresh`, `revoke`, `revokeAll` | `(account, { ttl? })` → token; `({ ttl? })` → the new expiration time (the token stays the same); `()`; `(account?)` → number of sessions |
+| `session` | `(token)` → `{ account, tenant, member, expiresAt, loginAt, methods }` or `null` |
 | `tenants`, `switch` | `()` → `[{ tenant, roles }]`; `(tenant)` |
 | `purgeAccount` | `(account)` → `{ account, rows, versions, memberships, owned }` |
 
-Password, code and TOTP checks, session issuing and credential confirmation are called by the service (`auth.*`
-permissions); a regular user gets `acl_denied`. The credentials of System, services and system administrators can be
-changed only by the account itself after a recent interactive sign-in, or by the system administrator. The exception is
-the service's keys: the service issues and revokes its own API keys and "key + secret" pairs itself with a session of
-its own key, but not its other credentials; nobody can revoke the last active key of a service (`acl_denied`). With
-`totp`, `verifyPassword` and `lookup` also check the TOTP code (the `auth.totp` permission) and issue a session with the
-`TOTP` method. The credential kind `kind` is `^[A-Z][A-Z0-9_]{1,31}$` (`PASSWORD`, `EMAIL`,
+Password, code and TOTP checks, session issuing, session details by token and credential confirmation are called by the
+service (`auth.*` permissions); a regular user gets `acl_denied`. The credentials of System, services and system
+administrators can be changed only by the account itself after a recent interactive sign-in, or by the system
+administrator. The exception is the service's keys: the service issues and revokes its own API keys and "key + secret"
+pairs itself with a session of its own key, but not its other credentials; nobody can revoke the last active key of a
+service (`acl_denied`). With `totp`, `verifyPassword` and `lookup` also check the TOTP code (the `auth.totp` permission)
+and issue a session with the `TOTP` method. The credential kind `kind` is `^[A-Z][A-Z0-9_]{1,31}$` (`PASSWORD`, `EMAIL`,
 `TELEGRAM` …); `SESSION`, `APIKEY`, `KEYSECRET`, `OTP`, `TOTP` and `KEY` are taken.
 
 ### Projector

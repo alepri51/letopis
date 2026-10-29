@@ -128,6 +128,18 @@ interface AuthApi {
   setFlags(id: string, flags: { confirmed?: boolean; enabled?: boolean }): Promise<boolean>;
   /** Короткая сессия пользователя для другого процесса (право auth.session). */
   sessionFor(account: AccountRef, opts?: { ttl?: number }): Promise<string>;
+  /**
+   * Сведения о сессии по её токену — для сервиса, который держит токен пользователя (например, в cookie): чья это
+   * сессия, в каком арендаторе она работает, цело ли там членство, когда истечёт, когда и как был вход. Подключение
+   * по этому токену не открывается, срок сессии не продлевается. Вызывает сервис или системный администратор
+   * (право auth.session).
+   * @param token Токен сессии пользователя — тот, что выдали вход или sessionFor.
+   * @returns Сведения о сессии или null: токен неверный, сессия погашена или истекла, аккаунт отключён — причина
+   * не различается.
+   * @throws LetopisError `acl_denied` — у вызывающего нет права auth.session (например, это обычный пользователь);
+   * `no_session` — у подключения нет действующей сессии.
+   */
+  session(token: string): Promise<SessionInfo | null>;
   /** Продлить текущую сессию; новый срок — от сейчас. */
   refresh(opts?: { ttl?: number }): Promise<string>;
   /** Выход: погасить текущую сессию. */
@@ -1317,6 +1329,29 @@ type RowOf<C> = Row<DataOf<C>, LinksOf<C>>;
 
 ```ts
 type Scalar = string | number | boolean | null;
+```
+
+## SessionInfo {#type-sessioninfo}
+
+```ts
+/** Сведения о сессии по её токену (db.auth.session). Время — строкой ISO 8601. */
+interface SessionInfo {
+  /** Аккаунт сессии. */
+  account: string;
+  /** Рабочий арендатор сессии: выбранный auth.switch() или собственный арендатор аккаунта. */
+  tenant: string;
+  /** Членство в рабочем арендаторе цело и арендатор включён; в собственном арендаторе — всегда true. */
+  member: boolean;
+  /** Когда сессия истечёт, если ею не пользоваться (подключение продлевает её само). */
+  expiresAt: string;
+  /** Время входа. */
+  loginAt: string;
+  /**
+   * Способы входа: вид креда, по которому вошли (PASSWORD, APIKEY, KEYSECRET, OTP, TELEGRAM и т. п.), SERVICE —
+   * сессию выпустил сервис (sessionFor), TOTP — пройден второй фактор. У сессии от createTenant список пуст.
+   */
+  methods: string[];
+}
 ```
 
 ## SignalMode {#type-signalmode}

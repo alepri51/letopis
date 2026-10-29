@@ -1390,8 +1390,10 @@ const viaTelegram = await svc.auth.lookup({ kind: 'TELEGRAM', identifier: '10050
 <!-- run: guide -->
 ```ts
 const shortToken = await svc.auth.sessionFor(BORIS, { ttl: 600 })   // сессия на 10 минут простоя — для другого процесса
+const whose = await svc.auth.session(shortToken)                     // { account, tenant, member, expiresAt, loginAt, methods }
 const boris = await connect({ dsn: APP, schema: r.schema, token: shortToken })
 await boris.auth.revoke()                                            // выход: сессия погашена
+const ended = await svc.auth.session(shortToken)                     // null
 await boris.close()
 ```
 
@@ -1403,6 +1405,15 @@ await boris.close()
 остальные сессии аккаунта, а отзыв ключа API или пары «ключ + секрет» — только сессии, открытые этим ключом (и
 старые сессии того же вида входа без отметки ключа); текущая сессия остаётся, если не передать
 `keepCurrent: false`.
+
+Сервис, у которого есть токен пользователя (например, в cookie), узнаёт о сессии через `svc.auth.session(token)`:
+подключение по этому токену не открывается, срок сессии не продлевается. Ответ — чья сессия (`account`), в каком
+арендаторе она работает (`tenant`: выбранный `auth.switch()` или собственный арендатор аккаунта), цело ли там членство
+(`member`; в собственном арендаторе — всегда `true`), когда она истечёт (`expiresAt`), когда и как был вход
+(`loginAt`, `methods`: `PASSWORD`, `APIKEY`, `SERVICE`, `TOTP` …). Неверный, погашенный или истёкший токен и
+отключённый аккаунт — `null`, причина не различается. Так веб-сервис проверяет сессию в начале каждого запроса:
+чтение по погашенной сессии ошибки не даёт, ответы просто пустые. Вызывает метод сервис или системный администратор
+(право `auth.session`); пользователю отвечают `acl_denied`.
 
 ### Работа в другом арендаторе
 
@@ -2258,15 +2269,16 @@ npx letopis import --from postgres://…/old --from-schema v1.salon --dsn postgr
 | `link`, `lookup` | `{ account, kind, identifier, meta?, confirmed? }` → id; `{ kind, identifier, requireConfirmed?, ttl?, totp? }` → вход или `null` |
 | `credentials`, `revokeCredential`, `setFlags` | `(account)` → креды без секретов; `(id, { keepCurrent? })`; `(id, { confirmed?, enabled? })` |
 | `sessionFor`, `refresh`, `revoke`, `revokeAll` | `(account, { ttl? })` → токен; `({ ttl? })` → новое время истечения (токен прежний); `()`; `(account?)` → число сессий |
+| `session` | `(token)` → `{ account, tenant, member, expiresAt, loginAt, methods }` или `null` |
 | `tenants`, `switch` | `()` → `[{ tenant, roles }]`; `(tenant)` |
 | `purgeAccount` | `(account)` → `{ account, rows, versions, memberships, owned }` |
 
-Проверку паролей, кодов и TOTP, выпуск сессий и подтверждение кредов вызывает сервис (права `auth.*`); обычному
-пользователю отвечают `acl_denied`. Креды System, сервисов и системных администраторов меняет только сам аккаунт
-после недавнего интерактивного входа или системный администратор. Исключение — ключи сервиса: свои ключи API и
-пары «ключ + секрет» сервис выпускает и отзывает сам по сессии своего ключа, прочие свои креды — нет; последний
-действующий ключ сервиса не отзывается никем (`acl_denied`). С `totp` вход `verifyPassword` и `lookup` проверяет
-ещё и код TOTP (право `auth.totp`) и выдаёт сессию со способом `TOTP`.
+Проверку паролей, кодов и TOTP, выпуск сессий, сведения о сессии по токену и подтверждение кредов вызывает сервис
+(права `auth.*`); обычному пользователю отвечают `acl_denied`. Креды System, сервисов и системных администраторов
+меняет только сам аккаунт после недавнего интерактивного входа или системный администратор. Исключение — ключи
+сервиса: свои ключи API и пары «ключ + секрет» сервис выпускает и отзывает сам по сессии своего ключа, прочие свои
+креды — нет; последний действующий ключ сервиса не отзывается никем (`acl_denied`). С `totp` вход `verifyPassword` и
+`lookup` проверяет ещё и код TOTP (право `auth.totp`) и выдаёт сессию со способом `TOTP`.
 Вид креда `kind` — `^[A-Z][A-Z0-9_]{1,31}$` (`PASSWORD`, `EMAIL`, `TELEGRAM` …); `SESSION`, `APIKEY`, `KEYSECRET`,
 `OTP`, `TOTP` и `KEY` заняты.
 

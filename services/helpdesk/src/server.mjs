@@ -344,13 +344,12 @@ export async function createApp() {
   const route = (fn) => async (req, res) => { try { await fn(req, res); } catch (e) { fail(req, res, e); } };
   /**
    * Жива ли сессия: погашенная (revokeAll, отзыв ключа) на чтении не даёт ошибки — контекст просто пустой и база
-   * ничего не покажет. Ошибку no_session бросают функции входа, поэтому проверка — auth.tenants() (и членство).
+   * ничего не покажет. Поэтому сервис спрашивает базу по токену подключения: svc.auth.session(token) — null, если
+   * сессия погашена или истекла; member: false — членство в рабочей компании снято или компания отключена.
    */
   async function alive(db, tenant) {
-    try {
-      const list = await db.auth.tenants();
-      return !tenant || list.some((t) => t.tenant === tenant);
-    } catch (e) { if (e?.code === 'no_session') return false; throw e; }
+    const info = await svc.auth.session(db.token);
+    return !!info && info.member && (!tenant || info.tenant === tenant);
   }
   const ended = (res) => res.status(401).json({ error: 'Сеанс завершён — войдите заново', code: 'session_ended' });
   const auth = async (req, res, next) => {
