@@ -262,6 +262,11 @@ const nuances: Nuance[] = [
     text: 'Классы, записанные syncModels, принадлежат арендатору: другой арендатор не видит даже класса (invalid_class).',
     source: 'пример access/01-rules',
   },
+  {
+    id: 'watch-cursor-resume',
+    text: 'Событие подписки несёт курсор: новая подписка с него получает ровно то, что случилось после, без потерь и повторов.',
+    source: 'lib/README.md, раздел 12',
+  },
 ];
 
 export default nuances;

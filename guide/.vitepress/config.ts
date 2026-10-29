@@ -40,6 +40,7 @@ export default defineConfig({
           { text: '7. Транзакции и деньги', link: '/money/' },
           { text: '8. Арендаторы и права', link: '/access/' },
           { text: '9. Вход', link: '/auth/' },
+          { text: '11. Подписка, кэш, сигналы', link: '/watch/' },
           { text: '12. Агрегаты и проекторы', link: '/derived/' },
         ],
       },
