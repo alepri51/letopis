@@ -38,6 +38,9 @@ const ENV = {
   serviceKey: process.env.SERVICE_KEY ?? 'lts_' + 'c3d4e5f6a7081920'.repeat(2),
   // режим сигналов установки: tenant — подписчики и кэш одной компании не просыпаются от правок другой
   signals: process.env.SIGNALS ?? 'tenant',
+  // демо-почта /mail: коды входа видны всем, кто её открыл, — это обход входа по коду; только для своей машины.
+  // DEMO_MAIL=0 — выключить: коды тогда никуда не уходят (подключите свой почтовый шлюз в mail()).
+  demoMail: process.env.DEMO_MAIL !== '0',
   port: Number(process.env.PORT ?? 8083),
   // по умолчанию только эта машина: у демо известные пароли; в контейнере compose задаёт HOST=0.0.0.0
   host: process.env.HOST ?? '127.0.0.1',
@@ -80,7 +83,8 @@ const ROLE_RU = { manager: 'руководитель', agent: 'агент', clie
 const HOURS = { urgent: 2, high: 8, normal: 24, low: 72 }; // срок ответа по приоритету
 
 // ---------- модель (классы каждой компании) ----------
-const Desk = hub('Desk', { name: z.string(), next: z.number().int() }, { key: ['name'], history: false }); // счётчик номеров
+const Desk = hub('Desk', { name: z.string() }, { key: ['name'] }); // название компании — правит только руководитель
+const Counter = hub('Counter', { name: z.string(), next: z.number().int() }, { key: ['name'], history: false }); // номера заявок
 const Profile = hub('Profile', { account: z.string(), name: z.string(), login: z.string() }, { key: ['account'] });
 const Ticket = hub('Ticket', {
   number: z.string(), subject: z.string().min(3).max(200), body: z.string().max(5000),
@@ -94,7 +98,7 @@ const Reply = hub('Reply', { text: z.string().min(1).max(5000), authorName: z.st
 const Note = hub('Note', { text: z.string().min(1).max(5000), authorName: z.string() }, {
   ends: { Ticket: one(Ticket).onDelete('cascade') },
 });
-const MODELS = [Desk, Profile, Ticket, Reply, Note];
+const MODELS = [Desk, Counter, Profile, Ticket, Reply, Note];
 
 // ---------- правила доступа компании: кто (ACCOUNT) → что (READ/WRITE/DELETE/API) ----------
 const RESOURCES = {
@@ -111,6 +115,7 @@ const RESOURCES = {
   'note:READ': { category: 'READ', pattern: { class: 'Note' } },
   'note:WRITE': { category: 'WRITE', pattern: { class: 'Note' } },
   'ticket:DELETE': { category: 'DELETE', pattern: { class: 'Ticket' } },
+  'desk:WRITE': { category: 'WRITE', pattern: { class: 'Desk' } },
   'acl:WRITE': { category: 'WRITE', pattern: { class: '{rule,Resource,member}' } },
   'acl:DELETE': { category: 'DELETE', pattern: { class: '{rule,Resource,member}' } },
   'desk:API': { category: 'API', pattern: { endpoint: 'desk.*' } },
@@ -127,6 +132,7 @@ const RULES = [
   ['role-client:ACCOUNT', 'note:READ', 'deny', 50],
   ['role-client:ACCOUNT', 'note:WRITE', 'deny', 50],
   ['not-owner:ACCOUNT', 'ticket:DELETE', 'deny', 50],
+  ['not-owner:ACCOUNT', 'desk:WRITE', 'deny', 50],
   ['not-owner:ACCOUNT', 'acl:WRITE', 'deny', 60],
   ['not-owner:ACCOUNT', 'acl:DELETE', 'deny', 60],
   ['role-owner:ACCOUNT', 'desk:API', 'allow', 50],
@@ -165,23 +171,35 @@ export async function createApp() {
   async function setupCompany(db, company, owner) {
     await syncModels(db, MODELS, { apply: true });
     await db.refresh();
-    if (!(await db.Resource({ alias: 'role-client:ACCOUNT' }).count())) {
-      const tr = await db.begin({ reason: 'настройка компании' });
-      try {
-        await tr.Desk().create({ name: company, next: 0 }).rows();
-        const ids = {};
-        for (const [alias, res] of Object.entries(RESOURCES)) [{ id: ids[alias] }] = await tr.Resource().create({ alias, ...res }).rows();
-        for (const [g, o, permission, weight] of RULES) await tr.rule().create({ permission, weight }).Group.set(ids[g]).Object.set(ids[o]).rows();
-        await tr.commit();
-      } catch (e) { await tr.rollback().catch(() => {}); throw e; }
-    }
+    // по шагам и без повторов: недостающее (новое правило, счётчик) дописывается и на уже настроенной компании
+    const tr = await db.begin({ reason: 'настройка компании' });
+    try {
+      if (!(await tr.Desk().first())) await tr.Desk().create({ name: company }).rows();
+      if (!(await tr.Counter({ name: 'tickets' }).first())) {
+        const last = Math.max(0, ...(await tr.Ticket().rows()).map((t) => Number(String(t.data.number).slice(3)) || 0));
+        await tr.Counter().create({ name: 'tickets', next: last }).rows();
+      }
+      const ids = {};
+      for (const [alias, res] of Object.entries(RESOURCES)) {
+        const found = await tr.Resource({ alias }).first();
+        ids[alias] = found ? found.id : (await tr.Resource().create({ alias, ...res }).rows())[0].id;
+      }
+      for (const [g, o, permission, weight] of RULES) {
+        if (!(await tr.rule({ Group: ids[g], Object: ids[o] }).first())) await tr.rule().create({ permission, weight }).Group.set(ids[g]).Object.set(ids[o]).rows();
+      }
+      await tr.commit();
+    } catch (e) { await tr.rollback().catch(() => {}); throw e; }
     await db.Profile().owner(owner.account).upsert({ account: owner.account, name: owner.name, login: owner.login }).rows();
     const integ = await createTenant(admin, r.schema, { name: company, user: { name: 'Интеграции', login: integrationLogin(db.tenant), password: secret(), roles: ['integration'], ttl: '1 minute' } });
     await db.Profile().owner(integ.user).upsert({ account: integ.user, name: 'Интеграции', login: integrationLogin(db.tenant) }).rows();
   }
 
-  /** Человек в компании: createTenant с её именем заводит учётную запись (или находит прежнюю) и членство с ролью. */
+  /**
+   * Человек в компании: createTenant с её именем заводит учётную запись (или находит прежнюю) и членство с ролью.
+   * createTenant находит арендатора по имени — сначала сверяем, что имя ведёт именно к арендатору db.
+   */
   async function addPerson(db, company, { name, login, password, role }) {
+    if (v5Id(SYSTEM_ID, 'Account', ['tenant:' + company]) !== db.tenant) throw new HttpError(409, 'Название компании не совпадает с её арендатором');
     const t = await createTenant(admin, r.schema, { name: company, user: { name, login, password: password ?? secret(), roles: [ROLE_OF[role] ?? role], ttl: '1 minute' } });
     await db.Profile().owner(t.user).upsert({ account: t.user, name, login }).rows();
     return t.user;
@@ -191,9 +209,9 @@ export async function createApp() {
     if (!HOURS[priority]) throw new HttpError(422, 'Неизвестный приоритет');
     const tr = await db.begin({ reason });
     try {
-      const [desk] = await tr.Desk().update({ next: inc(1) }).rows();
-      const number = `HD-${desk.data.next}`;
-      lines.push(`db.begin(); tr.Desk().update({ next: inc(1) }) → номер ${number}`);
+      const [counter] = await tr.Counter({ name: 'tickets' }).update({ next: inc(1) }).rows();
+      const number = `HD-${counter.data.next}`;
+      lines.push(`db.begin(); tr.Counter({ name: 'tickets' }).update({ next: inc(1) }) → номер ${number}`);
       const step = owner ? tr.Ticket().owner(owner) : tr.Ticket();
       const [t] = await step.create({ number, subject, body, priority, status: 'new', due: dueOf(priority, ago), clientName, assignee: '', assigneeName: '', channel }).rows();
       lines.push(`tr.Ticket()${owner ? '.owner(клиент)' : ''}.create({ number: '${number}', priority: '${priority}', … }); commit`);
@@ -227,6 +245,7 @@ export async function createApp() {
   const names = new Map(); // tenant → название компании
   let mailSeq = 0;
   const mail = (to, subject, text) => {
+    if (!ENV.demoMail) return; // настоящий сервис отдал бы письмо почтовому шлюзу
     mailbox.unshift({ id: ++mailSeq, at: new Date().toISOString().slice(11, 19), to, subject, text });
     mailbox.length = Math.min(mailbox.length, 50);
   };
@@ -429,7 +448,7 @@ export async function createApp() {
     res.json(await openSession(res, p.login, await open({ token: p.result.token }), p.result.account));
   }));
 
-  app.get('/api/mailbox', (_req, res) => res.json(mailbox));
+  app.get('/api/mailbox', (_req, res) => (ENV.demoMail ? res.json(mailbox) : res.status(404).json({ error: 'Демо-почта выключена (DEMO_MAIL=0)' })));
   app.get('/logout', async (req, res) => {
     const s = sessions.get(sidOf(req));
     if (s) { await s.db.auth.revoke().catch(() => {}); await closeSession(sidOf(req)); }
@@ -580,6 +599,8 @@ export async function createApp() {
     const s = req.s, company = await companyName(s, s.tenant);
     const name = String(req.body?.name ?? '').trim(), login = String(req.body?.login ?? '').trim().toLowerCase(), role = String(req.body?.role ?? 'client');
     if (!name || !/^[^@\s]+@[^@\s]+$/.test(login) || !ROLE_OF[role]) throw new HttpError(422, 'Нужны имя, email и роль');
+    // чужую учётную запись в компанию без её согласия не добавляем: приглашение — только для новых адресов
+    if ((await svc.auth.credentials(accountOf(login)).catch(() => [])).length) throw new HttpError(409, 'У этого email уже есть учётная запись — без её согласия в компанию не добавить');
     await act(s, `Приглашение: ${name}`, async (lines) => {
       await addPerson(s.db, company, { name, login, role });
       lines.push(`createTenant(admin, schema, { name: '${company}', user: { login: '${login}', roles: ['${ROLE_OF[role]}'] } }) — учётная запись и членство`);
@@ -611,6 +632,10 @@ export async function createApp() {
   app.post('/api/team/:account/revoke', auth, guard('desk.team'), route(async (req, res) => {
     const s = req.s, account = req.params.account;
     await member(s, account);
+    // revokeAll гасит сессии во всех компаниях человека — разрешаем, только если других компаний у него нет
+    const own = await svc.as(account);
+    const elsewhere = (await own.member({ User: account }).rows()).some((m) => m.tenant !== s.tenant);
+    if (elsewhere) throw new HttpError(409, 'Этот человек работает и в других компаниях: revokeAll погасил бы его сессии там. Удалите его из компании — доступ сюда закроется сразу');
     const n = await act(s, 'Завершить сеансы', async (lines) => {
       const k = await svc.auth.revokeAll(account);
       lines.push(`svc.auth.revokeAll(учётная запись) — погашено сессий: ${k} (во всех компаниях этого человека)`);
@@ -812,5 +837,8 @@ export async function createApp() {
 
 if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, '/').replace(/^(?=[A-Za-z]:)/, '/')}`) {
   const { app, schema } = await createApp();
-  app.listen(ENV.port, ENV.host, () => console.log(`helpdesk: http://127.0.0.1:${ENV.port}/ (схема ${schema})`));
+  app.listen(ENV.port, ENV.host, () => {
+    console.log(`helpdesk: http://127.0.0.1:${ENV.port}/ (схема ${schema})`);
+    if (ENV.demoMail) console.warn('helpdesk: демо-почта /mail включена — коды входа видны всем, кто её открыл; только для своей машины (DEMO_MAIL=0 — выключить)');
+  });
 }

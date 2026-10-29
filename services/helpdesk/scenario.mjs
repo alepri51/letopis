@@ -128,6 +128,9 @@ try {
   check(noRev.isError === true, 'MCP: правка без версии rev — отказ');
   const w = await mcp.callTool({ name: 'letopis_write', arguments: { op: 'update', class: 'Ticket', id: row.id, data: { status: 'solved' }, rev: row.rev } });
   check(!w.isError && (await call(agent, `/api/tickets/${t.id}`)).data.ticket.status === 'solved', 'MCP: правка с версией rev — заявка решена');
+  const desk = (await mcp.callTool({ name: 'letopis_query', arguments: { class: 'Desk' } })).structuredContent?.data?.rows?.[0];
+  const rename = await mcp.callTool({ name: 'letopis_write', arguments: { op: 'update', class: 'Desk', id: desk?.id, data: { name: 'Байкал' }, rev: desk?.rev } });
+  check(rename.isError === true && /acl_denied/.test(JSON.stringify(rename.structuredContent ?? rename.content)), 'MCP: агент не может переименовать компанию — название правит только руководитель');
   await mcp.close();
 
   // 6. две компании: агент переключается в «Байкал» (auth.switch) — заявок «Севера» там нет
@@ -141,6 +144,9 @@ try {
   // 7. руководитель: приглашение, работа от имени, завершение сеансов, удаление из компании
   const login = `guest-${run}@sever.ru`;
   check((await call(boss.cookie, '/api/team/invite', { name: 'Гость', login, role: 'client' })).status === 200, 'руководитель пригласил клиента');
+  check((await call(boss.cookie, '/api/team/invite', { name: 'Чужой', login: DEMO.agent.login, role: 'client' })).status === 409, 'существующую учётную запись без её согласия не пригласить — 409');
+  const ag = (await call(boss.cookie, '/api/team')).data.find((m) => m.login === DEMO.agent.login);
+  check((await call(boss.cookie, `/api/team/${ag.account}/revoke`, {})).status === 409, 'сеансы агента из двух компаний не завершить отсюда — 409');
   check(/Приглашение/.test((await mailTo(login))?.subject ?? ''), 'приглашение пришло в демо-почту');
   const guest = await otpLogin(login);
   check(guest.status === 200 && guest.data?.role === 'client' && guest.data?.company === 'Север', 'приглашённый вошёл по коду из письма');
