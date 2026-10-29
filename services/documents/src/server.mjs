@@ -331,10 +331,10 @@ export async function createApp() {
   let damaged = null; // запись журнала, испорченная кнопкой, — чтобы вернуть байт в байт
   app.post('/api/admin/corrupt', auth, route(async (req, res) => {
     if (damaged) throw new HttpError(409, 'Одна запись уже испорчена — сначала верните её');
-    const [row] = await admin.unsafe(`select id, rev, data from ${quote(r.schema)}.log where class = 'Contract' and rev = 2 and data->>'archived' = 'true' order by data->>'number' limit 1`);
-    if (!row) throw new HttpError(404, 'Нет архивной версии для порчи');
+    const [row] = await admin.unsafe(`select l.id, l.rev, l.data from ${quote(r.schema)}.log l where l.tenant = $1 and l.class in ('Contract', 'Draft') and l.op = 'update' and exists (select 1 from ${quote(r.schema)}.log n where n.id = l.id and n.rev > l.rev) order by l.seq limit 1`, [t.tenant]);
+    if (!row) throw new HttpError(404, 'Нет промежуточной версии для порчи — измените документ ещё раз');
     await act(req.s, 'Порча записи журнала', async (lines) => {
-      lines.push(`update log set data = jsonb_set(data, '{amount}', '1') where id = … and rev = 2 — в обход библиотеки, от суперпользователя`);
+      lines.push(`update log set data = jsonb_set(data, '{amount}', '1') where id = … and rev = ${row.rev} — в обход библиотеки, от суперпользователя`);
       await admin.unsafe(`update ${quote(r.schema)}.log set data = jsonb_set(data, '{amount}', '1') where id = $1 and rev = $2`, [row.id, row.rev]);
     });
     damaged = row;
