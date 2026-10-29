@@ -4,10 +4,10 @@ import { syncShop } from '../../kit/shop.ts';
 let shop: { id: string }, tea: { id: string }, green: { id: string }, sencha: { id: string };
 
 export default example({
-  title: 'Ссылки: из пути цепочки и слотами',
+  title: 'Ссылки: из пути цепочки и вызовами .Роль.set(), .add(), .remove()',
   summary:
-    'Ссылки создаваемой строки берутся из пути цепочки. Явно ссылку задаёт слот после глагола: .Роль.set() и ' +
-    '.Роль.unset(), у списка — .add() и .remove(). Слоты меняют ссылки атомарно, без чтения списка.',
+    'Ссылки создаваемой строки берутся из пути цепочки. Явно ссылку задаёт слот — обращение к роли после глагола: ' +
+    '.Роль.set() и .Роль.unset(), у списка — .add() и .remove(). Слоты меняют ссылки атомарно, без чтения списка.',
   covers: ['nuance.links-from-path', 'nuance.slots-atomic'],
   steps: [
     {
