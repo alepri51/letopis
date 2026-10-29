@@ -217,6 +217,11 @@ const nuances: Nuance[] = [
     text: 'commit_unknown библиотека не повторяет: исход выясняют повтором той же операции с тем же ключом (exists — уже записано).',
     source: 'lib/README.md, раздел 8',
   },
+  {
+    id: 'start-from-zero',
+    text: 'С нуля: up() → роль приложения → createTenant → connect по ключу и вход → syncModels → данные.',
+    source: 'guide/start/start.mjs',
+  },
 ];
 
 export default nuances;

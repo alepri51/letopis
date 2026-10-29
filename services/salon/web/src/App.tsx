@@ -10,6 +10,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+// блоки shadcnblocks: вход, навигация, показатели
+import { Login1, LOGO } from '@/components/login1';
+import { Navbar1 } from '@/components/navbar1';
+import { Stats8 } from '@/components/stats8';
 
 type Staff = { id: string; name: string; specialization: string };
 type Booking = { id: string; staff: string; hour: number; customer: string; service: string };
@@ -34,36 +38,20 @@ export default function App() {
 }
 
 function Login({ onLogin }: { onLogin: (me: { salon: string; name: string }) => void }) {
-  const [login, setLogin] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try { onLogin(await api('/api/login', { login, password })); } catch (err) { setError((err as Error).message); }
-  };
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>Салон записи</CardTitle>
-          <CardDescription>Демо: admin@lokony.ru / Lokony-2026! · admin@lastochka.ru / Lastochka-2026!</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={submit} className="grid gap-4">
-            <div className="grid gap-2"><Label htmlFor="login">Логин</Label>
-              <Input id="login" type="email" autoComplete="username" value={login} onChange={(e) => setLogin(e.target.value)} required /></div>
-            <div className="grid gap-2"><Label htmlFor="password">Пароль</Label>
-              <Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
-            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-            <Button type="submit">Войти</Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+    <Login1
+      heading="Салон записи"
+      hint="Демо: admin@lokony.ru / Lokony-2026! · admin@lastochka.ru / Lastochka-2026!"
+      error={error}
+      onSubmit={async (login, password) => {
+        try { onLogin(await api('/api/login', { login, password })); } catch (err) { setError((err as Error).message); }
+      }}
+    />
   );
 }
 
-function Salon({ me, onLogout }: { me: { salon: string; name: string }; onLogout: () => void }) {
+function Salon({ me }: { me: { salon: string; name: string }; onLogout?: () => void }) {
   const [day] = useState(today());
   const [data, setData] = useState<Schedule | null>(null);
   const [trace, setTrace] = useState<Trace[]>([]);
@@ -96,12 +84,27 @@ function Salon({ me, onLogout }: { me: { salon: string; name: string }; onLogout
 
   return (
     <div className="min-h-screen bg-muted/40 p-6">
-      <header className="mb-6 flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold">Салон «{me.salon}»</h1>
-        <span className="text-muted-foreground">{me.name}</span>
-        <Badge variant={live ? 'default' : 'secondary'} id="live">{live ? 'живое обновление включено' : 'подключается…'}</Badge>
-        <Button variant="outline" size="sm" className="ml-auto" onClick={async () => { await api('/api/logout', {}); onLogout(); }}>Выйти</Button>
-      </header>
+      <Navbar1
+        className="mb-4 rounded-xl border bg-background px-4 py-3"
+        logo={{ url: '/', src: LOGO, alt: 'letopis', title: `Салон «${me.salon}» · ${me.name}` }}
+        menu={[
+          { title: 'Расписание', url: '/' },
+          { title: live ? 'Живое обновление включено' : 'Подключается…', url: '/' },
+        ]}
+        auth={{ login: { title: 'Документация', url: 'http://127.0.0.1:8080/services/salon' }, signup: { title: 'Выйти', url: '/logout' } }}
+      />
+      <Stats8
+        className="mb-6 py-6"
+        heading={`Сегодня в салоне «${me.salon}»`}
+        description="Цифры считает letopis по броням дня; меняются сами, когда кто-то записывает или отменяет."
+        link={{ text: 'Как устроен сервис', url: 'http://127.0.0.1:8080/services/salon' }}
+        stats={[
+          { id: 'total', value: String(data.total), label: 'броней за день' },
+          { id: 'cancelled', value: String(data.cancelled.length), label: 'отменено' },
+          { id: 'staff', value: String(data.staff.length), label: 'мастеров' },
+          { id: 'services', value: String(data.services.length), label: 'услуг в каталоге' },
+        ]}
+      />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(320px,1.3fr)]">
         <Card>
           <CardHeader>

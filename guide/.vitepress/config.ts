@@ -30,6 +30,7 @@ export default defineConfig({
       {
         text: 'Основы',
         items: [
+          { text: 'Старт с нуля', link: '/start/' },
           { text: '1. Что такое letopis', link: '/basics/what-is' },
           { text: '2. Установка и подключение', link: '/install/' },
           { text: '3. Модели', link: '/models/' },

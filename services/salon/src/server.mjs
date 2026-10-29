@@ -108,6 +108,12 @@ export async function createApp() {
     res.setHeader('Set-Cookie', 'sid=; Max-Age=0; Path=/');
     res.json({ ok: true });
   });
+  app.get('/logout', (req, res) => {
+    const sid = /(?:^|;\s*)sid=([a-f0-9]+)/.exec(req.headers.cookie ?? '')?.[1];
+    if (sid) sessions.delete(sid);
+    res.setHeader('Set-Cookie', 'sid=; Max-Age=0; Path=/');
+    res.redirect('/');
+  });
   const auth = (req, res, next) => {
     const s = sessionOf(req);
     if (!s) return res.status(401).json({ error: 'нужен вход' });
