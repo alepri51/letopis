@@ -1217,7 +1217,8 @@ begin
   select n.id, n.rev, n.class, n.cv, n.tenant, n.owner, n.links, n.data, n.tags, n.at, n.author, n.agent, n.op, n.reason, n.moved, n.prev_hash
   from added n
   join (select k.class, k.tenant from (select distinct a.class, a.tenant from added a) k
-        where @SCHEMA@.history_on(k.class, k.tenant)) h on h.class = n.class and h.tenant = n.tenant;
+        where @SCHEMA@.history_on(k.class, k.tenant)) h on h.class = n.class and h.tenant = n.tenant
+  order by n.at, n.id;  -- порядок seq — порядок входа, а не плана соединения
   -- сигнал — по паре «класс, арендатор»
   select array_agg(k.class), array_agg(k.tenant) into sc, st from (select distinct a.class, a.tenant from added a) k;
   perform @SCHEMA@.signal(sc, st);
@@ -1273,7 +1274,8 @@ begin
   from new_rows n
   join old_rows o on o.id = n.id and o.rev <> n.rev
   join (select k.class, k.tenant from (select distinct a.class, a.tenant from new_rows a) k
-        where @SCHEMA@.history_on(k.class, k.tenant)) h on h.class = n.class and h.tenant = n.tenant;
+        where @SCHEMA@.history_on(k.class, k.tenant)) h on h.class = n.class and h.tenant = n.tenant
+  order by n.id;  -- порядок seq не зависит от плана: правка многих строк пишет версии в порядке id
   -- сигнал — по парам нового и прежнего класса: при смене класса без ключа ответы прежнего класса в
   -- кэше других процессов устарели бы (в 1.0.1 сигнал шёл только по новому)
   select array_agg(k.class), array_agg(k.tenant) into sc, st
@@ -1609,7 +1611,7 @@ begin
   end loop;
   -- выход из членства (и удаление аккаунта, которое снимает его членства): строки арендатора, которыми
   -- владел участник, переходят арендатору (§2.10) — новой версией
-  for r in select distinct (m->>'tenant')::uuid as tenant, (m->>'user')::uuid as usr from jsonb_array_elements(mems) m loop
+  for r in select distinct (m->>'tenant')::uuid as tenant, (m->>'user')::uuid as usr from jsonb_array_elements(mems) m order by 1, 2 loop
     perform @SCHEMA@.owner_to_tenant(r.tenant, r.usr);
   end loop;
   -- удалённый аккаунт: сессии гаснут, креды удаляются (идентификаторы освобождаются)

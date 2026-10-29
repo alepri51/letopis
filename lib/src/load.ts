@@ -992,7 +992,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
           lg as (
             insert into ${S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
             select id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash from up
-            where ${S}.history_on(up.class, up.tenant))
+            where ${S}.history_on(up.class, up.tenant) order by up.id)
         select up.id, up.class from up`, [updates.map((u) => ({ id: u.id, data: u.data, links: u.links, tags: u.tags })), ts, author, agent]);
       report.updated += res.length;
       report.skipped += updates.length - res.length;

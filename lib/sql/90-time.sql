@@ -687,7 +687,7 @@ begin
     perform @SCHEMA@.tombstone(m);
     n_mem := n_mem + 1;
   end loop;
-  for t in select distinct x.tenant from @SCHEMA@.entity x where x.owner = p_account and x.owner <> x.tenant loop
+  for t in select distinct x.tenant from @SCHEMA@.entity x where x.owner = p_account and x.owner <> x.tenant order by x.tenant loop
     n_own := n_own + @SCHEMA@.owner_to_tenant(t.tenant, p_account);
   end loop;
   select coalesce(jsonb_agg(jsonb_build_object('id', x.id, 'class', x.class, 'tenant', x.tenant)), '[]'::jsonb) into blockers

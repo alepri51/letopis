@@ -488,7 +488,10 @@ async function explainMissing(w: WriteCtx, missing: string[], rev?: number): Pro
 async function targetIds(w: WriteCtx, steps: Step[], opStep: Step, dataId?: string): Promise<string[]> {
   const path = steps.map(bare);
   if (opStep.filter === undefined && dataId !== undefined) path[path.length - 1] = { ...path[path.length - 1], filter: dataId };
-  return readIds(w, path, opStep.opMods ?? {});
+  const ids = await readIds(w, path, opStep.opMods ?? {});
+  // без явного порядка — по id: глаголы по списку целей (reclass, rekey и др.) пишут журнал по очереди, и порядок
+  // записей не должен зависеть от плана чтения
+  return opStep.opMods?.order ? ids : [...ids].sort();
 }
 
 async function updateOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {
@@ -598,7 +601,8 @@ async function deletedTargets(w: WriteCtx, steps: Step[], opStep: Step, verb: st
   const rows = await readRows(w, steps.map(bare), { ...(opStep.opMods ?? {}), withDeleted: true });
   const dead = rows.filter((r) => r.$deleted);
   if (!dead.length && rows.length) fail('not_deleted', `объект не удалён: ${verb}() — только для удалённых${verb === 'purge' ? ', сначала delete()' : ''}`, { ids: rows.map((r) => r.id) });
-  return dead;
+  // без явного порядка — по id: restore и purge пишут журнал по очереди целей
+  return opStep.opMods?.order ? dead : [...dead].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
 /** Восстановление (этап 6, п. 2): последний снимок новой версией; база перепроверяет его по текущему описанию. */

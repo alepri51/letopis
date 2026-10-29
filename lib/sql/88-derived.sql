@@ -272,6 +272,7 @@ begin
     from g
     join (select d.class, d.tenant from (select distinct y.class, y.tenant from g y) d
           where @SCHEMA@.history_on(d.class, d.tenant)) h on h.class = g.class and h.tenant = g.tenant
+    order by g.id  -- надгробия в порядке id, как в trg_entity_ad
   )
   select count(*)::int, coalesce(array_agg(distinct g.class || ' ' || g.tenant::text), '{}') into n, pairs from g;
   if n > 0 then
