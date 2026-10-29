@@ -78,10 +78,10 @@ sequenceDiagram
   participant S as Сервис
   participant DB as PostgreSQL (letopis)
   U->>S: «Подписать» Д-777
-  S->>DB: Draft(id).reclass('Contract', { …, signedBy })
-  DB-->>S: договор — новый id, moved = id черновика; черновик — надгробие
+  S->>DB: Draft(id).reclass('Contract', данные, signedBy)
+  DB-->>S: договор — новый id, moved = id черновика, черновик — надгробие
   U->>S: «Сменить номер» → Д-2026-777
-  S->>DB: Contract(id).rekey({ number })
+  S->>DB: Contract(id).rekey(number)
   DB-->>S: новый id, ссылки переведены, прежний — надгробие
   U->>S: «История»
   S->>DB: Doc(id).versions({ follow: true })
