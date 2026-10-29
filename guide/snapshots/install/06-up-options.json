@@ -1,0 +1,141 @@
+{
+  "id": "install/06-up-options",
+  "title": "Опции up(): свой пул, роли, миграции, первый арендатор, режим сигналов none",
+  "summary": "up() может работать через готовый пул postgres.js (sql), с другими именами ролей (owner, app), своим каталогом миграций (migrationsDir) и сразу завести первого арендатора (tenant). Режим сигналов none — для пулов в режиме транзакций (PgBouncer): база не шлёт NOTIFY, кэш — только по сроку.",
+  "covers": [
+    "up.sql",
+    "up.tenant",
+    "up.owner",
+    "up.app",
+    "up.migrationsDir",
+    "signals.none",
+    "model.End",
+    "model.normalizeSchema",
+    "model.translatePattern"
+  ],
+  "tables": [
+    "counts"
+  ],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": {
+      "entity": {},
+      "log": {},
+      "secret": {}
+    }
+  },
+  "steps": [
+    {
+      "title": "Установка через готовый пул, с ролями по умолчанию и первым арендатором",
+      "text": null,
+      "code": "const r = await up({\n  sql: admin as never, schema, fresh: true, quiet: true, owner: 'letopis_owner', app: 'letopis_app', migrationsDir: MIGRATIONS,\n  signals: 'none', tenant: { name: 'Ромашка', user: { name: 'Анна', login: 'anna@romashka.ru', password: 'Ромашка-2026!' } },\n});\nreturn { created: r.created, revision: r.revision, 'арендатор создан': r.tenant!.created, signals: (r as { signals?: string }).signals ?? 'none' };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  sql: admin </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> never</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, schema, fresh: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, owner: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'letopis_owner'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, app: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'letopis_app'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, migrationsDir: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">MIGRATIONS</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  signals: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'none'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, tenant: { name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, user: { name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Анна'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, login: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'anna@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка-2026!'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">});</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { created: r.created, revision: r.revision, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'арендатор создан'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: r.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.created, signals: (r </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">signals</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">?:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).signals </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">??</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'none'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> };</span></span></code></pre>",
+      "result": {
+        "created": true,
+        "revision": 6,
+        "арендатор создан": true,
+        "signals": "none"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 5,
+          "member": 1,
+          "Resource": 12,
+          "rule": 11
+        },
+        "log": {
+          "create": 33
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 1
+        }
+      }
+    },
+    {
+      "title": "Режим none: подключение не слушает сигналы, кэш выключен",
+      "text": null,
+      "code": "const r = await up({ dsn: dsn.admin, schema, quiet: true, tenant: { name: 'Ромашка', user: { name: 'Анна', login: 'anna@romashka.ru', password: 'Ромашка-2026!' } } });\nconst db = await connect({ dsn: dsn.app, schema, token: r.tenant!.token! });\nreturn { 'кэш включён': db.cache.stats().enabled, 'слушателей': db.cache.stats().listens };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, tenant: { name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, user: { name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Анна'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, login: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'anna@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка-2026!'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } } });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> db</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.app, schema, token: r.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'кэш включён'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: db.cache.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">stats</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().enabled, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'слушателей'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: db.cache.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">stats</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().listens };</span></span></code></pre>",
+      "result": {
+        "кэш включён": false,
+        "слушателей": 0
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 5,
+          "member": 1,
+          "Resource": 12,
+          "rule": 11
+        },
+        "log": {
+          "create": 33
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 2
+        }
+      }
+    },
+    {
+      "title": "Помощники схемы из letopis/model",
+      "text": "`one(…)` и `many(…)` — концы (`End`); `normalizeSchema` приводит JSON Schema к виду, который понимает база; `translatePattern` переводит регулярное выражение в синтаксис jsonpath.",
+      "code": "const Shop = hub('Shop', { name: z.string() }, { key: ['name'] });\nreturn {\n  'one(Shop) — End': one(Shop) instanceof End,\n  'normalizeSchema': normalizeSchema({ type: 'object', properties: { n: { type: 'integer', minimum: 1 } } }),\n  'translatePattern': translatePattern('^\\\\d{3}$'),\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> Shop</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> hub</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Shop'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { name: z.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() }, { key: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'name'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'one(Shop) — End'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">one</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(Shop) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">instanceof</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> End</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'normalizeSchema'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">normalizeSchema</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ type: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'object'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, properties: { n: { type: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'integer'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, minimum: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } } }),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'translatePattern'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">translatePattern</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'^</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">\\\\</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">d{3}$'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "one(Shop) — End": true,
+        "normalizeSchema": {
+          "type": "object",
+          "properties": {
+            "n": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "translatePattern": "^[0-9]{3}$"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 5,
+          "member": 1,
+          "Resource": 12,
+          "rule": 11
+        },
+        "log": {
+          "create": 33
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 2
+        }
+      }
+    }
+  ]
+}
