@@ -338,6 +338,11 @@ const nuances: Nuance[] = [
     source: 'lib/sql/60-write.sql; пример errors/02',
   },
   {
+    id: 'chain-not-thenable',
+    text: 'Цепочка не thenable: await db.Класс(…) отдаёт саму цепочку и ничего не читает — запрос делает окончание (rows, first, count…).',
+    source: 'lib/src/chain.ts (then → undefined); пример write/06',
+  },
+  {
     id: 'service-enforces-2fa',
     text: 'letopis не навязывает второй фактор: verifyPassword без totp даёт сессию и при включённом TOTP — требовать код должен сервис (totpEnabled).',
     source: 'lib/src/auth.ts:verifyPassword; сервис helpdesk',
