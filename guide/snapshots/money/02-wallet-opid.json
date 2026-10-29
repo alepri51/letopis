@@ -1,0 +1,893 @@
+{
+  "id": "money/02-wallet-opid",
+  "title": "Деньги без двойного списания: ключ операции и inc",
+  "summary": "Операция записывается с ключом [кошелёк, opId], баланс меняется приращением inc — всё одной транзакцией. Повтор операции после сбоя сети (тот же opId) база отклоняет как exists, и деньги не спишутся дважды.",
+  "covers": [
+    "nuance.opid-idempotency",
+    "nuance.commit-unknown-retry",
+    "export.LetopisError"
+  ],
+  "tables": [
+    "entity",
+    "log"
+  ],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": null
+  },
+  "steps": [
+    {
+      "title": "Кошелёк",
+      "text": null,
+      "code": "await syncModels(db, [Wallet, Movement], { apply: true });\n[wallet] = await db.Wallet().create({ number: 'W-1' }).rows();\nreturn wallet;",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, [Wallet, Movement], { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[wallet] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Wallet</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'W-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> wallet;</span></span></code></pre>",
+      "result": {
+        "at": "t1",
+        "id": "Wallet «W-1»",
+        "op": "create",
+        "rev": 1,
+        "data": {
+          "number": "W-1",
+          "balance": 0
+        },
+        "tags": [],
+        "class": "Wallet",
+        "links": {},
+        "owner": "Ромашка",
+        "author": "Анна",
+        "tenant": "Ромашка",
+        "agent": "service"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Wallet «W-1»",
+          "class": "Wallet",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 0
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": [
+            "*"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "36",
+          "id": "Wallet «W-1»",
+          "rev": 1,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 0
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Пополнение на 1000",
+      "text": "Операция `op-1` и баланс 0 → 1000 — в одной транзакции.",
+      "code": "apply(db, 'op-1', 'topup', 1000)",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'topup'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)</span></span></code></pre>",
+      "result": "проведено",
+      "error": null,
+      "entity": [
+        {
+          "id": "Wallet «W-1»",
+          "class": "Wallet",
+          "rev": 2,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 1000
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t3",
+          "$changed": [
+            "rev",
+            "data.balance",
+            "op",
+            "reason",
+            "at"
+          ]
+        },
+        {
+          "id": "Movement·1",
+          "class": "Movement",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "topup",
+            "opId": "op-1",
+            "amount": 1000
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$changed": [
+            "*"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "36",
+          "id": "Wallet «W-1»",
+          "rev": 1,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 0
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "37",
+          "id": "Movement·1",
+          "rev": 1,
+          "class": "Movement",
+          "tenant": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "topup",
+            "opId": "op-1",
+            "amount": 1000
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$new": true
+        },
+        {
+          "seq": "38",
+          "id": "Wallet «W-1»",
+          "rev": 2,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 1000
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t3",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Ответ потерялся — повтор той же операции",
+      "text": "Клиент не получил ответ и прислал `op-1` снова. Операция с таким ключом уже есть — база отвечает `exists`, транзакция откатывается, баланс остался 1000. Так же выясняют исход после `commit_unknown` (обрыв во время COMMIT): повтор той же операции — `exists` значит «уже записано».",
+      "code": "apply(db, 'op-1', 'topup', 1000)",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'topup'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)</span></span></code></pre>",
+      "result": "уже было",
+      "error": null,
+      "entity": [
+        {
+          "id": "Wallet «W-1»",
+          "class": "Wallet",
+          "rev": 2,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 1000
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t3",
+          "$changed": []
+        },
+        {
+          "id": "Movement·1",
+          "class": "Movement",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "topup",
+            "opId": "op-1",
+            "amount": 1000
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "36",
+          "id": "Wallet «W-1»",
+          "rev": 1,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 0
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "37",
+          "id": "Movement·1",
+          "rev": 1,
+          "class": "Movement",
+          "tenant": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "topup",
+            "opId": "op-1",
+            "amount": 1000
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "38",
+          "id": "Wallet «W-1»",
+          "rev": 2,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 1000
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t3",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Списание 300",
+      "text": null,
+      "code": "apply(db, 'op-2', 'debit', 300)",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'debit'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">300</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)</span></span></code></pre>",
+      "result": "проведено",
+      "error": null,
+      "entity": [
+        {
+          "id": "Wallet «W-1»",
+          "class": "Wallet",
+          "rev": 3,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 700
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "debit op-2",
+          "at": "t5",
+          "$changed": [
+            "rev",
+            "data.balance",
+            "reason",
+            "at"
+          ]
+        },
+        {
+          "id": "Movement·1",
+          "class": "Movement",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "topup",
+            "opId": "op-1",
+            "amount": 1000
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Movement·2",
+          "class": "Movement",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "debit",
+            "opId": "op-2",
+            "amount": 300
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "debit op-2",
+          "at": "t4",
+          "$changed": [
+            "*"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "36",
+          "id": "Wallet «W-1»",
+          "rev": 1,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 0
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "37",
+          "id": "Movement·1",
+          "rev": 1,
+          "class": "Movement",
+          "tenant": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "topup",
+            "opId": "op-1",
+            "amount": 1000
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "38",
+          "id": "Wallet «W-1»",
+          "rev": 2,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 1000
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "39",
+          "id": "Movement·2",
+          "rev": 1,
+          "class": "Movement",
+          "tenant": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "debit",
+            "opId": "op-2",
+            "amount": 300
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "debit op-2",
+          "at": "t4",
+          "$new": true
+        },
+        {
+          "seq": "40",
+          "id": "Wallet «W-1»",
+          "rev": 3,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 700
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "debit op-2",
+          "at": "t5",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Списать больше, чем есть, — нельзя",
+      "text": "Баланс 700, списываем 5000: правило `min(0)` проверяется над итогом приращения — `invalid_data`, ничего не записано.",
+      "code": "apply(db, 'op-3', 'debit', 5000)",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-3'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'debit'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">5000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)</span></span></code></pre>",
+      "result": null,
+      "error": {
+        "code": "invalid_data",
+        "message": "letopis: invalid_data: данные не проходят описание класса Wallet",
+        "detail": [
+          {
+            "path": [
+              "balance"
+            ],
+            "keyword": "minimum",
+            "message": "нарушено правило minimum"
+          }
+        ],
+        "expected": true
+      },
+      "entity": [
+        {
+          "id": "Wallet «W-1»",
+          "class": "Wallet",
+          "rev": 3,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 700
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "debit op-2",
+          "at": "t5",
+          "$changed": []
+        },
+        {
+          "id": "Movement·1",
+          "class": "Movement",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "topup",
+            "opId": "op-1",
+            "amount": 1000
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Movement·2",
+          "class": "Movement",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "debit",
+            "opId": "op-2",
+            "amount": 300
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "debit op-2",
+          "at": "t4",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "36",
+          "id": "Wallet «W-1»",
+          "rev": 1,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 0
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "37",
+          "id": "Movement·1",
+          "rev": 1,
+          "class": "Movement",
+          "tenant": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "topup",
+            "opId": "op-1",
+            "amount": 1000
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "38",
+          "id": "Wallet «W-1»",
+          "rev": 2,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 1000
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "39",
+          "id": "Movement·2",
+          "rev": 1,
+          "class": "Movement",
+          "tenant": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "debit",
+            "opId": "op-2",
+            "amount": 300
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "debit op-2",
+          "at": "t4",
+          "$new": false
+        },
+        {
+          "seq": "40",
+          "id": "Wallet «W-1»",
+          "rev": 3,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 700
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "debit op-2",
+          "at": "t5",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "Итог",
+      "text": null,
+      "code": "({ баланс: (await db.Wallet(wallet).first())?.data.balance, операций: await db.Wallet(wallet).Movement().count() })",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ баланс: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Wallet</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(wallet).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())?.data.balance, операций: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Wallet</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(wallet).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Movement</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() })</span></span></code></pre>",
+      "result": {
+        "баланс": 700,
+        "операций": 2
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Wallet «W-1»",
+          "class": "Wallet",
+          "rev": 3,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 700
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "debit op-2",
+          "at": "t5",
+          "$changed": []
+        },
+        {
+          "id": "Movement·1",
+          "class": "Movement",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "topup",
+            "opId": "op-1",
+            "amount": 1000
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Movement·2",
+          "class": "Movement",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "debit",
+            "opId": "op-2",
+            "amount": 300
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "debit op-2",
+          "at": "t4",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "36",
+          "id": "Wallet «W-1»",
+          "rev": 1,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 0
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "37",
+          "id": "Movement·1",
+          "rev": 1,
+          "class": "Movement",
+          "tenant": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "topup",
+            "opId": "op-1",
+            "amount": 1000
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "38",
+          "id": "Wallet «W-1»",
+          "rev": 2,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 1000
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "39",
+          "id": "Movement·2",
+          "rev": 1,
+          "class": "Movement",
+          "tenant": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "debit",
+            "opId": "op-2",
+            "amount": 300
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "debit op-2",
+          "at": "t4",
+          "$new": false
+        },
+        {
+          "seq": "40",
+          "id": "Wallet «W-1»",
+          "rev": 3,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 700
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "debit op-2",
+          "at": "t5",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null
+    }
+  ]
+}

@@ -202,6 +202,21 @@ const nuances: Nuance[] = [
     text: 'purge стирает версии удалённого объекта, на месте версии 1 остаётся запись purge с числом стёртых версий.',
     source: 'lib/README.md, раздел 7',
   },
+  {
+    id: 'tx-all-or-nothing',
+    text: 'db.begin(): записи фиксируются вместе commit(); ошибка — rollback(), не записано ничего.',
+    source: 'lib/README.md, раздел 8',
+  },
+  {
+    id: 'opid-idempotency',
+    text: 'Ключ операции [кошелёк, opId] защищает от повтора: повтор той же операции — exists, деньги не спишутся дважды.',
+    source: 'lib/README.md, раздел 8',
+  },
+  {
+    id: 'commit-unknown-retry',
+    text: 'commit_unknown библиотека не повторяет: исход выясняют повтором той же операции с тем же ключом (exists — уже записано).',
+    source: 'lib/README.md, раздел 8',
+  },
 ];
 
 export default nuances;
