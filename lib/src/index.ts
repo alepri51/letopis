@@ -26,7 +26,7 @@ import { Projector, type ProjectorOptions } from './project.js';
 import { SIGNAL_MODES, Signals, bucket, throttle, type Signal, type SignalMode } from './signals.js';
 import {
   describe as describeModel, maintain as runMaintain, rebuildAggregates as runRebuildAggregates, rekeyClass as runRekeyClass,
-  reset as runReset, scheduleMaintain, trimHistory as runTrim, verify as runVerify, type AdminCtx, type MaintainOptions, type MaintainReport, type ModelDescription,
+  reset as runReset, MAINTAIN_STOP, parseInterval, scheduleMaintain, trimHistory as runTrim, verify as runVerify, type AdminCtx, type MaintainOptions, type MaintainReport, type ModelDescription,
   type ResetOptions, type ResetResult, type VerifyResult,
 } from './admin.js';
 import type { AnyModelLike, StepsOf } from './typed.js';
@@ -107,7 +107,11 @@ export interface ConnectOptions {
   listen?: boolean;
   /** Кэш результатов (§2.12): срок по умолчанию, размер, ttlOnly; false — выключен. */
   cache?: CacheOptions | false;
-  /** Запускать maintain() по расписанию ('1h', '15m', мс) под блокировкой обслуживания: работает один процесс. */
+  /**
+   * Запускать maintain() по расписанию ('1h', '15m', мс) под блокировкой обслуживания: работает один процесс. Интервал —
+   * от 1 мс до 2³¹−1 мс (около 24 суток), иначе connect() отказывает invalid_data, не открывая соединений; close() ждёт
+   * идущий запуск (он доделывает текущую пачку).
+   */
   maintain?: string | number;
 }
 
@@ -158,7 +162,7 @@ export interface DbCore {
   rekeyClass(cls: string, key: string[]): Promise<number>;
   /** Машинное описание модели с метаданными классов (describeText — то же текстом, llms.txt). */
   describe(): ModelDescription;
-  /** Подписка по курсору: for await (const ev of db.watch({ from })) …; ev.cursor — откуда продолжить. */
+  /** Подписка по курсору: for await (const ev of db.watch({ from })) …; sub.cursor — откуда продолжить. */
   watch(opts?: WatchOptions): Subscription;
   /** Кэш результатов подключения. */
   readonly cache: { clear(): void; stats(): CacheStats };
@@ -408,6 +412,8 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
   if (!SCHEMA_NAME.test(opts.schema)) throw new LetopisError('invalid_data', `connect: схема ${opts.schema} — нужно v<N>.<имя>`);
   if (!opts.sql && !opts.dsn) throw new LetopisError('invalid_data', 'connect: нужен dsn или sql');
   for (const k of Object.keys(opts)) if (k in REMOVED_OPTIONS) throw removed(`опция connect({ ${k} })`, REMOVED_OPTIONS[k]);
+  // интервал обслуживания — до пула и таймеров: неверный не оставляет за собой открытых соединений
+  const maintainEvery = opts.maintain === undefined ? undefined : parseInterval(opts.maintain);
   const own = !opts.sql;
   // timestamptz — строкой: Date в JS режет микросекунды, а на них держатся asOf и курсоры по времени
   const sql = (opts.sql ?? postgres(opts.dsn!, {
@@ -615,7 +621,7 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
       }, 5000);
       stamper.unref?.();
     }
-    let stopMaintain: (() => void) | null = null;
+    let stopMaintain: (() => Promise<void>) | null = null;
     const shared: Shared = {
       sql, schema: opts.schema, S, notifier, passes, root, registryFor, refresh, onQuery: opts.onQuery, slowMs: opts.slowMs,
       admin: Boolean(bypass && (role.rolsuper || role.can_set)),
@@ -626,7 +632,8 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
       signals,
       listen,
       async close() {
-        stopMaintain?.();
+        // идущий maintain() по расписанию доделывает пачку: пул закрывается после неё, а не посреди транзакции
+        await stopMaintain?.();
         resync.stop();
         startReload.stop();
         if (stamper) clearInterval(stamper);
@@ -636,7 +643,7 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
       },
     };
     const db = makeDb(shared, { txc: ctx, tenant: () => root.tenant, registry: () => root.registry, root: true }, poolExecutor(ctx));
-    if (opts.maintain !== undefined) stopMaintain = scheduleMaintain(() => db.maintain(), opts.maintain);
+    if (maintainEvery !== undefined) stopMaintain = scheduleMaintain((stopped) => db.maintain({ [MAINTAIN_STOP]: stopped } as MaintainOptions), maintainEvery);
     return db;
   } catch (e) {
     if (own) await sql.end({ timeout: 1 });

@@ -1,0 +1,85 @@
+{
+  "id": "watch/02-quiet-cursor",
+  "context": {
+    "schema": "v2.g_watch_02_quiet_cursor",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_8ad080aa615db1ac4fab3c589a028c9067d5478122b778e8988281c737328537",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "73626187dce282f58cf213930737ccdea384213593f0cf969c894947fbcb294c",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": "подписка ждёт событий",
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "op": "create",
+        "датчик": "Давление",
+        "время события": "2026-01-01T00:00:00+00:00"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "op": "create",
+        "датчик": "Влажность"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "cursor_expired",
+        "message": "letopis: cursor_expired: курсор подписки старше яруса all — события могли проредиться, перечитайте текущее состояние",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "op": "update",
+        "датчик": "Влажность",
+        "значение": 42
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    }
+  ]
+}

@@ -56,6 +56,26 @@ export default example({
       },
     },
     {
+      title: 'Вид пароля — по правилу вида креда',
+      text:
+        '`user.kind` — вид пароля, по умолчанию `PASSWORD`. Правило то же, что у `auth.setPassword`: заглавная латинская ' +
+        'буква, затем заглавные буквы, цифры и `_`, всего 2–32 знака, не служебный вид (`SESSION`, `TOTP` …). По паролю ' +
+        'вида `password` войти было бы нельзя, а служебный вид выдавал бы пароль за другой кред (с видом `TOTP` аккаунт ' +
+        'выглядел бы так, будто у него включён второй фактор). Поэтому `createTenant` отказывает `invalid_data` и ничего ' +
+        'не записывает: сводка не изменилась.',
+      run: async ({ admin, schema }) => {
+        const attempt = (kind: string) => createTenant(admin, schema, {
+          name: 'Лютик', user: { name: 'Борис', login: 'boris@lutik.ru', password: 'Лютик-2026!', kind },
+        }).then(() => 'создан', (e) => e.code);
+        return { password: await attempt('password'), SESSION: await attempt('SESSION') };
+      },
+      expect: {
+        check: (r) => {
+          if (r.password !== 'invalid_data' || r.SESSION !== 'invalid_data') throw new Error('вид пароля не проверен');
+        },
+      },
+    },
+    {
       title: 'Сервис входит по ключу и действует от имени Анны',
       text:
         'Приложение подключается своей ролью (`dsn.app`, она состоит в `letopis_app`) по ключу сервиса. ' +

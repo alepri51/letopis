@@ -75,6 +75,25 @@ export default example({
       },
     },
     {
+      title: 'Интервал обслуживания проверяется сразу',
+      text:
+        'Интервал `maintain` — от 1 мс до 2³¹−1 мс (около 24 суток). Ноль, отрицательное число, `NaN` или `\'30d\'` таймер ' +
+        'Node.js превратил бы в 1 мс, и обслуживание шло бы без перерыва. Поэтому `connect()` отказывает `invalid_data` ' +
+        'ещё до открытия соединений.',
+      run: async ({ connect, dsn, schema, up }) => {
+        const attempt = (maintain: string | number) =>
+          connect({ dsn: dsn.app, schema, service: up.serviceKey!, maintain }).then(() => 'подключено', (e) => e.code);
+        return { '0': await attempt(0), '-5': await attempt(-5), 'NaN': await attempt(NaN), "'30d'": await attempt('30d'), "'1d'": await attempt('1d') };
+      },
+      expect: {
+        check: (r) => {
+          if (r['0'] !== 'invalid_data' || r['-5'] !== 'invalid_data' || r.NaN !== 'invalid_data' || r["'30d'"] !== 'invalid_data') {
+            throw new Error('интервал обслуживания не проверен');
+          }
+        },
+      },
+    },
+    {
       title: 'owner — имя роли-владельца для администраторского подключения',
       text:
         'Администраторскому подключению нужна роль, которая может стать владельцем схемы. По умолчанию это ' +

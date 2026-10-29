@@ -84,9 +84,15 @@ export interface ProjectorOut {
    * нет upsert, delete или get: одна правка строки на пачку.
    */
   inc(cls: string, row: ProjectorRow, deltas: Record<string, number>, opts: { tenant: string }): void;
-  /** Удалить по ключу или id; строки нет — ничего. */
+  /**
+   * Удалить строку: у класса с ключом — по полям ключа, у класса без ключа — по id (строкой или { $id }); строки нет —
+   * ничего. Один id у класса с ключом — invalid_data.
+   */
   delete(cls: string, keyOrId: string | ProjectorRow, opts: { tenant: string }): void;
-  /** Текущая строка внутри пачки (с записями пачки, сделанными до вызова); нет — null. */
+  /**
+   * Текущая строка внутри пачки (с записями пачки, сделанными до вызова); нет — null. Строку называют, как в delete: у
+   * класса с ключом — полями ключа, у класса без ключа — id; один id у класса с ключом — invalid_data.
+   */
   get(cls: string, keyOrId: string | ProjectorRow, opts: { tenant: string }): Promise<Row | null>;
 }
 
@@ -362,19 +368,35 @@ class Out implements ProjectorOut {
     if (key !== null) this.folds.set(key, d);
   }
 
+  /**
+   * Строка для delete и get. У класса с ключом её называют полями ключа: id такой строки — v5 от ключа, и по одному id
+   * (строкой или { $id }) база искала бы строку с пустым ключом — get отвечал бы null, а delete выводил арендатора с
+   * id_mismatch. Это ошибка кода handle, а не данных: invalid_data сразу, пачка откатывается целиком.
+   */
+  private target(cls: string, tenant: string, keyOrId: string | ProjectorRow): ProjectorRow {
+    const row = this.rowOf(keyOrId);
+    const key = this.p.keyOf(tenant, cls);
+    if (key.length && Object.keys(row).every((n) => n === '$id')) {
+      throw new LetopisError('invalid_data', `проектор ${this.p.name}: у класса ${cls} есть ключ (${key.join(', ')}) — строку называют полями ключа, например { ${key.map((k) => `${k}: …`).join(', ')} }, а не id`);
+    }
+    return row;
+  }
+
   delete(cls: string, keyOrId: string | ProjectorRow, opts: { tenant: string }): void {
     const tenant = this.check(cls, opts?.tenant);
+    const row = this.target(cls, tenant, keyOrId);
     this.folds.clear();
-    this.ops.push({ op: 'delete', class: cls, tenant, row: this.rowOf(keyOrId) });
+    this.ops.push({ op: 'delete', class: cls, tenant, row });
   }
 
   async get(cls: string, keyOrId: string | ProjectorRow, opts: { tenant: string }): Promise<Row | null> {
     const tenant = this.check(cls, opts?.tenant);
+    const row = this.target(cls, tenant, keyOrId);
     await this.flush();
     const S = this.p.env.S;
     const [r] = await this.db(() => this.q.unsafe(`select ${rowJson('e')} as row from ${S}.entity e
       where e.id = ${S}.derived_id($1, $2::uuid, $3::text::jsonb) and e.class = $1 and e.tenant = $2::uuid`,
-    [cls, tenant, JSON.stringify(this.rowOf(keyOrId))]));
+    [cls, tenant, JSON.stringify(row)]));
     return r ? toRow(r.row as Record<string, unknown>) : null;
   }
 
@@ -969,6 +991,11 @@ export class Projector {
   /** Класс результата в арендаторе — из его семейства into. */
   intoOf(tenant: string, cls: string): boolean {
     return this.scopes.get(tenant)?.into.has(cls) ?? false;
+  }
+
+  /** Поля ключа класса into арендатора (пусто — класс без ключа). */
+  keyOf(tenant: string, cls: string): string[] {
+    return this.scopes.get(tenant)?.keys.get(cls) ?? [];
   }
 
   /**

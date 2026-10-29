@@ -6,7 +6,7 @@ outline: [2, 2]
 
 # Справочник API
 
-Все методы и функции letopis: сигнатура с типами, что делает, параметры и опции (тип, значение по умолчанию, смысл), что возвращает, какие коды ошибок бросает и где на сайте живой пример. Пунктов — 204, опций — 95.
+Все методы и функции letopis: сигнатура с типами, что делает, параметры и опции (тип, значение по умолчанию, смысл), что возвращает, какие коды ошибок бросает и где на сайте живой пример. Пунктов — 205, опций — 95.
 
 Справочник собран из исходников пакета: сигнатуры и типы — из кода, описания — из комментариев к коду и дополнений сайта. Коды ошибок — в главе [Ошибки](../errors/), объявления типов — на странице [Типы](./types).
 
@@ -44,7 +44,7 @@ outline: [2, 2]
 
 Производные данные: проектор строит строки производных классов из журнала изменений, агрегаты считает сама база. Проектор и ремонт агрегатов работают только на администраторском подключении.
 
-[db.projector()](./derived#db-projector) · [projector.name](./derived#projector-name) · [projector.run()](./derived#projector-run) · [projector.rebuild()](./derived#projector-rebuild) · [projector.status()](./derived#projector-status) · [projector.stop()](./derived#projector-stop) · [projector.close()](./derived#projector-close) · [projector.intoOf()](./derived#projector-intoof) · [projector.foldKey()](./derived#projector-foldkey) · [out.upsert()](./derived#out-upsert) · [out.inc()](./derived#out-inc) · [out.delete()](./derived#out-delete) · [out.get()](./derived#out-get) · [db.rebuildAggregates()](./derived#db-rebuildaggregates)
+[db.projector()](./derived#db-projector) · [projector.name](./derived#projector-name) · [projector.run()](./derived#projector-run) · [projector.rebuild()](./derived#projector-rebuild) · [projector.status()](./derived#projector-status) · [projector.stop()](./derived#projector-stop) · [projector.close()](./derived#projector-close) · [projector.intoOf()](./derived#projector-intoof) · [projector.keyOf()](./derived#projector-keyof) · [projector.foldKey()](./derived#projector-foldkey) · [out.upsert()](./derived#out-upsert) · [out.inc()](./derived#out-inc) · [out.delete()](./derived#out-delete) · [out.get()](./derived#out-get) · [db.rebuildAggregates()](./derived#db-rebuildaggregates)
 
 ## [Загрузка](./load)
 

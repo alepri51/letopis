@@ -494,6 +494,10 @@ export interface TenantOptions {
     name: string;
     login: string;
     password: string;
+    /**
+     * Вид пароля (по умолчанию PASSWORD) — как у auth.setPassword: `^[A-Z][A-Z0-9_]{1,31}$`, не служебный вид (SESSION,
+     * APIKEY, KEYSECRET, OTP, TOTP, KEY, PROJECTOR, LOCK); иначе invalid_data.
+     */
     kind?: string;
     ttl?: string;
     /** Роли членства (по умолчанию ['owner']); роли уже существующего членства повтор не меняет. */
@@ -512,8 +516,12 @@ export interface TenantResult {
   created: boolean;
 }
 
+/** Служебные виды строк secret: их не принимают функции кредов (auth_kind_ok в 80-auth.sql) и createTenant. */
+const SERVICE_KINDS = ['SESSION', 'APIKEY', 'KEYSECRET', 'OTP', 'TOTP', 'KEY', 'PROJECTOR', 'LOCK'];
+
 /**
- * Опции арендатора до записи; возвращает роли членства пользователя (по умолчанию owner). Членство
+ * Опции арендатора до записи; возвращает роли членства пользователя (по умолчанию owner). Вид пароля user.kind — как у
+ * функций кредов (auth_kind_ok). Членство
  * пишет sys_create от владельца — без проверки класса member, поэтому список ролей проверяется здесь:
  * непустой, без повторов, каждая роль — имя, а не маска группы '{a,b}': не пустое, без пробелов по
  * краям (маска их отрезает) и запятых (разделитель маски), без фигурных скобок и «!» в начале
@@ -521,6 +529,12 @@ export interface TenantResult {
  */
 function checkTenant(opts: TenantOptions): string[] {
   if (!opts.name) throw new Error('letopis.createTenant: имя арендатора обязательно');
+  // вид пароля — по правилу функций кредов (auth_kind_ok в 80-auth.sql): пароль пишет функция владельца мимо них, а с
+  // видом в другом регистре или служебным (SESSION, TOTP…) по нему не войти, и служебные строки он подменял бы
+  const kind: unknown = opts.user?.kind;
+  if (kind != null && (typeof kind !== 'string' || !/^[A-Z][A-Z0-9_]{1,31}$/.test(kind) || SERVICE_KINDS.includes(kind))) {
+    throw new LetopisError('invalid_data', `createTenant: user.kind ${JSON.stringify(kind)} — вид пароля: заглавная латинская буква, затем заглавные буквы, цифры или «_», всего от 2 до 32 знаков; служебные виды ${SERVICE_KINDS.join(', ')} заняты (по умолчанию — PASSWORD)`);
+  }
   if (opts.user?.roles === undefined) return ['owner'];
   const roles: unknown = opts.user.roles;
   const bad = (why: string) => new LetopisError('invalid_data', `createTenant: user.roles — ${why}`);

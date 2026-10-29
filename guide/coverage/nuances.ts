@@ -233,6 +233,11 @@ const nuances: Nuance[] = [
     source: 'lib/README.md, раздел 12 «Проекторы»',
   },
   {
+    id: 'projector-out-by-key',
+    text: 'out.delete и out.get находят строку класса с ключом по полям ключа, а по id — только строку класса без ключа. Начиная с 1.4.1 один id у класса с ключом — сразу invalid_data, и пачка откатывается.',
+    source: 'пример derived/03-projector-options; lib/src/project.ts:Out',
+  },
+  {
     id: 'registry-refresh',
     text: 'Другое подключение узнаёт о новом классе по сигналу, с задержкой: описания классов оно держит в памяти (реестр классов); сразу — db.refresh().',
     source: 'lib/src/index.ts:refresh; пример derived/02-projector',
@@ -266,6 +271,11 @@ const nuances: Nuance[] = [
     id: 'watch-cursor-resume',
     text: 'Событие подписки несёт курсор: новая подписка с него получает ровно то, что случилось после, без потерь и повторов.',
     source: 'lib/README.md, раздел 12',
+  },
+  {
+    id: 'watch-subscription-cursor',
+    text: 'Начиная с 1.4.1 подписка, догнавшая журнал, обновляет время своего курсора sub.cursor и на пустых опросах: без событий она не устаревает. Курсор события ev.cursor хранит время события, и после суток затишья продолжение с него — cursor_expired; сохраняйте sub.cursor.',
+    source: 'пример watch/02-quiet-cursor; lib/src/watch.ts:Subscription.fetch',
   },
   {
     id: 'mcp-user-rights',

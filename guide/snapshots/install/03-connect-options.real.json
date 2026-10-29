@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_2e3453785c921237074f0bc280dfe8993327854ebc629513c9e31fe46045dc7f",
+      "serviceKey": "lts_441c5dd9060e76dc5aafbd68e6ca32a1346da0ec7f79b4a7e16b84047c1b62be",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "65ae097ab65776abcb64b5e34b9dd403d7c80ec2200d5143af67aff032008261",
+        "token": "564b6d67e647261f94ae21a2f9f6a7236b50e247f1fa1b19bc44b06ba6364fd8",
         "created": true
       }
     }
@@ -88,8 +88,22 @@
     },
     {
       "result": {
-        "tenant": "a3ebfa58-5cb0-5943-8a58-240f1a43cef2",
+        "tenant": "d424f158-2231-5794-923b-0b0619bd82a5",
         "schema": "v2.g_install_03_connect_options"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "0": "invalid_data",
+        "-5": "invalid_data",
+        "NaN": "invalid_data",
+        "'30d'": "invalid_data",
+        "'1d'": "подключено"
       },
       "error": null,
       "entity": [],

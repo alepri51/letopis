@@ -481,7 +481,11 @@ interface ConnectOptions {
   listen?: boolean;
   /** Кэш результатов: срок по умолчанию, размер, ttlOnly; false — выключен. */
   cache?: CacheOptions | false;
-  /** Запускать maintain() по расписанию ('1h', '15m', мс) под блокировкой обслуживания: работает один процесс. */
+  /**
+   * Запускать maintain() по расписанию ('1h', '15m', мс) под блокировкой обслуживания: работает один процесс. Интервал —
+   * от 1 мс до 2³¹−1 мс (около 24 суток), иначе connect() отказывает invalid_data, не открывая соединений; close() ждёт
+   * идущий запуск (он доделывает текущую пачку).
+   */
   maintain?: string | number;
 }
 ```
@@ -558,7 +562,7 @@ interface DbCore {
   rekeyClass(cls: string, key: string[]): Promise<number>;
   /** Машинное описание модели с метаданными классов (describeText — то же текстом, llms.txt). */
   describe(): ModelDescription;
-  /** Подписка по курсору: for await (const ev of db.watch({ from })) …; ev.cursor — откуда продолжить. */
+  /** Подписка по курсору: for await (const ev of db.watch({ from })) …; sub.cursor — откуда продолжить. */
   watch(opts?: WatchOptions): Subscription;
   /** Кэш результатов подключения. */
   readonly cache: { clear(): void; stats(): CacheStats };
@@ -896,8 +900,9 @@ interface MaintainOptions {
 interface MaintainReport {
   /** Другой процесс уже обслуживает установку (держит строку-замок обслуживания): этот вызов ничего не делал. */
   skipped: boolean;
-  /** Удалено истёкших и погашенных сессий и одноразовых кодов. */
+  /** Удалено сессий: истёкших и погашенных (выход, отзыв, смена пароля, отключение или удаление аккаунта). */
   sessions: number;
+  /** Удалено одноразовых кодов вида OTP: истёкших, использованных, заменённых новым и исчерпавших попытки. */
   codes: number;
   /** Прорежено версий журнала. */
   thinned: number;
@@ -1072,6 +1077,8 @@ class Projector {
   close(): void;
   /** Класс результата в арендаторе — из его семейства into. */
   intoOf(tenant: string, cls: string): boolean;
+  /** Поля ключа класса into арендатора (пусто — класс без ключа). */
+  keyOf(tenant: string, cls: string): string[];
   /**
    * Ключ свёртки inc: класс и строка из одних полей ключа класса или одного $id; иначе null. Строку с другими полями
    * (данные, $tags, $owner) inc не складывает: её поля правят строку, и порядок таких правок важен.
@@ -1184,9 +1191,15 @@ interface ProjectorOut {
    * нет upsert, delete или get: одна правка строки на пачку.
    */
   inc(cls: string, row: ProjectorRow, deltas: Record<string, number>, opts: { tenant: string }): void;
-  /** Удалить по ключу или id; строки нет — ничего. */
+  /**
+   * Удалить строку: у класса с ключом — по полям ключа, у класса без ключа — по id (строкой или { $id }); строки нет —
+   * ничего. Один id у класса с ключом — invalid_data.
+   */
   delete(cls: string, keyOrId: string | ProjectorRow, opts: { tenant: string }): void;
-  /** Текущая строка внутри пачки (с записями пачки, сделанными до вызова); нет — null. */
+  /**
+   * Текущая строка внутри пачки (с записями пачки, сделанными до вызова); нет — null. Строку называют, как в delete: у
+   * класса с ключом — полями ключа, у класса без ключа — id; один id у класса с ключом — invalid_data.
+   */
   get(cls: string, keyOrId: string | ProjectorRow, opts: { tenant: string }): Promise<Row | null>;
 }
 ```
@@ -1388,7 +1401,11 @@ type StepsOf<M extends readonly AnyModelLike[]> =
 
 ```ts
 class Subscription implements AsyncIterable<WatchEvent> {
-  /** Курсор последнего выданного события (или начальной точки). */
+  /**
+   * Курсор подписки: позиция после последнего выданного события (или начальная точка). Догнав журнал, подписка обновляет
+   * в нём время и на пустых опросах, поэтому его, а не курсор события, сохраняют, чтобы продолжить после перезапуска:
+   * курсор события хранит время события, и после суток без событий продолжение с него — cursor_expired.
+   */
   readonly cursor: string | null;
   /**
    * Начальная точка взята: у from: 'now' — горизонт и снимок момента подписки (watch_head());
@@ -1439,6 +1456,10 @@ interface TenantOptions {
     name: string;
     login: string;
     password: string;
+    /**
+     * Вид пароля (по умолчанию PASSWORD) — как у auth.setPassword: `^[A-Z][A-Z0-9_]{1,31}$`, не служебный вид (SESSION,
+     * APIKEY, KEYSECRET, OTP, TOTP, KEY, PROJECTOR, LOCK); иначе invalid_data.
+     */
     kind?: string;
     ttl?: string;
     /** Роли членства (по умолчанию ['owner']); роли уже существующего членства повтор не меняет. */
@@ -1604,7 +1625,7 @@ interface WatchEvent {
 
 ```ts
 interface WatchOptions {
-  /** Откуда: курсор события, 'now' (по умолчанию — изменения после подписки) или 'start' (весь журнал). */
+  /** Откуда: курсор (sub.cursor или курсор события), 'now' (по умолчанию — изменения после подписки) или 'start' (весь журнал). */
   from?: string;
   /** Только эти классы (с потомками). */
   classes?: string[];

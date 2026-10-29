@@ -291,7 +291,9 @@ A repeat with the same name and login duplicates nothing and does not change the
 session. The login goes into the id as is: `Anna@shop.ru` and `anna@shop.ru` would give two accounts, and the second one
 would have no password, so write logins in one case. The `created` field in the result tells whether this call created
 the tenant: for an existing tenant with a new user it is `false`. The roles are set by `user.roles`, a non-empty list
-of names (not masks), otherwise `invalid_data`. A repeat does not change the roles of an existing membership: they are
+of names (not masks), otherwise `invalid_data`. The password kind `user.kind` (`PASSWORD` by default) follows the rule
+for a credential kind, as in `auth.setPassword` ([API reference](#dbauth)), otherwise it is `invalid_data` too. A
+repeat does not change the roles of an existing membership: they are
 changed by editing the membership ([Granting a permission](#granting-a-permission)). A repeat does not bring back
 what was deleted: if the tenant, the user account or the membership is deleted (the row is gone but its history is in
 the journal), `createTenant` answers `invalid_data` and writes nothing. The error text names what was deleted and
@@ -1741,7 +1743,7 @@ const sub = db.watch({ from: 'start', classes: ['Product'] })   // the whole jou
 await db.Product(kettle).update({ price: 2100 }).rows()
 let cursor = ''
 for await (const ev of sub) {             // ev: { cursor, row, id, class, op, rev, at }
-  cursor = ev.cursor                      // save the cursor: watch({ from: cursor }) continues after it
+  cursor = sub.cursor!                    // the subscription cursor: watch({ from: cursor }) continues after this event
   if (ev.id === kettle.id && ev.row.data.price === 2100) break   // break (or sub.close()) stops the subscription
 }
 ```
@@ -1760,10 +1762,14 @@ for await (const ev of sub) {             // ev: { cursor, row, id, class, op, r
   within a transaction in the order of writing. This is not the commit order: compare versions of one object by `rev`.
 - A long write transaction in any database of the cluster delays the stream: `await sub.lag()` shows the lag in ms.
 - A cursor older than the `all` tier of the retention policy gives `cursor_expired`: read the current state again and
-  subscribe with `'now'`.
+  subscribe with `'now'`. The time in the subscription cursor `sub.cursor` is the time of the last event, and once the
+  subscription has caught up with the journal, the time of the poll, so a subscription that got no events for a day
+  does not expire. The event cursor `ev.cursor` keeps the time of the event itself.
 - Without `LISTEN` (`connect({ listen: false })`), the subscription polls the journal.
-- A subscription without losses is a saved cursor: store `ev.cursor` of the last processed event and resume from it
-  after a restart.
+- A subscription without losses is a saved cursor: after processing an event, store `sub.cursor` (the position after
+  the last delivered event) and resume from it after a restart. `ev.cursor` also continues the stream, but after a
+  quiet period longer than the `all` tier such a cursor is older than the tier, and resuming from it gives
+  `cursor_expired`.
 
 ### Projectors
 
@@ -1850,6 +1856,9 @@ sales.close()                                    // stop() after the current bat
   `out.inc(class, row, deltas, { tenant })` creates a row or completes it and adds the numbers without reading the row
   (missing fields count from 0). `out.delete(class, key or id, { tenant })` deletes a row and does nothing if there is
   none. `await out.get(class, key or id, { tenant })` reads the current row together with the writes of the batch.
+  `delete` and `get` find a row of a class with a key by the key fields (`{ day: '2026-10-29' }`), and by id (a string
+  or `{ $id }`) only a row of a class without a key; an id alone for a class with a key is `invalid_data`, and the
+  batch is rolled back.
   `out` writes only to the `into` classes and only to the tenant of the changes passed to `handle`; otherwise you get
   `derived_class` or `tenant_denied`, and the batch is rolled back.
 - `out` adds up the increments of a row given by key fields only (or by `$id` alone) before sending them to the
@@ -2022,10 +2031,15 @@ Between processes, the cache goes stale for the signal sending interval (`notify
 const report = await adm.maintain()     // { sessions, codes, thinned, batches, more, queue, skipped }
 ```
 
-`maintain()` deletes expired sessions and one-time codes, thins the journal by the retention policy and checks the
-PostgreSQL signal queue: if it is more than half full, you get a warning. The system administrator, a role with the
-`letopis.maintain` permission or an admin connection can call it. An external scheduler runs it (`letopis maintain`),
-or the library itself does: `connect({ maintain: '1h' })`. Of several processes, only one works: each batch is its own
+`maintain()` deletes sessions and one-time codes of the `OTP` kind from the `secret` table — expired ones, as well as
+revoked sessions and codes that were used, replaced by a new one or ran out of attempts, — thins the journal by the
+retention policy and checks the PostgreSQL signal queue: if it is more than half full, you get a warning. The system
+administrator, a role with the `letopis.maintain` permission or an admin connection can call it. An external scheduler
+runs it (`letopis maintain`), or the library itself does: `connect({ maintain: '1h' })`. The interval is a number of
+milliseconds or a string (`'500ms'`, `'30s'`, `'15m'`, `'1h'`, `'1d'`) from 1 ms to 2³¹−1 ms (about 24 days):
+`connect()` rejects any other value, including zero, a negative number or `NaN`, with `invalid_data` without opening
+connections. `close()` waits for a scheduled run in progress: it finishes the current batch and does not start the
+next one. Of several processes, only one works: each batch is its own
 transaction, and the first thing it does is take the maintenance lock — a row of the `secret` table that neither the
 application role nor any other database role can take; the lock is released when the batch commits. If another
 process holds the lock, the call answers `skipped: true` before the first batch, and between batches it stops (that
@@ -2366,7 +2380,8 @@ administrator. The exception is the service's keys: the service issues and revok
 pairs itself with a session of its own key, but not its other credentials; nobody can revoke the last active key of a
 service (`acl_denied`). With `totp`, `verifyPassword` and `lookup` also check the TOTP code (the `auth.totp` permission)
 and issue a session with the `TOTP` method. The credential kind `kind` is `^[A-Z][A-Z0-9_]{1,31}$` (`PASSWORD`, `EMAIL`,
-`TELEGRAM` …); `SESSION`, `APIKEY`, `KEYSECRET`, `OTP`, `TOTP` and `KEY` are taken.
+`TELEGRAM` …); `SESSION`, `APIKEY`, `KEYSECRET`, `OTP`, `TOTP`, `KEY`, `PROJECTOR` and `LOCK` are taken. The same rule
+applies to the password kind `user.kind` in `createTenant` and `up({ tenant })`.
 
 ### Projector
 
@@ -2383,7 +2398,7 @@ give `invalid_data`.
 | `stop()`, `close()` | stop `run()` after the current batch; the same plus unsubscribing from signals |
 | `ProjectorReport` | `{ batches, changes, created, updated, deleted, unchanged, skipped, rebuilds, locked }` |
 | `ProjectorChange` | `{ cursor, id, class, tenant, op, rev, at, author, row }` and, when present, `agent`, `reason`, `moved`, `before`, `rebuild` |
-| `ProjectorOut` | `upsert(class, row, { tenant })`, `inc(class, row, deltas, { tenant })`, `delete(class, key or id, { tenant })`, `get(class, key or id, { tenant })` → `Row \| null`; a row is a `ProjectorRow` in the loader format |
+| `ProjectorOut` | `upsert(class, row, { tenant })`, `inc(class, row, deltas, { tenant })`, `delete(class, key or id, { tenant })`, `get(class, key or id, { tenant })` → `Row \| null`; a row is a `ProjectorRow` in the loader format; for a class with a key `delete` and `get` go by the key, an id only for a class without a key |
 
 ### Result row
 

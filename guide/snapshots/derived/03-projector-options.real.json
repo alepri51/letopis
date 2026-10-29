@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_a8c53c5b856ac09a1d3d620ab587c577c84993d9781372f4cc483b57012790fd",
+      "serviceKey": "lts_3975fe26048921c7aec75b48973955b47d5ecd8576154ce80a3930c406ced278",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "e645ad857c91b5940e6ac36b14668e04a6b5e67d40ae264f4969cd8a8bca8cdc",
+        "token": "3d2f84acbf6f79dfcda29e4d7a76e8a0e26f1849ddd5e10a958b7232692ab317",
         "created": true
       }
     }
@@ -52,6 +52,29 @@
       "error": {
         "code": "tenant_denied",
         "message": "letopis: tenant_denied: проектор daily: арендатор 00000000-0000-4000-8000-000000000000 не участник — у него не все классы DayTotal помечены derivedBy: 'daily' или его нет в списке tenants",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "по ключу { day }": 1500,
+        "по id": "invalid_data"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "invalid_data",
+        "message": "letopis: invalid_data: проектор daily: у класса DayTotal есть ключ (day) — строку называют полями ключа, например { day: … }, а не id",
         "detail": null
       },
       "entity": [],
