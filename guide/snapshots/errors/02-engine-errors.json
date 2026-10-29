@@ -1,0 +1,113 @@
+{
+  "id": "errors/02-engine-errors",
+  "title": "Ошибки базы: что ловят триггеры при записи в обход библиотеки",
+  "summary": "Правила целостности проверяет сама база — для библиотеки и для сырого SQL одинаково. Здесь запись идёт сырым SQL под сессией (db.transaction) — и база отвечает теми же кодами, что цепочкам.",
+  "covers": [
+    "error.undeclared_end",
+    "error.id_from_db",
+    "error.use_reclass",
+    "error.recreated_in_statement",
+    "error.isolation_level",
+    "nuance.engine-checks-raw-sql",
+    "export.fromDbError"
+  ],
+  "tables": [],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": null
+  },
+  "steps": [
+    {
+      "title": "undeclared_end — ссылка по роли, которой нет в классе",
+      "text": "Концы класса описаны в модели; чужую роль база не примет. Что делать: описать конец в модели или убрать ссылку.",
+      "code": "\nd = await seedShop(db);\r\nreturn db.transaction((tx) => tx.unsafe(`insert into ${T(schema)} (class, data, links) values ('Customer', '{\"name\":\"Х\",\"email\":\"x@x.ru\"}', jsonb_build_object('Stranger', $1::text))`, [d.romashka]));",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">d </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> seedShop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">transaction</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">tx</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tx.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">unsafe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`insert into ${</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">T</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">(</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">schema</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">)</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} (class, data, links) values ('Customer', '{\"name\":\"Х\",\"email\":\"x@x.ru\"}', jsonb_build_object('Stranger', $1::text))`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, [d.romashka]));</span></span></code></pre>",
+      "result": null,
+      "error": {
+        "code": "undeclared_end",
+        "message": "letopis: undeclared_end: конец Stranger не объявлен в классе Customer",
+        "detail": {},
+        "expected": true
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "id_from_db — свой id у класса без ключа",
+      "text": "У класса без ключа id выдаёт база (UUID v7). Что делать: не передавать id; стабильный id из внешнего ключа — `$ext` при загрузке.",
+      "code": "db.transaction((tx) => tx.unsafe(`insert into ${T(schema)} (id, class, data) values (gen_random_uuid(), 'Customer', '{\"name\":\"Х\",\"email\":\"x@x.ru\"}')`))",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">transaction</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">tx</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tx.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">unsafe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`insert into ${</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">T</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">(</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">schema</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">)</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} (id, class, data) values (gen_random_uuid(), 'Customer', '{\"name\":\"Х\",\"email\":\"x@x.ru\"}')`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">))</span></span></code></pre>",
+      "result": null,
+      "error": {
+        "code": "id_from_db",
+        "message": "letopis: id_from_db: id класса без ключа Customer выдаёт база",
+        "detail": {},
+        "expected": true
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "use_reclass — сменить класс простым UPDATE",
+      "text": "Смена класса меняет id и ссылки — её делает функция `reclass`. Что делать: `db.Класс(id).reclass('Другой', данные)`.",
+      "code": "db.transaction((tx) => tx.unsafe(`update ${T(schema)} set class = 'Category' where id = $1`, [d.romashka]))",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">transaction</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">tx</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tx.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">unsafe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`update ${</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">T</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">(</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">schema</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">)</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} set class = 'Category' where id = $1`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, [d.romashka]))</span></span></code></pre>",
+      "result": null,
+      "error": {
+        "code": "use_reclass",
+        "message": "letopis: use_reclass: у класса Shop или Category есть ключ: id меняется, используйте reclass()",
+        "detail": {},
+        "expected": true
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "recreated_in_statement — удалить и создать тот же id одним оператором",
+      "text": "Журнал не может записать удаление и новое рождение одного id в одном операторе. Что делать: двумя операторами — или `upsert`.",
+      "code": "db.transaction((tx) => tx.unsafe(\r\n        `with gone as (delete from ${T(schema)} where id = $1 returning id) insert into ${T(schema)} (class, data) select 'Shop', '{\"name\":\"Ромашка\"}' from gone`, [d.romashka]))",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">transaction</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">tx</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tx.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">unsafe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        `with gone as (delete from ${</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">T</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">(</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">schema</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">)</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} where id = $1 returning id) insert into ${</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">T</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">(</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">schema</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">)</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} (class, data) select 'Shop', '{\"name\":\"Ромашка\"}' from gone`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, [d.romashka]))</span></span></code></pre>",
+      "result": null,
+      "error": {
+        "code": "recreated_in_statement",
+        "message": "letopis: recreated_in_statement: id удалён и создан заново одним оператором",
+        "detail": {},
+        "expected": true
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null
+    },
+    {
+      "title": "isolation_level — удаление в транзакции REPEATABLE READ",
+      "text": "Каскады, смена класса и ключа требуют READ COMMITTED (так работает библиотека). Что делать: не менять уровень изоляции для таких операций.",
+      "code": "\ntry {\r\n  return await admin.begin('isolation level repeatable read', async (tx) => {\r\n    await tx`select set_config('letopis.token', ${up.tenant!.token!}, true)`;\r\n    return tx.unsafe(`delete from ${T(schema)} where id = $1`, [d.mug]);\r\n  });\r\n} catch (e) { throw fromDbError(e); }",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">try</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  return</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> admin.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">begin</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'isolation level repeatable read'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">tx</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">    await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> tx</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`select set_config('letopis.token', ${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">up</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}, true)`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">    return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tx.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">unsafe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`delete from ${</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">T</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">(</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">schema</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">)</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} where id = $1`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, [d.mug]);</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">} </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">catch</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (e) { </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">throw</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> fromDbError</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(e); }</span></span></code></pre>",
+      "result": null,
+      "error": {
+        "code": "isolation_level",
+        "message": "letopis: isolation_level: удаление разрешено только в read committed",
+        "detail": {},
+        "expected": true
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null
+    }
+  ]
+}

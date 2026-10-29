@@ -333,6 +333,11 @@ const nuances: Nuance[] = [
     source: 'lib/sql/10-core.sql (hash); пример ops/01',
   },
   {
+    id: 'engine-checks-raw-sql',
+    text: 'Правила целостности проверяют триггеры базы: сырой SQL под сессией получает те же коды, что цепочки; ошибку драйвера в LetopisError переводит fromDbError.',
+    source: 'lib/sql/60-write.sql; пример errors/02',
+  },
+  {
     id: 'service-enforces-2fa',
     text: 'letopis не навязывает второй фактор: verifyPassword без totp даёт сессию и при включённом TOTP — требовать код должен сервис (totpEnabled).',
     source: 'lib/src/auth.ts:verifyPassword; сервис helpdesk',

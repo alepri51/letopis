@@ -327,7 +327,15 @@ export class ExplicitTx implements Executor {
     let changed: string | null = null;
     try {
       // чтение letopis.changed и COMMIT — одним конвейером (как в runTx); обрыв — исход неизвестен
-      const [rows, res] = await Promise.all([this.conn.unsafe(`select current_setting('letopis.changed', true) as changed`), this.conn.unsafe('commit')]);
+      const read = this.conn.unsafe(`select current_setting('letopis.changed', true) as changed`);
+      const commit = this.conn.unsafe('commit');
+      const [rows, res] = (await Promise.all([read, commit]).catch(async (e: unknown) => {
+        // транзакцию уже прервала ошибка, которую код внутри db.begin() поймал и проглотил: чтение получает 25P02,
+        // а COMMIT того же конвейера отвечает ROLLBACK — это tx_rolled_back, а не сырая ошибка PostgreSQL
+        const tail = (e as { code?: string }).code === '25P02' ? await commit.catch(() => null) : null;
+        if ((tail as unknown as { command?: string } | null)?.command === 'ROLLBACK') return [[], tail] as const;
+        throw e;
+      })) as readonly [readonly Record<string, unknown>[], unknown];
       changed = (rows[0]?.changed as string | null) ?? null;
       if ((res as unknown as { command?: string }).command === 'ROLLBACK') {
         this.failure = new LetopisError('tx_rolled_back', 'commit: PostgreSQL откатил транзакцию (в ней была ошибка)');
