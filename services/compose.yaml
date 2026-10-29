@@ -37,6 +37,7 @@ services:
       ADMIN_DSN: postgres://postgres:guide@pg:5432/letopis
       APP_DSN: postgres://salon_app:salon-app-secret@pg:5432/letopis
       PORT: '8081'
+      HOST: 0.0.0.0
     ports: ['127.0.0.1:8081:8081']
     depends_on:
       pg:
@@ -50,6 +51,7 @@ services:
       ADMIN_DSN: postgres://postgres:guide@pg:5432/letopis
       APP_DSN: postgres://wallet_app:wallet-app-secret@pg:5432/letopis
       PORT: '8082'
+      HOST: 0.0.0.0
     ports: ['127.0.0.1:8082:8082']
     depends_on:
       pg:

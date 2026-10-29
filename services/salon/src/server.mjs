@@ -23,6 +23,8 @@ const ENV = {
   schema: process.env.SCHEMA ?? 'salon',
   serviceKey: process.env.SERVICE_KEY ?? 'lts_' + 'a1b2c3d4e5f60718'.repeat(2),
   port: Number(process.env.PORT ?? 8081),
+  // по умолчанию только эта машина: у демо известный пароль; в контейнере compose задаёт HOST=0.0.0.0
+  host: process.env.HOST ?? '127.0.0.1',
 };
 
 /** Салоны демо: арендатор, его управляющий (логин и пароль для входа) и справочник. */
@@ -199,5 +201,5 @@ export async function createApp() {
 // запуск как программа (а не импорт из сценария)
 if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, '/').replace(/^(?=[A-Za-z]:)/, '/')}`) {
   const { app, schema } = await createApp();
-  app.listen(ENV.port, '0.0.0.0', () => console.log(`salon: http://127.0.0.1:${ENV.port}/ (схема ${schema})`));
+  app.listen(ENV.port, ENV.host, () => console.log(`salon: http://127.0.0.1:${ENV.port}/ (схема ${schema})`));
 }

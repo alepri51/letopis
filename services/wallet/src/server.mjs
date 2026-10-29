@@ -24,6 +24,8 @@ const ENV = {
   schema: process.env.SCHEMA ?? 'wallet',
   serviceKey: process.env.SERVICE_KEY ?? 'lts_' + 'b2c3d4e5f6a70819'.repeat(2),
   port: Number(process.env.PORT ?? 8082),
+  // по умолчанию только эта машина: у демо известный пароль; в контейнере compose задаёт HOST=0.0.0.0
+  host: process.env.HOST ?? '127.0.0.1',
 };
 export const OPERATOR = { name: 'Ольга', login: 'admin@kopeika.ru', password: 'Kopeika-2026!' };
 
@@ -213,5 +215,5 @@ export async function createApp() {
 
 if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, '/').replace(/^(?=[A-Za-z]:)/, '/')}`) {
   const { app, schema } = await createApp();
-  app.listen(ENV.port, '0.0.0.0', () => console.log(`wallet: http://127.0.0.1:${ENV.port}/ (схема ${schema})`));
+  app.listen(ENV.port, ENV.host, () => console.log(`wallet: http://127.0.0.1:${ENV.port}/ (схема ${schema})`));
 }
