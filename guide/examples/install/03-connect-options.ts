@@ -7,10 +7,10 @@ import { example } from '../../kit/example.ts';
 const Product = hub('Product', { fields: { title: z.string(), price: z.number().int().min(0) } });
 
 export default example({
-  title: 'Опции connect(): хук запросов, пул, сигналы, кэш, модели',
+  title: 'Опции connect(): наблюдение за запросами, пул, сигналы, кэш, модели',
   summary:
-    'connect() принимает настройки подключения. Самые полезные в жизни: onQuery и slowMs для наблюдения за ' +
-    'запросами, cache для кэша результатов, listen: false для PgBouncer.',
+    'connect() принимает настройки подключения. Самые полезные на практике: onQuery и slowMs для наблюдения за ' +
+    'запросами, cache для кэша результатов, listen: false для работы через PgBouncer.',
   tables: [],
   covers: [
     'connect.onQuery', 'connect.slowMs', 'connect.max', 'connect.listen', 'connect.cache', 'connect.refreshSession',
@@ -29,8 +29,8 @@ export default example({
       title: 'onQuery: что выполнила каждая цепочка',
       text:
         '`onQuery` получает событие на каждый запрос цепочки: вид запроса, классы, время и число строк. `slowMs` — ' +
-        'порог медленного запроса: событие получает `slow: true` (порог 0 — для примера все запросы «медленные»; ' +
-        'без `onQuery` медленный запрос печатается в консоль). Время запроса в результате округлено — оно каждый раз своё.',
+        'порог медленного запроса: у такого события `slow: true` (порог 0 — для примера все запросы «медленные»; ' +
+        'без `onQuery` медленный запрос печатается в консоль). Время запроса в результате заменено на «≥ 0»: оно каждый раз своё.',
       run: async ({ connect, dsn, schema, up }) => {
         const seen: QueryEvent[] = [];
         const db = await connect({ dsn: dsn.app, schema, token: up.tenant!.token!, onQuery: (e) => seen.push(e), slowMs: 0 });
@@ -42,8 +42,8 @@ export default example({
     {
       title: 'Пул, сигналы, продление сессии',
       text:
-        '`max` — размер пула соединений (по умолчанию 10). `listen: false` — не слушать сигналы базы: нужно за ' +
-        'PgBouncer в режиме транзакций. `refreshSession: false` — не продлевать сессию. `notifyIntervalMs` — как часто ' +
+        '`max` — размер пула соединений (по умолчанию 10). `listen: false` — не слушать сигналы базы: это нужно, если ' +
+        'подключение идёт через PgBouncer в режиме транзакций. `refreshSession: false` — не продлевать сессию. `notifyIntervalMs` — как часто ' +
         'отправлять отложенные сигналы. Подключение работает как обычно.',
       run: async ({ connect, dsn, schema, up }) => {
         const db = await connect({ dsn: dsn.app, schema, token: up.tenant!.token!, max: 2, listen: false, refreshSession: false, notifyIntervalMs: 50 });
@@ -64,9 +64,9 @@ export default example({
       },
     },
     {
-      title: 'Модели — для типов, ключ — синонимом service',
+      title: 'Модели — для типов, service — то же, что apiKey',
       text:
-        '`models` нужны только TypeScript: цепочки получают типы полей. Описания классов база берёт у себя. ' +
+        '`models` нужны только для TypeScript: цепочки получают типы полей. Описания классов база берёт у себя. ' +
         '`service` — то же, что `apiKey`. `maintain: \'1h\'` запускает обслуживание по расписанию (истёкшие сессии, ' +
         'прореживание журнала).',
       run: async ({ connect, dsn, schema, up }) => {

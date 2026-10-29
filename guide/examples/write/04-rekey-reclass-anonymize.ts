@@ -6,7 +6,7 @@ let shop: { id: string }, mug: { id: string }, olga: { id: string };
 export default example({
   title: 'Сменить ключ, сменить класс, обезличить',
   summary:
-    'rekey даёт объекту новый ключ: это новый id, а все ссылки переводятся. reclass переводит объект в другой ' +
+    'rekey даёт объекту новый ключ: это новый id, и все ссылки на объект переводятся на него. reclass переводит объект в другой ' +
     'класс. anonymize затирает строковые поля новой версией — прежние версии остаются в журнале.',
   covers: ['chain.rekey', 'chain.reclass', 'chain.anonymize', 'nuance.rekey-new-id', 'nuance.anonymize-history'],
   steps: [
@@ -40,7 +40,7 @@ export default example({
       title: 'Обезличить email',
       text:
         '`anonymize([\'email\'])` записывает новую версию: email заменён на `[erased]`, у строки тег `anonymized`. ' +
-        'Прежние версии с настоящим email остались в журнале — для полного забвения нужны обрезка истории и `purge`.',
+        'Прежние версии с настоящим email остались в журнале — чтобы стереть его совсем, нужны обрезка истории и `purge`.',
       run: async ({ db }) => db.Vip(olga).anonymize(['email']).rows(),
     },
   ],

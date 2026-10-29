@@ -3,10 +3,10 @@ import { example } from '../../kit/example.ts';
 import { seedShop } from '../../kit/shop.ts';
 
 export default example({
-  title: 'Описание модели, сырой SQL под правами, кэш по сроку, сигналы',
+  title: 'Описание модели, свой SQL с правами сессии, кэш по сроку, сигналы',
   summary:
-    'describe() — модель машинно (для агентов и генераторов), describeText — то же текстом. db.sql и ' +
-    'db.transaction — сырой SQL под той же сессией и RLS. Кэш может жить и без сигналов — по сроку.',
+    'describe() — описание модели в виде данных (для агентов и генераторов кода), describeText — то же текстом. ' +
+    'db.sql и db.transaction — свои SQL-запросы в той же сессии и под RLS. Кэш может работать и без сигналов — по сроку.',
   tables: [],
   covers: ['db.registry', 'db.sql', 'db.transaction', 'db.flushSignals', 'cache.ttlOnly', 'cache.max', 'watch.batch', 'watch.pollMs', 'signals.class', 'connect.sql'],
   steps: [
@@ -26,8 +26,8 @@ export default example({
       },
     },
     {
-      title: 'Сырой SQL под сессией',
-      text: '`db.sql` — одна транзакция с контекстом сессии: RLS действует, чужого арендатора не видно. Запись через него сбрасывает весь кэш.',
+      title: 'Свой SQL в сессии пользователя',
+      text: '`db.sql` — одна транзакция с правами сессии: RLS действует, чужого арендатора не видно. Запись через него сбрасывает весь кэш.',
       run: async ({ db, schema }) => ({
         'db.sql': await db.sql`select ${'Ромашка'}::text as tenant_name, current_setting('letopis.reason', true) as reason`,
         'db.transaction — только свой арендатор': await db.transaction((tx) =>
@@ -36,7 +36,7 @@ export default example({
     },
     {
       title: 'Кэш только по сроку и отправка сигналов сейчас',
-      text: '`cache: { ttlOnly: true, max }` — кэш без LISTEN (за PgBouncer). `flushSignals()` шлёт накопленные сигналы, не дожидаясь интервала.',
+      text: '`cache: { ttlOnly: true, max }` — кэш без подписки на сигналы (LISTEN), например при работе через PgBouncer. `flushSignals()` шлёт накопленные сигналы, не дожидаясь интервала.',
       run: async ({ connect, schema, up, admin }) => {
         const tok = up.tenant!.token!;
         const c = await connect({ sql: admin as never, schema, token: tok, allowBypassRls: true, cache: { ttlOnly: true, max: 2 }, listen: false });

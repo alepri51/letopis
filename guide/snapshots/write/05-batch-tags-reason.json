@@ -1,7 +1,7 @@
 {
   "id": "write/05-batch-tags-reason",
   "title": "Батч, теги, владелец и причина изменения",
-  "summary": "Батч копит планы и исполняет их одной транзакцией. Теги и владелец задаются перед глаголом. Причина изменения (reason) попадает в журнал рядом с автором и временем.",
+  "summary": "Батч копит планы записи и выполняет их одной транзакцией. Теги и владелец задаются перед глаголом. Причина изменения (reason) попадает в журнал рядом с автором и временем.",
   "covers": [
     "db.batch",
     "batch.size",
@@ -92,7 +92,7 @@
     },
     {
       "title": "Батч: два товара одной транзакцией",
-      "text": "Планы копятся в очереди `витрина`; `size()` — сколько их; `run()` исполняет все одной транзакцией. Подряд идущие простые `create` класса с ключом склеиваются в один многострочный оператор.",
+      "text": "Планы копятся в очереди `витрина`; `size()` — сколько их; `run()` исполняет все одной транзакцией. Подряд идущие простые `create` класса с ключом объединяются в один SQL-оператор на несколько строк.",
       "code": "const b = db.batch('витрина', { reason: 'новая коллекция' });\nb.Shop(shop).Product().create({ sku: 'C-1', title: 'Чашка', price: 300 });\nb.Shop(shop).Product().create({ sku: 'C-2', title: 'Блюдце', price: 200 });\nconst queued = b.size();\nconst results = await b.run();\nreturn { queued, created: results.map((rows) => rows.length) };",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> b</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">batch</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'витрина'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'новая коллекция'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'C-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">300</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'C-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Блюдце'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">200</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> queued</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">size</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> results</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { queued, created: results.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> rows.</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) };</span></span></code></pre>",
       "result": {
@@ -165,7 +165,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "новая коллекция",
-          "at": "t3",
+          "at": "t2",
           "$changed": [
             "*"
           ]
@@ -232,7 +232,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "новая коллекция",
-          "at": "t3",
+          "at": "t2",
           "$new": true
         }
       ],
@@ -308,7 +308,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "новая коллекция",
-          "at": "t3",
+          "at": "t2",
           "$changed": []
         }
       ],
@@ -373,7 +373,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "новая коллекция",
-          "at": "t3",
+          "at": "t2",
           "$new": false
         }
       ],
@@ -387,7 +387,7 @@
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">tags</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">([</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'сезон'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'зима'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">])</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        .</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'W-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Варежки'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">700</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'зимняя витрина'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
-          "at": "t4",
+          "at": "t3",
           "id": "Product «Варежки»",
           "op": "create",
           "rev": 1,
@@ -472,7 +472,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "новая коллекция",
-          "at": "t3",
+          "at": "t2",
           "$changed": []
         },
         {
@@ -497,7 +497,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "зимняя витрина",
-          "at": "t4",
+          "at": "t3",
           "$changed": [
             "*"
           ]
@@ -564,7 +564,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "новая коллекция",
-          "at": "t3",
+          "at": "t2",
           "$new": false
         },
         {
@@ -589,7 +589,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "зимняя витрина",
-          "at": "t4",
+          "at": "t3",
           "$new": true
         }
       ],
@@ -603,7 +603,7 @@
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">owner</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        .</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'P-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Личный заказ'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">100</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
-          "at": "t5",
+          "at": "t4",
           "id": "Product «Личный заказ»",
           "op": "create",
           "rev": 1,
@@ -684,7 +684,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "новая коллекция",
-          "at": "t3",
+          "at": "t2",
           "$changed": []
         },
         {
@@ -709,7 +709,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "зимняя витрина",
-          "at": "t4",
+          "at": "t3",
           "$changed": []
         },
         {
@@ -731,7 +731,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t5",
+          "at": "t4",
           "$changed": [
             "*"
           ]
@@ -798,7 +798,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "новая коллекция",
-          "at": "t3",
+          "at": "t2",
           "$new": false
         },
         {
@@ -823,7 +823,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "зимняя витрина",
-          "at": "t4",
+          "at": "t3",
           "$new": false
         },
         {
@@ -845,7 +845,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t5",
+          "at": "t4",
           "$new": true
         }
       ],

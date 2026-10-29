@@ -33,7 +33,7 @@ export default example({
   ],
   steps: [
     {
-      title: 'Методы цепочки и корня',
+      title: 'Методы цепочки и объекта db',
       run: async ({ db }) => {
         await syncShop(db); // скрыть
         return [

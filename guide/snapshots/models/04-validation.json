@@ -1,7 +1,7 @@
 {
   "id": "models/04-validation",
   "title": "Проверка данных: база не примет неправильное",
-  "summary": "Модель превращается в JSON Schema, и каждую запись проверяет сама база — даже сырой SQL. Умолчания подставляет база. Новое обязательное поле — ужесточение: база проверит, что старые строки ему не мешают.",
+  "summary": "Модель превращается в JSON Schema, и каждую запись проверяет сама база — даже запись прямым SQL-запросом. Значения по умолчанию подставляет база. Новое обязательное поле ужесточает модель: база проверит, подходят ли под неё старые строки.",
   "covers": [
     "error.invalid_data",
     "error.tightening_conflict",
@@ -36,7 +36,7 @@
       "counts": null
     },
     {
-      "title": "Умолчание подставляет база",
+      "title": "Значение по умолчанию подставляет база",
       "text": "Поле `status` не передали — база подставила `draft` из `.default()` модели.",
       "code": "db.Product().create({ title: 'Чайник', price: 2500 }).rows()",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2500</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
@@ -181,7 +181,7 @@
     },
     {
       "title": "Новое обязательное поле — ужесточение",
-      "text": "У «Чайника» нет поля `sku`, а модель теперь требует его. Такое изменение — ужесточение: база проверяет все строки класса и отвечает `tightening_conflict` со списком мешающих строк. Описание не изменилось.",
+      "text": "У «Чайника» нет поля `sku`, а модель теперь требует его. Такое изменение — ужесточение: старые данные могут под него не подойти. База проверяет все строки класса и отвечает `tightening_conflict` со списком строк, которые не подходят. Описание класса не изменилось.",
       "code": "syncModels(db, [ProductV2], { apply: true })",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, [ProductV2], { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })</span></span></code></pre>",
       "result": null,
@@ -308,8 +308,8 @@
       "counts": null
     },
     {
-      "title": "Правила refine база не исполняет",
-      "text": "`refine`, `superRefine` и `transform` в JSON Schema не выражаются. `syncModels` не теряет их молча: возвращает в `lost`. Такие правила проверяйте в приложении.",
+      "title": "Проверки refine база не выполняет",
+      "text": "`refine`, `superRefine` и `transform` в JSON Schema не выражаются. `syncModels` не теряет их молча: возвращает в `lost`. Такие проверки выполняйте в приложении.",
       "code": "const r = await syncModels(db, [Coupon], { apply: true });\nreturn { created: r.created, lost: r.lost };",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, [Coupon], { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { created: r.created, lost: r.lost };</span></span></code></pre>",
       "result": {

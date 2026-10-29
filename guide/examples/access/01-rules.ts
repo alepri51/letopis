@@ -9,7 +9,7 @@ export default example({
   title: 'Права: роль сотрудника, запрет удаления, право на отчёты',
   summary:
     'Права в letopis всегда включены и по умолчанию запрещают всё. Правило — связь «кто» (ресурс-группа) и «что» ' +
-    '(ресурс-объект) с разрешением и весом. Проверяет их сама база — для библиотеки и для сырого SQL одинаково.',
+    '(ресурс-объект) с разрешением и весом. Проверяет их сама база — одинаково для библиотеки и для прямых SQL-запросов.',
   tables: ['entity'],
   classes: ['member', 'Resource', 'rule'],
   covers: ['db.acl', 'nuance.deny-by-default', 'nuance.rule-weight', 'nuance.tenant-classes', 'error.acl_denied', 'error.invalid_class'],
@@ -25,7 +25,9 @@ export default example({
     },
     {
       title: 'Правило: сотрудникам нельзя удалять товары',
-      text: 'Ресурс-группа «роль staff», ресурс-объект «удаление товаров» и запрет с весом 50 — сильнее правила «своим можно всё» (вес 10).',
+      text:
+        'Ресурс-группа «роль staff», ресурс-объект «удаление товаров» и запрет с весом 50 — сильнее правила «своим можно всё» (вес 10). ' +
+        'Второе правило разрешает той же роли отчёты — эндпоинты `shop.reports.*`.',
       run: async ({ db }) => {
         const [staff] = await db.Resource().create({ alias: 'staff:ACCOUNT', category: 'ACCOUNT', pattern: { roles: '{staff}' } }).rows();
         const [delProduct] = await db.Resource().create({ alias: 'product:DELETE', category: 'DELETE', pattern: { class: 'Product' } }).rows();

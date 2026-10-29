@@ -1,7 +1,7 @@
 {
   "id": "delete/02-restore-purge",
   "title": "Вернуть удалённое и стереть историю",
-  "summary": "restore() возвращает последний снимок удалённого объекта новой версией. purge стирает историю уже удалённого объекта целиком — на месте первой версии остаётся запись purge с числом стёртых версий.",
+  "summary": "restore() возвращает удалённый объект с его последними данными — новой версией. purge стирает историю уже удалённого объекта целиком — на месте первой версии остаётся запись purge с числом стёртых версий.",
   "covers": [
     "chain.restore",
     "chain.purge",
@@ -28,7 +28,7 @@
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">d </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> seedShop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span></code></pre>",
       "result": [
         {
-          "at": "t17",
+          "at": "t15",
           "id": "Order «A-1»",
           "op": "delete",
           "rev": 2,
@@ -49,7 +49,7 @@
           "$deleted": true
         },
         {
-          "at": "t18",
+          "at": "t15",
           "id": "line·1",
           "op": "delete",
           "rev": 2,
@@ -70,8 +70,8 @@
           "$deleted": true
         },
         {
-          "at": "t19",
-          "id": "line·3",
+          "at": "t15",
+          "id": "line·2",
           "op": "delete",
           "rev": 2,
           "data": {
@@ -381,13 +381,13 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$changed": [
             "*"
           ]
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -405,7 +405,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$changed": [
             "*"
           ]
@@ -701,12 +701,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t13",
+          "at": "t12",
           "$new": true
         },
         {
           "seq": "54",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -723,7 +723,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t14",
+          "at": "t13",
           "$new": true
         },
         {
@@ -745,12 +745,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$new": true
         },
         {
           "seq": "56",
-          "id": "line·2",
+          "id": "line·3",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -767,7 +767,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$new": true
         },
         {
@@ -789,7 +789,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t17",
+          "at": "t15",
           "$new": true
         },
         {
@@ -811,12 +811,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t18",
+          "at": "t15",
           "$new": true
         },
         {
           "seq": "59",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 2,
           "class": "line",
           "tenant": "Ромашка",
@@ -833,7 +833,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t19",
+          "at": "t15",
           "$new": true
         }
       ],
@@ -1122,11 +1122,11 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1144,7 +1144,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$changed": []
         }
       ],
@@ -1438,12 +1438,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t13",
+          "at": "t12",
           "$new": false
         },
         {
           "seq": "54",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -1460,7 +1460,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t14",
+          "at": "t13",
           "$new": false
         },
         {
@@ -1482,12 +1482,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$new": false
         },
         {
           "seq": "56",
-          "id": "line·2",
+          "id": "line·3",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -1504,7 +1504,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$new": false
         },
         {
@@ -1526,7 +1526,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t17",
+          "at": "t15",
           "$new": false
         },
         {
@@ -1548,12 +1548,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t18",
+          "at": "t15",
           "$new": false
         },
         {
           "seq": "59",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 2,
           "class": "line",
           "tenant": "Ромашка",
@@ -1570,7 +1570,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t19",
+          "at": "t15",
           "$new": false
         }
       ],
@@ -1584,7 +1584,7 @@
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
-          "at": "t20",
+          "at": "t16",
           "id": "Order «A-1»",
           "op": "restore",
           "rev": 3,
@@ -1872,7 +1872,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t20",
+          "at": "t16",
           "$changed": [
             "*"
           ]
@@ -1896,11 +1896,11 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1918,7 +1918,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$changed": []
         }
       ],
@@ -2212,12 +2212,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t13",
+          "at": "t12",
           "$new": false
         },
         {
           "seq": "54",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -2234,7 +2234,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t14",
+          "at": "t13",
           "$new": false
         },
         {
@@ -2256,12 +2256,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$new": false
         },
         {
           "seq": "56",
-          "id": "line·2",
+          "id": "line·3",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -2278,7 +2278,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$new": false
         },
         {
@@ -2300,7 +2300,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t17",
+          "at": "t15",
           "$new": false
         },
         {
@@ -2322,12 +2322,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t18",
+          "at": "t15",
           "$new": false
         },
         {
           "seq": "59",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 2,
           "class": "line",
           "tenant": "Ромашка",
@@ -2344,7 +2344,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t19",
+          "at": "t15",
           "$new": false
         },
         {
@@ -2366,7 +2366,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t20",
+          "at": "t16",
           "$new": true
         }
       ],
@@ -2380,7 +2380,7 @@
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">withDeleted</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
-          "at": "t21",
+          "at": "t17",
           "id": "line·1",
           "op": "restore",
           "rev": 3,
@@ -2400,8 +2400,8 @@
           "agent": "service"
         },
         {
-          "at": "t22",
-          "id": "line·3",
+          "at": "t17",
+          "id": "line·2",
           "op": "restore",
           "rev": 3,
           "data": {
@@ -2688,7 +2688,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t20",
+          "at": "t16",
           "$changed": []
         },
         {
@@ -2710,13 +2710,13 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t21",
+          "at": "t17",
           "$changed": [
             "*"
           ]
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 3,
           "tenant": "Ромашка",
@@ -2734,7 +2734,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t22",
+          "at": "t17",
           "$changed": [
             "*"
           ]
@@ -2758,11 +2758,11 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -2780,7 +2780,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$changed": []
         }
       ],
@@ -3074,12 +3074,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t13",
+          "at": "t12",
           "$new": false
         },
         {
           "seq": "54",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -3096,7 +3096,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t14",
+          "at": "t13",
           "$new": false
         },
         {
@@ -3118,12 +3118,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$new": false
         },
         {
           "seq": "56",
-          "id": "line·2",
+          "id": "line·3",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -3140,7 +3140,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$new": false
         },
         {
@@ -3162,7 +3162,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t17",
+          "at": "t15",
           "$new": false
         },
         {
@@ -3184,12 +3184,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t18",
+          "at": "t15",
           "$new": false
         },
         {
           "seq": "59",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 2,
           "class": "line",
           "tenant": "Ромашка",
@@ -3206,7 +3206,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t19",
+          "at": "t15",
           "$new": false
         },
         {
@@ -3228,7 +3228,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t20",
+          "at": "t16",
           "$new": false
         },
         {
@@ -3250,12 +3250,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t21",
+          "at": "t17",
           "$new": true
         },
         {
           "seq": "62",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 3,
           "class": "line",
           "tenant": "Ромашка",
@@ -3272,7 +3272,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t22",
+          "at": "t17",
           "$new": true
         }
       ],
@@ -3286,7 +3286,7 @@
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[temp] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Тест'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'test@example.com'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(temp).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span></code></pre>",
       "result": [
         {
-          "at": "t24",
+          "at": "t19",
           "id": "Customer «Тест»",
           "op": "delete",
           "rev": 2,
@@ -3572,7 +3572,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t20",
+          "at": "t16",
           "$changed": []
         },
         {
@@ -3594,11 +3594,11 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t21",
+          "at": "t17",
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 3,
           "tenant": "Ромашка",
@@ -3616,7 +3616,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t22",
+          "at": "t17",
           "$changed": []
         },
         {
@@ -3638,11 +3638,11 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -3660,7 +3660,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$changed": []
         }
       ],
@@ -3954,12 +3954,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t13",
+          "at": "t12",
           "$new": false
         },
         {
           "seq": "54",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -3976,7 +3976,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t14",
+          "at": "t13",
           "$new": false
         },
         {
@@ -3998,12 +3998,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$new": false
         },
         {
           "seq": "56",
-          "id": "line·2",
+          "id": "line·3",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -4020,7 +4020,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$new": false
         },
         {
@@ -4042,7 +4042,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t17",
+          "at": "t15",
           "$new": false
         },
         {
@@ -4064,12 +4064,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t18",
+          "at": "t15",
           "$new": false
         },
         {
           "seq": "59",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 2,
           "class": "line",
           "tenant": "Ромашка",
@@ -4086,7 +4086,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t19",
+          "at": "t15",
           "$new": false
         },
         {
@@ -4108,7 +4108,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t20",
+          "at": "t16",
           "$new": false
         },
         {
@@ -4130,12 +4130,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t21",
+          "at": "t17",
           "$new": false
         },
         {
           "seq": "62",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 3,
           "class": "line",
           "tenant": "Ромашка",
@@ -4152,7 +4152,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t22",
+          "at": "t17",
           "$new": false
         },
         {
@@ -4171,7 +4171,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t23",
+          "at": "t18",
           "$new": true
         },
         {
@@ -4190,7 +4190,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t24",
+          "at": "t19",
           "$new": true
         }
       ],
@@ -4198,13 +4198,13 @@
       "counts": null
     },
     {
-      "title": "purge: сначала превью",
-      "text": "Превью `purge` показывает, сколько версий в журнале будет стёрто (`$versions`).",
+      "title": "purge: сначала предпросмотр",
+      "text": "Предпросмотр `purge` показывает, сколько версий в журнале будет стёрто (`$versions`).",
       "code": "db.Customer(temp).purge().rows()",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(temp).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">purge</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
-          "at": "t24",
+          "at": "t19",
           "id": "Customer «Тест»",
           "op": "delete",
           "rev": 2,
@@ -4491,7 +4491,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t20",
+          "at": "t16",
           "$changed": []
         },
         {
@@ -4513,11 +4513,11 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t21",
+          "at": "t17",
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 3,
           "tenant": "Ромашка",
@@ -4535,7 +4535,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t22",
+          "at": "t17",
           "$changed": []
         },
         {
@@ -4557,11 +4557,11 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -4579,7 +4579,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$changed": []
         }
       ],
@@ -4873,12 +4873,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t13",
+          "at": "t12",
           "$new": false
         },
         {
           "seq": "54",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -4895,7 +4895,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t14",
+          "at": "t13",
           "$new": false
         },
         {
@@ -4917,12 +4917,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$new": false
         },
         {
           "seq": "56",
-          "id": "line·2",
+          "id": "line·3",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -4939,7 +4939,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$new": false
         },
         {
@@ -4961,7 +4961,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t17",
+          "at": "t15",
           "$new": false
         },
         {
@@ -4983,12 +4983,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t18",
+          "at": "t15",
           "$new": false
         },
         {
           "seq": "59",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 2,
           "class": "line",
           "tenant": "Ромашка",
@@ -5005,7 +5005,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t19",
+          "at": "t15",
           "$new": false
         },
         {
@@ -5027,7 +5027,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t20",
+          "at": "t16",
           "$new": false
         },
         {
@@ -5049,12 +5049,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t21",
+          "at": "t17",
           "$new": false
         },
         {
           "seq": "62",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 3,
           "class": "line",
           "tenant": "Ромашка",
@@ -5071,7 +5071,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t22",
+          "at": "t17",
           "$new": false
         },
         {
@@ -5090,7 +5090,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t23",
+          "at": "t18",
           "$new": false
         },
         {
@@ -5109,7 +5109,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t24",
+          "at": "t19",
           "$new": false
         }
       ],
@@ -5118,12 +5118,12 @@
     },
     {
       "title": "purge: стереть историю",
-      "text": "Версии покупателя ушли из журнала; на месте первой осталась запись `purge` с числом стёртых версий. Так выполняют право на забвение: данные стёрты, а факт стирания виден.",
+      "text": "Версии покупателя ушли из журнала; на месте первой осталась запись `purge` с числом стёртых версий. Так выполняют право на забвение — требование человека стереть его данные: данные стёрты, а факт стирания виден.",
       "code": "db.Customer(temp).purge({ confirm: true }).rows()",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(temp).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">purge</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
-          "at": "t24",
+          "at": "t19",
           "id": "Customer «Тест»",
           "op": "delete",
           "rev": 2,
@@ -5411,7 +5411,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t20",
+          "at": "t16",
           "$changed": []
         },
         {
@@ -5433,11 +5433,11 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t21",
+          "at": "t17",
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 3,
           "tenant": "Ромашка",
@@ -5455,7 +5455,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t22",
+          "at": "t17",
           "$changed": []
         },
         {
@@ -5477,11 +5477,11 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -5499,7 +5499,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$changed": []
         }
       ],
@@ -5793,12 +5793,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t13",
+          "at": "t12",
           "$new": false
         },
         {
           "seq": "54",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -5815,7 +5815,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t14",
+          "at": "t13",
           "$new": false
         },
         {
@@ -5837,12 +5837,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$new": false
         },
         {
           "seq": "56",
-          "id": "line·2",
+          "id": "line·3",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -5859,7 +5859,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$new": false
         },
         {
@@ -5881,7 +5881,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t17",
+          "at": "t15",
           "$new": false
         },
         {
@@ -5903,12 +5903,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t18",
+          "at": "t15",
           "$new": false
         },
         {
           "seq": "59",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 2,
           "class": "line",
           "tenant": "Ромашка",
@@ -5925,7 +5925,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t19",
+          "at": "t15",
           "$new": false
         },
         {
@@ -5947,7 +5947,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t20",
+          "at": "t16",
           "$new": false
         },
         {
@@ -5969,12 +5969,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t21",
+          "at": "t17",
           "$new": false
         },
         {
           "seq": "62",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 3,
           "class": "line",
           "tenant": "Ромашка",
@@ -5991,7 +5991,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t22",
+          "at": "t17",
           "$new": false
         },
         {
@@ -6010,7 +6010,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t25",
+          "at": "t20",
           "$new": true
         }
       ],
@@ -6300,7 +6300,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t20",
+          "at": "t16",
           "$changed": []
         },
         {
@@ -6322,11 +6322,11 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t21",
+          "at": "t17",
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 3,
           "tenant": "Ромашка",
@@ -6344,7 +6344,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t22",
+          "at": "t17",
           "$changed": []
         },
         {
@@ -6366,11 +6366,11 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -6388,7 +6388,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$changed": []
         }
       ],
@@ -6682,12 +6682,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t13",
+          "at": "t12",
           "$new": false
         },
         {
           "seq": "54",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -6704,7 +6704,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t14",
+          "at": "t13",
           "$new": false
         },
         {
@@ -6726,12 +6726,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$new": false
         },
         {
           "seq": "56",
-          "id": "line·2",
+          "id": "line·3",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -6748,7 +6748,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$new": false
         },
         {
@@ -6770,7 +6770,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t17",
+          "at": "t15",
           "$new": false
         },
         {
@@ -6792,12 +6792,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t18",
+          "at": "t15",
           "$new": false
         },
         {
           "seq": "59",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 2,
           "class": "line",
           "tenant": "Ромашка",
@@ -6814,7 +6814,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t19",
+          "at": "t15",
           "$new": false
         },
         {
@@ -6836,7 +6836,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t20",
+          "at": "t16",
           "$new": false
         },
         {
@@ -6858,12 +6858,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t21",
+          "at": "t17",
           "$new": false
         },
         {
           "seq": "62",
-          "id": "line·3",
+          "id": "line·2",
           "rev": 3,
           "class": "line",
           "tenant": "Ромашка",
@@ -6880,7 +6880,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t22",
+          "at": "t17",
           "$new": false
         },
         {
@@ -6899,7 +6899,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t25",
+          "at": "t20",
           "$new": false
         }
       ],

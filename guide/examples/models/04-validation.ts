@@ -28,8 +28,9 @@ const Coupon = hub('Coupon', { code: z.string().refine((s) => s.startsWith('C-')
 export default example({
   title: 'Проверка данных: база не примет неправильное',
   summary:
-    'Модель превращается в JSON Schema, и каждую запись проверяет сама база — даже сырой SQL. Умолчания ' +
-    'подставляет база. Новое обязательное поле — ужесточение: база проверит, что старые строки ему не мешают.',
+    'Модель превращается в JSON Schema, и каждую запись проверяет сама база — даже запись прямым SQL-запросом. ' +
+    'Значения по умолчанию подставляет база. Новое обязательное поле ужесточает модель: база проверит, подходят ли ' +
+    'под неё старые строки.',
   covers: ['error.invalid_data', 'error.tightening_conflict', 'nuance.refine-lost', 'nuance.defaults-by-db', 'nuance.safe-change'],
   steps: [
     {
@@ -37,7 +38,7 @@ export default example({
       run: async ({ db }) => (await syncModels(db, [Product], { apply: true })).created,
     },
     {
-      title: 'Умолчание подставляет база',
+      title: 'Значение по умолчанию подставляет база',
       text: 'Поле `status` не передали — база подставила `draft` из `.default()` модели.',
       run: async ({ db }) => db.Product().create({ title: 'Чайник', price: 2500 }).rows(),
     },
@@ -50,8 +51,9 @@ export default example({
     {
       title: 'Новое обязательное поле — ужесточение',
       text:
-        'У «Чайника» нет поля `sku`, а модель теперь требует его. Такое изменение — ужесточение: база проверяет все ' +
-        'строки класса и отвечает `tightening_conflict` со списком мешающих строк. Описание не изменилось.',
+        'У «Чайника» нет поля `sku`, а модель теперь требует его. Такое изменение — ужесточение: старые данные могут ' +
+        'под него не подойти. База проверяет все строки класса и отвечает `tightening_conflict` со списком строк, ' +
+        'которые не подходят. Описание класса не изменилось.',
       run: async ({ db }) => syncModels(db, [ProductV2], { apply: true }),
       expect: { error: 'tightening_conflict' },
     },
@@ -64,10 +66,10 @@ export default example({
       },
     },
     {
-      title: 'Правила refine база не исполняет',
+      title: 'Проверки refine база не выполняет',
       text:
         '`refine`, `superRefine` и `transform` в JSON Schema не выражаются. `syncModels` не теряет их молча: ' +
-        'возвращает в `lost`. Такие правила проверяйте в приложении.',
+        'возвращает в `lost`. Такие проверки выполняйте в приложении.',
       run: async ({ db }) => {
         const r = await syncModels(db, [Coupon], { apply: true });
         return { created: r.created, lost: r.lost };

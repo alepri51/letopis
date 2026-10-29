@@ -12,10 +12,11 @@ let d: ShopData;
 let sales: ReturnType<import('letopis').Db['projector']>;
 
 export default example({
-  title: 'Проектор: итоги из журнала, без ожидания писателей',
+  title: 'Проектор: итоги из журнала, записи не ждут друг друга',
   summary:
     'Проектор читает журнал классов-источников и пишет итоги в производные классы — с небольшим отставанием, ' +
-    'зато писатели не ждут друг друга. run({ once: true }) догоняет журнал, status() показывает отставание.',
+    'зато одновременные записи не ждут друг друга. run({ once: true }) обрабатывает всё, что накопилось в журнале, ' +
+    'status() показывает отставание.',
   tables: ['entity'],
   classes: [],
   covers: ['db.projector', 'projector.from', 'projector.into', 'projector.version', 'projector.withBefore', 'projector.handle', 'class.derivedBy', 'db.refresh', 'nuance.projector-lag', 'nuance.registry-refresh'],
@@ -42,10 +43,10 @@ export default example({
       },
     },
     {
-      title: 'Догнать журнал',
+      title: 'Первый проход по журналу',
       text:
         'Первый `run({ once: true })` прочёл строки заказов и записал продажи по товарам — смотрите строки `ProductSales`. ' +
-        'Класс завело другое подключение, поэтому фасад пользователя перечитывает реестр явно — `db.refresh()` ' +
+        'Класс завело другое подключение, поэтому подключение пользователя перечитывает реестр классов явно — `db.refresh()` ' +
         '(сам он узнал бы о новом классе по сигналу, с задержкой).',
       run: async ({ db }) => {
         await db.refresh();

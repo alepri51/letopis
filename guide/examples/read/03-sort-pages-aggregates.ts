@@ -10,7 +10,8 @@ export default example({
   title: 'Сортировка, страницы и итоги',
   summary:
     'sort задаёт порядок, limit и offset — размер и сдвиг. Для лент лучше after(cursorOf(...)): страница «строго ' +
-    'после такой-то строки» устойчива к вставкам. Суммы, средние и группировки считает база.',
+    'после такой-то строки» не сбивается, если между запросами добавились новые строки. Суммы, средние и ' +
+    'группировки считает база.',
   tables: [],
   covers: [
     'chain.sort', 'chain.limit', 'chain.offset', 'chain.after', 'export.cursorOf', 'chain.sum', 'chain.avg',
@@ -34,8 +35,8 @@ export default example({
     {
       title: 'Следующая страница — после последней строки',
       text:
-        'Курсор — объект `{ v, id }`: значение поля сортировки и id строки. Он переживает JSON, поэтому его можно ' +
-        'отдать клиенту и получить обратно. Поле в `cursorOf` должно совпадать с полем `sort`.',
+        'Курсор — объект `{ v, id }`: значение поля сортировки и id строки. Его можно сохранить в JSON и восстановить, ' +
+        'поэтому курсор можно отдать клиенту и получить обратно. Поле в `cursorOf` должно совпадать с полем `sort`.',
       run: async ({ db }) => {
         const cursor = cursorOf(page1.at(-1)!, 'data.price');
         const page2 = await db.Product().sort('data.price', 'desc').after(cursor).limit(2).rows();
@@ -65,7 +66,7 @@ export default example({
     },
     {
       title: 'Группировка countBy',
-      text: '`countBy` — сколько строк с каждым значением. `limit` перед `countBy` относится к группам: самые частые значения.',
+      text: '`countBy` — сколько строк с каждым значением. `limit` перед `countBy` ограничивает число групп: остаются самые частые значения.',
       run: async ({ db }) => ({
         'заказы по статусу': await db.Order().countBy('data.status'),
         'самый частый статус': await db.Order().limit(1).countBy('data.status'),

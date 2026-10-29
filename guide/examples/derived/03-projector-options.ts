@@ -14,9 +14,10 @@ const handle = (changes: ProjectorChange[], out: ProjectorOut) => {
 export default example({
   title: 'Опции проектора: пачки, опрос, блокировки, арендаторы, просроченный курсор',
   summary:
-    'batch — сколько изменений за проход, pollMs — запасной опрос журнала, lockTimeout и lockRetries — как долго ждать ' +
-    'чужую блокировку строки и сколько раз повторить, tenants — каких арендаторов обслуживать, onExpired — что ' +
-    'делать, если курсор старше яруса all.',
+    'batch — сколько изменений за проход, pollMs — интервал запасного опроса журнала (сигналы будят проектор раньше), ' +
+    'lockTimeout — как долго ждать чужую блокировку строки, lockRetries — сколько проходов подряд запись арендатора ' +
+    'может упираться в неё, прежде чем он выбудет и пачка пойдёт без него, tenants — каких арендаторов обслуживать, ' +
+    'onExpired — что делать, если курсор старше яруса all.',
   tables: [],
   covers: ['projector.batch', 'projector.pollMs', 'projector.lockTimeout', 'projector.lockRetries', 'projector.tenants', 'projector.onExpired'],
   steps: [
@@ -34,7 +35,7 @@ export default example({
     },
     {
       title: 'Арендатор вне списка tenants',
-      text: 'Проектор с `tenants` обслуживает только перечисленных: перестроить чужого — `tenant_denied`.',
+      text: 'Проектор с `tenants` обслуживает только перечисленных арендаторов: перестроить данные другого — `tenant_denied`.',
       run: async ({ up }) => adm.projector('daily', { from: ['Sale'], into: ['DayTotal'], version: 1, handle, tenants: [up.tenant!.tenant] })
         .rebuild({ tenant: '00000000-0000-4000-8000-000000000000' }),
       expect: { error: 'tenant_denied' },

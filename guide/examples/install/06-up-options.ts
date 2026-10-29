@@ -11,7 +11,8 @@ export default example({
   summary:
     'up() может работать через готовый пул postgres.js (sql), с другими именами ролей (owner, app), своим ' +
     'каталогом миграций (migrationsDir) и сразу завести первого арендатора (tenant). Режим сигналов none — для ' +
-    'пулов в режиме транзакций (PgBouncer): база не шлёт NOTIFY, кэш — только по сроку.',
+    'пулов в режиме транзакций (PgBouncer): база не шлёт сигналы (NOTIFY), поэтому кэш выключен — включить его можно ' +
+    'только по сроку (ttlOnly).',
   setup: 'none',
   tables: ['counts'],
   covers: ['up.sql', 'up.tenant', 'up.owner', 'up.app', 'up.migrationsDir', 'signals.none', 'model.End', 'model.normalizeSchema', 'model.translatePattern'],

@@ -1,7 +1,7 @@
 {
   "id": "write/03-inc-and-rev",
   "title": "Счётчики inc и защита от параллельной правки { rev }",
-  "summary": "inc(n) прибавляет внутри оператора UPDATE над свежей строкой — параллельные приращения не теряются. { rev } пишет, только если строку никто не менял с тех пор, как вы её прочитали.",
+  "summary": "inc(n) прибавляет к текущему значению прямо в SQL-операторе UPDATE — одновременные приращения не теряются. { rev } пишет, только если строку никто не менял с тех пор, как вы её прочитали.",
   "covers": [
     "export.inc",
     "export.isInc",
@@ -187,7 +187,7 @@
     },
     {
       "title": "Скидка 500 — внутри базы",
-      "text": "`inc(-500)` не читает цену в приложении: база вычитает внутри оператора. Было 2500 — стало 2000.",
+      "text": "`inc(-500)` не читает цену в приложении: база вычитает сама, внутри оператора UPDATE. Было 2500 — стало 2000.",
       "code": "db.Product(kettle).update({ price: inc(-500) }).rows()",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">inc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">-</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">500</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
@@ -585,7 +585,7 @@
     },
     {
       "title": "В минус уйти нельзя",
-      "text": "Цена по модели не меньше 0. `inc(-5000)` дал бы −3000 — база проверяет правило над итогом и отказывает `invalid_data`.",
+      "text": "Цена по модели не меньше 0. `inc(-5000)` дал бы −3000 — база проверяет ограничение модели для получившегося значения и отказывает: `invalid_data`.",
       "code": "db.Product(kettle).update({ price: inc(-5000) }).rows()",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">inc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">-</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">5000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": null,
@@ -783,7 +783,7 @@
     },
     {
       "title": "Читаем версию",
-      "text": "Строгий режим нужен, когда новое значение вычислено из прочитанного. Запоминаем `rev`.",
+      "text": "Строгий режим — правка с проверкой версии `{ rev }` — нужен, когда новое значение вычислено из прочитанного. Запоминаем `rev`.",
       "code": "rev = (await db.Product(kettle).first())!.rev;\nreturn { rev };",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">rev </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.rev;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { rev };</span></span></code></pre>",
       "result": {
@@ -1634,7 +1634,7 @@
     },
     {
       "title": "inc — маркер, а не число",
-      "text": "`isInc` отличает маркер от обычного значения. Из JSON его не получить: `{ \"$inc\": 5 }` из сети остаётся данными.",
+      "text": "`inc(5)` возвращает маркер — пометку «прибавить 5», которую понимает библиотека. `isInc` отличает маркер от обычного значения. Из JSON маркер не получить: `{ \"$inc\": 5 }`, пришедший по сети, остаётся обычными данными.",
       "code": "({ marker: isInc(inc(5)), fromJson: isInc(JSON.parse('{\"$inc\":5}')) })",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ marker: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">isInc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">inc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">5</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)), fromJson: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">isInc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">JSON</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">parse</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'{\"$inc\":5}'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)) })</span></span></code></pre>",
       "result": {

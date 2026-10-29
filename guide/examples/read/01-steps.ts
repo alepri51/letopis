@@ -8,7 +8,8 @@ export default example({
   title: 'Шаги и переходы: от объекта к объекту',
   summary:
     'Цепочка начинается с класса, следующий шаг — класс, алиас или роль конца. Переход идёт по ссылкам: от ' +
-    'объекта к тем, кто на него ссылается (назад), к цели ссылки (вперёд), через связь — дальше.',
+    'объекта к тем, кто на него ссылается (назад), к цели ссылки (вперёд), а через класс-связку — дальше, к ' +
+    'объектам на другом её конце.',
   tables: ['entity'],
   covers: ['chain.rows', 'chain.first', 'chain.ids', 'chain.count', 'nuance.step-direction'],
   steps: [
@@ -35,18 +36,18 @@ export default example({
       run: async ({ db }) => names(await db.Order(d.order1).line().Product().rows()),
     },
     {
-      title: 'Шаг-роль: родительская категория',
-      text: 'Шаг по имени роли конца (`Parent`) идёт именно этим концом.',
+      title: 'Шаг по роли: родительская категория',
+      text: 'Шаг с именем роли конца (`Parent`) переходит именно по этой ссылке.',
       run: async ({ db }) => (await db.Category(d.green).Parent().first())?.data,
     },
     {
       title: 'Покупатели заказов магазина',
-      text: 'Цепочка любой длины: магазин → его заказы → покупатели этих заказов. Повторов нет: `rows()` отдаёт строки без дублей.',
+      text: 'Цепочка любой длины: магазин → его заказы → покупатели этих заказов. Повторов нет: `rows()` отдаёт каждую строку один раз.',
       run: async ({ db }) => names(await db.Shop(d.romashka).Order().Customer().sort('data.name').rows()),
     },
     {
       title: 'ids() и count()',
-      text: '`ids()` — только id, `count()` — сколько сущностей на последнем шаге.',
+      text: '`ids()` — только id, `count()` — сколько объектов на последнем шаге.',
       run: async ({ db }) => ({ ids: (await db.Shop(d.romashka).Product().ids()).length, count: await db.Shop(d.romashka).Product().count() }),
     },
   ],

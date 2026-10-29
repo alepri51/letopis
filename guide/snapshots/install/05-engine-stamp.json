@@ -1,6 +1,6 @@
 {
   "id": "install/05-engine-stamp",
-  "title": "Штамп движка: connect() замечает, что схему не накатили",
+  "title": "Штамп движка: connect() замечает, что схему не обновили",
   "summary": "up() пишет в комментарий схемы ревизию, версию пакета и хэш его SQL-файлов. Если после обновления пакета забыть вызвать up(), функции в базе останутся старыми — connect() это заметит и предупредит.",
   "covers": [
     "nuance.engine-stamp"
@@ -42,8 +42,8 @@
       "counts": null
     },
     {
-      "title": "Накатываем up() — предупреждения нет",
-      "text": "Повторный `up()` накатывает функции и пишет свежий штамп. Теперь `connect()` молчит.",
+      "title": "Повторный up() — предупреждения нет",
+      "text": "Повторный `up()` заново ставит функции схемы и пишет свежий штамп. Теперь `connect()` ничего не печатает.",
       "code": "await up({ dsn: dsn.admin, schema, quiet: true });\nconst { warnings: printed } = await warnings(() => connect({ dsn: dsn.app, schema, token: installed.tenant!.token! }));\nreturn printed;",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">warnings</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">printed</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> warnings</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.app, schema, token: installed.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }));</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> printed;</span></span></code></pre>",
       "result": [],

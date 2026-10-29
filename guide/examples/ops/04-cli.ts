@@ -39,7 +39,7 @@ export default example({
   steps: [
     {
       title: 'sync: сухой прогон и запись моделей',
-      text: '`letopis sync модуль.ts --token …` берёт из модуля всё, у чего есть `describe()`, и сравнивает с базой; `--apply` — записать.',
+      text: '`letopis sync модуль.ts --token …` берёт из модуля всё, у чего есть `describe()`, и сравнивает с базой. Без `--apply` это сухой прогон — ничего не записывается; с `--apply` модели записываются.',
       run: async ({ dsn, schema, up }) => {
         token = up.tenant!.token!;
         base = ['--dsn', dsn.app, '--schema', schema, '--token', token];
@@ -54,7 +54,7 @@ export default example({
     },
     {
       title: 'load: NDJSON — объект на строку',
-      text: 'Загрузка — администраторская: подключение суперпользователем, арендатор — из сессии токена.',
+      text: 'Загрузка — администраторская операция: подключение от суперпользователя, арендатор берётся из сессии токена.',
       run: async ({ dsn, schema }) => {
         dir = await mkdtemp(join(tmpdir(), 'letopis-cli-'));
         await writeFile(join(dir, 'shops.ndjson'), [{ $class: 'Shop', name: 'Ромашка' }, { $class: 'Shop', name: 'Лютик' }].map((x) => JSON.stringify(x)).join('\n'));
@@ -71,7 +71,7 @@ export default example({
     },
     {
       title: 'verify и maintain',
-      text: '`verify` — код 1 при находках (удобно в CI); `maintain` печатает отчёт одной строкой.',
+      text: '`verify` завершается с кодом 1, если нашёл нарушения (удобно в CI); `maintain` печатает отчёт одной строкой.',
       run: async ({ dsn, schema }) => {
         const v = await cli(['verify', '--dsn', dsn.admin, '--schema', schema, '--data']);
         const m = await cli(['maintain', '--dsn', dsn.admin, '--schema', schema, '--batches', '1']);
@@ -80,7 +80,7 @@ export default example({
     },
     {
       title: 'mcp: сервер инструментов для ИИ-агента по stdio',
-      text: '`letopis mcp --token …` — то, что подключают в Claude Code или другом клиенте MCP; `--write` открывает запись.',
+      text: '`letopis mcp --token …` — то, что подключают в Claude Code или другом клиенте MCP; `--write` разрешает запись.',
       run: async () => mcpTools(base),
     },
   ],

@@ -1,7 +1,7 @@
 {
   "id": "ops/02-reset",
   "title": "Сброс: reset({ level }) — сессии, данные арендатора, всё",
-  "summary": "reset — для стендов и тестов: погасить все сессии, стереть данные арендатора или всю установку. Включается только флагом установки allowReset, требует права letopis.reset и подтверждения именем схемы.",
+  "summary": "reset — для стендов и тестов: завершить все сессии, стереть данные арендатора или всю установку. Включается только флагом установки allowReset, требует права letopis.reset и подтверждения именем схемы.",
   "covers": [
     "db.reset",
     "reset.level",
@@ -62,8 +62,8 @@
       }
     },
     {
-      "title": "Накат с allowReset; неверное подтверждение",
-      "text": "Флаг — константа установки: его переставляет каждый `up()`. `confirm` — полное имя схемы.",
+      "title": "up() с allowReset; неверное подтверждение",
+      "text": "Флаг хранится в установке, и каждый вызов `up()` задаёт его заново. `confirm` — полное имя схемы.",
       "code": "\nawait up({ dsn: dsn.admin, schema, quiet: true, allowReset: true });\r\nreturn adm.reset({ level: 'sessions', confirm: 'не та схема' });",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, allowReset: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">reset</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ level: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'sessions'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, confirm: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'не та схема'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span></code></pre>",
       "result": null,
@@ -97,7 +97,7 @@
       }
     },
     {
-      "title": "Погасить все сессии, кроме текущей",
+      "title": "Завершить все сессии, кроме текущей",
       "text": null,
       "code": "adm.reset({ level: 'sessions', confirm: schema })",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">reset</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ level: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'sessions'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, confirm: schema })</span></span></code></pre>",
@@ -132,7 +132,7 @@
     },
     {
       "title": "Стереть данные арендатора",
-      "text": "Строки и журнал арендатора — пачками; аккаунт, креды и сессии остаются. В журнале — запись `reset`.",
+      "text": "Строки и журнал арендатора стираются пачками; аккаунт, способы входа и сессии остаются. В журнале — запись `reset`.",
       "code": "\nawait syncShop(adm);\r\nawait adm.refresh();\r\nawait adm.Shop().create({ name: 'Ромашка' }).rows();\r\nreturn adm.reset({ level: 'tenant', tenant, confirm: schema });",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncShop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(adm);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">refresh</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">reset</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ level: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'tenant'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, tenant, confirm: schema });</span></span></code></pre>",
       "result": {
@@ -201,8 +201,8 @@
       }
     },
     {
-      "title": "Стереть всё: классы, данные, креды, сессии",
-      "text": "Администраторское подключение без сессии (право — у администраторской роли). Остаётся пустая установка с новым сервисным ключом.",
+      "title": "Стереть всё: классы, данные, способы входа, сессии",
+      "text": "Администраторское подключение без сессии (право — у администраторской роли). Остаётся пустая установка с новым ключом сервиса.",
       "code": "\nconst root = await track({ dsn: dsn.admin, schema, allowBypassRls: true });\r\nconst res = await root.reset({ level: 'all', confirm: schema });\r\nreturn { ...res, serviceKey: res.serviceKey ? 'новый ключ lts_…' : null };",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> root</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> track</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema, allowBypassRls: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> res</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> root.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">reset</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ level: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'all'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, confirm: schema });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">...</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">res, serviceKey: res.serviceKey </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">?</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'новый ключ lts_…'</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> :</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> null</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> };</span></span></code></pre>",
       "result": {

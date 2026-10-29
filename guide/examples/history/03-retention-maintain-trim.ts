@@ -15,7 +15,7 @@ export default example({
   title: 'Хранение истории по ярусам: maintain, trimHistory, cursor_expired',
   summary:
     'Политика history класса говорит, сколько версий хранить: свежие — все, старые — по одной на день, неделю, ' +
-    'месяц. Прореживает их maintain(). trimHistory обрезает историю до даты руками. Подписка с курсором старше ' +
+    'месяц. Прореживает их maintain(). trimHistory вручную обрезает историю до заданной даты. Подписка с курсором старше ' +
     'яруса all получает cursor_expired.',
   setup: 'none',
   tables: [],
@@ -24,7 +24,7 @@ export default example({
   steps: [
     {
       title: 'Установка с allowReset и класс с политикой',
-      text: '`maintain({ now })` — «как будто сейчас другое время» — работает только в установке с `allowReset`: это стенд, не прод.',
+      text: '`maintain({ now })` — «как будто сейчас другое время» — работает только в установке с `allowReset`: это стенд, а не рабочая установка.',
       run: async ({ schema, dsn, connect }) => {
         const r = await up({ dsn: dsn.admin, schema, fresh: true, quiet: true, allowReset: true, tenant: { name: 'Ромашка', user: { name: 'Анна', login: 'anna@romashka.ru', password: 'Ромашка-2026!' } } });
         adm = await connect({ dsn: dsn.admin, schema: r.schema, token: r.tenant!.token!, allowBypassRls: true });
@@ -47,7 +47,9 @@ export default example({
     },
     {
       title: 'Прореживание «на следующий день» после архива',
-      text: 'Сутки (`all`) — все версии; неделя — последняя за день; месяц — за неделю; год — за месяц. Первая и текущая версии остаются всегда.',
+      text:
+        'За последние сутки (`all`) остаются все версии, за неделю — последняя за каждый день, за месяц — за каждую ' +
+        'неделю, за год — за каждый месяц. Первая и текущая версии остаются всегда.',
       run: async () => {
         const report = await adm.maintain({ now: '2025-04-01T12:00:00Z', batches: 10, limit: 1000 });
         return { 'удалено версий': report.thinned, 'осталось': await revs() };
@@ -55,7 +57,7 @@ export default example({
     },
     {
       title: 'Прореживание — не разрыв',
-      text: '`verify()` знает политику: пропуски номеров старше яруса `all` законны.',
+      text: '`verify()` знает политику хранения: пропуски в номерах версий старше яруса `all` для него допустимы.',
       run: async () => adm.verify(),
     },
     {

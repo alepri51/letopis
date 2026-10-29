@@ -1,7 +1,7 @@
 {
   "id": "read/01-steps",
   "title": "Шаги и переходы: от объекта к объекту",
-  "summary": "Цепочка начинается с класса, следующий шаг — класс, алиас или роль конца. Переход идёт по ссылкам: от объекта к тем, кто на него ссылается (назад), к цели ссылки (вперёд), через связь — дальше.",
+  "summary": "Цепочка начинается с класса, следующий шаг — класс, алиас или роль конца. Переход идёт по ссылкам: от объекта к тем, кто на него ссылается (назад), к цели ссылки (вперёд), а через класс-связку — дальше, к объектам на другом её конце.",
   "covers": [
     "chain.rows",
     "chain.first",
@@ -345,7 +345,7 @@
           ]
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -393,7 +393,7 @@
           ]
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -726,7 +726,7 @@
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -770,7 +770,7 @@
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1100,7 +1100,7 @@
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1144,7 +1144,7 @@
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1474,7 +1474,7 @@
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1518,7 +1518,7 @@
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1546,8 +1546,8 @@
       "counts": null
     },
     {
-      "title": "Шаг-роль: родительская категория",
-      "text": "Шаг по имени роли конца (`Parent`) идёт именно этим концом.",
+      "title": "Шаг по роли: родительская категория",
+      "text": "Шаг с именем роли конца (`Parent`) переходит именно по этой ссылке.",
       "code": "(await db.Category(d.green).Parent().first())?.data",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.green).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Parent</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())?.data</span></span></code></pre>",
       "result": {
@@ -1847,7 +1847,7 @@
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1891,7 +1891,7 @@
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1920,7 +1920,7 @@
     },
     {
       "title": "Покупатели заказов магазина",
-      "text": "Цепочка любой длины: магазин → его заказы → покупатели этих заказов. Повторов нет: `rows()` отдаёт строки без дублей.",
+      "text": "Цепочка любой длины: магазин → его заказы → покупатели этих заказов. Повторов нет: `rows()` отдаёт каждую строку один раз.",
       "code": "names(await db.Shop(d.romashka).Order().Customer().sort('data.name').rows())",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">names</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.romashka).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sort</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'data.name'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())</span></span></code></pre>",
       "result": [
@@ -2221,7 +2221,7 @@
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -2265,7 +2265,7 @@
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -2294,7 +2294,7 @@
     },
     {
       "title": "ids() и count()",
-      "text": "`ids()` — только id, `count()` — сколько сущностей на последнем шаге.",
+      "text": "`ids()` — только id, `count()` — сколько объектов на последнем шаге.",
       "code": "({ ids: (await db.Shop(d.romashka).Product().ids()).length, count: await db.Shop(d.romashka).Product().count() })",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ ids: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.romashka).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">ids</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, count: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.romashka).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() })</span></span></code></pre>",
       "result": {
@@ -2595,7 +2595,7 @@
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -2639,7 +2639,7 @@
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",

@@ -17,7 +17,7 @@ export default example({
   steps: [
     {
       title: 'id объекта по ключу — без запроса к базе',
-      text: '`idOf(класс, ключ, { tenant })` даёт тот же id, что база: v5 от имени класса и значений ключа в пространстве арендатора.',
+      text: '`idOf(класс, ключ, { tenant })` даёт тот же id, что и база: UUID v5 из арендатора, имени класса и значений ключа.',
       run: async ({ db, up }) => {
         await syncShop(db); // скрыть
         const [shop] = await db.Shop().create({ name: 'Ромашка' }).rows();
@@ -37,8 +37,8 @@ export default example({
       },
     },
     {
-      title: 'Валидатор и умолчания — те же правила, что в базе',
-      text: '`compileValidator(схема)` проверяет данные до отправки; `applyDefaults` дописывает значения по умолчанию; ошибка — `ValidationError` с перечнем.',
+      title: 'Валидатор и значения по умолчанию — те же проверки, что в базе',
+      text: '`compileValidator(схема)` проверяет данные до отправки; `applyDefaults` дописывает значения по умолчанию; ошибка — `ValidationError` со списком нарушений.',
       run: async ({ db }) => {
         const schema = db.registry.resolve('Product').schema;
         const check = compileValidator(schema);
@@ -60,7 +60,7 @@ export default example({
     },
     {
       title: 'Зарезервированные имена и ревизия движка',
-      text: 'Имена методов цепочки и корня нельзя дать классу — их разбирает Proxy раньше классов.',
+      text: 'Имена методов цепочки и `db` нельзя дать классу: библиотека сначала ищет метод с таким именем и только потом — класс.',
       run: async () => ({
         'методов цепочки': CHAIN_METHODS.length, 'методов db': DB_METHODS.length,
         'зарезервировано имён': RESERVED_CLASS_NAMES.length, 'среди них where?': RESERVED_CLASS_NAMES.includes('where'),

@@ -22,7 +22,7 @@ export default example({
   title: 'Опции сервера MCP: лимиты ответа и доступ к классам прав',
   summary:
     'maxRows и maxBytes ограничивают ответ инструмента — агенту не уйдёт вся база разом, а продолжение — по курсору. ' +
-    'allowAclWrite открывает запись в классы прав, allowSystemAdmin — работу в арендаторе System.',
+    'allowAclWrite разрешает запись в классы прав, allowSystemAdmin — работу в арендаторе System.',
   tables: [],
   covers: ['mcpopt.maxRows', 'mcpopt.maxBytes', 'mcpopt.allowAclWrite', 'mcpopt.allowSystemAdmin'],
   steps: [

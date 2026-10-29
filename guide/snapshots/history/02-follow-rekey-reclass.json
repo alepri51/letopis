@@ -1,7 +1,7 @@
 {
   "id": "history/02-follow-rekey-reclass",
   "title": "История через смену номера и класса: versions({ follow })",
-  "summary": "Номер входит в ключ, ключ — в id (v5), а класс — в v5 тоже. Поэтому reclass черновика в договор и rekey номера дают новый id. versions() показывает версии одного id, versions({ follow: true }) идёт по связям moved через все смены — вся жизнь документа одной лентой.",
+  "summary": "Номер входит в ключ, а id (v5) вычисляется из арендатора, класса и ключа. Поэтому reclass черновика в договор и rekey номера дают новый id. versions() показывает версии одного id, а versions({ follow: true }) проходит по ссылкам moved через все смены — вся жизнь документа одним списком.",
   "covers": [
     "nuance.versions-follow",
     "nuance.reclass-keyed-new-id",
@@ -97,11 +97,12 @@
     {
       "title": "Подписали: черновик стал договором",
       "text": "У класса с ключом `reclass` даёт новый id: старый уходит надгробием, у новой строки `moved` — прежний id.",
-      "code": "\n[contract] = await db.Draft(draft).reclass('Contract', { number: 'Д-1', title: 'Аренда склада', amount: 120_000, signedBy: 'Борис' }, { reason: 'подписан' }).rows();\r\nreturn { 'id сменился': contract.id !== draft.id, class: (contract as { class?: string }).class };",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[contract] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Draft</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(draft).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">reclass</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Contract'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Д-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Аренда склада'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, amount: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">120_000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, signedBy: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Борис'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'подписан'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'id сменился'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: contract.id </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!==</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> draft.id, class: (contract </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">class</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">?:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).class };</span></span></code></pre>",
+      "code": "\n[contract] = await db.Draft(draft).reclass('Contract', { number: 'Д-1', title: 'Аренда склада', amount: 120_000, signedBy: 'Борис' }, { reason: 'подписан' }).rows();\r\nreturn { 'id сменился': contract.id !== draft.id, class: (contract as { class?: string }).class, 'moved — прежний id': (contract as { moved?: string }).moved === draft.id };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[contract] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Draft</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(draft).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">reclass</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Contract'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Д-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Аренда склада'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, amount: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">120_000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, signedBy: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Борис'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'подписан'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'id сменился'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: contract.id </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!==</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> draft.id, class: (contract </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">class</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">?:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).class, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'moved — прежний id'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (contract </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">moved</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">?:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).moved </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> draft.id };</span></span></code></pre>",
       "result": {
         "id сменился": true,
-        "class": "Contract"
+        "class": "Contract",
+        "moved — прежний id": true
       },
       "error": null,
       "entity": [],
@@ -188,7 +189,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "подписан",
-          "at": "t4",
+          "at": "t3",
           "$new": true
         }
       ],
@@ -288,7 +289,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "подписан",
-          "at": "t4",
+          "at": "t3",
           "$new": false
         },
         {
@@ -309,7 +310,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "перенумерация реестра",
-          "at": "t5",
+          "at": "t4",
           "$new": true
         },
         {
@@ -330,7 +331,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "перенумерация реестра",
-          "at": "t6",
+          "at": "t4",
           "$new": true
         }
       ],
@@ -339,7 +340,7 @@
     },
     {
       "title": "versions() и versions({ follow: true })",
-      "text": "Без `follow` — только версии последнего id (одна, `rekey`). С `follow` — вся цепочка по времени, с надгробиями прежних id.",
+      "text": "Без `follow` — только версии последнего id (одна, `rekey`). С `follow` — все версии по времени, включая надгробия прежних id.",
       "code": "({\r\n        'без follow': (await db.Contract(renumbered).versions()).map((v) => `${v.class} v${v.rev} ${v.op}`),\r\n        'с follow': (await db.Contract(renumbered).versions({ follow: true })).map((v) => `${v.class} v${v.rev} ${v.op}${v.reason ? ` — ${v.reason}` : ''}`),\r\n      })",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'без follow'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Contract</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(renumbered).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">versions</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">v</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> `${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">v</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">class</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} v${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">v</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">rev</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} ${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">v</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">op</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'с follow'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Contract</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(renumbered).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">versions</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ follow: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">v</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> `${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">v</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">class</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} v${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">v</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">rev</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} ${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">v</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">op</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">v</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">reason</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> ?</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> ` — ${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">v</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">reason</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}`</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> :</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> ''}`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      })</span></span></code></pre>",
       "result": {
@@ -440,7 +441,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "подписан",
-          "at": "t4",
+          "at": "t3",
           "$new": false
         },
         {
@@ -461,7 +462,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "перенумерация реестра",
-          "at": "t5",
+          "at": "t4",
           "$new": false
         },
         {
@@ -482,7 +483,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "перенумерация реестра",
-          "at": "t6",
+          "at": "t4",
           "$new": false
         }
       ],
@@ -491,7 +492,7 @@
     },
     {
       "title": "Сменить ключ всему классу: rekeyClass",
-      "text": "`db.rekeyClass(класс, ключ)` переносит все строки семейства на новые id по новому ключу и переводит ссылки; результат — сколько строк перенесено.",
+      "text": "`db.rekeyClass(класс, ключ)` переносит все строки класса и его потомков на новые id по новому ключу и переводит ссылки; результат — сколько строк перенесено.",
       "code": "\nawait db.Code().create({ code: 'A', region: 'Москва' }).rows();\r\nawait db.Code().create({ code: 'B', region: 'Казань' }).rows();\r\nconst moved = await db.rekeyClass('Code', ['code', 'region']);\r\nawait db.refresh(); // реестр подключения узнаёт о новом ключе по сигналу; сразу — refresh()\r\nreturn { 'перенесено': moved, 'ключ': db.registry.resolve('Code').key };",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Code</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ code: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'A'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, region: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Москва'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Code</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ code: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'B'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, region: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Казань'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> moved</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rekeyClass</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Code'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'code'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'region'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">]);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">refresh</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(); </span><span style=\"color:#6A737D;--shiki-dark:#6A737D\">// реестр подключения узнаёт о новом ключе по сигналу; сразу — refresh()</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'перенесено'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: moved, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'ключ'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: db.registry.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">resolve</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Code'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).key };</span></span></code></pre>",
       "result": {
@@ -586,7 +587,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "подписан",
-          "at": "t4",
+          "at": "t3",
           "$new": false
         },
         {
@@ -607,7 +608,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "перенумерация реестра",
-          "at": "t5",
+          "at": "t4",
           "$new": false
         },
         {
@@ -628,12 +629,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": "перенумерация реестра",
-          "at": "t6",
+          "at": "t4",
           "$new": false
         },
         {
           "seq": "44",
-          "id": "Code·4",
+          "id": "Code·1",
           "rev": 1,
           "class": "Code",
           "tenant": "Ромашка",
@@ -644,6 +645,44 @@
           },
           "tags": [],
           "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$new": true
+        },
+        {
+          "seq": "45",
+          "id": "Code·2",
+          "rev": 1,
+          "class": "Code",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "code": "B",
+            "region": "Казань"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t6",
+          "$new": true
+        },
+        {
+          "seq": "47",
+          "id": "Code·3",
+          "rev": 1,
+          "class": "Code",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "code": "B",
+            "region": "Казань"
+          },
+          "tags": [],
+          "op": "rekey",
           "author": "Анна",
           "agent": "service",
           "reason": null,
@@ -651,46 +690,8 @@
           "$new": true
         },
         {
-          "seq": "45",
-          "id": "Code·3",
-          "rev": 1,
-          "class": "Code",
-          "tenant": "Ромашка",
-          "links": {},
-          "data": {
-            "code": "B",
-            "region": "Казань"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "Анна",
-          "agent": "service",
-          "reason": null,
-          "at": "t8",
-          "$new": true
-        },
-        {
-          "seq": "47",
-          "id": "Code·1",
-          "rev": 1,
-          "class": "Code",
-          "tenant": "Ромашка",
-          "links": {},
-          "data": {
-            "code": "B",
-            "region": "Казань"
-          },
-          "tags": [],
-          "op": "rekey",
-          "author": "Анна",
-          "agent": "service",
-          "reason": null,
-          "at": "t9",
-          "$new": true
-        },
-        {
           "seq": "48",
-          "id": "Code·3",
+          "id": "Code·2",
           "rev": 2,
           "class": "Code",
           "tenant": "Ромашка",
@@ -704,12 +705,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t10",
+          "at": "t7",
           "$new": true
         },
         {
           "seq": "49",
-          "id": "Code·2",
+          "id": "Code·4",
           "rev": 1,
           "class": "Code",
           "tenant": "Ромашка",
@@ -723,12 +724,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t11",
+          "at": "t7",
           "$new": true
         },
         {
           "seq": "50",
-          "id": "Code·4",
+          "id": "Code·1",
           "rev": 2,
           "class": "Code",
           "tenant": "Ромашка",
@@ -742,7 +743,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t12",
+          "at": "t7",
           "$new": true
         }
       ],

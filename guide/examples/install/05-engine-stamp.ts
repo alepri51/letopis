@@ -2,7 +2,7 @@ import { up } from 'letopis';
 import { example } from '../../kit/example.ts';
 
 export default example({
-  title: 'Штамп движка: connect() замечает, что схему не накатили',
+  title: 'Штамп движка: connect() замечает, что схему не обновили',
   summary:
     'up() пишет в комментарий схемы ревизию, версию пакета и хэш его SQL-файлов. Если после обновления пакета ' +
     'забыть вызвать up(), функции в базе останутся старыми — connect() это заметит и предупредит.',
@@ -31,8 +31,8 @@ export default example({
       },
     },
     {
-      title: 'Накатываем up() — предупреждения нет',
-      text: 'Повторный `up()` накатывает функции и пишет свежий штамп. Теперь `connect()` молчит.',
+      title: 'Повторный up() — предупреждения нет',
+      text: 'Повторный `up()` заново ставит функции схемы и пишет свежий штамп. Теперь `connect()` ничего не печатает.',
       run: async ({ connect, warnings, dsn, schema, up: installed }) => {
         await up({ dsn: dsn.admin, schema, quiet: true });
         const { warnings: printed } = await warnings(() => connect({ dsn: dsn.app, schema, token: installed.tenant!.token! }));

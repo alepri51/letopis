@@ -383,7 +383,7 @@ function onKey(e: KeyboardEvent) {
         <span><i class="sw new" /> новая строка</span>
         <span><i class="sw chg" /> изменилось на этом шаге</span>
         <span><i class="sw del" /> строка ушла</span>
-        <span>t1, t2… — моменты по порядку: у каждой версии свой, даже внутри одной транзакции</span>
+        <span>t1, t2… — моменты по порядку: одна транзакция — один момент</span>
         <span>← → — листать шаги с клавиатуры</span>
       </div>
     </template>

@@ -25,7 +25,7 @@ export default example({
     },
     {
       title: 'id_mismatch — id не сходится с ключом',
-      text: 'У класса с ключом id вычисляется из ключа: создать по id одного товара строку с другим ключом нельзя. Что делать: не передавать id, его даст ключ.',
+      text: 'У класса с ключом id вычисляется из ключа: создать по id одного магазина строку с другим ключом нельзя. Что делать: не передавать id — он вычислится из ключа.',
       run: async ({ db }) => db.Shop(d.romashka).create({ name: 'Другое имя' }).rows(),
       expect: { error: 'id_mismatch' },
     },
@@ -36,7 +36,7 @@ export default example({
       expect: { error: 'no_path' },
     },
     {
-      title: 'lock_unsupported — forUpdate с агрегатом',
+      title: 'lock_unsupported — forUpdate с count()',
       text: '`forUpdate()` блокирует строки, а `count()` строк не отдаёт. Что делать: заблокировать `rows()`, потом считать.',
       run: async ({ db }) => {
         const tr = await db.begin();
@@ -57,8 +57,8 @@ export default example({
       expect: { error: 'user_session_required' },
     },
     {
-      title: 'tx_rolled_back — ошибку внутри транзакции проглотили',
-      text: 'PostgreSQL откатывает транзакцию после любой ошибки в ней, даже пойманной. `commit()` честно сообщает: зафиксировать нечего. Что делать: не глотать ошибки внутри `db.begin()` — или откатывать сразу.',
+      title: 'tx_rolled_back — ошибку внутри транзакции поймали и проигнорировали',
+      text: 'PostgreSQL откатывает транзакцию после любой ошибки в ней, даже пойманной. `commit()` честно сообщает: зафиксировать нечего. Что делать: не подавлять ошибки внутри `db.begin()` — или сразу откатывать транзакцию.',
       run: async ({ db }) => {
         const tr = await db.begin();
         await tr.transaction(async (q) => { await q.unsafe('select 1/0').catch(() => {}); });

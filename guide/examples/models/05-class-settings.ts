@@ -45,7 +45,7 @@ export default example({
     },
     {
       title: 'Описание модели для интерфейса',
-      text: '`db.describe()` отдаёт классы с полями и метаданными; `describeText` — то же коротким текстом (удобно для подсказки ИИ).',
+      text: '`db.describe()` отдаёт классы с полями и метаданными; `describeText` — то же коротким текстом (удобно вставить в запрос к ИИ).',
       run: async ({ db }) => {
         const d = await db.describe();
         const product = d.classes.find((c) => c.name === 'Product');

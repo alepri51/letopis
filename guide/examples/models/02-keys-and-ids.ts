@@ -62,8 +62,8 @@ export default example({
     {
       title: 'Регистр важен',
       text:
-        'Значения ключа берутся как есть: `Anna@Mail.ru` и `anna@mail.ru` дают разные id. Нормализуйте такие ' +
-        'значения в приложении или задайте формат в модели.',
+        'Значения ключа берутся как есть: `Anna@Mail.ru` и `anna@mail.ru` дают разные id. Приводите такие ' +
+        'значения к одному виду в приложении или задайте формат в модели.',
       run: async ({ db }) => (await db.idOf('Email', { address: 'Anna@Mail.ru' })) !== (await db.idOf('Email', { address: 'anna@mail.ru' })),
     },
   ],

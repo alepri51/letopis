@@ -324,7 +324,7 @@
           ]
         },
         {
-          "id": "line·2",
+          "id": "line·1",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -342,13 +342,13 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t13",
+          "at": "t12",
           "$changed": [
             "*"
           ]
         },
         {
-          "id": "line·4",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -366,7 +366,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t14",
+          "at": "t13",
           "$changed": [
             "*"
           ]
@@ -390,7 +390,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$changed": [
             "*"
           ]
@@ -414,7 +414,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$changed": [
             "*"
           ]
@@ -693,7 +693,7 @@
         },
         {
           "seq": "53",
-          "id": "line·2",
+          "id": "line·1",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -710,12 +710,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t13",
+          "at": "t12",
           "$new": true
         },
         {
           "seq": "54",
-          "id": "line·4",
+          "id": "line·2",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -732,7 +732,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t14",
+          "at": "t13",
           "$new": true
         },
         {
@@ -754,7 +754,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$new": true
         },
         {
@@ -776,7 +776,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$new": true
         }
       ],
@@ -789,7 +789,7 @@
       "code": "const tr = await db.begin({ reason: 'заказ с витрины' });\ntry {\n  const [o] = await tr.Customer(d.olga).Order().create({ number: 'A-3' }).Shop.set(d.romashka).rows();\n  await tr.Order(o).line().create({ qty: 1, price: 900 }).Product.set(d.sencha).rows();\n  await tr.commit();\n  return o;\n} catch (e) {\n  await tr.rollback();\n  throw e;\n}",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> tr</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">begin</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'заказ с витрины'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">try</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">o</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.olga).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'A-3'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).Shop.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">set</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.romashka).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(o).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ qty: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">900</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).Product.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">set</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.sencha).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">commit</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> o;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">} </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">catch</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (e) {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rollback</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  throw</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">}</span></span></code></pre>",
       "result": {
-        "at": "t17",
+        "at": "t15",
         "id": "Order «A-3»",
         "op": "create",
         "rev": 1,
@@ -1081,7 +1081,7 @@
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·1",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1099,11 +1099,11 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t13",
+          "at": "t12",
           "$changed": []
         },
         {
-          "id": "line·4",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1121,7 +1121,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t14",
+          "at": "t13",
           "$changed": []
         },
         {
@@ -1143,7 +1143,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$changed": []
         },
         {
@@ -1165,7 +1165,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$changed": []
         },
         {
@@ -1187,13 +1187,13 @@
           "author": "Анна",
           "agent": "service",
           "reason": "заказ с витрины",
-          "at": "t17",
+          "at": "t15",
           "$changed": [
             "*"
           ]
         },
         {
-          "id": "line·1",
+          "id": "line·4",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1211,7 +1211,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "заказ с витрины",
-          "at": "t18",
+          "at": "t15",
           "$changed": [
             "*"
           ]
@@ -1490,7 +1490,7 @@
         },
         {
           "seq": "53",
-          "id": "line·2",
+          "id": "line·1",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -1507,12 +1507,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t13",
+          "at": "t12",
           "$new": false
         },
         {
           "seq": "54",
-          "id": "line·4",
+          "id": "line·2",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -1529,7 +1529,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t14",
+          "at": "t13",
           "$new": false
         },
         {
@@ -1551,7 +1551,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$new": false
         },
         {
@@ -1573,7 +1573,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$new": false
         },
         {
@@ -1595,12 +1595,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": "заказ с витрины",
-          "at": "t17",
+          "at": "t15",
           "$new": true
         },
         {
           "seq": "58",
-          "id": "line·1",
+          "id": "line·4",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -1617,7 +1617,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "заказ с витрины",
-          "at": "t18",
+          "at": "t15",
           "$new": true
         }
       ],
@@ -1905,7 +1905,7 @@
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·1",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1923,11 +1923,11 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t13",
+          "at": "t12",
           "$changed": []
         },
         {
-          "id": "line·4",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1945,7 +1945,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t14",
+          "at": "t13",
           "$changed": []
         },
         {
@@ -1967,7 +1967,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$changed": []
         },
         {
@@ -1989,7 +1989,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$changed": []
         },
         {
@@ -2011,11 +2011,11 @@
           "author": "Анна",
           "agent": "service",
           "reason": "заказ с витрины",
-          "at": "t17",
+          "at": "t15",
           "$changed": []
         },
         {
-          "id": "line·1",
+          "id": "line·4",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -2033,7 +2033,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "заказ с витрины",
-          "at": "t18",
+          "at": "t15",
           "$changed": []
         }
       ],
@@ -2310,7 +2310,7 @@
         },
         {
           "seq": "53",
-          "id": "line·2",
+          "id": "line·1",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -2327,12 +2327,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t13",
+          "at": "t12",
           "$new": false
         },
         {
           "seq": "54",
-          "id": "line·4",
+          "id": "line·2",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -2349,7 +2349,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t14",
+          "at": "t13",
           "$new": false
         },
         {
@@ -2371,7 +2371,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$new": false
         },
         {
@@ -2393,7 +2393,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$new": false
         },
         {
@@ -2415,12 +2415,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": "заказ с витрины",
-          "at": "t17",
+          "at": "t15",
           "$new": false
         },
         {
           "seq": "58",
-          "id": "line·1",
+          "id": "line·4",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -2437,7 +2437,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "заказ с витрины",
-          "at": "t18",
+          "at": "t15",
           "$new": false
         }
       ],
@@ -2576,7 +2576,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t19",
+          "at": "t16",
           "$changed": [
             "rev",
             "data.price",
@@ -2727,7 +2727,7 @@
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·1",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -2745,11 +2745,11 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t13",
+          "at": "t12",
           "$changed": []
         },
         {
-          "id": "line·4",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -2767,7 +2767,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t14",
+          "at": "t13",
           "$changed": []
         },
         {
@@ -2789,7 +2789,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$changed": []
         },
         {
@@ -2811,7 +2811,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$changed": []
         },
         {
@@ -2833,11 +2833,11 @@
           "author": "Анна",
           "agent": "service",
           "reason": "заказ с витрины",
-          "at": "t17",
+          "at": "t15",
           "$changed": []
         },
         {
-          "id": "line·1",
+          "id": "line·4",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -2855,7 +2855,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "заказ с витрины",
-          "at": "t18",
+          "at": "t15",
           "$changed": []
         }
       ],
@@ -3132,7 +3132,7 @@
         },
         {
           "seq": "53",
-          "id": "line·2",
+          "id": "line·1",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -3149,12 +3149,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t13",
+          "at": "t12",
           "$new": false
         },
         {
           "seq": "54",
-          "id": "line·4",
+          "id": "line·2",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -3171,7 +3171,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t14",
+          "at": "t13",
           "$new": false
         },
         {
@@ -3193,7 +3193,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$new": false
         },
         {
@@ -3215,7 +3215,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$new": false
         },
         {
@@ -3237,12 +3237,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": "заказ с витрины",
-          "at": "t17",
+          "at": "t15",
           "$new": false
         },
         {
           "seq": "58",
-          "id": "line·1",
+          "id": "line·4",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -3259,7 +3259,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "заказ с витрины",
-          "at": "t18",
+          "at": "t15",
           "$new": false
         },
         {
@@ -3292,7 +3292,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t19",
+          "at": "t16",
           "$new": true
         }
       ],
@@ -3436,7 +3436,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t19",
+          "at": "t16",
           "$changed": []
         },
         {
@@ -3582,7 +3582,7 @@
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·1",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -3600,11 +3600,11 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t13",
+          "at": "t12",
           "$changed": []
         },
         {
-          "id": "line·4",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -3622,7 +3622,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t14",
+          "at": "t13",
           "$changed": []
         },
         {
@@ -3644,7 +3644,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$changed": []
         },
         {
@@ -3666,7 +3666,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$changed": []
         },
         {
@@ -3688,11 +3688,11 @@
           "author": "Анна",
           "agent": "service",
           "reason": "заказ с витрины",
-          "at": "t17",
+          "at": "t15",
           "$changed": []
         },
         {
-          "id": "line·1",
+          "id": "line·4",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -3710,7 +3710,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "заказ с витрины",
-          "at": "t18",
+          "at": "t15",
           "$changed": []
         }
       ],
@@ -3987,7 +3987,7 @@
         },
         {
           "seq": "53",
-          "id": "line·2",
+          "id": "line·1",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -4004,12 +4004,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t13",
+          "at": "t12",
           "$new": false
         },
         {
           "seq": "54",
-          "id": "line·4",
+          "id": "line·2",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -4026,7 +4026,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t14",
+          "at": "t13",
           "$new": false
         },
         {
@@ -4048,7 +4048,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t15",
+          "at": "t14",
           "$new": false
         },
         {
@@ -4070,7 +4070,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t16",
+          "at": "t14",
           "$new": false
         },
         {
@@ -4092,12 +4092,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": "заказ с витрины",
-          "at": "t17",
+          "at": "t15",
           "$new": false
         },
         {
           "seq": "58",
-          "id": "line·1",
+          "id": "line·4",
           "rev": 1,
           "class": "line",
           "tenant": "Ромашка",
@@ -4114,7 +4114,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "заказ с витрины",
-          "at": "t18",
+          "at": "t15",
           "$new": false
         },
         {
@@ -4147,7 +4147,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t19",
+          "at": "t16",
           "$new": false
         }
       ],

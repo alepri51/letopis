@@ -12,7 +12,7 @@ async function call(name: string, args: Record<string, unknown>) {
 }
 
 export default example({
-  title: 'ИИ-агент через MCP: модель, чтение, история, запись с защитой версии',
+  title: 'ИИ-агент через MCP: модель, чтение, история, запись с проверкой версии',
   summary:
     'createMcpServer(db) даёт агенту четыре инструмента: letopis_model, letopis_query, letopis_history и ' +
     'letopis_write (только с write: true). Агент работает с правами того пользователя, чьим подключением создан сервер.',
@@ -40,8 +40,8 @@ export default example({
       },
     },
     {
-      title: 'letopis_query: чтение JSON-цепочкой',
-      text: 'Та же цепочка, что `db.Product({ price: lt(1000) }).rows()`, только записанная JSON.',
+      title: 'letopis_query: цепочка, записанная в JSON',
+      text: 'Та же цепочка, что `db.Product({ price: lt(1000) }).rows()`, только записанная в JSON.',
       run: async () => {
         const data = (await call('letopis_query', { class: 'Product', filter: { price: { $lt: 1000 } } })) as { rows: { data: { title: string; price: number } }[] };
         return data.rows.map((r) => ({ title: r.data.title, price: r.data.price }));

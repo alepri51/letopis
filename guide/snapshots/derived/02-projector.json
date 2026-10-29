@@ -1,7 +1,7 @@
 {
   "id": "derived/02-projector",
-  "title": "Проектор: итоги из журнала, без ожидания писателей",
-  "summary": "Проектор читает журнал классов-источников и пишет итоги в производные классы — с небольшим отставанием, зато писатели не ждут друг друга. run({ once: true }) догоняет журнал, status() показывает отставание.",
+  "title": "Проектор: итоги из журнала, записи не ждут друг друга",
+  "summary": "Проектор читает журнал классов-источников и пишет итоги в производные классы — с небольшим отставанием, зато одновременные записи не ждут друг друга. run({ once: true }) обрабатывает всё, что накопилось в журнале, status() показывает отставание.",
   "covers": [
     "db.projector",
     "projector.from",
@@ -350,7 +350,7 @@
           ]
         },
         {
-          "id": "line·4",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -398,7 +398,7 @@
           ]
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -428,8 +428,8 @@
       "counts": null
     },
     {
-      "title": "Догнать журнал",
-      "text": "Первый `run({ once: true })` прочёл строки заказов и записал продажи по товарам — смотрите строки `ProductSales`. Класс завело другое подключение, поэтому фасад пользователя перечитывает реестр явно — `db.refresh()` (сам он узнал бы о новом классе по сигналу, с задержкой).",
+      "title": "Первый проход по журналу",
+      "text": "Первый `run({ once: true })` прочёл строки заказов и записал продажи по товарам — смотрите строки `ProductSales`. Класс завело другое подключение, поэтому подключение пользователя перечитывает реестр классов явно — `db.refresh()` (сам он узнал бы о новом классе по сигналу, с задержкой).",
       "code": "await db.refresh();\nconst r = await sales.run({ once: true });\nreturn { changes: r.changes, created: r.created, updated: r.updated };",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">refresh</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> sales.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ once: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { changes: r.changes, created: r.created, updated: r.updated };</span></span></code></pre>",
       "result": {
@@ -731,7 +731,7 @@
           "$changed": []
         },
         {
-          "id": "line·4",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -775,7 +775,7 @@
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -797,7 +797,7 @@
           "$changed": []
         },
         {
-          "id": "ProductSales·2",
+          "id": "ProductSales·1",
           "class": "ProductSales",
           "rev": 1,
           "tenant": "Ромашка",
@@ -820,7 +820,7 @@
           ]
         },
         {
-          "id": "ProductSales·1",
+          "id": "ProductSales·2",
           "class": "ProductSales",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1180,7 +1180,7 @@
           "$changed": []
         },
         {
-          "id": "line·4",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1224,7 +1224,7 @@
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1246,7 +1246,7 @@
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·4",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1270,7 +1270,7 @@
           ]
         },
         {
-          "id": "ProductSales·2",
+          "id": "ProductSales·1",
           "class": "ProductSales",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1291,7 +1291,7 @@
           "$changed": []
         },
         {
-          "id": "ProductSales·1",
+          "id": "ProductSales·2",
           "class": "ProductSales",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1649,7 +1649,7 @@
           "$changed": []
         },
         {
-          "id": "line·4",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1693,7 +1693,7 @@
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1715,7 +1715,7 @@
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·4",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1737,7 +1737,7 @@
           "$changed": []
         },
         {
-          "id": "ProductSales·2",
+          "id": "ProductSales·1",
           "class": "ProductSales",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1758,7 +1758,7 @@
           "$changed": []
         },
         {
-          "id": "ProductSales·1",
+          "id": "ProductSales·2",
           "class": "ProductSales",
           "rev": 1,
           "tenant": "Ромашка",

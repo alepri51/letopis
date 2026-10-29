@@ -12,9 +12,9 @@ let draft: { id: string }, contract: { id: string }, renumbered: { id: string };
 export default example({
   title: 'История через смену номера и класса: versions({ follow })',
   summary:
-    'Номер входит в ключ, ключ — в id (v5), а класс — в v5 тоже. Поэтому reclass черновика в договор и rekey ' +
-    'номера дают новый id. versions() показывает версии одного id, versions({ follow: true }) идёт по связям ' +
-    'moved через все смены — вся жизнь документа одной лентой.',
+    'Номер входит в ключ, а id (v5) вычисляется из арендатора, класса и ключа. Поэтому reclass черновика в договор ' +
+    'и rekey номера дают новый id. versions() показывает версии одного id, а versions({ follow: true }) проходит по ' +
+    'ссылкам moved через все смены — вся жизнь документа одним списком.',
   tables: ['log'],
   covers: ['nuance.versions-follow', 'nuance.reclass-keyed-new-id', 'db.rekeyClass'],
   steps: [
@@ -32,7 +32,7 @@ export default example({
       text: 'У класса с ключом `reclass` даёт новый id: старый уходит надгробием, у новой строки `moved` — прежний id.',
       run: async ({ db }) => {
         [contract] = await db.Draft(draft).reclass('Contract', { number: 'Д-1', title: 'Аренда склада', amount: 120_000, signedBy: 'Борис' }, { reason: 'подписан' }).rows();
-        return { 'id сменился': contract.id !== draft.id, class: (contract as { class?: string }).class };
+        return { 'id сменился': contract.id !== draft.id, class: (contract as { class?: string }).class, 'moved — прежний id': (contract as { moved?: string }).moved === draft.id };
       },
     },
     {
@@ -44,7 +44,7 @@ export default example({
     },
     {
       title: 'versions() и versions({ follow: true })',
-      text: 'Без `follow` — только версии последнего id (одна, `rekey`). С `follow` — вся цепочка по времени, с надгробиями прежних id.',
+      text: 'Без `follow` — только версии последнего id (одна, `rekey`). С `follow` — все версии по времени, включая надгробия прежних id.',
       run: async ({ db }) => ({
         'без follow': (await db.Contract(renumbered).versions()).map((v) => `${v.class} v${v.rev} ${v.op}`),
         'с follow': (await db.Contract(renumbered).versions({ follow: true })).map((v) => `${v.class} v${v.rev} ${v.op}${v.reason ? ` — ${v.reason}` : ''}`),
@@ -52,7 +52,7 @@ export default example({
     },
     {
       title: 'Сменить ключ всему классу: rekeyClass',
-      text: '`db.rekeyClass(класс, ключ)` переносит все строки семейства на новые id по новому ключу и переводит ссылки; результат — сколько строк перенесено.',
+      text: '`db.rekeyClass(класс, ключ)` переносит все строки класса и его потомков на новые id по новому ключу и переводит ссылки; результат — сколько строк перенесено.',
       run: async ({ db }) => {
         await db.Code().create({ code: 'A', region: 'Москва' }).rows();
         await db.Code().create({ code: 'B', region: 'Казань' }).rows();

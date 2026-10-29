@@ -22,7 +22,9 @@ export default example({
   steps: [
     {
       title: '1. Поставить схему',
-      text: '`up()` от администратора базы ставит пустую установку `v2.<имя>`: таблицы, проверки, системные классы. Ключ сервиса — сохраните.',
+      text:
+        '`up()` от имени администратора базы ставит пустую установку `v2.<имя>`: таблицы, проверки, системные классы. ' +
+        'В ответе — ключ сервиса (`serviceKey`): по нему приложение подключается к базе. Сохраните его, повторно он не выдаётся.',
       run: async ({ dsn, schema }) => {
         r = await up({ dsn: dsn.admin, schema, quiet: true });
         return { schema: r.schema, created: r.created, serviceKey: r.serviceKey };
@@ -38,7 +40,7 @@ export default example({
     },
     {
       title: '3. Подключиться от имени пользователя',
-      text: 'Приложение подключается своей ролью (`dsn.app`, член `letopis_app`) по ключу сервиса, проверяет пароль и работает от имени Веры.',
+      text: 'Приложение подключается к базе своей ролью (`dsn.app`; роль входит в `letopis_app`) по ключу сервиса, проверяет пароль Веры и дальше работает от её имени.',
       run: async ({ connect, dsn, schema }) => {
         const svc = await connect({ dsn: dsn.app, schema, apiKey: r.serviceKey! });
         const login = await svc.auth.verifyPassword({ identifier: 'vera@alpha.ru', password: 'Alpha-2026!' });
@@ -53,7 +55,7 @@ export default example({
     },
     {
       title: '5. Наполнить данными',
-      text: 'Проект и три задачи. Задачи — одним батчем: одна транзакция, подряд идущие вставки склеиваются в один оператор.',
+      text: 'Проект и три задачи. Задачи — одним батчем: одна транзакция, а подряд идущие вставки объединяются в один SQL-оператор.',
       run: async () => {
         const [p] = await db.Project().create({ name: 'Сайт', deadline: '2026-12-01' }).rows();
         const b = db.batch('задачи');

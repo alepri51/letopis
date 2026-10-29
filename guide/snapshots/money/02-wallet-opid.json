@@ -113,7 +113,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "topup op-1",
-          "at": "t3",
+          "at": "t2",
           "$changed": [
             "rev",
             "data.balance",
@@ -206,7 +206,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "topup op-1",
-          "at": "t3",
+          "at": "t2",
           "$new": true
         }
       ],
@@ -215,7 +215,7 @@
     },
     {
       "title": "Ответ потерялся — повтор той же операции",
-      "text": "Клиент не получил ответ и прислал `op-1` снова. Операция с таким ключом уже есть — база отвечает `exists`, транзакция откатывается, баланс остался 1000. Так же выясняют исход после `commit_unknown` (обрыв во время COMMIT): повтор той же операции — `exists` значит «уже записано».",
+      "text": "Клиент не получил ответ и прислал `op-1` снова. Операция с таким ключом уже есть — база отвечает `exists`, транзакция откатывается, баланс остался 1000. Так же выясняют исход после `commit_unknown` (связь оборвалась во время COMMIT): повтор той же операции — `exists` значит «уже записано».",
       "code": "apply(db, 'op-1', 'topup', 1000)",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'topup'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)</span></span></code></pre>",
       "result": "уже было",
@@ -237,7 +237,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "topup op-1",
-          "at": "t3",
+          "at": "t2",
           "$changed": []
         },
         {
@@ -322,7 +322,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "topup op-1",
-          "at": "t3",
+          "at": "t2",
           "$new": false
         }
       ],
@@ -353,7 +353,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "debit op-2",
-          "at": "t5",
+          "at": "t3",
           "$changed": [
             "rev",
             "data.balance",
@@ -402,7 +402,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "debit op-2",
-          "at": "t4",
+          "at": "t3",
           "$changed": [
             "*"
           ]
@@ -467,7 +467,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "topup op-1",
-          "at": "t3",
+          "at": "t2",
           "$new": false
         },
         {
@@ -489,7 +489,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "debit op-2",
-          "at": "t4",
+          "at": "t3",
           "$new": true
         },
         {
@@ -508,7 +508,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "debit op-2",
-          "at": "t5",
+          "at": "t3",
           "$new": true
         }
       ],
@@ -517,7 +517,7 @@
     },
     {
       "title": "Списать больше, чем есть, — нельзя",
-      "text": "Баланс 700, списываем 5000: правило `min(0)` проверяется над итогом приращения — `invalid_data`, ничего не записано.",
+      "text": "Баланс 700, списываем 5000: ограничение `min(0)` проверяется для получившегося значения — `invalid_data`, ничего не записано.",
       "code": "apply(db, 'op-3', 'debit', 5000)",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-3'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'debit'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">5000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)</span></span></code></pre>",
       "result": null,
@@ -552,7 +552,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "debit op-2",
-          "at": "t5",
+          "at": "t3",
           "$changed": []
         },
         {
@@ -596,7 +596,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "debit op-2",
-          "at": "t4",
+          "at": "t3",
           "$changed": []
         }
       ],
@@ -659,7 +659,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "topup op-1",
-          "at": "t3",
+          "at": "t2",
           "$new": false
         },
         {
@@ -681,7 +681,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "debit op-2",
-          "at": "t4",
+          "at": "t3",
           "$new": false
         },
         {
@@ -700,7 +700,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "debit op-2",
-          "at": "t5",
+          "at": "t3",
           "$new": false
         }
       ],
@@ -734,7 +734,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "debit op-2",
-          "at": "t5",
+          "at": "t3",
           "$changed": []
         },
         {
@@ -778,7 +778,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "debit op-2",
-          "at": "t4",
+          "at": "t3",
           "$changed": []
         }
       ],
@@ -841,7 +841,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "topup op-1",
-          "at": "t3",
+          "at": "t2",
           "$new": false
         },
         {
@@ -863,7 +863,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "debit op-2",
-          "at": "t4",
+          "at": "t3",
           "$new": false
         },
         {
@@ -882,7 +882,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": "debit op-2",
-          "at": "t5",
+          "at": "t3",
           "$new": false
         }
       ],

@@ -99,7 +99,7 @@ async function capture(admin: ReturnType<typeof adminSql>, schema: string, base:
     from ${q}.entity e left join (select id, min(seq) s from ${q}.log group by id) f using (id)
     order by f.s nulls last, e.created_at`)).filter((r) => show(String(r.class)));
   const log = (await admin.unsafe(`
-    select seq, id, rev, class, tenant, links, data, tags, op, author, agent, reason, at::text as at
+    select seq, id, rev, class, tenant, links, data, tags, op, author, agent, reason, at::text as at, tx::text as tx
     from ${q}.log where seq > $1 order by seq`, [base.seq])).filter((r) => show(String(r.class)));
   // строки-замки (LOCK) — служебные, в показ не идут; id строки secret читателю ничего не говорит
   const secret = tables.includes('secret')
@@ -167,10 +167,25 @@ class Labels {
   noteTime(us: number): void {
     if (us >= this.clock.start * 1000 && us <= this.clock.end * 1000 + 999) this.times.push(us);
   }
+  /** Время версии журнала → её транзакция; момент транзакции — самое раннее время её версий. */
+  private txOf = new Map<number, string>();
+  private txAt = new Map<string, number>();
+  noteVersion(at: string, tx: string): void {
+    const us = Labels.micros(at);
+    if (!Number.isFinite(us)) return;
+    if (!this.txOf.has(us)) this.txOf.set(us, tx);
+    const first = this.txAt.get(tx);
+    if (first === undefined || us < first) this.txAt.set(tx, us);
+  }
+  private moment(us: number): number {
+    const tx = this.txOf.get(us);
+    return tx === undefined ? us : this.txAt.get(tx)!;
+  }
   /**
    * Время в снимке не должно зависеть от дня прогона:
-   * - во время шагов — порядковая метка «t1, t2…» по каждому моменту (у версий он свой и внутри транзакции:
-   *   время версии — clock_timestamp());
+   * - во время шагов — порядковая метка «t1, t2…»: одна транзакция — один момент. Время версии — clock_timestamp(),
+   *   у версий одной транзакции оно своё, и две из них изредка совпадают до микросекунды; считай метки по
+   *   различным временам, совпадение сдвигало бы все следующие (установка в шаге примера — десятки строк сразу);
    * - во время установки — «установка»;
    * - позже конца шагов (срок сессии, кода) — «через N дн/ч/мин»;
    * - раньше установки (даты, заданные примером явно) — как есть.
@@ -184,8 +199,8 @@ class Labels {
       const min = Math.round((ms - end) / 60000);
       return min >= 1440 ? `через ${Math.round(min / 1440)} дн` : min >= 60 ? `через ${Math.round(min / 60)} ч` : `через ${min} мин`;
     }
-    const uniq = [...new Set(this.times)].sort((a, b) => a - b);
-    return `t${uniq.indexOf(us) + 1}`;
+    const uniq = [...new Set(this.times.map((t) => this.moment(t)))].sort((a, b) => a - b);
+    return `t${uniq.indexOf(this.moment(us)) + 1}`;
   }
   text(s: string): string {
     s = s.replace(VERSION_RX, '‹версия пакета›').replace(/sql=[0-9a-f]{16}/g, 'sql=‹хэш SQL›');
@@ -222,6 +237,9 @@ class Labels {
     return v;
   }
 }
+
+/** Номер транзакции версии нужен только меткам времени — в снимок он не идёт. */
+const noTx = ({ tx: _tx, ...r }: Rec): Rec => r;
 
 // ---------- изменения между шагами ----------
 
@@ -353,12 +371,11 @@ export async function runExample(
     else if (nm) labels.name(String(a.id), nm);
   }
   for (const x of [{ state: before }, ...raw]) {
-    // сначала журнал (порядок создания), затем текущие строки — метки «Класс·N» идут по времени появления
-    // метки строк без названия — по рангу id в классе за весь пример: не зависят ни от порядка журнала внутри
-    // оператора, ни от того, на каком шаге строка впервые попала в снимок (v5-id выводится из ключа)
-    const rows = raw.flatMap((y) => [...y.state.log, ...y.state.entity]).map((e) => ({ id: String(e.id), cls: String(e.class), data: e.data }));
-    rows.sort((a, b) => (a.cls === b.cls ? (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) : a.cls < b.cls ? -1 : 1));
-    for (const e of rows) labels.row(e.id, e.cls, e.data);
+    // сначала журнал (порядок записи), затем текущие строки — метки «Класс·N» и «·2» у одноимённых идут по времени
+    // появления. Порядок записи детерминирован: шаги идут по очереди, каскад пишет надгробия в порядке id. Ранг id
+    // не годится: у класса без ключа id случайный (v5 от gen_random_uuid()), и одноимённые строки менялись бы метками
+    for (const e of [...x.state.log, ...x.state.entity]) labels.row(String(e.id), String(e.class), e.data);
+    for (const l of x.state.log) labels.noteVersion(String(l.at), String(l.tx));
     labels.collectTimes(x);
   }
 
@@ -386,7 +403,7 @@ export async function runExample(
         : null,
       entity: labels.value(entity) as Rec[],
       removed: labels.value(removed) as Rec[],
-      log: (labels.value(x.state.log) as Rec[]).map((l, k) => ({ ...l, $new: newLog.some((n) => n.seq === x.state.log[k].seq) })),
+      log: (labels.value(x.state.log.map(noTx)) as Rec[]).map((l, k) => ({ ...l, $new: newLog.some((n) => n.seq === x.state.log[k].seq) })),
       secret: (labels.value(x.state.secret) as Rec[]).map((z, k) => ({ ...z, $new: newSecret.includes(x.state.secret[k]) })),
       counts: x.state.counts,
     });
@@ -396,7 +413,7 @@ export async function runExample(
   await admin.unsafe(`drop schema if exists ${q} cascade`);
   const initial = {
     entity: labels.value(before.entity) as Rec[],
-    log: labels.value(before.log) as Rec[],
+    log: labels.value(before.log.map(noTx)) as Rec[],
     secret: labels.value(before.secret) as Rec[],
     counts: before.counts,
   };

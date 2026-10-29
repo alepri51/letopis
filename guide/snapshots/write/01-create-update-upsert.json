@@ -276,8 +276,8 @@
       "counts": null
     },
     {
-      "title": "update сливает патч с данными",
-      "text": "Вложенный объект `specs` сливается: меняем только цвет, объём остался. Массив `labels` и скаляры заменяются целиком. Слияние идёт внутри базы, поэтому параллельные правки разных полей не теряются.",
+      "title": "update меняет только переданные поля",
+      "text": "Вложенный объект `specs` меняется по полям: передали только цвет — объём остался. Массив `labels` и простые значения (строки, числа) заменяются целиком. Изменения применяет сама база, поэтому одновременные правки разных полей не теряются.",
       "code": "db.Product(kettle).update({ specs: { color: 'чёрный' }, labels: ['хит', 'новинка'] }).rows()",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ specs: { color: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'чёрный'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'хит'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'новинка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
@@ -963,7 +963,7 @@
     },
     {
       "title": "upsert: такого нет — создать",
-      "text": "`upsert` — один оператор `INSERT … ON CONFLICT`: гонки «проверил, что нет, — создал» не бывает. Ответ несёт `$upsert`.",
+      "text": "`upsert` — один SQL-оператор `INSERT … ON CONFLICT`. Поэтому не бывает гонки, когда два запроса одновременно убедились, что объекта нет, и оба его создают. Поле `$upsert` в ответе говорит, что произошло: здесь `created`.",
       "code": "db.Shop().upsert({ name: 'Лютик', city: 'Уфа' }).rows()",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, city: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Уфа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [

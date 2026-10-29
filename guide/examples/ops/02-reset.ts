@@ -9,7 +9,7 @@ const TENANT = { name: 'Ромашка', user: { name: 'Анна', login: 'anna@
 export default example({
   title: 'Сброс: reset({ level }) — сессии, данные арендатора, всё',
   summary:
-    'reset — для стендов и тестов: погасить все сессии, стереть данные арендатора или всю установку. ' +
+    'reset — для стендов и тестов: завершить все сессии, стереть данные арендатора или всю установку. ' +
     'Включается только флагом установки allowReset, требует права letopis.reset и подтверждения именем схемы.',
   setup: 'none',
   tables: ['counts'],
@@ -26,8 +26,8 @@ export default example({
       expect: { error: 'reset_disabled' },
     },
     {
-      title: 'Накат с allowReset; неверное подтверждение',
-      text: 'Флаг — константа установки: его переставляет каждый `up()`. `confirm` — полное имя схемы.',
+      title: 'up() с allowReset; неверное подтверждение',
+      text: 'Флаг хранится в установке, и каждый вызов `up()` задаёт его заново. `confirm` — полное имя схемы.',
       run: async ({ schema, dsn }) => {
         await up({ dsn: dsn.admin, schema, quiet: true, allowReset: true });
         return adm.reset({ level: 'sessions', confirm: 'не та схема' });
@@ -35,12 +35,12 @@ export default example({
       expect: { error: 'confirm_mismatch' },
     },
     {
-      title: 'Погасить все сессии, кроме текущей',
+      title: 'Завершить все сессии, кроме текущей',
       run: async ({ schema }) => adm.reset({ level: 'sessions', confirm: schema }),
     },
     {
       title: 'Стереть данные арендатора',
-      text: 'Строки и журнал арендатора — пачками; аккаунт, креды и сессии остаются. В журнале — запись `reset`.',
+      text: 'Строки и журнал арендатора стираются пачками; аккаунт, способы входа и сессии остаются. В журнале — запись `reset`.',
       run: async ({ schema }) => {
         await syncShop(adm);
         await adm.refresh();
@@ -55,8 +55,8 @@ export default example({
       expect: { error: 'tenant_denied' },
     },
     {
-      title: 'Стереть всё: классы, данные, креды, сессии',
-      text: 'Администраторское подключение без сессии (право — у администраторской роли). Остаётся пустая установка с новым сервисным ключом.',
+      title: 'Стереть всё: классы, данные, способы входа, сессии',
+      text: 'Администраторское подключение без сессии (право — у администраторской роли). Остаётся пустая установка с новым ключом сервиса.',
       run: async ({ schema, dsn, connect: track }) => {
         const root = await track({ dsn: dsn.admin, schema, allowBypassRls: true });
         const res = await root.reset({ level: 'all', confirm: schema });

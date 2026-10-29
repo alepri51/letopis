@@ -1,7 +1,7 @@
 {
   "id": "errors/02-engine-errors",
   "title": "Ошибки базы: что ловят триггеры при записи в обход библиотеки",
-  "summary": "Правила целостности проверяет сама база — для библиотеки и для сырого SQL одинаково. Здесь запись идёт сырым SQL под сессией (db.transaction) — и база отвечает теми же кодами, что цепочкам.",
+  "summary": "Целостность данных проверяет сама база — одинаково для библиотеки и для прямых SQL-запросов. Здесь запись идёт прямым SQL в сессии пользователя (db.transaction) — и база отвечает теми же кодами, что и цепочкам.",
   "covers": [
     "error.undeclared_end",
     "error.id_from_db",
@@ -39,7 +39,7 @@
     },
     {
       "title": "id_from_db — свой id у класса без ключа",
-      "text": "У класса без ключа id выдаёт база (UUID v7). Что делать: не передавать id; стабильный id из внешнего ключа — `$ext` при загрузке.",
+      "text": "У класса без ключа id выдаёт база (UUID v7). Что делать: не передавать id; постоянный id из внешнего идентификатора — `$ext` при загрузке.",
       "code": "db.transaction((tx) => tx.unsafe(`insert into ${T(schema)} (id, class, data) values (gen_random_uuid(), 'Customer', '{\"name\":\"Х\",\"email\":\"x@x.ru\"}')`))",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">transaction</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">tx</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tx.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">unsafe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`insert into ${</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">T</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">(</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">schema</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">)</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} (id, class, data) values (gen_random_uuid(), 'Customer', '{\"name\":\"Х\",\"email\":\"x@x.ru\"}')`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">))</span></span></code></pre>",
       "result": null,
@@ -75,7 +75,7 @@
     },
     {
       "title": "recreated_in_statement — удалить и создать тот же id одним оператором",
-      "text": "Журнал не может записать удаление и новое рождение одного id в одном операторе. Что делать: двумя операторами — или `upsert`.",
+      "text": "Журнал не может записать удаление и повторное создание одного id в одном операторе. Что делать: двумя операторами — или `upsert`.",
       "code": "db.transaction((tx) => tx.unsafe(\r\n        `with gone as (delete from ${T(schema)} where id = $1 returning id) insert into ${T(schema)} (class, data) select 'Shop', '{\"name\":\"Ромашка\"}' from gone`, [d.romashka]))",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">transaction</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">tx</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tx.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">unsafe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        `with gone as (delete from ${</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">T</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">(</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">schema</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">)</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} where id = $1 returning id) insert into ${</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">T</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">(</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">schema</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">)</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} (class, data) select 'Shop', '{\"name\":\"Ромашка\"}' from gone`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, [d.romashka]))</span></span></code></pre>",
       "result": null,

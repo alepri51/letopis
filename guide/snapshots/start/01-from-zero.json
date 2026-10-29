@@ -18,7 +18,7 @@
   "steps": [
     {
       "title": "1. Поставить схему",
-      "text": "`up()` от администратора базы ставит пустую установку `v2.<имя>`: таблицы, проверки, системные классы. Ключ сервиса — сохраните.",
+      "text": "`up()` от имени администратора базы ставит пустую установку `v2.<имя>`: таблицы, проверки, системные классы. В ответе — ключ сервиса (`serviceKey`): по нему приложение подключается к базе. Сохраните его, повторно он не выдаётся.",
       "code": "r = await up({ dsn: dsn.admin, schema, quiet: true });\nreturn { schema: r.schema, created: r.created, serviceKey: r.serviceKey };",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">r </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { schema: r.schema, created: r.created, serviceKey: r.serviceKey };</span></span></code></pre>",
       "result": {
@@ -145,7 +145,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t2",
+          "at": "t1",
           "$changed": [
             "*"
           ]
@@ -301,7 +301,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t3",
+          "at": "t1",
           "$changed": [
             "*"
           ]
@@ -442,7 +442,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t4",
+          "at": "t1",
           "$changed": [
             "*"
           ]
@@ -715,7 +715,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t5",
+          "at": "t1",
           "$changed": [
             "*"
           ]
@@ -940,7 +940,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t6",
+          "at": "t1",
           "$changed": [
             "*"
           ]
@@ -964,13 +964,13 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t7",
+          "at": "t1",
           "$changed": [
             "*"
           ]
         },
         {
-          "id": "Resource·4",
+          "id": "Resource·2",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -988,13 +988,13 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t8",
+          "at": "t1",
           "$changed": [
             "*"
           ]
         },
         {
-          "id": "Resource·6",
+          "id": "Resource·3",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -1009,13 +1009,13 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t9",
+          "at": "t1",
           "$changed": [
             "*"
           ]
         },
         {
-          "id": "Resource·11",
+          "id": "Resource·4",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -1033,13 +1033,13 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t10",
+          "at": "t1",
           "$changed": [
             "*"
           ]
         },
         {
-          "id": "Resource·2",
+          "id": "Resource·5",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -1057,13 +1057,13 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t11",
+          "at": "t1",
           "$changed": [
             "*"
           ]
         },
         {
-          "id": "Resource·9",
+          "id": "Resource·6",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -1078,7 +1078,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t12",
+          "at": "t1",
           "$changed": [
             "*"
           ]
@@ -1102,13 +1102,13 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t13",
+          "at": "t1",
           "$changed": [
             "*"
           ]
         },
         {
-          "id": "Resource·12",
+          "id": "Resource·8",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -1126,13 +1126,13 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t14",
+          "at": "t1",
           "$changed": [
             "*"
           ]
         },
         {
-          "id": "Resource·10",
+          "id": "Resource·9",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -1150,20 +1150,20 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t15",
+          "at": "t1",
           "$changed": [
             "*"
           ]
         },
         {
-          "id": "rule·4",
+          "id": "rule·1",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·6",
-            "Object": "Resource·9"
+            "Group": "Resource·3",
+            "Object": "Resource·6"
           },
           "data": {
             "code": 403,
@@ -1177,57 +1177,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t16",
-          "$changed": [
-            "*"
-          ]
-        },
-        {
-          "id": "rule·7",
-          "class": "rule",
-          "rev": 1,
-          "tenant": "System",
-          "owner": "System",
-          "links": {
-            "Group": "Resource·11",
-            "Object": "Resource·7"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t17",
-          "$changed": [
-            "*"
-          ]
-        },
-        {
-          "id": "rule·9",
-          "class": "rule",
-          "rev": 1,
-          "tenant": "System",
-          "owner": "System",
-          "links": {
-            "Group": "Resource·11",
-            "Object": "Resource·10"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t18",
+          "at": "t1",
           "$changed": [
             "*"
           ]
@@ -1239,7 +1189,7 @@
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
+            "Group": "Resource·4",
             "Object": "Resource·7"
           },
           "data": {
@@ -1252,20 +1202,20 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t19",
+          "at": "t1",
           "$changed": [
             "*"
           ]
         },
         {
-          "id": "rule·8",
+          "id": "rule·3",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·12"
+            "Group": "Resource·4",
+            "Object": "Resource·9"
           },
           "data": {
             "weight": 100,
@@ -1277,13 +1227,63 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t20",
+          "at": "t1",
           "$changed": [
             "*"
           ]
         },
         {
-          "id": "Resource·8",
+          "id": "rule·4",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·7"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·5",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Resource·10",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -1298,20 +1298,20 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t21",
+          "at": "t1",
           "$changed": [
             "*"
           ]
         },
         {
-          "id": "rule·5",
+          "id": "rule·6",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·8"
+            "Group": "Resource·5",
+            "Object": "Resource·10"
           },
           "data": {
             "weight": 100,
@@ -1323,13 +1323,13 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t22",
+          "at": "t1",
           "$changed": [
             "*"
           ]
         },
         {
-          "id": "Resource·5",
+          "id": "Resource·11",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -1344,20 +1344,20 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t23",
+          "at": "t1",
           "$changed": [
             "*"
           ]
         },
         {
-          "id": "rule·1",
+          "id": "rule·7",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·5"
+            "Group": "Resource·5",
+            "Object": "Resource·11"
           },
           "data": {
             "weight": 100,
@@ -1369,13 +1369,13 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t24",
+          "at": "t1",
           "$changed": [
             "*"
           ]
         },
         {
-          "id": "Resource·3",
+          "id": "Resource·12",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -1390,20 +1390,20 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t25",
+          "at": "t1",
           "$changed": [
             "*"
           ]
         },
         {
-          "id": "rule·6",
+          "id": "rule·8",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·3"
+            "Group": "Resource·5",
+            "Object": "Resource·12"
           },
           "data": {
             "weight": 100,
@@ -1415,7 +1415,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t26",
+          "at": "t1",
           "$changed": [
             "*"
           ]
@@ -1439,7 +1439,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t27",
+          "at": "t1",
           "$changed": [
             "*"
           ]
@@ -1562,7 +1562,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t2",
+          "at": "t1",
           "$new": true
         },
         {
@@ -1716,7 +1716,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t3",
+          "at": "t1",
           "$new": true
         },
         {
@@ -1855,7 +1855,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t4",
+          "at": "t1",
           "$new": true
         },
         {
@@ -2126,7 +2126,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t5",
+          "at": "t1",
           "$new": true
         },
         {
@@ -2349,7 +2349,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t6",
+          "at": "t1",
           "$new": true
         },
         {
@@ -2371,12 +2371,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t7",
+          "at": "t1",
           "$new": true
         },
         {
           "seq": "8",
-          "id": "Resource·4",
+          "id": "Resource·2",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -2393,12 +2393,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t8",
+          "at": "t1",
           "$new": true
         },
         {
           "seq": "9",
-          "id": "Resource·6",
+          "id": "Resource·3",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -2412,12 +2412,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t9",
+          "at": "t1",
           "$new": true
         },
         {
           "seq": "10",
-          "id": "Resource·11",
+          "id": "Resource·4",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -2434,12 +2434,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t10",
+          "at": "t1",
           "$new": true
         },
         {
           "seq": "11",
-          "id": "Resource·2",
+          "id": "Resource·5",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -2456,12 +2456,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t11",
+          "at": "t1",
           "$new": true
         },
         {
           "seq": "12",
-          "id": "Resource·9",
+          "id": "Resource·6",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -2475,7 +2475,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t12",
+          "at": "t1",
           "$new": true
         },
         {
@@ -2497,12 +2497,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t13",
+          "at": "t1",
           "$new": true
         },
         {
           "seq": "14",
-          "id": "Resource·12",
+          "id": "Resource·8",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -2519,12 +2519,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t14",
+          "at": "t1",
           "$new": true
         },
         {
           "seq": "15",
-          "id": "Resource·10",
+          "id": "Resource·9",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -2541,18 +2541,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t15",
+          "at": "t1",
           "$new": true
         },
         {
           "seq": "16",
-          "id": "rule·4",
+          "id": "rule·1",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·6",
-            "Object": "Resource·9"
+            "Group": "Resource·3",
+            "Object": "Resource·6"
           },
           "data": {
             "code": 403,
@@ -2566,63 +2566,17 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t16",
+          "at": "t1",
           "$new": true
         },
         {
           "seq": "17",
-          "id": "rule·7",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "System",
-          "links": {
-            "Group": "Resource·11",
-            "Object": "Resource·7"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t17",
-          "$new": true
-        },
-        {
-          "seq": "18",
-          "id": "rule·9",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "System",
-          "links": {
-            "Group": "Resource·11",
-            "Object": "Resource·10"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t18",
-          "$new": true
-        },
-        {
-          "seq": "19",
           "id": "rule·2",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
+            "Group": "Resource·4",
             "Object": "Resource·7"
           },
           "data": {
@@ -2635,18 +2589,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t19",
+          "at": "t1",
           "$new": true
         },
         {
-          "seq": "20",
-          "id": "rule·8",
+          "seq": "18",
+          "id": "rule·3",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·12"
+            "Group": "Resource·4",
+            "Object": "Resource·9"
           },
           "data": {
             "weight": 100,
@@ -2658,12 +2612,58 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t20",
+          "at": "t1",
+          "$new": true
+        },
+        {
+          "seq": "19",
+          "id": "rule·4",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·7"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$new": true
+        },
+        {
+          "seq": "20",
+          "id": "rule·5",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
           "$new": true
         },
         {
           "seq": "21",
-          "id": "Resource·8",
+          "id": "Resource·10",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -2677,18 +2677,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t21",
+          "at": "t1",
           "$new": true
         },
         {
           "seq": "22",
-          "id": "rule·5",
+          "id": "rule·6",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·8"
+            "Group": "Resource·5",
+            "Object": "Resource·10"
           },
           "data": {
             "weight": 100,
@@ -2700,12 +2700,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t22",
+          "at": "t1",
           "$new": true
         },
         {
           "seq": "23",
-          "id": "Resource·5",
+          "id": "Resource·11",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -2719,18 +2719,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t23",
+          "at": "t1",
           "$new": true
         },
         {
           "seq": "24",
-          "id": "rule·1",
+          "id": "rule·7",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·5"
+            "Group": "Resource·5",
+            "Object": "Resource·11"
           },
           "data": {
             "weight": 100,
@@ -2742,12 +2742,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t24",
+          "at": "t1",
           "$new": true
         },
         {
           "seq": "25",
-          "id": "Resource·3",
+          "id": "Resource·12",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -2761,18 +2761,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t25",
+          "at": "t1",
           "$new": true
         },
         {
           "seq": "26",
-          "id": "rule·6",
+          "id": "rule·8",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·3"
+            "Group": "Resource·5",
+            "Object": "Resource·12"
           },
           "data": {
             "weight": 100,
@@ -2784,7 +2784,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t26",
+          "at": "t1",
           "$new": true
         },
         {
@@ -2806,7 +2806,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t27",
+          "at": "t1",
           "$new": true
         }
       ],
@@ -2941,7 +2941,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t2",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -3095,7 +3095,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t3",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -3234,7 +3234,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t4",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -3505,7 +3505,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t5",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -3728,7 +3728,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t6",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -3750,11 +3750,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t7",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·4",
+          "id": "Resource·2",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -3772,11 +3772,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t8",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·6",
+          "id": "Resource·3",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -3791,11 +3791,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t9",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·11",
+          "id": "Resource·4",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -3813,11 +3813,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t10",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·2",
+          "id": "Resource·5",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -3835,11 +3835,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t11",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·9",
+          "id": "Resource·6",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -3854,7 +3854,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t12",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -3876,11 +3876,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t13",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·12",
+          "id": "Resource·8",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -3898,11 +3898,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t14",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·10",
+          "id": "Resource·9",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -3920,18 +3920,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t15",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·4",
+          "id": "rule·1",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·6",
-            "Object": "Resource·9"
+            "Group": "Resource·3",
+            "Object": "Resource·6"
           },
           "data": {
             "code": 403,
@@ -3945,53 +3945,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t16",
-          "$changed": []
-        },
-        {
-          "id": "rule·7",
-          "class": "rule",
-          "rev": 1,
-          "tenant": "System",
-          "owner": "System",
-          "links": {
-            "Group": "Resource·11",
-            "Object": "Resource·7"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t17",
-          "$changed": []
-        },
-        {
-          "id": "rule·9",
-          "class": "rule",
-          "rev": 1,
-          "tenant": "System",
-          "owner": "System",
-          "links": {
-            "Group": "Resource·11",
-            "Object": "Resource·10"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t18",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -4001,7 +3955,7 @@
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
+            "Group": "Resource·4",
             "Object": "Resource·7"
           },
           "data": {
@@ -4014,18 +3968,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t19",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·8",
+          "id": "rule·3",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·12"
+            "Group": "Resource·4",
+            "Object": "Resource·9"
           },
           "data": {
             "weight": 100,
@@ -4037,11 +3991,57 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t20",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·8",
+          "id": "rule·4",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·7"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "rule·5",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Resource·10",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -4056,18 +4056,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t21",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·5",
+          "id": "rule·6",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·8"
+            "Group": "Resource·5",
+            "Object": "Resource·10"
           },
           "data": {
             "weight": 100,
@@ -4079,11 +4079,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t22",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·5",
+          "id": "Resource·11",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -4098,18 +4098,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t23",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·1",
+          "id": "rule·7",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·5"
+            "Group": "Resource·5",
+            "Object": "Resource·11"
           },
           "data": {
             "weight": 100,
@@ -4121,11 +4121,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t24",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·3",
+          "id": "Resource·12",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -4140,18 +4140,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t25",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·6",
+          "id": "rule·8",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·3"
+            "Group": "Resource·5",
+            "Object": "Resource·12"
           },
           "data": {
             "weight": 100,
@@ -4163,7 +4163,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t26",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -4185,7 +4185,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t27",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -4205,7 +4205,32 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t28",
+          "at": "t2",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·9",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Альфа",
+          "owner": "Альфа",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t2",
           "$changed": [
             "*"
           ]
@@ -4217,8 +4242,8 @@
           "tenant": "Альфа",
           "owner": "Альфа",
           "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·8"
+            "Group": "Resource·2",
+            "Object": "Resource·11"
           },
           "data": {
             "weight": 10,
@@ -4230,7 +4255,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t29",
+          "at": "t2",
           "$changed": [
             "*"
           ]
@@ -4242,8 +4267,8 @@
           "tenant": "Альфа",
           "owner": "Альфа",
           "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·5"
+            "Group": "Resource·2",
+            "Object": "Resource·12"
           },
           "data": {
             "weight": 10,
@@ -4255,32 +4280,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t30",
-          "$changed": [
-            "*"
-          ]
-        },
-        {
-          "id": "rule·3",
-          "class": "rule",
-          "rev": 1,
-          "tenant": "Альфа",
-          "owner": "Альфа",
-          "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·3"
-          },
-          "data": {
-            "weight": 10,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t31",
+          "at": "t2",
           "$changed": [
             "*"
           ]
@@ -4304,7 +4304,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t32",
+          "at": "t2",
           "$changed": [
             "*"
           ]
@@ -4329,7 +4329,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t33",
+          "at": "t2",
           "$changed": [
             "*"
           ]
@@ -4452,7 +4452,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t2",
+          "at": "t1",
           "$new": false
         },
         {
@@ -4606,7 +4606,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t3",
+          "at": "t1",
           "$new": false
         },
         {
@@ -4745,7 +4745,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t4",
+          "at": "t1",
           "$new": false
         },
         {
@@ -5016,7 +5016,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t5",
+          "at": "t1",
           "$new": false
         },
         {
@@ -5239,7 +5239,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t6",
+          "at": "t1",
           "$new": false
         },
         {
@@ -5261,12 +5261,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t7",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "8",
-          "id": "Resource·4",
+          "id": "Resource·2",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -5283,12 +5283,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t8",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "9",
-          "id": "Resource·6",
+          "id": "Resource·3",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -5302,12 +5302,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t9",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "10",
-          "id": "Resource·11",
+          "id": "Resource·4",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -5324,12 +5324,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t10",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "11",
-          "id": "Resource·2",
+          "id": "Resource·5",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -5346,12 +5346,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t11",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "12",
-          "id": "Resource·9",
+          "id": "Resource·6",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -5365,7 +5365,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t12",
+          "at": "t1",
           "$new": false
         },
         {
@@ -5387,12 +5387,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t13",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "14",
-          "id": "Resource·12",
+          "id": "Resource·8",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -5409,12 +5409,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t14",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "15",
-          "id": "Resource·10",
+          "id": "Resource·9",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -5431,18 +5431,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t15",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "16",
-          "id": "rule·4",
+          "id": "rule·1",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·6",
-            "Object": "Resource·9"
+            "Group": "Resource·3",
+            "Object": "Resource·6"
           },
           "data": {
             "code": 403,
@@ -5456,63 +5456,17 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t16",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "17",
-          "id": "rule·7",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "System",
-          "links": {
-            "Group": "Resource·11",
-            "Object": "Resource·7"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t17",
-          "$new": false
-        },
-        {
-          "seq": "18",
-          "id": "rule·9",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "System",
-          "links": {
-            "Group": "Resource·11",
-            "Object": "Resource·10"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t18",
-          "$new": false
-        },
-        {
-          "seq": "19",
           "id": "rule·2",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
+            "Group": "Resource·4",
             "Object": "Resource·7"
           },
           "data": {
@@ -5525,18 +5479,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t19",
+          "at": "t1",
           "$new": false
         },
         {
-          "seq": "20",
-          "id": "rule·8",
+          "seq": "18",
+          "id": "rule·3",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·12"
+            "Group": "Resource·4",
+            "Object": "Resource·9"
           },
           "data": {
             "weight": 100,
@@ -5548,12 +5502,58 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t20",
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "19",
+          "id": "rule·4",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·7"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "20",
+          "id": "rule·5",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "21",
-          "id": "Resource·8",
+          "id": "Resource·10",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -5567,18 +5567,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t21",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "22",
-          "id": "rule·5",
+          "id": "rule·6",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·8"
+            "Group": "Resource·5",
+            "Object": "Resource·10"
           },
           "data": {
             "weight": 100,
@@ -5590,12 +5590,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t22",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "23",
-          "id": "Resource·5",
+          "id": "Resource·11",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -5609,18 +5609,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t23",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "24",
-          "id": "rule·1",
+          "id": "rule·7",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·5"
+            "Group": "Resource·5",
+            "Object": "Resource·11"
           },
           "data": {
             "weight": 100,
@@ -5632,12 +5632,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t24",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "25",
-          "id": "Resource·3",
+          "id": "Resource·12",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -5651,18 +5651,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t25",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "26",
-          "id": "rule·6",
+          "id": "rule·8",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·3"
+            "Group": "Resource·5",
+            "Object": "Resource·12"
           },
           "data": {
             "weight": 100,
@@ -5674,7 +5674,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t26",
+          "at": "t1",
           "$new": false
         },
         {
@@ -5696,7 +5696,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t27",
+          "at": "t1",
           "$new": false
         },
         {
@@ -5716,18 +5716,41 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t28",
+          "at": "t2",
           "$new": true
         },
         {
           "seq": "29",
+          "id": "rule·9",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "Альфа",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t2",
+          "$new": true
+        },
+        {
+          "seq": "30",
           "id": "rule·10",
           "rev": 1,
           "class": "rule",
           "tenant": "Альфа",
           "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·8"
+            "Group": "Resource·2",
+            "Object": "Resource·11"
           },
           "data": {
             "weight": 10,
@@ -5739,18 +5762,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t29",
+          "at": "t2",
           "$new": true
         },
         {
-          "seq": "30",
+          "seq": "31",
           "id": "rule·11",
           "rev": 1,
           "class": "rule",
           "tenant": "Альфа",
           "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·5"
+            "Group": "Resource·2",
+            "Object": "Resource·12"
           },
           "data": {
             "weight": 10,
@@ -5762,30 +5785,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t30",
-          "$new": true
-        },
-        {
-          "seq": "31",
-          "id": "rule·3",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "Альфа",
-          "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·3"
-          },
-          "data": {
-            "weight": 10,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t31",
+          "at": "t2",
           "$new": true
         },
         {
@@ -5807,7 +5807,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t32",
+          "at": "t2",
           "$new": true
         },
         {
@@ -5830,7 +5830,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t33",
+          "at": "t2",
           "$new": true
         }
       ],
@@ -5839,7 +5839,7 @@
     },
     {
       "title": "3. Подключиться от имени пользователя",
-      "text": "Приложение подключается своей ролью (`dsn.app`, член `letopis_app`) по ключу сервиса, проверяет пароль и работает от имени Веры.",
+      "text": "Приложение подключается к базе своей ролью (`dsn.app`; роль входит в `letopis_app`) по ключу сервиса, проверяет пароль Веры и дальше работает от её имени.",
       "code": "const svc = await connect({ dsn: dsn.app, schema, apiKey: r.serviceKey! });\nconst login = await svc.auth.verifyPassword({ identifier: 'vera@alpha.ru', password: 'Alpha-2026!' });\ndb = await svc.as(login!.account, { tenant: team.tenant });\nreturn { tenant: db.tenant };",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> svc</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.app, schema, apiKey: r.serviceKey</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> login</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyPassword</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ identifier: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'vera@alpha.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Alpha-2026!'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">as</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(login</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.account, { tenant: team.tenant });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { tenant: db.tenant };</span></span></code></pre>",
       "result": {
@@ -5962,7 +5962,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t2",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -6116,7 +6116,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t3",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -6255,7 +6255,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t4",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -6526,7 +6526,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t5",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -6749,7 +6749,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t6",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -6771,11 +6771,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t7",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·4",
+          "id": "Resource·2",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -6793,11 +6793,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t8",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·6",
+          "id": "Resource·3",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -6812,11 +6812,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t9",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·11",
+          "id": "Resource·4",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -6834,11 +6834,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t10",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·2",
+          "id": "Resource·5",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -6856,11 +6856,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t11",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·9",
+          "id": "Resource·6",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -6875,7 +6875,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t12",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -6897,11 +6897,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t13",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·12",
+          "id": "Resource·8",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -6919,11 +6919,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t14",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·10",
+          "id": "Resource·9",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -6941,18 +6941,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t15",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·4",
+          "id": "rule·1",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·6",
-            "Object": "Resource·9"
+            "Group": "Resource·3",
+            "Object": "Resource·6"
           },
           "data": {
             "code": 403,
@@ -6966,53 +6966,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t16",
-          "$changed": []
-        },
-        {
-          "id": "rule·7",
-          "class": "rule",
-          "rev": 1,
-          "tenant": "System",
-          "owner": "System",
-          "links": {
-            "Group": "Resource·11",
-            "Object": "Resource·7"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t17",
-          "$changed": []
-        },
-        {
-          "id": "rule·9",
-          "class": "rule",
-          "rev": 1,
-          "tenant": "System",
-          "owner": "System",
-          "links": {
-            "Group": "Resource·11",
-            "Object": "Resource·10"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t18",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -7022,7 +6976,7 @@
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
+            "Group": "Resource·4",
             "Object": "Resource·7"
           },
           "data": {
@@ -7035,18 +6989,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t19",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·8",
+          "id": "rule·3",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·12"
+            "Group": "Resource·4",
+            "Object": "Resource·9"
           },
           "data": {
             "weight": 100,
@@ -7058,11 +7012,57 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t20",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·8",
+          "id": "rule·4",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·7"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "rule·5",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Resource·10",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -7077,18 +7077,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t21",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·5",
+          "id": "rule·6",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·8"
+            "Group": "Resource·5",
+            "Object": "Resource·10"
           },
           "data": {
             "weight": 100,
@@ -7100,11 +7100,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t22",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·5",
+          "id": "Resource·11",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -7119,18 +7119,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t23",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·1",
+          "id": "rule·7",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·5"
+            "Group": "Resource·5",
+            "Object": "Resource·11"
           },
           "data": {
             "weight": 100,
@@ -7142,11 +7142,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t24",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·3",
+          "id": "Resource·12",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -7161,18 +7161,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t25",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·6",
+          "id": "rule·8",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·3"
+            "Group": "Resource·5",
+            "Object": "Resource·12"
           },
           "data": {
             "weight": 100,
@@ -7184,7 +7184,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t26",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -7206,7 +7206,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t27",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -7226,7 +7226,30 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t28",
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "rule·9",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Альфа",
+          "owner": "Альфа",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t2",
           "$changed": []
         },
         {
@@ -7236,8 +7259,8 @@
           "tenant": "Альфа",
           "owner": "Альфа",
           "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·8"
+            "Group": "Resource·2",
+            "Object": "Resource·11"
           },
           "data": {
             "weight": 10,
@@ -7249,7 +7272,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t29",
+          "at": "t2",
           "$changed": []
         },
         {
@@ -7259,8 +7282,8 @@
           "tenant": "Альфа",
           "owner": "Альфа",
           "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·5"
+            "Group": "Resource·2",
+            "Object": "Resource·12"
           },
           "data": {
             "weight": 10,
@@ -7272,30 +7295,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t30",
-          "$changed": []
-        },
-        {
-          "id": "rule·3",
-          "class": "rule",
-          "rev": 1,
-          "tenant": "Альфа",
-          "owner": "Альфа",
-          "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·3"
-          },
-          "data": {
-            "weight": 10,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t31",
+          "at": "t2",
           "$changed": []
         },
         {
@@ -7317,7 +7317,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t32",
+          "at": "t2",
           "$changed": []
         },
         {
@@ -7340,7 +7340,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t33",
+          "at": "t2",
           "$changed": []
         }
       ],
@@ -7461,7 +7461,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t2",
+          "at": "t1",
           "$new": false
         },
         {
@@ -7615,7 +7615,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t3",
+          "at": "t1",
           "$new": false
         },
         {
@@ -7754,7 +7754,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t4",
+          "at": "t1",
           "$new": false
         },
         {
@@ -8025,7 +8025,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t5",
+          "at": "t1",
           "$new": false
         },
         {
@@ -8248,7 +8248,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t6",
+          "at": "t1",
           "$new": false
         },
         {
@@ -8270,12 +8270,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t7",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "8",
-          "id": "Resource·4",
+          "id": "Resource·2",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -8292,12 +8292,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t8",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "9",
-          "id": "Resource·6",
+          "id": "Resource·3",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -8311,12 +8311,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t9",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "10",
-          "id": "Resource·11",
+          "id": "Resource·4",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -8333,12 +8333,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t10",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "11",
-          "id": "Resource·2",
+          "id": "Resource·5",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -8355,12 +8355,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t11",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "12",
-          "id": "Resource·9",
+          "id": "Resource·6",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -8374,7 +8374,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t12",
+          "at": "t1",
           "$new": false
         },
         {
@@ -8396,12 +8396,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t13",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "14",
-          "id": "Resource·12",
+          "id": "Resource·8",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -8418,12 +8418,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t14",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "15",
-          "id": "Resource·10",
+          "id": "Resource·9",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -8440,18 +8440,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t15",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "16",
-          "id": "rule·4",
+          "id": "rule·1",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·6",
-            "Object": "Resource·9"
+            "Group": "Resource·3",
+            "Object": "Resource·6"
           },
           "data": {
             "code": 403,
@@ -8465,63 +8465,17 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t16",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "17",
-          "id": "rule·7",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "System",
-          "links": {
-            "Group": "Resource·11",
-            "Object": "Resource·7"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t17",
-          "$new": false
-        },
-        {
-          "seq": "18",
-          "id": "rule·9",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "System",
-          "links": {
-            "Group": "Resource·11",
-            "Object": "Resource·10"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t18",
-          "$new": false
-        },
-        {
-          "seq": "19",
           "id": "rule·2",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
+            "Group": "Resource·4",
             "Object": "Resource·7"
           },
           "data": {
@@ -8534,18 +8488,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t19",
+          "at": "t1",
           "$new": false
         },
         {
-          "seq": "20",
-          "id": "rule·8",
+          "seq": "18",
+          "id": "rule·3",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·12"
+            "Group": "Resource·4",
+            "Object": "Resource·9"
           },
           "data": {
             "weight": 100,
@@ -8557,12 +8511,58 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t20",
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "19",
+          "id": "rule·4",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·7"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "20",
+          "id": "rule·5",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "21",
-          "id": "Resource·8",
+          "id": "Resource·10",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -8576,18 +8576,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t21",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "22",
-          "id": "rule·5",
+          "id": "rule·6",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·8"
+            "Group": "Resource·5",
+            "Object": "Resource·10"
           },
           "data": {
             "weight": 100,
@@ -8599,12 +8599,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t22",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "23",
-          "id": "Resource·5",
+          "id": "Resource·11",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -8618,18 +8618,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t23",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "24",
-          "id": "rule·1",
+          "id": "rule·7",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·5"
+            "Group": "Resource·5",
+            "Object": "Resource·11"
           },
           "data": {
             "weight": 100,
@@ -8641,12 +8641,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t24",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "25",
-          "id": "Resource·3",
+          "id": "Resource·12",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -8660,18 +8660,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t25",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "26",
-          "id": "rule·6",
+          "id": "rule·8",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·3"
+            "Group": "Resource·5",
+            "Object": "Resource·12"
           },
           "data": {
             "weight": 100,
@@ -8683,7 +8683,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t26",
+          "at": "t1",
           "$new": false
         },
         {
@@ -8705,7 +8705,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t27",
+          "at": "t1",
           "$new": false
         },
         {
@@ -8725,18 +8725,41 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t28",
+          "at": "t2",
           "$new": false
         },
         {
           "seq": "29",
+          "id": "rule·9",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "Альфа",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "30",
           "id": "rule·10",
           "rev": 1,
           "class": "rule",
           "tenant": "Альфа",
           "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·8"
+            "Group": "Resource·2",
+            "Object": "Resource·11"
           },
           "data": {
             "weight": 10,
@@ -8748,18 +8771,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t29",
+          "at": "t2",
           "$new": false
         },
         {
-          "seq": "30",
+          "seq": "31",
           "id": "rule·11",
           "rev": 1,
           "class": "rule",
           "tenant": "Альфа",
           "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·5"
+            "Group": "Resource·2",
+            "Object": "Resource·12"
           },
           "data": {
             "weight": 10,
@@ -8771,30 +8794,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t30",
-          "$new": false
-        },
-        {
-          "seq": "31",
-          "id": "rule·3",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "Альфа",
-          "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·3"
-          },
-          "data": {
-            "weight": 10,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t31",
+          "at": "t2",
           "$new": false
         },
         {
@@ -8816,7 +8816,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t32",
+          "at": "t2",
           "$new": false
         },
         {
@@ -8839,7 +8839,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t33",
+          "at": "t2",
           "$new": false
         }
       ],
@@ -8972,7 +8972,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t2",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -9126,7 +9126,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t3",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -9265,7 +9265,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t4",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -9536,7 +9536,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t5",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -9759,7 +9759,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t6",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -9781,11 +9781,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t7",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·4",
+          "id": "Resource·2",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -9803,11 +9803,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t8",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·6",
+          "id": "Resource·3",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -9822,11 +9822,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t9",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·11",
+          "id": "Resource·4",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -9844,11 +9844,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t10",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·2",
+          "id": "Resource·5",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -9866,11 +9866,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t11",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·9",
+          "id": "Resource·6",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -9885,7 +9885,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t12",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -9907,11 +9907,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t13",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·12",
+          "id": "Resource·8",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -9929,11 +9929,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t14",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·10",
+          "id": "Resource·9",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -9951,18 +9951,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t15",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·4",
+          "id": "rule·1",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·6",
-            "Object": "Resource·9"
+            "Group": "Resource·3",
+            "Object": "Resource·6"
           },
           "data": {
             "code": 403,
@@ -9976,53 +9976,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t16",
-          "$changed": []
-        },
-        {
-          "id": "rule·7",
-          "class": "rule",
-          "rev": 1,
-          "tenant": "System",
-          "owner": "System",
-          "links": {
-            "Group": "Resource·11",
-            "Object": "Resource·7"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t17",
-          "$changed": []
-        },
-        {
-          "id": "rule·9",
-          "class": "rule",
-          "rev": 1,
-          "tenant": "System",
-          "owner": "System",
-          "links": {
-            "Group": "Resource·11",
-            "Object": "Resource·10"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t18",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -10032,7 +9986,7 @@
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
+            "Group": "Resource·4",
             "Object": "Resource·7"
           },
           "data": {
@@ -10045,18 +9999,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t19",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·8",
+          "id": "rule·3",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·12"
+            "Group": "Resource·4",
+            "Object": "Resource·9"
           },
           "data": {
             "weight": 100,
@@ -10068,11 +10022,57 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t20",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·8",
+          "id": "rule·4",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·7"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "rule·5",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Resource·10",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -10087,18 +10087,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t21",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·5",
+          "id": "rule·6",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·8"
+            "Group": "Resource·5",
+            "Object": "Resource·10"
           },
           "data": {
             "weight": 100,
@@ -10110,11 +10110,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t22",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·5",
+          "id": "Resource·11",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -10129,18 +10129,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t23",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·1",
+          "id": "rule·7",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·5"
+            "Group": "Resource·5",
+            "Object": "Resource·11"
           },
           "data": {
             "weight": 100,
@@ -10152,11 +10152,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t24",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·3",
+          "id": "Resource·12",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -10171,18 +10171,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t25",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·6",
+          "id": "rule·8",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·3"
+            "Group": "Resource·5",
+            "Object": "Resource·12"
           },
           "data": {
             "weight": 100,
@@ -10194,7 +10194,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t26",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -10216,7 +10216,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t27",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -10236,7 +10236,30 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t28",
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "rule·9",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Альфа",
+          "owner": "Альфа",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t2",
           "$changed": []
         },
         {
@@ -10246,8 +10269,8 @@
           "tenant": "Альфа",
           "owner": "Альфа",
           "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·8"
+            "Group": "Resource·2",
+            "Object": "Resource·11"
           },
           "data": {
             "weight": 10,
@@ -10259,7 +10282,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t29",
+          "at": "t2",
           "$changed": []
         },
         {
@@ -10269,8 +10292,8 @@
           "tenant": "Альфа",
           "owner": "Альфа",
           "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·5"
+            "Group": "Resource·2",
+            "Object": "Resource·12"
           },
           "data": {
             "weight": 10,
@@ -10282,30 +10305,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t30",
-          "$changed": []
-        },
-        {
-          "id": "rule·3",
-          "class": "rule",
-          "rev": 1,
-          "tenant": "Альфа",
-          "owner": "Альфа",
-          "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·3"
-          },
-          "data": {
-            "weight": 10,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t31",
+          "at": "t2",
           "$changed": []
         },
         {
@@ -10327,7 +10327,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t32",
+          "at": "t2",
           "$changed": []
         },
         {
@@ -10350,7 +10350,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t33",
+          "at": "t2",
           "$changed": []
         },
         {
@@ -10496,7 +10496,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t34",
+          "at": "t3",
           "$changed": [
             "*"
           ]
@@ -10667,7 +10667,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t35",
+          "at": "t3",
           "$changed": [
             "*"
           ]
@@ -10790,7 +10790,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t2",
+          "at": "t1",
           "$new": false
         },
         {
@@ -10944,7 +10944,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t3",
+          "at": "t1",
           "$new": false
         },
         {
@@ -11083,7 +11083,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t4",
+          "at": "t1",
           "$new": false
         },
         {
@@ -11354,7 +11354,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t5",
+          "at": "t1",
           "$new": false
         },
         {
@@ -11577,7 +11577,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t6",
+          "at": "t1",
           "$new": false
         },
         {
@@ -11599,12 +11599,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t7",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "8",
-          "id": "Resource·4",
+          "id": "Resource·2",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -11621,12 +11621,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t8",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "9",
-          "id": "Resource·6",
+          "id": "Resource·3",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -11640,12 +11640,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t9",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "10",
-          "id": "Resource·11",
+          "id": "Resource·4",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -11662,12 +11662,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t10",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "11",
-          "id": "Resource·2",
+          "id": "Resource·5",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -11684,12 +11684,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t11",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "12",
-          "id": "Resource·9",
+          "id": "Resource·6",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -11703,7 +11703,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t12",
+          "at": "t1",
           "$new": false
         },
         {
@@ -11725,12 +11725,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t13",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "14",
-          "id": "Resource·12",
+          "id": "Resource·8",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -11747,12 +11747,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t14",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "15",
-          "id": "Resource·10",
+          "id": "Resource·9",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -11769,18 +11769,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t15",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "16",
-          "id": "rule·4",
+          "id": "rule·1",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·6",
-            "Object": "Resource·9"
+            "Group": "Resource·3",
+            "Object": "Resource·6"
           },
           "data": {
             "code": 403,
@@ -11794,63 +11794,17 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t16",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "17",
-          "id": "rule·7",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "System",
-          "links": {
-            "Group": "Resource·11",
-            "Object": "Resource·7"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t17",
-          "$new": false
-        },
-        {
-          "seq": "18",
-          "id": "rule·9",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "System",
-          "links": {
-            "Group": "Resource·11",
-            "Object": "Resource·10"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t18",
-          "$new": false
-        },
-        {
-          "seq": "19",
           "id": "rule·2",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
+            "Group": "Resource·4",
             "Object": "Resource·7"
           },
           "data": {
@@ -11863,18 +11817,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t19",
+          "at": "t1",
           "$new": false
         },
         {
-          "seq": "20",
-          "id": "rule·8",
+          "seq": "18",
+          "id": "rule·3",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·12"
+            "Group": "Resource·4",
+            "Object": "Resource·9"
           },
           "data": {
             "weight": 100,
@@ -11886,12 +11840,58 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t20",
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "19",
+          "id": "rule·4",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·7"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "20",
+          "id": "rule·5",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "21",
-          "id": "Resource·8",
+          "id": "Resource·10",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -11905,18 +11905,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t21",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "22",
-          "id": "rule·5",
+          "id": "rule·6",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·8"
+            "Group": "Resource·5",
+            "Object": "Resource·10"
           },
           "data": {
             "weight": 100,
@@ -11928,12 +11928,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t22",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "23",
-          "id": "Resource·5",
+          "id": "Resource·11",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -11947,18 +11947,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t23",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "24",
-          "id": "rule·1",
+          "id": "rule·7",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·5"
+            "Group": "Resource·5",
+            "Object": "Resource·11"
           },
           "data": {
             "weight": 100,
@@ -11970,12 +11970,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t24",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "25",
-          "id": "Resource·3",
+          "id": "Resource·12",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -11989,18 +11989,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t25",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "26",
-          "id": "rule·6",
+          "id": "rule·8",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·3"
+            "Group": "Resource·5",
+            "Object": "Resource·12"
           },
           "data": {
             "weight": 100,
@@ -12012,7 +12012,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t26",
+          "at": "t1",
           "$new": false
         },
         {
@@ -12034,7 +12034,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t27",
+          "at": "t1",
           "$new": false
         },
         {
@@ -12054,18 +12054,41 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t28",
+          "at": "t2",
           "$new": false
         },
         {
           "seq": "29",
+          "id": "rule·9",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "Альфа",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "30",
           "id": "rule·10",
           "rev": 1,
           "class": "rule",
           "tenant": "Альфа",
           "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·8"
+            "Group": "Resource·2",
+            "Object": "Resource·11"
           },
           "data": {
             "weight": 10,
@@ -12077,18 +12100,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t29",
+          "at": "t2",
           "$new": false
         },
         {
-          "seq": "30",
+          "seq": "31",
           "id": "rule·11",
           "rev": 1,
           "class": "rule",
           "tenant": "Альфа",
           "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·5"
+            "Group": "Resource·2",
+            "Object": "Resource·12"
           },
           "data": {
             "weight": 10,
@@ -12100,30 +12123,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t30",
-          "$new": false
-        },
-        {
-          "seq": "31",
-          "id": "rule·3",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "Альфа",
-          "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·3"
-          },
-          "data": {
-            "weight": 10,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t31",
+          "at": "t2",
           "$new": false
         },
         {
@@ -12145,7 +12145,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t32",
+          "at": "t2",
           "$new": false
         },
         {
@@ -12168,7 +12168,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t33",
+          "at": "t2",
           "$new": false
         },
         {
@@ -12314,7 +12314,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t34",
+          "at": "t3",
           "$new": true
         },
         {
@@ -12483,7 +12483,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t35",
+          "at": "t3",
           "$new": true
         }
       ],
@@ -12492,7 +12492,7 @@
     },
     {
       "title": "5. Наполнить данными",
-      "text": "Проект и три задачи. Задачи — одним батчем: одна транзакция, подряд идущие вставки склеиваются в один оператор.",
+      "text": "Проект и три задачи. Задачи — одним батчем: одна транзакция, а подряд идущие вставки объединяются в один SQL-оператор.",
       "code": "const [p] = await db.Project().create({ name: 'Сайт', deadline: '2026-12-01' }).rows();\nconst b = db.batch('задачи');\nb.Project(p).Task().create({ title: 'Макет', hours: 8 });\nb.Project(p).Task().create({ title: 'Вёрстка', hours: 16 });\nb.Project(p).Task().create({ title: 'Запуск', hours: 2 });\nawait b.run();\nreturn { задач: await db.Project(p).Task().count(), часов: await db.Project(p).Task().sum('data.hours') };",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">p</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Project</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Сайт'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, deadline: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'2026-12-01'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> b</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">batch</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'задачи'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Project</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(p).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Task</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Макет'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, hours: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">8</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Project</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(p).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Task</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Вёрстка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, hours: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">16</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Project</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(p).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Task</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Запуск'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, hours: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { задач: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Project</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(p).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Task</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(), часов: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Project</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(p).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Task</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sum</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'data.hours'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) };</span></span></code></pre>",
       "result": {
@@ -12616,7 +12616,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t2",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -12770,7 +12770,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t3",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -12909,7 +12909,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t4",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -13180,7 +13180,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t5",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -13403,7 +13403,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t6",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -13425,11 +13425,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t7",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·4",
+          "id": "Resource·2",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -13447,11 +13447,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t8",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·6",
+          "id": "Resource·3",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -13466,11 +13466,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t9",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·11",
+          "id": "Resource·4",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -13488,11 +13488,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t10",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·2",
+          "id": "Resource·5",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -13510,11 +13510,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t11",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·9",
+          "id": "Resource·6",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -13529,7 +13529,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t12",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -13551,11 +13551,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t13",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·12",
+          "id": "Resource·8",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -13573,11 +13573,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t14",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·10",
+          "id": "Resource·9",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -13595,18 +13595,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t15",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·4",
+          "id": "rule·1",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·6",
-            "Object": "Resource·9"
+            "Group": "Resource·3",
+            "Object": "Resource·6"
           },
           "data": {
             "code": 403,
@@ -13620,53 +13620,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t16",
-          "$changed": []
-        },
-        {
-          "id": "rule·7",
-          "class": "rule",
-          "rev": 1,
-          "tenant": "System",
-          "owner": "System",
-          "links": {
-            "Group": "Resource·11",
-            "Object": "Resource·7"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t17",
-          "$changed": []
-        },
-        {
-          "id": "rule·9",
-          "class": "rule",
-          "rev": 1,
-          "tenant": "System",
-          "owner": "System",
-          "links": {
-            "Group": "Resource·11",
-            "Object": "Resource·10"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t18",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -13676,7 +13630,7 @@
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
+            "Group": "Resource·4",
             "Object": "Resource·7"
           },
           "data": {
@@ -13689,18 +13643,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t19",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·8",
+          "id": "rule·3",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·12"
+            "Group": "Resource·4",
+            "Object": "Resource·9"
           },
           "data": {
             "weight": 100,
@@ -13712,11 +13666,57 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t20",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·8",
+          "id": "rule·4",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·7"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "rule·5",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Resource·10",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -13731,18 +13731,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t21",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·5",
+          "id": "rule·6",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·8"
+            "Group": "Resource·5",
+            "Object": "Resource·10"
           },
           "data": {
             "weight": 100,
@@ -13754,11 +13754,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t22",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·5",
+          "id": "Resource·11",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -13773,18 +13773,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t23",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·1",
+          "id": "rule·7",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·5"
+            "Group": "Resource·5",
+            "Object": "Resource·11"
           },
           "data": {
             "weight": 100,
@@ -13796,11 +13796,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t24",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·3",
+          "id": "Resource·12",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -13815,18 +13815,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t25",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·6",
+          "id": "rule·8",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·3"
+            "Group": "Resource·5",
+            "Object": "Resource·12"
           },
           "data": {
             "weight": 100,
@@ -13838,7 +13838,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t26",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -13860,7 +13860,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t27",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -13880,7 +13880,30 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t28",
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "rule·9",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Альфа",
+          "owner": "Альфа",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t2",
           "$changed": []
         },
         {
@@ -13890,8 +13913,8 @@
           "tenant": "Альфа",
           "owner": "Альфа",
           "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·8"
+            "Group": "Resource·2",
+            "Object": "Resource·11"
           },
           "data": {
             "weight": 10,
@@ -13903,7 +13926,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t29",
+          "at": "t2",
           "$changed": []
         },
         {
@@ -13913,8 +13936,8 @@
           "tenant": "Альфа",
           "owner": "Альфа",
           "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·5"
+            "Group": "Resource·2",
+            "Object": "Resource·12"
           },
           "data": {
             "weight": 10,
@@ -13926,30 +13949,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t30",
-          "$changed": []
-        },
-        {
-          "id": "rule·3",
-          "class": "rule",
-          "rev": 1,
-          "tenant": "Альфа",
-          "owner": "Альфа",
-          "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·3"
-          },
-          "data": {
-            "weight": 10,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t31",
+          "at": "t2",
           "$changed": []
         },
         {
@@ -13971,7 +13971,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t32",
+          "at": "t2",
           "$changed": []
         },
         {
@@ -13994,7 +13994,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t33",
+          "at": "t2",
           "$changed": []
         },
         {
@@ -14140,7 +14140,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t34",
+          "at": "t3",
           "$changed": []
         },
         {
@@ -14309,7 +14309,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t35",
+          "at": "t3",
           "$changed": []
         },
         {
@@ -14328,7 +14328,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t36",
+          "at": "t4",
           "$changed": [
             "*"
           ]
@@ -14352,7 +14352,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t37",
+          "at": "t5",
           "$changed": [
             "*"
           ]
@@ -14376,7 +14376,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t38",
+          "at": "t5",
           "$changed": [
             "*"
           ]
@@ -14400,7 +14400,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t39",
+          "at": "t5",
           "$changed": [
             "*"
           ]
@@ -14523,7 +14523,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t2",
+          "at": "t1",
           "$new": false
         },
         {
@@ -14677,7 +14677,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t3",
+          "at": "t1",
           "$new": false
         },
         {
@@ -14816,7 +14816,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t4",
+          "at": "t1",
           "$new": false
         },
         {
@@ -15087,7 +15087,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t5",
+          "at": "t1",
           "$new": false
         },
         {
@@ -15310,7 +15310,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t6",
+          "at": "t1",
           "$new": false
         },
         {
@@ -15332,12 +15332,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t7",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "8",
-          "id": "Resource·4",
+          "id": "Resource·2",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -15354,12 +15354,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t8",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "9",
-          "id": "Resource·6",
+          "id": "Resource·3",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -15373,12 +15373,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t9",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "10",
-          "id": "Resource·11",
+          "id": "Resource·4",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -15395,12 +15395,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t10",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "11",
-          "id": "Resource·2",
+          "id": "Resource·5",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -15417,12 +15417,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t11",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "12",
-          "id": "Resource·9",
+          "id": "Resource·6",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -15436,7 +15436,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t12",
+          "at": "t1",
           "$new": false
         },
         {
@@ -15458,12 +15458,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t13",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "14",
-          "id": "Resource·12",
+          "id": "Resource·8",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -15480,12 +15480,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t14",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "15",
-          "id": "Resource·10",
+          "id": "Resource·9",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -15502,18 +15502,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t15",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "16",
-          "id": "rule·4",
+          "id": "rule·1",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·6",
-            "Object": "Resource·9"
+            "Group": "Resource·3",
+            "Object": "Resource·6"
           },
           "data": {
             "code": 403,
@@ -15527,63 +15527,17 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t16",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "17",
-          "id": "rule·7",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "System",
-          "links": {
-            "Group": "Resource·11",
-            "Object": "Resource·7"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t17",
-          "$new": false
-        },
-        {
-          "seq": "18",
-          "id": "rule·9",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "System",
-          "links": {
-            "Group": "Resource·11",
-            "Object": "Resource·10"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t18",
-          "$new": false
-        },
-        {
-          "seq": "19",
           "id": "rule·2",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
+            "Group": "Resource·4",
             "Object": "Resource·7"
           },
           "data": {
@@ -15596,18 +15550,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t19",
+          "at": "t1",
           "$new": false
         },
         {
-          "seq": "20",
-          "id": "rule·8",
+          "seq": "18",
+          "id": "rule·3",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·12"
+            "Group": "Resource·4",
+            "Object": "Resource·9"
           },
           "data": {
             "weight": 100,
@@ -15619,12 +15573,58 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t20",
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "19",
+          "id": "rule·4",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·7"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "20",
+          "id": "rule·5",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "21",
-          "id": "Resource·8",
+          "id": "Resource·10",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -15638,18 +15638,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t21",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "22",
-          "id": "rule·5",
+          "id": "rule·6",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·8"
+            "Group": "Resource·5",
+            "Object": "Resource·10"
           },
           "data": {
             "weight": 100,
@@ -15661,12 +15661,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t22",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "23",
-          "id": "Resource·5",
+          "id": "Resource·11",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -15680,18 +15680,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t23",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "24",
-          "id": "rule·1",
+          "id": "rule·7",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·5"
+            "Group": "Resource·5",
+            "Object": "Resource·11"
           },
           "data": {
             "weight": 100,
@@ -15703,12 +15703,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t24",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "25",
-          "id": "Resource·3",
+          "id": "Resource·12",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -15722,18 +15722,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t25",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "26",
-          "id": "rule·6",
+          "id": "rule·8",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·3"
+            "Group": "Resource·5",
+            "Object": "Resource·12"
           },
           "data": {
             "weight": 100,
@@ -15745,7 +15745,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t26",
+          "at": "t1",
           "$new": false
         },
         {
@@ -15767,7 +15767,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t27",
+          "at": "t1",
           "$new": false
         },
         {
@@ -15787,18 +15787,41 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t28",
+          "at": "t2",
           "$new": false
         },
         {
           "seq": "29",
+          "id": "rule·9",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "Альфа",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "30",
           "id": "rule·10",
           "rev": 1,
           "class": "rule",
           "tenant": "Альфа",
           "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·8"
+            "Group": "Resource·2",
+            "Object": "Resource·11"
           },
           "data": {
             "weight": 10,
@@ -15810,18 +15833,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t29",
+          "at": "t2",
           "$new": false
         },
         {
-          "seq": "30",
+          "seq": "31",
           "id": "rule·11",
           "rev": 1,
           "class": "rule",
           "tenant": "Альфа",
           "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·5"
+            "Group": "Resource·2",
+            "Object": "Resource·12"
           },
           "data": {
             "weight": 10,
@@ -15833,30 +15856,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t30",
-          "$new": false
-        },
-        {
-          "seq": "31",
-          "id": "rule·3",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "Альфа",
-          "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·3"
-          },
-          "data": {
-            "weight": 10,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t31",
+          "at": "t2",
           "$new": false
         },
         {
@@ -15878,7 +15878,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t32",
+          "at": "t2",
           "$new": false
         },
         {
@@ -15901,7 +15901,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t33",
+          "at": "t2",
           "$new": false
         },
         {
@@ -16047,7 +16047,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t34",
+          "at": "t3",
           "$new": false
         },
         {
@@ -16216,7 +16216,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t35",
+          "at": "t3",
           "$new": false
         },
         {
@@ -16235,7 +16235,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t36",
+          "at": "t4",
           "$new": true
         },
         {
@@ -16257,7 +16257,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t37",
+          "at": "t5",
           "$new": true
         },
         {
@@ -16279,7 +16279,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t38",
+          "at": "t5",
           "$new": true
         },
         {
@@ -16301,7 +16301,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t39",
+          "at": "t5",
           "$new": true
         }
       ],
@@ -16315,7 +16315,7 @@
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Task</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Макет'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ done: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
-          "at": "t40",
+          "at": "t6",
           "id": "Task «Макет»",
           "op": "update",
           "rev": 2,
@@ -16452,7 +16452,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t2",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -16606,7 +16606,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t3",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -16745,7 +16745,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t4",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -17016,7 +17016,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t5",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -17239,7 +17239,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t6",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -17261,11 +17261,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t7",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·4",
+          "id": "Resource·2",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -17283,11 +17283,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t8",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·6",
+          "id": "Resource·3",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -17302,11 +17302,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t9",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·11",
+          "id": "Resource·4",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -17324,11 +17324,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t10",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·2",
+          "id": "Resource·5",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -17346,11 +17346,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t11",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·9",
+          "id": "Resource·6",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -17365,7 +17365,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t12",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -17387,11 +17387,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t13",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·12",
+          "id": "Resource·8",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -17409,11 +17409,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t14",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·10",
+          "id": "Resource·9",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -17431,18 +17431,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t15",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·4",
+          "id": "rule·1",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·6",
-            "Object": "Resource·9"
+            "Group": "Resource·3",
+            "Object": "Resource·6"
           },
           "data": {
             "code": 403,
@@ -17456,53 +17456,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t16",
-          "$changed": []
-        },
-        {
-          "id": "rule·7",
-          "class": "rule",
-          "rev": 1,
-          "tenant": "System",
-          "owner": "System",
-          "links": {
-            "Group": "Resource·11",
-            "Object": "Resource·7"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t17",
-          "$changed": []
-        },
-        {
-          "id": "rule·9",
-          "class": "rule",
-          "rev": 1,
-          "tenant": "System",
-          "owner": "System",
-          "links": {
-            "Group": "Resource·11",
-            "Object": "Resource·10"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t18",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -17512,7 +17466,7 @@
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
+            "Group": "Resource·4",
             "Object": "Resource·7"
           },
           "data": {
@@ -17525,18 +17479,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t19",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·8",
+          "id": "rule·3",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·12"
+            "Group": "Resource·4",
+            "Object": "Resource·9"
           },
           "data": {
             "weight": 100,
@@ -17548,11 +17502,57 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t20",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·8",
+          "id": "rule·4",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·7"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "rule·5",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Resource·10",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -17567,18 +17567,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t21",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·5",
+          "id": "rule·6",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·8"
+            "Group": "Resource·5",
+            "Object": "Resource·10"
           },
           "data": {
             "weight": 100,
@@ -17590,11 +17590,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t22",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·5",
+          "id": "Resource·11",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -17609,18 +17609,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t23",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·1",
+          "id": "rule·7",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·5"
+            "Group": "Resource·5",
+            "Object": "Resource·11"
           },
           "data": {
             "weight": 100,
@@ -17632,11 +17632,11 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t24",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "Resource·3",
+          "id": "Resource·12",
           "class": "Resource",
           "rev": 1,
           "tenant": "System",
@@ -17651,18 +17651,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t25",
+          "at": "t1",
           "$changed": []
         },
         {
-          "id": "rule·6",
+          "id": "rule·8",
           "class": "rule",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·3"
+            "Group": "Resource·5",
+            "Object": "Resource·12"
           },
           "data": {
             "weight": 100,
@@ -17674,7 +17674,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t26",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -17696,7 +17696,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t27",
+          "at": "t1",
           "$changed": []
         },
         {
@@ -17716,7 +17716,30 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t28",
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "rule·9",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Альфа",
+          "owner": "Альфа",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t2",
           "$changed": []
         },
         {
@@ -17726,8 +17749,8 @@
           "tenant": "Альфа",
           "owner": "Альфа",
           "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·8"
+            "Group": "Resource·2",
+            "Object": "Resource·11"
           },
           "data": {
             "weight": 10,
@@ -17739,7 +17762,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t29",
+          "at": "t2",
           "$changed": []
         },
         {
@@ -17749,8 +17772,8 @@
           "tenant": "Альфа",
           "owner": "Альфа",
           "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·5"
+            "Group": "Resource·2",
+            "Object": "Resource·12"
           },
           "data": {
             "weight": 10,
@@ -17762,30 +17785,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t30",
-          "$changed": []
-        },
-        {
-          "id": "rule·3",
-          "class": "rule",
-          "rev": 1,
-          "tenant": "Альфа",
-          "owner": "Альфа",
-          "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·3"
-          },
-          "data": {
-            "weight": 10,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t31",
+          "at": "t2",
           "$changed": []
         },
         {
@@ -17807,7 +17807,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t32",
+          "at": "t2",
           "$changed": []
         },
         {
@@ -17830,7 +17830,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t33",
+          "at": "t2",
           "$changed": []
         },
         {
@@ -17976,7 +17976,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t34",
+          "at": "t3",
           "$changed": []
         },
         {
@@ -18145,7 +18145,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t35",
+          "at": "t3",
           "$changed": []
         },
         {
@@ -18164,7 +18164,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t36",
+          "at": "t4",
           "$changed": []
         },
         {
@@ -18186,7 +18186,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t40",
+          "at": "t6",
           "$changed": [
             "rev",
             "data.done",
@@ -18213,7 +18213,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t38",
+          "at": "t5",
           "$changed": []
         },
         {
@@ -18235,7 +18235,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t39",
+          "at": "t5",
           "$changed": []
         }
       ],
@@ -18356,7 +18356,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t2",
+          "at": "t1",
           "$new": false
         },
         {
@@ -18510,7 +18510,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t3",
+          "at": "t1",
           "$new": false
         },
         {
@@ -18649,7 +18649,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t4",
+          "at": "t1",
           "$new": false
         },
         {
@@ -18920,7 +18920,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t5",
+          "at": "t1",
           "$new": false
         },
         {
@@ -19143,7 +19143,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t6",
+          "at": "t1",
           "$new": false
         },
         {
@@ -19165,12 +19165,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t7",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "8",
-          "id": "Resource·4",
+          "id": "Resource·2",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -19187,12 +19187,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t8",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "9",
-          "id": "Resource·6",
+          "id": "Resource·3",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -19206,12 +19206,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t9",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "10",
-          "id": "Resource·11",
+          "id": "Resource·4",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -19228,12 +19228,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t10",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "11",
-          "id": "Resource·2",
+          "id": "Resource·5",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -19250,12 +19250,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t11",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "12",
-          "id": "Resource·9",
+          "id": "Resource·6",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -19269,7 +19269,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t12",
+          "at": "t1",
           "$new": false
         },
         {
@@ -19291,12 +19291,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t13",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "14",
-          "id": "Resource·12",
+          "id": "Resource·8",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -19313,12 +19313,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t14",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "15",
-          "id": "Resource·10",
+          "id": "Resource·9",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -19335,18 +19335,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t15",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "16",
-          "id": "rule·4",
+          "id": "rule·1",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·6",
-            "Object": "Resource·9"
+            "Group": "Resource·3",
+            "Object": "Resource·6"
           },
           "data": {
             "code": 403,
@@ -19360,63 +19360,17 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t16",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "17",
-          "id": "rule·7",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "System",
-          "links": {
-            "Group": "Resource·11",
-            "Object": "Resource·7"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t17",
-          "$new": false
-        },
-        {
-          "seq": "18",
-          "id": "rule·9",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "System",
-          "links": {
-            "Group": "Resource·11",
-            "Object": "Resource·10"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t18",
-          "$new": false
-        },
-        {
-          "seq": "19",
           "id": "rule·2",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
+            "Group": "Resource·4",
             "Object": "Resource·7"
           },
           "data": {
@@ -19429,18 +19383,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t19",
+          "at": "t1",
           "$new": false
         },
         {
-          "seq": "20",
-          "id": "rule·8",
+          "seq": "18",
+          "id": "rule·3",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·12"
+            "Group": "Resource·4",
+            "Object": "Resource·9"
           },
           "data": {
             "weight": 100,
@@ -19452,12 +19406,58 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t20",
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "19",
+          "id": "rule·4",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·7"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "20",
+          "id": "rule·5",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "21",
-          "id": "Resource·8",
+          "id": "Resource·10",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -19471,18 +19471,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t21",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "22",
-          "id": "rule·5",
+          "id": "rule·6",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·8"
+            "Group": "Resource·5",
+            "Object": "Resource·10"
           },
           "data": {
             "weight": 100,
@@ -19494,12 +19494,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t22",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "23",
-          "id": "Resource·5",
+          "id": "Resource·11",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -19513,18 +19513,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t23",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "24",
-          "id": "rule·1",
+          "id": "rule·7",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·5"
+            "Group": "Resource·5",
+            "Object": "Resource·11"
           },
           "data": {
             "weight": 100,
@@ -19536,12 +19536,12 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t24",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "25",
-          "id": "Resource·3",
+          "id": "Resource·12",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
@@ -19555,18 +19555,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t25",
+          "at": "t1",
           "$new": false
         },
         {
           "seq": "26",
-          "id": "rule·6",
+          "id": "rule·8",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·3"
+            "Group": "Resource·5",
+            "Object": "Resource·12"
           },
           "data": {
             "weight": 100,
@@ -19578,7 +19578,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t26",
+          "at": "t1",
           "$new": false
         },
         {
@@ -19600,7 +19600,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t27",
+          "at": "t1",
           "$new": false
         },
         {
@@ -19620,18 +19620,41 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t28",
+          "at": "t2",
           "$new": false
         },
         {
           "seq": "29",
+          "id": "rule·9",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "Альфа",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "30",
           "id": "rule·10",
           "rev": 1,
           "class": "rule",
           "tenant": "Альфа",
           "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·8"
+            "Group": "Resource·2",
+            "Object": "Resource·11"
           },
           "data": {
             "weight": 10,
@@ -19643,18 +19666,18 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t29",
+          "at": "t2",
           "$new": false
         },
         {
-          "seq": "30",
+          "seq": "31",
           "id": "rule·11",
           "rev": 1,
           "class": "rule",
           "tenant": "Альфа",
           "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·5"
+            "Group": "Resource·2",
+            "Object": "Resource·12"
           },
           "data": {
             "weight": 10,
@@ -19666,30 +19689,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t30",
-          "$new": false
-        },
-        {
-          "seq": "31",
-          "id": "rule·3",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "Альфа",
-          "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·3"
-          },
-          "data": {
-            "weight": 10,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t31",
+          "at": "t2",
           "$new": false
         },
         {
@@ -19711,7 +19711,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t32",
+          "at": "t2",
           "$new": false
         },
         {
@@ -19734,7 +19734,7 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t33",
+          "at": "t2",
           "$new": false
         },
         {
@@ -19880,7 +19880,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t34",
+          "at": "t3",
           "$new": false
         },
         {
@@ -20049,7 +20049,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t35",
+          "at": "t3",
           "$new": false
         },
         {
@@ -20068,7 +20068,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t36",
+          "at": "t4",
           "$new": false
         },
         {
@@ -20090,7 +20090,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t37",
+          "at": "t5",
           "$new": false
         },
         {
@@ -20112,7 +20112,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t38",
+          "at": "t5",
           "$new": false
         },
         {
@@ -20134,7 +20134,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t39",
+          "at": "t5",
           "$new": false
         },
         {
@@ -20156,7 +20156,7 @@
           "author": "Вера",
           "agent": "service",
           "reason": null,
-          "at": "t40",
+          "at": "t6",
           "$new": true
         }
       ],

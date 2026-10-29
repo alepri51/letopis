@@ -8,8 +8,8 @@ const T = (schema: string) => `"${schema}".entity`;
 export default example({
   title: 'Ошибки базы: что ловят триггеры при записи в обход библиотеки',
   summary:
-    'Правила целостности проверяет сама база — для библиотеки и для сырого SQL одинаково. Здесь запись идёт ' +
-    'сырым SQL под сессией (db.transaction) — и база отвечает теми же кодами, что цепочкам.',
+    'Целостность данных проверяет сама база — одинаково для библиотеки и для прямых SQL-запросов. Здесь запись идёт ' +
+    'прямым SQL в сессии пользователя (db.transaction) — и база отвечает теми же кодами, что и цепочкам.',
   tables: [],
   covers: ['error.undeclared_end', 'error.id_from_db', 'error.use_reclass', 'error.recreated_in_statement', 'error.isolation_level',
     'nuance.engine-checks-raw-sql', 'export.fromDbError'],
@@ -25,7 +25,7 @@ export default example({
     },
     {
       title: 'id_from_db — свой id у класса без ключа',
-      text: 'У класса без ключа id выдаёт база (UUID v7). Что делать: не передавать id; стабильный id из внешнего ключа — `$ext` при загрузке.',
+      text: 'У класса без ключа id выдаёт база (UUID v7). Что делать: не передавать id; постоянный id из внешнего идентификатора — `$ext` при загрузке.',
       run: async ({ db, schema }) => db.transaction((tx) => tx.unsafe(`insert into ${T(schema)} (id, class, data) values (gen_random_uuid(), 'Customer', '{"name":"Х","email":"x@x.ru"}')`)),
       expect: { error: 'id_from_db' },
     },
@@ -37,7 +37,7 @@ export default example({
     },
     {
       title: 'recreated_in_statement — удалить и создать тот же id одним оператором',
-      text: 'Журнал не может записать удаление и новое рождение одного id в одном операторе. Что делать: двумя операторами — или `upsert`.',
+      text: 'Журнал не может записать удаление и повторное создание одного id в одном операторе. Что делать: двумя операторами — или `upsert`.',
       run: async ({ db, schema }) => db.transaction((tx) => tx.unsafe(
         `with gone as (delete from ${T(schema)} where id = $1 returning id) insert into ${T(schema)} (class, data) select 'Shop', '{"name":"Ромашка"}' from gone`, [d.romashka])),
       expect: { error: 'recreated_in_statement' },

@@ -901,7 +901,7 @@
   "steps": [
     {
       "title": "Что лежит в базе сразу после установки",
-      "text": "Установка уже завела служебные объекты: описания системных классов, аккаунты арендатора «Ромашка», пользователя Анны и сервиса, правило доступа. Сырой SQL показывает, сколько каких строк в `entity`.",
+      "text": "Установка уже завела служебные объекты: описания системных классов, аккаунты (System, арендатор «Ромашка», пользователь Анна и сервис), членство Анны, ресурсы и правила доступа. SQL-запрос прямо к таблице показывает, сколько строк каждого класса в `entity`.",
       "code": "return admin.unsafe(`select class, count(*)::int as rows from \"${schema}\".entity group by class order by class`);",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> admin.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">unsafe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`select class, count(*)::int as rows from \"${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">schema</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}\".entity group by class order by class`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span></code></pre>",
       "result": [
@@ -2737,7 +2737,7 @@
     },
     {
       "title": "Описание класса — тоже объект",
-      "text": "Описываем класс «Заметка». В `entity` появилась строка класса `Class`: имя, поля, ключ. Её версия легла в журнал, как у любого объекта.",
+      "text": "Описываем класс «Заметка». В `entity` появилась строка класса `Class`: имя, поля, ключ. Её версия записана в журнал, как у любого объекта.",
       "code": "await syncModels(db, [Note], { apply: true });",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, [Note], { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span></code></pre>",
       "result": null,

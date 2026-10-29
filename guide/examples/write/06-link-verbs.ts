@@ -35,7 +35,7 @@ export default example({
     },
     {
       title: 'await цепочки — не запрос; продолжение с готовой строки',
-      text: 'У цепочки нет `then`: `await db.Product(…)` отдаёт саму цепочку и ничего не читает — запрос делает окончание (`.rows()`, `.first()`, `.count()`). `db.entity(строка)` начинает путь с уже прочитанной строки.',
+      text: 'У цепочки нет `then`: `await db.Product(…)` отдаёт саму цепочку и ничего не читает — запрос выполняет терминал, завершающий вызов (`.rows()`, `.first()`, `.count()`). `db.entity(строка)` начинает путь с уже прочитанной строки.',
       run: async ({ db }) => {
         const awaited = await (db.Product(d.mug) as unknown as Promise<unknown>);
         const mug = (await db.Product(d.mug).first())!;
@@ -45,12 +45,13 @@ export default example({
     {
       title: 'Кэш результатов и описание класса',
       text:
-        '`.cache()` — повтор того же чтения без запроса, пока данные не изменились. Попадания считаем на свежем ' +
-        'подключении Анны: у `db` сигнал о записи прошлого шага мог бы прийти во время первого чтения, а такой ответ ' +
-        'кэш не кладёт — защита от гонки, счётчик `raced`. В описании класса — его поля (`fields`) и настройка кэша (`cache`).',
+        '`.cache()` — повтор того же чтения без запроса к базе, пока данные не изменились. Попадания считаем на свежем ' +
+        'подключении Анны. У `db` сигнал о записи из прошлого шага мог бы прийти во время первого чтения: такой ответ ' +
+        'мог устареть, и кэш его не сохраняет (защита от гонки чтения и сигнала, счётчик `raced`). В описании класса — ' +
+        'его поля (`fields`) и настройка кэша (`cache`).',
       run: async ({ connect, dsn, schema, up }) => {
         const anna = await connect({ dsn: dsn.app, schema, token: up.tenant!.token! });
-        await anna.Product().cache({ ttl: 30 }).count(); // запрос к базе — ответ ложится в кэш
+        await anna.Product().cache({ ttl: 30 }).count(); // запрос к базе — ответ сохраняется в кэше
         await anna.Product().cache({ ttl: 30 }).count(); // то же чтение — из кэша
         const { hits, raced } = anna.cache.stats();
         const desc = anna.describe().classes.find((c) => c.name === 'Product')!;

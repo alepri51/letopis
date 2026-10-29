@@ -6,8 +6,8 @@ let keyId: string, key: string, secret: string;
 export default example({
   title: 'Вход: пароль, ключ API, одноразовый код, TOTP, внешняя учётная запись',
   summary:
-    'Все способы входа живут в таблице secret: пароль — хэшем, ключ и код — хэшем, сессия — хэшем токена. ' +
-    'Проверяет их сервис приложения (вошёл по ключу), а при успехе выдаёт сессию пользователя.',
+    'Все способы входа хранятся в таблице secret: пароль — хэшем, ключ и код — хэшем, сессия — хэшем токена. ' +
+    'Проверяет их сервис приложения (он подключён по ключу сервиса), а при успехе выдаёт сессию пользователя.',
   tables: ['secret'],
   covers: [
     'auth.verifyPassword', 'auth.setPassword', 'auth.issueApiKey', 'auth.verifyApiKey', 'auth.revokeCredential',
@@ -25,8 +25,8 @@ export default example({
       }),
     },
     {
-      title: 'Смена пароля гасит остальные сессии',
-      text: 'Новый пароль хранится хэшем scrypt; сессии Анны погашены (в `secret` у них появилось «погашен»), старый пароль больше не подходит.',
+      title: 'Смена пароля завершает остальные сессии',
+      text: 'Новый пароль хранится хэшем scrypt; сессии Анны завершены (в `secret` у них заполнена колонка «погашен»), старый пароль больше не подходит.',
       run: async ({ svc, up, user }) => {
         await svc.auth.setPassword({ account: up.tenant!.user!, identifier: user.login, password: 'Новый-пароль-2026', confirmed: true });
         return { 'старый пароль': await svc.auth.verifyPassword({ identifier: user.login, password: user.password }) };
@@ -50,7 +50,7 @@ export default example({
     },
     {
       title: 'Одноразовый код (OTP)',
-      text: 'Код отдаёт сервис — отправить его письмом или СМС должен сам сервис. Успешная проверка сжигает код.',
+      text: '`issueOtp` возвращает код сервису, а отправить его письмом или СМС сервис должен сам. После успешной проверки код больше не действует.',
       run: async ({ svc, up, user }) => {
         const { code } = await svc.auth.issueOtp({ account: up.tenant!.user!, identifier: user.login, ttl: 300 });
         const first = await svc.auth.verifyOtp({ identifier: user.login, code });
@@ -60,7 +60,7 @@ export default example({
     },
     {
       title: 'Второй фактор: TOTP',
-      text: '`enrollTotp` даёт секрет и адрес `otpauth://` для QR-кода; первая верная проверка включает фактор. `totpCode` — помощник для тестов.',
+      text: '`enrollTotp` даёт секрет и адрес `otpauth://` для QR-кода; первая верная проверка включает второй фактор. `totpCode` — помощник для тестов.',
       run: async ({ svc, up }) => {
         ({ secret } = await svc.auth.enrollTotp({ account: up.tenant!.user!, issuer: 'Ромашка' }));
         const ok = await svc.auth.verifyTotp({ account: up.tenant!.user!, code: totpCode(secret) });
@@ -69,7 +69,7 @@ export default example({
     },
     {
       title: 'Внешняя учётная запись и вход по ней',
-      text: 'Telegram, Google, SSO: их токен проверяет сервис, база хранит связку. `lookup` — вход по связке.',
+      text: 'Telegram, Google, корпоративный вход (SSO): их токен проверяет сервис, а база хранит привязку к учётной записи. `lookup` — вход по этой привязке.',
       run: async ({ svc, up }) => {
         await svc.auth.link({ account: up.tenant!.user!, kind: 'TELEGRAM', identifier: '100500', confirmed: true });
         return { 'вход через Telegram': !!(await svc.auth.lookup({ kind: 'TELEGRAM', identifier: '100500' })) };

@@ -27,7 +27,7 @@ export default example({
   covers: ['error.derived_class', 'error.projector_pending', 'error.rebuild_required', 'error.confirmation_required', 'error.reclass_denied'],
   steps: [
     {
-      title: 'derived_class — писать в производный класс руками',
+      title: 'derived_class — запись в производный класс вручную',
       text: 'Производный класс (`derivedBy`) пишет только его проектор. Что делать: менять источник — проектор пересчитает.',
       run: async ({ db, connect, dsn, schema, up }) => {
         adm = await connect({ dsn: dsn.admin, schema, token: up.tenant!.token!, allowBypassRls: true });
@@ -50,13 +50,13 @@ export default example({
     },
     {
       title: 'rebuild_required — новая версия проектора',
-      text: 'Сменили `version` проектора — прежняя проекция не годится. Что делать: `rebuild()` — перестроить проекцию с начала журнала.',
+      text: 'Сменили `version` проектора — построенные им данные (проекция) больше не годятся. Что делать: `rebuild()` — перестроить проекцию с начала журнала.',
       run: async () => adm.projector('daily', def(2)).run({ once: true }),
       expect: { error: 'rebuild_required' },
     },
     {
       title: 'confirmation_required — удаление через MCP без подтверждения человека',
-      text: 'Удаление агентом спрашивает человека (elicitation). Клиент, который не умеет спрашивать, получает отказ. Что делать: клиент с подтверждением.',
+      text: 'Прежде чем удалить по просьбе агента, сервер спрашивает подтверждение у человека (запрос elicitation). Клиент, который не умеет передать такой вопрос, получает отказ. Что делать: взять клиент MCP, который поддерживает подтверждение.',
       run: async ({ db }) => {
         const [cat] = await db.Cat().create({ name: 'Мурка' }).rows();
         const server = await createMcpServer(db, { write: true });

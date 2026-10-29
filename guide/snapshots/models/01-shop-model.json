@@ -1,7 +1,7 @@
 {
   "id": "models/01-shop-model",
   "title": "Модель магазина: классы, концы, ключи",
-  "summary": "Класс описывают моделью на Zod: поля, концы (ссылки на другие объекты) и ключ. hub — объект, link — связь со своими данными. syncModels записывает описания в базу, а данные потом проверяет сама база.",
+  "summary": "Класс описывают моделью на Zod: поля, концы (ссылки на другие объекты) и ключ. hub — обычный объект, link — связка объектов со своими данными (строка заказа). syncModels записывает описания в базу, а данные потом проверяет сама база.",
   "covers": [
     "model.hub",
     "model.link",
@@ -52,7 +52,7 @@
     },
     {
       "title": "Записываем модель",
-      "text": "С `{ apply: true }` описания классов легли в базу. В `lost` — правила, которые база выразить не может (здесь их нет). Строк данных пока нет.",
+      "text": "С `{ apply: true }` описания классов записаны в базу. В `lost` — ограничения модели, которые база выразить не может (здесь их нет). Строк данных пока нет.",
       "code": "const applied = await syncModels(db, models, { apply: true });\nreturn { applied: applied.applied, created: applied.created, lost: applied.lost };",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> applied</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, models, { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { applied: applied.applied, created: applied.created, lost: applied.lost };</span></span></code></pre>",
       "result": {
@@ -148,7 +148,7 @@
     },
     {
       "title": "Дерево категорий: ссылка на родителя",
-      "text": "Конец `Parent` ведёт на класс самой категории. Слот `.Parent.set(tea)` после глагола задаёт ссылку — она видна в колонке «ссылки».",
+      "text": "Конец `Parent` ведёт на класс самой категории. Вызов `.Parent.set(tea)` после глагола задаёт ссылку — она видна в колонке «ссылки».",
       "code": "[tea] = await db.Category().create({ name: 'Чай' }).rows();\n[green] = await db.Category().create({ name: 'Зелёный чай' }).Parent.set(tea).rows();\nreturn green;",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[tea] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чай'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[green] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Зелёный чай'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).Parent.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">set</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(tea).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> green;</span></span></code></pre>",
       "result": {
@@ -297,7 +297,7 @@
       "counts": null
     },
     {
-      "title": "Товар: магазин — из пути, категории — слотом",
+      "title": "Товар: магазин — из пути, категория — вызовом .Category.add()",
       "text": "`db.Shop(shop).Product().create(…)` сам ставит ссылку на магазин: он берётся из пути цепочки. Категорий у товара может быть несколько (`many`, не больше 5) — `.Category.add(green)` добавляет одну.",
       "code": "[sencha] = await db.Shop(shop).Product().create({ sku: 'T-7', title: 'Сенча', price: 900 }).Category.add(green).rows();\nreturn sencha;",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[sencha] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'T-7'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Сенча'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">900</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).Category.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">add</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(green).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> sencha;</span></span></code></pre>",
@@ -501,12 +501,12 @@
     },
     {
       "title": "Покупатель, заказ и строка заказа — одним планом",
-      "text": "Цепочка создаёт заказ (покупатель — из пути, магазин — слотом) и сразу строку заказа (заказ — из пути). Весь план — одна транзакция: ошибка любого звена откатила бы всё.",
+      "text": "Цепочка создаёт заказ (покупатель — из пути, магазин — вызовом `.Shop.set()`) и сразу строку заказа (заказ — из пути). Весь план — одна транзакция: ошибка любого звена откатила бы всё.",
       "code": "[olga] = await db.Customer().create({ name: 'Ольга', email: 'olga@mail.ru' }).rows();\nreturn db.Customer(olga).Order().create({ number: 'A-1' }).Shop.set(shop)\n  .line().create({ qty: 2, price: 900 }).Product.set(sencha)\n  .rows();",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[olga] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ольга'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'olga@mail.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(olga).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'A-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).Shop.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">set</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop)</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  .</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ qty: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">900</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).Product.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">set</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(sencha)</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  .</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span></code></pre>",
       "result": [
         {
-          "at": "t7",
+          "at": "t6",
           "id": "line·1",
           "op": "create",
           "rev": 1,
@@ -673,7 +673,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t7",
+          "at": "t6",
           "$changed": [
             "*"
           ]
@@ -822,7 +822,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t7",
+          "at": "t6",
           "$new": true
         }
       ],
@@ -831,7 +831,7 @@
     },
     {
       "title": "Второй магазин с тем же ключом — отказ",
-      "text": "Ключ гарантирует единственность: магазин «Ромашка» уже есть, поэтому `create` отвечает `exists`. Это же спасает от дублей при повторе после сбоя сети.",
+      "text": "Ключ гарантирует единственность: магазин «Ромашка» уже есть, поэтому `create` отвечает `exists`. Это же защищает от дубликатов, если запрос повторили после сбоя сети.",
       "code": "db.Shop().create({ name: 'Ромашка' }).rows()",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": null,
@@ -985,7 +985,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t7",
+          "at": "t6",
           "$changed": []
         }
       ],
@@ -1132,7 +1132,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t7",
+          "at": "t6",
           "$new": false
         }
       ],

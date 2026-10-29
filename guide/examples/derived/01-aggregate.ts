@@ -14,15 +14,15 @@ let w: { id: string };
 export default example({
   title: 'Агрегат: баланс считает сама база',
   summary:
-    'Поле с aggregate — сумма или число строк источника; его пересчитывает триггер после каждого оператора: ' +
-    'запись библиотеки, сырой SQL, каскад, восстановление. Писать в него нельзя, а правило модели (min 0) ' +
-    'проверяется над итогом.',
+    'Поле с aggregate — сумма или число строк источника; его пересчитывает триггер базы после каждого SQL-оператора, ' +
+    'будь то запись библиотеки, прямой SQL-запрос, каскад или восстановление. Писать в него нельзя, а ограничение ' +
+    'модели (min 0) проверяется для посчитанного значения.',
   tables: ['entity', 'log'],
   covers: ['class.aggregate', 'error.aggregate_field', 'db.rebuildAggregates', 'nuance.aggregate-by-db'],
   steps: [
     {
       title: 'Кошелёк и операции',
-      text: 'Источник (`Movement`) описывают раньше агрегата — `syncModels` сам ставит их в нужном порядке.',
+      text: 'Класс-источник (`Movement`) должен появиться в базе раньше агрегата — `syncModels` сам запишет классы в нужном порядке.',
       run: async ({ db }) => {
         await syncModels(db, [Wallet, Movement], { apply: true });
         [w] = await db.Wallet().create({ number: 'W-1' }).rows();
@@ -43,7 +43,7 @@ export default example({
     },
     {
       title: 'Уйти в минус нельзя',
-      text: 'Операция −5000 увела бы баланс ниже нуля: правило `min(0)` проверяется над итогом — `invalid_data`.',
+      text: 'Операция −5000 увела бы баланс ниже нуля: ограничение `min(0)` проверяется для посчитанного значения — `invalid_data`.',
       run: async ({ db }) => db.Wallet(w).Movement().create({ opId: 'op-3', amount: -5000 }).rows(),
       expect: { error: 'invalid_data' },
     },
@@ -55,7 +55,7 @@ export default example({
     },
     {
       title: 'Ремонт: пересчитать из источника',
-      text: '`rebuildAggregates` пересчитывает поле по текущим строкам источника (администраторское подключение). Версия пишется, только если значение изменилось — здесь оно верное.',
+      text: '`rebuildAggregates` пересчитывает поле по текущим строкам источника (нужно администраторское подключение). Версия пишется, только если значение изменилось — здесь оно верное.',
       run: async ({ connect, warnings, dsn, schema, up }) => {
         const { result: adm } = await warnings(() => connect({ dsn: dsn.admin, schema, token: up.tenant!.token!, allowBypassRls: true }));
         return adm.rebuildAggregates('Wallet');

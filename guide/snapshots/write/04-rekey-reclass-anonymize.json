@@ -1,7 +1,7 @@
 {
   "id": "write/04-rekey-reclass-anonymize",
   "title": "Сменить ключ, сменить класс, обезличить",
-  "summary": "rekey даёт объекту новый ключ: это новый id, а все ссылки переводятся. reclass переводит объект в другой класс. anonymize затирает строковые поля новой версией — прежние версии остаются в журнале.",
+  "summary": "rekey даёт объекту новый ключ: это новый id, и все ссылки на объект переводятся на него. reclass переводит объект в другой класс. anonymize затирает строковые поля новой версией — прежние версии остаются в журнале.",
   "covers": [
     "chain.rekey",
     "chain.reclass",
@@ -27,7 +27,7 @@
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[shop] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[mug] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'M-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Кружка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">400</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[olga] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ольга'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'olga@mail.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(olga).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'A-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).Shop.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">set</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop)</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  .</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ qty: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">400</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).Product.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">set</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(mug).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span></code></pre>",
       "result": [
         {
-          "at": "t5",
+          "at": "t4",
           "id": "line·1",
           "op": "create",
           "rev": 1,
@@ -39,7 +39,7 @@
           "class": "line",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»·2"
+            "Product": "Product «Кружка»"
           },
           "owner": "Ромашка",
           "author": "Анна",
@@ -70,7 +70,7 @@
           ]
         },
         {
-          "id": "Product «Кружка»·2",
+          "id": "Product «Кружка»",
           "class": "Product",
           "rev": 1,
           "tenant": "Ромашка",
@@ -146,7 +146,7 @@
           "owner": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»·2"
+            "Product": "Product «Кружка»"
           },
           "data": {
             "qty": 1,
@@ -157,7 +157,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t5",
+          "at": "t4",
           "$changed": [
             "*"
           ]
@@ -185,7 +185,7 @@
         },
         {
           "seq": "42",
-          "id": "Product «Кружка»·2",
+          "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
           "tenant": "Ромашка",
@@ -254,7 +254,7 @@
           "tenant": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»·2"
+            "Product": "Product «Кружка»"
           },
           "data": {
             "qty": 1,
@@ -265,7 +265,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t5",
+          "at": "t4",
           "$new": true
         }
       ],
@@ -279,8 +279,8 @@
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(mug).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rekey</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'M-100'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
-          "at": "t6",
-          "id": "Product «Кружка»",
+          "at": "t5",
+          "id": "Product «Кружка»·2",
           "op": "rekey",
           "rev": 1,
           "data": {
@@ -297,7 +297,7 @@
           "author": "Анна",
           "tenant": "Ромашка",
           "agent": "service",
-          "moved": "Product «Кружка»·2"
+          "moved": "Product «Кружка»"
         }
       ],
       "error": null,
@@ -362,7 +362,7 @@
           "$changed": []
         },
         {
-          "id": "Product «Кружка»",
+          "id": "Product «Кружка»·2",
           "class": "Product",
           "rev": 1,
           "tenant": "Ромашка",
@@ -380,7 +380,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t6",
+          "at": "t5",
           "$changed": [
             "*"
           ]
@@ -393,7 +393,7 @@
           "owner": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»"
+            "Product": "Product «Кружка»·2"
           },
           "data": {
             "qty": 1,
@@ -404,7 +404,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t7",
+          "at": "t5",
           "$changed": [
             "*"
           ]
@@ -412,7 +412,7 @@
       ],
       "removed": [
         {
-          "id": "Product «Кружка»·2",
+          "id": "Product «Кружка»",
           "class": "Product",
           "rev": 1,
           "tenant": "Ромашка",
@@ -440,7 +440,7 @@
           "owner": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»·2"
+            "Product": "Product «Кружка»"
           },
           "data": {
             "qty": 1,
@@ -451,7 +451,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t5"
+          "at": "t4"
         }
       ],
       "log": [
@@ -475,7 +475,7 @@
         },
         {
           "seq": "42",
-          "id": "Product «Кружка»·2",
+          "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
           "tenant": "Ромашка",
@@ -544,7 +544,7 @@
           "tenant": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»·2"
+            "Product": "Product «Кружка»"
           },
           "data": {
             "qty": 1,
@@ -555,12 +555,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t5",
+          "at": "t4",
           "$new": false
         },
         {
           "seq": "46",
-          "id": "Product «Кружка»",
+          "id": "Product «Кружка»·2",
           "rev": 1,
           "class": "Product",
           "tenant": "Ромашка",
@@ -577,35 +577,13 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t6",
+          "at": "t5",
           "$new": true
         },
         {
           "seq": "47",
           "id": "line·2",
           "rev": 1,
-          "class": "line",
-          "tenant": "Ромашка",
-          "links": {
-            "Order": "Order «A-1»",
-            "Product": "Product «Кружка»"
-          },
-          "data": {
-            "qty": 1,
-            "price": 400
-          },
-          "tags": [],
-          "op": "rekey",
-          "author": "Анна",
-          "agent": "service",
-          "reason": null,
-          "at": "t7",
-          "$new": true
-        },
-        {
-          "seq": "48",
-          "id": "line·1",
-          "rev": 2,
           "class": "line",
           "tenant": "Ромашка",
           "links": {
@@ -617,16 +595,38 @@
             "price": 400
           },
           "tags": [],
+          "op": "rekey",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$new": true
+        },
+        {
+          "seq": "48",
+          "id": "line·1",
+          "rev": 2,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Кружка»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 400
+          },
+          "tags": [],
           "op": "delete",
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t8",
+          "at": "t5",
           "$new": true
         },
         {
           "seq": "49",
-          "id": "Product «Кружка»·2",
+          "id": "Product «Кружка»",
           "rev": 2,
           "class": "Product",
           "tenant": "Ромашка",
@@ -643,7 +643,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t9",
+          "at": "t5",
           "$new": true
         }
       ],
@@ -657,7 +657,7 @@
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(olga).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">reclass</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Vip'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ольга'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'olga@mail.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, discount: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">10</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
-          "at": "t10",
+          "at": "t6",
           "id": "Customer «Ольга»",
           "op": "reclass",
           "rev": 2,
@@ -712,7 +712,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t10",
+          "at": "t6",
           "$changed": [
             "class",
             "rev",
@@ -744,7 +744,7 @@
           "$changed": []
         },
         {
-          "id": "Product «Кружка»",
+          "id": "Product «Кружка»·2",
           "class": "Product",
           "rev": 1,
           "tenant": "Ромашка",
@@ -762,7 +762,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t6",
+          "at": "t5",
           "$changed": []
         },
         {
@@ -773,7 +773,7 @@
           "owner": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»"
+            "Product": "Product «Кружка»·2"
           },
           "data": {
             "qty": 1,
@@ -784,7 +784,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t7",
+          "at": "t5",
           "$changed": []
         }
       ],
@@ -810,7 +810,7 @@
         },
         {
           "seq": "42",
-          "id": "Product «Кружка»·2",
+          "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
           "tenant": "Ромашка",
@@ -879,7 +879,7 @@
           "tenant": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»·2"
+            "Product": "Product «Кружка»"
           },
           "data": {
             "qty": 1,
@@ -890,12 +890,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t5",
+          "at": "t4",
           "$new": false
         },
         {
           "seq": "46",
-          "id": "Product «Кружка»",
+          "id": "Product «Кружка»·2",
           "rev": 1,
           "class": "Product",
           "tenant": "Ромашка",
@@ -912,35 +912,13 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t6",
+          "at": "t5",
           "$new": false
         },
         {
           "seq": "47",
           "id": "line·2",
           "rev": 1,
-          "class": "line",
-          "tenant": "Ромашка",
-          "links": {
-            "Order": "Order «A-1»",
-            "Product": "Product «Кружка»"
-          },
-          "data": {
-            "qty": 1,
-            "price": 400
-          },
-          "tags": [],
-          "op": "rekey",
-          "author": "Анна",
-          "agent": "service",
-          "reason": null,
-          "at": "t7",
-          "$new": false
-        },
-        {
-          "seq": "48",
-          "id": "line·1",
-          "rev": 2,
           "class": "line",
           "tenant": "Ромашка",
           "links": {
@@ -952,16 +930,38 @@
             "price": 400
           },
           "tags": [],
+          "op": "rekey",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$new": false
+        },
+        {
+          "seq": "48",
+          "id": "line·1",
+          "rev": 2,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Кружка»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 400
+          },
+          "tags": [],
           "op": "delete",
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t8",
+          "at": "t5",
           "$new": false
         },
         {
           "seq": "49",
-          "id": "Product «Кружка»·2",
+          "id": "Product «Кружка»",
           "rev": 2,
           "class": "Product",
           "tenant": "Ромашка",
@@ -978,7 +978,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t9",
+          "at": "t5",
           "$new": false
         },
         {
@@ -998,7 +998,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t10",
+          "at": "t6",
           "$new": true
         }
       ],
@@ -1007,12 +1007,12 @@
     },
     {
       "title": "Обезличить email",
-      "text": "`anonymize(['email'])` записывает новую версию: email заменён на `[erased]`, у строки тег `anonymized`. Прежние версии с настоящим email остались в журнале — для полного забвения нужны обрезка истории и `purge`.",
+      "text": "`anonymize(['email'])` записывает новую версию: email заменён на `[erased]`, у строки тег `anonymized`. Прежние версии с настоящим email остались в журнале — чтобы стереть его совсем, нужны обрезка истории и `purge`.",
       "code": "db.Vip(olga).anonymize(['email']).rows()",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Vip</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(olga).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">anonymize</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">([</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'email'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">]).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
-          "at": "t11",
+          "at": "t7",
           "id": "Customer «Ольга»",
           "op": "update",
           "rev": 3,
@@ -1071,7 +1071,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t11",
+          "at": "t7",
           "$changed": [
             "rev",
             "data.email",
@@ -1103,7 +1103,7 @@
           "$changed": []
         },
         {
-          "id": "Product «Кружка»",
+          "id": "Product «Кружка»·2",
           "class": "Product",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1121,7 +1121,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t6",
+          "at": "t5",
           "$changed": []
         },
         {
@@ -1132,7 +1132,7 @@
           "owner": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»"
+            "Product": "Product «Кружка»·2"
           },
           "data": {
             "qty": 1,
@@ -1143,7 +1143,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t7",
+          "at": "t5",
           "$changed": []
         }
       ],
@@ -1169,7 +1169,7 @@
         },
         {
           "seq": "42",
-          "id": "Product «Кружка»·2",
+          "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
           "tenant": "Ромашка",
@@ -1238,7 +1238,7 @@
           "tenant": "Ромашка",
           "links": {
             "Order": "Order «A-1»",
-            "Product": "Product «Кружка»·2"
+            "Product": "Product «Кружка»"
           },
           "data": {
             "qty": 1,
@@ -1249,12 +1249,12 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t5",
+          "at": "t4",
           "$new": false
         },
         {
           "seq": "46",
-          "id": "Product «Кружка»",
+          "id": "Product «Кружка»·2",
           "rev": 1,
           "class": "Product",
           "tenant": "Ромашка",
@@ -1271,35 +1271,13 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t6",
+          "at": "t5",
           "$new": false
         },
         {
           "seq": "47",
           "id": "line·2",
           "rev": 1,
-          "class": "line",
-          "tenant": "Ромашка",
-          "links": {
-            "Order": "Order «A-1»",
-            "Product": "Product «Кружка»"
-          },
-          "data": {
-            "qty": 1,
-            "price": 400
-          },
-          "tags": [],
-          "op": "rekey",
-          "author": "Анна",
-          "agent": "service",
-          "reason": null,
-          "at": "t7",
-          "$new": false
-        },
-        {
-          "seq": "48",
-          "id": "line·1",
-          "rev": 2,
           "class": "line",
           "tenant": "Ромашка",
           "links": {
@@ -1311,16 +1289,38 @@
             "price": 400
           },
           "tags": [],
+          "op": "rekey",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$new": false
+        },
+        {
+          "seq": "48",
+          "id": "line·1",
+          "rev": 2,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Кружка»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 400
+          },
+          "tags": [],
           "op": "delete",
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t8",
+          "at": "t5",
           "$new": false
         },
         {
           "seq": "49",
-          "id": "Product «Кружка»·2",
+          "id": "Product «Кружка»",
           "rev": 2,
           "class": "Product",
           "tenant": "Ромашка",
@@ -1337,7 +1337,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t9",
+          "at": "t5",
           "$new": false
         },
         {
@@ -1357,7 +1357,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t10",
+          "at": "t6",
           "$new": false
         },
         {
@@ -1379,7 +1379,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t11",
+          "at": "t7",
           "$new": true
         }
       ],

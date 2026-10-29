@@ -5,10 +5,10 @@ import { example } from '../../kit/example.ts';
 let anna: Db, pairId: string, pair: { key: string; secret: string }, temp: { tenant: string; token: string | null };
 
 export default example({
-  title: 'Сессии и арендаторы: переключение, креды, выход, закрытие арендатора',
+  title: 'Сессии и арендаторы: переключение, способы входа, выход, закрытие арендатора',
   summary:
     'Сессия входа сначала работает в личном арендаторе учётной записи, в компанию её переводит auth.switch(). ' +
-    'Креды видны без секретов, сессию можно продлить и погасить — одну или все. Владелец может стереть ' +
+    'Способы входа видны без секретов, сессию можно продлить и завершить — одну или все. Владелец может стереть ' +
     'арендатора целиком, даже тот, в котором сейчас работает.',
   tables: ['secret'],
   covers: [
@@ -37,13 +37,13 @@ export default example({
       },
     },
     {
-      title: 'Креды без секретов',
+      title: 'Способы входа — без секретов',
       text: 'Пароль, ключи, TOTP — строки `secret`; `credentials()` отдаёт их вид, признаки и сроки, но не хэши.',
       run: async ({ svc, up }) => (await svc.auth.credentials(up.tenant!.user!)).map((c) => ({ kind: c.kind, ident: c.ident, confirmed: c.confirmed, enabled: c.enabled })),
     },
     {
       title: 'Пара «ключ + секрет» и её отключение',
-      text: 'Для интеграций, которым нужен отдельный секрет. `setFlags(id, { enabled: false })` выключает кред, не удаляя его.',
+      text: 'Для интеграций, которым нужен отдельный секрет. `setFlags(id, { enabled: false })` выключает этот способ входа, не удаляя его.',
       run: async ({ svc, up }) => {
         const issued = await svc.auth.issueKeySecret({ account: up.tenant!.user!, name: 'склад' });
         pair = { key: issued.key, secret: issued.secret }; pairId = issued.id;
@@ -66,11 +66,11 @@ export default example({
       },
     },
     {
-      title: 'Продлить сессию и погасить другую',
+      title: 'Продлить сессию и завершить другую',
       text:
         '`refresh({ ttl })` продлевает срок от «сейчас», но не дальше срока, выданного при входе, и никогда не ' +
         'укорачивает: семидневная сессия Анны так и осталась на 7 дней, десятиминутная продлилась лишь на свои 10 минут. ' +
-        '`revoke()` гасит сессию своего подключения — следующий вызов получит `no_session`.',
+        '`revoke()` завершает сессию своего подключения — следующий вызов получит `no_session`.',
       run: async ({ svc, up, connect, dsn, schema }) => {
         const week = await anna.auth.refresh({ ttl: 3600 });
         const other = await connect({ dsn: dsn.app, schema, token: await svc.auth.sessionFor(up.tenant!.user!, { ttl: 600 }) });
@@ -86,9 +86,9 @@ export default example({
     {
       title: 'Выйти везде',
       text:
-        '`revokeAll()` гасит все сессии учётной записи, включая текущую. Внимание: чтение по погашенной сессии ошибки ' +
-        'не даёт — контекст становится пустым, и база просто ничего не показывает (правила в компании есть, а счёт — 0). ' +
-        '`no_session` бросают функции входа (`auth.*`), поэтому веб-сервис проверяет сессию на входе каждого запроса.',
+        '`revokeAll()` завершает все сессии учётной записи, включая текущую. Внимание: чтение по завершённой сессии ' +
+        'ошибки не даёт — запросы просто возвращают пустой результат (правила в компании есть, а счёт — 0). ' +
+        '`no_session` бросают функции входа (`auth.*`), поэтому веб-сервис проверяет сессию в начале каждого запроса.',
       run: async () => ({
         'погашено': await anna.auth.revokeAll(),
         'auth.tenants()': await anna.auth.tenants().then(() => 'работает', (e) => e.code),

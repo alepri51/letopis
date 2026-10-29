@@ -14,7 +14,7 @@ export default example({
   steps: [
     {
       title: 'Товар и три правки — с причинами',
-      text: 'Причина — опция `reason` глагола; она ложится в журнал рядом с версией.',
+      text: 'Причина — опция `reason` глагола; она записывается в журнал рядом с версией.',
       run: async ({ db }) => {
         await syncShop(db); // скрыть
         const [shop] = await db.Shop().create({ name: 'Ромашка' }).rows(); // скрыть

@@ -1,6 +1,6 @@
 {
   "id": "mcp/01-agent-tools",
-  "title": "ИИ-агент через MCP: модель, чтение, история, запись с защитой версии",
+  "title": "ИИ-агент через MCP: модель, чтение, история, запись с проверкой версии",
   "summary": "createMcpServer(db) даёт агенту четыре инструмента: letopis_model, letopis_query, letopis_history и letopis_write (только с write: true). Агент работает с правами того пользователя, чьим подключением создан сервер.",
   "covers": [
     "mcp.createMcpServer",
@@ -352,7 +352,7 @@
           ]
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -400,7 +400,7 @@
           ]
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -733,7 +733,7 @@
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -777,7 +777,7 @@
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -805,8 +805,8 @@
       "counts": null
     },
     {
-      "title": "letopis_query: чтение JSON-цепочкой",
-      "text": "Та же цепочка, что `db.Product({ price: lt(1000) }).rows()`, только записанная JSON.",
+      "title": "letopis_query: цепочка, записанная в JSON",
+      "text": "Та же цепочка, что `db.Product({ price: lt(1000) }).rows()`, только записанная в JSON.",
       "code": "const data = (await call('letopis_query', { class: 'Product', filter: { price: { $lt: 1000 } } })) as { rows: { data: { title: string; price: number } }[] };\nreturn data.rows.map((r) => ({ title: r.data.title, price: r.data.price }));",
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> data</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> call</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'letopis_query'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { class: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Product'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, filter: { price: { $lt: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } } })) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">rows</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">data</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">title</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">; </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">price</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> number</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } }[] };</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> data.rows.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ title: r.data.title, price: r.data.price }));</span></span></code></pre>",
       "result": [
@@ -1113,7 +1113,7 @@
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1157,7 +1157,7 @@
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1486,7 +1486,7 @@
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1530,7 +1530,7 @@
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1896,7 +1896,7 @@
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -1940,7 +1940,7 @@
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -2278,7 +2278,7 @@
           "$changed": []
         },
         {
-          "id": "line·3",
+          "id": "line·2",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
@@ -2322,7 +2322,7 @@
           "$changed": []
         },
         {
-          "id": "line·2",
+          "id": "line·3",
           "class": "line",
           "rev": 1,
           "tenant": "Ромашка",
