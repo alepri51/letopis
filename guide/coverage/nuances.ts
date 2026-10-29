@@ -267,6 +267,11 @@ const nuances: Nuance[] = [
     text: 'Событие подписки несёт курсор: новая подписка с него получает ровно то, что случилось после, без потерь и повторов.',
     source: 'lib/README.md, раздел 12',
   },
+  {
+    id: 'mcp-user-rights',
+    text: 'Сервер MCP работает с правами пользователя, чьим подключением создан; правка через letopis_write — только с rev.',
+    source: 'lib/README.md, раздел 13 «MCP»',
+  },
 ];
 
 export default nuances;

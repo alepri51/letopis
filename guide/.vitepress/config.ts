@@ -42,6 +42,7 @@ export default defineConfig({
           { text: '9. Вход', link: '/auth/' },
           { text: '11. Подписка, кэш, сигналы', link: '/watch/' },
           { text: '12. Агрегаты и проекторы', link: '/derived/' },
+          { text: '15. ИИ-агенты: MCP', link: '/mcp/' },
         ],
       },
       {

@@ -8,15 +8,32 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "baseUrl": ".",
     "paths": {
-      "letopis": ["../lib/src/index.ts"],
-      "letopis/model": ["../lib/src/model.ts"],
-      "letopis/mcp": ["../lib/src/mcp.ts"],
-      "zod": ["../lib/node_modules/zod"],
-      "postgres": ["../lib/node_modules/postgres"]
+      "letopis": [
+        "../lib/src/index.ts"
+      ],
+      "letopis/model": [
+        "../lib/src/model.ts"
+      ],
+      "letopis/mcp": [
+        "../lib/src/mcp.ts"
+      ],
+      "zod": [
+        "../lib/node_modules/zod"
+      ],
+      "postgres": [
+        "../lib/node_modules/postgres"
+      ]
     }
   },
-  "include": ["kit", "scripts", "examples", "coverage"]
+  "include": [
+    "kit",
+    "scripts",
+    "examples",
+    "coverage"
+  ]
 }
