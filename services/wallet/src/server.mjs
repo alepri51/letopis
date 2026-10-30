@@ -4,8 +4,17 @@
  * - Баланс — агрегат базы: сумма операций Movement (aggregate sum), правило min(0) проверяет база над итогом.
  * - Операция — строка Movement с ключом [Wallet, opId]: повтор после потери ответа база отклоняет (exists),
  *   сервис сверяет «отпечаток» и отвечает «уже было» — деньги не спишутся дважды.
- * - Перевод — db.begin(): блокировки кошельков в порядке id (без взаимных блокировок), две операции, commit.
- * - Выписка за месяц — производный класс Statement, его пишет проектор statement из журнала операций.
+ * - Перевод — db.begin(): блокировки кошельков в порядке id (без взаимных блокировок), две операции, commit. Режим «без
+ *   порядка блокировок» ловит настоящую взаимную блокировку встречных переводов: PostgreSQL прерывает один блок (40P01),
+ *   повторов внутри db.begin() библиотека не делает — сервис повторяет блок целиком.
+ * - Обрыв связи с базой на COMMIT — на деле, через TCP-прокси (src/proxy.mjs): commit_unknown, исход сервис выясняет
+ *   повтором той же операции с тем же opId.
+ * - Смена владельца — update({ owner }, { rev }) по прочитанной версии счёта: устаревшая версия — conflict, 409.
+ * - Счёт с операциями не удаляется: конец Wallet у Movement — restrict (правило по умолчанию), база отвечает
+ *   delete_restricted.
+ * - Выписка за месяц — производный класс Statement, его пишет проектор statement из журнала операций (lockTimeout,
+ *   lockRetries); status() и «перестроить выписку» (rebuild).
+ * - Проверка целостности — verify({ data: true }): цепочки хэшей, данные и агрегат balance против суммы операций.
  * - Пополнение тестовой картой (проверка Луна); номер карты не хранится — только последние 4 цифры.
  * - Живое обновление (watch → SSE) и панель «Под капотом», как в салоне: цепочки, запросы (onQuery), записанные
  *   версии и сигналы записанных классов.
@@ -17,6 +26,7 @@ import { up, connect, createTenant, syncModels, LetopisError } from 'letopis';
 import * as model from 'letopis/model';
 import { z } from 'zod';
 import { walletModels } from './models.mjs';
+import { commitProxy } from './proxy.mjs';
 // общее у четырёх сервисов-примеров: журнал «под капотом», веб-сессии по cookie, подписка → SSE
 import { createTrace } from '../../shared/trace.mjs';
 import { createSessions } from '../../shared/sessions.mjs';
@@ -32,6 +42,14 @@ const ENV = {
   host: process.env.HOST ?? '127.0.0.1',
 };
 export const OPERATOR = { name: 'Ольга', login: 'admin@kopeika.ru', password: 'Kopeika-2026!' };
+/**
+ * Проектор выписки: чужую блокировку строки выписки пачка ждёт не дольше lockTimeout (дольше — откат, проход пропущен,
+ * курсор стоит), а после lockRetries таких проходов подряд арендатор выбывает (status().failed, код 55P03) до
+ * rebuild({ tenant }). Секунда и три прохода — чтобы сбой было видно за несколько секунд.
+ */
+export const STATEMENT = { lockTimeout: 1000, lockRetries: 3 };
+/** Окно «без порядка блокировок»: пауза между замками перевода — встречный перевод успевает взять свой первый замок. */
+const RACE_MS = 2000;
 
 // ---------- модель (src/models.mjs) ----------
 const { Wallet, Movement, Statement } = walletModels(model, z);
@@ -48,6 +66,8 @@ export function luhn(card) {
   }
   return sum % 10 === 0;
 }
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export async function createApp() {
   const admin = postgres(ENV.admin, { max: 2, onnotice: () => {} });
@@ -72,7 +92,7 @@ export async function createApp() {
   }
   // проектор выписки: месяц × кошелёк — сумма пополнений, списаний и число операций
   const statement = adm.projector('statement', {
-    from: ['Movement'], into: ['Statement'], version: 1, withBefore: true,
+    from: ['Movement'], into: ['Statement'], version: 1, withBefore: true, ...STATEMENT,
     handle(changes, out) {
       for (const c of changes) {
         if (c.op === 'purge' || c.op === 'trim' || c.op === 'reset') continue;
@@ -89,7 +109,8 @@ export async function createApp() {
   const follow = statement.run().catch((e) => console.error('проектор выписки остановлен:', e.message));
 
   // ---------- операции ----------
-  async function operate(db, wallet, { opId, kind, amount, card4, note }, lines) {
+  /** check — подключение для сверки отпечатка повтора (по умолчанию то же, что пишет). */
+  async function operate(db, wallet, { opId, kind, amount, card4, note }, lines, check = db) {
     lines.push(`db.Wallet(кошелёк).Movement().create({ opId: '${opId}', kind: '${kind}', amount: ${amount} })`);
     try {
       await db.Wallet(wallet).Movement().create({ opId, kind, amount, ...(card4 ? { card4 } : {}), ...(note ? { note } : {}) }, { reason: `${kind} ${opId}` }).rows();
@@ -98,28 +119,111 @@ export async function createApp() {
     } catch (e) {
       if (!(e instanceof LetopisError) || e.code !== 'exists') throw e;
       // повтор: тот ли это запрос? отпечаток — вид и сумма уже записанной операции
-      const m = await db.Movement(await db.idOf('Movement', { Wallet: wallet, opId })).first();
+      const m = await check.Movement(await check.idOf('Movement', { Wallet: wallet, opId })).first();
       lines.push(`exists — операция ${opId} уже записана; сверили отпечаток`);
       if (m && m.data.kind === kind && m.data.amount === amount) return 'уже было';
       throw new LetopisError('conflict', `opId ${opId} уже занят другой операцией`);
     }
   }
 
-  async function transfer(db, from, to, amount, opId, lines) {
-    const tr = await db.begin({ reason: `transfer ${opId}` });
+  // Обрыв связи с базой на COMMIT — на деле: на одну операцию своё подключение letopis через TCP-прокси (src/proxy.mjs) с
+  // одним соединением и токеном сервиса. Прокси взводится, когда реестр арендатора уже прочитан (as()), — рвётся COMMIT
+  // самой операции.
+  const dbHost = appUrl.hostname === 'localhost' ? '127.0.0.1' : appUrl.hostname;
+  /**
+   * Операция, у которой связь с базой рвётся на COMMIT: point 'before' — COMMIT до базы не дошёл, 'after' — база его
+   * выполнила, а ответа нет. Библиотека отвечает commit_unknown и сама не повторяет; сервис выясняет исход повтором той
+   * же операции с тем же opId обычным подключением: «проведено» — в первый раз не записалось, exists («уже было») —
+   * записалось. Ответ — итог повтора.
+   */
+  async function operateCut(s, wallet, op, point, lines) {
+    const proxy = await commitProxy(Number(appUrl.port || 5432), dbHost);
+    const url = new URL(ENV.app);
+    url.hostname = '127.0.0.1';
+    url.port = String(proxy.port);
+    // COMMIT прокси узнаёт по тексту оператора — без подготовленных запросов; время — строкой, как у пула connect()
+    const pool = postgres(url.toString(), { max: 1, prepare: false, onnotice: () => {},
+      types: { timestamptz: { to: 1184, from: [1184], serialize: (v) => (v instanceof Date ? v.toISOString() : v), parse: (v) => v } } });
+    let cut = null;
+    let unknown = false;
     try {
-      // блокировки в порядке id: два встречных перевода не заблокируют друг друга
-      for (const id of [from, to].sort()) await tr.lock('wallet', id);
-      lines.push(`db.begin(); tr.lock('wallet', …) в порядке id`);
-      await tr.Wallet(from).Movement().create({ opId: `${opId}-out`, kind: 'transfer', amount: -amount }).rows();
-      await tr.Wallet(to).Movement().create({ opId: `${opId}-in`, kind: 'transfer', amount }).rows();
-      await tr.commit();
-      lines.push('две операции и commit — баланс обоих пересчитала база');
-      return 'проведено';
+      cut = await connect({ sql: pool, schema: r.schema, token: svc.token, listen: false, refreshSession: false });
+      const db = await cut.as(s.account, { tenant: t.tenant });
+      proxy.arm(point);
+      lines.push(point === 'before' ? 'связь с базой — через TCP-прокси: он оборвёт её на COMMIT, не передав COMMIT базе'
+        : 'связь с базой — через TCP-прокси: база выполнит COMMIT, а ответ прокси не передаст');
+      await operate(db, wallet, op, lines, s.db);
+      lines.push('связь не оборвалась — операция проведена с первого раза');
     } catch (e) {
-      await tr.rollback().catch(() => {});
-      if (e instanceof LetopisError && e.code === 'exists') return 'уже было';
-      throw e;
+      if (!(e instanceof LetopisError) || e.code !== 'commit_unknown') throw e;
+      unknown = true;
+      lines.push('commit_unknown — связь оборвалась во время COMMIT: записалась операция или нет, сервис не знает');
+    } finally {
+      await cut?.close().catch(() => {});
+      await pool.end({ timeout: 1 }).catch(() => {});
+      await proxy.close();
+    }
+    if (!unknown) return { result: 'проведено', unknown: null };
+    lines.push(`повтор той же операции с тем же opId — обычным подключением:`);
+    const result = await operate(s.db, wallet, op, lines);
+    if (result === 'уже было') {
+      lines.push('исход: COMMIT дошёл до базы — операция записалась с первого раза, повтор ничего не провёл');
+      lines.push('сигнал первой попытки не ушёл (ответа на COMMIT не было): вкладки узнают о записи запасным опросом подписки');
+    } else {
+      lines.push('исход: COMMIT до базы не дошёл — первая попытка откатилась, операцию провёл повтор');
+    }
+    return { result, unknown: point };
+  }
+
+  /**
+   * Перевод — явный блок db.begin(): замки обоих кошельков, две операции, commit. Замки — в порядке id: встречные
+   * переводы не ждут друг друга по кругу. unordered — без порядка: сначала свой счёт и пауза RACE_MS между замками
+   * (встречный перевод успевает взять свой); PostgreSQL находит взаимную блокировку и прерывает один из блоков (40P01).
+   * Повторов внутри db.begin() библиотека не делает — сервис повторяет весь блок, до трёх попыток. stats.retries —
+   * сколько раз повторил.
+   */
+  async function transfer(db, from, to, amount, opId, lines, { unordered = false, stats = { retries: 0 } } = {}) {
+    const number = new Map((await db.Wallet([from, to]).rows()).map((w) => [w.id, w.data.number]));
+    const name = (id) => number.get(id) ?? String(id).slice(0, 8);
+    for (let attempt = 1; ; attempt++) {
+      const tr = await db.begin({ reason: `transfer ${opId}` });
+      let step = ''; // оператор блока, на котором его может прервать взаимная блокировка
+      try {
+        if (unordered) {
+          await tr.lock('wallet', from);
+          lines.push(`db.begin(); tr.lock('wallet', ${name(from)}) — без порядка блокировок: сначала свой счёт`);
+          if (attempt === 1) {
+            lines.push(`пауза ${RACE_MS / 1000} с между замками — встречный перевод успевает взять свой`);
+            await sleep(RACE_MS);
+          }
+          const t0 = Date.now();
+          step = `tr.lock('wallet', ${name(to)})`;
+          await tr.lock('wallet', to);
+          lines.push(`${step} — ждали ${Date.now() - t0} мс`);
+          step = '';
+        } else {
+          // блокировки в порядке id: два встречных перевода не заблокируют друг друга
+          const order = [from, to].sort();
+          for (const id of order) await tr.lock('wallet', id);
+          lines.push(`db.begin(); tr.lock('wallet', …): ${order.map(name).join(', ')} — в порядке id`);
+        }
+        await tr.Wallet(from).Movement().create({ opId: `${opId}-out`, kind: 'transfer', amount: -amount }).rows();
+        await tr.Wallet(to).Movement().create({ opId: `${opId}-in`, kind: 'transfer', amount }).rows();
+        await tr.commit();
+        lines.push('две операции и commit — баланс обоих пересчитала база');
+        return 'проведено';
+      } catch (e) {
+        await tr.rollback().catch(() => {});
+        if (e instanceof LetopisError && e.code === 'exists') return 'уже было';
+        // взаимная блокировка: PostgreSQL прервал этот блок, транзакция сломана — весь блок db.begin() заново
+        if (e?.code === '40P01' && attempt < 3) {
+          stats.retries++;
+          lines.push(`40P01${step ? ` на ${step}` : ''} — взаимная блокировка: PostgreSQL прервал этот блок; tr.rollback() и весь блок db.begin() заново (попытка ${attempt + 1})`);
+          await sleep(40 * attempt + Math.random() * 40);
+          continue;
+        }
+        throw e;
+      }
     }
   }
 
@@ -127,8 +231,10 @@ export async function createApp() {
   const web = createSessions(); // sid → { db, account, name, trace: [] }
   const { auth } = web;
   const { act } = trace;
-  const fail = (res, e) => res.status(e.code === 'invalid_data' ? 422 : e.code === 'conflict' ? 409 : 400)
-    .json({ error: e.code === 'invalid_data' ? 'Недостаточно средств: баланс не может стать отрицательным' : `${e.code ?? ''} ${e.message}` });
+  // коды ошибок → HTTP: нехватка средств (min(0) баланса) — 422, конфликт версии и помехи удалению — 409; text — свой текст
+  const fail = (res, e, text) => res.status(e.code === 'invalid_data' ? 422 : e.code === 'conflict' || e.code === 'delete_restricted' ? 409 : 400)
+    .json({ error: text ?? (e.code === 'invalid_data' ? 'Недостаточно средств: баланс не может стать отрицательным' : `${e.code ?? ''} ${e.message}`), code: e.code });
+  const S = `"${r.schema.replace(/"/g, '""')}"`;
 
   const app = express();
   app.use(express.json());
@@ -150,19 +256,24 @@ export async function createApp() {
     const statements = await db.Statement().rows().catch(() => []);
     const number = new Map(wallets.map((w) => [w.id, w.data.number]));
     res.json({
-      wallets: wallets.map((w) => ({ id: w.id, number: w.data.number, owner: w.data.owner, balance: w.data.balance })),
+      // rev — версия счёта: по ней правится владелец ({ rev }); растёт и от операций — баланс тоже поле счёта
+      wallets: wallets.map((w) => ({ id: w.id, number: w.data.number, owner: w.data.owner, balance: w.data.balance, rev: w.rev })),
       movements: movements.map((m) => ({ id: m.id, wallet: number.get(m.links.Wallet), opId: m.data.opId, kind: m.data.kind, amount: m.data.amount, card4: m.data.card4 ?? '', at: String(m.at).slice(11, 19) })),
       statements: statements.map((s) => ({ wallet: number.get(s.links.Wallet), month: s.data.month, topup: s.data.topup, debit: s.data.debit, count: s.data.count })),
     });
   });
   app.post('/api/topup', auth, async (req, res) => {
-    const { wallet, amount, card, opId, lose } = req.body ?? {};
+    const { wallet, amount, card, opId, lose, cut } = req.body ?? {};
     if (!luhn(card)) return res.status(422).json({ error: 'Номер карты не прошёл проверку (алгоритм Луна)' });
+    const op = { opId, kind: 'topup', amount: Number(amount), card4: String(card).replace(/\D/g, '').slice(-4) };
     try {
-      const result = await act(req.s, `Пополнение ${opId}`, (lines) => operate(req.s.db, wallet, { opId, kind: 'topup', amount: Number(amount), card4: String(card).replace(/\D/g, '').slice(-4) }, lines));
+      // обрыв связи с базой на COMMIT (cut: before | after) — commit_unknown, исход выясняет повтор с тем же opId
+      const { result, unknown } = cut === 'before' || cut === 'after'
+        ? await act(req.s, `Пополнение ${opId} (обрыв ${cut === 'before' ? 'до' : 'после'} COMMIT)`, (lines) => operateCut(req.s, wallet, op, cut, lines))
+        : { result: await act(req.s, `Пополнение ${opId}`, (lines) => operate(req.s.db, wallet, op, lines)), unknown: null };
       // режим «потерять ответ»: операция проведена, но клиент ответа не получает — и повторяет её с тем же opId
       if (lose) return res.status(504).json({ error: 'Ответ потерян (имитация сбоя сети) — повторите операцию', lost: true });
-      res.json({ result });
+      res.json({ result, unknown });
     } catch (e) { fail(res, e); }
   });
   app.post('/api/debit', auth, async (req, res) => {
@@ -171,13 +282,118 @@ export async function createApp() {
     catch (e) { fail(res, e); }
   });
   app.post('/api/transfer', auth, async (req, res) => {
-    const { from, to, amount, opId } = req.body ?? {};
-    try { res.json({ result: await act(req.s, `Перевод ${opId}`, (lines) => transfer(req.s.db, from, to, Number(amount), opId, lines)) }); }
-    catch (e) { fail(res, e); }
+    const { from, to, amount, opId, unordered } = req.body ?? {};
+    const stats = { retries: 0 };
+    try {
+      const result = await act(req.s, `Перевод ${opId}${unordered === true ? ' (без порядка блокировок)' : ''}`,
+        (lines) => transfer(req.s.db, from, to, Number(amount), opId, lines, { unordered: unordered === true, stats }));
+      res.json({ result, retries: stats.retries });
+    } catch (e) { fail(res, e); }
   });
   app.get('/api/wallets/:id/history', auth, async (req, res) => {
     const versions = await act(req.s, 'История баланса', () => req.s.db.Wallet(req.params.id).versions());
     res.json(versions.map((v) => ({ rev: v.rev, op: v.op, balance: v.data.balance, reason: v.reason ?? '', at: String(v.at).slice(11, 19) })));
+  });
+  // смена владельца по прочитанной версии: счёт успели изменить (другая вкладка или любая операция — баланс тоже поле
+  // счёта) — conflict, ничего не записано
+  app.post('/api/wallets/:id/owner', auth, async (req, res) => {
+    const owner = String(req.body?.owner ?? '').trim();
+    const rev = Number(req.body?.rev);
+    if (!owner || owner.length > 60) return res.status(422).json({ error: 'Владелец — от 1 до 60 знаков' });
+    if (!Number.isInteger(rev) || rev < 1) return res.status(422).json({ error: 'Нужна версия счёта rev — та, что прочитана вместе с ним' });
+    try {
+      const w = await act(req.s, 'Смена владельца', async (lines) => {
+        lines.push(`db.Wallet(счёт).update({ owner: '${owner}' }, { rev: ${rev} }) — правка по прочитанной версии`);
+        try {
+          const [row] = await req.s.db.Wallet(req.params.id).update({ owner }, { rev, reason: 'смена владельца' }).rows();
+          lines.push(`записано: версия ${row.rev}`);
+          return row;
+        } catch (e) {
+          if (e instanceof LetopisError && e.code === 'conflict') lines.push(`conflict — счёт уже в версии ${e.detail?.rev}, а правили версию ${rev}: ничего не записано`);
+          throw e;
+        }
+      });
+      res.json({ rev: w.rev, owner: w.data.owner });
+    } catch (e) {
+      fail(res, e, e.code === 'conflict' ? `Счёт уже изменён: вы правили версию ${rev}, а сейчас — ${e.detail?.rev}. Перечитайте и повторите` : undefined);
+    }
+  });
+  // удаление счёта: конец Wallet у Movement — restrict (правило по умолчанию), счёт с операциями база не удалит
+  app.post('/api/wallets/:id/delete', auth, async (req, res) => {
+    let blockers = 0;
+    try {
+      await act(req.s, 'Удаление счёта', async (lines) => {
+        lines.push('db.Wallet(счёт).delete({ confirm: true }) — конец Wallet у Movement: restrict (по умолчанию)');
+        try {
+          await req.s.db.Wallet(req.params.id).delete({ confirm: true, reason: 'закрытие счёта' }).rows();
+          lines.push('счёт удалён: операций у него не было');
+        } catch (e) {
+          if (!(e instanceof LetopisError) || e.code !== 'delete_restricted') throw e;
+          blockers = (e.detail?.rows?.length ?? 0) + (e.detail?.others ?? 0);
+          lines.push(`delete_restricted — на счёт ссылаются операции: ${blockers}; ничего не удалено`);
+          throw e;
+        }
+      });
+      res.json({ ok: true });
+    } catch (e) {
+      fail(res, e, e.code === 'delete_restricted'
+        ? `Счёт с операциями удалить нельзя: на него ссылаются операции (${blockers}), связь Movement → Wallet — restrict. Операцию не удаляют, а отменяют встречной`
+        : undefined);
+    }
+  });
+  // проверка целостности (администраторское подключение): цепочки хэшей журнала, а с { data: true } — данные, концы,
+  // арендаторы, владельцы, id и агрегаты: balance каждого счёта против суммы его операций
+  app.get('/api/admin/verify', auth, async (req, res) => {
+    try {
+      const v = await act(req.s, 'Проверка целостности', async (lines) => {
+        lines.push('adm.verify({ data: true }) — цепочки хэшей журнала, данные против описаний классов, balance против суммы операций');
+        return adm.verify({ data: true });
+      });
+      const [{ n }] = await admin.unsafe(`select count(*)::int as n from ${S}.log`);
+      const issues = v.issues.slice(0, 50);
+      // подпись строки — номер счёта, ключ операции или месяц выписки из последней версии в журнале
+      const label = new Map((await admin.unsafe(`select distinct on (id) id::text as id, coalesce(data->>'number', data->>'opId', data->>'month', '') as l
+        from ${S}.log where id = any ($1::uuid[]) order by id, rev desc`, [[...new Set(issues.map((i) => i.id))]])).map((x) => [x.id, x.l]));
+      res.json({ ok: v.ok, checked: n, anchor: v.anchor, issues: issues.map((i) => ({ id: i.id, rev: i.rev ?? null, class: i.class ?? '', problem: i.problem, label: label.get(i.id) || i.id.slice(0, 8) })) });
+    } catch (e) { fail(res, e); }
+  });
+  // выписка: состояние проектора — status() (выбывший арендатор — только свой), опции; «перестроить» — rebuild
+  app.get('/api/statement', auth, async (_req, res) => {
+    try {
+      const st = await statement.status();
+      const f = st.failed[t.tenant];
+      res.json({ state: st.state, version: st.version, cursor: st.cursor, at: st.at, lag: Math.round(st.lag), options: STATEMENT,
+        failed: f ? { code: f.code, message: f.message.replaceAll(t.tenant, '«Копейка»') } : null });
+    } catch (e) { fail(res, e); }
+  });
+  app.post('/api/statement/rebuild', auth, async (req, res) => {
+    try {
+      const rep = await act(req.s, 'Перестройка выписки', async (lines) => {
+        const one = Boolean((await statement.status()).failed[t.tenant]);
+        lines.push(one ? 'statement.rebuild({ tenant }) — арендатор выбыл: его строки Statement построены заново из текущих операций, отметка снята'
+          : 'statement.rebuild() — атомарно: строки Statement удалены и построены заново из текущих операций одной транзакцией');
+        for (let attempt = 1; ; attempt++) {
+          try {
+            const rep = await (one ? statement.rebuild({ tenant: t.tenant }) : statement.rebuild());
+            lines.push(`перестроено: строк операций ${rep.changes}, строк выписки ${rep.created}`);
+            return rep;
+          } catch (e) {
+            // пачку журнала пишет run() этого же процесса — дождаться её и повторить
+            if (e instanceof LetopisError && e.code === 'projector_busy' && attempt < 30) {
+              if (attempt === 1) lines.push('projector_busy — пачку пишет run(): ждём её конца');
+              await sleep(100);
+              continue;
+            }
+            if (e?.code === '55P03') lines.push(`55P03 — строки выписки держит чужая транзакция дольше lockTimeout (${STATEMENT.lockTimeout} мс)`);
+            throw e;
+          }
+        }
+      });
+      res.json({ changes: rep.changes, created: rep.created });
+    } catch (e) {
+      if (e?.code === '55P03') return res.status(409).json({ error: 'Строки выписки держит чужая транзакция — перестройте после её конца', code: e.code });
+      fail(res, e);
+    }
   });
   app.get('/api/trace', auth, trace.serve);
   app.get('/api/events', auth, eventStream((s) => s.db, ['Wallet', 'Movement']));
