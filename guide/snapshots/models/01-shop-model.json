@@ -73,7 +73,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Записываем модель",
@@ -100,7 +101,10 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Class"
+      ]
     },
     {
       "title": "Схема модели — из того, что записано в базе",
@@ -118,7 +122,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Конец модели изнутри",
@@ -164,7 +169,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Магазин: id вычисляется из ключа",
@@ -224,7 +230,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Shop"
+      ]
     },
     {
       "title": "Дерево категорий: ссылка на родителя",
@@ -377,7 +386,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Category"
+      ]
     },
     {
       "title": "Товар: магазин — из пути, категория — вызовом .Category.add()",
@@ -583,7 +595,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Product"
+      ]
     },
     {
       "title": "Покупатель, заказ и строка заказа — одним планом",
@@ -916,7 +931,12 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Customer",
+        "Order",
+        "line"
+      ]
     },
     {
       "title": "Второй магазин с тем же ключом — отказ",
@@ -1229,7 +1249,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     }
   ]
 }

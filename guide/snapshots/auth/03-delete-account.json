@@ -78,7 +78,10 @@
           "$new": true
         }
       ],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "member"
+      ]
     },
     {
       "title": "Борис: пароль, пара «ключ + секрет» и сессия",
@@ -163,7 +166,8 @@
           "$new": true
         }
       ],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Удалить учётную запись Бориса",
@@ -205,7 +209,12 @@
           "$new": false
         }
       ],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Account",
+        "member",
+        "session:‹токен 1›"
+      ]
     },
     {
       "title": "Учётную запись System удалить нельзя",
@@ -244,7 +253,8 @@
           "$new": false
         }
       ],
-      "counts": null
+      "counts": null,
+      "signals": []
     }
   ]
 }

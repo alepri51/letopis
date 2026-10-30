@@ -455,7 +455,17 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Category",
+        "Class",
+        "Customer",
+        "Order",
+        "Product",
+        "Shop",
+        "Vip",
+        "line"
+      ]
     },
     {
       "title": "Первый проход по журналу",
@@ -902,7 +912,10 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "ProductSales"
+      ]
     },
     {
       "title": "Новая продажа — итог после следующего прохода",
@@ -1378,7 +1391,11 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "ProductSales",
+        "line"
+      ]
     },
     {
       "title": "Состояние проектора",
@@ -1840,7 +1857,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     }
   ]
 }

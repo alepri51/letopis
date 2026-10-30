@@ -28,7 +28,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": {
@@ -38,7 +39,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": {
@@ -48,7 +50,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": {
@@ -60,7 +63,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": {
@@ -72,7 +76,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     }
   ]
 }

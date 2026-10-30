@@ -295,7 +295,15 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Class",
+        "Customer",
+        "Order",
+        "Product",
+        "Shop",
+        "line"
+      ]
     },
     {
       "title": "Новый артикул — новый id",
@@ -676,7 +684,11 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Product",
+        "line"
+      ]
     },
     {
       "title": "Ольга стала VIP-покупателем",
@@ -1034,7 +1046,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Vip"
+      ]
     },
     {
       "title": "Обезличить email",
@@ -1418,7 +1433,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Vip"
+      ]
     }
   ]
 }

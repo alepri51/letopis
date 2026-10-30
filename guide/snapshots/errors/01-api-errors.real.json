@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_d5ce9b06e89c726ad5f6842b3d4942c0bc63b66b6f48013164337d50ab6359b1",
+      "serviceKey": "lts_065b98bd5447b7acecbc1c01cdac3a91bb64286fc74082aeeed3912b9a2d3ea5",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "7626153d985c50bd0340a5a75b7dbdef64d48ba9fec9c5dbc8a8c9a27d79c37a",
+        "token": "2330d9b562aceda108bf8833665556181e201c47556b7b2b63fe469bc19f71b3",
         "created": true
       }
     }
@@ -36,7 +36,17 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": [
+        "Category",
+        "Class",
+        "Customer",
+        "Order",
+        "Product",
+        "Shop",
+        "Vip",
+        "line"
+      ]
     },
     {
       "result": null,
@@ -50,7 +60,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": null,
@@ -62,7 +73,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": null,
@@ -74,7 +86,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": null,
@@ -86,7 +99,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": null,
@@ -98,7 +112,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": null,
@@ -110,7 +125,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     }
   ]
 }

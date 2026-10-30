@@ -190,7 +190,12 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Category",
+        "Class",
+        "Shop"
+      ]
     },
     {
       "title": "Товар в категории",
@@ -394,7 +399,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Product"
+      ]
     },
     {
       "title": "Добавить ещё одну категорию",
@@ -631,7 +639,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Product"
+      ]
     },
     {
       "title": "Убрать категорию",
@@ -890,7 +901,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Product"
+      ]
     },
     {
       "title": "Категория стала корневой",
@@ -1159,7 +1173,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Category"
+      ]
     },
     {
       "title": "И снова внутри «Чая»",
@@ -1451,7 +1468,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Category"
+      ]
     }
   ]
 }

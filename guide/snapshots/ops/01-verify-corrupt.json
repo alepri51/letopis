@@ -58,7 +58,17 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Category",
+        "Class",
+        "Customer",
+        "Order",
+        "Product",
+        "Shop",
+        "Vip",
+        "line"
+      ]
     },
     {
       "title": "Кто-то поправил цену во второй версии прямо в SQL",
@@ -85,7 +95,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Вернули данные байт в байт — цепочка хэшей снова сходится",
@@ -106,7 +117,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Удалили версию из журнала",
@@ -133,7 +145,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     }
   ]
 }

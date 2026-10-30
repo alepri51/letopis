@@ -78,7 +78,8 @@
           "PASSWORD": 1,
           "SESSION": 1
         }
-      }
+      },
+      "signals": []
     },
     {
       "title": "Режим none: подключение не слушает сигналы, кэш выключен",
@@ -116,7 +117,8 @@
           "PASSWORD": 1,
           "SESSION": 2
         }
-      }
+      },
+      "signals": []
     },
     {
       "title": "Помощники схемы из letopis/model",
@@ -159,7 +161,8 @@
           "PASSWORD": 1,
           "SESSION": 2
         }
-      }
+      },
+      "signals": []
     }
   ]
 }

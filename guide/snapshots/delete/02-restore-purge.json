@@ -863,7 +863,17 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Category",
+        "Class",
+        "Customer",
+        "Order",
+        "Product",
+        "Shop",
+        "Vip",
+        "line"
+      ]
     },
     {
       "title": "Удалённое видно через withDeleted",
@@ -1603,7 +1613,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Вернуть заказ",
@@ -2402,7 +2413,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Order"
+      ]
     },
     {
       "title": "Вернуть и его строки",
@@ -3311,7 +3325,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "line"
+      ]
     },
     {
       "title": "Временный покупатель: создать и удалить",
@@ -4232,7 +4249,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Customer"
+      ]
     },
     {
       "title": "purge: сначала предпросмотр",
@@ -5154,7 +5174,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "purge: стереть историю",
@@ -6058,7 +6079,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Customer"
+      ]
     },
     {
       "title": "Живой объект стереть нельзя",
@@ -6950,7 +6974,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     }
   ]
 }

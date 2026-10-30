@@ -68,7 +68,10 @@
           "PASSWORD": 1,
           "SESSION": 1
         }
-      }
+      },
+      "signals": [
+        "Class"
+      ]
     },
     {
       "title": "Залить магазин и 300 товаров",
@@ -114,7 +117,11 @@
           "PASSWORD": 1,
           "SESSION": 1
         }
-      }
+      },
+      "signals": [
+        "Product",
+        "Shop"
+      ]
     },
     {
       "title": "Вторая первая заливка — нельзя",
@@ -152,7 +159,8 @@
           "PASSWORD": 1,
           "SESSION": 1
         }
-      }
+      },
+      "signals": []
     }
   ]
 }

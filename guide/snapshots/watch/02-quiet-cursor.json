@@ -53,7 +53,10 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Class"
+      ]
     },
     {
       "title": "Последнее событие — старше суток",
@@ -71,7 +74,10 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Gauge"
+      ]
     },
     {
       "title": "Новое событие приходит",
@@ -90,7 +96,10 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Gauge"
+      ]
     },
     {
       "title": "Курсор события хранит время события",
@@ -111,7 +120,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Продолжить с курсора подписки",
@@ -131,7 +141,10 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Gauge"
+      ]
     }
   ]
 }

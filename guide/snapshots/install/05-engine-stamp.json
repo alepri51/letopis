@@ -50,7 +50,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Схему «поставила старая версия»",
@@ -73,7 +74,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Повторный up() — предупреждения нет",
@@ -93,7 +95,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     }
   ]
 }

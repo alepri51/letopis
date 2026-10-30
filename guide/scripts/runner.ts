@@ -210,6 +210,15 @@ class Labels {
       return this.ids.get(k)!;
     });
   }
+  private sigTokens = new Map<string, string>();
+  /** Нагрузка сигнала: токены класса, арендатора и сессии (от 12 знаков, с цифрами) — метками по первому появлению. */
+  signal(s: string): string {
+    return s.replace(/[A-Za-z0-9_-]{12,}/g, (t) => {
+      if (!/\d/.test(t)) return t;
+      if (!this.sigTokens.has(t)) this.sigTokens.set(t, `‹токен ${this.sigTokens.size + 1}›`);
+      return this.sigTokens.get(t)!;
+    });
+  }
   collectTimes(v: unknown): void {
     if (v instanceof Date) return this.noteTime(v.getTime() * 1000);
     if (typeof v === 'string' && ISO.test(v) && Number.isFinite(Labels.micros(v))) return this.noteTime(Labels.micros(v));
@@ -294,6 +303,8 @@ interface StepRecord {
   log: Rec[];
   secret: Rec[];
   counts: Counts | null;
+  /** Сигналы канала схемы, которые шаг отправил (NOTIFY): без повторов, по алфавиту, токены — метками. */
+  signals: string[];
 }
 
 export interface RunOptions {
@@ -356,9 +367,31 @@ export async function runExample(
         secrets: new Set((await admin.unsafe(`select id from ${q}.secret`)).map((x) => String(x.id))),
       }
     : { classes: new Set(), seq: 0, secrets: new Set() };
+  // Сигналы шага. Канал — имя схемы; слушает администраторское подключение. Шаг закрывает отсечка: подключения примера
+  // отправляют накопленное (flushSignals), затем свой pg_notify — уведомления приходят в порядке фиксации, поэтому всё,
+  // что шаг отправил, приходит раньше отсечки. Без пауз по времени.
+  const heard: string[] = [];
+  let fenceTag = '', fenceDone: (() => void) | null = null;
+  const listener = await admin.listen(schema, (payload) => {
+    if (payload === fenceTag) fenceDone?.();
+    else heard.push(payload);
+  });
+  let fences = 0;
+  const fence = async (): Promise<string[]> => {
+    for (const d of opened) await d.flushSignals().catch(() => {});
+    fenceTag = `guide-fence:${++fences}`;
+    const arrived = new Promise<void>((res) => { fenceDone = res; });
+    await admin.unsafe('select pg_notify($1, $2)', [schema, fenceTag]);
+    let timer: NodeJS.Timeout | undefined;
+    await Promise.race([arrived, new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('сигнал-отсечка не пришёл за 10 с')), 10_000); })])
+      .finally(() => clearTimeout(timer));
+    fenceDone = null;
+    return heard.splice(0);
+  };
+  await fence(); // сигналы установки — не шаг
   const before = await capture(admin, schema, base, ex); // состояние «до первого шага»
   const startAt = await now();
-  const raw: { result: unknown; error: StepRecord['error']; state: State }[] = [];
+  const raw: { result: unknown; error: StepRecord['error']; state: State; signals: string[] }[] = [];
 
   for (const [i, step] of ex.steps.entries()) {
     let result: unknown = null;
@@ -375,9 +408,11 @@ export async function runExample(
       if (!step.expect?.error) failures.push(`шаг ${i + 1} «${step.title}»: ${code ?? ''} ${(e as Error).message}`);
       else if (step.expect.error !== code) failures.push(`шаг ${i + 1} «${step.title}»: ожидалась ошибка ${step.expect.error}, получена ${code}`);
     }
-    raw.push({ result, error, state: await capture(admin, schema, base, ex) });
+    const signals = await fence();
+    raw.push({ result, error, state: await capture(admin, schema, base, ex), signals });
   }
   const endAt = await now();
+  await listener.unlisten();
 
   // метки: сначала аккаунты (арендатор, пользователь, сервис), затем строки в порядке появления
   const labels = new Labels({ setup: setupAt - 1000, start: startAt, end: endAt });
@@ -415,8 +450,11 @@ export async function runExample(
     const newSecret = x.state.secret.filter((z) => !prev.secret.some((p) => secretKey(p) === secretKey(z) && p.deleted_at === z.deleted_at));
     prev = x.state;
     const { code, params } = codes[i] ?? { code: '', params: [] };
+    const uniq = [...new Set(x.signals)];
+    const mask = (s: string) => s.replace(/[A-Za-z0-9_-]{12,}/g, (t) => (/\d/.test(t) ? '*' : t));
+    const ordered = uniq.map((s, k) => ({ s, k })).sort((a, b) => (mask(a.s) < mask(b.s) ? -1 : mask(a.s) > mask(b.s) ? 1 : a.k - b.k)).map((x2) => x2.s);
     reals.push({ result: realValue(x.result), error: x.error ? realValue(x.error) : null, entity: realValue(x.state.entity),
-      removed: realValue(removed), log: realValue(x.state.log), secret: realValue(x.state.secret) });
+      removed: realValue(removed), log: realValue(x.state.log), secret: realValue(x.state.secret), signals: ordered });
     steps.push({
       title: ex.steps[i].title,
       text: ex.steps[i].text ?? null,
@@ -432,6 +470,7 @@ export async function runExample(
       log: (labels.value(x.state.log.map(noTx)) as Rec[]).map((l, k) => ({ ...l, $new: newLog.some((n) => n.seq === x.state.log[k].seq) })),
       secret: (labels.value(x.state.secret.map(labelSecret)) as Rec[]).map((z, k) => ({ ...z, $new: newSecret.includes(x.state.secret[k]) })),
       counts: x.state.counts,
+      signals: ordered.map((s) => labels.signal(s)),
     });
   }
 

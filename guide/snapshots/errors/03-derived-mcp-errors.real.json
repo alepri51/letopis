@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_3c40d72d5f7fc0e02faa3a5d1397b3ff21263043f937664eb9f654b9fb590ee7",
+      "serviceKey": "lts_0cb6e93d026a83397793f7602680196e43667f9c35ed7d928c2d7be486986b0c",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "915412b2ec5200026d59cf6f215802833d92f6073ebef7f5c084247303eb0725",
+        "token": "ab23abe5f58b285ec82fea98419cddc2639accd6d56f5d15ace9611c3b40dbc2",
         "created": true
       }
     }
@@ -36,7 +36,10 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": [
+        "Class"
+      ]
     },
     {
       "result": null,
@@ -48,7 +51,10 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": [
+        "Sale"
+      ]
     },
     {
       "result": null,
@@ -60,7 +66,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": {
@@ -70,7 +77,10 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": [
+        "Cat"
+      ]
     },
     {
       "result": null,
@@ -80,7 +90,7 @@
         "detail": {
           "rows": [
             {
-              "id": "e54f56ee-29a2-57aa-92bc-a0c5da3594ec",
+              "id": "3d393192-cf86-5978-9f4d-d5500d023acb",
               "role": "Pet",
               "class": "Holder"
             }
@@ -91,7 +101,11 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": [
+        "Cat",
+        "Holder"
+      ]
     }
   ]
 }

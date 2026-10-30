@@ -2829,7 +2829,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "2. Арендатор и первый пользователь",
@@ -5857,7 +5858,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "3. Подключиться от имени пользователя",
@@ -8871,7 +8873,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "4. Описать свою модель",
@@ -12516,7 +12519,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Class"
+      ]
     },
     {
       "title": "5. Наполнить данными",
@@ -16335,7 +16341,11 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Project",
+        "Task"
+      ]
     },
     {
       "title": "6. Много данных сразу: db.load",
@@ -20342,7 +20352,11 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Project",
+        "Task"
+      ]
     },
     {
       "title": "Дальше — обычная работа",
@@ -24368,7 +24382,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Task"
+      ]
     }
   ]
 }

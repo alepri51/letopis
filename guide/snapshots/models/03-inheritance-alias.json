@@ -60,7 +60,10 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Class"
+      ]
     },
     {
       "title": "Клиент и VIP-клиент",
@@ -179,7 +182,11 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Customer",
+        "Vip"
+      ]
     },
     {
       "title": "Шаг по классу находит и потомков",
@@ -284,7 +291,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": ".exact() — только сам класс",
@@ -385,7 +393,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Алиас — второе имя для шага",
@@ -481,7 +490,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "У абстрактного класса нет своих строк",
@@ -582,7 +592,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     }
   ]
 }

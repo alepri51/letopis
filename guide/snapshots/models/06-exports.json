@@ -69,7 +69,11 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Class",
+        "Shop"
+      ]
     },
     {
       "title": "Пароль: хэш scrypt и проверка",
@@ -87,7 +91,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Валидатор и значения по умолчанию — те же проверки, что в базе",
@@ -111,7 +116,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Типы TypeScript по модели и реестр",
@@ -131,7 +137,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Зарезервированные имена и ревизия движка",
@@ -151,7 +158,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     }
   ]
 }

@@ -96,7 +96,10 @@
           "PASSWORD": 1,
           "SESSION": 3
         }
-      }
+      },
+      "signals": [
+        "Class"
+      ]
     },
     {
       "title": "types: интерфейсы TypeScript по модели из базы",
@@ -132,7 +135,8 @@
           "PASSWORD": 1,
           "SESSION": 3
         }
-      }
+      },
+      "signals": []
     },
     {
       "title": "load: NDJSON — объект на строку",
@@ -182,7 +186,10 @@
           "PASSWORD": 1,
           "SESSION": 3
         }
-      }
+      },
+      "signals": [
+        "Shop"
+      ]
     },
     {
       "title": "describe: модель текстом в файл",
@@ -217,7 +224,8 @@
           "PASSWORD": 1,
           "SESSION": 3
         }
-      }
+      },
+      "signals": []
     },
     {
       "title": "verify и maintain",
@@ -264,7 +272,8 @@
           "PASSWORD": 1,
           "SESSION": 3
         }
-      }
+      },
+      "signals": []
     },
     {
       "title": "mcp: сервер инструментов для ИИ-агента по stdio",
@@ -300,7 +309,8 @@
           "PASSWORD": 1,
           "SESSION": 3
         }
-      }
+      },
+      "signals": []
     }
   ]
 }

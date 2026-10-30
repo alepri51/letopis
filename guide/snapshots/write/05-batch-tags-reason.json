@@ -113,7 +113,11 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Class",
+        "Shop"
+      ]
     },
     {
       "title": "Батч: два товара одной транзакцией",
@@ -265,7 +269,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Product"
+      ]
     },
     {
       "title": "discard — очистить очередь",
@@ -409,7 +416,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Теги и причина",
@@ -628,7 +636,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Product"
+      ]
     },
     {
       "title": "Владелец строки",
@@ -888,7 +899,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Product"
+      ]
     }
   ]
 }

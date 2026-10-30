@@ -29,7 +29,10 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": [
+        "Class"
+      ]
     },
     {
       "result": {
@@ -41,7 +44,10 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": [
+        "Gauge"
+      ]
     },
     {
       "result": {
@@ -66,19 +72,21 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": {
         "ok": true,
-        "anchor": "2780ba0278456178a94a932f1462bae96bae7b1ae634959f07844a6decbced38",
+        "anchor": "134b08f697bcafbe829b1aa73269ea1d9377f99282a26f3380f032ea20df8be0",
         "issues": []
       },
       "error": null,
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": {
@@ -97,7 +105,10 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": [
+        "Gauge"
+      ]
     },
     {
       "result": null,
@@ -109,7 +120,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     }
   ]
 }

@@ -72,7 +72,12 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Class",
+        "DayTotal",
+        "Sale"
+      ]
     },
     {
       "title": "Арендатор вне списка tenants",
@@ -93,7 +98,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Строку класса с ключом out.get находит по ключу",
@@ -112,7 +118,10 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Sale"
+      ]
     },
     {
       "title": "out.delete по id у класса с ключом — invalid_data",
@@ -133,7 +142,10 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Sale"
+      ]
     }
   ]
 }

@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_0cbd56711175caeb85e628f424971bc110c8ab753910451a09597b8a85c2739f",
+      "serviceKey": "lts_ce0bda23574d4b03616bfa7e9f491c72c1fc6f4f5117f2fb6c1928a2060b467c",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "abfb5e12cd211a6e639337b56037b44e876e6b72c6de88417280ec389bde4d76",
+        "token": "af08a65a21b84938b795cedd535e8642e5e755be1280e2a1a6a2f40da5e0c5dc",
         "created": true
       }
     }
@@ -36,7 +36,17 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": [
+        "Category",
+        "Class",
+        "Customer",
+        "Order",
+        "Product",
+        "Shop",
+        "Vip",
+        "line"
+      ]
     },
     {
       "result": {
@@ -47,7 +57,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": {
@@ -60,7 +71,10 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": [
+        "Resource"
+      ]
     },
     {
       "result": "сервер открыт",
@@ -68,7 +82,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     }
   ]
 }

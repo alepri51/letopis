@@ -151,7 +151,12 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Class",
+        "Sale",
+        "SaleCard"
+      ]
     },
     {
       "title": "run() в фоне подхватывает правку, stop() его завершает",
@@ -266,7 +271,11 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Sale",
+        "SaleCard"
+      ]
     },
     {
       "title": "Служебные методы: имя, классы результата, ключ",
@@ -376,7 +385,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Перестройка во время прохода — projector_busy",
@@ -522,7 +532,11 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Sale",
+        "SaleCard"
+      ]
     }
   ]
 }

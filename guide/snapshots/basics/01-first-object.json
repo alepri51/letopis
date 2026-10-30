@@ -60,7 +60,10 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Class"
+      ]
     },
     {
       "title": "Создаём клиента Анну",
@@ -134,7 +137,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Client"
+      ]
     },
     {
       "title": "Меняем телефон",
@@ -232,7 +238,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Client"
+      ]
     },
     {
       "title": "Смотрим историю",
@@ -342,7 +351,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Удаление, шаг 1: предпросмотр",
@@ -437,7 +447,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Удаление, шаг 2: по-настоящему",
@@ -549,7 +560,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Client"
+      ]
     },
     {
       "title": "Возвращаем Анну",
@@ -682,7 +696,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Client"
+      ]
     }
   ]
 }

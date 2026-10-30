@@ -806,7 +806,17 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Category",
+        "Class",
+        "Customer",
+        "Order",
+        "Product",
+        "Shop",
+        "Vip",
+        "line"
+      ]
     },
     {
       "title": "Заказ и строка — одной транзакцией",
@@ -1650,7 +1660,11 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Order",
+        "line"
+      ]
     },
     {
       "title": "Ошибка внутри — не записано ничего",
@@ -2473,7 +2487,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Блокировки: lock() и forUpdate()",
@@ -3331,7 +3346,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Product"
+      ]
     },
     {
       "title": "forUpdate вне транзакции — отказ",
@@ -4189,7 +4207,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     }
   ]
 }

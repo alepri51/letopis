@@ -58,7 +58,10 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Class"
+      ]
     },
     {
       "title": "Значение по умолчанию подставляет база",
@@ -137,7 +140,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Product"
+      ]
     },
     {
       "title": "Отрицательная цена — отказ",
@@ -208,7 +214,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Новое обязательное поле — ужесточение",
@@ -280,7 +287,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Необязательное поле — безопасно",
@@ -342,7 +350,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Class"
+      ]
     },
     {
       "title": "Проверки refine база не выполняет",
@@ -410,7 +421,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Class"
+      ]
     }
   ]
 }

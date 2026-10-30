@@ -62,7 +62,10 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Class"
+      ]
     },
     {
       "title": "projector_pending — стереть то, что проектор ещё не прочёл",
@@ -83,7 +86,10 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Sale"
+      ]
     },
     {
       "title": "rebuild_required — новая версия проектора",
@@ -102,7 +108,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "confirmation_required — удаление через MCP без подтверждения человека",
@@ -120,7 +127,10 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Cat"
+      ]
     },
     {
       "title": "reclass_denied — на кошку ссылаются как на кошку",
@@ -150,7 +160,11 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Cat",
+        "Holder"
+      ]
     }
   ]
 }

@@ -118,7 +118,11 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Class",
+        "Shop"
+      ]
     },
     {
       "title": "Два товара",
@@ -301,7 +305,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Product"
+      ]
     },
     {
       "title": "update меняет только переданные поля",
@@ -525,7 +532,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Product"
+      ]
     },
     {
       "title": "update по фильтру правит все найденные",
@@ -777,7 +787,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Product"
+      ]
     },
     {
       "title": "Ничего не нашлось — пустой ответ, не ошибка",
@@ -996,7 +1009,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "upsert: такого нет — создать",
@@ -1274,7 +1288,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Shop"
+      ]
     },
     {
       "title": "upsert: то же самое — без изменений",
@@ -1550,7 +1567,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "upsert заменяет целиком",
@@ -1847,7 +1865,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Shop"
+      ]
     },
     {
       "title": "upsert без ключа невозможен",
@@ -2126,7 +2147,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     }
   ]
 }

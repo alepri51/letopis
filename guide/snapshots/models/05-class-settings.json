@@ -60,7 +60,10 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Class"
+      ]
     },
     {
       "title": "Класс без истории: журнал пуст",
@@ -103,7 +106,10 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Ping"
+      ]
     },
     {
       "title": "Владелец — автор, а не арендатор",
@@ -218,7 +224,11 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Draft",
+        "Product"
+      ]
     },
     {
       "title": "Описание модели для интерфейса",
@@ -337,7 +347,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     }
   ]
 }

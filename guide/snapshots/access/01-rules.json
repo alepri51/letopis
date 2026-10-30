@@ -1527,7 +1527,18 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Category",
+        "Class",
+        "Customer",
+        "Order",
+        "Product",
+        "Shop",
+        "Vip",
+        "line",
+        "member"
+      ]
     },
     {
       "title": "Правило: сотрудникам нельзя удалять товары",
@@ -2595,7 +2606,11 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Resource",
+        "rule"
+      ]
     },
     {
       "title": "Что Олегу можно",
@@ -3636,7 +3651,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Олег пробует удалить товар — отказ базы",
@@ -4679,7 +4695,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Чужой арендатор не видит даже класса",
@@ -5822,7 +5839,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     }
   ]
 }

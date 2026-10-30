@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_4f1321cd4302dfafff950de86d7a9e3b4340b99e44d923bdf0d122005eb57085",
+      "serviceKey": "lts_b5a74270dbbe53a1ce4e4081b79362fbfc8ac9c7cf48b9997bfeb03723491aae",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "77f32fd833aef9eab3df04a8f2a1db9679e9d68f40b57038c28bccfb457e17e5",
+        "token": "dbb1e36c084382667bf474a50f3f02a2d2934511ba0f35303255c4a122f9dd64",
         "created": true
       }
     }
@@ -29,7 +29,7 @@
     {
       "result": [
         {
-          "at": "2026-10-29T18:43:55.453431+00:00",
+          "at": "2026-10-30T09:41:22.278868+00:00",
           "id": "7174b492-be79-5307-bb74-060c11cc6dd5",
           "op": "create",
           "rev": 1,
@@ -44,14 +44,24 @@
           "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "0c43e016-ac4e-5d32-b3b8-758a8387f775"
+          "agent": "605f1382-87cf-598b-86f8-06146fa8b36d"
         }
       ],
       "error": null,
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": [
+        "Category",
+        "Class",
+        "Customer",
+        "Order",
+        "Product",
+        "Shop",
+        "Vip",
+        "line"
+      ]
     },
     {
       "result": [
@@ -68,7 +78,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": [
@@ -85,7 +96,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": [
@@ -102,7 +114,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": {
@@ -113,7 +126,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     }
   ]
 }

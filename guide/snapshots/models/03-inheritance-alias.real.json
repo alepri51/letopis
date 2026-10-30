@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_3259a8c300b3ab016a7ec0181c5a9e9ebd80d2f1d05dc1027f5e359290047c85",
+      "serviceKey": "lts_7db74fd7e45415a247c3d296439760ac080d7f75cd912f2bac20ae0f714a35df",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "fbf6dc2be0b9a85c03c7b11013e750b9ed2b512adbe7ccbd759b736c851688c0",
+        "token": "6a9a0a5482521b94fad90161cfeab1a333326135e76ace3c0173018fd3bf95d7",
         "created": true
       }
     }
@@ -36,13 +36,16 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": [
+        "Class"
+      ]
     },
     {
       "result": [
         {
-          "at": "2026-10-29T18:43:34.633228+00:00",
-          "id": "500d6868-0c3a-5a83-915d-b1060b1395f0",
+          "at": "2026-10-30T09:40:52.288252+00:00",
+          "id": "5a5db822-bc67-5a46-afb2-c482d66bb19a",
           "op": "create",
           "rev": 1,
           "data": {
@@ -56,13 +59,13 @@
           "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "3be09601-9698-58a6-a597-b8792830ca4f"
+          "agent": "9aa2cabf-2d9e-5133-9c39-dc838f3711a7"
         }
       ],
       "error": null,
       "entity": [
         {
-          "id": "7ebf783e-f2f8-5ceb-aab6-5aaf90ec792e",
+          "id": "b3bffe84-90bd-571f-b266-3b8ada145ace",
           "class": "Customer",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -75,12 +78,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3be09601-9698-58a6-a597-b8792830ca4f",
+          "agent": "9aa2cabf-2d9e-5133-9c39-dc838f3711a7",
           "reason": null,
-          "at": "2026-10-29 18:43:34.620248+00"
+          "at": "2026-10-30 09:40:52.278976+00"
         },
         {
-          "id": "500d6868-0c3a-5a83-915d-b1060b1395f0",
+          "id": "5a5db822-bc67-5a46-afb2-c482d66bb19a",
           "class": "Vip",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -94,16 +97,16 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3be09601-9698-58a6-a597-b8792830ca4f",
+          "agent": "9aa2cabf-2d9e-5133-9c39-dc838f3711a7",
           "reason": null,
-          "at": "2026-10-29 18:43:34.633228+00"
+          "at": "2026-10-30 09:40:52.288252+00"
         }
       ],
       "removed": [],
       "log": [
         {
           "seq": "37",
-          "id": "7ebf783e-f2f8-5ceb-aab6-5aaf90ec792e",
+          "id": "b3bffe84-90bd-571f-b266-3b8ada145ace",
           "rev": 1,
           "class": "Customer",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -115,14 +118,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3be09601-9698-58a6-a597-b8792830ca4f",
+          "agent": "9aa2cabf-2d9e-5133-9c39-dc838f3711a7",
           "reason": null,
-          "at": "2026-10-29 18:43:34.620248+00",
-          "tx": "2381496"
+          "at": "2026-10-30 09:40:52.278976+00",
+          "tx": "2510311"
         },
         {
           "seq": "38",
-          "id": "500d6868-0c3a-5a83-915d-b1060b1395f0",
+          "id": "5a5db822-bc67-5a46-afb2-c482d66bb19a",
           "rev": 1,
           "class": "Vip",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -135,13 +138,17 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3be09601-9698-58a6-a597-b8792830ca4f",
+          "agent": "9aa2cabf-2d9e-5133-9c39-dc838f3711a7",
           "reason": null,
-          "at": "2026-10-29 18:43:34.633228+00",
-          "tx": "2381498"
+          "at": "2026-10-30 09:40:52.288252+00",
+          "tx": "2510313"
         }
       ],
-      "secret": []
+      "secret": [],
+      "signals": [
+        "Customer",
+        "Vip"
+      ]
     },
     {
       "result": [
@@ -157,7 +164,7 @@
       "error": null,
       "entity": [
         {
-          "id": "7ebf783e-f2f8-5ceb-aab6-5aaf90ec792e",
+          "id": "b3bffe84-90bd-571f-b266-3b8ada145ace",
           "class": "Customer",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -170,12 +177,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3be09601-9698-58a6-a597-b8792830ca4f",
+          "agent": "9aa2cabf-2d9e-5133-9c39-dc838f3711a7",
           "reason": null,
-          "at": "2026-10-29 18:43:34.620248+00"
+          "at": "2026-10-30 09:40:52.278976+00"
         },
         {
-          "id": "500d6868-0c3a-5a83-915d-b1060b1395f0",
+          "id": "5a5db822-bc67-5a46-afb2-c482d66bb19a",
           "class": "Vip",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -189,16 +196,16 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3be09601-9698-58a6-a597-b8792830ca4f",
+          "agent": "9aa2cabf-2d9e-5133-9c39-dc838f3711a7",
           "reason": null,
-          "at": "2026-10-29 18:43:34.633228+00"
+          "at": "2026-10-30 09:40:52.288252+00"
         }
       ],
       "removed": [],
       "log": [
         {
           "seq": "37",
-          "id": "7ebf783e-f2f8-5ceb-aab6-5aaf90ec792e",
+          "id": "b3bffe84-90bd-571f-b266-3b8ada145ace",
           "rev": 1,
           "class": "Customer",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -210,14 +217,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3be09601-9698-58a6-a597-b8792830ca4f",
+          "agent": "9aa2cabf-2d9e-5133-9c39-dc838f3711a7",
           "reason": null,
-          "at": "2026-10-29 18:43:34.620248+00",
-          "tx": "2381496"
+          "at": "2026-10-30 09:40:52.278976+00",
+          "tx": "2510311"
         },
         {
           "seq": "38",
-          "id": "500d6868-0c3a-5a83-915d-b1060b1395f0",
+          "id": "5a5db822-bc67-5a46-afb2-c482d66bb19a",
           "rev": 1,
           "class": "Vip",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -230,13 +237,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3be09601-9698-58a6-a597-b8792830ca4f",
+          "agent": "9aa2cabf-2d9e-5133-9c39-dc838f3711a7",
           "reason": null,
-          "at": "2026-10-29 18:43:34.633228+00",
-          "tx": "2381498"
+          "at": "2026-10-30 09:40:52.288252+00",
+          "tx": "2510313"
         }
       ],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": [
@@ -248,7 +256,7 @@
       "error": null,
       "entity": [
         {
-          "id": "7ebf783e-f2f8-5ceb-aab6-5aaf90ec792e",
+          "id": "b3bffe84-90bd-571f-b266-3b8ada145ace",
           "class": "Customer",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -261,12 +269,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3be09601-9698-58a6-a597-b8792830ca4f",
+          "agent": "9aa2cabf-2d9e-5133-9c39-dc838f3711a7",
           "reason": null,
-          "at": "2026-10-29 18:43:34.620248+00"
+          "at": "2026-10-30 09:40:52.278976+00"
         },
         {
-          "id": "500d6868-0c3a-5a83-915d-b1060b1395f0",
+          "id": "5a5db822-bc67-5a46-afb2-c482d66bb19a",
           "class": "Vip",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -280,16 +288,16 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3be09601-9698-58a6-a597-b8792830ca4f",
+          "agent": "9aa2cabf-2d9e-5133-9c39-dc838f3711a7",
           "reason": null,
-          "at": "2026-10-29 18:43:34.633228+00"
+          "at": "2026-10-30 09:40:52.288252+00"
         }
       ],
       "removed": [],
       "log": [
         {
           "seq": "37",
-          "id": "7ebf783e-f2f8-5ceb-aab6-5aaf90ec792e",
+          "id": "b3bffe84-90bd-571f-b266-3b8ada145ace",
           "rev": 1,
           "class": "Customer",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -301,14 +309,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3be09601-9698-58a6-a597-b8792830ca4f",
+          "agent": "9aa2cabf-2d9e-5133-9c39-dc838f3711a7",
           "reason": null,
-          "at": "2026-10-29 18:43:34.620248+00",
-          "tx": "2381496"
+          "at": "2026-10-30 09:40:52.278976+00",
+          "tx": "2510311"
         },
         {
           "seq": "38",
-          "id": "500d6868-0c3a-5a83-915d-b1060b1395f0",
+          "id": "5a5db822-bc67-5a46-afb2-c482d66bb19a",
           "rev": 1,
           "class": "Vip",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -321,20 +329,21 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3be09601-9698-58a6-a597-b8792830ca4f",
+          "agent": "9aa2cabf-2d9e-5133-9c39-dc838f3711a7",
           "reason": null,
-          "at": "2026-10-29 18:43:34.633228+00",
-          "tx": "2381498"
+          "at": "2026-10-30 09:40:52.288252+00",
+          "tx": "2510313"
         }
       ],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": 2,
       "error": null,
       "entity": [
         {
-          "id": "7ebf783e-f2f8-5ceb-aab6-5aaf90ec792e",
+          "id": "b3bffe84-90bd-571f-b266-3b8ada145ace",
           "class": "Customer",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -347,12 +356,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3be09601-9698-58a6-a597-b8792830ca4f",
+          "agent": "9aa2cabf-2d9e-5133-9c39-dc838f3711a7",
           "reason": null,
-          "at": "2026-10-29 18:43:34.620248+00"
+          "at": "2026-10-30 09:40:52.278976+00"
         },
         {
-          "id": "500d6868-0c3a-5a83-915d-b1060b1395f0",
+          "id": "5a5db822-bc67-5a46-afb2-c482d66bb19a",
           "class": "Vip",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -366,16 +375,16 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3be09601-9698-58a6-a597-b8792830ca4f",
+          "agent": "9aa2cabf-2d9e-5133-9c39-dc838f3711a7",
           "reason": null,
-          "at": "2026-10-29 18:43:34.633228+00"
+          "at": "2026-10-30 09:40:52.288252+00"
         }
       ],
       "removed": [],
       "log": [
         {
           "seq": "37",
-          "id": "7ebf783e-f2f8-5ceb-aab6-5aaf90ec792e",
+          "id": "b3bffe84-90bd-571f-b266-3b8ada145ace",
           "rev": 1,
           "class": "Customer",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -387,14 +396,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3be09601-9698-58a6-a597-b8792830ca4f",
+          "agent": "9aa2cabf-2d9e-5133-9c39-dc838f3711a7",
           "reason": null,
-          "at": "2026-10-29 18:43:34.620248+00",
-          "tx": "2381496"
+          "at": "2026-10-30 09:40:52.278976+00",
+          "tx": "2510311"
         },
         {
           "seq": "38",
-          "id": "500d6868-0c3a-5a83-915d-b1060b1395f0",
+          "id": "5a5db822-bc67-5a46-afb2-c482d66bb19a",
           "rev": 1,
           "class": "Vip",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -407,13 +416,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3be09601-9698-58a6-a597-b8792830ca4f",
+          "agent": "9aa2cabf-2d9e-5133-9c39-dc838f3711a7",
           "reason": null,
-          "at": "2026-10-29 18:43:34.633228+00",
-          "tx": "2381498"
+          "at": "2026-10-30 09:40:52.288252+00",
+          "tx": "2510313"
         }
       ],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": null,
@@ -424,7 +434,7 @@
       },
       "entity": [
         {
-          "id": "7ebf783e-f2f8-5ceb-aab6-5aaf90ec792e",
+          "id": "b3bffe84-90bd-571f-b266-3b8ada145ace",
           "class": "Customer",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -437,12 +447,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3be09601-9698-58a6-a597-b8792830ca4f",
+          "agent": "9aa2cabf-2d9e-5133-9c39-dc838f3711a7",
           "reason": null,
-          "at": "2026-10-29 18:43:34.620248+00"
+          "at": "2026-10-30 09:40:52.278976+00"
         },
         {
-          "id": "500d6868-0c3a-5a83-915d-b1060b1395f0",
+          "id": "5a5db822-bc67-5a46-afb2-c482d66bb19a",
           "class": "Vip",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -456,16 +466,16 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3be09601-9698-58a6-a597-b8792830ca4f",
+          "agent": "9aa2cabf-2d9e-5133-9c39-dc838f3711a7",
           "reason": null,
-          "at": "2026-10-29 18:43:34.633228+00"
+          "at": "2026-10-30 09:40:52.288252+00"
         }
       ],
       "removed": [],
       "log": [
         {
           "seq": "37",
-          "id": "7ebf783e-f2f8-5ceb-aab6-5aaf90ec792e",
+          "id": "b3bffe84-90bd-571f-b266-3b8ada145ace",
           "rev": 1,
           "class": "Customer",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -477,14 +487,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3be09601-9698-58a6-a597-b8792830ca4f",
+          "agent": "9aa2cabf-2d9e-5133-9c39-dc838f3711a7",
           "reason": null,
-          "at": "2026-10-29 18:43:34.620248+00",
-          "tx": "2381496"
+          "at": "2026-10-30 09:40:52.278976+00",
+          "tx": "2510311"
         },
         {
           "seq": "38",
-          "id": "500d6868-0c3a-5a83-915d-b1060b1395f0",
+          "id": "5a5db822-bc67-5a46-afb2-c482d66bb19a",
           "rev": 1,
           "class": "Vip",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -497,13 +507,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3be09601-9698-58a6-a597-b8792830ca4f",
+          "agent": "9aa2cabf-2d9e-5133-9c39-dc838f3711a7",
           "reason": null,
-          "at": "2026-10-29 18:43:34.633228+00",
-          "tx": "2381498"
+          "at": "2026-10-30 09:40:52.288252+00",
+          "tx": "2510313"
         }
       ],
-      "secret": []
+      "secret": [],
+      "signals": []
     }
   ]
 }

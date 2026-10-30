@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_7a05ec4d0e15ff8ccc5f139a66355efe2ee2ffba91e39c71209895b1cc175b25",
+      "serviceKey": "lts_ab280cc7e79cf62e129bc10b3c3611c40632b185024448ff8ef1f34ebc262f34",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "385ffb8ea65f85cde2db821b86ef3b8e552ec0dce4cd21aa713d7783062ea218",
+        "token": "22fd0c8d06ea1a996c2f97ff4d55a5bd3e129c3cc8238f1b4625a9384f0b7ab5",
         "created": true
       }
     }
@@ -32,7 +32,12 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": [
+        "Class",
+        "Product",
+        "Shop"
+      ]
     },
     {
       "result": [
@@ -51,12 +56,13 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": [
         {
-          "at": "2026-10-30T08:54:54.760334+00:00",
+          "at": "2026-10-30T09:41:25.545717+00:00",
           "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
           "op": "update",
           "rev": 2,
@@ -73,14 +79,17 @@
           "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "1f07b33e-0ed2-505d-8627-a87f32c1bdf4"
+          "agent": "fdc33a76-b4b8-587a-b539-bb1b887da202"
         }
       ],
       "error": null,
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": [
+        "Product"
+      ]
     },
     {
       "result": {
@@ -93,7 +102,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": {
@@ -109,7 +119,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     }
   ]
 }

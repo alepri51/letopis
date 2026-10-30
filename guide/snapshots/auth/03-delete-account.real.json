@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_a8bd083c42b1b99763e8a20a97c3eef0687ae8fab117fc7479cc32362e43af09",
+      "serviceKey": "lts_3c38d7860195b6d52b18fbd77655b46c05462b13bc07b8e1e4716c3c1d44325e",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "c01f4a03317bdd18e35cac53693706c21f34ce5037ac5e13963d06e1f2575ac1",
+        "token": "46376711d117b1ab73ead6460b4cd8c84763ec261cd486358b422f6a1bb1ad0d",
         "created": true
       }
     }
@@ -45,14 +45,17 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "35324f4e-6d93-5ef3-8bc4-5135fb200b21",
-            "login_at": "2026-10-29T21:55:26.2556+00:00"
+            "service": "e809e79a-4714-5ba1-aec3-e6df3a76b0c1",
+            "login_at": "2026-10-30T09:39:50.793342+00:00"
           },
-          "material": "e86a4790e19f0c04fe8158f57f69441410758a4d25c954b7edb996c43e4b0994",
-          "expires_at": "2026-11-05 21:55:26.255607+00",
-          "created_at": "2026-10-29 21:55:26.255608+00",
+          "material": "0ce1a845e557bab9d55103da6435061bc8741c176818d629cff461087d65e2d3",
+          "expires_at": "2026-11-06 09:39:50.793355+00",
+          "created_at": "2026-10-30 09:39:50.793356+00",
           "deleted_at": null
         }
+      ],
+      "signals": [
+        "member"
       ]
     },
     {
@@ -75,12 +78,12 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "35324f4e-6d93-5ef3-8bc4-5135fb200b21",
-            "login_at": "2026-10-29T21:55:26.2556+00:00"
+            "service": "e809e79a-4714-5ba1-aec3-e6df3a76b0c1",
+            "login_at": "2026-10-30T09:39:50.793342+00:00"
           },
-          "material": "e86a4790e19f0c04fe8158f57f69441410758a4d25c954b7edb996c43e4b0994",
-          "expires_at": "2026-11-05 21:55:26.255607+00",
-          "created_at": "2026-10-29 21:55:26.255608+00",
+          "material": "0ce1a845e557bab9d55103da6435061bc8741c176818d629cff461087d65e2d3",
+          "expires_at": "2026-11-06 09:39:50.793355+00",
+          "created_at": "2026-10-30 09:39:50.793356+00",
           "deleted_at": null
         },
         {
@@ -90,9 +93,9 @@
           "meta": {
             "confirmed": true
           },
-          "material": "7363727970742433323736382438243124782b51492f4839675451575953367471706f4b5248413d3d24542f3443494b78624a7a62614c5855344d43324b786930306f52722b414a496b416e34313441346d4d4a553d",
+          "material": "73637279707424333237363824382431246d44434d37387136514839577a456547516c674a74773d3d2456314c676546573545553648324363572f75527a583957522b3738692b692b594b476a4730394c4f3130343d",
           "expires_at": null,
-          "created_at": "2026-10-29 21:55:26.735754+00",
+          "created_at": "2026-10-30 09:39:51.300027+00",
           "deleted_at": null
         },
         {
@@ -102,27 +105,28 @@
           "meta": {
             "ttl": "7 days",
             "tenant": "68466b9a-4722-5a50-ba68-378a96b6beb8",
-            "login_at": "2026-10-29T21:55:26.73678+00:00"
+            "login_at": "2026-10-30T09:39:51.301385+00:00"
           },
-          "material": "84ae014705960fe26624cbaf9f88ecee87d25846f535beb88b2bb76fed0050af",
-          "expires_at": "2026-11-05 21:55:26.736786+00",
-          "created_at": "2026-10-29 21:55:26.736787+00",
+          "material": "2684151d67599465810502ba188ba9e6357cb257edc89139b52f41601f4af095",
+          "expires_at": "2026-11-06 09:39:51.301394+00",
+          "created_at": "2026-10-30 09:39:51.301395+00",
           "deleted_at": null
         },
         {
           "account": "23dc6878-f3af-5ecf-a062-e5329b9f1638",
           "kind": "KEYSECRET",
-          "ident": "f2cf26245ba199bd",
+          "ident": "3c84c2dd35c36c55",
           "meta": {
             "name": "касса",
             "confirmed": true
           },
-          "material": "e8cd045ecdd1eecb8c0ee2db823c1b22b597cdb40ed39da7c4af0ecdb160fe0a",
+          "material": "988d7e2a45fb16155fcfacdc60a01f61acddcdc6fd5200a02c288006872cc4a8",
           "expires_at": null,
-          "created_at": "2026-10-29 21:55:26.742383+00",
+          "created_at": "2026-10-30 09:39:51.320097+00",
           "deleted_at": null
         }
-      ]
+      ],
+      "signals": []
     },
     {
       "result": {
@@ -145,14 +149,19 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "35324f4e-6d93-5ef3-8bc4-5135fb200b21",
-            "login_at": "2026-10-29T21:55:26.2556+00:00"
+            "service": "e809e79a-4714-5ba1-aec3-e6df3a76b0c1",
+            "login_at": "2026-10-30T09:39:50.793342+00:00"
           },
-          "material": "e86a4790e19f0c04fe8158f57f69441410758a4d25c954b7edb996c43e4b0994",
-          "expires_at": "2026-11-05 21:55:26.255607+00",
-          "created_at": "2026-10-29 21:55:26.255608+00",
+          "material": "0ce1a845e557bab9d55103da6435061bc8741c176818d629cff461087d65e2d3",
+          "expires_at": "2026-11-06 09:39:50.793355+00",
+          "created_at": "2026-10-30 09:39:50.793356+00",
           "deleted_at": null
         }
+      ],
+      "signals": [
+        "Account",
+        "member",
+        "session:2684151d67599465"
       ]
     },
     {
@@ -176,15 +185,16 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "35324f4e-6d93-5ef3-8bc4-5135fb200b21",
-            "login_at": "2026-10-29T21:55:26.2556+00:00"
+            "service": "e809e79a-4714-5ba1-aec3-e6df3a76b0c1",
+            "login_at": "2026-10-30T09:39:50.793342+00:00"
           },
-          "material": "e86a4790e19f0c04fe8158f57f69441410758a4d25c954b7edb996c43e4b0994",
-          "expires_at": "2026-11-05 21:55:26.255607+00",
-          "created_at": "2026-10-29 21:55:26.255608+00",
+          "material": "0ce1a845e557bab9d55103da6435061bc8741c176818d629cff461087d65e2d3",
+          "expires_at": "2026-11-06 09:39:50.793355+00",
+          "created_at": "2026-10-30 09:39:50.793356+00",
           "deleted_at": null
         }
-      ]
+      ],
+      "signals": []
     }
   ]
 }

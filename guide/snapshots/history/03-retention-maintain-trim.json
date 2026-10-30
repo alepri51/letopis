@@ -57,7 +57,10 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Class"
+      ]
     },
     {
       "title": "Архив показаний: 90 дней по версии в день и три правки в последний день",
@@ -75,7 +78,10 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Gauge"
+      ]
     },
     {
       "title": "Прореживание «на следующий день» после архива",
@@ -106,7 +112,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Прореживание — не разрыв",
@@ -124,7 +131,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Обрезать историю до даты",
@@ -149,7 +157,10 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Gauge"
+      ]
     },
     {
       "title": "Подписка с курсором старше яруса all",
@@ -168,7 +179,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     }
   ]
 }

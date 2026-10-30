@@ -107,7 +107,8 @@
           "$new": true
         }
       ],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Перейти в компанию",
@@ -145,7 +146,8 @@
           "$new": false
         }
       ],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Способы входа — без секретов",
@@ -189,7 +191,8 @@
           "$new": false
         }
       ],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Пара «ключ + секрет» и её отключение",
@@ -263,7 +266,8 @@
           "$new": true
         }
       ],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Второй фактор требует сервис",
@@ -369,7 +373,8 @@
           "$new": true
         }
       ],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Продлить сессию и завершить другую",
@@ -496,7 +501,10 @@
           "$new": true
         }
       ],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "session:‹токен 1›"
+      ]
     },
     {
       "title": "Выйти везде",
@@ -650,7 +658,14 @@
           "$new": false
         }
       ],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "session:‹токен 2›",
+        "session:‹токен 3›",
+        "session:‹токен 4›",
+        "session:‹токен 5›",
+        "session:‹токен 6›"
+      ]
     },
     {
       "title": "Закрыть арендатора, в котором работаешь",
@@ -827,7 +842,12 @@
           "$new": true
         }
       ],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Account",
+        "member",
+        "rule"
+      ]
     },
     {
       "title": "Сервис узнаёт сессию по токену",
@@ -1003,7 +1023,8 @@
           "$new": false
         }
       ],
-      "counts": null
+      "counts": null,
+      "signals": []
     }
   ]
 }

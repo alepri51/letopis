@@ -79,7 +79,11 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Class",
+        "Wallet"
+      ]
     },
     {
       "title": "Связь оборвалась до COMMIT",
@@ -118,7 +122,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Повтор той же операции: «проведено» — значит, в первый раз не записалось",
@@ -194,7 +199,11 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Movement",
+        "Wallet"
+      ]
     },
     {
       "title": "Связь оборвалась после COMMIT",
@@ -285,7 +294,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Повтор той же операции: «уже было» — значит, записалось",
@@ -375,7 +385,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     }
   ]
 }

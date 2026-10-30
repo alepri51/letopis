@@ -24,7 +24,10 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": [
+        "Class"
+      ]
     },
     {
       "result": {
@@ -39,13 +42,17 @@
         },
         "external": 0,
         "portions": 1,
-        "ms": 408.42269999999553
+        "ms": 358.9904999999999
       },
       "error": null,
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": [
+        "Product",
+        "Shop"
+      ]
     },
     {
       "result": null,
@@ -57,7 +64,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     }
   ]
 }

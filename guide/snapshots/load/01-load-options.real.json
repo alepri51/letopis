@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_df4757320087a8f687db603e0d562771dd042e92fcb3082f2d8ca4f45050a377",
+      "serviceKey": "lts_19415bd7987bc44c7b5b4fbcbbad1c55ae901d937fe5f060d7cc8f6509e66797",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "b1f554f58485bee16dcaedb9157fe7f5a9f74e1522ab1933b5b8071e6d82a37a",
+        "token": "1bcba1d1bdbd73a6f6fecbd19e47033958952a8575127e2e4ec0961cc05e50eb",
         "created": true
       }
     }
@@ -34,7 +34,10 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": [
+        "Class"
+      ]
     },
     {
       "result": {
@@ -49,13 +52,17 @@
         },
         "external": 0,
         "portions": 1,
-        "ms": 246.10829999999987
+        "ms": 236.92009999999573
       },
       "error": null,
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": [
+        "Product",
+        "Shop"
+      ]
     },
     {
       "result": null,
@@ -81,7 +88,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": {
@@ -93,13 +101,16 @@
         "byClass": {},
         "external": 1,
         "portions": 1,
-        "ms": 43.70600000000013
+        "ms": 31.71549999999843
       },
       "error": null,
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": [
+        "Product"
+      ]
     },
     {
       "result": null,
@@ -125,7 +136,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": {
@@ -139,13 +151,16 @@
         },
         "external": 0,
         "portions": 2,
-        "ms": 447.6776
+        "ms": 465.29349999999977
       },
       "error": null,
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": [
+        "Customer"
+      ]
     },
     {
       "result": {
@@ -160,7 +175,7 @@
           },
           "external": 0,
           "portions": 1,
-          "ms": 225.88470000000007
+          "ms": 212.43780000000697
         },
         "автор": "3defbabb-a94d-5359-8463-dc947de193e1"
       },
@@ -168,7 +183,10 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": [
+        "Customer"
+      ]
     },
     {
       "result": null,
@@ -193,7 +211,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": null,
@@ -205,7 +224,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     }
   ]
 }

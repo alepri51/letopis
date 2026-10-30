@@ -108,7 +108,8 @@
           "$new": true
         }
       ],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Смена пароля завершает остальные сессии",
@@ -198,7 +199,13 @@
           "$new": true
         }
       ],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "session:‹токен 1›",
+        "session:‹токен 2›",
+        "session:‹токен 3›",
+        "session:‹токен 4›"
+      ]
     },
     {
       "title": "Ключ API для интеграции",
@@ -319,7 +326,8 @@
           "$new": true
         }
       ],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Отозвать ключ",
@@ -439,7 +447,10 @@
           "$new": true
         }
       ],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "session:‹токен 5›"
+      ]
     },
     {
       "title": "Одноразовый код (OTP)",
@@ -594,7 +605,8 @@
           "$new": true
         }
       ],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Второй фактор: TOTP",
@@ -762,7 +774,8 @@
           "$new": true
         }
       ],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Внешняя учётная запись и вход по ней",
@@ -960,7 +973,8 @@
           "$new": true
         }
       ],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Короткая сессия для другого процесса",
@@ -1179,7 +1193,8 @@
           "$new": true
         }
       ],
-      "counts": null
+      "counts": null,
+      "signals": []
     }
   ]
 }

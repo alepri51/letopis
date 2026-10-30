@@ -802,7 +802,17 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Category",
+        "Class",
+        "Customer",
+        "Order",
+        "Product",
+        "Shop",
+        "Vip",
+        "line"
+      ]
     },
     {
       "title": "Предпросмотр удаления заказа",
@@ -1601,7 +1611,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Удаляем заказ",
@@ -2461,7 +2472,11 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Order",
+        "line"
+      ]
     },
     {
       "title": "Магазин с товарами: предпросмотр показывает запрет",
@@ -3202,7 +3217,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Удалить магазин нельзя, пока есть товары",
@@ -3947,7 +3963,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Удалить категорию — ссылки снимутся",
@@ -4778,7 +4795,11 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Category",
+        "Product"
+      ]
     }
   ]
 }

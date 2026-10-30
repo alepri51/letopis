@@ -1841,7 +1841,8 @@
       "removed": [],
       "log": [],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Вход по паролю — новая строка в secret",
@@ -2764,7 +2765,8 @@
           "$new": true
         }
       ],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Описание класса — тоже объект",
@@ -3866,7 +3868,10 @@
           "$new": false
         }
       ],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Class"
+      ]
     },
     {
       "title": "Первая заметка",
@@ -5021,7 +5026,10 @@
           "$new": false
         }
       ],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Note"
+      ]
     }
   ]
 }

@@ -112,7 +112,11 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Class",
+        "Wallet"
+      ]
     },
     {
       "title": "Пополнение на 1000",
@@ -239,7 +243,11 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Movement",
+        "Wallet"
+      ]
     },
     {
       "title": "Ответ потерялся — повтор той же операции",
@@ -358,7 +366,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Списание 300",
@@ -547,7 +556,11 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Movement",
+        "Wallet"
+      ]
     },
     {
       "title": "Списать больше, чем есть, — нельзя",
@@ -742,7 +755,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Итог",
@@ -927,7 +941,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     }
   ]
 }

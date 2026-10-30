@@ -117,7 +117,11 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Class",
+        "Draft"
+      ]
     },
     {
       "title": "Подписали: черновик стал договором",
@@ -222,7 +226,11 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Contract",
+        "Draft"
+      ]
     },
     {
       "title": "Новый номер — rekey",
@@ -367,7 +375,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Contract"
+      ]
     },
     {
       "title": "versions() и versions({ follow: true })",
@@ -522,7 +533,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Сменить ключ всему классу: rekeyClass",
@@ -785,7 +797,11 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Class",
+        "Code"
+      ]
     }
   ]
 }

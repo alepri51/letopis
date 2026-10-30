@@ -111,7 +111,11 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Class",
+        "Shop"
+      ]
     },
     {
       "title": "id можно вычислить даже без базы",
@@ -165,7 +169,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "id в create не передают",
@@ -230,7 +235,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Без ключа повтор создаёт второй объект",
@@ -360,7 +366,10 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Visitor"
+      ]
     },
     {
       "title": "Ключ правкой не меняется",
@@ -491,7 +500,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Регистр важен",
@@ -617,7 +627,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     }
   ]
 }

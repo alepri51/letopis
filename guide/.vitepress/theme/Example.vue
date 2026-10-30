@@ -26,6 +26,8 @@ interface Step {
   log: Rec[];
   secret: Rec[];
   counts?: Counts | null;
+  /** Сигналы, которые шаг отправил в канал схемы; в старых снимках поля нет. */
+  signals?: string[];
 }
 interface Counts { entity: Record<string, number>; log: Record<string, number>; secret: Record<string, number> }
 /** Что раннер передаёт шагам в run(ctx) и чему это равно в прогоне. */
@@ -47,7 +49,7 @@ interface Snapshot {
   steps: Step[];
 }
 /** Тот же прогон с настоящими значениями; массивы строк — в том же порядке, что в снимке с метками. */
-interface RealStep { result: unknown; error: Rec | null; entity: Rec[]; removed: Rec[]; log: Rec[]; secret: Rec[] }
+interface RealStep { result: unknown; error: Rec | null; entity: Rec[]; removed: Rec[]; log: Rec[]; secret: Rec[]; signals?: string[] }
 interface Real {
   id: string;
   context?: Given;
@@ -598,6 +600,15 @@ function onKey(e: KeyboardEvent) {
       </div>
       </template>
 
+      <div v-if="step?.signals" class="lt-ex-signals">
+        <span class="lt-ex-signals-label">Сигналы шага</span>
+        <template v-if="(realTab ? realStep?.signals ?? step.signals : step.signals).length">
+          <code v-for="s in realTab ? realStep?.signals ?? step.signals : step.signals" :key="s">{{ s }}</code>
+        </template>
+        <span v-else class="lt-ex-signals-none">не было</span>
+        <span class="lt-ex-signals-hint">— уведомления NOTIFY в канал схемы после фиксации: по ним просыпаются подписки и сбрасывается кэш</span>
+      </div>
+
       <div class="lt-ex-legend">
         <span><i class="sw new" /> новая строка</span>
         <span><i class="sw chg" /> изменилось на этом шаге</span>
@@ -761,6 +772,10 @@ function onKey(e: KeyboardEvent) {
 .lt-num { text-align: right !important; white-space: nowrap; }
 .lt-delta { color: var(--vp-c-green-1); font-weight: 600; }
 .lt-removed-soft td { background: var(--vp-c-danger-soft); }
+.lt-ex-signals { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; margin-top: 12px; font-size: 13px; }
+.lt-ex-signals-label { font-weight: 600; }
+.lt-ex-signals-none, .lt-ex-signals-hint { color: var(--vp-c-text-2); }
+.lt-ex-signals-hint { font-size: 12px; }
 .lt-ex-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; font-size: 12px; color: var(--vp-c-text-2); }
 .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 4px; }
 .sw.new { background: var(--vp-c-green-soft); border: 1px solid var(--vp-c-green-2); }

@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_441c5dd9060e76dc5aafbd68e6ca32a1346da0ec7f79b4a7e16b84047c1b62be",
+      "serviceKey": "lts_b5ca29f53bc6f10fee8b39769cf1069b8184af1d18bf31d0ecab6ab0291dfb31",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "564b6d67e647261f94ae21a2f9f6a7236b50e247f1fa1b19bc44b06ba6364fd8",
+        "token": "ebdfe4155418a67bf89e90d49f67e932fc353dd50d2df01590c3385663abf572",
         "created": true
       }
     }
@@ -32,7 +32,11 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": [
+        "Class",
+        "Product"
+      ]
     },
     {
       "result": [
@@ -59,7 +63,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": [
@@ -72,7 +77,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": {
@@ -84,18 +90,20 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": {
-        "tenant": "d424f158-2231-5794-923b-0b0619bd82a5",
+        "tenant": "029d735c-df2e-5f6e-b3e1-25222c424321",
         "schema": "v2.g_install_03_connect_options"
       },
       "error": null,
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": {
@@ -109,7 +117,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": {
@@ -119,7 +128,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     },
     {
       "result": "закрыто",
@@ -127,7 +137,8 @@
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": []
+      "secret": [],
+      "signals": []
     }
   ]
 }

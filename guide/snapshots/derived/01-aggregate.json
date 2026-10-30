@@ -113,7 +113,11 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Class",
+        "Wallet"
+      ]
     },
     {
       "title": "Пополнение 1000 — баланс пересчитала база",
@@ -257,7 +261,11 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Movement",
+        "Wallet"
+      ]
     },
     {
       "title": "Списание −300",
@@ -441,7 +449,11 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": [
+        "Movement",
+        "Wallet"
+      ]
     },
     {
       "title": "Уйти в минус нельзя",
@@ -632,7 +644,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Писать в агрегат нельзя",
@@ -815,7 +828,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     },
     {
       "title": "Ремонт: пересчитать из источника",
@@ -997,7 +1011,8 @@
         }
       ],
       "secret": [],
-      "counts": null
+      "counts": null,
+      "signals": []
     }
   ]
 }
