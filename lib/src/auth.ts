@@ -168,7 +168,7 @@ export interface AuthApi {
   revokeCredential(id: string, opts?: { keepCurrent?: boolean }): Promise<boolean>;
   /** Признаки креда confirmed и enabled (право auth.credential). */
   setFlags(id: string, flags: { confirmed?: boolean; enabled?: boolean }): Promise<boolean>;
-  /** Короткая сессия пользователя для другого процесса (право auth.session). */
+  /** Сессия пользователя для другого процесса (право auth.session); срок — ttl в секундах, по умолчанию 7 суток. */
   sessionFor(account: AccountRef, opts?: { ttl?: number }): Promise<string>;
   /**
    * Сведения о сессии по её токену — для сервиса, который держит токен пользователя (например, в cookie): чья это
