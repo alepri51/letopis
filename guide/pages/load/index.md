@@ -33,7 +33,7 @@ sequenceDiagram
   participant Lib as letopis
   participant DB as PostgreSQL
   App->>Lib: db.load({ Класс: строки })
-  Lib->>Lib: id — из ключа или $ext; ссылки { $key } и { $ext } — в id
+  Lib->>Lib: id — из ключа или $ext, ссылки { $key } и { $ext } — в id
   Lib->>Lib: данные — тем же описанием классов, что у базы (валидатор библиотеки)
   Lib->>DB: COPY пачками от роли владельца: строки и их первые версии журнала
   Lib->>DB: один запрос — цели ссылок вне загрузки существуют (for key share)

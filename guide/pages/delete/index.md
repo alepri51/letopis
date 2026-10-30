@@ -14,6 +14,34 @@
 
 <Flow name="delete" />
 
+Как это идёт по шагам (`lib/sql/60-write.sql`: `delete_preview`, триггер `trg_entity_ad`):
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant App as Приложение
+  participant Lib as letopis
+  participant DB as PostgreSQL
+  App->>Lib: db.Category(tea).delete().rows()
+  Lib->>DB: delete_preview — цели и кто на них ссылается (только видимое)
+  DB-->>App: предпросмотр: $action (delete, unset, restrict) и $depth — ничего не удалено
+  App->>Lib: delete({ confirm: true, reason })
+  Lib->>DB: delete from entity where id = any(цели)
+  DB->>DB: триггер после оператора — надгробия целей в журнал
+  loop уровни каскада, строки в порядке id
+    DB->>DB: ссылающиеся строки — по действию при удалении конца
+    Note over DB: cascade — удалить (право DELETE), unset — снять ссылку (право WRITE)
+  end
+  alt осталась ссылка с restrict
+    DB-->>App: delete_restricted — откат всего оператора
+  else
+    DB->>DB: сигнал по классам каскада
+    DB-->>App: надгробия этой транзакции ($deleted: true)
+  end
+```
+
+Удаляемый аккаунт (`Account`): его сессии гасит с сигналом триггер до удаления, а пароли, ключи и коды стирает сама база — внешний ключ `secret.account` с `on delete cascade`.
+
 Весь каскад — один оператор и одна транзакция: если хоть одна строка мешает, не удаляется ничего.
 
 ## Вернуть и стереть

@@ -14,6 +14,26 @@
 
 <Flow name="access" />
 
+Тот же путь по шагам — что делает база на каждом запросе (`lib/sql/20-context.sql:ctx`, `lib/sql/50-acl.sql`):
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant App as Приложение (svc.as(аккаунт, { tenant }))
+  participant Lib as letopis
+  participant DB as PostgreSQL
+  App->>Lib: u.Product().rows()
+  Lib->>DB: begin — токен сессии, аккаунт, арендатор, пропуск прав
+  DB->>DB: сессия по хэшу токена жива, в чужом арендаторе — есть членство (иначе tenant_denied)
+  DB->>DB: план прав: правила System и арендатора, на класс одно — больший вес, при равном запрет
+  Note over DB: верный пропуск (подписанный план) — план из него, иначе считается заново
+  DB->>DB: RLS — строка видна, если план READ разрешает её класс и условие
+  DB-->>App: только видимые строки
+  App->>Lib: create / update / delete
+  DB->>DB: RLS на прежние и новые значения — план WRITE или DELETE
+  DB-->>App: не прошло — acl_denied, ничего не записано
+```
+
 Права задают три системных класса:
 
 - **`Resource`** описывает либо «кто» — группу людей (`category: 'ACCOUNT'`, например всех с ролью `{staff}`), либо «что» — действие над классом (`READ`, `WRITE`, `DELETE`) или эндпоинт приложения (`API`);
