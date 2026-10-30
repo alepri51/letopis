@@ -222,7 +222,7 @@ try {
   // 8. своя компания: регистрация и закрытие (purgeAccount стирает данные арендатора)
   const reg = await call('', '/api/register', { company: `Проба ${run}`, name: 'Вера', login: `vera-${run}@proba.ru`, password: 'Proba-2026!' });
   check(reg.status === 200 && reg.data?.role === 'manager', 'новая компания зарегистрирована, регистратор — руководитель');
-  // модель новой компании сервис записал при регистрации (writeModels) — те же классы, что у «Севера»; видно её так же,
+  // модель новой компании сервис записал при регистрации (syncCompany) — те же классы, что у «Севера»; видно её так же,
   // как агенту: letopis_model по MCP вкладкой руководителя (cookie) — классы арендатора её сессии
   const modelOf = async (cookie) => {
     const c = new Client({ name: 'сценарий-модель', version: '1.0.0' });

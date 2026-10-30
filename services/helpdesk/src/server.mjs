@@ -2,8 +2,8 @@
  * Сервис-пример «Helpdesk» на letopis.
  *
  * - Компания — арендатор: регистрация вызывает createTenant, первый пользователь — владелец (роль owner).
- *   Модели компании — классы её арендатора: их пишет syncModels администраторского подключения в короткой сессии
- *   руководителя — при регистрации и при каждом запуске во все компании; правила доступа — строки rule.
+ *   Модели компании — классы её арендатора, правила доступа — его строки Resource и rule: их пишет администраторское
+ *   подключение в короткой сессии руководителя — при регистрации и при каждом запуске во все компании.
  * - Роли — поле roles членства (member): руководитель (owner), агент (agent), клиент (client), интеграции.
  *   Клиент видит только свои заявки (условие owner: '$actor') и ответы на них (условие data.client),
  *   внутренние заметки ему закрыты; удалять заявки, править правила и членства может только руководитель.
@@ -26,6 +26,7 @@ import postgres from 'postgres';
 import { randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 import { up, connect, createTenant, syncModels, LetopisError, v5Id, inc, inList, lt, cursorOf } from 'letopis';
 import * as model from 'letopis/model';
 import { createMcpServer } from 'letopis/mcp';
@@ -56,7 +57,7 @@ const ENV = {
 const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
 const WEB_TTL = 8 * 3600; // срок веб-сессии, с; подключение продлевает её раз в минуту работы
 const AGENT_TTL = 15 * 60; // срок сессии ИИ-агента, с; её подключение срок не продлевает (refreshSession: false)
-const MODELS_TTL = 5 * 60; // срок сессии записи моделей компании, с; гаснет она сразу после записи
+const SYNC_TTL = 5 * 60; // срок сессии записи моделей и правил компании, с; гаснет она сразу после записи
 const AGENT_MAX = 3; // действующих сессий агента у одной вкладки
 const PAGE = 5;
 const SLOW_MS = 25;
@@ -97,6 +98,7 @@ const HOURS = { urgent: 2, high: 8, normal: 24, low: 72 }; // срок отве�
 const MODELS = helpdeskModels(model, z);
 
 // ---------- правила доступа компании: кто (ACCOUNT) → что (READ/WRITE/DELETE/API) ----------
+// строки Resource и rule арендатора; к этому виду их приводит syncRules — при регистрации и при каждом запуске
 const RESOURCES = {
   'role-owner:ACCOUNT': { category: 'ACCOUNT', pattern: { roles: '{owner}' } },
   'role-agent:ACCOUNT': { category: 'ACCOUNT', pattern: { roles: '{agent}' } },
@@ -178,44 +180,66 @@ export async function createApp() {
     try { await tmp.auth.revoke(); } finally { await tmp.close(); }
   }
 
-  // ---------- модели компании: администраторское подключение в сессии её арендатора ----------
+  // ---------- модели и правила доступа компании: администраторское подключение в сессии её арендатора ----------
   /**
-   * Модели (src/models.mjs) — классы арендатора компании: их пишет syncModels администраторского подключения
-   * (allowBypassRls), а не сессия пользователя. Сессия — своя на одну запись: svc.auth.sessionFor(руководитель) и
-   * auth.switch в компанию; после записи она гаснет, подключение закрывается — в веб-сессии оно не попадает. Зовётся
-   * при регистрации и при каждом запуске для всех компаний: изменение моделей после перезапуска доходит до всех
-   * (безопасное — сразу, ужесточение база сверяет со строками). Не классы System: их syncModels пропускает, а сид
-   * установки уже существующий класс не меняет.
+   * Модели (src/models.mjs) — классы арендатора компании, правила доступа (RESOURCES, RULES) — его строки Resource и
+   * rule: их пишут syncModels и syncRules администраторского подключения (allowBypassRls), а не сессия пользователя.
+   * Сессия — своя на одну запись: svc.auth.sessionFor(руководитель) и auth.switch в компанию; после записи она гаснет,
+   * подключение закрывается — в веб-сессии оно не попадает. Зовётся при регистрации и при каждом запуске для всех
+   * компаний: изменение моделей и правил после перезапуска доходит до всех (безопасное изменение модели — сразу,
+   * ужесточение база сверяет со строками). Не классы System: их syncModels пропускает, а сид установки уже
+   * существующий класс не меняет.
    */
-  async function writeModels(tenant, owner) {
-    const token = await svc.auth.sessionFor(owner, { ttl: MODELS_TTL });
+  async function syncCompany(tenant, owner) {
+    const token = await svc.auth.sessionFor(owner, { ttl: SYNC_TTL });
     const adm = await connect({ dsn: ENV.admin, schema: r.schema, token, allowBypassRls: true, listen: false, refreshSession: false });
     try {
       await adm.auth.switch(tenant);
-      return await syncModels(adm, MODELS, { apply: true });
+      await syncModels(adm, MODELS, { apply: true });
+      await syncRules(adm);
     } finally {
       await adm.auth.revoke().catch(() => {});
       await adm.close();
     }
   }
 
-  // ---------- компания: счётчик, правила, профиль владельца, учётная запись интеграций (модели — writeModels) ----------
+  /**
+   * Правила доступа — как в коде, одной транзакцией. Ресурс ищется по alias, правило — по паре Group–Object (ключи
+   * классов): нет строки — создаётся; маска (category, pattern), решение (permission) или вес не те, что в RESOURCES и
+   * RULES, — приводятся к ним; совпадает — не трогается, и повторный запуск версий не пишет. Остальное в строке
+   * (enabled, description, теги) — прежнее; ресурсы с другими alias и правила вне RULES — дело компании, их не трогаем.
+   */
+  async function syncRules(db) {
+    const tr = await db.begin({ reason: 'правила доступа компании' });
+    try {
+      const ids = {};
+      for (const [alias, res] of Object.entries(RESOURCES)) {
+        const found = await tr.Resource({ alias }).first();
+        ids[alias] = found ? found.id : (await tr.Resource().create({ alias, ...res }).rows())[0].id;
+        // маска — целиком (upsert): update слил бы новый pattern с прежним (вложенные объекты — рекурсивно), и
+        // убранное из кода условие осталось бы в строке
+        if (found && (found.data.category !== res.category || !isDeepStrictEqual(found.data.pattern, res.pattern))) {
+          await tr.Resource().tags(found.tags).upsert({ ...found.data, ...res }).rows();
+        }
+      }
+      for (const [g, o, permission, weight] of RULES) {
+        const found = await tr.rule({ Group: ids[g], Object: ids[o] }).first();
+        if (!found) await tr.rule().create({ permission, weight }).Group.set(ids[g]).Object.set(ids[o]).rows();
+        else if (found.data.permission !== permission || found.data.weight !== weight) await tr.rule(found.id).update({ permission, weight }).rows();
+      }
+      await tr.commit();
+    } catch (e) { await tr.rollback().catch(() => {}); throw e; }
+  }
+
+  // ---------- компания: счётчик, профиль владельца, учётная запись интеграций (модели и правила — syncCompany) ----------
   async function setupCompany(db, company, owner) {
-    // по шагам и без повторов: недостающее (новое правило, счётчик) дописывается и на уже настроенной компании
+    // по шагам и без повторов: недостающее (счётчик) дописывается и на уже настроенной компании
     const tr = await db.begin({ reason: 'настройка компании' });
     try {
       if (!(await tr.Desk().first())) await tr.Desk().create({ name: company }).rows();
       if (!(await tr.Counter({ name: 'tickets' }).first())) {
         const last = Math.max(0, ...(await tr.Ticket().rows()).map((t) => Number(String(t.data.number).slice(3)) || 0));
         await tr.Counter().create({ name: 'tickets', next: last }).rows();
-      }
-      const ids = {};
-      for (const [alias, res] of Object.entries(RESOURCES)) {
-        const found = await tr.Resource({ alias }).first();
-        ids[alias] = found ? found.id : (await tr.Resource().create({ alias, ...res }).rows())[0].id;
-      }
-      for (const [g, o, permission, weight] of RULES) {
-        if (!(await tr.rule({ Group: ids[g], Object: ids[o] }).first())) await tr.rule().create({ permission, weight }).Group.set(ids[g]).Object.set(ids[o]).rows();
       }
       await tr.commit();
     } catch (e) { await tr.rollback().catch(() => {}); throw e; }
@@ -251,9 +275,10 @@ export async function createApp() {
     } catch (e) { await tr.rollback().catch(() => {}); throw e; }
   }
 
-  // ---------- модели всех компаний — при каждом запуске ----------
+  // ---------- модели и правила доступа всех компаний — при каждом запуске ----------
   // демо-компании createTenant находит по имени (или заводит вместе с руководителем); зарегистрированные — арендаторы со
-  // строкой Desk (её пишет setupCompany), сессию записи моделей выпускают на их руководителя — членство с ролью owner
+  // строкой Desk (её пишет setupCompany), сессию записи выпускают на их руководителя — членство с ролью owner. Ошибка
+  // хотя бы в одной компании не ловится: сервис не стартует, а не работает у части компаний со старыми моделями и правилами
   const demo = [];
   for (const c of COMPANIES) demo.push({ c, boss: await createTenant(admin, r.schema, { name: c.name, user: { ...c.boss, ttl: '10 minutes' } }) });
   const companies = new Map(demo.map(({ boss }) => [boss.tenant, boss.user])); // арендатор → руководитель
@@ -262,7 +287,7 @@ export async function createApp() {
       join ${S}.entity m on m.tenant = d.tenant and m.class = 'member' and m.data->'roles' ? 'owner'
     where d.class = 'Desk' order by d.tenant, m.at`);
   for (const d of desks) if (!companies.has(d.tenant)) companies.set(d.tenant, d.owner);
-  for (const [tenant, owner] of companies) await writeModels(tenant, owner);
+  for (const [tenant, owner] of companies) await syncCompany(tenant, owner);
 
   // ---------- демо: две компании, люди, заявки (повторный запуск ничего не дублирует) ----------
   for (const { c, boss } of demo) {
@@ -419,7 +444,7 @@ export async function createApp() {
     if ((await svc.auth.credentials(accountOf(login)).catch(() => [])).length) throw new HttpError(409, 'Этот email уже зарегистрирован — войдите');
     if (!(await createTenant(admin, r.schema, { name: company })).created) throw new HttpError(409, 'Компания с таким названием уже есть');
     const t = await createTenant(admin, r.schema, { name: company, user: { name, login, password, ttl: `${WEB_TTL} seconds` } });
-    await writeModels(t.tenant, t.user);
+    await syncCompany(t.tenant, t.user);
     const db = await open({ token: t.token });
     await setupCompany(db, company, { account: t.user, name, login });
     names.set(t.tenant, company);
