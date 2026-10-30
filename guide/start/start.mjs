@@ -59,5 +59,19 @@ const tasks = await db.Project(site).Task().sort('data.title').rows();
 console.log('5. задачи проекта «Сайт»:', tasks.map((t) => `${t.data.title} (${t.data.hours} ч)`).join(', '));
 console.log(`   часов всего: ${await db.Project(site).Task().sum('data.hours')}; история задачи «Макет»: ${(await db.Task(tasks.find((t) => t.data.title === 'Макет')).versions()).length} верс.`);
 
+// 6. Много данных сразу: db.load — только администраторское подключение; сессия Веры задаёт арендатора «Альфа».
+// existing: 'skip' — при повторном запуске уже загруженные строки пропускаются
+const adm = await connect({ dsn: ADMIN, schema: r.schema, token: team.token, allowBypassRls: true });
+const report = await adm.load({
+  Project: [{ name: 'Приложение', deadline: '2027-03-01' }],
+  Task: [
+    { title: 'Тексты', hours: 4, Project: { $key: ['Сайт'] } },
+    { title: 'Фото', hours: 6, Project: { $key: ['Сайт'] } },
+    { title: 'Прототип', hours: 12, Project: { $key: ['Приложение'] } },
+  ],
+}, { existing: 'skip' });
+await adm.close();
+console.log(`6. загрузка: записано ${report.loaded}, пропущено ${report.skipped}; задач в «Сайте»: ${await db.Project(site).Task().count()}`);
+
 await svc.close();
 console.log('\nГотово. Дальше — главы «Модели», «Запись», «Чтение» на сайте документации.');

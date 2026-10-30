@@ -14,8 +14,9 @@ let r: UpResult, team: TenantResult, db: Db;
 export default example({
   title: 'С нуля: пустая установка, своя модель, первые данные',
   summary:
-    'Пять шагов от пустой базы до работающих данных: поставить схему, завести арендатора и пользователя, ' +
-    'подключиться, описать модель, наполнить данными. Ровно то же делает скрипт guide/start/start.mjs на вашей базе.',
+    'Шесть шагов от пустой базы до работающих данных: поставить схему, завести арендатора и пользователя, ' +
+    'подключиться, описать модель, наполнить данными цепочками и массовой загрузкой db.load. Ровно то же делает ' +
+    'скрипт guide/start/start.mjs на вашей базе.',
   setup: 'none',
   tables: ['entity', 'log'],
   covers: ['nuance.start-from-zero'],
@@ -64,6 +65,25 @@ export default example({
         b.Project(p).Task().create({ title: 'Запуск', hours: 2 });
         await b.run();
         return { задач: await db.Project(p).Task().count(), часов: await db.Project(p).Task().sum('data.hours') };
+      },
+    },
+    {
+      title: '6. Много данных сразу: db.load',
+      text:
+        'Когда данных много — перенос из старой системы, прайс, справочник, — их грузят `db.load`: пачками через COPY, ' +
+        'проверки делает база. Загружает только администраторское подключение; здесь оно работает в сессии Веры ' +
+        '(`team.token`), поэтому строки попадают в арендатор «Альфа». Задача ссылается на проект его ключом: `{ $key: [\'Сайт\'] }`.',
+      run: async ({ connect, dsn, schema }) => {
+        const adm = await connect({ dsn: dsn.admin, schema, token: team.token!, allowBypassRls: true });
+        const report = await adm.load({
+          Project: [{ name: 'Приложение', deadline: '2027-03-01' }],
+          Task: [
+            { title: 'Тексты', hours: 4, Project: { $key: ['Сайт'] } },
+            { title: 'Фото', hours: 6, Project: { $key: ['Сайт'] } },
+            { title: 'Прототип', hours: 12, Project: { $key: ['Приложение'] } },
+          ],
+        });
+        return { report, 'задач в «Сайте»': await db.Project({ name: 'Сайт' }).Task().count(), 'проектов': await db.Project().count() };
       },
     },
     {
