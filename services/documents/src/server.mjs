@@ -11,7 +11,7 @@
  * - Хранение по ярусам: политика history класса Doc и maintain({ now }) «как будто через N дней».
  * - verify({ data: true }) и кнопка «испортить запись журнала» (прямой UPDATE в обход библиотеки).
  * - Архив старых договоров — первая заливка db.load(…, { initial: true }) с историей; сброс демо — reset.
- * - Живое обновление (watch → SSE) и панель «Под капотом» (onQuery).
+ * - Живое обновление (watch → SSE) и панель «Под капотом»: цепочки, запросы (onQuery), записанные версии и сигналы.
  */
 import express from 'express';
 import postgres from 'postgres';
@@ -62,7 +62,9 @@ export async function createApp() {
   await admin.unsafe(`do $$ begin if not exists (select 1 from pg_roles where rolname = '${appUrl.username}') then
     create role ${appUrl.username} login password '${decodeURIComponent(appUrl.password)}'; end if; end $$`);
   await admin.unsafe(`grant letopis_app to ${appUrl.username}`);
-  const trace = createTrace({ size: 15 }); // запросы к базе — в журнал текущего действия
+  // журнал «под капотом»: запросы к базе, записанные версии и сигналы текущего действия;
+  // обслуживание (trimHistory, maintain) идёт администраторским подключением adm — его сигналы тоже
+  const trace = await createTrace({ admin, schema: r.schema, size: 15, flush: (s) => [s.db, adm] });
   const { onQuery } = trace;
   const svc = await connect({ dsn: ENV.app, schema: r.schema, apiKey: ENV.serviceKey, onQuery });
   const t = await createTenant(admin, r.schema, { name: FIRM, user: { name: USERS.head.name, login: USERS.head.login, password: USERS.head.password, ttl: '10 minutes' } });

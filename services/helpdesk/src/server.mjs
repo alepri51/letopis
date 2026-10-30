@@ -15,7 +15,7 @@
  * - Очередь: заявки по сроку ответа, страницы по курсору (after); номер — inc в счётчике компании;
  *   живое обновление (watch → SSE); справочник людей — через кэш результатов (.cache()).
  * - Закрытие своей компании — auth.purgeAccount: данные арендатора стираются целиком.
- * - Под капотом: onQuery и slowMs.
+ * - Под капотом (services/shared/trace.mjs): onQuery и slowMs, записанные действием версии и его сигналы.
  */
 import express from 'express';
 import postgres from 'postgres';
@@ -145,8 +145,13 @@ export async function createApp() {
   await admin.unsafe(`grant letopis_app to ${appUrl.username}`);
   // один пул на всех: подключения пользователей (connect({ sql, token })) делят его соединения
   const pool = postgres(ENV.app, { max: 10, onnotice: () => {} });
-  const trace = createTrace({
-    size: 15,
+  // журнал «под капотом»: запросы к базе, записанные версии и сигналы текущего действия
+  const trace = await createTrace({
+    admin, schema: r.schema, size: 15,
+    // работа от имени: версии пишутся автором — тем, от чьего имени
+    author: (s) => (s.acting ?? s).account,
+    // своё подключение сессии и сервис: от него работа от имени (svc.as) и вызовы auth
+    flush: (s) => [s.db, svc],
     // попадания в кэш результатов за действие (справочник людей — .cache()) — строкой журнала
     probe: (s) => {
       const hits = s.db.cache.stats().hits;

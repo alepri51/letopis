@@ -70,7 +70,7 @@ function Office({ me }: { me: Me }) {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(320px,1.3fr)]">
         <div className="min-w-0">{page}</div>
         <UnderHood trace={trace} height="h-[680px]" empty="Пока пусто — сделайте что-нибудь."
-          description="Вызовы letopis и запросы к базе для ваших действий." />
+          description="Вызовы letopis, запросы к базе, записанные версии и сигналы в канал схемы для ваших действий." />
       </div>
     </div>
   );

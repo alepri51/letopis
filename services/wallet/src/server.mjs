@@ -7,7 +7,8 @@
  * - Перевод — db.begin(): блокировки кошельков в порядке id (без взаимных блокировок), две операции, commit.
  * - Выписка за месяц — производный класс Statement, его пишет проектор statement из журнала операций.
  * - Пополнение тестовой картой (проверка Луна); номер карты не хранится — только последние 4 цифры.
- * - Живое обновление (watch → SSE) и панель «Под капотом» (onQuery), как в салоне.
+ * - Живое обновление (watch → SSE) и панель «Под капотом», как в салоне: цепочки, запросы (onQuery), записанные
+ *   версии и сигналы канала схемы.
  */
 import express from 'express';
 import postgres from 'postgres';
@@ -55,7 +56,8 @@ export async function createApp() {
   await admin.unsafe(`do $$ begin if not exists (select 1 from pg_roles where rolname = '${appUrl.username}') then
     create role ${appUrl.username} login password '${decodeURIComponent(appUrl.password)}'; end if; end $$`);
   await admin.unsafe(`grant letopis_app to ${appUrl.username}`);
-  const trace = createTrace({ size: 12 }); // запросы к базе — в журнал текущего действия
+  // журнал «под капотом»: запросы к базе, записанные версии и сигналы текущего действия
+  const trace = await createTrace({ admin, schema: r.schema, size: 12 });
   const svc = await connect({ dsn: ENV.app, schema: r.schema, apiKey: ENV.serviceKey, onQuery: trace.onQuery });
   const t = await createTenant(admin, r.schema, { name: 'Копейка', user: OPERATOR });
   // модель: обычные классы — сессией оператора, производный Statement — администраторским подключением
@@ -122,10 +124,10 @@ export async function createApp() {
   }
 
   // ---------- веб: сессии, журнал «под капотом», API ----------
-  const web = createSessions(); // sid → { db, name, trace: [] }
+  const web = createSessions(); // sid → { db, account, name, trace: [] }
   const { auth } = web;
   const { act } = trace;
-  const fail =(res, e) => res.status(e.code === 'invalid_data' ? 422 : e.code === 'conflict' ? 409 : 400)
+  const fail = (res, e) => res.status(e.code === 'invalid_data' ? 422 : e.code === 'conflict' ? 409 : 400)
     .json({ error: e.code === 'invalid_data' ? 'Недостаточно средств: баланс не может стать отрицательным' : `${e.code ?? ''} ${e.message}` });
 
   const app = express();
@@ -134,7 +136,7 @@ export async function createApp() {
     const { login: id = '', password = '' } = req.body ?? {};
     const login = await svc.auth.verifyPassword({ identifier: String(id), password: String(password) });
     if (!login || id !== OPERATOR.login) return res.status(401).json({ error: 'Неверный логин или пароль' });
-    web.open(res, { db: await svc.as(login.account, { tenant: t.tenant }), name: OPERATOR.name, trace: [] });
+    web.open(res, { db: await svc.as(login.account, { tenant: t.tenant }), account: login.account, name: OPERATOR.name, trace: [] });
     res.json({ company: 'Копейка', name: OPERATOR.name });
   });
   app.get('/logout', async (req, res) => { await web.logout(req, res); res.redirect('/'); });

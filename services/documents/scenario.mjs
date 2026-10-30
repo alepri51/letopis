@@ -33,6 +33,10 @@ try {
   check((await call(lawyer, '/api/docs', { number: 'Д-777', title: 'Дубль', amount: 1, body: 'x', party })).status === 422, 'второй документ с тем же номером — отказ (ключ)');
   check((await call(lawyer, `/api/docs/${d.id}/update`, { title: d.title, amount: 28000, body: d.body, rev: 9, reason: 'скидка' })).status === 409, 'правка по устаревшей версии — 409');
   const u = (await call(lawyer, `/api/docs/${d.id}/update`, { title: d.title, amount: 28000, body: d.body, rev: 1, reason: 'скидка' })).data.doc;
+  // панель «Под капотом»: правка записала версию 2, изменённое поле — только сумма; сигналы — в канале схемы
+  const hood = (await call(lawyer, '/api/trace')).data?.[0];
+  check(hood?.title === 'Правка документа' && hood.versions.length === 1 && hood.versions[0].class === 'Draft' && hood.versions[0].rev === 2
+    && hood.versions[0].fields.join() === 'amount' && hood.versions[0].reason === 'скидка' && hood.signals.length > 0, 'под капотом: правка — версия Draft 2 с изменённой суммой, сигналы канала схемы', hood);
   await call(lawyer, `/api/docs/${d.id}/review`, { rev: u.rev });
   const c = (await call(head, `/api/docs/${d.id}/sign`, {})).data.doc;
   check(c?.class === 'Contract' && c.id !== d.id && c.signedBy === USERS.head.name, 'руководитель подписал: договор с новым id (reclass)', c);

@@ -43,6 +43,10 @@ try {
   const afterBook = (await call(cookie, `/api/schedule?day=${day}`)).data;
   const mine = afterBook.bookings.find((b) => b.customer === 'Клиент сценария');
   check(first.status === 200 && !!mine, 'бронь на 15:00 записана');
+  // панель «Под капотом»: какие версии записала бронь (журнал схемы) и что ушло в канал схемы
+  const hood = (await call(cookie, '/api/trace')).data?.[0];
+  check(hood?.title === 'Записать клиента' && hood.versions.some((v) => v.class === 'booking' && v.op === 'create' && v.label === '15:00')
+    && hood.versions.some((v) => v.class === 'Customer') && hood.signals.includes('booking'), 'под капотом: бронь — версии booking и Customer, сигналы канала схемы');
   const again = await call(cookie, '/api/book', { ...slot, name: 'Второй клиент' });
   check(again.status === 409 && /уже занят/.test(again.data?.error ?? ''), 'повторная бронь того же слота — 409 «слот уже занят»');
 

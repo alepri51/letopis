@@ -31,6 +31,11 @@ try {
   check(over.status === 422 && (await balance('W-2')) === b2, 'списание больше баланса — отказ, баланс прежний');
   const tr = await call(cookie, '/api/transfer', { from: w1.id, to: w2.id, amount: 30000, opId: `x-${run}` });
   check(tr.data?.result === 'проведено' && (await balance('W-1')) === b1 + 70000 && (await balance('W-2')) === b2 + 30000, 'перевод 300 ₽ W-1 → W-2 одной транзакцией');
+  // панель «Под капотом»: перевод записал две операции и два баланса (агрегат), сигналы — в канале схемы
+  const hood = (await call(cookie, '/api/trace')).data?.[0];
+  check(hood?.title === `Перевод x-${run}` && hood.versions.filter((v) => v.class === 'Movement' && v.op === 'create').length === 2
+    && hood.versions.filter((v) => v.class === 'Wallet' && v.fields.join() === 'balance').length === 2 && hood.signals.includes('Movement'),
+    'под капотом: перевод — версии двух Movement и баланса двух Wallet, сигналы канала схемы');
   const hist = (await call(cookie, `/api/wallets/${w1.id}/history`)).data;
   check(hist.at(-1).reason === `transfer x-${run}`, 'история баланса W-1: последняя версия — перевод с причиной');
 

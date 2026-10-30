@@ -7,7 +7,8 @@
  *   cookie несёт только её случайный номер. Запросы идут от имени вошедшего: svc.as(account, { tenant }).
  * - Бронь — одной транзакцией под блокировкой мастера (domain.mjs); двойная бронь невозможна.
  * - Живое расписание: db.watch() по классу booking → SSE → вторая вкладка обновляется сама.
- * - Панель «Под капотом»: какие цепочки выполнило действие и какие запросы ушли в базу (onQuery).
+ * - Панель «Под капотом» (services/shared/trace.mjs): какие цепочки выполнило действие, какие запросы ушли в базу
+ *   (onQuery), какие версии оно записало и какие сигналы отправило в канал схемы.
  */
 import express from 'express';
 import postgres from 'postgres';
@@ -49,7 +50,12 @@ export async function createApp() {
     end if; end $$`);
   await admin.unsafe(`grant letopis_app to ${appUrl.username}`);
 
-  const trace = createTrace({ size: 12 }); // запросы к базе — в журнал текущего действия
+  // журнал «под капотом»: запросы к базе, записанные версии и сигналы текущего действия
+  const trace = await createTrace({
+    admin, schema: r.schema, size: 12,
+    // id брони — из ключа (мастер, начало): подпись — время начала
+    label: (v) => (v.class === 'booking' ? String(v.data?.start_datetime ?? '').slice(11, 16) : ''),
+  });
   const svc = await connect({ dsn: ENV.app, schema: r.schema, apiKey: ENV.serviceKey, onQuery: trace.onQuery });
 
   // ---------- демо-данные: салоны и справочники (повтор ничего не дублирует) ----------

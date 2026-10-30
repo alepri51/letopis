@@ -81,6 +81,10 @@ try {
   const t = (await call(client.cookie, '/api/tickets', { subject: `Не приходит счёт ${run}`, body: 'Третий день жду счёт на почту', priority: 'high' })).data;
   check(/^HD-\d+$/.test(t?.number ?? ''), `клиент создал обращение ${t?.number}`);
   check((await sse.event)?.class === 'Ticket', 'очередь агента узнала о новой заявке сама (watch → SSE)');
+  // панель «Под капотом»: версия заявки из журнала схемы и сигналы канала (режим tenant — «класс@токен арендатора»)
+  const hood = (await call(client.cookie, '/api/trace')).data?.[0];
+  check(hood?.title === 'Новое обращение' && hood.versions.some((v) => v.class === 'Ticket' && v.op === 'create' && v.label === t.number)
+    && hood.signals.some((x) => x.startsWith('Ticket@')), 'под капотом: обращение — версия Ticket, сигналы канала схемы', hood);
   const mine = (await call(client.cookie, '/api/tickets')).data.rows;
   check(mine.length > 0 && mine.every((x) => x.client === DEMO.client.name), 'клиент видит только свои обращения');
 
@@ -154,6 +158,9 @@ try {
   const actAs = await call(boss.cookie, `/api/team/${g.account}/act`, {});
   check(actAs.data?.name === 'Гость' && actAs.data?.role === 'client' && !!actAs.data?.actingAs, 'руководитель работает от имени клиента');
   const byBoss = (await call(boss.cookie, '/api/tickets', { subject: `За гостя ${run}`, body: 'Создано руководителем от имени клиента' })).data;
+  // версии работы от имени пишутся автором — клиентом: панель руководителя ищет их по нему
+  const asGuest = (await call(boss.cookie, '/api/trace')).data?.[0];
+  check(asGuest?.versions.some((v) => v.class === 'Ticket' && v.label === byBoss.number) && asGuest.signals.length > 0, 'под капотом у руководителя: версия заявки, записанная от имени клиента', asGuest);
   const byBossHist = (await call(agent, `/api/tickets/${byBoss.id}/history`)).data;
   check(byBossHist[0].who === 'Гость' && byBossHist[0].agent && /от имени/.test(byBossHist[0].reason), 'журнал: автор — клиент, исполнитель — сервис, причина называет руководителя');
   await call(boss.cookie, '/api/act/stop', {});

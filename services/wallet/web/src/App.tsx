@@ -116,7 +116,7 @@ function Billing({ me }: { me: { name: string } }) {
           </Card>
         </div>
         <UnderHood trace={trace} height="h-[640px]" empty="Пока пусто — проведите операцию."
-          description="Цепочки и запросы к базе для ваших действий." />
+          description="Цепочки, запросы к базе, записанные версии и сигналы в канал схемы для ваших действий." />
       </div>
       <OpDialog dlg={dlg} wallets={data.wallets} onClose={() => setDlg(null)} onDone={() => { setDlg(null); reload(); }} />
       <Dialog open={history !== null} onOpenChange={(o) => !o && setHistory(null)}>

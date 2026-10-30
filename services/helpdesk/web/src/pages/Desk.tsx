@@ -91,7 +91,7 @@ export function Desk({ me, onMe }: { me: Me; onMe: (me: Me | null) => void }) {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(320px,1.3fr)]">
         <div className="min-w-0">{page}</div>
         <UnderHood trace={trace} height="h-[680px]" empty="Пока пусто — сделайте что-нибудь."
-          description="Что сделал сервис на ваше действие: вызовы letopis и запросы к базе (onQuery); медленные — отмечены (slowMs)." />
+          description="Что сделал сервис на ваше действие: вызовы letopis, запросы к базе (onQuery; медленные — отмечены, slowMs), записанные версии и сигналы в канал схемы." />
       </div>
     </div>
   );
