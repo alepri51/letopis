@@ -22,3 +22,31 @@ html.dark .lt-ex-code pre {
 .vp-doc .lt-flow svg p {
   line-height: inherit;
 }
+
+/* подсказки глоссария (theme/glossary.ts): первое упоминание термина на странице */
+.lt-term {
+  position: relative;
+  border-bottom: 1px dotted var(--vp-c-text-3);
+  cursor: help;
+}
+.lt-term:hover::after,
+.lt-term:focus-visible::after {
+  content: attr(data-def);
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  z-index: 30;
+  width: max-content;
+  max-width: min(340px, 80vw);
+  padding: 6px 10px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  background: var(--vp-c-bg-elv);
+  box-shadow: var(--vp-shadow-2);
+  color: var(--vp-c-text-1);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.45;
+  white-space: normal;
+  pointer-events: none;
+}
