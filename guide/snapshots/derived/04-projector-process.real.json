@@ -1,0 +1,311 @@
+{
+  "id": "derived/04-projector-process",
+  "context": {
+    "schema": "v2.g_derived_04_projector_process",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_6b8cd359de25136d0f55b1b72e0b389ed7c478961a2206f3e206e9d33e9b1382",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "9a173d2d5cc05fcf833643fa18e4851d6c43f46b320f3b65e2817b54be590d5c",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "изменений прочитано": 2,
+        "карточки": [
+          "100 — обычная",
+          "250 — крупная"
+        ]
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "451f2862-f990-552c-be34-a4a768559932",
+          "class": "Sale",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "day": "2026-10-30",
+            "amount": 100
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "b86ffc0b-a808-5bdd-8ff2-8503cdab733e",
+          "reason": null,
+          "at": "2026-10-30 08:56:04.85526+00"
+        },
+        {
+          "id": "875bd072-294f-56d3-95fb-969fa0ebbd2f",
+          "class": "Sale",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "day": "2026-10-30",
+            "amount": 250
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "b86ffc0b-a808-5bdd-8ff2-8503cdab733e",
+          "reason": null,
+          "at": "2026-10-30 08:56:04.867606+00"
+        },
+        {
+          "id": "6ee13a68-74a0-564d-a7e5-b66804c8de28",
+          "class": "SaleCard",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "day": "2026-10-30",
+            "sale": "451f2862-f990-552c-be34-a4a768559932",
+            "size": "обычная",
+            "amount": 100
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": "letopis projector cards",
+          "reason": null,
+          "at": "2026-10-30 08:56:04.912463+00"
+        },
+        {
+          "id": "5b41a04f-8911-50bd-8213-e1d3bcd90004",
+          "class": "SaleCard",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "day": "2026-10-30",
+            "sale": "875bd072-294f-56d3-95fb-969fa0ebbd2f",
+            "size": "крупная",
+            "amount": 250
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": "letopis projector cards",
+          "reason": null,
+          "at": "2026-10-30 08:56:04.914027+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "карточки": [
+          "250 — крупная",
+          "300 — крупная"
+        ],
+        "изменений за работу run()": 1,
+        "карточек заменено": 1
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "451f2862-f990-552c-be34-a4a768559932",
+          "class": "Sale",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "day": "2026-10-30",
+            "amount": 300
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "b86ffc0b-a808-5bdd-8ff2-8503cdab733e",
+          "reason": null,
+          "at": "2026-10-30 08:56:04.959224+00"
+        },
+        {
+          "id": "875bd072-294f-56d3-95fb-969fa0ebbd2f",
+          "class": "Sale",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "day": "2026-10-30",
+            "amount": 250
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "b86ffc0b-a808-5bdd-8ff2-8503cdab733e",
+          "reason": null,
+          "at": "2026-10-30 08:56:04.867606+00"
+        },
+        {
+          "id": "6ee13a68-74a0-564d-a7e5-b66804c8de28",
+          "class": "SaleCard",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "day": "2026-10-30",
+            "sale": "451f2862-f990-552c-be34-a4a768559932",
+            "size": "крупная",
+            "amount": 300
+          },
+          "tags": [],
+          "op": "update",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": "letopis projector cards",
+          "reason": null,
+          "at": "2026-10-30 08:56:04.98389+00"
+        },
+        {
+          "id": "5b41a04f-8911-50bd-8213-e1d3bcd90004",
+          "class": "SaleCard",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "day": "2026-10-30",
+            "sale": "875bd072-294f-56d3-95fb-969fa0ebbd2f",
+            "size": "крупная",
+            "amount": 250
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": "letopis projector cards",
+          "reason": null,
+          "at": "2026-10-30 08:56:04.914027+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "name": "cards",
+        "состояние": "running",
+        "intoOf до status()": false,
+        "intoOf SaleCard / Sale": [
+          true,
+          false
+        ],
+        "keyOf SaleCard": [
+          "sale"
+        ],
+        "foldKey { sale }": "[\"SaleCard\",[[\"sale\",\"451f2862-f990-552c-be34-a4a768559932\"]]]",
+        "foldKey { sale, amount }": null
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "451f2862-f990-552c-be34-a4a768559932",
+          "class": "Sale",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "day": "2026-10-30",
+            "amount": 300
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "b86ffc0b-a808-5bdd-8ff2-8503cdab733e",
+          "reason": null,
+          "at": "2026-10-30 08:56:04.959224+00"
+        },
+        {
+          "id": "875bd072-294f-56d3-95fb-969fa0ebbd2f",
+          "class": "Sale",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "day": "2026-10-30",
+            "amount": 250
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "b86ffc0b-a808-5bdd-8ff2-8503cdab733e",
+          "reason": null,
+          "at": "2026-10-30 08:56:04.867606+00"
+        },
+        {
+          "id": "6ee13a68-74a0-564d-a7e5-b66804c8de28",
+          "class": "SaleCard",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "day": "2026-10-30",
+            "sale": "451f2862-f990-552c-be34-a4a768559932",
+            "size": "крупная",
+            "amount": 300
+          },
+          "tags": [],
+          "op": "update",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": "letopis projector cards",
+          "reason": null,
+          "at": "2026-10-30 08:56:04.98389+00"
+        },
+        {
+          "id": "5b41a04f-8911-50bd-8213-e1d3bcd90004",
+          "class": "SaleCard",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "day": "2026-10-30",
+            "sale": "875bd072-294f-56d3-95fb-969fa0ebbd2f",
+            "size": "крупная",
+            "amount": 250
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": "letopis projector cards",
+          "reason": null,
+          "at": "2026-10-30 08:56:04.914027+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": []
+    }
+  ]
+}

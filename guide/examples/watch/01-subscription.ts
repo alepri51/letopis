@@ -50,5 +50,22 @@ export default example({
         return { op: ev.op, title: ev.row.data.title, price: ev.row.data.price, rev: ev.rev };
       },
     },
+    {
+      title: 'Цикл for await, отставание и выход из цикла',
+      text:
+        '`for await (const ev of sub)` выдаёт события по одному. Выход из цикла (`break`) сам вызывает `sub.return()`: ' +
+        'подписка закрыта, следующий `next()` отвечает `done: true`. `sub.lag()` — сколько миллисекунд ждёт самое ' +
+        'старое записанное событие, которое ещё задерживает более старая открытая транзакция; 0 — ждать нечего.',
+      run: async ({ db }) => {
+        const sub = db.watch({ from: 'start', classes: ['Product'] });
+        await sub.ready();
+        const got: string[] = [];
+        for await (const ev of sub) {
+          got.push(`${ev.op} ${ev.row.data.title}`);
+          if (got.length === 3) break;
+        }
+        return { 'события': got, 'ждать нечего (lag = 0)': (await sub.lag()) === 0, 'после break: done': (await sub.next()).done };
+      },
+    },
   ],
 });

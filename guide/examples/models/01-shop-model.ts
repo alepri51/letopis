@@ -62,6 +62,25 @@ export default example({
       run: async ({ db }) => erDiagram(await db.describe(), ['Shop', 'Category', 'Product', 'Customer', 'Order', 'line']),
     },
     {
+      title: 'Конец модели изнутри',
+      text:
+        '`one(…)` и `many(…)` возвращают конец (`End`) — описание ссылки: на какие классы (`targets`, имена — ' +
+        '`classNames()`), одиночная или множественная (`many`), обязательная ли (`required`), сколько целей (`min`, ' +
+        '`max`), что делать при удалении цели (`onDeleteRule`) и метаданные (`metaData`). `optional()`, `onDelete()` и ' +
+        '`meta()` не меняют конец, а возвращают новый.',
+      run: async () => {
+        const categories = many(Category, { max: 5, onDelete: 'unset' });
+        const plain = one('Category');
+        const parent = plain.optional().onDelete('unset').meta({ title: 'Родитель' });
+        const show = (e: typeof categories | typeof parent) => ({
+          targets: e.targets.map((t) => (typeof t === 'string' ? `имя «${t}»` : `модель ${t.name}`)),
+          classNames: e.classNames(), many: e.many, required: e.required, min: e.min ?? null, max: e.max ?? null,
+          onDeleteRule: e.onDeleteRule ?? null, metaData: e.metaData ?? null,
+        });
+        return { 'Product.Category': show(categories), 'Category.Parent': show(parent), 'исходный one(\'Category\') не изменился': plain.required && plain.metaData === undefined };
+      },
+    },
+    {
       title: 'Магазин: id вычисляется из ключа',
       text:
         'У магазина ключ — `name`. Поэтому id не случайный: он вычисляется из арендатора, класса и названия. ' +

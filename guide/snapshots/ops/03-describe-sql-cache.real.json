@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_f991308b4b590255a99f9e9892d0b74f813685f22cefd3a4f766137ece324996",
+      "serviceKey": "lts_6b14773b6624f6029fb9cf360ed317f75e184a80fb58f56df1b7334eaa732318",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "890de97fd99f82d2682eea726695bf99acf71ceb047ab68ea3f843cf7f3aada9",
+        "token": "451a393b2904c6b940e5870e40d1f328f8e676ee6ed4c5f90de9af8d572b8dd3",
         "created": true
       }
     }
@@ -28,14 +28,25 @@
   "steps": [
     {
       "result": {
+        "has Product / Нет": [
+          true,
+          false
+        ],
+        "find Нет": "undefined",
+        "ключ Product (resolve)": [
+          "Shop",
+          "sku"
+        ],
         "семейство Customer": [
           "Customer",
           "Vip"
         ],
-        "ключ Product": [
-          "Shop",
-          "sku"
-        ]
+        "классов всего (all)": 12,
+        "leafType Product.price / title": [
+          "numeric",
+          "text"
+        ],
+        "свой реестр после load: столько же классов": true
       },
       "error": null,
       "entity": [],
@@ -95,7 +106,8 @@
           "listens": 0,
           "enabled": true
         },
-        "режим сигналов": "class"
+        "режим сигналов": "class",
+        "ответов в кэше после clear()": 0
       },
       "error": null,
       "entity": [],

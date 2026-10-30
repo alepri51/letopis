@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_0aceb2b219d14e794e6248e6fb76b32fb044389fa48582f78b57cd09dc983564",
+      "serviceKey": "lts_7a05ec4d0e15ff8ccc5f139a66355efe2ee2ffba91e39c71209895b1cc175b25",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "b48e960bd5e0f5a4854aba115fb067c7b650ab4f3b4d18b16c0224a91bc8a856",
+        "token": "385ffb8ea65f85cde2db821b86ef3b8e552ec0dce4cd21aa713d7783062ea218",
         "created": true
       }
     }
@@ -56,7 +56,7 @@
     {
       "result": [
         {
-          "at": "2026-10-29T18:44:03.257391+00:00",
+          "at": "2026-10-30T08:54:54.760334+00:00",
           "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
           "op": "update",
           "rev": 2,
@@ -73,7 +73,7 @@
           "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "ad415625-91c1-5e86-be60-944fbaa55201"
+          "agent": "1f07b33e-0ed2-505d-8627-a87f32c1bdf4"
         }
       ],
       "error": null,
@@ -88,6 +88,22 @@
         "title": "Чайник",
         "price": 1990,
         "rev": 2
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "события": [
+          "create Чайник",
+          "create Кружка",
+          "update Чайник"
+        ],
+        "ждать нечего (lag = 0)": true,
+        "после break: done": true
       },
       "error": null,
       "entity": [],

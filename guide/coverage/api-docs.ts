@@ -830,6 +830,7 @@ const docs: Record<string, ApiDoc> = {
       exists: '`create` на ключ, который уже занят.',
       commit_unknown: 'вне `db.begin()`: связь оборвалась во время `COMMIT`, исход неизвестен.',
     },
+    examples: ['db.batch'],
   },
   'batch.discard': {
     summary: 'Очищает очередь: планы удаляются без исполнения.',
@@ -1218,6 +1219,7 @@ const docs: Record<string, ApiDoc> = {
     returns: '`{ allow, rule, code, message }`: `allow` — можно ли; `rule` — победившее правило (`id`, `group`, `object`, `weight`, ' +
       '`permission`); `code` и `message` — из запрещающего правила, если они там заданы.',
     errors: { no_session: 'у подключения нет действующей сессии.' },
+    examples: ['db.acl'],
   },
   'acl.checkData': {
     details: 'Подходит, чтобы заранее скрыть в интерфейсе недоступные действия: сами права на строки база применяет при каждом запросе. ' +
@@ -1229,6 +1231,7 @@ const docs: Record<string, ApiDoc> = {
     returns: '`{ allow }` или `{ allow: true, filter }`: `filter` — условие на колонки строк (`id`, `owner`, `tenant`, `tags`, `data`, ' +
       '`links`), под которое должна подойти строка; без `filter` разрешены все строки класса.',
     errors: { invalid_data: 'операция не `READ`, не `WRITE` и не `DELETE`.' },
+    examples: ['db.acl'],
   },
   // ---------- Подписка и кэш, проекторы и агрегаты, загрузка ----------
   // ---------- Подписка: db.watch и Subscription ----------
@@ -1264,6 +1267,7 @@ const docs: Record<string, ApiDoc> = {
       'события, и после затишья дольше яруса `all` продолжение с него — `cursor_expired`. До первого события `sub.cursor` — ' +
       'начальная точка подписки, а при `from: \'now\'` — `null`, пока подписка не запомнила момент «сейчас» ' +
       '(`await sub.ready()` или первый `next()`).',
+    examples: ['nuance.watch-subscription-cursor'],
   },
   'subscription.ready': {
     details:
@@ -1272,6 +1276,7 @@ const docs: Record<string, ApiDoc> = {
       'не попасть. Когда `await sub.ready()` выполнился, момент запомнен: всё, что зафиксировано позже, подписка отдаст. ' +
       'Если запрос к базе не удался, промис отклоняется с его ошибкой.',
     errors: {},
+    examples: ['db.watch', 'nuance.watch-subscription-cursor'],
   },
   'subscription.next': {
     details:
@@ -1298,6 +1303,7 @@ const docs: Record<string, ApiDoc> = {
       'подписки и по тому, что видит её сессия.',
     returns: 'отставание в миллисекундах; `0` — задержанных событий нет.',
     errors: {},
+    examples: ['db.watch'],
   },
   'subscription.close': {
     summary:
@@ -1314,6 +1320,7 @@ const docs: Record<string, ApiDoc> = {
       'чтобы остановить подписку, есть `close()`.',
     returns: '`{ value: undefined, done: true }` — признак конца перебора.',
     errors: {},
+    examples: ['db.watch'],
   },
   'subscription.asyncIterator': {
     summary:
@@ -1322,6 +1329,7 @@ const docs: Record<string, ApiDoc> = {
       'Ошибку чтения журнала (например, `cursor_expired`) цикл бросает наружу, а выход из цикла (`break`) закрывает подписку.',
     returns: 'саму подписку: её метод `next()` отдаёт события циклу.',
     errors: {},
+    examples: ['db.watch'],
   },
 
   // ---------- Опции подписки (WatchOptions) ----------
@@ -1357,6 +1365,7 @@ const docs: Record<string, ApiDoc> = {
       'ответов в кэш уже не положат. Кэш других процессов не меняется. Если кэш выключен (`connect({ cache: false })`), ' +
       'ничего не делает.',
     errors: {},
+    examples: ['cache.max'],
   },
   'dbcache.stats': {
     summary:
@@ -1421,6 +1430,7 @@ const docs: Record<string, ApiDoc> = {
   },
   'projector.name': {
     summary: 'Имя проектора — то, что передано в `db.projector(имя, …)`. Оно же стоит в опции `derivedBy` его производных классов.',
+    examples: ['nuance.projector-run-stop'],
   },
   'projector.run': {
     details:
@@ -1541,12 +1551,14 @@ const docs: Record<string, ApiDoc> = {
       'Если `run()` ждёт новых изменений, он завершается сразу, и его промис выполняется с отчётом. Потом `run()` можно ' +
       'запустить снова.',
     errors: {},
+    examples: ['nuance.projector-run-stop'],
   },
   'projector.close': {
     details:
       'Вызывайте, когда проектор больше не нужен. После `close()` проектор не просыпается от сигналов базы: если снова ' +
       'запустить `run()`, о новых изменениях он узнает только запасным опросом раз в `pollMs`.',
     errors: {},
+    examples: ['nuance.projector-run-stop'],
   },
   'projector.intoOf': {
     details:
@@ -1559,6 +1571,7 @@ const docs: Record<string, ApiDoc> = {
     },
     returns: '`true`, если класс — один из классов `into` этого арендатора или их потомок; иначе `false`.',
     errors: {},
+    examples: ['nuance.projector-run-stop'],
   },
   'projector.keyOf': {
     details:
@@ -1571,6 +1584,7 @@ const docs: Record<string, ApiDoc> = {
     },
     returns: 'поля ключа класса (`[\'day\']`); пустой список — у класса без ключа или не из классов `into` этого арендатора.',
     errors: {},
+    examples: ['nuance.projector-run-stop'],
   },
   'projector.foldKey': {
     details:
@@ -1585,6 +1599,7 @@ const docs: Record<string, ApiDoc> = {
       'строку-ключ (имя класса и пары «поле — значение» в JSON), если строка задана только полями ключа класса и (или) ' +
       '`$id`; иначе `null` — такие приращения уходят в базу по одному.',
     errors: {},
+    examples: ['nuance.projector-run-stop'],
   },
 
   // ---------- Опции проектора (ProjectorOptions) ----------
@@ -1660,6 +1675,7 @@ const docs: Record<string, ApiDoc> = {
       tenant_denied: '`opts.tenant` — не арендатор изменений, переданных в `handle`: пачка откатывается целиком.',
       invalid_data: 'вместо строки передан не объект (например, `null`): изменения арендатора откатываются, и он выбывает.',
     },
+    examples: ['nuance.projector-run-stop'],
   },
   'out.inc': {
     details:
@@ -1705,6 +1721,7 @@ const docs: Record<string, ApiDoc> = {
         'у класса с ключом строку назвали одним id, а не полями ключа — это ошибка кода `handle`: пачка откатывается ' +
         'целиком; передан не id и не объект — изменения арендатора откатываются, и он выбывает.',
     },
+    examples: ['nuance.projector-out-by-key'],
   },
   'out.get': {
     details:
@@ -1733,6 +1750,7 @@ const docs: Record<string, ApiDoc> = {
         'база отклонила накопленные записи `out`: `$id` не совпал с ключом класса или id занят строкой другого класса ' +
         'или арендатора.',
     },
+    examples: ['nuance.projector-out-by-key'],
   },
 
   // ---------- Агрегаты ----------
@@ -2313,25 +2331,32 @@ const docs: Record<string, ApiDoc> = {
   'end.targets': {
     summary: 'Классы целей в том виде, в каком их передали в `one()` или `many()`: модели или имена классов строкой. Имена всех ' +
       'целей отдаёт `classNames()`.',
+    examples: ['model.one'],
   },
   'end.many': {
     summary: '`true` — конец-список (`many()`), `false` — одиночный конец (`one()`).',
+    examples: ['model.one'],
   },
   'end.required': {
     summary: 'Обязателен ли конец. У `one()` — `true`, пока не вызван `optional()`; у `many()` — `true`, если `min` больше 0.',
+    examples: ['model.one'],
   },
   'end.min': {
     summary: 'Наименьшее число целей списка из `many(X, { min })`; если не задано — `undefined`.',
+    examples: ['model.one'],
   },
   'end.max': {
     summary: 'Наибольшее число целей списка из `many(X, { max })`; если не задано — `undefined`, предела нет.',
+    examples: ['model.one'],
   },
   'end.onDeleteRule': {
     summary: 'Действие при удалении цели, заданное `onDelete()`, `many(X, { onDelete })` или свойством `onDelete` описания класса. ' +
       'Если не задано — `undefined`, и база действует как при `restrict`.',
+    examples: ['model.one'],
   },
   'end.metaData': {
     summary: 'Метаданные, заданные `meta()`; если не заданы — `undefined`.',
+    examples: ['model.one'],
   },
   'end.optional': {
     details: 'Исходный конец не меняется — возвращается новый. У одиночного конца ссылки теперь может не быть. У списка ' +
@@ -2358,10 +2383,12 @@ const docs: Record<string, ApiDoc> = {
     params: { meta: 'Объект с любыми ключами: подпись, подсказка, порядок в интерфейсе.' },
     returns: 'Новый конец с этими метаданными.',
     errors: {},
+    examples: ['model.one'],
   },
   'end.classNames': {
     returns: 'Имена классов целей: у модели берётся её имя, строка остаётся как есть.',
     errors: {},
+    examples: ['model.one'],
   },
   'export.syncModels': {
     summary: 'Записывает описания моделей в базу — строками `Class` арендатора текущей сессии — и отвечает, какие классы созданы, ' +
@@ -2829,12 +2856,14 @@ const docs: Record<string, ApiDoc> = {
       'классов. Вызывать его самому не нужно: он заменит описания в реестре подключения, а следующее обновление перепишет их снова.',
     params: { rows: 'Строки класса `Class` из таблицы `entity`: `{ tenant, rev, data }`, где `data.resolved` — описание класса с учётом предков.' },
     errors: {},
+    examples: ['db.registry'],
   },
   'registry.has': {
     summary: 'Проверяет, есть ли в реестре класс с таким именем или алиасом.',
     params: { name: 'Имя класса или его алиас.' },
     returns: '`true`, если класс есть, иначе `false`.',
     errors: {},
+    examples: ['db.registry'],
   },
   'registry.find': {
     summary: 'Находит описание класса по имени или алиасу.',
@@ -2842,17 +2871,20 @@ const docs: Record<string, ApiDoc> = {
     returns: 'Описание класса: имя, вид (`hub` или `link`), предки, схема данных с полями предков, концы, ключ, политика истории, ' +
       'метаданные и другое; `undefined`, если класса нет.',
     errors: {},
+    examples: ['db.registry'],
   },
   'registry.resolve': {
     summary: 'То же, что `find()`, но если класса нет, бросает ошибку. Например, `db.registry.resolve(\'Product\').key` — ключ класса.',
     params: { name: 'Имя класса или его алиас.' },
     returns: 'Описание класса.',
     errors: { invalid_class: 'Класса с таким именем или алиасом нет в реестре.' },
+    examples: ['db.registry'],
   },
   'registry.all': {
     summary: 'Все классы реестра: собственные классы арендатора сессии и классы System.',
     returns: 'Список описаний классов — новый массив при каждом вызове.',
     errors: {},
+    examples: ['db.registry'],
   },
   'registry.family': {
     details: 'Например, `db.registry.family(\'Customer\')` вернёт `Customer` и его потомка `Vip`. Так же шаг цепочки по классу ' +
@@ -2860,6 +2892,7 @@ const docs: Record<string, ApiDoc> = {
     params: { name: 'Имя класса или его алиас.' },
     returns: 'Описания самого класса и всех его потомков любой глубины.',
     errors: { invalid_class: 'Класса с таким именем или алиасом нет в реестре.' },
+    examples: ['db.registry'],
   },
   'registry.leafType': {
     details: 'Служебный метод: по нему библиотека решает, как сравнивать значение поля в фильтре, сортировке и итогах — как число, ' +
@@ -2871,6 +2904,7 @@ const docs: Record<string, ApiDoc> = {
     returns: 'Тип поля: `numeric` (число), `boolean`, `text`, `date`, `timestamptz` (время), `uuid` или `jsonb` — поля нет в ' +
       'описании, у него несколько типов или это объект или массив.',
     errors: { invalid_class: 'Класса с таким именем или алиасом нет в реестре.' },
+    examples: ['db.registry'],
   },
 
   // ---------- пароли и коды ----------

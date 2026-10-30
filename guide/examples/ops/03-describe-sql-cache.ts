@@ -1,4 +1,4 @@
-import { describeText } from 'letopis';
+import { describeText, Registry } from 'letopis';
 import { example } from '../../kit/example.ts';
 import { seedShop } from '../../kit/shop.ts';
 
@@ -12,10 +12,24 @@ export default example({
   steps: [
     {
       title: 'Что знает реестр подключения',
-      text: '`db.registry` — описания классов арендатора: `family()` — класс и потомки, `resolve()` — описание с ключом и концами.',
-      run: async ({ db }) => {
+      text:
+        '`db.registry` — описания классов арендатора и System: `has()` — есть ли класс, `find()` — описание или ' +
+        '`undefined`, `resolve()` — описание или ошибка, `all()` — все классы, `family()` — класс и потомки, ' +
+        '`leafType()` — как сравнивается поле в фильтре. `load()` библиотека вызывает сама, когда меняются классы: ' +
+        'здесь им заполнен отдельный реестр строками класса `Class` из таблицы `entity`.',
+      run: async ({ db, schema }) => {
         await seedShop(db);
-        return { 'семейство Customer': db.registry.family('Customer').map((c) => c.name), 'ключ Product': db.registry.resolve('Product').key };
+        const own = new Registry();
+        own.load(await db.transaction((tx) => tx.unsafe(`select tenant, rev, data from "${schema}".entity where class = 'Class'`)) as never);
+        return {
+          'has Product / Нет': [db.registry.has('Product'), db.registry.has('Нет')],
+          'find Нет': db.registry.find('Нет') ?? 'undefined',
+          'ключ Product (resolve)': db.registry.resolve('Product').key,
+          'семейство Customer': db.registry.family('Customer').map((c) => c.name),
+          'классов всего (all)': db.registry.all().length,
+          'leafType Product.price / title': [db.registry.leafType('Product', ['price']), db.registry.leafType('Product', ['title'])],
+          'свой реестр после load: столько же классов': own.all().length === db.registry.all().length,
+        };
       },
     },
     {
@@ -36,7 +50,10 @@ export default example({
     },
     {
       title: 'Кэш только по сроку и отправка сигналов сейчас',
-      text: '`cache: { ttlOnly: true, max }` — кэш без подписки на сигналы (LISTEN), например при работе через PgBouncer. `flushSignals()` шлёт накопленные сигналы, не дожидаясь интервала.',
+      text:
+        '`cache: { ttlOnly: true, max }` — кэш без подписки на сигналы (LISTEN), например при работе через PgBouncer. ' +
+        '`flushSignals()` шлёт накопленные сигналы, не дожидаясь интервала. `db.cache.clear()` очищает кэш подключения ' +
+        'целиком — следующее чтение пойдёт в базу.',
       run: async ({ connect, schema, up, admin }) => {
         const tok = up.tenant!.token!;
         const c = await connect({ sql: admin as never, schema, token: tok, allowBypassRls: true, cache: { ttlOnly: true, max: 2 }, listen: false });
@@ -44,7 +61,9 @@ export default example({
         await c.Product().cache({ ttl: 30 }).count();
         await c.flushSignals();
         const mode = (await c.transaction((tx) => tx.unsafe(`select "${schema}".signal_mode() as m`)))[0].m;
-        return { stats: c.cache.stats(), 'режим сигналов': mode };
+        const stats = c.cache.stats();
+        c.cache.clear();
+        return { stats, 'режим сигналов': mode, 'ответов в кэше после clear()': c.cache.stats().size };
       },
     },
     {

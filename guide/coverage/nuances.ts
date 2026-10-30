@@ -238,6 +238,11 @@ const nuances: Nuance[] = [
     source: 'пример derived/03-projector-options; lib/src/project.ts:Out',
   },
   {
+    id: 'projector-run-stop',
+    text: 'run() без once не завершается сам: догоняет журнал и ждёт новых изменений. Остановить — stop() (промис run() выполнится с отчётом); процесс, который больше не запускает run(), вызывает close() — проектор отключается от сигналов базы.',
+    source: 'lib/src/project.ts:Projector.stop, close; пример derived/04-projector-process',
+  },
+  {
     id: 'registry-refresh',
     text: 'Другое подключение узнаёт о новом классе по сигналу, с задержкой: описания классов оно держит в памяти (реестр классов); сразу — db.refresh().',
     source: 'lib/src/index.ts:refresh; пример derived/02-projector',
