@@ -13,11 +13,9 @@ const TITLES: Record<string, string> = {
   money: 'Деньги', access: 'Права', auth: 'Вход', history: 'История', watch: 'Подписка', derived: 'Агрегаты', load: 'Загрузка',
   ops: 'Эксплуатация', mcp: 'MCP', errors: 'Ошибки',
 };
-// коды без примера (примером не вызвать или сайт их не показывает) — с объяснением
+// коды без примера — с объяснением, почему его нет
 const NOTE: Record<string, string> = {
-  commit_unknown: 'примером не воспроизвести — нужен обрыв сети; что делать — повторить ту же операцию с тем же ключом: ответ `exists` значит, что она уже записана',
-  projector_busy: 'что делать — дождаться и повторить',
-  removed: 'так отвечают методы и опции, снятые после версии 0.21; переход с 0.21 сайт не описывает, поэтому примера нет',
+  removed: 'примера нет: так отвечают методы и опции, снятые после версии 0.21, а переход с 0.21 сайт не описывает',
 };
 // что значит код — одной фразой (по разделу «Ошибки» lib/README.md)
 const MEANING: Record<string, string> = {
@@ -67,6 +65,54 @@ const MEANING: Record<string, string> = {
   user_session_required: 'серверу MCP нужна сессия пользователя, а не ключ сервиса или пустое подключение',
 };
 
+// что делать, получив код, — одной-двумя фразами (по разделу «Ошибки» lib/README.md и коду lib/src)
+const DO: Record<string, string> = {
+  acl_denied: 'добавить правило доступа (`Rule`) или выполнить действие от пользователя, которому оно разрешено; проверить заранее — `db.acl.checkData`, `db.acl.check`',
+  admin_required: 'запускать загрузчик, проектор и `rebuildAggregates` на администраторском подключении (`allowBypassRls: true`) в отдельном процессе',
+  aggregate_field: 'не передавать агрегатное поле в `create`, `update` и `upsert` — его посчитает база; починить расхождение — `rebuildAggregates(класс)`',
+  bypass_rls: 'подключать приложение отдельной ролью из группы `letopis_app`; администраторскому подключению — `allowBypassRls: true`; сервер MCP — только поверх подключения приложения',
+  class_not_loadable: 'классы записывать `syncModels`, а загрузчику передавать только строки данных',
+  commit_unknown: 'повторить ту же операцию с тем же ключом: `exists` — она уже записана, успех — в первый раз не записалась; без ключа исход не выяснить, поэтому операциям с деньгами нужен ключ',
+  confirm_mismatch: 'передать в `confirm` точное имя схемы установки',
+  confirmation_required: 'подтвердить удаление в клиенте MCP; клиенту, который не умеет спрашивать человека, удаление недоступно',
+  conflict: 'перечитать строку и повторить правку с новым `rev`; для чисел — `inc` вместо записи итога',
+  cursor_expired: "подписку начать заново (`from: 'now'` или `'start'`) и перечитать нужное состояние, проектору — `rebuild()` или `onExpired: 'rebuild'`; сохранять `sub.cursor`, а не курсор события",
+  delete_restricted: 'сначала удалить или перевести ссылающиеся строки — или сменить у их конца действие при удалении (`onDelete`)',
+  deleted: "загрузить с `existing: 'update'` — объект оживёт новой версией — или дать ему другой id",
+  derived_class: 'писать в производный класс только его проектором (`db.projector`); приложение такие строки только читает',
+  duplicate: 'убрать повторы id из входных данных: первые 100 — в `detail.rows`',
+  exists: 'при повторе операции с ключом это ответ «уже записано»; иначе — `update`, `upsert` или другой ключ',
+  id_from_db: 'не передавать `id` — база выдаст его сама; нужен постоянный id — дать классу ключ',
+  id_mismatch: 'не передавать `id` у класса с ключом — база вычислит его из ключа; узнать заранее — `db.idOf(класс, ключ)`',
+  immutable_key: 'новый ключ — `rekey()`; id, арендатор и владелец строки не меняются',
+  invalid_class: 'проверить имя (`db.registry.has`) и описание класса (`syncModels` без `apply` покажет план); удалить класс можно только без строк, потомков и истории',
+  invalid_data: 'исправить данные по `issues` (путь, правило, сообщение); проверить до отправки — `compileValidator`',
+  invalid_query: 'исправить цепочку или вызов: текст ошибки называет неверный шаг или аргумент',
+  isolation_level: 'удалять, менять класс и ключ в транзакции уровня `read committed` — он стоит по умолчанию',
+  lock_unsupported: 'брать `forUpdate()` в простом чтении строк, а итоги, срезы и правки делать отдельными шагами',
+  no_key: 'дать классу ключ (`key` в модели) или работать по id: `update` вместо `upsert`',
+  no_path: 'переходить по объявленным концам: между классами шагов нужна ссылка, роль конца — имя шага',
+  no_session: 'войти заново: истёкшую или отозванную сессию не вернуть',
+  not_deleted: 'сначала `delete()`, потом `restore()` или `purge()`',
+  not_empty: 'первую заливку делать в новую схему (`up({ fresh: true })`), в заполненную — загрузка без `initial`',
+  projector_busy: 'дождаться конца прохода другого процесса и повторить',
+  projector_pending: 'запустить `run()` проектора и повторить',
+  rebuild_required: 'выполнить `rebuild()` проектора: логика `handle` сменилась вместе с `version`',
+  reclass_denied: 'сначала перевести ссылки других строк — или выбрать класс, который их роли принимают',
+  recreated_in_statement: 'удалить и создать объект разными операторами',
+  removed: 'заменить вызов тем, что назван в тексте ошибки',
+  reset_disabled: 'сброс работает только в установке с `up({ allowReset: true })`; рабочей базе его лучше не включать',
+  rev_ambiguous: 'сузить шаг до одной строки (id или ключ) или убрать `{ rev }`',
+  target_not_found: 'проверить id и права: чужой и невидимый объект неотличим от несуществующего',
+  tenant_denied: 'работать в арендаторе, где у пользователя есть членство, — сменить его `auth.switch()`',
+  tightening_conflict: 'исправить или удалить строки из списка ошибки и снова вызвать `syncModels`',
+  tx_required: 'вызывать внутри транзакции: `const tr = await db.begin()` … `await tr.commit()`',
+  tx_rolled_back: 'не глушить ошибки внутри `tr.transaction(fn)`: устранить причину и повторить весь блок',
+  undeclared_end: 'объявить конец в модели класса (`ends`) или исправить имя роли',
+  use_reclass: 'сменить класс через `reclass()`: у объекта будет новый id, ссылки переведутся сами',
+  user_session_required: 'создавать сервер MCP на подключении пользователя (`svc.as(…)` или `connect({ token })`), а не на корне сервиса',
+};
+
 const errorsTs = await readFile(join(LIB, 'errors.ts'), 'utf8');
 const codes = new Set<string>([...errorsTs.matchAll(/LT\d{3}:\s*'([a-z_]+)'/g)].map((m) => m[1]));
 for (const f of await readdir(LIB)) {
@@ -85,7 +131,7 @@ for (const dir of await readdir(join(ROOT, 'examples'))) {
 // коды из примеров и примечаний — тоже в списке (часть кодов библиотека бросает через помощники: removed(), commitUnknown())
 for (const c of [...where.keys(), ...Object.keys(NOTE)]) codes.add(c);
 const link = (d: string) => `[${TITLES[d] ?? d}](../${d === 'basics' ? 'basics/what-is' : `${d}/`})`;
-const rows = [...codes].sort().map((c) => `| \`${c}\` | ${MEANING[c] ?? ''} | ${[...(where.get(c) ?? [])].sort().map(link).join(', ') || '—'} | ${NOTE[c] ?? ''} |`);
+const rows = [...codes].sort().map((c) => `| \`${c}\` | ${MEANING[c] ?? ''} | ${DO[c] ?? ''} | ${[...(where.get(c) ?? [])].sort().map(link).join(', ') || NOTE[c] || '—'} |`);
 const page = `# Ошибки
 
 Ошибка letopis — \`LetopisError\` с полем \`code\`: по коду программа решает, что делать. Ошибки проверки данных — \`ValidationError\`, нарушения перечислены в её поле \`issues\`. Те же коды получает и сырой SQL, выполненный под сессией letopis; ошибку драйвера превращает в \`LetopisError\` функция \`fromDbError\`.
@@ -104,15 +150,15 @@ const page = `# Ошибки
 
 ## Все коды
 
-В таблице — все коды ошибок letopis. Ссылка в колонке «Где показан» ведёт на главу, где живой пример вызывает эту ошибку.
+В таблице — все коды ошибок letopis и что делать, получив код. Ссылка в колонке «Где показан» ведёт на главу, где живой пример вызывает эту ошибку.
 
-| Код | Что значит | Где показан | Примечание |
+| Код | Что значит | Что делать | Где показан |
 |---|---|---|---|
 ${rows.join('\n')}
 `;
 const file = join(ROOT, 'pages', 'errors', 'index.md');
-const unexplained = [...codes].filter((c) => !MEANING[c]);
-if (unexplained.length) console.warn(`без описания в MEANING: ${unexplained.join(', ')}`);
+const unexplained = [...codes].filter((c) => !MEANING[c] || !DO[c]);
+if (unexplained.length) { console.error(`без описания в MEANING или DO: ${unexplained.join(', ')}`); process.exit(1); }
 if (process.argv.includes('--check')) {
   if ((await readFile(file, 'utf8').catch(() => '')) !== page) { console.error('pages/errors/index.md устарела: npx tsx scripts/gen-errors.ts'); process.exit(1); }
   console.log(`кодов: ${codes.size} — страница актуальна`);

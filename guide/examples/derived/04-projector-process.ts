@@ -30,19 +30,24 @@ export default example({
     'out.upsert заменяет строку результата целиком. intoOf, keyOf и foldKey — служебные методы, на которых работает out.',
   tables: ['entity'],
   classes: ['Sale', 'SaleCard'],
-  covers: ['nuance.projector-run-stop'],
+  covers: ['nuance.projector-run-stop', 'error.projector_busy'],
   steps: [
     {
       title: 'Витрина продаж: карточка на каждую продажу',
-      text: 'Проектор `cards` пишет на каждую продажу карточку — `out.upsert` с ключом `sale` (id продажи).',
+      text:
+        'Проектор `cards` пишет на каждую продажу карточку — `out.upsert` с ключом `sale` (id продажи). Первый ' +
+        '`run({ once: true })` строит витрину по уже записанным продажам, следующий — догоняет журнал.',
       run: async ({ db, connect, dsn, schema, up }) => {
         adm = await connect({ dsn: dsn.admin, schema, token: up.tenant!.token!, allowBypassRls: true });
         await syncModels(adm, [Sale, SaleCard], { apply: true });
         await db.refresh();
+        const p = adm.projector('cards', { from: ['Sale'], into: ['SaleCard'], version: 1, handle });
         [small] = await db.Sale().create({ day: '2026-10-30', amount: 100 }).rows();
+        await p.run({ once: true });
         await db.Sale().create({ day: '2026-10-30', amount: 250 }).rows();
-        const report = await adm.projector('cards', { from: ['Sale'], into: ['SaleCard'], version: 1, handle }).run({ once: true });
-        return { 'изменений прочитано': report.changes, 'карточки': await cards(db) };
+        const report = await p.run({ once: true });
+        p.close();
+        return { 'изменений во втором проходе': report.changes, 'карточки': await cards(db) };
       },
     },
     {
@@ -86,6 +91,34 @@ export default example({
         p.close();
         return r;
       },
+    },
+    {
+      title: 'Перестройка во время прохода — projector_busy',
+      text:
+        'Пачку проектора пишет один процесс: проход держит замок проектора, пока его `handle` не закончит работу. ' +
+        'Здесь `handle` первого процесса ждёт, а второй в это время вызывает `rebuild()` — и сразу получает ' +
+        '`projector_busy`. Что делать — дождаться конца прохода и повторить.',
+      run: async ({ db }) => {
+        let entered!: () => void, release!: () => void;
+        const inside = new Promise<void>((r) => { entered = r; });
+        const gate = new Promise<void>((r) => { release = r; });
+        const slow = adm.projector('cards', { from: ['Sale'], into: ['SaleCard'], version: 1, handle: async (changes, out) => {
+          entered();
+          await gate; // проход стоит внутри handle — замок проектора занят
+          handle(changes, out);
+        } });
+        await db.Sale().create({ day: '2026-10-30', amount: 50 }).rows();
+        const pass = slow.run({ once: true });
+        await inside;
+        try {
+          return await adm.projector('cards', { from: ['Sale'], into: ['SaleCard'], version: 1, handle }).rebuild();
+        } finally {
+          release();
+          await pass;
+          slow.close();
+        }
+      },
+      expect: { error: 'projector_busy' },
     },
   ],
 });

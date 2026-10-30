@@ -1,0 +1,300 @@
+{
+  "id": "money/03-commit-unknown",
+  "context": {
+    "schema": "v2.g_money_03_commit_unknown",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_b121885fa599cadf54ffc56ee53d181c95e447e225d570686425ca9d422e82a2",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "f5b6f5f9e4077a628d9e6bc6e4329874173b874253c2446ebcbda0da887a900d",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "баланс": 1000
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "class": "Wallet",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 1000
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "16a88912-0667-5cd4-8f42-ddd61e602571",
+          "reason": null,
+          "at": "2026-10-30 08:59:25.175523+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "commit_unknown",
+        "message": "letopis: commit_unknown: связь оборвалась во время commit: транзакция могла зафиксироваться — проверьте исход повтором той же операции с тем же ключом",
+        "detail": null
+      },
+      "entity": [
+        {
+          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "class": "Wallet",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 1000
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "16a88912-0667-5cd4-8f42-ddd61e602571",
+          "reason": null,
+          "at": "2026-10-30 08:59:25.175523+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "до повтора": {
+          "операция op-2 в базе": false,
+          "баланс": 1000
+        },
+        "повтор": "проведено",
+        "после повтора": {
+          "операция op-2 в базе": true,
+          "баланс": 700
+        }
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "class": "Wallet",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 700
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "16a88912-0667-5cd4-8f42-ddd61e602571",
+          "reason": "debit op-2",
+          "at": "2026-10-30 08:59:25.325895+00"
+        },
+        {
+          "id": "ac2302d5-fd59-5902-9ad9-cb6bf0469925",
+          "class": "Movement",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+          },
+          "data": {
+            "kind": "debit",
+            "opId": "op-2",
+            "amount": 300
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "16a88912-0667-5cd4-8f42-ddd61e602571",
+          "reason": "debit op-2",
+          "at": "2026-10-30 08:59:25.311584+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "commit_unknown",
+        "message": "letopis: commit_unknown: связь оборвалась во время commit: транзакция могла зафиксироваться — проверьте исход повтором той же операции с тем же ключом",
+        "detail": null
+      },
+      "entity": [
+        {
+          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "class": "Wallet",
+          "rev": 3,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 500
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": null,
+          "reason": "debit op-3",
+          "at": "2026-10-30 08:59:25.403319+00"
+        },
+        {
+          "id": "ac2302d5-fd59-5902-9ad9-cb6bf0469925",
+          "class": "Movement",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+          },
+          "data": {
+            "kind": "debit",
+            "opId": "op-2",
+            "amount": 300
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "16a88912-0667-5cd4-8f42-ddd61e602571",
+          "reason": "debit op-2",
+          "at": "2026-10-30 08:59:25.311584+00"
+        },
+        {
+          "id": "94f2bba0-5025-5e78-b0eb-3f85375bc289",
+          "class": "Movement",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+          },
+          "data": {
+            "kind": "debit",
+            "opId": "op-3",
+            "amount": 200
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": null,
+          "reason": "debit op-3",
+          "at": "2026-10-30 08:59:25.38041+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": []
+    },
+    {
+      "result": {
+        "до повтора": {
+          "операция op-3 в базе": true,
+          "баланс": 500
+        },
+        "повтор": "уже было",
+        "после повтора": {
+          "операция op-3 в базе": true,
+          "баланс": 500
+        }
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "class": "Wallet",
+          "rev": 3,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 500
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": null,
+          "reason": "debit op-3",
+          "at": "2026-10-30 08:59:25.403319+00"
+        },
+        {
+          "id": "ac2302d5-fd59-5902-9ad9-cb6bf0469925",
+          "class": "Movement",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+          },
+          "data": {
+            "kind": "debit",
+            "opId": "op-2",
+            "amount": 300
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "16a88912-0667-5cd4-8f42-ddd61e602571",
+          "reason": "debit op-2",
+          "at": "2026-10-30 08:59:25.311584+00"
+        },
+        {
+          "id": "94f2bba0-5025-5e78-b0eb-3f85375bc289",
+          "class": "Movement",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+          },
+          "data": {
+            "kind": "debit",
+            "opId": "op-3",
+            "amount": 200
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": null,
+          "reason": "debit op-3",
+          "at": "2026-10-30 08:59:25.38041+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": []
+    }
+  ]
+}

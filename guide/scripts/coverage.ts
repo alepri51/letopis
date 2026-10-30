@@ -132,8 +132,6 @@ for (const file of walk(join(ROOT, 'examples'))) {
 // коды без примера — исключения с объяснением: примером не вызвать или сайт их не показывает
 // (их же примечания — на странице главы 16)
 const EXEMPT: Record<string, string> = {
-  'error.commit_unknown': 'нужен обрыв связи во время COMMIT — тесты balance с прокси',
-  'error.projector_busy': 'нужна гонка двух процессов перестройки',
   'error.removed': 'охранники API, снятого после 0.21: переход с 0.21 сайт не описывает (решение владельца)',
 };
 for (const [item, why] of Object.entries(EXEMPT)) if (!covered.has(item)) covered.set(item, [`исключение: ${why}`]);
