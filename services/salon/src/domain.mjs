@@ -146,21 +146,35 @@ export async function setPrice(db, serviceId, rub, trace = []) {
   return row;
 }
 
+export const PRICE_LINES = 1000; // строк в прайсе списком — не больше
+export const PRICE_LINE_CHARS = 200; // знаков в строке — не больше
+
 /**
- * Прайс списком: строка — «услуга; цена» (разделитель — «;», «:» или табуляция), пустые строки пропускаются.
+ * Прайс списком: строка — «услуга; цена» (разделитель — первый из «;», «:» или табуляции), пустые строки пропускаются.
  * Услуга — по названию из каталога салона (без учёта регистра): неизвестная — ошибка с номером строки.
+ * Размер ограничен (PRICE_LINES строк по PRICE_LINE_CHARS знаков), а разбор — без регулярных выражений с
+ * перекрывающимися квантификаторами: разделитель — indexOf, суффикс валюты — отдельным шагом, цена — якорным
+ * /^\d[\d ]*$/. Иначе длинная строка из цифр и пробелов надолго заняла бы поток Node перебором (ReDoS).
  */
 export function parsePriceList(text, services) {
   const byName = new Map(services.map((x) => [x.data.name.toLowerCase(), x]));
+  const rows = String(text).split(/\r?\n/);
+  if (rows.length > PRICE_LINES) throw new Error(`не больше ${PRICE_LINES} строк`);
   const items = [];
-  String(text).split(/\r?\n/).forEach((raw, i) => {
+  rows.forEach((raw, i) => {
+    if (raw.length > PRICE_LINE_CHARS) throw new Error(`строка ${i + 1}: длиннее ${PRICE_LINE_CHARS} знаков`);
     const line = raw.trim();
     if (!line) return;
-    const m = /^(.+?)\s*[;:\t]\s*(\d[\d\s]*)\s*(?:₽|руб\.?)?$/.exec(line);
-    if (!m) throw new Error(`строка ${i + 1}: «${line}» — нужно «услуга; цена»`);
-    const service = byName.get(m[1].trim().toLowerCase());
-    if (!service) throw new Error(`строка ${i + 1}: услуги «${m[1].trim()}» нет в каталоге салона`);
-    const rub = Number(m[2].replace(/\s/g, ''));
+    const at = Math.min(...[';', ':', '\t'].map((c) => line.indexOf(c)).filter((k) => k >= 0));
+    const name = Number.isFinite(at) ? line.slice(0, at).trim() : '';
+    let price = Number.isFinite(at) ? line.slice(at + 1).trim() : '';
+    for (const unit of ['₽', 'руб.', 'руб']) {
+      if (price.endsWith(unit)) { price = price.slice(0, -unit.length).trim(); break; }
+    }
+    if (!name || !/^\d[\d ]*$/.test(price)) throw new Error(`строка ${i + 1}: «${line}» — нужно «услуга; цена»`);
+    const service = byName.get(name.toLowerCase());
+    if (!service) throw new Error(`строка ${i + 1}: услуги «${name}» нет в каталоге салона`);
+    const rub = Number(price.replace(/ /g, ''));
     if (!Number.isSafeInteger(rub)) throw new Error(`строка ${i + 1}: цена — целое число рублей`);
     items.push({ serviceId: service.id, rub });
   });

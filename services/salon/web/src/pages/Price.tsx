@@ -91,7 +91,7 @@ export function Price({ onChanged }: { onChanged: () => void }) {
         <CardHeader>
           <CardTitle>Прайс списком</CardTitle>
           <CardDescription>
-            Строка — «услуга; цена». Список пишет <code>db.load()</code> администраторским подключением: <code>COPY</code> мимо RLS одной
+            Строка — «услуга; цена», не больше 1000 строк по 200 знаков. Список пишет <code>db.load()</code> администраторским подключением: <code>COPY</code> мимо RLS одной
             транзакцией, от вашего имени и в ваш салон (<code>as</code>, <code>tenant</code>) — права и услуги проверяет загрузчик.
             <code> existing: 'update'</code>: цена есть — новая версия, та же — пропуск.
           </CardDescription>

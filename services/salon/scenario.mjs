@@ -110,6 +110,14 @@ try {
     'под капотом: загрузка — версии price от имени вошедшей (load({ as })), сигнал price');
   const same = await call(cookie, '/api/price/load', { text: list });
   check(same.status === 200 && same.data.skipped === before.length && same.data.loaded + same.data.updated === 0, 'тот же список ещё раз — без изменений: всё в skipped');
+  // ReDoS: строка в 50 000 знаков из цифр и пробелов с неподходящим концом — отказ сразу, без перебора;
+  // больше 1000 строк — тоже отказ
+  const t0 = Date.now();
+  const huge = await call(cookie, '/api/price/load', { text: `${cut.name}; 1${' '.repeat(50_000)}x` });
+  const ms = Date.now() - t0;
+  const many = await call(cookie, '/api/price/load', { text: `${cut.name}; 1\n`.repeat(1001) });
+  check(huge.status === 422 && /длиннее 200/.test(huge.data?.error ?? '') && ms < 1000 && many.status === 422 && /1000 строк/.test(many.data?.error ?? ''),
+    `прайс списком: строка в 50 000 знаков — отказ 422 за ${ms} мс, больше 1000 строк — отказ`);
   const unknown = await call(cookie, '/api/price/load', { text: `${cut.name}; 1\nМассаж спины; 3000` });
   check(unknown.status === 422 && /Массаж спины/.test(unknown.data?.error ?? '') && (await call(cookie, '/api/price')).data.find((x) => x.id === cut.id)?.price === want.get(cut.id),
     'неизвестная услуга в списке — 422, ничего не загружено');
