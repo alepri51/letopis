@@ -84,7 +84,7 @@ try {
   // панель «Под капотом»: версия заявки из журнала схемы и сигналы канала (режим tenant — «класс@токен арендатора»)
   const hood = (await call(client.cookie, '/api/trace')).data?.[0];
   check(hood?.title === 'Новое обращение' && hood.versions.some((v) => v.class === 'Ticket' && v.op === 'create' && v.label === t.number)
-    && hood.signals.some((x) => x.startsWith('Ticket@')), 'под капотом: обращение — версия Ticket, сигналы канала схемы', hood);
+    && hood.signals.includes('Ticket') && hood.signals.every((x) => !x.includes('@')), 'под капотом: обращение — версия Ticket, сигналы записанных классов без токенов', hood);
   const mine = (await call(client.cookie, '/api/tickets')).data.rows;
   check(mine.length > 0 && mine.every((x) => x.client === DEMO.client.name), 'клиент видит только свои обращения');
 
@@ -144,6 +144,18 @@ try {
   const there = (await call(agent, '/api/tickets')).data.rows;
   check(sw.data?.company === 'Байкал' && there.length > 0 && there.every((x) => !queue.some((y) => y.id === x.id)), 'агент перешёл в «Байкал» (auth.switch): заявок «Севера» не видно');
   await call(agent, '/api/switch', { tenant: me.tenant });
+  // одна учётная запись в двух компаниях: вторая вкладка агента (вход до TOTP) — в «Байкале»; действия в обеих разом —
+  // панель «Севера» не показывает версий и сигналов «Байкала» и наоборот
+  await call(agent0.cookie, '/api/switch', { tenant: baikal.tenant });
+  const bt = (await call(agent0.cookie, '/api/tickets')).data.rows[0];
+  await Promise.all([
+    call(agent, `/api/tickets/${t.id}/reply`, { text: 'Сверили с «Байкалом» — у них другое', internal: true }),
+    call(agent0.cookie, `/api/tickets/${bt.id}/assign`, {}),
+  ]);
+  const inSever = (await call(agent, '/api/trace')).data[0], inBaikal = (await call(agent0.cookie, '/api/trace')).data[0];
+  check(inSever.versions.length > 0 && inSever.versions.every((v) => v.class === 'Note') && inSever.signals.join() === 'Note'
+    && inBaikal.versions.length > 0 && inBaikal.versions.every((v) => v.class === 'Ticket' && v.label === bt.number) && inBaikal.signals.join() === 'Ticket',
+  'под капотом: действия агента в «Севере» и «Байкале» разом — у каждой панели версии и сигналы только своей компании', { inSever, inBaikal });
 
   // 7. руководитель: приглашение, работа от имени, завершение сеансов, удаление из компании
   const login = `guest-${run}@sever.ru`;

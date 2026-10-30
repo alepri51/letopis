@@ -1,6 +1,6 @@
 /**
  * Панель «Под капотом» сервисов-примеров: что сделало каждое действие пользователя — цепочки letopis, запросы к базе,
- * записанные версии с изменёнными полями и сигналы в канал схемы (журнал GET /api/trace, сервер —
+ * записанные версии с изменёнными полями и сигналы классов, которые записало действие (журнал GET /api/trace, сервер —
  * services/shared/trace.mjs). Общий файл четырёх приложений: импортирует только React и UI приложения
  * (@/components/ui/...); подключён алиасом @shared (vite.config.ts, tsconfig.app.json).
  */
@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 export type TraceVersion = { class: string; id: string; label: string; rev: number; op: string; reason: string; fields: string[]; ends: string[] };
 /**
  * Запись журнала: действие, его цепочки (lines), запросы к базе (onQuery; slow — дольше slowMs), записанные версии
- * (первые из versionsTotal) и сигналы канала схемы (NOTIFY) без повторов.
+ * (первые из versionsTotal) и сигналы классов, которые записало действие (только имя класса).
  */
 export type Trace = {
   at: string; title: string; lines: string[];
@@ -22,8 +22,6 @@ export type Trace = {
   error: string | null;
 };
 
-/** Длинный токен в сигнале (класс@арендатор в режиме tenant, тег сессии) — началом; целиком — в подсказке. */
-const short = (signal: string) => signal.replace(/[0-9a-f]{12,}/g, (t) => `${t.slice(0, 6)}…`);
 const head = 'h-7 px-1.5';
 const cell = 'p-1.5 align-top';
 
@@ -63,7 +61,7 @@ export function UnderHood({ trace, description, empty, height }: { trace: Trace[
             {t.versionsTotal > t.versions.length && <p className="text-xs text-muted-foreground">…и ещё версий: {t.versionsTotal - t.versions.length}</p>}
             {t.signals.length > 0 && (
               <div className="mt-2 flex flex-wrap items-center gap-1 text-xs text-muted-foreground" data-signals={t.signals.length}>сигналы:
-                {t.signals.map((s) => <Badge key={s} variant="secondary" title={s}>{short(s)}</Badge>)}
+                {t.signals.map((s) => <Badge key={s} variant="secondary">{s}</Badge>)}
               </div>
             )}
             {t.error && <p className="text-xs text-destructive">{t.error}</p>}

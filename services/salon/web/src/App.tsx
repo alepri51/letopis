@@ -160,7 +160,7 @@ function Salon({ me }: { me: { salon: string; name: string }; onLogout?: () => v
           </CardContent>
         </Card>
         <UnderHood trace={trace} height="h-[560px]" empty="Пока пусто — запишите клиента."
-          description="Что сделала библиотека для ваших действий: цепочки, запросы к базе, записанные версии и сигналы в канал схемы." />
+          description="Что сделала библиотека для ваших действий: цепочки, запросы к базе, записанные версии и сигналы классов, которые записало действие." />
       </div>
       <BookDialog slot={slot} day={data.day} services={data.services} onClose={() => setSlot(null)} onDone={(msg, ok) => { setSlot(null); ok ? toast.success(msg) : toast.error(msg); reload(); }} />
       <Dialog open={history !== null} onOpenChange={(o) => !o && setHistory(null)}>

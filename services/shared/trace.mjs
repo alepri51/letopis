@@ -5,12 +5,16 @@
  * - queries — запросы к базе: хук onQuery подключения (connect({ onQuery })) кладёт их в запись текущего действия,
  *   действие находится через AsyncLocalStorage;
  * - versions — версии, которые действие записало: строки log схемы после отметки до действия (seq) с автором —
- *   аккаунтом сессии; изменённые поля — сравнение с прошлой версией того же id (поля верхнего уровня data и концы);
- * - signals — что действие отправило в канал схемы (NOTIFY), без повторов (fence).
- * Журнал схемы читает и канал слушает администраторское подключение сервиса (postgres по ADMIN_DSN).
+ *   аккаунтом сессии, в арендаторе действия; читает их подключение самой сессии — под RLS (политика log_select
+ *   пропустит только видимое ей); изменённые поля — сравнение с прошлой версией того же id (поля верхнего уровня
+ *   data и концы);
+ * - signals — сигналы классов, которые записало действие (классы его версий), только имя класса: токены арендаторов
+ *   (класс@токен в режиме tenant), session:… и * не показываются.
+ * Панель видят все вошедшие, в том числе клиенты и работающие от имени, поэтому чужого арендатора в записи быть не
+ * должно: администраторское подключение (postgres по ADMIN_DSN) берёт только отметку seq — число — и слушает канал.
  * Запись — в начало s.trace веб-сессии, длина журнала — size; GET /api/trace отдаёт его вкладке (serve).
- * Границы действия — время, а не транзакции: одновременные действия одного автора видят версии друг друга, а в
- * сигналы попадает всё, что пришло в канал за время действия, — и от чужих записей (например, проектора).
+ * Границы действия — время, а не транзакции: одновременные действия одного автора в том же арендаторе видят версии
+ * друг друга. Запись onQuery не сообщает (только чтения), поэтому сигналы классов без журнала (history: false) не видны.
  * Только встроенные модули Node: файл общий для четырёх сервисов (из src/server.mjs — '../../shared/trace.mjs').
  */
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -27,11 +31,12 @@ const named = (d) => ['number', 'name', 'opId', 'alias', 'title', 'subject'].map
 
 /**
  * admin — администраторское подключение (postgres), schema — схема установки, она же канал NOTIFY.
- * author(s) — чьи версии искать (по умолчанию s.account); flush(s) — подключения letopis, через которые действие
- * пишет (по умолчанию s.db); label(v) — своя подпись строки журнала v; probe(s) — своё наблюдение за действием:
- * зовётся до него, возвращённая функция дописывает строки после.
+ * author(s) — чьи версии искать (по умолчанию s.account); reader(s) — подключение letopis, которым их читать под
+ * RLS (по умолчанию s.db; его арендатор — арендатор действия); flush(s) — подключения, через которые действие пишет
+ * (по умолчанию s.db); label(v) — своя подпись строки журнала v; probe(s) — своё наблюдение за действием: зовётся
+ * до него, возвращённая функция дописывает строки после.
  */
-export async function createTrace({ admin, schema, size = 12, author = (s) => s.account, flush = (s) => [s.db], label, probe }) {
+export async function createTrace({ admin, schema, size = 12, author = (s) => s.account, reader = (s) => s.db, flush = (s) => [s.db], label, probe }) {
   const als = new AsyncLocalStorage(); // запросы к базе — в журнал текущего действия
   const onQuery = (e) => als.getStore()?.queries.push({ mode: e.mode, classes: e.classes.join(', '), rows: e.rows, ms: Math.round(e.ms), slow: e.slow });
   const log = `"${schema.replace(/"/g, '""')}".log`;
@@ -69,15 +74,20 @@ export async function createTrace({ admin, schema, size = 12, author = (s) => s.
     return Promise.race([arrived, late]).finally(() => clearTimeout(timer));
   }
 
-  /** Версии автора who после отметки mark: первые VERSIONS по порядку записи и сколько их всего. */
-  async function written(mark, who) {
-    const rows = await admin.unsafe(`select l.class, l.id, l.rev, l.op, l.reason, l.data, l.links, p.data as was, p.links as was_links,
-        count(*) over () as total
-      from ${log} l
+  /**
+   * Версии автора who после отметки mark — подключением db под RLS и только в его арендаторе: первые VERSIONS по
+   * порядку записи, сколько их всего и классы всех (по ним отбираются сигналы).
+   */
+  async function written(db, mark, who) {
+    const rows = await db.transaction((q) => q.unsafe(`with w as (select seq, class, id, rev, op, reason, data, links from ${log}
+        where seq > $1 and author = $2 and tenant = $3)
+      select l.class, l.id, l.rev, l.op, l.reason, l.data, l.links, p.data as was, p.links as was_links,
+        (select count(*) from w) as total, (select array_agg(distinct class) from w) as classes
+      from (select * from w order by seq limit ${VERSIONS}) l
       left join lateral (select p.data, p.links from ${log} p where p.id = l.id and p.rev < l.rev order by p.rev desc limit 1) p on true
-      where l.seq > $1 and l.author = $2
-      order by l.seq limit ${VERSIONS}`, [mark, who]);
+      order by l.seq`, [mark, who, db.tenant]));
     return {
+      classes: new Set(rows[0]?.classes ?? []),
       versionsTotal: Number(rows[0]?.total ?? 0),
       versions: rows.map((v) => ({
         class: v.class, id: v.id, label: label?.(v) || named(v.data) || v.id.slice(0, 8), rev: v.rev, op: v.op, reason: v.reason ?? '',
@@ -85,6 +95,8 @@ export async function createTrace({ admin, schema, size = 12, author = (s) => s.
       })),
     };
   }
+  /** Класс сигнала: «класс» или «класс@токен арендатора» — без токена; session:… и * — не сигналы записи класса. */
+  const classOf = (payload) => (payload === '*' || payload.startsWith('session:') ? null : payload.split('@')[0]);
 
   /** Выполнить действие и записать в журнал сессии цепочки, запросы к базе, записанные версии и сигналы. */
   async function act(s, title, fn) {
@@ -102,14 +114,16 @@ export async function createTrace({ admin, schema, size = 12, author = (s) => s.
       throw e;
     } finally {
       after?.(entry.lines);
+      let classes = new Set();
       try {
         if (!(await fence(s, heard))) entry.lines.push(`сигналы: метка-отсечка не пришла за ${FENCE_MS / 1000} с — список может быть неполным`);
-        if (who && mark !== null) Object.assign(entry, await written(mark, who));
+        if (who && mark !== null) ({ classes, versions: entry.versions, versionsTotal: entry.versionsTotal } = await written(reader(s), mark, who));
       } catch (e) {
         entry.lines.push(`«под капотом»: версии и сигналы не прочитаны — ${e.message}`);
       }
       open.delete(heard);
-      entry.signals = [...heard];
+      // в канале — и чужое: другие классы, арендаторы, сессии; в запись — только классы, которые записало действие
+      entry.signals = [...new Set([...heard].map(classOf))].filter((c) => c && classes.has(c));
       s.trace.unshift(entry);
       s.trace.length = Math.min(s.trace.length, size);
     }
