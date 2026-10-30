@@ -8,6 +8,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useData } from 'vitepress';
 import { flows } from './flows';
 import { players, want } from './sync';
+import { keepHash } from './anchor';
 
 const props = defineProps<{ name: string }>();
 const flow = computed(() => flows[props.name] ?? null);
@@ -32,6 +33,7 @@ async function render() {
   try {
     const { svg } = await mermaid.render(`flow-${props.name}-${seq++}`, code);
     box.value.innerHTML = svg;
+    keepHash(); // схема выросла — якорь адреса мог уехать
     error.value = '';
   } catch (e) {
     error.value = (e as Error).message;

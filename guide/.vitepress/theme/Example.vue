@@ -6,9 +6,10 @@
  * В снимке вместо uuid, времени и токенов — метки; настоящие значения того же прогона лежат рядом
  * (`snapshots/<id>.real.json`) и показываются на вкладке «Реальная таблица». Файла может не быть — тогда вкладки нет.
  */
-import { computed, onMounted, ref, shallowRef, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, shallowRef, watch } from 'vue';
 import Sandbox from './Sandbox.vue';
 import { players, report } from './sync';
+import { keepHash } from './anchor';
 
 type Rec = Record<string, any>;
 interface Step {
@@ -95,6 +96,7 @@ onMounted(async () => {
   real.value = fits(s, r);
   snap.value = s;
   if (props.sandbox) opened.value = editing.value = true;
+  void nextTick(keepHash); // плеер вырос — якорь адреса мог уехать вниз
 });
 
 function toggleEditor() {
@@ -292,7 +294,7 @@ function onKey(e: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="lt-ex" tabindex="0" @keydown="onKey">
+  <div :id="`ex-${id.replace(/[^a-z0-9]+/gi, '-')}`" class="lt-ex" tabindex="0" @keydown="onKey">
     <div v-if="missing" class="lt-ex-missing">Снимка примера «{{ id }}» нет: запустите <code>npm run examples</code>.</div>
     <template v-else-if="snap && step">
       <div class="lt-ex-head">

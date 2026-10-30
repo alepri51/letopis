@@ -50,3 +50,6 @@ html.dark .lt-ex-code pre {
   white-space: normal;
   pointer-events: none;
 }
+
+/* якорь плеера примера (#ex-…): не под шапкой сайта */
+.lt-ex { scroll-margin-top: calc(var(--vp-nav-height) + 16px); }

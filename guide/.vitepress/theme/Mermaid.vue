@@ -2,6 +2,7 @@
 // Схема Mermaid: рисуется в браузере, перерисовывается при смене темы.
 import { onMounted, ref, watch } from 'vue';
 import { useData } from 'vitepress';
+import { keepHash } from './anchor';
 
 const props = defineProps<{ code: string }>();
 const { isDark } = useData();
@@ -16,6 +17,7 @@ async function render() {
   try {
     const { svg } = await mermaid.render(`mmd-${Math.random().toString(36).slice(2)}-${seq++}`, decodeURIComponent(props.code));
     box.value.innerHTML = svg;
+    keepHash(); // схема выросла — якорь адреса мог уехать
     error.value = '';
   } catch (e) {
     error.value = (e as Error).message;

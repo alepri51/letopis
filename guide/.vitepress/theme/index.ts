@@ -6,6 +6,7 @@ import Flow from './Flow.vue';
 import Mermaid from './Mermaid.vue';
 import TimeTravel from './TimeTravel.vue';
 import { annotate } from './glossary';
+import { resetTouch } from './anchor';
 import './style.css';
 
 /** Обычная разметка темы и подсказки глоссария в тексте каждой страницы (кроме самого глоссария). */
@@ -17,7 +18,10 @@ const Layout = defineComponent({
       if (doc && !route.path.includes('/glossary/')) annotate(doc, route.path);
     }));
     onMounted(run);
-    watch(() => route.path, run);
+    watch(() => route.path, () => {
+      resetTouch();
+      run();
+    });
     return () => h(DefaultTheme.Layout);
   },
 });
