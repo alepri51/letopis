@@ -24,10 +24,11 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { up, connect, createTenant, syncModels, LetopisError, v5Id, inc, inList, lt, cursorOf } from 'letopis';
-import { hub, one } from 'letopis/model';
+import * as model from 'letopis/model';
 import { createMcpServer } from 'letopis/mcp';
 import { createMcpHandler } from '@modelcontextprotocol/server';
 import { z } from 'zod';
+import { helpdeskModels } from './models.mjs';
 
 const ENV = {
   admin: process.env.ADMIN_DSN ?? 'postgres://postgres:guide@127.0.0.1:15440/letopis',
@@ -82,23 +83,8 @@ const ROLE_OF = { manager: 'owner', agent: 'agent', client: 'client' };
 const ROLE_RU = { manager: 'руководитель', agent: 'агент', client: 'клиент' };
 const HOURS = { urgent: 2, high: 8, normal: 24, low: 72 }; // срок ответа по приоритету
 
-// ---------- модель (классы каждой компании) ----------
-const Desk = hub('Desk', { name: z.string() }, { key: ['name'] }); // название компании — правит только руководитель
-const Counter = hub('Counter', { name: z.string(), next: z.number().int() }, { key: ['name'], history: false }); // номера заявок
-const Profile = hub('Profile', { account: z.string(), name: z.string(), login: z.string() }, { key: ['account'] });
-const Ticket = hub('Ticket', {
-  number: z.string(), subject: z.string().min(3).max(200), body: z.string().max(5000),
-  status: z.enum(['new', 'open', 'pending', 'solved']), priority: z.enum(['low', 'normal', 'high', 'urgent']),
-  due: z.string(), clientName: z.string(), assignee: z.string(), assigneeName: z.string(),
-  channel: z.enum(['web', 'mail', 'api', 'mcp']),
-}, { key: ['number'], ownerDefault: 'actor' }); // владелец — автор заявки: на нём держится правило клиента
-const Reply = hub('Reply', { text: z.string().min(1).max(5000), authorName: z.string(), client: z.string() }, {
-  ends: { Ticket: one(Ticket).onDelete('cascade') },
-});
-const Note = hub('Note', { text: z.string().min(1).max(5000), authorName: z.string() }, {
-  ends: { Ticket: one(Ticket).onDelete('cascade') },
-});
-const MODELS = [Desk, Counter, Profile, Ticket, Reply, Note];
+// ---------- модель — классы каждой компании (src/models.mjs) ----------
+const MODELS = helpdeskModels(model, z);
 
 // ---------- правила доступа компании: кто (ACCOUNT) → что (READ/WRITE/DELETE/API) ----------
 const RESOURCES = {

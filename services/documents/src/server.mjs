@@ -19,8 +19,9 @@ import { randomBytes } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { fileURLToPath } from 'node:url';
 import { up, connect, createTenant, syncModels, LetopisError } from 'letopis';
-import { hub, one } from 'letopis/model';
+import * as model from 'letopis/model';
 import { z } from 'zod';
+import { documentModels } from './models.mjs';
 
 const ENV = {
   admin: process.env.ADMIN_DSN ?? 'postgres://postgres:guide@127.0.0.1:15440/letopis',
@@ -38,8 +39,7 @@ export const USERS = {
   lawyer: { name: 'Анна Юристова', login: 'lawyer@pravo.ru', password: 'Pravo-2026!', role: 'юрист' },
   head: { name: 'Борис Главный', login: 'head@pravo.ru', password: 'Head-2026!', role: 'руководитель' },
 };
-// ярусы хранения истории документов: свежее — всё, старше — по одной версии на день, неделю, месяц, год
-const POLICY = { all: '1 day', daily: '1 week', weekly: '1 month', monthly: '1 year', yearly: 'forever' };
+// ярусы хранения истории документов (POLICY — в src/models.mjs): свежее — всё, старше — по одной версии на день, неделю, месяц, год
 const POLICY_TEXT = [
   { tier: 'all — 1 день', keep: 'все версии за последние сутки' },
   { tier: 'daily — 1 неделя', keep: 'последняя версия каждого дня за неделю' },
@@ -48,14 +48,8 @@ const POLICY_TEXT = [
   { tier: 'yearly — навсегда', keep: 'последняя версия каждого года' },
 ];
 
-// ---------- модель ----------
-const Party = hub('Party', { name: z.string(), passport: z.string(), phone: z.string() }, {});
-const Doc = hub('Doc', { number: z.string().min(1), title: z.string().min(3), amount: z.number().int().min(0), body: z.string(), archived: z.boolean().optional() }, {
-  key: ['number'], ends: { Party: one(Party).onDelete('restrict') }, history: POLICY,
-});
-const Draft = hub('Draft', { extends: Doc, fields: { status: z.enum(['draft', 'review']) } });
-const Contract = hub('Contract', { extends: Doc, fields: { signedBy: z.string() } });
-const MODELS = [Party, Doc, Draft, Contract];
+// ---------- модель (src/models.mjs) ----------
+const MODELS = documentModels(model, z);
 
 class HttpError extends Error { constructor(status, message, code) { super(message); this.status = status; this.code = code; } }
 

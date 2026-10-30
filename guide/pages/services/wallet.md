@@ -15,6 +15,38 @@
 | `versions()` с причиной | история баланса: каждое изменение — версия с причиной операции |
 | `watch()` → SSE, `onQuery` | живое обновление и панель «Под капотом» |
 
+## Модель
+
+Счёт (`Wallet`), его операции (`Movement`, ключ — счёт и `opId`) и выписка по месяцам (`Statement` — производный класс проектора `statement`). Схема получена из реестра (`db.describe()`), а не нарисована руками:
+
+<!-- er:wallet -->
+```mermaid
+erDiagram
+  Movement {
+    enum kind "обязательное"
+    text note "необязательное"
+    text opId PK "ключ, обязательное"
+    text card4 "необязательное"
+    int amount "обязательное"
+  }
+  Statement {
+    int count "обязательное"
+    int debit "обязательное"
+    text month PK "ключ, обязательное"
+    int topup "обязательное"
+  }
+  Wallet {
+    text owner "обязательное"
+    text number PK "ключ, обязательное"
+    int balance "обязательное"
+  }
+  Movement }o--|| Wallet : "Wallet, в ключе"
+  Statement }o--|| Wallet : "Wallet, в ключе, cascade"
+```
+<!-- /er -->
+
+## Как проходит операция
+
 ```mermaid
 sequenceDiagram
   autonumber

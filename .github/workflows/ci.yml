@@ -112,6 +112,14 @@ jobs:
           ENTITY_DSN: postgres://postgres:test@localhost:15433/letopis
         run: npm run examples -- --check
 
+      # ER-схемы на страницах сервисов — из реестра (db.describe()): модели services/*/src/models.mjs и сид booking
+      # в свежих схемах; расхождение — модель сервиса изменилась, а страница нет.
+      - name: ER diagrams up to date
+        working-directory: guide
+        env:
+          ENTITY_DSN: postgres://postgres:test@localhost:15433/letopis
+        run: npx tsx scripts/er.ts --check
+
       - name: Coverage
         working-directory: guide
         run: npm run coverage -- --strict

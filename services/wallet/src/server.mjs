@@ -15,8 +15,9 @@ import { randomBytes } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { fileURLToPath } from 'node:url';
 import { up, connect, createTenant, syncModels, LetopisError } from 'letopis';
-import { hub, link, one } from 'letopis/model';
+import * as model from 'letopis/model';
 import { z } from 'zod';
+import { walletModels } from './models.mjs';
 
 const ENV = {
   admin: process.env.ADMIN_DSN ?? 'postgres://postgres:guide@127.0.0.1:15440/letopis',
@@ -29,18 +30,8 @@ const ENV = {
 };
 export const OPERATOR = { name: 'Ольга', login: 'admin@kopeika.ru', password: 'Kopeika-2026!' };
 
-// ---------- модель ----------
-const Wallet = hub('Wallet', { number: z.string(), owner: z.string(), balance: z.number().int().min(0) }, {
-  key: ['number'],
-  aggregate: { balance: { sum: 'amount', of: 'Movement', via: 'Wallet' } }, // баланс считает база
-});
-const Movement = link('Movement', {
-  opId: z.string(), kind: z.enum(['topup', 'debit', 'transfer']), amount: z.number().int(),
-  card4: z.string().optional(), note: z.string().optional(),
-}, { ends: { Wallet }, key: ['Wallet', 'opId'] });
-const Statement = hub('Statement', { month: z.string(), topup: z.number().int(), debit: z.number().int(), count: z.number().int() }, {
-  ends: { Wallet: one(Wallet).onDelete('cascade') }, key: ['Wallet', 'month'], derivedBy: 'statement', history: false,
-});
+// ---------- модель (src/models.mjs) ----------
+const { Wallet, Movement, Statement } = walletModels(model, z);
 
 /** Проверка номера карты по алгоритму Луна (тестовые карты: 4242 4242 4242 4242, 5555 5555 5555 4444). */
 export function luhn(card) {

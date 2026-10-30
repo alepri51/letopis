@@ -22,6 +22,137 @@
 | `watch()` → SSE | вторая вкладка видит новую бронь без перезагрузки |
 | `onQuery` | панель «Под капотом»: какие запросы выполнило действие |
 
+## Модель
+
+Салон работает на готовой модели салона — сиде `booking` (`up({ seeds: ['booking'] })`): организации, люди, сотрудники и клиенты, места, услуги и товары, расписания, слоты и брони. Это классы арендатора System, общие для всех салонов. Схема получена из реестра (`db.describe()`), а не нарисована руками:
+
+<!-- er:salon -->
+```mermaid
+erDiagram
+  address {
+    bool default "необязательное"
+    text schedule_info "необязательное"
+  }
+  booking {
+    text notes "необязательное"
+    datetime end_datetime "обязательное"
+    datetime start_datetime PK "ключ, обязательное"
+  }
+  Complex {
+    num cost "обязательное"
+    text name PK "ключ, обязательное"
+    num duration "обязательное"
+    text description "необязательное"
+  }
+  compo {
+    int order "необязательное"
+    int quantity "необязательное"
+  }
+  content {
+    int order "необязательное"
+  }
+  Customer {
+    text name "обязательное"
+    text notes "необязательное"
+    text phone "обязательное"
+    enum preferred_contact "необязательное"
+  }
+  Element {
+    text name PK "ключ, обязательное"
+    text description "необязательное"
+  }
+  Folder {
+    text name "обязательное"
+  }
+  Location {
+    text address "обязательное"
+    json coordinates "необязательное"
+    text description "необязательное"
+  }
+  Org {
+    text name "обязательное"
+    text phone "необязательное"
+    bool active "необязательное"
+    text address "необязательное"
+    json settings "необязательное"
+    text timezone "необязательное"
+  }
+  Person {
+    text name "обязательное"
+    text phone "обязательное"
+  }
+  price {
+    text note PK "ключ, обязательное"
+    json amounts "обязательное"
+  }
+  Product {
+    text sku "необязательное"
+    text name PK "ключ, обязательное"
+    text unit "необязательное"
+    text description "необязательное"
+  }
+  Schedule {
+    text name "обязательное"
+    int year "обязательное"
+    int month "обязательное"
+  }
+  Service {
+    text name PK "ключ, обязательное"
+    num duration "необязательное"
+    text description "необязательное"
+  }
+  skill {
+    enum level "необязательное"
+  }
+  slot {
+    datetime end_datetime "обязательное"
+    datetime start_datetime PK "ключ, обязательное"
+  }
+  Staff {
+    text name "обязательное"
+    text phone "обязательное"
+    text photo "необязательное"
+    text description "необязательное"
+    text specialization "необязательное"
+  }
+  address }o--|| Staff : "Staff, в ключе"
+  address }o--|| Location : "Location, в ключе"
+  booking }o--|| Element : "Item"
+  booking }o--|| Staff : "Staff, в ключе"
+  booking }o--o| Customer : "Customer, unset"
+  booking }o--|| Location : "Location"
+  booking }o--|| Schedule : "Schedule"
+  slot ||--o| booking : "потомок"
+  Complex }o--|| Org : "Org, в ключе"
+  Element ||--o| Complex : "потомок"
+  compo }o--|| Service : "Part, в ключе"
+  compo }o--|| Product : "Part, в ключе"
+  compo }o--|| Complex : "Complex, в ключе"
+  content }o--|| Element : "Item, в ключе"
+  content }o--|| Folder : "Folder, в ключе"
+  Customer }o--|| Org : "Org"
+  Person ||--o| Customer : "потомок"
+  Element }o--|| Org : "Org, в ключе"
+  Folder }o--|| Org : "Org"
+  Folder }o--o| Folder : "Parent"
+  Location }o--|| Org : "Org"
+  Person }o--|| Org : "Org"
+  price }o--|| Element : "Item, в ключе"
+  Product }o--|| Org : "Org, в ключе"
+  Element ||--o| Product : "потомок"
+  Schedule }o--|| Org : "Org"
+  Service }o--|| Org : "Org, в ключе"
+  Element ||--o| Service : "потомок"
+  skill }o--|| Staff : "Staff, в ключе"
+  skill }o--|| Service : "Service, в ключе"
+  slot }o--|| Staff : "Staff, в ключе"
+  slot }o--|| Location : "Location"
+  slot }o--|| Schedule : "Schedule"
+  Staff }o--|| Org : "Org"
+  Person ||--o| Staff : "потомок"
+```
+<!-- /er -->
+
 ## Как устроена бронь
 
 ```mermaid
