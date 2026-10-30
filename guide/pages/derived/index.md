@@ -51,6 +51,24 @@ sequenceDiagram
 
 <Example id="derived/04-projector-process" />
 
+### Жизнь проектора
+
+Состояние проекции — `status().state`; его хранит в базе чекпоинт проектора, поэтому оно общее для всех процессов:
+
+```mermaid
+stateDiagram-v2
+  [*] --> new: db.projector(имя, опции) — проекции ещё нет
+  new --> rebuilding: первый run() строит проекцию пачками
+  new --> running: rebuild() — атомарно, одной транзакцией
+  rebuilding --> running: последняя пачка записана — run() любого процесса доводит прерванную перестройку
+  running --> running: run() — пачка журнала, handle, запись, сдвиг курсора
+  running --> rebuilding: rebuild({ chunked: true })<br/>или курсор истёк у всех участников<br/>при onExpired: 'rebuild'
+  running --> running: rebuild() — атомарно
+```
+
+- **Другая `version`** — `run()` отвечает `rebuild_required`, пока не выполнен `rebuild()`.
+- **Арендатор выбывает**, если его данные не прошли запись: его изменения пропускаются (`status().failed`), остальные идут дальше. Вернуть — `rebuild({ tenant })`.
+
 ## Подводные камни
 
 - **В агрегатное поле нельзя писать** — ни библиотекой, ни сырым SQL: ошибка `aggregate_field`. Ограничения модели проверяются для посчитанного значения.
