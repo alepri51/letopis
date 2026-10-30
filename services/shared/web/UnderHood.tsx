@@ -37,9 +37,17 @@ export function UnderHood({ trace, description, empty, height }: { trace: Trace[
             <div className="mb-1 flex items-center gap-2 text-sm font-medium">{t.at} — {t.title}{t.error && <Badge variant="destructive">ошибка</Badge>}</div>
             {t.lines.length > 0 && <pre className="mb-2 whitespace-pre-wrap rounded-md bg-muted p-2 text-xs">{t.lines.join('\n')}</pre>}
             {t.queries.length > 0 && (
-              <div className="text-xs text-muted-foreground">запросов: {t.queries.length} ·{' '}
-                {t.queries.map((q, j) => <span key={j} className={q.slow ? 'font-semibold text-amber-700' : ''}>{q.mode} {q.classes || '—'} {q.ms} мс{q.slow ? ' (медленный)' : ''}{j < t.queries.length - 1 ? ' · ' : ''}</span>)}
-              </div>
+              <Table className="text-xs" data-queries={t.queries.length}>
+                <TableHeader><TableRow><TableHead className={head}>запрос</TableHead><TableHead className={head}>классы</TableHead><TableHead className={head}>строк</TableHead><TableHead className={head}>мс</TableHead></TableRow></TableHeader>
+                <TableBody>{t.queries.map((q, j) => (
+                  <TableRow key={j} className={q.slow ? 'font-semibold text-amber-700' : ''}>
+                    <TableCell className={cell}>{q.mode}</TableCell>
+                    <TableCell className={`${cell} whitespace-normal`}>{q.classes || '—'}</TableCell>
+                    <TableCell className={cell}>{q.rows}</TableCell>
+                    <TableCell className={cell}>{q.ms}{q.slow && <Badge variant="outline" className="ml-1 text-amber-700">медленный</Badge>}</TableCell>
+                  </TableRow>))}
+                </TableBody>
+              </Table>
             )}
             {t.versions.length > 0 && (
               <Table className="mt-2 text-xs" data-versions={t.versionsTotal}>
