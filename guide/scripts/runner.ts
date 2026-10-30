@@ -9,6 +9,7 @@
  * работа от имени Анны. После каждого шага снимаются строки `entity`, записи `log` (новые с начала примера) и, по
  * запросу, `secret`. Недетерминированное (uuid, время, токены) заменяется метками, чтобы снимок читался и сравнивался.
  */
+import { randomBytes } from 'node:crypto';
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { join, relative, dirname, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -376,10 +377,11 @@ export async function runExample(
     if (payload === fenceTag) fenceDone?.();
     else heard.push(payload);
   });
-  let fences = 0;
   const fence = async (): Promise<string[]> => {
     for (const d of opened) await d.flushSignals().catch(() => {});
-    fenceTag = `guide-fence:${++fences}`;
+    // метка — в форме сигнала чужой сессии: подключения letopis по ней ничего не сбрасывают, а нагрузку не по
+    // режиму установки (guide-fence:N) сочли бы поводом сбросить кэш и пропуска прав и разбудить все подписки
+    fenceTag = `session:${randomBytes(8).toString('hex')}`;
     const arrived = new Promise<void>((res) => { fenceDone = res; });
     await admin.unsafe('select pg_notify($1, $2)', [schema, fenceTag]);
     let timer: NodeJS.Timeout | undefined;
