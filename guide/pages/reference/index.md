@@ -12,7 +12,7 @@ outline: [2, 2]
 
 ## [Цепочка](./chain)
 
-Цепочка — это вызовы подряд: `db.Класс(фильтр)` начинает путь, шаги переходят по связям, модификаторы уточняют выборку, глагол говорит, что сделать, а терминал отправляет запрос в базу. Пока не вызван терминал, база не тронута. Весь план записи — одна транзакция.
+Цепочка — это вызовы подряд: `db.Класс(фильтр)` начинает путь, шаги переходят по связям, модификаторы уточняют выборку, глагол говорит, что сделать, а терминал отправляет запрос в базу. Пока не вызван терминал, база не тронута. Глаголы складывают план записи — что сделать с какими объектами; терминал выполняет весь план одной транзакцией.
 
 [.Класс(фильтр)](./chain#chain-step) · [.limit()](./chain#chain-limit) · [.offset()](./chain#chain-offset) · [.sort()](./chain#chain-sort) · [.after()](./chain#chain-after) · [.asOf()](./chain#chain-asof) · [.withDeleted()](./chain#chain-withdeleted) · [.deep()](./chain#chain-deep) · [.exact()](./chain#chain-exact) · [.alias()](./chain#chain-alias) · [.tags()](./chain#chain-tags) · [.owner()](./chain#chain-owner) · [.entity()](./chain#chain-entity) · [.forUpdate()](./chain#chain-forupdate) · [.cache()](./chain#chain-cache) · [.rows()](./chain#chain-rows) · [.first()](./chain#chain-first) · [.ids()](./chain#chain-ids) · [.count()](./chain#chain-count) · [.paths()](./chain#chain-paths) · [.versions()](./chain#chain-versions) · [.diff()](./chain#chain-diff) · [.blame()](./chain#chain-blame) · [.sum()](./chain#chain-sum) · [.avg()](./chain#chain-avg) · [.min()](./chain#chain-min) · [.max()](./chain#chain-max) · [.countBy()](./chain#chain-countby) · [.create()](./chain#chain-create) · [.update()](./chain#chain-update) · [.upsert()](./chain#chain-upsert) · [.delete()](./chain#chain-delete) · [.anonymize()](./chain#chain-anonymize) · [.reclass()](./chain#chain-reclass) · [.rekey()](./chain#chain-rekey) · [.restore()](./chain#chain-restore) · [.purge()](./chain#chain-purge) · [.Роль.set()](./chain#chain-set) · [.Роль.unset()](./chain#chain-unset) · [.Роль.add()](./chain#chain-add) · [.Роль.remove()](./chain#chain-remove)
 
@@ -60,7 +60,7 @@ outline: [2, 2]
 
 ## [Модели: letopis/model](./model)
 
-Модель описывается в коде: `hub` — класс-объект, `link` — класс-связь, `one` и `many` — концы. `syncModels` записывает модель в базу, `generateTypes` печатает типы для TypeScript.
+Модель описывается в коде: `hub` — класс-объект, `link` — класс-связь, `one` и `many` — концы. `syncModels` записывает модель в базу, `generateTypes` возвращает текст типов для TypeScript.
 
 [hub()](./model#model-hub) · [link()](./model#model-link) · [one()](./model#model-one) · [many()](./model#model-many) · [End](./model#model-end) · [конец.targets](./model#end-targets) · [конец.many](./model#end-many) · [конец.required](./model#end-required) · [конец.min](./model#end-min) · [конец.max](./model#end-max) · [конец.onDeleteRule](./model#end-ondeleterule) · [конец.metaData](./model#end-metadata) · [конец.optional()](./model#end-optional) · [конец.onDelete()](./model#end-ondelete) · [конец.meta()](./model#end-meta) · [конец.classNames()](./model#end-classnames) · [syncModels()](./model#export-syncmodels) · [generateTypes()](./model#export-generatetypes) · [schemaToTs()](./model#export-schematots) · [normalizeSchema()](./model#model-normalizeschema) · [translatePattern()](./model#model-translatepattern)
 
@@ -78,7 +78,7 @@ outline: [2, 2]
 
 ## [Командная строка](./cli)
 
-Команда `letopis` ставится вместе с пакетом. Подключение — `--dsn` и `--schema`, вход — `--token` (токен сессии) или `--api-key` (ключ API).
+Команда `letopis` ставится вместе с пакетом. Подключение — `--dsn` и `--schema`, вход — `--token` (токен сессии) или `--api-key` (ключ API); `letopis mcp` принимает только `--token`.
 
 [letopis sync](./cli#cli-sync) · [letopis types](./cli#cli-types) · [letopis load](./cli#cli-load) · [letopis verify](./cli#cli-verify) · [letopis maintain](./cli#cli-maintain) · [letopis describe](./cli#cli-describe) · [letopis mcp](./cli#cli-mcp)
 

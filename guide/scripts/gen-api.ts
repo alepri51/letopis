@@ -474,11 +474,11 @@ interface Page { file: string; title: string; intro: string; sections: Section[]
 const PAGES: Page[] = [
   {
     file: 'chain', title: 'Цепочка',
-    intro: 'Цепочка — это вызовы подряд: `db.Класс(фильтр)` начинает путь, шаги переходят по связям, модификаторы уточняют выборку, глагол говорит, что сделать, а терминал отправляет запрос в базу. Пока не вызван терминал, база не тронута. Весь план записи — одна транзакция.',
+    intro: 'Цепочка — это вызовы подряд: `db.Класс(фильтр)` начинает путь, шаги переходят по связям, модификаторы уточняют выборку, глагол говорит, что сделать, а терминал отправляет запрос в базу. Пока не вызван терминал, база не тронута. Глаголы складывают план записи — что сделать с какими объектами; терминал выполняет весь план одной транзакцией.',
     notes: [{ id: 'chain.then', title: 'Цепочка — не промис', text: 'У цепочки нет метода `then`: `await db.Класс(…)` без терминала отдаёт саму цепочку и ничего не читает. Имя `then` занято — класс так назвать нельзя.' }],
     sections: [
       { title: 'Шаг', ids: ['chain.step'] },
-      { title: 'Модификаторы', intro: 'Модификатор возвращает ту же цепочку с уточнением: сколько строк, в каком порядке, на какой момент.', ids: ['chain.limit', 'chain.offset', 'chain.sort', 'chain.after', 'chain.asOf', 'chain.withDeleted', 'chain.deep', 'chain.exact', 'chain.alias', 'chain.tags', 'chain.owner', 'chain.entity', 'chain.forUpdate', 'chain.cache'] },
+      { title: 'Модификаторы', intro: 'Модификатор уточняет цепочку и возвращает её продолжение: сколько строк, в каком порядке, на какой момент.', ids: ['chain.limit', 'chain.offset', 'chain.sort', 'chain.after', 'chain.asOf', 'chain.withDeleted', 'chain.deep', 'chain.exact', 'chain.alias', 'chain.tags', 'chain.owner', 'chain.entity', 'chain.forUpdate', 'chain.cache'] },
       { title: 'Терминалы', intro: 'Терминал исполняет цепочку и возвращает результат. После глагола записи терминал исполняет план записи и возвращает записанные строки.', ids: ['chain.rows', 'chain.first', 'chain.ids', 'chain.count', 'chain.paths', 'chain.versions', 'chain.diff', 'chain.blame', 'chain.sum', 'chain.avg', 'chain.min', 'chain.max', 'chain.countBy'] },
       { title: 'Глаголы записи', intro: 'Глагол ставит запись в план. Исполняет план терминал (`rows()`, `first()`, `ids()`, `count()`).', ids: ['chain.create', 'chain.update', 'chain.upsert', 'chain.delete', 'chain.anonymize', 'chain.reclass', 'chain.rekey', 'chain.restore', 'chain.purge'] },
       { title: 'Слоты концов', intro: 'После глагола записи шаг роли без вызова — слот конца: `.Роль.set(…)`, `.Роль.unset()`, у множественного конца ещё `.add(…)` и `.remove(…)`.', ids: ['chain.set', 'chain.unset', 'chain.add', 'chain.remove'] },
@@ -547,7 +547,7 @@ const PAGES: Page[] = [
   },
   {
     file: 'model', title: 'Модели: letopis/model',
-    intro: 'Модель описывается в коде: `hub` — класс-объект, `link` — класс-связь, `one` и `many` — концы. `syncModels` записывает модель в базу, `generateTypes` печатает типы для TypeScript.',
+    intro: 'Модель описывается в коде: `hub` — класс-объект, `link` — класс-связь, `one` и `many` — концы. `syncModels` записывает модель в базу, `generateTypes` возвращает текст типов для TypeScript.',
     sections: [
       { title: 'Классы и концы', ids: ['model.hub', 'model.link', 'model.one', 'model.many', 'model.End', 'end.*'] },
       { title: 'Модель в базе и типы', ids: ['export.syncModels', 'export.generateTypes', 'export.schemaToTs'] },
@@ -579,7 +579,7 @@ const PAGES: Page[] = [
   },
   {
     file: 'cli', title: 'Командная строка',
-    intro: 'Команда `letopis` ставится вместе с пакетом. Подключение — `--dsn` и `--schema`, вход — `--token` (токен сессии) или `--api-key` (ключ API).',
+    intro: 'Команда `letopis` ставится вместе с пакетом. Подключение — `--dsn` и `--schema`, вход — `--token` (токен сессии) или `--api-key` (ключ API); `letopis mcp` принимает только `--token`.',
     sections: [{ title: 'Команды', ids: ['cli.*'] }],
   },
 ];
