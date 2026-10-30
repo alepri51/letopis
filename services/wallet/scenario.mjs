@@ -33,6 +33,13 @@ try {
   check(tr.data?.result === 'проведено' && (await balance('W-1')) === b1 + 70000 && (await balance('W-2')) === b2 + 30000, 'перевод 300 ₽ W-1 → W-2 одной транзакцией');
   const hist = (await call(cookie, `/api/wallets/${w1.id}/history`)).data;
   check(hist.at(-1).reason === `transfer x-${run}`, 'история баланса W-1: последняя версия — перевод с причиной');
+
+  // гонка: два списания с W-2 в одну секунду, каждое больше половины баланса — база ставит их в очередь по счёту,
+  // и второе упирается в min(0) посчитанного баланса: проходит одно
+  const b2now = await balance('W-2');
+  const part = Math.floor(b2now * 0.6);
+  const both = await Promise.all([1, 2].map((k) => call(cookie, '/api/debit', { wallet: w2.id, amount: part, opId: `r${k}-${run}` })));
+  check(both.map((x) => x.status).sort().join(',') === '200,422' && (await balance('W-2')) === b2now - part, 'гонка двух списаний с W-2 — прошло одно, второе отказ, баланс не ушёл в минус');
 } catch (e) {
   failures.push(String(e?.stack ?? e));
   console.log(`✗ сценарий упал: ${e?.stack ?? e}`);

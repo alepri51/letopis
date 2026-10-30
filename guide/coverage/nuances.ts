@@ -238,6 +238,11 @@ const nuances: Nuance[] = [
     source: 'пример derived/03-projector-options; lib/src/project.ts:Out',
   },
   {
+    id: 'lock-all-writers',
+    text: 'Запись итога «прочитал — посчитал — записал» без защиты теряет параллельную правку. lock() и forUpdate() ставят второго писателя в очередь, но только если их берут все, кто правит эти данные; для сумм проще inc — база сама сложит приращения.',
+    source: 'lib/test/balance.test.ts №17; пример money/04-race',
+  },
+  {
     id: 'projector-run-stop',
     text: 'run() без once не завершается сам: догоняет журнал и ждёт новых изменений. Остановить — stop() (промис run() выполнится с отчётом); процесс, который больше не запускает run(), вызывает close() — проектор отключается от сигналов базы.',
     source: 'lib/src/project.ts:Projector.stop, close; пример derived/04-projector-process',

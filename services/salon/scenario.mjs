@@ -33,6 +33,11 @@ try {
   const day = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
   const s = (await call(cookie, `/api/schedule?day=${day}`)).data;
   const slot = { day, hour: 15, staff: s.staff[0].id, service: s.services[0].id, name: 'Клиент сценария', phone: '+7 900 123-45-67' };
+  // гонка: две брони одного слота в одну секунду (две вкладки) — lock мастера ставит их в очередь, проходит одна
+  const race = { ...slot, hour: 16 };
+  const both = await Promise.all([call(cookie, '/api/book', { ...race, name: 'Гонка 1' }), call(cookie, '/api/book', { ...race, name: 'Гонка 2' })]);
+  const raced = (await call(cookie, `/api/schedule?day=${day}`)).data.bookings.filter((b) => /^Гонка/.test(b.customer));
+  check(both.map((x) => x.status).sort().join(',') === '200,409' && raced.length === 1, 'гонка двух броней на 16:00 — записана одна, вторая 409');
 
   const first = await call(cookie, '/api/book', slot);
   const afterBook = (await call(cookie, `/api/schedule?day=${day}`)).data;
@@ -53,12 +58,14 @@ try {
   const back = (await call(cookie, `/api/schedule?day=${day}`)).data;
   check(back.bookings.some((b) => b.id === mine.id) && !back.cancelled.length, 'возврат брони');
 
+
   const other = await call('', '/api/login', SALONS[1].user);
   const otherDay = (await call(other.cookie, `/api/schedule?day=${day}`)).data;
   check(!otherDay.bookings.some((b) => b.customer === 'Клиент сценария'), 'другой салон чужую бронь не видит (арендаторы разделены)');
 
-  // повторный прогон на тех же данных — убираем свою бронь
+  // повторный прогон на тех же данных — убираем свои брони
   await call(cookie, `/api/bookings/${mine.id}/cancel`, {});
+  for (const b of raced) await call(cookie, `/api/bookings/${b.id}/cancel`, {});
 } catch (e) {
   failures.push(String(e?.stack ?? e));
   console.log(`✗ сценарий упал: ${e?.stack ?? e}`);
