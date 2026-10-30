@@ -1,7 +1,8 @@
 /**
  * Сервис-пример «Документы с аудитом» на letopis.
  *
- * - Модель: контрагент Party и семейство документов Doc (ключ — номер) → Draft (черновик) и Contract (договор).
+ * - Модель: контрагент Party и семейство документов Doc (ключ — номер) → Draft (черновик) и Contract (договор) —
+ *   классы арендатора; при каждом запуске их пишет syncModels администраторского подключения, а не сессия пользователя.
  *   Подписание — reclass черновика в договор, смена номера — rekey; versions({ follow: true }) ведёт историю
  *   через обе смены id.
  * - Каждая правка — версия с причиной (reason); diff двух версий, blame («кто последним менял поле»), asOf —
@@ -71,10 +72,12 @@ export async function createApp() {
   await createTenant(admin, r.schema, { name: FIRM, user: { name: USERS.lawyer.name, login: USERS.lawyer.login, password: USERS.lawyer.password, roles: ['staff'], ttl: '1 minute' } });
   // обслуживание (verify, maintain, trimHistory, load, reset) — администраторское подключение в сессии руководителя
   const adm = await connect({ dsn: ENV.admin, schema: r.schema, token: t.token, allowBypassRls: true, onQuery });
+  // модель — классы арендатора фирмы: при каждом запуске их пишет syncModels этого подключения, сессия пользователя
+  // модель не пишет. Не System: классы System syncModels пропускает, а сид установки уже существующий класс не меняет —
+  // изменение модели до работающей установки так не дошло бы
+  await syncModels(adm, MODELS, { apply: true });
   const head = await svc.as(t.user, { tenant: t.tenant });
   const accountOf = async (u) => (await svc.auth.verifyPassword({ identifier: u.login, password: u.password, ttl: 60 })).account;
-  await syncModels(head, MODELS, { apply: true });
-  await head.refresh();
   let archive = null;
   if (!(await head.Doc().count())) archive = await seed();
 

@@ -1,6 +1,8 @@
 /**
  * Сервис-пример «Кошелёк и биллинг» на letopis.
  *
+ * - Модель (src/models.mjs) — классы арендатора: при каждом запуске их пишет syncModels администраторского подключения
+ *   в сессии оператора, а не сессия пользователя.
  * - Баланс — агрегат базы: сумма операций Movement (aggregate sum), правило min(0) проверяет база над итогом.
  * - Операция — строка Movement с ключом [Wallet, opId]: повтор после потери ответа база отклоняет (exists),
  *   сервис сверяет «отпечаток» и отвечает «уже было» — деньги не спишутся дважды.
@@ -80,12 +82,13 @@ export async function createApp() {
   const trace = await createTrace({ admin, schema: r.schema, size: 12 });
   const svc = await connect({ dsn: ENV.app, schema: r.schema, apiKey: ENV.serviceKey, onQuery: trace.onQuery });
   const t = await createTenant(admin, r.schema, { name: 'Копейка', user: OPERATOR });
-  // модель: обычные классы — сессией оператора, производный Statement — администраторским подключением
+  // администраторское подключение в сессии оператора: модель, проектор выписки, verify
   const adm = await connect({ dsn: ENV.admin, schema: r.schema, token: t.token, allowBypassRls: true });
-  const opDb = await svc.as(t.user, { tenant: t.tenant });
-  await syncModels(opDb, [Wallet, Movement], { apply: true });
+  // модель — классы арендатора «Копейка»: при каждом запуске их пишет syncModels этого подключения (производный Statement
+  // иначе и не записать), сессия пользователя модель не пишет. Не System: классы System syncModels пропускает, а сид
+  // установки уже существующий класс не меняет — изменение модели до работающей установки так не дошло бы
   await syncModels(adm, [Wallet, Movement, Statement], { apply: true });
-  await opDb.refresh();
+  const opDb = await svc.as(t.user, { tenant: t.tenant });
   if (!(await opDb.Wallet().count())) {
     await opDb.Wallet().create({ number: 'W-1', owner: 'Анна' }).rows();
     await opDb.Wallet().create({ number: 'W-2', owner: 'Борис' }).rows();

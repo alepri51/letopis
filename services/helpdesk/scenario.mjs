@@ -222,6 +222,17 @@ try {
   // 8. своя компания: регистрация и закрытие (purgeAccount стирает данные арендатора)
   const reg = await call('', '/api/register', { company: `Проба ${run}`, name: 'Вера', login: `vera-${run}@proba.ru`, password: 'Proba-2026!' });
   check(reg.status === 200 && reg.data?.role === 'manager', 'новая компания зарегистрирована, регистратор — руководитель');
+  // модель новой компании сервис записал при регистрации (writeModels) — те же классы, что у «Севера»; видно её так же,
+  // как агенту: letopis_model по MCP вкладкой руководителя (cookie) — классы арендатора её сессии
+  const modelOf = async (cookie) => {
+    const c = new Client({ name: 'сценарий-модель', version: '1.0.0' });
+    await c.connect(new StreamableHTTPClientTransport(new URL(`${base}/mcp`), { requestInit: { headers: { cookie } } }));
+    try { return (await c.callTool({ name: 'letopis_model', arguments: {} })).structuredContent?.data; } finally { await c.close(); }
+  };
+  const own = (m) => JSON.stringify((m?.classes ?? []).filter((x) => !x.system));
+  const [regModel, severModel] = [await modelOf(reg.cookie), await modelOf(boss.cookie)];
+  check(regModel?.tenant === reg.data?.tenant && severModel?.tenant === me.tenant && own(regModel).includes('"name":"Ticket"') && own(regModel) === own(severModel),
+    'модель новой компании записана при регистрации — классы те же, что у «Севера»', { reg: own(regModel).slice(0, 120), sever: own(severModel).slice(0, 120) });
   check((await call('', '/api/register', { company: `Проба ${run}`, name: 'Чужой', login: `x-${run}@proba.ru`, password: 'Proba-2026!' })).status === 409, 'второй раз то же название — 409');
   await call(reg.cookie, '/api/tickets', { subject: 'Проверка связи', body: 'тест' });
   check((await call(boss.cookie, '/api/company/close', {})).status === 403, 'демо-компанию закрыть нельзя');
