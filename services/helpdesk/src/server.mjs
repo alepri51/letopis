@@ -20,7 +20,6 @@
 import express from 'express';
 import postgres from 'postgres';
 import { randomBytes } from 'node:crypto';
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { up, connect, createTenant, syncModels, LetopisError, v5Id, inc, inList, lt, cursorOf } from 'letopis';
@@ -29,6 +28,10 @@ import { createMcpServer } from 'letopis/mcp';
 import { createMcpHandler } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { helpdeskModels } from './models.mjs';
+// общее у четырёх сервисов-примеров: журнал «под капотом», веб-сессии по cookie, подписка → SSE
+import { createTrace } from '../../shared/trace.mjs';
+import { createSessions } from '../../shared/sessions.mjs';
+import { eventStream } from '../../shared/events.mjs';
 
 const ENV = {
   admin: process.env.ADMIN_DSN ?? 'postgres://postgres:guide@127.0.0.1:15440/letopis',
@@ -142,9 +145,18 @@ export async function createApp() {
   await admin.unsafe(`grant letopis_app to ${appUrl.username}`);
   // один пул на всех: подключения пользователей (connect({ sql, token })) делят его соединения
   const pool = postgres(ENV.app, { max: 10, onnotice: () => {} });
-  const als = new AsyncLocalStorage();
-  const onQuery = (e) => als.getStore()?.queries.push({ mode: e.mode, classes: e.classes.join(', '), rows: e.rows, ms: Math.round(e.ms), slow: e.slow });
-  const open = (opts) => connect({ sql: pool, schema: r.schema, onQuery, slowMs: SLOW_MS, ...opts });
+  const trace = createTrace({
+    size: 15,
+    // попадания в кэш результатов за действие (справочник людей — .cache()) — строкой журнала
+    probe: (s) => {
+      const hits = s.db.cache.stats().hits;
+      return (lines) => {
+        const more = s.db.cache.stats().hits - hits;
+        if (more > 0) lines.push(`кэш результатов: ${more} ответ(а) без запроса к базе (.cache())`);
+      };
+    },
+  });
+  const open = (opts) => connect({ sql: pool, schema: r.schema, onQuery: trace.onQuery, slowMs: SLOW_MS, ...opts });
   const svc = await open({ apiKey: ENV.serviceKey }); // сервис: вход, коды, TOTP, ключи, работа от имени
 
   /** Погасить сессию по токену: временное подключение с ним и auth.revoke(). */
@@ -225,7 +237,22 @@ export async function createApp() {
   }
 
   // ---------- веб: сессии, демо-почта, «под капотом» ----------
-  const sessions = new Map(); // sid → { db, account, login, name, tenant, roles, companies, trace, acting }
+  // sid → { db, account, login, name, tenant, roles, companies, trace, acting }; db — своё подключение сессии по токену
+  const web = createSessions({
+    missing: { error: 'Нужен вход', code: 'session_ended' },
+    // жива ли сессия letopis (alive): погашенную — закрыть, вкладка вернётся ко входу
+    check: async (req, res, s) => {
+      try {
+        if (await alive(s.db, s.tenant)) return true;
+        await web.close(web.sidOf(req));
+        ended(res);
+      } catch (e) { fail(req, res, e); }
+      return false;
+    },
+    onClose: (s) => s.db.close().catch(() => {}),
+  });
+  const { auth } = web;
+  const { act } = trace;
   const pending = new Map(); // вход по коду из письма ждёт TOTP: id → { login, result, until }
   const mailbox = [];
   const names = new Map(); // tenant → название компании
@@ -235,21 +262,9 @@ export async function createApp() {
     mailbox.unshift({ id: ++mailSeq, at: new Date().toISOString().slice(11, 19), to, subject, text });
     mailbox.length = Math.min(mailbox.length, 50);
   };
-  const sidOf = (req) => /(?:^|;\s*)sid=([a-f0-9]+)/.exec(req.headers.cookie ?? '')?.[1] ?? '';
   const dbOf = (s) => s.acting?.db ?? s.db;
   const whoOf = (s) => s.acting ?? s;
   const why = (s, text) => (s.acting ? `${text} — от имени: ${s.acting.name}; действовал руководитель ${s.name}` : text);
-
-  async function act(s, title, fn) {
-    const entry = { at: new Date().toISOString().slice(11, 19), title, lines: [], queries: [], error: null };
-    const hits = s.db.cache.stats().hits;
-    try { return await als.run(entry, () => fn(entry.lines)); } catch (e) { entry.error = e.code ? `${e.code}: ${e.message}` : e.message; throw e; }
-    finally {
-      const more = s.db.cache.stats().hits - hits;
-      if (more > 0) entry.lines.push(`кэш результатов: ${more} ответ(а) без запроса к базе (.cache())`);
-      s.trace.unshift(entry); s.trace.length = Math.min(s.trace.length, 15);
-    }
-  }
 
   async function companyName(s, tenant) {
     if (!names.has(tenant)) {
@@ -275,19 +290,10 @@ export async function createApp() {
     const acc = await db.Account(account).first();
     const s = { db, account, login, name: acc?.data.name ?? login, trace: [], acting: null };
     try { await pickCompany(s, prefer); } catch (e) { await db.auth.revoke().catch(() => {}); await db.close(); throw e; }
-    const sid = randomBytes(24).toString('hex');
-    sessions.set(sid, s);
-    res.setHeader('Set-Cookie', `sid=${sid}; HttpOnly; SameSite=Lax; Path=/`);
+    web.open(res, s);
     return me(s);
   }
-  async function closeSession(sid) {
-    const s = sessions.get(sid);
-    sessions.delete(sid);
-    await s?.db.close().catch(() => {});
-  }
-  const dropAccount = async (account) => {
-    for (const [sid, s] of sessions) if (s.account === account) await closeSession(sid);
-  };
+  const dropAccount = (account) => web.closeAll((s) => s.account === account);
 
   async function me(s) {
     const who = whoOf(s);
@@ -314,8 +320,7 @@ export async function createApp() {
     const code = e?.code;
     if (code === 'no_session' || code === 'tenant_denied') {
       // сессию погасили (revokeAll, удаление учётной записи) или забрали членство — вход заново
-      const sid = sidOf(req);
-      if (sessions.has(sid)) closeSession(sid);
+      web.close(web.sidOf(req));
       return res.status(401).json({ error: 'Сеанс завершён — войдите заново', code: 'session_ended', reason: code });
     }
     if (e instanceof HttpError) return res.status(e.status).json({ error: e.message, code: e.code });
@@ -338,15 +343,6 @@ export async function createApp() {
     return !!info && info.member && (!tenant || info.tenant === tenant);
   }
   const ended = (res) => res.status(401).json({ error: 'Сеанс завершён — войдите заново', code: 'session_ended' });
-  const auth = async (req, res, next) => {
-    const sid = sidOf(req), s = sessions.get(sid);
-    if (!s) return res.status(401).json({ error: 'Нужен вход', code: 'session_ended' });
-    try {
-      if (!(await alive(s.db, s.tenant))) { await closeSession(sid); return ended(res); }
-    } catch (e) { return fail(req, res, e); }
-    req.s = s;
-    next();
-  };
   /** Право на раздел — правило API в базе: db.acl.check('desk.team') и т. п. */
   const guard = (endpoint) => async (req, res, next) => {
     try {
@@ -435,18 +431,17 @@ export async function createApp() {
 
   app.get('/api/mailbox', (_req, res) => (ENV.demoMail ? res.json(mailbox) : res.status(404).json({ error: 'Демо-почта выключена (DEMO_MAIL=0)' })));
   app.get('/logout', async (req, res) => {
-    const s = sessions.get(sidOf(req));
-    if (s) { await s.db.auth.revoke().catch(() => {}); await closeSession(sidOf(req)); }
-    res.setHeader('Set-Cookie', 'sid=; Max-Age=0; Path=/');
+    await web.get(req)?.db.auth.revoke().catch(() => {});
+    await web.logout(req, res);
     res.redirect('/');
   });
 
   // ---------- рабочее место ----------
   // без входа — 200 и null, а не 401: страница входа открывается без ошибки в консоли браузера
   app.get('/api/me', route(async (req, res) => {
-    const sid = sidOf(req), s = sessions.get(sid);
+    const s = web.get(req);
     if (!s) return res.json(null);
-    if (!(await alive(s.db, s.tenant))) { await closeSession(sid); return res.json(null); }
+    if (!(await alive(s.db, s.tenant))) { await web.close(web.sidOf(req)); return res.json(null); }
     res.json(await me(s));
   }));
   app.post('/api/switch', auth, route(async (req, res) => {
@@ -652,8 +647,8 @@ export async function createApp() {
       return out;
     });
     names.delete(s.tenant);
-    for (const [sid, x] of sessions) if (x.tenant === s.tenant) await closeSession(sid);
-    res.setHeader('Set-Cookie', 'sid=; Max-Age=0; Path=/');
+    await web.closeAll((x) => x.tenant === s.tenant);
+    web.forget(res);
     res.json(r2);
   }));
 
@@ -735,9 +730,8 @@ export async function createApp() {
   // ---------- MCP: инструменты letopis по HTTP от имени пользователя или ключа ----------
   const mcp = createMcpHandler(async ({ authInfo }) => createMcpServer(authInfo.extra.db, { write: true, maxRows: 50 }));
   app.all('/mcp', route(async (req, res) => {
-    const sid = sidOf(req);
-    let s = sessions.get(sid);
-    if (s && !(await alive(s.db, s.tenant))) { await closeSession(sid); s = undefined; }
+    let s = web.get(req);
+    if (s && !(await alive(s.db, s.tenant))) { await web.close(web.sidOf(req)); s = undefined; }
     const key = !s && bearer(req);
     const k = key ? await keySession(key, req.query.tenant ? String(req.query.tenant) : undefined) : null;
     const db = s ? dbOf(s) : k?.db;
@@ -780,24 +774,14 @@ export async function createApp() {
     if (s.acting) throw new HttpError(409, 'Сначала вернитесь к себе');
     await s.db.auth.revokeAll();
     await dropAccount(s.account);
-    res.setHeader('Set-Cookie', 'sid=; Max-Age=0; Path=/');
+    web.forget(res);
     res.json({ ok: true });
   }));
 
   // ---------- «под капотом» и живая очередь ----------
-  app.get('/api/trace', auth, (req, res) => res.json(req.s.trace));
-  app.get('/api/events', auth, async (req, res) => {
-    res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
-    const sub = dbOf(req.s).watch({ from: 'now', classes: ['Ticket', 'Reply', 'Note'] });
-    req.on('close', () => sub.return?.());
-    try {
-      await sub.ready();
-      res.write('event: ready\ndata: {}\n\n');
-      // подписка читает журнал под правами сессии: клиент получает события только своих заявок
-      for await (const ev of sub) res.write(`event: changed\ndata: ${JSON.stringify({ op: ev.op, class: ev.class })}\n\n`);
-    } catch { /* клиент ушёл или сессию погасили */ }
-    res.end();
-  });
+  app.get('/api/trace', auth, trace.serve);
+  // подписка читает журнал под правами сессии: клиент получает события только своих заявок
+  app.get('/api/events', auth, eventStream(dbOf, ['Ticket', 'Reply', 'Note']));
 
   const webDist = new URL('../web/dist/', import.meta.url);
   app.use(express.static(fileURLToPath(webDist)));
@@ -810,7 +794,7 @@ export async function createApp() {
     app, schema: r.schema,
     close: async () => {
       clearInterval(sweep);
-      for (const sid of [...sessions.keys()]) await closeSession(sid);
+      await web.closeAll();
       for (const k of [...keyDbs.values()]) await dropKey(k);
       await mcp.close();
       await svc.close();

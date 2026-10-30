@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -14,12 +13,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Login1, LOGO } from '@/components/login1';
 import { Navbar1 } from '@/components/navbar1';
 import { Stats8 } from '@/components/stats8';
+// панель «Под капотом» — общая для четырёх сервисов-примеров (services/shared/web)
+import { UnderHood, type Trace } from '@shared/UnderHood';
 
 type Staff = { id: string; name: string; specialization: string };
 type Booking = { id: string; staff: string; hour: number; customer: string; service: string };
 type Schedule = { day: string; hours: number[]; staff: Staff[]; services: { id: string; name: string }[]; bookings: Booking[]; cancelled: Booking[]; total: number };
 type Version = { rev: number; op: string; start: string; reason: string; at: string };
-type Trace = { at: string; title: string; lines: string[]; queries: { mode: string; classes: string; rows: number; ms: number }[]; error: string | null };
 
 async function api<T>(path: string, body?: unknown): Promise<T> {
   const r = await fetch(path, body === undefined ? undefined : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -159,28 +159,8 @@ function Salon({ me }: { me: { salon: string; name: string }; onLogout?: () => v
             )}
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Под капотом</CardTitle>
-            <CardDescription>Что сделала библиотека для ваших действий: цепочки и запросы к базе.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[560px] pr-3">
-              {trace.length === 0 && <p className="text-sm text-muted-foreground">Пока пусто — запишите клиента.</p>}
-              {trace.map((t, i) => (
-                <div key={i} className="mb-4">
-                  <div className="mb-1 flex items-center gap-2 text-sm font-medium">{t.at} — {t.title}{t.error && <Badge variant="destructive">ошибка</Badge>}</div>
-                  {t.lines.length > 0 && <pre className="mb-2 whitespace-pre-wrap rounded-md bg-muted p-2 text-xs">{t.lines.join('\n')}</pre>}
-                  {t.error && <p className="mb-1 text-xs text-destructive">{t.error}</p>}
-                  <Table>
-                    <TableHeader><TableRow><TableHead>запрос</TableHead><TableHead>классы</TableHead><TableHead>строк</TableHead><TableHead>мс</TableHead></TableRow></TableHeader>
-                    <TableBody>{t.queries.map((q, k) => <TableRow key={k}><TableCell>{q.mode}</TableCell><TableCell>{q.classes}</TableCell><TableCell>{q.rows}</TableCell><TableCell>{q.ms}</TableCell></TableRow>)}</TableBody>
-                  </Table>
-                </div>
-              ))}
-            </ScrollArea>
-          </CardContent>
-        </Card>
+        <UnderHood trace={trace} height="h-[560px]" empty="Пока пусто — запишите клиента."
+          description="Что сделала библиотека для ваших действий: цепочки и запросы к базе." />
       </div>
       <BookDialog slot={slot} day={data.day} services={data.services} onClose={() => setSlot(null)} onDone={(msg, ok) => { setSlot(null); ok ? toast.success(msg) : toast.error(msg); reload(); }} />
       <Dialog open={history !== null} onOpenChange={(o) => !o && setHistory(null)}>

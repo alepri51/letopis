@@ -15,13 +15,15 @@
  */
 import express from 'express';
 import postgres from 'postgres';
-import { randomBytes } from 'node:crypto';
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { fileURLToPath } from 'node:url';
 import { up, connect, createTenant, syncModels, LetopisError } from 'letopis';
 import * as model from 'letopis/model';
 import { z } from 'zod';
 import { documentModels } from './models.mjs';
+// общее у четырёх сервисов-примеров: журнал «под капотом», веб-сессии по cookie, подписка → SSE
+import { createTrace } from '../../shared/trace.mjs';
+import { createSessions } from '../../shared/sessions.mjs';
+import { eventStream } from '../../shared/events.mjs';
 
 const ENV = {
   admin: process.env.ADMIN_DSN ?? 'postgres://postgres:guide@127.0.0.1:15440/letopis',
@@ -60,8 +62,8 @@ export async function createApp() {
   await admin.unsafe(`do $$ begin if not exists (select 1 from pg_roles where rolname = '${appUrl.username}') then
     create role ${appUrl.username} login password '${decodeURIComponent(appUrl.password)}'; end if; end $$`);
   await admin.unsafe(`grant letopis_app to ${appUrl.username}`);
-  const als = new AsyncLocalStorage();
-  const onQuery = (e) => als.getStore()?.queries.push({ mode: e.mode, classes: e.classes.join(', '), rows: e.rows, ms: Math.round(e.ms) });
+  const trace = createTrace({ size: 15 }); // запросы к базе — в журнал текущего действия
+  const { onQuery } = trace;
   const svc = await connect({ dsn: ENV.app, schema: r.schema, apiKey: ENV.serviceKey, onQuery });
   const t = await createTenant(admin, r.schema, { name: FIRM, user: { name: USERS.head.name, login: USERS.head.login, password: USERS.head.password, ttl: '10 minutes' } });
   await createTenant(admin, r.schema, { name: FIRM, user: { name: USERS.lawyer.name, login: USERS.lawyer.login, password: USERS.lawyer.password, roles: ['staff'], ttl: '1 minute' } });
@@ -99,13 +101,9 @@ export async function createApp() {
   }
 
   // ---------- веб: сессии, «под капотом» ----------
-  const sessions = new Map();
-  const sidOf = (req) => /(?:^|;\s*)sid=([a-f0-9]+)/.exec(req.headers.cookie ?? '')?.[1] ?? '';
-  async function act(s, title, fn) {
-    const entry = { at: new Date().toISOString().slice(11, 19), title, lines: [], queries: [], error: null };
-    try { return await als.run(entry, () => fn(entry.lines)); } catch (e) { entry.error = e.code ? `${e.code}: ${e.message}` : e.message; throw e; }
-    finally { s.trace.unshift(entry); s.trace.length = Math.min(s.trace.length, 15); }
-  }
+  const web = createSessions(); // sid → { db, account, …пользователь из USERS, trace: [] }
+  const { auth } = web;
+  const { act } = trace;
   function fail(res, e) {
     if (e instanceof HttpError) return res.status(e.status).json({ error: e.message, code: e.code });
     const code = e?.code;
@@ -114,7 +112,6 @@ export async function createApp() {
     res.status(status).json({ error: status === 409 ? 'Документ уже изменили — обновите и повторите' : `${code ?? ''} ${e?.message ?? e}`.trim(), code });
   }
   const route = (fn) => async (req, res) => { try { await fn(req, res); } catch (e) { fail(res, e); } };
-  const auth = (req, res, next) => { const s = sessions.get(sidOf(req)); if (!s) return res.status(401).json({ error: 'нужен вход' }); req.s = s; next(); };
 
   const names = new Map([[t.user, USERS.head.name]]);
   const nameOf = (account) => names.get(account) ?? '—';
@@ -138,14 +135,12 @@ export async function createApp() {
     const ok = user && (await svc.auth.verifyPassword({ identifier: login, password: String(req.body?.password ?? '') }));
     if (!ok) throw new HttpError(401, 'Неверный логин или пароль');
     names.set(ok.account, user.name);
-    const sid = randomBytes(24).toString('hex');
-    sessions.set(sid, { db: await svc.as(ok.account, { tenant: t.tenant }), account: ok.account, ...user, trace: [] });
-    res.setHeader('Set-Cookie', `sid=${sid}; HttpOnly; SameSite=Lax; Path=/`);
+    web.open(res, { db: await svc.as(ok.account, { tenant: t.tenant }), account: ok.account, ...user, trace: [] });
     res.json({ name: user.name, role: user.role, firm: FIRM });
   }));
-  app.get('/logout', (req, res) => { sessions.delete(sidOf(req)); res.setHeader('Set-Cookie', 'sid=; Max-Age=0; Path=/'); res.redirect('/'); });
+  app.get('/logout', async (req, res) => { await web.logout(req, res); res.redirect('/'); });
   // без входа — 200 и null, а не 401: страница входа открывается без ошибки в консоли браузера
-  app.get('/api/me', (req, res) => { const s = sessions.get(sidOf(req)); res.json(s ? { name: s.name, role: s.role, firm: FIRM } : null); });
+  app.get('/api/me', (req, res) => { const s = web.get(req); res.json(s ? { name: s.name, role: s.role, firm: FIRM } : null); });
 
   app.get('/api/stats', auth, route(async (req, res) => {
     const db = req.s.db;
@@ -353,18 +348,8 @@ export async function createApp() {
     res.json(report);
   }));
 
-  app.get('/api/trace', auth, (req, res) => res.json(req.s.trace));
-  app.get('/api/events', auth, async (req, res) => {
-    res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
-    const sub = req.s.db.watch({ from: 'now', classes: ['Doc', 'Party'] });
-    req.on('close', () => sub.return?.());
-    try {
-      await sub.ready();
-      res.write('event: ready\ndata: {}\n\n');
-      for await (const ev of sub) res.write(`event: changed\ndata: ${JSON.stringify({ op: ev.op, class: ev.class })}\n\n`);
-    } catch { /* клиент ушёл */ }
-    res.end();
-  });
+  app.get('/api/trace', auth, trace.serve);
+  app.get('/api/events', auth, eventStream((s) => s.db, ['Doc', 'Party']));
   const webDist = new URL('../web/dist/', import.meta.url);
   app.use(express.static(fileURLToPath(webDist)));
   app.get(/^\/(?!api\/).*/, (_req, res) => res.sendFile(fileURLToPath(new URL('index.html', webDist))));

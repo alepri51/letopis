@@ -6,18 +6,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 // блоки shadcnblocks: вход, навигация, показатели
 import { Login1, LOGO } from '@/components/login1';
 import { Navbar1 } from '@/components/navbar1';
 import { Stats8 } from '@/components/stats8';
+// панель «Под капотом» — общая для четырёх сервисов-примеров (services/shared/web)
+import { UnderHood, type Trace } from '@shared/UnderHood';
 
 type W = { id: string; number: string; owner: string; balance: number };
 type M = { id: string; wallet: string; opId: string; kind: string; amount: number; card4: string; at: string };
 type S = { wallet: string; month: string; topup: number; debit: number; count: number };
 type Data = { wallets: W[]; movements: M[]; statements: S[] };
-type Trace = { at: string; title: string; lines: string[]; queries: { mode: string; classes: string; rows: number; ms: number }[]; error: string | null };
 type Version = { rev: number; op: string; balance: number; reason: string; at: string };
 
 async function api<T>(path: string, body?: unknown): Promise<T> {
@@ -115,18 +115,8 @@ function Billing({ me }: { me: { name: string } }) {
             </Table></CardContent>
           </Card>
         </div>
-        <Card>
-          <CardHeader><CardTitle>Под капотом</CardTitle><CardDescription>Цепочки и запросы к базе для ваших действий.</CardDescription></CardHeader>
-          <CardContent><ScrollArea className="h-[640px] pr-3">
-            {trace.length === 0 && <p className="text-sm text-muted-foreground">Пока пусто — проведите операцию.</p>}
-            {trace.map((t, i) => (
-              <div key={i} className="mb-4">
-                <div className="mb-1 flex items-center gap-2 text-sm font-medium">{t.at} — {t.title}{t.error && <Badge variant="destructive">ошибка</Badge>}</div>
-                {t.lines.length > 0 && <pre className="mb-2 whitespace-pre-wrap rounded-md bg-muted p-2 text-xs">{t.lines.join('\n')}</pre>}
-                {t.error && <p className="text-xs text-destructive">{t.error}</p>}
-              </div>))}
-          </ScrollArea></CardContent>
-        </Card>
+        <UnderHood trace={trace} height="h-[640px]" empty="Пока пусто — проведите операцию."
+          description="Цепочки и запросы к базе для ваших действий." />
       </div>
       <OpDialog dlg={dlg} wallets={data.wallets} onClose={() => setDlg(null)} onDone={() => { setDlg(null); reload(); }} />
       <Dialog open={history !== null} onOpenChange={(o) => !o && setHistory(null)}>

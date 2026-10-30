@@ -13,6 +13,8 @@ WORKDIR /web
 COPY services/helpdesk/web/package.json services/helpdesk/web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY services/helpdesk/web/ ./
+# общая панель «Под капотом» (services/shared/web): из /web путь ../../shared/web — это /shared/web
+COPY services/shared/web /shared/web
 RUN npm run build
 
 FROM node:22-alpine
@@ -22,6 +24,8 @@ COPY --from=lib /pkg/ /pkg/
 RUN sed -i 's#"letopis": "file:../../lib"#"letopis": "file:/pkg/letopis.tgz"#' package.json \
   && npm install --omit=dev --no-audit --no-fund
 COPY services/helpdesk/src ./src
+# общие модули сервисов-примеров: из /app/src путь ../../shared — это /shared
+COPY services/shared /shared
 COPY --from=web /web/dist ./web/dist
 COPY services/helpdesk/scenario.mjs ./
 EXPOSE 8083

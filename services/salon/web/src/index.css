@@ -2,6 +2,8 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+/* общая панель «Под капотом» лежит вне приложения: её классы Tailwind ищет по @source */
+@source "../../../shared/web";
 
 @custom-variant dark (&:is(.dark *));
 

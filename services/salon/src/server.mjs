@@ -11,11 +11,13 @@
  */
 import express from 'express';
 import postgres from 'postgres';
-import { randomBytes } from 'node:crypto';
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { fileURLToPath } from 'node:url';
 import { up, connect, createTenant } from 'letopis';
 import { HOURS, today, directory, dayBookings, book, cancel, restore, history, report } from './domain.mjs';
+// общее у четырёх сервисов-примеров: журнал «под капотом», веб-сессии по cookie, подписка → SSE
+import { createTrace } from '../../shared/trace.mjs';
+import { createSessions } from '../../shared/sessions.mjs';
+import { eventStream } from '../../shared/events.mjs';
 
 const ENV = {
   admin: process.env.ADMIN_DSN ?? 'postgres://postgres:guide@127.0.0.1:15440/letopis',
@@ -47,11 +49,8 @@ export async function createApp() {
     end if; end $$`);
   await admin.unsafe(`grant letopis_app to ${appUrl.username}`);
 
-  const als = new AsyncLocalStorage(); // запросы к базе — в журнал текущего действия
-  const svc = await connect({
-    dsn: ENV.app, schema: r.schema, apiKey: ENV.serviceKey,
-    onQuery: (e) => als.getStore()?.queries.push({ mode: e.mode, classes: e.classes.join(', '), rows: e.rows, ms: Math.round(e.ms) }),
-  });
+  const trace = createTrace({ size: 12 }); // запросы к базе — в журнал текущего действия
+  const svc = await connect({ dsn: ENV.app, schema: r.schema, apiKey: ENV.serviceKey, onQuery: trace.onQuery });
 
   // ---------- демо-данные: салоны и справочники (повтор ничего не дублирует) ----------
   const tenants = new Map(); // логин → { tenant, account }
@@ -69,24 +68,11 @@ export async function createApp() {
   }
 
   // ---------- веб-сессии и журнал «под капотом» ----------
-  const sessions = new Map(); // sid → { account, tenant, name, salon, trace: [] }
-  const sessionOf = (req) => sessions.get(/(?:^|;\s*)sid=([a-f0-9]+)/.exec(req.headers.cookie ?? '')?.[1] ?? '');
+  const web = createSessions(); // sid → { account, tenant, name, salon, trace: [], db }
+  const { auth } = web;
+  const { act } = trace;
   // фасад пользователя (svc.as — асинхронный) создаётся один раз при входе и живёт в веб-сессии
   const userDb = (s) => s.db;
-
-  /** Выполнить действие и записать в журнал сессии цепочки и запросы к базе. */
-  async function act(s, title, fn) {
-    const entry = { at: new Date().toISOString().slice(11, 19), title, lines: [], queries: [], error: null };
-    try {
-      return await als.run(entry, () => fn(entry.lines));
-    } catch (e) {
-      entry.error = e.code ? `${e.code}: ${e.message}` : e.message;
-      throw e;
-    } finally {
-      s.trace.unshift(entry);
-      s.trace.length = Math.min(s.trace.length, 12);
-    }
-  }
 
   const app = express();
   app.use(express.json());
@@ -98,32 +84,20 @@ export async function createApp() {
     const known = login && tenants.get(String(id));
     if (!login || !known) return res.status(401).json({ error: 'Неверный логин или пароль' });
     const salon = SALONS.find((x) => x.user.login === id);
-    const sid = randomBytes(24).toString('hex');
     const db = await svc.as(login.account, { tenant: known.tenant });
-    sessions.set(sid, { account: login.account, tenant: known.tenant, name: salon.user.name, salon: salon.name, trace: [], db });
-    res.setHeader('Set-Cookie', `sid=${sid}; HttpOnly; SameSite=Lax; Path=/`);
+    web.open(res, { account: login.account, tenant: known.tenant, name: salon.user.name, salon: salon.name, trace: [], db });
     res.json({ salon: salon.name, name: salon.user.name });
   });
-  app.post('/api/logout', (req, res) => {
-    const sid = /(?:^|;\s*)sid=([a-f0-9]+)/.exec(req.headers.cookie ?? '')?.[1];
-    if (sid) sessions.delete(sid);
-    res.setHeader('Set-Cookie', 'sid=; Max-Age=0; Path=/');
+  app.post('/api/logout', async (req, res) => {
+    await web.logout(req, res);
     res.json({ ok: true });
   });
-  app.get('/logout', (req, res) => {
-    const sid = /(?:^|;\s*)sid=([a-f0-9]+)/.exec(req.headers.cookie ?? '')?.[1];
-    if (sid) sessions.delete(sid);
-    res.setHeader('Set-Cookie', 'sid=; Max-Age=0; Path=/');
+  app.get('/logout', async (req, res) => {
+    await web.logout(req, res);
     res.redirect('/');
   });
-  const auth = (req, res, next) => {
-    const s = sessionOf(req);
-    if (!s) return res.status(401).json({ error: 'нужен вход' });
-    req.s = s;
-    next();
-  };
   // без входа — 200 и null, а не 401: страница входа открывается без ошибки в консоли браузера
-  app.get('/api/me', (req, res) => { const s = sessionOf(req); res.json(s ? { salon: s.salon, name: s.name } : null); });
+  app.get('/api/me', (req, res) => { const s = web.get(req); res.json(s ? { salon: s.salon, name: s.name } : null); });
 
   // ---------- API: расписание ----------
   async function schedule(s, day) {
@@ -143,7 +117,7 @@ export async function createApp() {
     };
   }
   app.get('/api/schedule', auth, async (req, res) => res.json(await schedule(req.s, String(req.query.day ?? today()))));
-  app.get('/api/trace', auth, (req, res) => res.json(req.s.trace));
+  app.get('/api/trace', auth, trace.serve);
 
   app.post('/api/book', auth, async (req, res) => {
     const b = req.body ?? {};
@@ -175,16 +149,7 @@ export async function createApp() {
   });
 
   // ---------- живое обновление: подписка letopis → SSE ----------
-  app.get('/api/events', auth, async (req, res) => {
-    res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
-    const sub = userDb(req.s).watch({ from: 'now', classes: ['booking'] });
-    req.on('close', () => sub.return?.());
-    await sub.ready();
-    res.write('event: ready\ndata: {}\n\n');
-    try {
-      for await (const ev of sub) res.write(`event: changed\ndata: ${JSON.stringify({ op: ev.op })}\n\n`);
-    } catch { /* клиент ушёл */ }
-  });
+  app.get('/api/events', auth, eventStream(userDb, ['booking']));
 
   // ---------- интерфейс: собранное React-приложение (shadcn/ui) ----------
   const webDist = new URL('../web/dist/', import.meta.url);

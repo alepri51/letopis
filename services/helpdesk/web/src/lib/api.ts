@@ -17,4 +17,3 @@ export type Me = {
   name: string; login: string; role: Role; company: string; tenant: string;
   companies: { tenant: string; name: string }[]; totp: boolean; actingAs?: string;
 };
-export type Trace = { at: string; title: string; lines: string[]; queries: { mode: string; classes: string; rows: number; ms: number; slow: boolean }[]; error: string | null };

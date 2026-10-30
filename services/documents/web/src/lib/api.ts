@@ -17,4 +17,3 @@ export type Doc = {
   status: string; signedBy: string; party: string; partyName: string; rev: number; at: string; archived: boolean;
 };
 export type Version = { id: string; rev: number; op: string; class: string; at: string; who: string; reason: string; data: Record<string, unknown> };
-export type Trace = { at: string; title: string; lines: string[]; queries: { mode: string; classes: string; rows: number; ms: number }[]; error: string | null };

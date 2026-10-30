@@ -11,13 +11,15 @@
  */
 import express from 'express';
 import postgres from 'postgres';
-import { randomBytes } from 'node:crypto';
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { fileURLToPath } from 'node:url';
 import { up, connect, createTenant, syncModels, LetopisError } from 'letopis';
 import * as model from 'letopis/model';
 import { z } from 'zod';
 import { walletModels } from './models.mjs';
+// общее у четырёх сервисов-примеров: журнал «под капотом», веб-сессии по cookie, подписка → SSE
+import { createTrace } from '../../shared/trace.mjs';
+import { createSessions } from '../../shared/sessions.mjs';
+import { eventStream } from '../../shared/events.mjs';
 
 const ENV = {
   admin: process.env.ADMIN_DSN ?? 'postgres://postgres:guide@127.0.0.1:15440/letopis',
@@ -53,11 +55,8 @@ export async function createApp() {
   await admin.unsafe(`do $$ begin if not exists (select 1 from pg_roles where rolname = '${appUrl.username}') then
     create role ${appUrl.username} login password '${decodeURIComponent(appUrl.password)}'; end if; end $$`);
   await admin.unsafe(`grant letopis_app to ${appUrl.username}`);
-  const als = new AsyncLocalStorage();
-  const svc = await connect({
-    dsn: ENV.app, schema: r.schema, apiKey: ENV.serviceKey,
-    onQuery: (e) => als.getStore()?.queries.push({ mode: e.mode, classes: e.classes.join(', '), rows: e.rows, ms: Math.round(e.ms) }),
-  });
+  const trace = createTrace({ size: 12 }); // запросы к базе — в журнал текущего действия
+  const svc = await connect({ dsn: ENV.app, schema: r.schema, apiKey: ENV.serviceKey, onQuery: trace.onQuery });
   const t = await createTenant(admin, r.schema, { name: 'Копейка', user: OPERATOR });
   // модель: обычные классы — сессией оператора, производный Statement — администраторским подключением
   const adm = await connect({ dsn: ENV.admin, schema: r.schema, token: t.token, allowBypassRls: true });
@@ -123,14 +122,10 @@ export async function createApp() {
   }
 
   // ---------- веб: сессии, журнал «под капотом», API ----------
-  const sessions = new Map();
-  const sidOf = (req) => /(?:^|;\s*)sid=([a-f0-9]+)/.exec(req.headers.cookie ?? '')?.[1] ?? '';
-  async function act(s, title, fn) {
-    const entry = { at: new Date().toISOString().slice(11, 19), title, lines: [], queries: [], error: null };
-    try { return await als.run(entry, () => fn(entry.lines)); } catch (e) { entry.error = e.code ? `${e.code}: ${e.message}` : e.message; throw e; }
-    finally { s.trace.unshift(entry); s.trace.length = Math.min(s.trace.length, 12); }
-  }
-  const fail = (res, e) => res.status(e.code === 'invalid_data' ? 422 : e.code === 'conflict' ? 409 : 400)
+  const web = createSessions(); // sid → { db, name, trace: [] }
+  const { auth } = web;
+  const { act } = trace;
+  const fail =(res, e) => res.status(e.code === 'invalid_data' ? 422 : e.code === 'conflict' ? 409 : 400)
     .json({ error: e.code === 'invalid_data' ? 'Недостаточно средств: баланс не может стать отрицательным' : `${e.code ?? ''} ${e.message}` });
 
   const app = express();
@@ -139,15 +134,12 @@ export async function createApp() {
     const { login: id = '', password = '' } = req.body ?? {};
     const login = await svc.auth.verifyPassword({ identifier: String(id), password: String(password) });
     if (!login || id !== OPERATOR.login) return res.status(401).json({ error: 'Неверный логин или пароль' });
-    const sid = randomBytes(24).toString('hex');
-    sessions.set(sid, { db: await svc.as(login.account, { tenant: t.tenant }), name: OPERATOR.name, trace: [] });
-    res.setHeader('Set-Cookie', `sid=${sid}; HttpOnly; SameSite=Lax; Path=/`);
+    web.open(res, { db: await svc.as(login.account, { tenant: t.tenant }), name: OPERATOR.name, trace: [] });
     res.json({ company: 'Копейка', name: OPERATOR.name });
   });
-  app.get('/logout', (req, res) => { sessions.delete(sidOf(req)); res.setHeader('Set-Cookie', 'sid=; Max-Age=0; Path=/'); res.redirect('/'); });
-  const auth = (req, res, next) => { const s = sessions.get(sidOf(req)); if (!s) return res.status(401).json({ error: 'нужен вход' }); req.s = s; next(); };
+  app.get('/logout', async (req, res) => { await web.logout(req, res); res.redirect('/'); });
   // без входа — 200 и null, а не 401: страница входа открывается без ошибки в консоли браузера
-  app.get('/api/me', (req, res) => { const s = sessions.get(sidOf(req)); res.json(s ? { company: 'Копейка', name: s.name } : null); });
+  app.get('/api/me', (req, res) => { const s = web.get(req); res.json(s ? { company: 'Копейка', name: s.name } : null); });
 
   app.get('/api/wallets', auth, async (req, res) => {
     const db = req.s.db;
@@ -185,15 +177,8 @@ export async function createApp() {
     const versions = await act(req.s, 'История баланса', () => req.s.db.Wallet(req.params.id).versions());
     res.json(versions.map((v) => ({ rev: v.rev, op: v.op, balance: v.data.balance, reason: v.reason ?? '', at: String(v.at).slice(11, 19) })));
   });
-  app.get('/api/trace', auth, (req, res) => res.json(req.s.trace));
-  app.get('/api/events', auth, async (req, res) => {
-    res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
-    const sub = req.s.db.watch({ from: 'now', classes: ['Wallet', 'Movement'] });
-    req.on('close', () => sub.return?.());
-    await sub.ready();
-    res.write('event: ready\ndata: {}\n\n');
-    try { for await (const ev of sub) res.write(`event: changed\ndata: ${JSON.stringify({ op: ev.op })}\n\n`); } catch { /* клиент ушёл */ }
-  });
+  app.get('/api/trace', auth, trace.serve);
+  app.get('/api/events', auth, eventStream((s) => s.db, ['Wallet', 'Movement']));
   const webDist = new URL('../web/dist/', import.meta.url);
   app.use(express.static(fileURLToPath(webDist)));
   app.get(/^\/(?!api\/).*/, (_req, res) => res.sendFile(fileURLToPath(new URL('index.html', webDist))));

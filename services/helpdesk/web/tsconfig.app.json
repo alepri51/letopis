@@ -25,10 +25,20 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@shared/*": [
+        "../../shared/web/*"
+      ],
+      "react": [
+        "./node_modules/@types/react"
+      ],
+      "react/*": [
+        "./node_modules/@types/react/*"
       ]
     }
   },
   "include": [
-    "src"
+    "src",
+    "../../shared/web"
   ]
 }
