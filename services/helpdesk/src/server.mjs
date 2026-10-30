@@ -12,6 +12,9 @@
  *   поэтому revokeAll и удаление членства закрывают доступ сразу, а auth.switch переключает компанию.
  * - Ключи API: интеграции (заявка из формы на сайте) и ИИ-агента; помощник — сервер MCP letopis по HTTP (/mcp).
  * - Работа от имени: svc.as(клиент) — журнал пишет автором клиента, исполнителем (agent) — сервис.
+ * - Сессия для ИИ-агента: svc.auth.sessionFor(вы, { ttl }) и connect({ token }) — короткая сессия вместо вечного ключа:
+ *   не кред (credentials() её не показывает), истекает сама, гасит её auth.revoke(); правки агента в журнале — от вас,
+ *   без исполнителя (agent).
  * - Очередь: заявки по сроку ответа, страницы по курсору (after); номер — inc в счётчике компании;
  *   живое обновление (watch → SSE); справочник людей — через кэш результатов (.cache()).
  * - Закрытие своей компании — auth.purgeAccount: данные арендатора стираются целиком.
@@ -51,6 +54,8 @@ const ENV = {
 };
 const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
 const WEB_TTL = 8 * 3600; // срок веб-сессии, с; подключение продлевает её раз в минуту работы
+const AGENT_TTL = 15 * 60; // срок сессии ИИ-агента, с; её подключение срок не продлевает (refreshSession: false)
+const AGENT_MAX = 3; // действующих сессий агента у одной вкладки
 const PAGE = 5;
 const SLOW_MS = 25;
 
@@ -243,7 +248,8 @@ export async function createApp() {
   }
 
   // ---------- веб: сессии, демо-почта, «под капотом» ----------
-  // sid → { db, account, login, name, tenant, roles, companies, trace, acting }; db — своё подключение сессии по токену
+  // sid → { db, account, login, name, tenant, roles, companies, trace, acting }; db — своё подключение сессии по токену;
+  // сессии агента, выданные вкладкой, — в agents (раздел MCP)
   const web = createSessions({
     missing: { error: 'Нужен вход', code: 'session_ended' },
     // жива ли сессия letopis (alive): погашенную — закрыть, вкладка вернётся ко входу
@@ -255,7 +261,11 @@ export async function createApp() {
       } catch (e) { fail(req, res, e); }
       return false;
     },
-    onClose: (s) => s.db.close().catch(() => {}),
+    // закрытая вкладка (выход, «выйти везде», удаление из компании) гасит и выданные ею сессии агента
+    onClose: async (s) => {
+      for (const a of agentsOf(s)) await dropAgent(a);
+      await s.db.close().catch(() => {});
+    },
   });
   const { auth } = web;
   const { act } = trace;
@@ -691,6 +701,83 @@ export async function createApp() {
     res.json({ ...k, url: `/mcp?tenant=${s.tenant}` });
   }));
 
+  /**
+   * Сессии ИИ-агента: svc.auth.sessionFor(вы, { ttl }) — сессия вашей учётной записи для другого процесса. Чем она не ключ:
+   * не кред (credentials() её не показывает, своего id для revokeCredential у неё нет), истекает сама через ttl, гасит её
+   * auth.revoke() её же подключением, «выйти везде» (revokeAll) и выход вкладки, которая её выдала; какие сессии выданы,
+   * помнит сервис.
+   * Чем она не svc.as(): это сессия самого пользователя — в журнале автор он, исполнителя (agent) нет; компанию задаёт
+   * auth.switch, и база её помнит. Токен → { id, token, db, account, tenant, company, until, methods, owner — вкладка }.
+   */
+  const agents = new Map();
+  function agentsOf(s) { return [...agents.values()].filter((a) => a.owner === s); }
+  /** Погасить сессию агента её подключением (уже погашенная или истёкшая — no_session, ответ false) и закрыть его. */
+  async function dropAgent(a) {
+    agents.delete(a.token);
+    const ok = await a.db.auth.revoke().catch(() => false);
+    await a.db.close().catch(() => {});
+    return ok;
+  }
+  /** Сессия агента по токену: только выданная здесь и живая — не погашена, не истекла, членство в компании цело. */
+  async function agentSession(token) {
+    const a = agents.get(token);
+    if (!a) return null;
+    if (await alive(a.db, a.tenant)) return a;
+    await dropAgent(a);
+    return null;
+  }
+  /** Действующие сессии агента вкладки со сведениями базы (auth.session); погашенные, истёкшие и без членства — гасятся. */
+  async function liveAgentsOf(s) {
+    const out = [];
+    for (const a of agentsOf(s)) {
+      const info = await svc.auth.session(a.token);
+      if (info?.member && info.tenant === a.tenant) out.push({ a, info });
+      else await dropAgent(a);
+    }
+    return out;
+  }
+
+  // короткая сессия вместо ключа: агент работает вашей сессией в этой компании
+  app.post('/api/assistant/session', auth, guard('desk.assistant'), route(async (req, res) => {
+    const s = req.s;
+    // от чужого имени — нет: токен с правами другого человека ушёл бы из сервиса, а причина правок по нему (why) не
+    // назвала бы руководителя, как при работе от имени
+    if (s.acting) throw new HttpError(409, 'Сначала вернитесь к себе: сессию агента выдают только на себя');
+    if ((await liveAgentsOf(s)).length >= AGENT_MAX) throw new HttpError(409, `Уже ${AGENT_MAX} действующие сессии агента — погасите ненужную`);
+    const company = await companyName(s, s.tenant);
+    const a = await act(s, 'Сессия для ИИ-агента', async (lines) => {
+      const token = await svc.auth.sessionFor(s.account, { ttl: AGENT_TTL });
+      lines.push(`svc.auth.sessionFor(вы, { ttl: ${AGENT_TTL} }) — новая сессия вашей учётной записи; выпускает сервис (право auth.session), вход — SERVICE`);
+      const db = await open({ token, refreshSession: false });
+      try {
+        await db.auth.switch(s.tenant);
+        lines.push(`connect({ sql, token, refreshSession: false }); db.auth.switch('${s.tenant.slice(0, 8)}…') — «${company}»: компанию сессия помнит в базе, адрес агента без ?tenant`);
+        const info = await svc.auth.session(token);
+        lines.push(`svc.auth.session(token) → вход ${info.methods.join(', ')}, истекает через ${Math.round((Date.parse(info.expiresAt) - Date.now()) / 60_000)} мин; работа агента срок не продлевает`);
+        const kinds = [...new Set((await svc.auth.credentials(s.account)).map((c) => c.kind))];
+        lines.push(`svc.auth.credentials(вы) → ${kinds.join(', ') || 'пусто'}: сессии среди кредов нет — id для revokeCredential у неё нет, гасит её auth.revoke()`);
+        const entry = { id: randomBytes(8).toString('hex'), token, db, account: s.account, tenant: s.tenant, company, until: info.expiresAt, methods: info.methods, owner: s };
+        agents.set(token, entry);
+        return entry;
+      } catch (e) { await db.auth.revoke().catch(() => {}); await db.close(); throw e; }
+    });
+    res.json({ id: a.id, token: a.token, url: '/mcp', company, until: a.until, methods: a.methods });
+  }));
+  // список ведёт сервис: letopis сессий не перечисляет, а жива ли каждая — отвечает база (auth.session)
+  app.get('/api/assistant/sessions', auth, route(async (req, res) => {
+    res.json((await liveAgentsOf(req.s)).map(({ a, info }) => ({ id: a.id, company: a.company, until: info.expiresAt, methods: info.methods })));
+  }));
+  app.post('/api/assistant/sessions/:id/revoke', auth, route(async (req, res) => {
+    const s = req.s, a = agentsOf(s).find((x) => x.id === req.params.id);
+    if (!a) throw new HttpError(404, 'Такой сессии агента нет — она истекла или уже погашена');
+    await act(s, 'Погасить сессию агента', async (lines) => {
+      const ok = await dropAgent(a);
+      lines.push(`db.auth.revoke() подключением сессии агента — ${ok ? 'погашена' : 'уже не действовала'}; db.close() — подключение закрыто`);
+      lines.push('следующий вызов агента с этим токеном — 401: svc.auth.session(token) отвечает null');
+    });
+    res.json({ ok: true });
+  }));
+
   /** Подключение по ключу API (интеграция или ИИ-агент): одно на ключ и компанию, отозванный ключ — no_session. */
   const keyDbs = new Map();
   async function keySession(key, tenant) {
@@ -733,22 +820,35 @@ export async function createApp() {
     }
   }));
 
-  // ---------- MCP: инструменты letopis по HTTP от имени пользователя или ключа ----------
+  // ---------- MCP: инструменты letopis по HTTP от имени пользователя, его сессии агента или ключа ----------
   const mcp = createMcpHandler(async ({ authInfo }) => createMcpServer(authInfo.extra.db, { write: true, maxRows: 50 }));
   app.all('/mcp', route(async (req, res) => {
     let s = web.get(req);
     if (s && !(await alive(s.db, s.tenant))) { await web.close(web.sidOf(req)); s = undefined; }
     const key = !s && bearer(req);
-    const k = key ? await keySession(key, req.query.tenant ? String(req.query.tenant) : undefined) : null;
-    const db = s ? dbOf(s) : k?.db;
-    if (!db) return res.status(401).json({ error: 'Нужен вход или ключ API' });
+    // без cookie: сначала сессия, выданная агенту здесь (sessionFor), иначе ключ API
+    const a = key ? await agentSession(key) : null;
+    const k = key && !a ? await keySession(key, req.query.tenant ? String(req.query.tenant) : undefined) : null;
+    const db = s ? dbOf(s) : a ? a.db : k?.db;
+    if (!db) return res.status(401).json({ error: 'Нужен вход, ключ API или действующая сессия агента' });
     const headers = Object.entries(req.headers).filter(([h, v]) => typeof v === 'string' && !['host', 'connection', 'content-length'].includes(h));
     const request = new Request(`http://127.0.0.1${req.originalUrl}`, {
       method: req.method, headers, body: req.method === 'POST' ? JSON.stringify(req.body) : undefined,
     });
     const call = () => mcp.fetch(request, { authInfo: { token: key || 'cookie', clientId: 'helpdesk', scopes: [], extra: { db } } });
-    const title = Array.isArray(req.body) ? 'MCP: пачка' : `MCP: ${req.body?.method ?? req.method}${req.body?.params?.name ? ` ${req.body.params.name}` : ''}`;
-    const response = s ? await act(s, title, async (lines) => { lines.push('createMcpServer(подключение пользователя, { write: true }) — права те же, что у вас'); return call(); }) : await call();
+    const what = Array.isArray(req.body) ? 'пачка' : `${req.body?.method ?? req.method}${req.body?.params?.name ? ` ${req.body.params.name}` : ''}`;
+    // «под капотом»: вызов по cookie — у этой вкладки, по сессии агента — у вкладки, которая её выдала (автор версий — вы)
+    const who = s ?? (a && { db: a.db, account: a.account, trace: a.owner.trace });
+    const note = s ? 'createMcpServer(подключение пользователя, { write: true }) — права те же, что у вас'
+      : `createMcpServer(подключение сессии агента, { write: true }) — ваши права в «${a?.company}»; в журнале автор — вы, исполнителя (agent) нет`;
+    // инструмент работает, пока сервер пишет поток ответа: ответ вызова читается внутри действия, иначе его версии и
+    // сигналы прошли бы мимо записи журнала
+    const tool = req.method === 'POST' && req.body?.method === 'tools/call';
+    const response = who ? await act(who, `${a ? 'MCP агента' : 'MCP'}: ${what}`, async (lines) => {
+      lines.push(note);
+      const r = await call();
+      return tool && r.body ? new Response(await r.arrayBuffer(), r) : r;
+    }) : await call();
     res.status(response.status);
     response.headers.forEach((v, h) => res.setHeader(h, v));
     if (!response.body) return res.end();
@@ -800,7 +900,8 @@ export async function createApp() {
     app, schema: r.schema,
     close: async () => {
       clearInterval(sweep);
-      await web.closeAll();
+      await web.closeAll(); // и сессии агента вкладок: остановка сервиса их гасит, а не оставляет жить до срока
+      for (const a of [...agents.values()]) await dropAgent(a);
       for (const k of [...keyDbs.values()]) await dropKey(k);
       await mcp.close();
       await svc.close();

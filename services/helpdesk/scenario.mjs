@@ -26,6 +26,11 @@ const call = async (cookie, path, body) => {
   return { status: r.status, cookie: (r.headers.get('set-cookie') ?? '').split(';')[0], data: await r.json().catch(() => null) };
 };
 const mailTo = async (to) => (await call('', '/api/mailbox')).data.find((m) => m.to === to);
+/** Вызов /mcp так, как его делает внешний агент: только заголовок Authorization, без cookie. */
+const asAgent = (token) => fetch(`${base}/mcp`, {
+  method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+  body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+});
 const otpLogin = async (login) => {
   await call('', '/api/otp/send', { login });
   const code = /\b(\d{6})\b/.exec((await mailTo(login))?.text ?? '')?.[1];
@@ -137,6 +142,32 @@ try {
   check(rename.isError === true && /acl_denied/.test(JSON.stringify(rename.structuredContent ?? rename.content)), 'MCP: агент не может переименовать компанию — название правит только руководитель');
   await mcp.close();
 
+  // 5б. ИИ-агент по короткой сессии (sessionFor) вместо ключа: не кред, свой срок, отзыв; в журнале — без исполнителя
+  const ses = (await call(agent, '/api/assistant/session', {})).data;
+  const left = Date.parse(ses?.until ?? '') - Date.now();
+  check(/^[a-f0-9]{64}$/.test(ses?.token ?? '') && ses.url === '/mcp' && ses.methods?.join() === 'SERVICE' && left > 0 && left <= 15 * 60_000,
+    'сессия ИИ-агента: sessionFor на 15 минут, вход SERVICE, адрес без ?tenant', { ...ses, token: undefined });
+  const issuedHood = (await call(agent, '/api/trace')).data?.[0];
+  const credLine = issuedHood?.lines.find((l) => l.startsWith('svc.auth.credentials')) ?? '';
+  check(issuedHood?.title === 'Сессия для ИИ-агента' && credLine.includes('APIKEY') && !credLine.includes('SESSION') && !JSON.stringify(issuedHood).includes(ses.token),
+    'под капотом: ключ агента — кред (APIKEY в credentials()), сессии там нет; токена в панели нет', issuedHood);
+  const viaSession = new Client({ name: 'сценарий-сессия', version: '1.0.0' });
+  await viaSession.connect(new StreamableHTTPClientTransport(new URL(`${base}${ses.url}`), { requestInit: { headers: { authorization: `Bearer ${ses.token}` } } }));
+  const bySession = (await viaSession.callTool({ name: 'letopis_query', arguments: { class: 'Ticket', filter: { number: t.number } } })).structuredContent?.data?.rows?.[0];
+  const reopened = await viaSession.callTool({ name: 'letopis_write', arguments: { op: 'update', class: 'Ticket', id: bySession?.id, data: { status: 'open' }, rev: bySession?.rev } });
+  const lastRev = (await call(agent, `/api/tickets/${t.id}/history`)).data.at(-1);
+  check(!reopened.isError && lastRev.status === 'open' && lastRev.who === DEMO.agent.name && lastRev.agent === '' && lastRev.reason === 'mcp: letopis_write',
+    'журнал: правка агента по сессии — автор сам пользователь, исполнителя (agent) нет', lastRev);
+  const agentHood = (await call(agent, '/api/trace')).data.find((x) => x.title === 'MCP агента: tools/call letopis_write');
+  check(agentHood?.versions.some((v) => v.class === 'Ticket' && v.label === t.number && v.fields.includes('status')) && agentHood.signals.join() === 'Ticket',
+    'под капотом у выдавшего: вызов агента по сессии — версия Ticket (изменён status), сигнал Ticket', agentHood);
+  check((await call(agent, '/api/assistant/sessions')).data.some((x) => x.id === ses.id && x.until === ses.until), 'сессия агента — в списке сервиса, срок не продлён работой агента');
+  await call(agent, `/api/assistant/sessions/${ses.id}/revoke`, {});
+  const revokedHood = (await call(agent, '/api/trace')).data?.[0];
+  check(revokedHood?.lines[0]?.includes('— погашена') && (await asAgent(ses.token)).status === 401 && !(await call(agent, '/api/assistant/sessions')).data.length,
+    'погашенная сессия агента (auth.revoke её подключением) — 401, в списке её нет', revokedHood);
+  await viaSession.close().catch(() => {});
+
   // 6. две компании: агент переключается в «Байкал» (auth.switch) — заявок «Севера» там нет
   const me = (await call(agent, '/api/me')).data;
   const baikal = me.companies.find((c) => c.name === 'Байкал');
@@ -163,6 +194,10 @@ try {
   check((await call(boss.cookie, '/api/team/invite', { name: 'Чужой', login: DEMO.agent.login, role: 'client' })).status === 409, 'существующую учётную запись без её согласия не пригласить — 409');
   const ag = (await call(boss.cookie, '/api/team')).data.find((m) => m.login === DEMO.agent.login);
   check((await call(boss.cookie, `/api/team/${ag.account}/revoke`, {})).status === 409, 'сеансы агента из двух компаний не завершить отсюда — 409');
+  // сессию агента выдают только на себя: токен с правами другого человека ушёл бы из сервиса мимо причины «от имени»
+  await call(boss.cookie, `/api/team/${ag.account}/act`, {});
+  check((await call(boss.cookie, '/api/assistant/session', {})).status === 409, 'работая от имени агента, сессию ИИ-агента не выдать — 409');
+  await call(boss.cookie, '/api/act/stop', {});
   check(/Приглашение/.test((await mailTo(login))?.subject ?? ''), 'приглашение пришло в демо-почту');
   const guest = await otpLogin(login);
   check(guest.status === 200 && guest.data?.role === 'client' && guest.data?.company === 'Север', 'приглашённый вошёл по коду из письма');
@@ -195,8 +230,11 @@ try {
 
   // 9. выход на всех устройствах
   const second = await call('', '/api/login', { login: DEMO.boss.login, password: DEMO.boss.password });
+  const bossSes = (await call(boss.cookie, '/api/assistant/session', {})).data;
+  check((await asAgent(bossSes?.token)).status === 200, 'у руководителя — своя сессия ИИ-агента, агент по ней работает');
   await call(second.cookie, '/api/security/revoke-all', {});
   check((await call(boss.cookie, '/api/me')).data === null && (await call(boss.cookie, '/api/stats')).status === 401, '«Выйти на всех устройствах» завершило и другой сеанс руководителя');
+  check((await asAgent(bossSes.token)).status === 401, '«Выйти на всех устройствах» (revokeAll) погасило и сессию его ИИ-агента');
 } catch (e) {
   failures.push(String(e?.stack ?? e));
   console.log(`✗ сценарий упал: ${e?.stack ?? e}`);
