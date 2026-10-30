@@ -178,7 +178,7 @@ function Salon({ me }: { me: Me; onLogout?: () => void }) {
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>История брони</DialogTitle>
-            <DialogDescription>Все версии из журнала letopis: кто, когда и почему. Перенос меняет id брони — история идёт через смену id (<code>versions({'{'} follow: true {'}'})</code>).</DialogDescription>
+            <DialogDescription>Все версии из журнала letopis: что, когда и почему. Перенос меняет id брони — история идёт через смену id (<code>versions({'{'} follow: true {'}'})</code>).</DialogDescription>
           </DialogHeader>
           <Table>
             <TableHeader><TableRow><TableHead>id</TableHead><TableHead>rev</TableHead><TableHead>действие</TableHead><TableHead>мастер, начало</TableHead><TableHead>причина</TableHead><TableHead>когда</TableHead></TableRow></TableHeader>
