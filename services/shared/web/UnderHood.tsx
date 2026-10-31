@@ -16,7 +16,7 @@ export type TraceVersion = { class: string; id: string; label: string; rev: numb
  * (первые из versionsTotal) и сигналы классов, которые записало действие (только имя класса).
  */
 export type Trace = {
-  at: string; title: string; lines: string[];
+  at: string; title: string; lines: string[]; // at — время действия, ISO
   queries: { mode: string; classes: string; rows: number; ms: number; slow: boolean }[];
   versions: TraceVersion[]; versionsTotal: number; signals: string[];
   error: string | null;
@@ -34,7 +34,7 @@ export function UnderHood({ trace, description, empty, height }: { trace: Trace[
         {trace.length === 0 && <p className="text-sm text-muted-foreground">{empty}</p>}
         {trace.map((t, i) => (
           <div key={i} className="mb-4" data-trace={t.title}>
-            <div className="mb-1 flex items-center gap-2 text-sm font-medium">{t.at} — {t.title}{t.error && <Badge variant="destructive">ошибка</Badge>}</div>
+            <div className="mb-1 flex items-center gap-2 text-sm font-medium">{new Date(t.at).toLocaleTimeString('ru-RU')} — {t.title}{t.error && <Badge variant="destructive">ошибка</Badge>}</div>
             {t.lines.length > 0 && <pre className="mb-2 whitespace-pre-wrap rounded-md bg-muted p-2 text-xs">{t.lines.join('\n')}</pre>}
             {t.queries.length > 0 && (
               <Table className="text-xs" data-queries={t.queries.length}>

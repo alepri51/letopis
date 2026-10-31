@@ -269,7 +269,7 @@ function OpDialog({ dlg, wallets, onClose, onDone }: { dlg: { kind: 'topup' | 'd
           </>)}
           {dlg.kind === 'transfer' && (
             <label className="flex items-center gap-2 text-sm"><input id="unordered" type="checkbox" checked={unordered} onChange={(e) => setUnordered(e.target.checked)} />
-              без порядка блокировок: сначала свой счёт, между замками 2 с — встречный перевод из второй вкладки поймает 40P01</label>)}
+              без порядка блокировок: сначала свой счёт, между замками 2 с — со встречным переводом из другой вкладки PostgreSQL прервёт один из двух блоков (40P01)</label>)}
           <DialogFooter><Button type="button" variant="outline" onClick={onClose}>Отмена</Button><Button type="submit" data-act="submit" disabled={busy}>{busy ? 'Проводим…' : 'Провести'}</Button></DialogFooter>
         </form>
       </DialogContent>

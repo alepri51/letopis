@@ -306,14 +306,14 @@ export async function createApp() {
   }
 
   // ---------- веб: сессии, демо-почта, «под капотом» ----------
-  // sid → { db, account, login, name, tenant, roles, companies, trace, acting }; db — своё подключение сессии по токену;
-  // сессии агента, выданные вкладкой, — в agents (раздел MCP)
+  // sid → { db, account, login, name, tenant, roles, companies, trace, acting, switching }; db — своё подключение сессии
+  // по токену; switching — идущая смена компании (/api/switch); сессии агента, выданные вкладкой, — в agents (раздел MCP)
   const web = createSessions({
     missing: { error: 'Нужен вход', code: 'session_ended' },
     // жива ли сессия letopis (alive): погашенную — закрыть, вкладка вернётся ко входу
     check: async (req, res, s) => {
       try {
-        if (await alive(s.db, s.tenant)) return true;
+        if (await aliveWeb(s)) return true;
         await web.close(web.sidOf(req));
         ended(res);
       } catch (e) { fail(req, res, e); }
@@ -333,7 +333,7 @@ export async function createApp() {
   let mailSeq = 0;
   const mail = (to, subject, text) => {
     if (!ENV.demoMail) return; // настоящий сервис отдал бы письмо почтовому шлюзу
-    mailbox.unshift({ id: ++mailSeq, at: new Date().toISOString().slice(11, 19), to, subject, text });
+    mailbox.unshift({ id: ++mailSeq, at: new Date().toISOString(), to, subject, text }); // время письма вкладка покажет в своём поясе
     mailbox.length = Math.min(mailbox.length, 50);
   };
   const dbOf = (s) => s.acting?.db ?? s.db;
@@ -415,6 +415,15 @@ export async function createApp() {
   async function alive(db, tenant) {
     const info = await svc.auth.session(db.token);
     return !!info && info.member && (!tenant || info.tenant === tenant);
+  }
+  /**
+   * Жива ли веб-сессия. Идущую смену компании этой вкладкой сначала дождаться: база переводит сессию раньше, чем
+   * меняется s.tenant, и запрос вкладки посреди смены (показатели, панель, очередь) увидел бы чужую компанию и закрыл бы
+   * сессию — вкладка ушла бы ко входу.
+   */
+  async function aliveWeb(s) {
+    await s.switching;
+    return alive(s.db, s.tenant);
   }
   const ended = (res) => res.status(401).json({ error: 'Сеанс завершён — войдите заново', code: 'session_ended' });
   /** Право на раздел — правило API в базе: db.acl.check('desk.team') и т. п. */
@@ -516,16 +525,19 @@ export async function createApp() {
   app.get('/api/me', route(async (req, res) => {
     const s = web.get(req);
     if (!s) return res.json(null);
-    if (!(await alive(s.db, s.tenant))) { await web.close(web.sidOf(req)); return res.json(null); }
+    if (!(await aliveWeb(s))) { await web.close(web.sidOf(req)); return res.json(null); }
     res.json(await me(s));
   }));
   app.post('/api/switch', auth, route(async (req, res) => {
     const s = req.s;
     if (s.acting) throw new HttpError(409, 'Сначала вернитесь к себе');
-    await act(s, 'Смена компании', async (lines) => {
+    const done = act(s, 'Смена компании', async (lines) => {
       await pickCompany(s, String(req.body?.tenant ?? ''));
       lines.push(`db.auth.switch('${s.tenant.slice(0, 8)}…') — та же учётная запись, другой арендатор; реестр классов перечитан`);
     });
+    // запросы вкладки, пришедшие посреди смены, ждут её конца (aliveWeb)
+    const mine = s.switching = done.then(() => {}, () => {});
+    try { await done; } finally { if (s.switching === mine) s.switching = null; }
     res.json(await me(s));
   }));
   app.get('/api/stats', auth, route(async (req, res) => {
@@ -731,7 +743,7 @@ export async function createApp() {
   const integrationAccount = (s) => accountOf(integrationLogin(s.tenant));
   app.get('/api/keys', auth, guard('desk.keys'), route(async (req, res) => {
     const creds = await svc.auth.credentials(integrationAccount(req.s));
-    res.json(creds.filter((c) => c.kind === 'APIKEY').map((c) => ({ id: c.id, name: String(c.meta?.name ?? ''), created: String(c.created_at).slice(0, 16).replace('T', ' '), revoked: false })));
+    res.json(creds.filter((c) => c.kind === 'APIKEY').map((c) => ({ id: c.id, name: String(c.meta?.name ?? ''), created: new Date(c.created_at).toISOString(), revoked: false })));
   }));
   app.post('/api/keys', auth, guard('desk.keys'), route(async (req, res) => {
     const s = req.s, name = String(req.body?.name ?? '').trim() || 'интеграция';
@@ -883,7 +895,7 @@ export async function createApp() {
   const mcp = createMcpHandler(async ({ authInfo }) => createMcpServer(authInfo.extra.db, { write: true, maxRows: 50 }));
   app.all('/mcp', route(async (req, res) => {
     let s = web.get(req);
-    if (s && !(await alive(s.db, s.tenant))) { await web.close(web.sidOf(req)); s = undefined; }
+    if (s && !(await aliveWeb(s))) { await web.close(web.sidOf(req)); s = undefined; }
     const key = !s && bearer(req);
     // без cookie: сначала сессия, выданная агенту здесь (sessionFor), иначе ключ API
     const a = key ? await agentSession(key) : null;

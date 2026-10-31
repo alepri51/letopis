@@ -66,9 +66,9 @@ function NewDraft({ parties, onDone }: { parties: Party[]; onDone: (id: string) 
           <div className="grid gap-2"><Label htmlFor="num">Номер</Label><Input id="num" placeholder="Д-2026-10" value={v.number} onChange={(e) => setV({ ...v, number: e.target.value })} required /></div>
           <div className="grid gap-2"><Label htmlFor="title">Название</Label><Input id="title" value={v.title} onChange={(e) => setV({ ...v, title: e.target.value })} required /></div>
           <div className="grid gap-2"><Label htmlFor="amount">Сумма, ₽</Label><Input id="amount" inputMode="numeric" value={v.amount} onChange={(e) => setV({ ...v, amount: e.target.value })} required /></div>
-          <div className="grid gap-2"><Label>Контрагент</Label>
+          <div className="grid gap-2"><Label htmlFor="party">Контрагент</Label>
             <Select items={items} value={v.party} onValueChange={(p) => setV({ ...v, party: String(p) })}>
-              <SelectTrigger aria-label="Контрагент"><SelectValue placeholder="выберите" /></SelectTrigger>
+              <SelectTrigger id="party" aria-label="Контрагент"><SelectValue placeholder="выберите" /></SelectTrigger>
               <SelectContent>{items.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
             </Select></div>
           <div className="grid gap-2 md:col-span-2"><Label htmlFor="body">Текст</Label><Textarea id="body" value={v.body} onChange={(e) => setV({ ...v, body: e.target.value })} required /></div>

@@ -126,6 +126,10 @@ export async function createApp() {
     status: d.data.status ?? '', signedBy: d.data.signedBy ?? '', party: d.links.Party, partyName: parties?.get(d.links.Party)?.data.name ?? '—',
     rev: d.rev, at: d.at, archived: !!d.data.archived,
   });
+  // подписание (reclass) и смена номера (rekey) оставляют у прежнего id надгробие с moved → новый id: это не удаление,
+  // документ живёт под новым id — в корзину такое надгробие не попадает
+  const inTrash = (d) => d.$deleted && !d.moved;
+  const MOVED = 'Это прежний id документа: его подписали или сменили ему номер — теперь у документа новый id';
   const docOf = async (db, id) => {
     const d = await db.Doc(id).first();
     if (!d) throw new HttpError(404, 'Документ не найден');
@@ -151,7 +155,7 @@ export async function createApp() {
     const db = req.s.db;
     res.json({
       drafts: await db.Draft().count(), contracts: await db.Contract().count(),
-      deleted: (await db.Doc().withDeleted().rows()).filter((d) => d.$deleted).length,
+      deleted: (await db.Doc().withDeleted().rows()).filter(inTrash).length,
       versions: (await admin.unsafe(`select count(*)::int as n from ${quote(r.schema)}.log where tenant = $1`, [t.tenant]))[0].n,
     });
   }));
@@ -273,11 +277,14 @@ export async function createApp() {
   }));
 
   app.get('/api/trash', auth, route(async (req, res) => {
-    const rows = (await req.s.db.Doc().withDeleted().rows()).filter((d) => d.$deleted);
+    const rows = (await req.s.db.Doc().withDeleted().rows()).filter(inTrash);
     res.json(rows.map((d) => ({ id: d.id, class: d.class, number: d.data.number, title: d.data.title, amount: d.data.amount, at: d.at, who: nameOf(d.author) })));
   }));
   app.post('/api/trash/:id/restore', auth, route(async (req, res) => {
     const s = req.s;
+    // надгробие подписания или смены номера restore оживил бы рядом с живым документом — стало бы два документа
+    const [was] = await s.db.Doc(req.params.id).withDeleted().rows();
+    if (was?.$deleted && was.moved) throw new HttpError(409, MOVED, 'moved');
     await act(s, 'Восстановление', async (lines) => {
       lines.push('db.Doc(id).restore() — прежний id, новая версия restore');
       await s.db.Doc(req.params.id).restore({ reason: `восстановил ${s.name}` }).rows();
@@ -286,9 +293,15 @@ export async function createApp() {
   }));
   app.post('/api/trash/:id/purge', auth, route(async (req, res) => {
     const s = req.s;
+    const deleted = (await s.db.Doc().withDeleted().rows()).filter((d) => d.$deleted);
+    // надгробие подписания или смены номера purge стёр бы из истории живого документа
+    if (deleted.find((d) => d.id === req.params.id)?.moved) throw new HttpError(409, MOVED, 'moved');
+    // прежние id документа (до подписания и смены номера) — надгробия с moved → следующий id: стираются вместе с ним
+    const ids = [req.params.id];
+    for (let i = 0; i < ids.length; i++) for (const d of deleted) if (d.moved === ids[i]) ids.push(d.id);
     await act(s, 'Стереть навсегда', async (lines) => {
-      lines.push('db.Doc(id).purge({ confirm: true }) — история удалённого стёрта; без confirm, как delete, — только превью');
-      await s.db.Doc(req.params.id).purge({ confirm: true, reason: `стёр навсегда: ${s.name}` }).rows();
+      lines.push(`db.Doc([id${ids.length > 1 ? ', …прежние id' : ''}]).purge({ confirm: true }) — история удалённого стёрта${ids.length > 1 ? ` вместе с прежними id (${ids.length - 1}: подписание, смена номера)` : ''}; без confirm, как delete, — только превью`);
+      await s.db.Doc(ids).purge({ confirm: true, reason: `стёр навсегда: ${s.name}` }).rows();
     });
     res.json({ ok: true });
   }));

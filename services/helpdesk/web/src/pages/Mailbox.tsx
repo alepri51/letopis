@@ -28,7 +28,7 @@ export function Mailbox() {
           {mail.length === 0 && <p className="text-sm text-muted-foreground">Писем пока нет.</p>}
           {mail.map((m) => (
             <div key={m.id} className="rounded-md border p-3" data-mail-to={m.to}>
-              <div className="mb-1 flex flex-wrap items-center gap-2 text-sm"><Badge variant="outline">{m.at}</Badge><b>{m.to}</b> — {m.subject}</div>
+              <div className="mb-1 flex flex-wrap items-center gap-2 text-sm"><Badge variant="outline">{new Date(m.at).toLocaleTimeString('ru-RU')}</Badge><b>{m.to}</b> — {m.subject}</div>
               <pre className="whitespace-pre-wrap text-sm">{m.text}</pre>
             </div>
           ))}

@@ -88,9 +88,9 @@ function NewTicket({ onDone }: { onDone: () => void }) {
           <div className="grid gap-2"><Label htmlFor="subject">Тема</Label><Input id="subject" value={v.subject} onChange={(e) => setV({ ...v, subject: e.target.value })} required /></div>
           <div className="grid gap-2"><Label htmlFor="body">Что случилось</Label><Textarea id="body" value={v.body} onChange={(e) => setV({ ...v, body: e.target.value })} required /></div>
           <div className="flex items-end gap-2">
-            <div className="grid gap-2"><Label>Приоритет</Label>
+            <div className="grid gap-2"><Label htmlFor="priority">Приоритет</Label>
               <Select items={priorityItems} value={v.priority} onValueChange={(p) => setV({ ...v, priority: String(p) })}>
-                <SelectTrigger className="w-44" aria-label="Приоритет"><SelectValue /></SelectTrigger>
+                <SelectTrigger id="priority" className="w-44" aria-label="Приоритет"><SelectValue /></SelectTrigger>
                 <SelectContent>{priorityItems.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
               </Select></div>
             <Button type="submit">Отправить</Button>

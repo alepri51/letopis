@@ -15,7 +15,13 @@ export function Report({ tick, onChanged }: { tick: number; onChanged: () => voi
   const [report, setReport] = useState<DayReport | null>(null);
   useEffect(() => {
     if (!day) return;
-    api<DayReport>(`/api/report?day=${day}`).then(setReport, (e) => toast.error((e as Error).message)).finally(onChanged);
+    // поле дня меняется по цифре («2», затем «29») — запросы идут один за другим, а ответы приходят в любом порядке:
+    // ответ на прежний день не должен перекрыть ответ на нынешний
+    let current = true;
+    api<DayReport>(`/api/report?day=${day}`)
+      .then((r) => { if (current) setReport(r); }, (e) => { if (current) toast.error((e as Error).message); })
+      .finally(onChanged);
+    return () => { current = false; };
   }, [day, tick, onChanged]);
   return (
     <Card>

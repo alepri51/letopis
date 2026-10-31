@@ -40,7 +40,7 @@ export function Keys({ tick, onChanged }: { tick: number; onChanged: () => void 
           <TableHeader><TableRow><TableHead>назначение</TableHead><TableHead>выдан</TableHead><TableHead>состояние</TableHead><TableHead /></TableRow></TableHeader>
           <TableBody>{keys.map((k) => (
             <TableRow key={k.id} data-key={k.name}>
-              <TableCell>{k.name}</TableCell><TableCell>{k.created}</TableCell>
+              <TableCell>{k.name}</TableCell><TableCell>{new Date(k.created).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</TableCell>
               <TableCell>{k.revoked ? <Badge variant="outline">отозван</Badge> : <Badge>действует</Badge>}</TableCell>
               <TableCell>{!k.revoked && <Button size="sm" variant="outline" onClick={async () => { await api(`/api/keys/${k.id}/revoke`, {}); toast.success('Ключ отозван'); load(); onChanged(); }}>Отозвать</Button>}</TableCell>
             </TableRow>))}</TableBody>

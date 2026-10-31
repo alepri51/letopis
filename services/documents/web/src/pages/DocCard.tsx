@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -35,22 +35,37 @@ export function DocCard({ id, me, tick, onOpen, onClose, onChanged }: {
   const [moment, setMoment] = useState<{ idx: number; doc: Doc | null } | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [number, setNumber] = useState('');
+  // Подписание и смена номера меняют id документа: прежний id — надгробие, его чтение — 404 «Документ не найден».
+  // Сигнал изменения (tick) приходит по SSE и может опередить ответ действия — тогда перечитывание по прежнему id
+  // закрыло бы карточку. Поэтому пока идёт действие карточки (busy), tick её не перечитывает — перечитает само
+  // действие (after); ответ чтения, пока карточка уже показывает другой id (cur), отбрасывается.
+  const cur = useRef(id);
+  useLayoutEffect(() => { cur.current = id; }); // сразу после отрисовки, до ответов, которые придут позже
+  const busy = useRef(false);
   const load = async () => {
     if (!id) return setD(null);
+    const asked = id;
     try {
-      const r = await api<Detail>(`/api/docs/${id}`);
+      const r = await api<Detail>(`/api/docs/${asked}`);
+      if (cur.current !== asked) return;
       setD(r);
       setEdit({ title: r.doc.title, amount: String(r.doc.amount), body: r.doc.body, reason: '' });
       setCmp({ from: Math.max(0, r.versions.length - 2), to: r.versions.length - 1, changes: null });
       setNumber(r.doc.number);
-    } catch (e) { toast.error((e as Error).message); onClose(); }
+    } catch (e) {
+      if (cur.current !== asked) return;
+      toast.error((e as Error).message);
+      onClose();
+    }
   };
   useEffect(() => { setBlame(null); setMoment(null); setPreview(null); load(); }, [id]);
-  useEffect(() => { if (id) load(); }, [tick]);
+  useEffect(() => { if (id && !busy.current) load(); }, [tick]);
   if (!id || !d) return null;
   const doc = d.doc;
-  const run = async <T,>(path: string, body: unknown, ok: string) => {
-    try { const r = await api<T>(path, body); toast.success(ok); onChanged(); return r; } catch (e) { toast.error((e as Error).message); return null; }
+  // after — ответ действия (или null при ошибке) до onChanged: новый id открывается раньше, чем реестр перечитывается
+  const run = async <T,>(path: string, body: unknown, ok: string, after?: (r: T | null) => void) => {
+    busy.current = true;
+    try { const r = await api<T>(path, body); toast.success(ok); after?.(r); onChanged(); return r; } catch (e) { toast.error((e as Error).message); after?.(null); return null; } finally { busy.current = false; }
   };
   const moved = (r: { doc?: Doc } | null) => { if (r?.doc && r.doc.id !== doc.id) onOpen(r.doc.id); else load(); };
   const v = d.versions;
@@ -65,10 +80,10 @@ export function DocCard({ id, me, tick, onOpen, onClose, onChanged }: {
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-wrap gap-2">
-          {doc.class === 'Draft' && doc.status === 'draft' && <Button size="sm" variant="secondary" onClick={async () => moved(await run<{ doc: Doc }>(`/api/docs/${doc.id}/review`, { rev: doc.rev }, 'Отправлен на согласование'))}>На согласование</Button>}
-          {doc.class === 'Draft' && <Button size="sm" onClick={async () => moved(await run<{ doc: Doc }>(`/api/docs/${doc.id}/sign`, {}, `Подписан: ${me.name}`))}>Подписать</Button>}
-          <form className="flex gap-1" onSubmit={async (e) => { e.preventDefault(); moved(await run<{ doc: Doc }>(`/api/docs/${doc.id}/renumber`, { number }, `Новый номер: ${number}`)); }}>
-            <Input aria-label="Новый номер" className="h-8 w-36" value={number} onChange={(e) => setNumber(e.target.value)} />
+          {doc.class === 'Draft' && doc.status === 'draft' && <Button size="sm" variant="secondary" onClick={async () => await run<{ doc: Doc }>(`/api/docs/${doc.id}/review`, { rev: doc.rev }, 'Отправлен на согласование', moved)}>На согласование</Button>}
+          {doc.class === 'Draft' && <Button size="sm" onClick={async () => await run<{ doc: Doc }>(`/api/docs/${doc.id}/sign`, {}, `Подписан: ${me.name}`, moved)}>Подписать</Button>}
+          <form className="flex gap-1" onSubmit={async (e) => { e.preventDefault(); await run<{ doc: Doc }>(`/api/docs/${doc.id}/renumber`, { number }, `Новый номер: ${number}`, moved); }}>
+            <Input id="new-number" aria-label="Новый номер" className="h-8 w-36" value={number} onChange={(e) => setNumber(e.target.value)} />
             <Button size="sm" variant="outline" type="submit">Сменить номер</Button>
           </form>
           <Button size="sm" variant="destructive" onClick={async () => { const r = await api<{ preview: Preview }>(`/api/docs/${doc.id}/delete`, {}).catch((e) => { toast.error(e.message); return null; }); if (r) setPreview(r.preview); }}>Удалить…</Button>
@@ -84,7 +99,7 @@ export function DocCard({ id, me, tick, onOpen, onClose, onChanged }: {
           <TabsContent value="data">
             <form className="grid gap-3" onSubmit={async (e) => {
               e.preventDefault();
-              moved(await run<{ doc: Doc }>(`/api/docs/${doc.id}/update`, { title: edit.title, amount: Number(edit.amount), body: edit.body, rev: doc.rev, reason: edit.reason }, 'Сохранено — новая версия'));
+              await run<{ doc: Doc }>(`/api/docs/${doc.id}/update`, { title: edit.title, amount: Number(edit.amount), body: edit.body, rev: doc.rev, reason: edit.reason }, 'Сохранено — новая версия', moved);
             }}>
               <div className="grid gap-2"><Label htmlFor="e-title">Название</Label><Input id="e-title" value={edit.title} onChange={(e) => setEdit({ ...edit, title: e.target.value })} /></div>
               <div className="grid gap-2"><Label htmlFor="e-amount">Сумма, ₽</Label><Input id="e-amount" inputMode="numeric" value={edit.amount} onChange={(e) => setEdit({ ...edit, amount: e.target.value })} /></div>
@@ -111,11 +126,11 @@ export function DocCard({ id, me, tick, onOpen, onClose, onChanged }: {
             <div className="grid gap-3">
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <span>Сравнить версию</span>
-                <select aria-label="Версия до" className="rounded border px-2 py-1" value={cmp.from} onChange={(e) => setCmp({ ...cmp, from: Number(e.target.value), changes: null })}>
+                <select id="cmp-from" aria-label="Версия до" className="rounded border px-2 py-1" value={cmp.from} onChange={(e) => setCmp({ ...cmp, from: Number(e.target.value), changes: null })}>
                   {v.map((x, i) => <option key={i} value={i}>{`${i + 1}. ${OP[x.op] ?? x.op} · ${when(x.at)}`}</option>)}
                 </select>
                 <span>с</span>
-                <select aria-label="Версия после" className="rounded border px-2 py-1" value={cmp.to} onChange={(e) => setCmp({ ...cmp, to: Number(e.target.value), changes: null })}>
+                <select id="cmp-to" aria-label="Версия после" className="rounded border px-2 py-1" value={cmp.to} onChange={(e) => setCmp({ ...cmp, to: Number(e.target.value), changes: null })}>
                   {v.map((x, i) => <option key={i} value={i}>{`${i + 1}. ${OP[x.op] ?? x.op} · ${when(x.at)}`}</option>)}
                 </select>
                 <Button size="sm" onClick={async () => {

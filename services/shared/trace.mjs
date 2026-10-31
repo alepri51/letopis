@@ -100,7 +100,8 @@ export async function createTrace({ admin, schema, size = 12, author = (s) => s.
 
   /** Выполнить действие и записать в журнал сессии цепочки, запросы к базе, записанные версии и сигналы. */
   async function act(s, title, fn) {
-    const entry = { at: new Date().toISOString().slice(11, 19), title, lines: [], queries: [], versions: [], versionsTotal: 0, signals: [], error: null };
+    // время — ISO: часы в часовом поясе читателя показывает страница (UnderHood), а не сервер, у которого пояс свой (в контейнере — UTC)
+    const entry = { at: new Date().toISOString(), title, lines: [], queries: [], versions: [], versionsTotal: 0, signals: [], error: null };
     const who = author(s);
     // отметка до действия: его версии — после неё; журнал недоступен — действие всё равно выполняется
     const mark = await admin.unsafe(`select coalesce(max(seq), 0)::text as n from ${log}`).then((r) => r[0].n, () => null);
@@ -110,7 +111,8 @@ export async function createTrace({ admin, schema, size = 12, author = (s) => s.
     try {
       return await als.run(entry, () => fn(entry.lines));
     } catch (e) {
-      entry.error = e.code ? `${e.code}: ${e.message}` : e.message;
+      // текст ошибки letopis уже начинается с кода («letopis: exists: …») — второй раз его не приписываем
+      entry.error = e.code && !String(e.message).includes(e.code) ? `${e.code}: ${e.message}` : e.message;
       throw e;
     } finally {
       after?.(entry.lines);
