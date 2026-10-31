@@ -40,8 +40,9 @@ export interface IncMarker {
 }
 
 /**
- * Приращение в update: `update({ balance: inc(-300) })` — величина прибавляется в базе, внутри
- * оператора, над свежей строкой (функция inc). Поля нет — ошибка; `{ start }` — начать с него.
+ * Приращение числового поля в `update()`: `db.Wallet(w).update({ balance: inc(-300) })`. Сложение делает база над
+ * текущим значением поля в момент записи, поэтому одновременные приращения не теряются. Если поля ещё нет, `{ start }`
+ * задаёт, с чего начать (поле получит `start + by`), а без него — ошибка `invalid_data`.
  */
 export function inc(by: number, opts: { start?: number } = {}): IncMarker {
   return Object.freeze({ [INC]: true as const, by, ...(opts.start !== undefined ? { start: opts.start } : {}) });
@@ -419,8 +420,12 @@ function applySlotsLocal(links: Record<string, string | string[]>, ops: { role: 
   return out;
 }
 
+/**
+ * Теги, которые пишет глагол: строка или список из `.tags(…)` (перед update они же и отбирают цели). Оператор
+ * (has, hasAny, hasAll) только отбирает — теги целей не меняются; create и upsert его не принимают (precheck).
+ */
 const tagsValue = (s: Step): string[] | null =>
-  s.tagsFilter === undefined ? null : typeof s.tagsFilter === 'string' ? [s.tagsFilter] : (s.tagsFilter as string[]);
+  typeof s.tagsFilter === 'string' ? [s.tagsFilter] : Array.isArray(s.tagsFilter) ? (s.tagsFilter as string[]) : null;
 
 /** «Уже существует»: id вычисляет библиотека (idOf), а не разбирает текст ошибки сервера (§2.5). */
 function existsError(w: WriteCtx, cls: ClassInfo, data: Record<string, unknown>, links: Record<string, unknown>, given: string | undefined, cause: unknown): LetopisError {
@@ -484,11 +489,23 @@ async function explainMissing(w: WriteCtx, missing: string[], rev?: number): Pro
   return fail('acl_denied', `строки видны, но изменить их нельзя: ${seen.map((r) => r.id).join(', ')}`, { ids: seen.map((r) => r.id) });
 }
 
+/**
+ * Строки ответа глагола — в порядке целей (`targetIds`: по `sort()` до глагола, иначе по id). `update … returning`
+ * отдаёт их в порядке обхода таблицы, и `first()` после глагола брал бы случайную из исправленных строк.
+ */
+function inTargetOrder<T extends { id?: unknown }>(ids: string[], rows: T[]): T[] {
+  const pos = new Map(ids.map((id, i) => [id, i]));
+  return rows.sort((a, b) => (pos.get(a.id as string) ?? 0) - (pos.get(b.id as string) ?? 0));
+}
+
 /** Цели update/delete/anonymize/reclass: id из пути (limit и sort сужают); data.id — если у шага нет фильтра. */
 async function targetIds(w: WriteCtx, steps: Step[], opStep: Step, dataId?: string): Promise<string[]> {
   const path = steps.map(bare);
   if (opStep.filter === undefined && dataId !== undefined) path[path.length - 1] = { ...path[path.length - 1], filter: dataId };
-  return readIds(w, path, opStep.opMods ?? {});
+  const ids = await readIds(w, path, opStep.opMods ?? {});
+  // без явного порядка — по id: глаголы по списку целей (reclass, rekey и др.) пишут журнал по очереди, и порядок
+  // записей не должен зависеть от плана чтения
+  return opStep.opMods?.order ? ids : [...ids].sort();
 }
 
 async function updateOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {
@@ -499,7 +516,7 @@ async function updateOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<Write
   const { id: dataId, ...data } = op.data;
   const ids = await targetIds(w, steps, opStep, useDataId ? (dataId as string) : undefined);
   if (op.rev !== undefined) {
-    if (ids.length > 1) fail('rev_ambiguous', `update(patch, { rev }): у шага ${opStep.name} ${ids.length} целей — строгий режим только для одной`);
+    if (ids.length > 1) fail('rev_ambiguous', `update(patch, { rev }): у шага ${opStep.name} ${ids.length} целей — проверить версию { rev } можно только у одной цели`);
     if (!ids.length) fail('target_not_found', `update(patch, { rev }): у шага ${opStep.name} нет цели`);
   }
   if (!ids.length) return [];
@@ -520,7 +537,7 @@ async function updateOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<Write
     const got = new Set(res.map((r) => r.row.id as string));
     await explainMissing(w, ids.filter((x) => !got.has(x)), op.rev);
   }
-  return res.map((r) => toRow(r.row));
+  return inTargetOrder(ids, res.map((r) => toRow(r.row)));
 }
 
 async function deleteOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {
@@ -550,9 +567,12 @@ async function deleteOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<Write
   const tombs = await query<{ row: Record<string, unknown> }>(w,
     `select ${rowJson('l')} as row from ${S}.log l where l.tx = pg_current_xact_id() and l.seq > $1::bigint and l.op = 'delete' order by l.seq`, [mark]);
   const out = tombs.map((r) => toRow(r.row) as WriteRow);
-  // строки классов без журнала (history: false) надгробий не оставляют — берём их из returning
+  // строки классов без журнала (history: false) надгробий не оставляют — берём их из returning, по id (порядок
+  // returning зависит от плана, а итог delete() — нет: надгробия идут по seq, триггер пишет их в порядке id)
   const have = new Set(out.map((r) => r.id));
-  for (const g of gone) {
+  const byId = (a: { row: Record<string, unknown> }, b: { row: Record<string, unknown> }) =>
+    String(a.row.id) < String(b.row.id) ? -1 : String(a.row.id) > String(b.row.id) ? 1 : 0;
+  for (const g of [...gone].sort(byId)) {
     if (have.has(g.row.id as string)) continue;
     const row = toRow(g.row) as WriteRow;
     row.$deleted = true;
@@ -574,7 +594,7 @@ async function anonymizeOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<Wr
     const got = new Set(res.map((r) => r.row.id as string));
     await explainMissing(w, ids.filter((x) => !got.has(x)));
   }
-  return res.map((r) => toRow(r.row));
+  return inTargetOrder(ids, res.map((r) => toRow(r.row)));
 }
 
 async function reclassOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {
@@ -595,7 +615,8 @@ async function deletedTargets(w: WriteCtx, steps: Step[], opStep: Step, verb: st
   const rows = await readRows(w, steps.map(bare), { ...(opStep.opMods ?? {}), withDeleted: true });
   const dead = rows.filter((r) => r.$deleted);
   if (!dead.length && rows.length) fail('not_deleted', `объект не удалён: ${verb}() — только для удалённых${verb === 'purge' ? ', сначала delete()' : ''}`, { ids: rows.map((r) => r.id) });
-  return dead;
+  // без явного порядка — по id: restore и purge пишут журнал по очереди целей
+  return opStep.opMods?.order ? dead : [...dead].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
 /** Восстановление (этап 6, п. 2): последний снимок новой версией; база перепроверяет его по текущему описанию. */

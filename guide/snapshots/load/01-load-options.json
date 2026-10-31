@@ -1,0 +1,519 @@
+{
+  "id": "load/01-load-options",
+  "title": "Массовая загрузка db.load: входные данные, ссылки по ключу, повторы, уже существующие объекты",
+  "summary": "load пишет тысячи строк пачками через COPY — команду PostgreSQL для быстрой массовой вставки, а данные проверяет тем же описанием классов, что и база. Входные данные — объект «класс → строки» или массив строк с $class; ссылка на объект — его ключ { $key } или внешний идентификатор { $ext }. Загружать может только администраторское подключение.",
+  "covers": [
+    "db.load",
+    "load.duplicates",
+    "load.existing",
+    "load.batch",
+    "load.commitEvery",
+    "load.verify",
+    "load.class",
+    "load.tenant",
+    "load.agent",
+    "load.as",
+    "error.duplicate",
+    "error.class_not_loadable",
+    "error.admin_required",
+    "nuance.load-admin-only"
+  ],
+  "tables": [
+    "counts"
+  ],
+  "context": {
+    "schema": "v2.g_load_01_load_options",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "‹токен 1›",
+      "tenant": {
+        "tenant": "Ромашка",
+        "user": "Анна",
+        "token": "‹токен 2›",
+        "created": true
+      }
+    }
+  },
+  "source": "import type { Db } from 'letopis';\nimport { example } from '../../kit/example.ts';\nimport { syncShop } from '../../kit/shop.ts';\n\nlet adm: Db;\nconst shop = { $key: ['Ромашка'] };\n\nexport default example({\n  title: 'Массовая загрузка db.load: входные данные, ссылки по ключу, повторы, уже существующие объекты',\n  summary:\n    'load пишет тысячи строк пачками через COPY — команду PostgreSQL для быстрой массовой вставки, а данные ' +\n    'проверяет тем же описанием классов, что и база. Входные данные — объект «класс → строки» или массив строк с $class; ссылка на объект — его ' +\n    'ключ { $key } или внешний идентификатор { $ext }. Загружать может только администраторское подключение.',\n  tables: ['counts'],\n  covers: [\n    'db.load', 'load.duplicates', 'load.existing', 'load.batch', 'load.commitEvery', 'load.verify', 'load.class', 'load.tenant',\n    'load.agent', 'load.as', 'error.duplicate', 'error.class_not_loadable', 'error.admin_required', 'nuance.load-admin-only',\n  ],\n  steps: [\n    {\n      title: 'Администраторское подключение',\n      text: 'Нужны обход RLS (`allowBypassRls`) и право стать владельцем схемы; сессия задаёт арендатора, куда пишем.',\n      run: async ({ db, connect, dsn, schema, up }) => {\n        await syncShop(db); // скрыть\n        adm = await connect({ dsn: dsn.admin, schema, token: up.tenant!.token!, allowBypassRls: true });\n        return { tenant: adm.tenant };\n      },\n    },\n    {\n      title: 'Магазин и два товара одним вызовом',\n      text: 'Товар ссылается на магазин его ключом: `{ $key: [\\'Ромашка\\'] }`. `verify: true` — в конце база ещё раз проверяет загруженные строки.',\n      run: async () => adm.load({\n        Shop: [{ name: 'Ромашка' }],\n        Product: [{ sku: 'K-1', title: 'Чайник', price: 2500, Shop: shop }, { sku: 'M-1', title: 'Кружка', price: 400, Shop: shop }],\n      }, { verify: true, agent: 'загрузка прайса' }),\n    },\n    {\n      title: 'Один товар дважды во входе',\n      text: 'По умолчанию повтор id во входных данных — ошибка `duplicate`, и ничего не записано.',\n      run: async () => adm.load({ Product: [{ sku: 'T-1', title: 'Чай', price: 300, Shop: shop }, { sku: 'T-1', title: 'Чай', price: 350, Shop: shop }] }),\n      expect: { error: 'duplicate' },\n    },\n    {\n      title: 'Повторы — берём последний, существующие — обновляем',\n      text: '`duplicates: \\'last\\'` оставляет последнюю строку, `existing: \\'update\\'` пишет новую версию, если содержимое отличается.',\n      run: async () => adm.load({ Product: [{ sku: 'K-1', title: 'Чайник', price: 2600, Shop: shop }, { sku: 'K-1', title: 'Чайник', price: 2700, Shop: shop }] },\n        { duplicates: 'last', existing: 'update' }),\n    },\n    {\n      title: 'Уже существующий объект по умолчанию — ошибка',\n      run: async () => adm.load({ Product: [{ sku: 'M-1', title: 'Кружка', price: 450, Shop: shop }] }),\n      expect: { error: 'exists' },\n    },\n    {\n      title: 'Массив строк, порции и пачки',\n      text: 'Строки с `$class`; у покупателя нет ключа — id вычисляется из внешнего идентификатора `$ext`. `commitEvery` — размер порции, после которой загрузка фиксируется; `batch` — сколько строк в одной пачке COPY.',\n      run: async () => adm.load([\n        { $class: 'Customer', $ext: 'crm-1', name: 'Ольга', email: 'olga@mail.ru' },\n        { $class: 'Customer', $ext: 'crm-2', name: 'Пётр', email: 'petr@mail.ru' },\n      ], { commitEvery: 1, batch: 1 }),\n    },\n    {\n      title: 'Строки без $class и от имени пользователя',\n      text: '`class` — класс для строк без `$class`. `as` — загрузка от имени пользователя: автор версий — он, и проверяются его права.',\n      run: async ({ up }) => {\n        const report = await adm.load([{ $ext: 'crm-3', name: 'Иван', email: 'ivan@mail.ru' }], { class: 'Customer', as: up.tenant!.user!, tenant: up.tenant!.tenant });\n        const [v] = await adm.Customer({ name: 'Иван' }).versions();\n        return { report, 'автор': v.author };\n      },\n    },\n    {\n      title: 'Классы не грузятся',\n      text: 'Описания классов записывает `syncModels`, а не `load`.',\n      run: async () => adm.load({ Class: [{ name: 'Новый' }] }),\n      expect: { error: 'class_not_loadable' },\n    },\n    {\n      title: 'Обычное подключение загружать не может',\n      run: async ({ db }) => db.load({ Product: [{ sku: 'X-1', title: 'Ложка', price: 100, Shop: shop }] }),\n      expect: { error: 'admin_required' },\n    },\n  ],\n});\n",
+  "sourceHtml": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> type</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { Db } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'letopis'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { example } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> '../../kit/example.ts'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { syncShop } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> '../../kit/shop.ts'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">let</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> Db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> shop</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { $key: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] };</span></span>\n<span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">export</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> default</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> example</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Массовая загрузка db.load: входные данные, ссылки по ключу, повторы, уже существующие объекты'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  summary:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'load пишет тысячи строк пачками через COPY — команду PostgreSQL для быстрой массовой вставки, а данные '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'проверяет тем же описанием классов, что и база. Входные данные — объект «класс → строки» или массив строк с $class; ссылка на объект — его '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'ключ { $key } или внешний идентификатор { $ext }. Загружать может только администраторское подключение.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  tables: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'counts'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  covers: [</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'db.load'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'load.duplicates'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'load.existing'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'load.batch'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'load.commitEvery'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'load.verify'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'load.class'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'load.tenant'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'load.agent'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'load.as'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'error.duplicate'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'error.class_not_loadable'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'error.admin_required'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.load-admin-only'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  ],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  steps: [</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Администраторское подключение'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Нужны обход RLS (`allowBypassRls`) и право стать владельцем схемы; сессия задаёт арендатора, куда пишем.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">dsn</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">schema</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncShop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db); </span><span style=\"color:#6A737D;--shiki-dark:#6A737D\">// скрыть</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        adm </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema, token: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, allowBypassRls: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { tenant: adm.tenant };</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Магазин и два товара одним вызовом'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Товар ссылается на магазин его ключом: `{ $key: [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">\\'</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">Ромашка</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">\\'</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">] }`. `verify: true` — в конце база ещё раз проверяет загруженные строки.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> () </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">load</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        Shop: [{ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        Product: [{ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'K-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2500</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, Shop: shop }, { sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'M-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Кружка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">400</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, Shop: shop }],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      }, { verify: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, agent: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'загрузка прайса'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Один товар дважды во входе'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'По умолчанию повтор id во входных данных — ошибка `duplicate`, и ничего не записано.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> () </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">load</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ Product: [{ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'T-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чай'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">300</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, Shop: shop }, { sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'T-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чай'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">350</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, Shop: shop }] }),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      expect: { error: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'duplicate'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Повторы — берём последний, существующие — обновляем'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'`duplicates: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">\\'</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">last</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">\\'</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">` оставляет последнюю строку, `existing: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">\\'</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">update</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">\\'</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">` пишет новую версию, если содержимое отличается.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> () </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">load</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ Product: [{ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'K-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2600</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, Shop: shop }, { sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'K-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2700</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, Shop: shop }] },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        { duplicates: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'last'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, existing: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'update'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Уже существующий объект по умолчанию — ошибка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> () </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">load</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ Product: [{ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'M-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Кружка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">450</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, Shop: shop }] }),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      expect: { error: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'exists'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Массив строк, порции и пачки'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Строки с `$class`; у покупателя нет ключа — id вычисляется из внешнего идентификатора `$ext`. `commitEvery` — размер порции, после которой загрузка фиксируется; `batch` — сколько строк в одной пачке COPY.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> () </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">load</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">([</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        { $class: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Customer'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, $ext: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'crm-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ольга'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'olga@mail.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        { $class: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Customer'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, $ext: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'crm-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Пётр'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'petr@mail.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      ], { commitEvery: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, batch: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Строки без $class и от имени пользователя'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'`class` — класс для строк без `$class`. `as` — загрузка от имени пользователя: автор версий — он, и проверяются его права.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> report</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">load</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">([{ $ext: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'crm-3'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Иван'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'ivan@mail.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }], { class: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Customer'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, as: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, tenant: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.tenant });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">v</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Иван'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">versions</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { report, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'автор'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: v.author };</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Классы не грузятся'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Описания классов записывает `syncModels`, а не `load`.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> () </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">load</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ Class: [{ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Новый'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }] }),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      expect: { error: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'class_not_loadable'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Обычное подключение загружать не может'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">load</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ Product: [{ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'X-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ложка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">100</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, Shop: shop }] }),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      expect: { error: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'admin_required'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  ],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">});</span></span>\n<span class=\"line\"></span></code></pre>",
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": {
+      "entity": {
+        "Account": 4,
+        "Class": 5,
+        "member": 1,
+        "Resource": 12,
+        "rule": 11
+      },
+      "log": {
+        "create": 33
+      },
+      "secret": {
+        "APIKEY": 1,
+        "KEY": 1,
+        "PASSWORD": 1,
+        "SESSION": 3
+      }
+    }
+  },
+  "steps": [
+    {
+      "title": "Администраторское подключение",
+      "text": "Нужны обход RLS (`allowBypassRls`) и право стать владельцем схемы; сессия задаёт арендатора, куда пишем.",
+      "code": "adm = await connect({ dsn: dsn.admin, schema, token: up.tenant!.token!, allowBypassRls: true });\nreturn { tenant: adm.tenant };",
+      "params": [
+        "db",
+        "connect",
+        "dsn",
+        "schema",
+        "up"
+      ],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">adm </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema, token: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, allowBypassRls: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { tenant: adm.tenant };</span></span></code></pre>",
+      "result": {
+        "tenant": "Ромашка"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 12,
+          "member": 1,
+          "Resource": 12,
+          "rule": 11
+        },
+        "log": {
+          "create": 40
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 3
+        }
+      },
+      "signals": [
+        "Class"
+      ]
+    },
+    {
+      "title": "Магазин и два товара одним вызовом",
+      "text": "Товар ссылается на магазин его ключом: `{ $key: ['Ромашка'] }`. `verify: true` — в конце база ещё раз проверяет загруженные строки.",
+      "code": "adm.load({\n        Shop: [{ name: 'Ромашка' }],\n        Product: [{ sku: 'K-1', title: 'Чайник', price: 2500, Shop: shop }, { sku: 'M-1', title: 'Кружка', price: 400, Shop: shop }],\n      }, { verify: true, agent: 'загрузка прайса' })",
+      "params": [],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">load</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        Shop: [{ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        Product: [{ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'K-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2500</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, Shop: shop }, { sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'M-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Кружка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">400</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, Shop: shop }],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      }, { verify: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, agent: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'загрузка прайса'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })</span></span></code></pre>",
+      "result": {
+        "rows": 3,
+        "loaded": 3,
+        "updated": 0,
+        "skipped": 0,
+        "duplicates": 0,
+        "byClass": {
+          "Shop": 1,
+          "Product": 2
+        },
+        "external": 0,
+        "portions": 1,
+        "ms": "‹мс›"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 12,
+          "member": 1,
+          "Product": 2,
+          "Resource": 12,
+          "rule": 11,
+          "Shop": 1
+        },
+        "log": {
+          "create": 43
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 3
+        }
+      },
+      "signals": [
+        "Product",
+        "Shop"
+      ]
+    },
+    {
+      "title": "Один товар дважды во входе",
+      "text": "По умолчанию повтор id во входных данных — ошибка `duplicate`, и ничего не записано.",
+      "code": "adm.load({ Product: [{ sku: 'T-1', title: 'Чай', price: 300, Shop: shop }, { sku: 'T-1', title: 'Чай', price: 350, Shop: shop }] })",
+      "params": [],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">load</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ Product: [{ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'T-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чай'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">300</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, Shop: shop }, { sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'T-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чай'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">350</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, Shop: shop }] })</span></span></code></pre>",
+      "result": null,
+      "error": {
+        "code": "duplicate",
+        "message": "letopis: duplicate: загрузка отменена: строка 2 — id id·5 уже был в строке 1",
+        "detail": {
+          "rows": [
+            {
+              "line": 2,
+              "code": "duplicate",
+              "message": "id id·5 уже был в строке 1",
+              "id": "id·5",
+              "class": "Product"
+            }
+          ],
+          "total": 1,
+          "truncated": false,
+          "limit": 100,
+          "complete": true
+        },
+        "expected": true
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 12,
+          "member": 1,
+          "Product": 2,
+          "Resource": 12,
+          "rule": 11,
+          "Shop": 1
+        },
+        "log": {
+          "create": 43
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 3
+        }
+      },
+      "signals": []
+    },
+    {
+      "title": "Повторы — берём последний, существующие — обновляем",
+      "text": "`duplicates: 'last'` оставляет последнюю строку, `existing: 'update'` пишет новую версию, если содержимое отличается.",
+      "code": "adm.load({ Product: [{ sku: 'K-1', title: 'Чайник', price: 2600, Shop: shop }, { sku: 'K-1', title: 'Чайник', price: 2700, Shop: shop }] },\n        { duplicates: 'last', existing: 'update' })",
+      "params": [],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">load</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ Product: [{ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'K-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2600</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, Shop: shop }, { sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'K-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2700</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, Shop: shop }] },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        { duplicates: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'last'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, existing: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'update'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })</span></span></code></pre>",
+      "result": {
+        "rows": 2,
+        "loaded": 0,
+        "updated": 1,
+        "skipped": 0,
+        "duplicates": 1,
+        "byClass": {},
+        "external": 1,
+        "portions": 1,
+        "ms": "‹мс›"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 12,
+          "member": 1,
+          "Product": 2,
+          "Resource": 12,
+          "rule": 11,
+          "Shop": 1
+        },
+        "log": {
+          "create": 43,
+          "update": 1
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 3
+        }
+      },
+      "signals": [
+        "Product"
+      ]
+    },
+    {
+      "title": "Уже существующий объект по умолчанию — ошибка",
+      "text": null,
+      "code": "adm.load({ Product: [{ sku: 'M-1', title: 'Кружка', price: 450, Shop: shop }] })",
+      "params": [],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">load</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ Product: [{ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'M-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Кружка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">450</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, Shop: shop }] })</span></span></code></pre>",
+      "result": null,
+      "error": {
+        "code": "exists",
+        "message": "letopis: exists: загрузка отменена: строка 1 — объект уже есть в базе",
+        "detail": {
+          "rows": [
+            {
+              "line": 1,
+              "code": "exists",
+              "message": "объект уже есть в базе",
+              "id": "id·6",
+              "class": "Product"
+            }
+          ],
+          "total": 1,
+          "truncated": false,
+          "limit": 100,
+          "complete": true
+        },
+        "expected": true
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 12,
+          "member": 1,
+          "Product": 2,
+          "Resource": 12,
+          "rule": 11,
+          "Shop": 1
+        },
+        "log": {
+          "create": 43,
+          "update": 1
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 3
+        }
+      },
+      "signals": []
+    },
+    {
+      "title": "Массив строк, порции и пачки",
+      "text": "Строки с `$class`; у покупателя нет ключа — id вычисляется из внешнего идентификатора `$ext`. `commitEvery` — размер порции, после которой загрузка фиксируется; `batch` — сколько строк в одной пачке COPY.",
+      "code": "adm.load([\n        { $class: 'Customer', $ext: 'crm-1', name: 'Ольга', email: 'olga@mail.ru' },\n        { $class: 'Customer', $ext: 'crm-2', name: 'Пётр', email: 'petr@mail.ru' },\n      ], { commitEvery: 1, batch: 1 })",
+      "params": [],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">load</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">([</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        { $class: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Customer'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, $ext: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'crm-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ольга'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'olga@mail.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        { $class: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Customer'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, $ext: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'crm-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Пётр'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'petr@mail.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      ], { commitEvery: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, batch: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })</span></span></code></pre>",
+      "result": {
+        "rows": 2,
+        "loaded": 2,
+        "updated": 0,
+        "skipped": 0,
+        "duplicates": 0,
+        "byClass": {
+          "Customer": 2
+        },
+        "external": 0,
+        "portions": 2,
+        "ms": "‹мс›"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 12,
+          "Customer": 2,
+          "member": 1,
+          "Product": 2,
+          "Resource": 12,
+          "rule": 11,
+          "Shop": 1
+        },
+        "log": {
+          "create": 45,
+          "update": 1
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 3
+        }
+      },
+      "signals": [
+        "Customer"
+      ]
+    },
+    {
+      "title": "Строки без $class и от имени пользователя",
+      "text": "`class` — класс для строк без `$class`. `as` — загрузка от имени пользователя: автор версий — он, и проверяются его права.",
+      "code": "const report = await adm.load([{ $ext: 'crm-3', name: 'Иван', email: 'ivan@mail.ru' }], { class: 'Customer', as: up.tenant!.user!, tenant: up.tenant!.tenant });\nconst [v] = await adm.Customer({ name: 'Иван' }).versions();\nreturn { report, 'автор': v.author };",
+      "params": [
+        "up"
+      ],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> report</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">load</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">([{ $ext: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'crm-3'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Иван'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'ivan@mail.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }], { class: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Customer'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, as: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, tenant: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.tenant });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">v</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Иван'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">versions</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { report, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'автор'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: v.author };</span></span></code></pre>",
+      "result": {
+        "report": {
+          "rows": 1,
+          "loaded": 1,
+          "updated": 0,
+          "skipped": 0,
+          "duplicates": 0,
+          "byClass": {
+            "Customer": 1
+          },
+          "external": 0,
+          "portions": 1,
+          "ms": "‹мс›"
+        },
+        "автор": "Анна"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 12,
+          "Customer": 3,
+          "member": 1,
+          "Product": 2,
+          "Resource": 12,
+          "rule": 11,
+          "Shop": 1
+        },
+        "log": {
+          "create": 46,
+          "update": 1
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 3
+        }
+      },
+      "signals": [
+        "Customer"
+      ]
+    },
+    {
+      "title": "Классы не грузятся",
+      "text": "Описания классов записывает `syncModels`, а не `load`.",
+      "code": "adm.load({ Class: [{ name: 'Новый' }] })",
+      "params": [],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">load</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ Class: [{ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Новый'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }] })</span></span></code></pre>",
+      "result": null,
+      "error": {
+        "code": "class_not_loadable",
+        "message": "letopis: class_not_loadable: загрузка отменена: строка 1 — строки Class задают letopis sync и create — там база компилирует проверку",
+        "detail": {
+          "rows": [
+            {
+              "line": 1,
+              "code": "class_not_loadable",
+              "message": "строки Class задают letopis sync и create — там база компилирует проверку",
+              "class": "Class"
+            }
+          ],
+          "total": 1,
+          "truncated": false,
+          "limit": 100,
+          "complete": true
+        },
+        "expected": true
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 12,
+          "Customer": 3,
+          "member": 1,
+          "Product": 2,
+          "Resource": 12,
+          "rule": 11,
+          "Shop": 1
+        },
+        "log": {
+          "create": 46,
+          "update": 1
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 3
+        }
+      },
+      "signals": []
+    },
+    {
+      "title": "Обычное подключение загружать не может",
+      "text": null,
+      "code": "db.load({ Product: [{ sku: 'X-1', title: 'Ложка', price: 100, Shop: shop }] })",
+      "params": [
+        "db"
+      ],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">load</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ Product: [{ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'X-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ложка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">100</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, Shop: shop }] })</span></span></code></pre>",
+      "result": null,
+      "error": {
+        "code": "admin_required",
+        "message": "letopis: admin_required: загрузчику нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы)",
+        "detail": null,
+        "expected": true
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 12,
+          "Customer": 3,
+          "member": 1,
+          "Product": 2,
+          "Resource": 12,
+          "rule": 11,
+          "Shop": 1
+        },
+        "log": {
+          "create": 46,
+          "update": 1
+        },
+        "secret": {
+          "APIKEY": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 3
+        }
+      },
+      "signals": []
+    }
+  ]
+}

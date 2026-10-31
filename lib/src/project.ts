@@ -79,14 +79,21 @@ export interface ProjectorOut {
   /** Создать или заменить целиком по ключу класса (у класса без ключа — по $id). */
   upsert(cls: string, row: ProjectorRow, opts: { tenant: string }): void;
   /**
-   * Создать (поля без строки — от 0) или дополнить строку и прибавить числа: коммутативная свёртка без чтения.
-   * Приращения строки, заданной одними полями ключа (или одним $id), складываются до отправки в базу, пока между ними
-   * нет upsert, delete или get: одна правка строки на пачку.
+   * Прибавляет к полям строки числа из `deltas`: читать строку не нужно, и итог не зависит от порядка приращений. Поле
+   * приращения, которого в строке нет, считается от 0, а если нет самой строки, она создаётся; поля `row` дописываются в
+   * её данные. Приращения одной строки, заданной только полями ключа (или только `$id`), до отправки в базу складываются
+   * в одну правку, пока между ними нет `upsert`, `delete` или `get`.
    */
   inc(cls: string, row: ProjectorRow, deltas: Record<string, number>, opts: { tenant: string }): void;
-  /** Удалить по ключу или id; строки нет — ничего. */
+  /**
+   * Удалить строку: у класса с ключом — по полям ключа, у класса без ключа — по id (строкой или { $id }); строки нет —
+   * ничего. Один id у класса с ключом — invalid_data.
+   */
   delete(cls: string, keyOrId: string | ProjectorRow, opts: { tenant: string }): void;
-  /** Текущая строка внутри пачки (с записями пачки, сделанными до вызова); нет — null. */
+  /**
+   * Текущая строка внутри пачки (с записями пачки, сделанными до вызова); нет — null. Строку называют, как в delete: у
+   * класса с ключом — полями ключа, у класса без ключа — id; один id у класса с ключом — invalid_data.
+   */
   get(cls: string, keyOrId: string | ProjectorRow, opts: { tenant: string }): Promise<Row | null>;
 }
 
@@ -95,21 +102,28 @@ export interface ProjectorOptions {
   from: string[];
   /** Производные классы (с потомками): описание каждого — derivedBy: имя проектора. */
   into: string[];
-  /** Версия проектора: другая версия в чекпоинте — rebuild_required, нужна перестройка. */
+  /**
+   * Версия логики проектора — целое число от 1. Вместе с позицией в журнале проектор хранит в базе версию, которой
+   * построена проекция: если она другая, `run()` и `rebuild({ tenant })` отклоняются с `rebuild_required`, а полная
+   * перестройка `rebuild()` строит проекцию заново и запоминает новую версию.
+   */
   version: number;
-  /** Изменения одного арендатора (пачка делится по арендаторам) и запись его результатов. */
+  /**
+   * Функция `handle(changes, out)`: получает изменения одного арендатора и пишет его результаты через `out`. Пачку журнала
+   * проектор делит по арендаторам и вызывает `handle` для каждого по очереди.
+   */
   handle(changes: ProjectorChange[], out: ProjectorOut): void | Promise<void>;
   /** Подавать прошлую версию объекта (before). */
   withBefore?: boolean;
   /**
    * Курсор старше яруса all политики хранения источников (cursor_expired): 'rebuild' — перестроить самому, пачками.
-   * Ярус — по арендатору: истёк у части участников — выбывают они (с 'rebuild' — перестраиваются сами, каждый своей
-   * транзакцией), у всех — вся проекция.
+   * Ярус — по арендатору: истёк у части участников — выбывают они (с 'rebuild' — перестраиваются сами, по одному, пачками), у
+   * всех — вся проекция.
    */
   onExpired?: 'rebuild' | 'error';
   /** Изменений в пачке (по умолчанию 500). */
   batch?: number;
-  /** Запасной опрос журнала, мс (по умолчанию 1000; сигналы источников будят раньше). */
+  /** Как часто проектор сам проверяет журнал, если сигнал не пришёл, мс (по умолчанию 1000); сигналы источников будят его раньше. */
   pollMs?: number;
   /**
    * Сколько транзакция проектора ждёт чужую блокировку строки, мс (по умолчанию 5000; 0 — без предела). Дольше —
@@ -269,6 +283,11 @@ function change(row: Row, cursor: string, rebuild = false): ProjectorChange {
  * значениями (22…) и пределами размера (54…). Сбой окружения (блокировки, отмена запроса, связь) — не причина
  * выводить арендатора: пачка откатывается целиком, повтор начнётся с того же курсора.
  */
+/** «1 прохода», «2 проходов», «21 прохода» — число проходов в родительном падеже («в течение …»). */
+function passesGen(n: number): string {
+  return `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'прохода' : 'проходов'}`;
+}
+
 /** Ожидание чужой блокировки строки дольше lock_timeout (55P03): сбой окружения, проход повторяется. */
 function lockWait(e: unknown): boolean {
   return (e as { code?: unknown } | null)?.code === '55P03';
@@ -362,19 +381,35 @@ class Out implements ProjectorOut {
     if (key !== null) this.folds.set(key, d);
   }
 
+  /**
+   * Строка для delete и get. У класса с ключом её называют полями ключа: id такой строки — v5 от ключа, и по одному id
+   * (строкой или { $id }) база искала бы строку с пустым ключом — get отвечал бы null, а delete выводил арендатора с
+   * id_mismatch. Это ошибка кода handle, а не данных: invalid_data сразу, пачка откатывается целиком.
+   */
+  private target(cls: string, tenant: string, keyOrId: string | ProjectorRow): ProjectorRow {
+    const row = this.rowOf(keyOrId);
+    const key = this.p.keyOf(tenant, cls);
+    if (key.length && Object.keys(row).every((n) => n === '$id')) {
+      throw new LetopisError('invalid_data', `проектор ${this.p.name}: у класса ${cls} есть ключ (${key.join(', ')}) — строку называют полями ключа, например { ${key.map((k) => `${k}: …`).join(', ')} }, а не id`);
+    }
+    return row;
+  }
+
   delete(cls: string, keyOrId: string | ProjectorRow, opts: { tenant: string }): void {
     const tenant = this.check(cls, opts?.tenant);
+    const row = this.target(cls, tenant, keyOrId);
     this.folds.clear();
-    this.ops.push({ op: 'delete', class: cls, tenant, row: this.rowOf(keyOrId) });
+    this.ops.push({ op: 'delete', class: cls, tenant, row });
   }
 
   async get(cls: string, keyOrId: string | ProjectorRow, opts: { tenant: string }): Promise<Row | null> {
     const tenant = this.check(cls, opts?.tenant);
+    const row = this.target(cls, tenant, keyOrId);
     await this.flush();
     const S = this.p.env.S;
     const [r] = await this.db(() => this.q.unsafe(`select ${rowJson('e')} as row from ${S}.entity e
       where e.id = ${S}.derived_id($1, $2::uuid, $3::text::jsonb) and e.class = $1 and e.tenant = $2::uuid`,
-    [cls, tenant, JSON.stringify(this.rowOf(keyOrId))]));
+    [cls, tenant, JSON.stringify(row)]));
     return r ? toRow(r.row as Record<string, unknown>) : null;
   }
 
@@ -908,7 +943,7 @@ export class Projector {
           failed[tenant] = {
             cursor: list[0].cursor || start,
             code: '55P03',
-            message: `проектор ${this.name}: строку арендатора ${tenant} держит чужая транзакция — ${hits} проходов подряд дольше lockTimeout`,
+            message: `проектор ${this.name}: строку арендатора ${tenant} держит чужая транзакция — в течение ${passesGen(hits)} подряд дольше lockTimeout`,
           };
           continue;
         }
@@ -966,9 +1001,17 @@ export class Projector {
     return sc !== undefined && !failed?.[row.tenant] && row.op === 'reclass' && !row.moved && !sc.from.has(row.class) && row.class !== '#reset';
   }
 
-  /** Класс результата в арендаторе — из его семейства into. */
+  /**
+   * Входит ли класс `cls` в классы `into` проектора у арендатора `tenant` — сами эти классы или их потомки. Служебный
+   * метод: им `out` проверяет, что `handle` пишет только в эти классы.
+   */
   intoOf(tenant: string, cls: string): boolean {
     return this.scopes.get(tenant)?.into.has(cls) ?? false;
+  }
+
+  /** Поля ключа класса into арендатора (пусто — класс без ключа). */
+  keyOf(tenant: string, cls: string): string[] {
+    return this.scopes.get(tenant)?.keys.get(cls) ?? [];
   }
 
   /**

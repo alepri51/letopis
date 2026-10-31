@@ -107,9 +107,12 @@ create index if not exists log_ends on @SCHEMA@.log using gin (@SCHEMA@.link_ids
 -- журнал часто прореживается (§2.11): чаще чистим
 alter table @SCHEMA@.log set (autovacuum_vacuum_scale_factor = 0.02, autovacuum_analyze_scale_factor = 0.02);
 
+-- account — строка entity (аккаунт; у служебных строк KEY, LOCK, PROJECTOR — System): удалённый аккаунт уносит свои строки
+-- каскадом внешнего ключа — сессии, хэши паролей и ключей, секреты TOTP, внешние учётные записи (ревизия 7; в схему
+-- прежней ревизии ключ добавляет миграция 0007). Строка Account у System не удаляется (trg_entity_bd_account, 60-write.sql)
 create table if not exists @SCHEMA@.secret (
   id          uuid primary key default gen_random_uuid(),
-  account     uuid not null,
+  account     uuid not null constraint secret_account_fkey references @SCHEMA@.entity (id) on delete cascade,
   kind        text not null,       -- PASSWORD, APIKEY, KEYSECRET, OTP, TOTP, IDENTITY, SESSION
   ident       text,                -- email, телефон, префикс ключа, внешний id
   material    bytea,               -- хэш пароля, ключа, кода или токена; секрет TOTP
@@ -121,6 +124,8 @@ create table if not exists @SCHEMA@.secret (
 create unique index if not exists secret_kind_ident on @SCHEMA@.secret (kind, casefold(ident) collate pg_unicode_fast)
   where deleted_at is null and ident is not null;
 create index if not exists secret_material on @SCHEMA@.secret (material) where kind = 'SESSION' and deleted_at is null;
+-- строки аккаунта: каскад внешнего ключа при удалении аккаунта и гашение его сессий (auth_kill) — без перебора таблицы
+create index if not exists secret_account on @SCHEMA@.secret (account);
 
 alter table @SCHEMA@.entity owner to @OWNER@;
 alter table @SCHEMA@.log owner to @OWNER@;

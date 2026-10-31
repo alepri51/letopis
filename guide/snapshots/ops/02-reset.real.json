@@ -1,0 +1,108 @@
+{
+  "id": "ops/02-reset",
+  "context": {
+    "schema": "v2.g_ops_02_reset",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": null
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": null,
+      "error": {
+        "code": "reset_disabled",
+        "message": "letopis: reset_disabled: reset выключен в этой установке (up({ allowReset }))",
+        "detail": {}
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "confirm_mismatch",
+        "message": "letopis: confirm_mismatch: подтверждение сброса — имя схемы установки",
+        "detail": {}
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "level": "sessions",
+        "sessions": 0
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "session:*"
+      ]
+    },
+    {
+      "result": {
+        "level": "tenant",
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "rows": 12,
+        "versions": 12
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "*",
+        "Class",
+        "Shop"
+      ]
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "tenant_denied",
+        "message": "letopis: tenant_denied: нет членства в арендаторе",
+        "detail": {}
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "level": "all",
+        "serviceKey": "новый ключ lts_…"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "*",
+        "session:*"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,520 @@
+{
+  "id": "models/03-inheritance-alias",
+  "context": {
+    "schema": "v2.g_models_03_inheritance_alias",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_9c4a232f9f3aa065cf2663074905ec7a22c8999fa0a9f38be4132dfe8f1cb9d7",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "1d87fad1ab9a596a100a01bcf3ee6163931690591ee3763eb668c618ab946b14",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": [
+        "Person",
+        "Customer",
+        "Vip"
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Class"
+      ]
+    },
+    {
+      "result": [
+        {
+          "at": "2026-10-31T21:23:50.701109+00:00",
+          "id": "63271606-edd9-5668-834b-2a6e2691164a",
+          "op": "create",
+          "rev": 1,
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "class": "Vip",
+          "links": {},
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "25ce26e4-9975-5fee-84fa-1f4581e833d8"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "e5166864-5aa5-52e2-8a17-099d337fcd1e",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "25ce26e4-9975-5fee-84fa-1f4581e833d8",
+          "reason": null,
+          "at": "2026-10-31 21:23:50.692006+00"
+        },
+        {
+          "id": "63271606-edd9-5668-834b-2a6e2691164a",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "25ce26e4-9975-5fee-84fa-1f4581e833d8",
+          "reason": null,
+          "at": "2026-10-31 21:23:50.701109+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "37",
+          "id": "e5166864-5aa5-52e2-8a17-099d337fcd1e",
+          "rev": 1,
+          "class": "Customer",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "25ce26e4-9975-5fee-84fa-1f4581e833d8",
+          "reason": null,
+          "at": "2026-10-31 21:23:50.692006+00",
+          "tx": "2611733"
+        },
+        {
+          "seq": "38",
+          "id": "63271606-edd9-5668-834b-2a6e2691164a",
+          "rev": 1,
+          "class": "Vip",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "25ce26e4-9975-5fee-84fa-1f4581e833d8",
+          "reason": null,
+          "at": "2026-10-31 21:23:50.701109+00",
+          "tx": "2611735"
+        }
+      ],
+      "secret": [],
+      "signals": [
+        "Customer",
+        "Vip"
+      ]
+    },
+    {
+      "result": [
+        {
+          "name": "Иван",
+          "class": "Vip"
+        },
+        {
+          "name": "Ольга",
+          "class": "Customer"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "e5166864-5aa5-52e2-8a17-099d337fcd1e",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "25ce26e4-9975-5fee-84fa-1f4581e833d8",
+          "reason": null,
+          "at": "2026-10-31 21:23:50.692006+00"
+        },
+        {
+          "id": "63271606-edd9-5668-834b-2a6e2691164a",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "25ce26e4-9975-5fee-84fa-1f4581e833d8",
+          "reason": null,
+          "at": "2026-10-31 21:23:50.701109+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "37",
+          "id": "e5166864-5aa5-52e2-8a17-099d337fcd1e",
+          "rev": 1,
+          "class": "Customer",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "25ce26e4-9975-5fee-84fa-1f4581e833d8",
+          "reason": null,
+          "at": "2026-10-31 21:23:50.692006+00",
+          "tx": "2611733"
+        },
+        {
+          "seq": "38",
+          "id": "63271606-edd9-5668-834b-2a6e2691164a",
+          "rev": 1,
+          "class": "Vip",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "25ce26e4-9975-5fee-84fa-1f4581e833d8",
+          "reason": null,
+          "at": "2026-10-31 21:23:50.701109+00",
+          "tx": "2611735"
+        }
+      ],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": [
+        {
+          "name": "Ольга",
+          "class": "Customer"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "e5166864-5aa5-52e2-8a17-099d337fcd1e",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "25ce26e4-9975-5fee-84fa-1f4581e833d8",
+          "reason": null,
+          "at": "2026-10-31 21:23:50.692006+00"
+        },
+        {
+          "id": "63271606-edd9-5668-834b-2a6e2691164a",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "25ce26e4-9975-5fee-84fa-1f4581e833d8",
+          "reason": null,
+          "at": "2026-10-31 21:23:50.701109+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "37",
+          "id": "e5166864-5aa5-52e2-8a17-099d337fcd1e",
+          "rev": 1,
+          "class": "Customer",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "25ce26e4-9975-5fee-84fa-1f4581e833d8",
+          "reason": null,
+          "at": "2026-10-31 21:23:50.692006+00",
+          "tx": "2611733"
+        },
+        {
+          "seq": "38",
+          "id": "63271606-edd9-5668-834b-2a6e2691164a",
+          "rev": 1,
+          "class": "Vip",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "25ce26e4-9975-5fee-84fa-1f4581e833d8",
+          "reason": null,
+          "at": "2026-10-31 21:23:50.701109+00",
+          "tx": "2611735"
+        }
+      ],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": 2,
+      "error": null,
+      "entity": [
+        {
+          "id": "e5166864-5aa5-52e2-8a17-099d337fcd1e",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "25ce26e4-9975-5fee-84fa-1f4581e833d8",
+          "reason": null,
+          "at": "2026-10-31 21:23:50.692006+00"
+        },
+        {
+          "id": "63271606-edd9-5668-834b-2a6e2691164a",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "25ce26e4-9975-5fee-84fa-1f4581e833d8",
+          "reason": null,
+          "at": "2026-10-31 21:23:50.701109+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "37",
+          "id": "e5166864-5aa5-52e2-8a17-099d337fcd1e",
+          "rev": 1,
+          "class": "Customer",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "25ce26e4-9975-5fee-84fa-1f4581e833d8",
+          "reason": null,
+          "at": "2026-10-31 21:23:50.692006+00",
+          "tx": "2611733"
+        },
+        {
+          "seq": "38",
+          "id": "63271606-edd9-5668-834b-2a6e2691164a",
+          "rev": 1,
+          "class": "Vip",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "25ce26e4-9975-5fee-84fa-1f4581e833d8",
+          "reason": null,
+          "at": "2026-10-31 21:23:50.701109+00",
+          "tx": "2611735"
+        }
+      ],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "invalid_class",
+        "message": "letopis: invalid_class: класс Person абстрактный",
+        "detail": {}
+      },
+      "entity": [
+        {
+          "id": "e5166864-5aa5-52e2-8a17-099d337fcd1e",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "25ce26e4-9975-5fee-84fa-1f4581e833d8",
+          "reason": null,
+          "at": "2026-10-31 21:23:50.692006+00"
+        },
+        {
+          "id": "63271606-edd9-5668-834b-2a6e2691164a",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "25ce26e4-9975-5fee-84fa-1f4581e833d8",
+          "reason": null,
+          "at": "2026-10-31 21:23:50.701109+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "37",
+          "id": "e5166864-5aa5-52e2-8a17-099d337fcd1e",
+          "rev": 1,
+          "class": "Customer",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "25ce26e4-9975-5fee-84fa-1f4581e833d8",
+          "reason": null,
+          "at": "2026-10-31 21:23:50.692006+00",
+          "tx": "2611733"
+        },
+        {
+          "seq": "38",
+          "id": "63271606-edd9-5668-834b-2a6e2691164a",
+          "rev": 1,
+          "class": "Vip",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "25ce26e4-9975-5fee-84fa-1f4581e833d8",
+          "reason": null,
+          "at": "2026-10-31 21:23:50.701109+00",
+          "tx": "2611735"
+        }
+      ],
+      "secret": [],
+      "signals": []
+    }
+  ]
+}

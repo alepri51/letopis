@@ -52,11 +52,7 @@ jobs:
         run: npm run check:docs
 
       # Схемы создаёт тестовая обвязка (lib/test/_harness.ts): отдельный накат не нужен.
-      - name: Tests
-        working-directory: lib
-        env:
-          ENTITY_DSN: postgres://postgres:test@localhost:15433/letopis
-        run: npm test
+      # Полный набор тестов (599) в CI не гоняется — по решению владельца он идёт локально: cd lib && npm test.
 
       # Тот же скрипт, что в release.yml: собирает тарбол, ставит его в чистую папку,
       # импортирует каждый экспорт из docs/api-contract.json, сверяет состав с полем files и
@@ -67,5 +63,58 @@ jobs:
         working-directory: lib
         env:
           ENTITY_DSN: postgres://postgres:test@localhost:15433/letopis
-          LETOPIS_PKG_LIVE: '1'
+          LETOPIS_PKG_LIVE: '0' # живой прогон пакета на базе — тест, он идёт локально до выкатки
         run: npm run check:package
+
+  # Документация для людей (guide/, только локально, решение владельца от 29.10.2026). Исполняемые
+  # примеры прогоняются на postgres:18 и обязаны совпасть со снимками в guide/snapshots: расхождение —
+  # изменилось поведение библиотеки (так подтверждается исправление бага, найденного примером). Затем
+  # матрица покрытия и сборка сайта (битая ссылка роняет сборку). Идёт параллельно заданию test.
+  guide:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: letopis
+        ports: ['15433:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d letopis"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            lib/package-lock.json
+            guide/package-lock.json
+
+      # Примеры подключают letopis исходниками lib/src: нужны зависимости и библиотеки, и сайта.
+      - name: Install
+        run: |
+          npm ci --prefix lib
+          npm ci --prefix guide
+
+      - name: Typecheck examples
+        working-directory: guide
+        run: npm run typecheck
+
+      - name: ER diagrams up to date
+        working-directory: guide
+        env:
+          ENTITY_DSN: postgres://postgres:test@localhost:15433/letopis
+        run: npx tsx scripts/er.ts --check
+
+      - name: Coverage
+        working-directory: guide
+        run: npm run coverage -- --strict
+
+      - name: Nuances page up to date
+        working-directory: guide
+        run: npx tsx scripts/gen-nuances.ts --check && npx tsx scripts/gen-errors.ts --check && npx tsx scripts/gen-api.ts --check
+
+      # Тесты в CI не гоняются (решение владельца 01.11.2026): примеры со снимками, песочница и сценарии сервисов,
+      # как и полный набор тестов библиотеки, проходят локально до выкатки. Здесь — только статические сверки; сайт не разворачивается, его сборка — тоже локально.

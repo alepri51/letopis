@@ -1217,7 +1217,8 @@ begin
   select n.id, n.rev, n.class, n.cv, n.tenant, n.owner, n.links, n.data, n.tags, n.at, n.author, n.agent, n.op, n.reason, n.moved, n.prev_hash
   from added n
   join (select k.class, k.tenant from (select distinct a.class, a.tenant from added a) k
-        where @SCHEMA@.history_on(k.class, k.tenant)) h on h.class = n.class and h.tenant = n.tenant;
+        where @SCHEMA@.history_on(k.class, k.tenant)) h on h.class = n.class and h.tenant = n.tenant
+  order by n.at, n.id;  -- порядок seq — порядок входа, а не плана соединения
   -- сигнал — по паре «класс, арендатор»
   select array_agg(k.class), array_agg(k.tenant) into sc, st from (select distinct a.class, a.tenant from added a) k;
   perform @SCHEMA@.signal(sc, st);
@@ -1273,7 +1274,8 @@ begin
   from new_rows n
   join old_rows o on o.id = n.id and o.rev <> n.rev
   join (select k.class, k.tenant from (select distinct a.class, a.tenant from new_rows a) k
-        where @SCHEMA@.history_on(k.class, k.tenant)) h on h.class = n.class and h.tenant = n.tenant;
+        where @SCHEMA@.history_on(k.class, k.tenant)) h on h.class = n.class and h.tenant = n.tenant
+  order by n.id;  -- порядок seq не зависит от плана: правка многих строк пишет версии в порядке id
   -- сигнал — по парам нового и прежнего класса: при смене класса без ключа ответы прежнего класса в
   -- кэше других процессов устарели бы (в 1.0.1 сигнал шёл только по новому)
   select array_agg(k.class), array_agg(k.tenant) into sc, st
@@ -1385,6 +1387,24 @@ begin
   return null;
 end $$;
 
+-- Перед удалением строки Account (ревизия 7, решение владельца). Строки secret аккаунта — сессии, хэши паролей и ключей,
+-- секреты TOTP, внешние учётные записи — уносит каскад внешнего ключа secret.account в конце оператора, раньше триггера
+-- после него, поэтому сессии гаснут с сигналом session:<хэш> здесь: процессы сбрасывают кэш ответов этих сессий.
+-- Срабатывает для всех ролей, в том числе владельца: аккаунты удаляют и функции владельца — каскад trg_entity_ad и
+-- account_purge. Строка Account у System не удаляется: ей принадлежат служебные строки secret (KEY — ключ прав и
+-- сигналов, LOCK — строки-замки, PROJECTOR — чекпоинты проекторов), которые каскад стёр бы, а без них установка не пишет.
+create or replace function @SCHEMA@.trg_entity_bd_account() returns trigger
+language plpgsql security definer
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+begin
+  if OLD.id = '@SYSTEM@'::uuid then
+    perform @SCHEMA@.lt_fail('acl_denied', 'аккаунт System не удаляется: ему принадлежат служебные строки установки');
+  end if;
+  perform @SCHEMA@.auth_kill(OLD.id, null);
+  return OLD;
+end $$;
+
 -- Действие со строкой, которая ссылается на удаляемые id (p_ids), по правилам её концов (p_ends):
 -- cascade сильнее restrict, restrict сильнее unset; null — строка на них не ссылается. Общее правило
 -- для триггера удаления и превью delete_preview() (этап 4, п. 6): превью не расходится с удалением.
@@ -1456,9 +1476,7 @@ declare
   dplan jsonb;
   wplan jsonb;
   denied text;
-  accs uuid[];
   mems jsonb;
-  lvl_accs uuid[];
   lvl_mems jsonb;
   drows jsonb;
   own uuid[];
@@ -1526,19 +1544,21 @@ begin
   perform @SCHEMA@.agg_mark(g.tenant, @SCHEMA@.agg_of(g.data->'resolved'))
   from gone g where g.class = 'Class' and g.data->'resolved' ? 'aggregate';
   v_author := coalesce(c.author, '@SYSTEM@'::uuid);
-  -- надгробия: последний снимок следующей версией с видом delete — одной вставкой на уровень
+  -- надгробия: последний снимок следующей версией с видом delete — одной вставкой на уровень, в порядке id: без
+  -- order by порядок seq (а с ним итог delete() и время at) зависел от плана соединения и менялся от прогона к
+  -- прогону; время now_ts() (volatile) планировщик вычисляет уже после сортировки
   insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash, changed)
   select g.id, g.rev + 1, g.class, g.cv, g.tenant, g.owner, g.links, g.data, g.tags,
          greatest(@SCHEMA@.now_ts(), g.at + interval '1 microsecond'), v_author, c.agent, 'delete', v_reason, null, g.hash, '[]'::jsonb
   from gone g
   join (select d.class, d.tenant from (select distinct x.class, x.tenant from gone x) d
-        where @SCHEMA@.history_on(d.class, d.tenant)) h on h.class = g.class and h.tenant = g.tenant;
+        where @SCHEMA@.history_on(d.class, d.tenant)) h on h.class = g.class and h.tenant = g.tenant
+  order by g.id;
   -- пары «класс, арендатор» для сигнала — строкой «класс арендатор» (пробела нет ни в имени, ни в uuid)
   select coalesce(array_agg(g.id), '{}'), coalesce(array_agg(distinct g.class), '{}'),
          coalesce(array_agg(distinct g.class || ' ' || g.tenant::text), '{}'),
-         coalesce(array_agg(g.id) filter (where g.class = 'Account'), '{}'),
          coalesce(jsonb_agg(jsonb_build_object('tenant', g.tenant, 'user', g.links->>'User')) filter (where g.class = 'member'), '[]'::jsonb)
-    into lvl, classes, pairs, accs, mems from gone g;
+    into lvl, classes, pairs, mems from gone g;
   all_ids := lvl;
   while cardinality(lvl) > 0 loop
     -- кто ссылается на уровень: действие по правилам концов (общее с превью)
@@ -1566,20 +1586,19 @@ begin
       from d
       join (select dd.class, dd.tenant from (select distinct x.class, x.tenant from d x) dd
             where @SCHEMA@.history_on(dd.class, dd.tenant)) h on h.class = d.class and h.tenant = d.tenant
+      order by d.id  -- надгробия уровня в порядке id, как и на уровне 0
     )
     select coalesce(array_agg(d.id), '{}'), coalesce(array_agg(distinct d.class), '{}'),
            coalesce(array_agg(distinct d.class || ' ' || d.tenant::text), '{}'),
            jsonb_agg(to_jsonb(d)) filter (where not @SCHEMA@.acl_row_ok(dplan, d.class, d.id, d.owner, d.tenant, d.tags, d.data, d.links)),
-           coalesce(array_agg(d.id) filter (where d.class = 'Account'), '{}'),
            coalesce(jsonb_agg(jsonb_build_object('tenant', d.tenant, 'user', d.links->>'User')) filter (where d.class = 'member'), '[]'::jsonb)
-      into lvl, lvl_classes, lvl_pairs, drows, lvl_accs, lvl_mems from d;
+      into lvl, lvl_classes, lvl_pairs, drows, lvl_mems from d;
     -- класс отказавшей строки называется, только если актор её видит (ревью безопасности №3)
     if drows is not null then
       denied := @SCHEMA@.visible_class(drows);
       perform @SCHEMA@.lt_fail('acl_denied', case when denied is not null then format('нет права DELETE на класс %s в каскаде удаления', denied)
                                                    else 'нет права DELETE на строки в каскаде удаления' end);
     end if;
-    accs := accs || lvl_accs;
     mems := mems || lvl_mems;
     classes := classes || lvl_classes;
     pairs := pairs || lvl_pairs;
@@ -1605,14 +1624,11 @@ begin
   end loop;
   -- выход из членства (и удаление аккаунта, которое снимает его членства): строки арендатора, которыми
   -- владел участник, переходят арендатору (§2.10) — новой версией
-  for r in select distinct (m->>'tenant')::uuid as tenant, (m->>'user')::uuid as usr from jsonb_array_elements(mems) m loop
+  for r in select distinct (m->>'tenant')::uuid as tenant, (m->>'user')::uuid as usr from jsonb_array_elements(mems) m order by 1, 2 loop
     perform @SCHEMA@.owner_to_tenant(r.tenant, r.usr);
   end loop;
-  -- удалённый аккаунт: сессии гаснут, креды удаляются (идентификаторы освобождаются)
-  for r in select distinct u as acc from unnest(accs) u loop
-    perform @SCHEMA@.auth_kill(r.acc, null);
-    update @SCHEMA@.secret x set deleted_at = clock_timestamp() where x.account = r.acc and x.deleted_at is null;
-  end loop;
+  -- удалённый аккаунт (ревизия 7): сессии погасил с сигналом триггер до удаления (trg_entity_bd_account), его строки
+  -- secret стёр каскад внешнего ключа secret.account — идентификаторы входа свободны
   perform @SCHEMA@.signal(array_agg(split_part(x.p, ' ', 1)), array_agg(split_part(x.p, ' ', 2)::uuid))
   from (select distinct p from unnest(pairs) p) x;
   if classes && array['rule', 'Resource', 'member', 'Account', 'Class'] then
@@ -1700,6 +1716,9 @@ create or replace trigger entity_au after update on @SCHEMA@.entity referencing 
   for each statement when (current_user <> '@OWNER_NAME@') execute function @SCHEMA@.trg_entity_au();
 create or replace trigger entity_bd before delete on @SCHEMA@.entity
   for each statement when (current_user <> '@OWNER_NAME@') execute function @SCHEMA@.trg_entity_bd();
+-- удаление аккаунта — для всех ролей, в том числе владельца (каскад trg_entity_ad, account_purge): ревизия 7
+create or replace trigger entity_bd_account before delete on @SCHEMA@.entity
+  for each row when (OLD.class = 'Account') execute function @SCHEMA@.trg_entity_bd_account();
 create or replace trigger entity_ad after delete on @SCHEMA@.entity referencing old table as gone
   for each statement when (current_user <> '@OWNER_NAME@') execute function @SCHEMA@.trg_entity_ad();
 -- в режиме репликации (session_replication_role = replica) триггеры тоже работают
@@ -1708,6 +1727,7 @@ alter table @SCHEMA@.entity enable always trigger entity_bu;
 alter table @SCHEMA@.entity enable always trigger entity_ai;
 alter table @SCHEMA@.entity enable always trigger entity_au;
 alter table @SCHEMA@.entity enable always trigger entity_bd;
+alter table @SCHEMA@.entity enable always trigger entity_bd_account;
 alter table @SCHEMA@.entity enable always trigger entity_ad;
 
 -- ========================= смена класса с ключом =========================
@@ -2030,7 +2050,7 @@ begin
     'incoming_conflicts(uuid, text, uuid)', 'visible_detail(jsonb, uuid)', 'visible_class(jsonb)', 'class_change_safe(jsonb, jsonb)',
     'family_conflicts(text[], uuid, boolean)', 'reserved_names()', 'class_acl_admit(text, uuid)', 'class_rows_admit(text, uuid, text[], text)', 'class_has_history(text, uuid)', 'class_orphan_history(text, uuid)', 'class_admit(jsonb, uuid)',
     'trg_entity_bi()', 'trg_entity_bu()', 'trg_entity_ai()', 'trg_entity_au()', 'history_on(text, uuid)', 'signal_token(text, text, bytea)', 'signal_raw(text[])', 'signal(text[], uuid[])', 'class_evolve(@SCHEMA@.entity, @SCHEMA@.entity)',
-    'trg_entity_bd()', 'trg_entity_ad()', 'owner_to_tenant(uuid, uuid)', 'ref_action(jsonb, jsonb, uuid[])', 'delete_preview(uuid[])', 'merge(jsonb, jsonb)', 'inc(jsonb, text[], numeric, numeric)', 'links_patch(jsonb, jsonb)'] loop
+    'trg_entity_bd()', 'trg_entity_bd_account()', 'trg_entity_ad()', 'owner_to_tenant(uuid, uuid)', 'ref_action(jsonb, jsonb, uuid[])', 'delete_preview(uuid[])', 'merge(jsonb, jsonb)', 'inc(jsonb, text[], numeric, numeric)', 'links_patch(jsonb, jsonb)'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);
     execute format('revoke all on function @SCHEMA@.%s from public', f);
   end loop;

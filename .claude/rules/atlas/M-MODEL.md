@@ -6,6 +6,7 @@ synced: f20b1cf
 # M-MODEL — модели на Zod, нормализатор, валидатор, реестр, CLI
 
 **Инварианты и грабли**
+- `letopis types` и `letopis describe` читают реестр сессии и без действующей сессии отказывают `no_session` (`db.acl.check('letopis.cli')` в `lib/src/cli.ts`): иначе пустой реестр давал пустой результат с кодом 0 и затирал файл `--out`. `compileValidator`: шаблон `pattern`, неверный для JavaScript, — `invalid_class` с путём (текст V8 в сообщение не идёт).
 - `describe()` отдаёт только собственное описание класса; наследование разворачивает база (`class_resolve()` → `resolved`). С предками библиотека сама считает лишь `schema`, `ends`, `key` (расхождение ловят тесты `model` и `demo`); прочее, в том числе `aggregate` и `derivedBy`, — только реестр (`ClassInfo` из `resolved`).
 - `translatePattern` (TypeScript) и `jp_pattern` (база) — один алгоритм разбора по символам; менять только вместе (тест «шаблоны» в `model`).
 - Лишние ключи: верхний уровень `model.schema` — `z.strictObject`, вложенные `z.object` их пропускают — так же, как база.

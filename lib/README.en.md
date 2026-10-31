@@ -130,7 +130,7 @@ What happened here:
   from the journal.
 
 Calling `up()` again is safe: it re-applies the same revision and does not touch the data, and it does not issue the
-service key again while the installation still has a valid API key. Next, section 2 explains the design, and sections
+service key again while the installation still has at least one API key that is not revoked. Next, section 2 explains the design, and sections
 3–13 go through the tasks in order.
 
 ## 2. How letopis works
@@ -243,10 +243,15 @@ functions and the system seed. On the first installation, it issues a service ke
 | `owner`, `app` | the names of the owner and application roles (`letopis_owner`, `letopis_app` by default) |
 
 Result: `schema` (the full name), `serviceKey` (on the first installation, and on a re-run when the installation has no
-valid API key left; otherwise `null`), `created`, `upgraded`, `revision`, `migrations`, `analyzed`, `owner`, `app`,
+API key left except revoked ones: an expired or disabled key counts too; otherwise `null`), `created`, `upgraded`, `revision`, `migrations`, `analyzed`, `owner`, `app`,
 `signals` (the signal mode of the installation), `warnings` (without `quiet` they are printed), and also `tenant` and
 `pglite` if they were requested. On PostgreSQL below 18.2, `up()` warns: such a server could truncate CLOG that unread
 signals still need — upgrade it.
+
+Several instances of a service may call `up()` for the same schema at the same time: the installation runs under a lock
+on the schema. The first `up()` installs or upgrades it, the others wait and re-apply the ready schema
+(`created: false`, `upgraded: false`); one of them creates the first `tenant`, the others find it by name. `up()` calls
+for different schemas of one database do not wait for each other.
 
 To hide class names from signals, use the `opaque` mode (or `tenant` if the names are not secret but you want the
 cache to be precise per tenant); after changing the mode, restart the application processes — they read the mode on
@@ -291,7 +296,9 @@ A repeat with the same name and login duplicates nothing and does not change the
 session. The login goes into the id as is: `Anna@shop.ru` and `anna@shop.ru` would give two accounts, and the second one
 would have no password, so write logins in one case. The `created` field in the result tells whether this call created
 the tenant: for an existing tenant with a new user it is `false`. The roles are set by `user.roles`, a non-empty list
-of names (not masks), otherwise `invalid_data`. A repeat does not change the roles of an existing membership: they are
+of names (not masks), otherwise `invalid_data`. The password kind `user.kind` (`PASSWORD` by default) follows the rule
+for a credential kind, as in `auth.setPassword` ([API reference](#dbauth)), otherwise it is `invalid_data` too. A
+repeat does not change the roles of an existing membership: they are
 changed by editing the membership ([Granting a permission](#granting-a-permission)). A repeat does not bring back
 what was deleted: if the tenant, the user account or the membership is deleted (the row is gone but its history is in
 the journal), `createTenant` answers `invalid_data` and writes nothing. The error text names what was deleted and
@@ -363,13 +370,16 @@ const adm = await connect({ dsn: ADMIN, schema: r.schema, token: r.tenant!.token
 
 ### Upgrading the package and schema
 
-The schema has an engine revision (currently 6). If a new package version brings a new revision, `connect()` only warns
+The schema has an engine revision (currently 7). If a new package version brings a new revision, `connect()` only warns
 and names the command. It is `up()` that refuses: a lagging schema without `upgrade: true`, and a schema newer than the
-package. So a startup script that calls `up()` on every start will stop after a package update until it gets
+package. To a schema newer than the package (a newer package has already upgraded it, and old application instances
+are still running) `connect()` connects anyway and warns that the letopis package should be updated. So a startup script that calls `up()` on every start will stop after a package update until it gets
 `upgrade: true`. `up({ dsn, schema, upgrade: true })` applies the migrations from `sql/migrate/` and re-applies the
-functions; the data is kept.
+functions; the data is kept. Revision 7 (1.4.1) adds the foreign key `secret.account`: migration `0007` first erases
+the `secret` rows whose accounts are already gone (the credentials of accounts deleted earlier were kept with the
+`deleted_at` mark), and then sets the key.
 
-The revision does not change with every version: 1.1–1.4 share one, while their functions differ. So `up()` also writes
+The revision does not change with every version: 1.1–1.4.0 share one (6), while their functions differ. So `up()` also writes
 an engine stamp into the schema comment: the package version and a hash of its SQL files. If the stamp does not match
 the package files, `connect()` warns. When the schema was applied by an older version (or by a version before 1.4,
 which has no stamp), it suggests `up({ schema })`. When a newer version has already upgraded the schema, it suggests
@@ -384,8 +394,9 @@ the owner role — then `up()` only drops the old one.
 
 The `upgrade` test checks upgrading 1.1.0 and 1.0.1 schemas. The old package installs the schema and the old engine
 writes the data, then the current version's `up()` runs. After it, the versions and hashes written by the old engine
-are in place, `verify({ data: true })` is clean, and the schema catalog matches a clean installation. A 1.1.0 schema is
-upgraded with a plain `up()`, since its revision is the same. A 1.0.1 schema is upgraded with `up({ upgrade: true })`.
+are in place, `verify({ data: true })` is clean, and the schema catalog matches a clean installation. Both schemas are
+upgraded with `up({ upgrade: true })`: 1.1.0 (revision 6) with migration `0007`, 1.0.1 (revision 5) with migrations
+`0006` and `0007`.
 
 ### Development without PostgreSQL: PGlite
 
@@ -623,9 +634,10 @@ ends type is `InferLinks<typeof Product>`. Your own `meta` shape is typed by ext
 
 ### Class names
 
-A chain step is named after a class, its alias or a role name. The Proxy parses the names of chain and root methods
-(`count`, `sort`, `set`, `sql`, `auth` and others) before classes. So a class with such a name cannot be reached as a
-step, and the database does not accept a link with such a name. The full list is in the
+A chain step is named after a class, its alias or a role name. Where a chain or root method exists, the library parses
+its name (`count`, `sort`, `set`, `sql`, `auth` and others) before classes: a class `count` is reachable as the first
+step `db.count(…)`, but not after another step. The database does not accept a link with such a name. Do not give
+classes these names; the full list is in the
 ["Reserved names"](#reserved-names) section.
 
 ## 5. Writing
@@ -679,8 +691,9 @@ fields are not lost. If the step has no filter of its own, the target is taken f
 `data.id` all entities of the step are edited: `db.Product().update(…)` edits all products of the tenant. If the step
 found nothing, the result is empty and there is no error, so check the length of the result. If `update` affected fewer
 rows than the step found, the whole plan is rolled back: a row deleted in the meantime gives `target_not_found`, and a
-row that is visible but may not be edited gives `acl_denied`. The `.tags(…)` modifier before `update` both selects the
-rows and replaces their tags entirely.
+row that is visible but may not be edited gives `acl_denied`. The `.tags(…)` modifier before `update` selects the rows;
+a string or a list also replaces their tags entirely, while an operator (`has`, `hasAny`, `hasAll`) only selects — the
+tags stay as they are.
 
 ### Create or replace: `upsert`
 
@@ -815,8 +828,15 @@ await db.Order(order).line().create({ qty: 1, price: 900 }).Product.set(sencha).
   journal conflict, the library retries the whole plan, up to three times.
 - An error in any part rolls back the whole plan. `exists` and `conflict` are not retried: they are answers for the
   application.
-- Modifiers before a verb (`limit`, `sort`) narrow its targets.
+- Modifiers before a verb (`limit`, `offset`, `sort`) narrow its targets.
+- A modifier after a verb applies to what follows it: a class step, `versions()`, `diff()`, `blame()` and aggregates,
+  or the targets of the next verb. If a `rows`, `first`, `ids`, `count` or `paths` terminal follows right away, there is
+  nothing left to narrow — the verb has gone through all targets of the step — so
+  `db.Product().update(…).limit(1).rows()` gives `invalid_query` and writes nothing. In a batch, `run()` refuses the
+  same way.
 - A verb right after a verb writes to the same entities.
+- The result rows of a verb come in the order of its targets: by `sort()` before the verb, otherwise by id; `first()`
+  after a verb is the first one in that order.
 
 ## 6. Reading
 
@@ -861,7 +881,7 @@ const roots = await db.Category({ Parent: null }).rows()       // root categorie
 | `ne(v)`, `gt(v)`, `gte(v)`, `lt(v)`, `lte(v)` | ≠ (taking `null` into account), >, ≥, <, ≤ |
 | `between(a, b)`, `inList([…])` | a ≤ x ≤ b; a value from the list |
 | `like(s)`, `ilike(s)`, `starts(s)`, `ends(s)` | a pattern with `%` and `_`; case-insensitive; starts with; ends with |
-| `has(v)`, `hasAny([…])`, `hasAll([…])` | an array field contains the value; at least one; all |
+| `has(v)`, `hasAny([…])`, `hasAll([…])` | an array field contains the value; at least one; all (`hasAll([])` matches every row, `hasAny([])` matches none) |
 | `exists(true \| false)`, `isNull()` | the field is present or not; the field is `null` or missing |
 | `not(v)` | negation of an operator; for a scalar, "not equal" |
 | `or(f1, f2, …)` | any of the step filters |
@@ -932,7 +952,9 @@ const byStatus = await db.Order().countBy('data.status')          // { new: 1 }
 ```
 
 The database computes aggregates over the entities of the last step. `limit(n)` and `offset(n)` before `countBy()`
-apply to the groups: `db.Order().limit(3).countBy('data.status')` gives the three most frequent values.
+apply to the groups: `db.Order().limit(3).countBy('data.status')` gives the three most frequent values. For a boolean
+field, `min()` is `false` if there is at least one `false` (whether all values are `true`), and `max()` is `true` if
+there is at least one `true`; `sum()` and `avg()` do not work on a boolean field — PostgreSQL returns an error.
 
 ### Paths
 
@@ -965,9 +987,10 @@ try {
 `delete()` without `{ confirm: true }` is only a preview: the whole cascade closure. Every preview row has `$action`
 (`delete`, `unset` or `restrict`) and `$depth`, the cascade level (0 is the target itself; `unset` and `restrict` rows
 do not have it). With the confirmation, all targets of the step are deleted in one statement, and the cascade applies
-the rules of the ends. The preview does not take permissions into account: a row with `$action: 'delete'` may fail to
-be deleted for a user without the permission (`acl_denied`), so a user interface should ask
-`acl.checkData(class, 'DELETE')`. The rules of the ends:
+the rules of the ends. The result is the tombstones level by level, by id within a level (the journal has them in the
+same order); targets of classes without a journal (`history: false`) come last. The preview does not take permissions
+into account: a row with `$action: 'delete'` may fail to be deleted for a user without the permission (`acl_denied`),
+so a user interface should ask `acl.checkData(class, 'DELETE')`. The rules of the ends:
 
 - `restrict`: deletion is forbidden while the target is referenced (`delete_restricted` with a list of the visible rows
   and the number of the others);
@@ -1431,8 +1454,10 @@ denial that the identifier is taken ([section 18](#18-limitations)).
 <!-- run: guide -->
 ```ts
 const shortToken = await svc.auth.sessionFor(BORIS, { ttl: 600 })   // a session for 10 minutes of idle time for another process
+const whose = await svc.auth.session(shortToken)                     // { account, tenant, member, expiresAt, loginAt, methods }
 const boris = await connect({ dsn: APP, schema: r.schema, token: shortToken })
 await boris.auth.revoke()                                            // sign-out: the session is revoked
+const ended = await svc.auth.session(shortToken)                     // null
 await boris.close()
 ```
 
@@ -1444,6 +1469,16 @@ at sign-in; it returns the new expiration time. `connect()` extends the session 
 account is deleted. Deleting a credential revokes the other sessions of the account, while revoking an API key or a
 "key + secret" pair revokes only the sessions opened by that key (and old sessions of the same sign-in method without
 a key mark); the current session stays unless you pass `keepCurrent: false`.
+
+A service that holds a user's token (for example, in a cookie) learns about the session with `svc.auth.session(token)`:
+no connection is opened with that token, and the session is not extended. The answer tells whose session it is
+(`account`), which tenant it works in (`tenant`: the one chosen by `auth.switch()` or the account's own tenant),
+whether the membership there is intact (`member`; always `true` in the own tenant), when it expires (`expiresAt`), and
+when and how the sign-in happened (`loginAt`, `methods`: `PASSWORD`, `APIKEY`, `SERVICE`, `TOTP` …). A wrong, revoked
+or expired token and a disabled account give `null`; the reason is not told apart. This is how a web service checks the
+session at the start of every request: reading under a revoked session gives no error, the answers are simply empty.
+The method is called by the service or the system administrator (the `auth.session` permission); a user gets
+`acl_denied`.
 
 ### Working in another tenant
 
@@ -1557,7 +1592,15 @@ Fields of the system permission classes:
 
 `db.auth.purgeAccount(account)` deletes an account and the data of its tenant. The system administrator or the owner of
 its tenant can call it; you cannot delete yourself or the last owner of a tenant. Ownership of rows in other tenants
-passes to those tenants, sessions are revoked, credentials are deleted.
+passes to those tenants, sessions are revoked, credentials are deleted. An owner can also delete the tenant they are
+working in right now: their session returns to their personal tenant.
+
+The system administrator can also delete the account row itself — `db.Account(id).delete({ confirm: true })` in the
+System tenant; the data of the account's tenant stays then. Either way, the account's rows in `secret` are erased at
+once: sessions, password and key hashes, TOTP secrets, external accounts (the foreign key `secret.account` with a
+cascade, revision 7). Before that, the sessions are revoked with a signal, and processes drop the cached answers of
+these sessions. The System account cannot be deleted (`acl_denied`): the service rows of the installation in `secret`
+belong to it.
 
 ## 11. History and point-in-time reads
 
@@ -1727,7 +1770,7 @@ const sub = db.watch({ from: 'start', classes: ['Product'] })   // the whole jou
 await db.Product(kettle).update({ price: 2100 }).rows()
 let cursor = ''
 for await (const ev of sub) {             // ev: { cursor, row, id, class, op, rev, at }
-  cursor = ev.cursor                      // save the cursor: watch({ from: cursor }) continues after it
+  cursor = sub.cursor!                    // the subscription cursor: watch({ from: cursor }) continues after this event
   if (ev.id === kettle.id && ev.row.data.price === 2100) break   // break (or sub.close()) stops the subscription
 }
 ```
@@ -1746,10 +1789,14 @@ for await (const ev of sub) {             // ev: { cursor, row, id, class, op, r
   within a transaction in the order of writing. This is not the commit order: compare versions of one object by `rev`.
 - A long write transaction in any database of the cluster delays the stream: `await sub.lag()` shows the lag in ms.
 - A cursor older than the `all` tier of the retention policy gives `cursor_expired`: read the current state again and
-  subscribe with `'now'`.
+  subscribe with `'now'`. The time in the subscription cursor `sub.cursor` is the time of the last event, and once the
+  subscription has caught up with the journal, the time of the poll, so a subscription that got no events for a day
+  does not expire. The event cursor `ev.cursor` keeps the time of the event itself.
 - Without `LISTEN` (`connect({ listen: false })`), the subscription polls the journal.
-- A subscription without losses is a saved cursor: store `ev.cursor` of the last processed event and resume from it
-  after a restart.
+- A subscription without losses is a saved cursor: after processing an event, store `sub.cursor` (the position after
+  the last delivered event) and resume from it after a restart. `ev.cursor` also continues the stream, but after a
+  quiet period longer than the `all` tier such a cursor is older than the tier, and resuming from it gives
+  `cursor_expired`.
 
 ### Projectors
 
@@ -1836,6 +1883,9 @@ sales.close()                                    // stop() after the current bat
   `out.inc(class, row, deltas, { tenant })` creates a row or completes it and adds the numbers without reading the row
   (missing fields count from 0). `out.delete(class, key or id, { tenant })` deletes a row and does nothing if there is
   none. `await out.get(class, key or id, { tenant })` reads the current row together with the writes of the batch.
+  `delete` and `get` find a row of a class with a key by the key fields (`{ day: '2026-10-29' }`), and by id (a string
+  or `{ $id }`) only a row of a class without a key; an id alone for a class with a key is `invalid_data`, and the
+  batch is rolled back.
   `out` writes only to the `into` classes and only to the tenant of the changes passed to `handle`; otherwise you get
   `derived_class` or `tenant_denied`, and the batch is rolled back.
 - `out` adds up the increments of a row given by key fields only (or by `$id` alone) before sending them to the
@@ -1888,11 +1938,11 @@ sales.close()                                    // stop() after the current bat
   at all — `derived_class`. Only an administrator may mark the classes of a tenant, so it is the administrator who
   chooses the participants: a tenant user cannot join a projector on their own. The option `tenants: [id, …]`
   is an explicit list of participants: the projector works only with these tenants (their `into` classes must be
-  marked too) and ignores the marks of the others. The sources are the `from` families of these tenants; a class
-  cannot be a source and a result at the same time. A projector does not see the changes of a class with
-  `history: false`: it has no journal. So a tenant with such a class among the sources drops out with the code
-  `invalid_class`, and the projector does not build its derived rows. Turn the journal of the class on and rebuild the
-  tenant with `rebuild({ tenant })`.
+  marked too) and ignores the marks of the others. The sources are the `from` families of these tenants; an `into`
+  class is never a source, even if it falls into `from`: a projector does not read its own results. A projector does
+  not see the changes of a class with `history: false`: it has no journal. So a tenant with such a class among the
+  sources drops out with the code `invalid_class`, and the projector does not build its derived rows. Turn the journal
+  of the class on and rebuild the tenant with `rebuild({ tenant })`.
 - `batch` is how many changes go into a batch (500), `pollMs` is fallback polling (1000 ms): source signals wake the
   projector earlier.
 - `lockTimeout` is how long a projector transaction waits for another transaction's row lock (5000 ms; 0 — no limit).
@@ -1986,8 +2036,10 @@ stays correct:
 - changes of permissions and classes, writes through `db.sql`, a revoked session and a listener reconnect clear the
   whole cache or the results of the session;
 - the default term is 60 seconds; the cache does not work inside `db.begin()`;
-- without `LISTEN` and in the `none` mode the cache is off, and `connect({ cache: { ttlOnly: true } })` enables it by
-  term only.
+- without `LISTEN` and in the `none` mode the cache is off, and `connect({ cache: { ttlOnly: true } })` enables it: an
+  answer lives until its term ends unless a write of this connection resets it;
+- `db.load()`, the projector and `db.rebuildAggregates()` reset the cache, even of this connection, only by a database
+  signal.
 
 A process re-reads the class registry right away on a class change signal (one re-read at a time), and the registry
 and the signal key on `*`, on an unknown token and on a payload of another mode (and without the key in the `opaque`
@@ -2008,10 +2060,17 @@ Between processes, the cache goes stale for the signal sending interval (`notify
 const report = await adm.maintain()     // { sessions, codes, thinned, batches, more, queue, skipped }
 ```
 
-`maintain()` deletes expired sessions and one-time codes, thins the journal by the retention policy and checks the
-PostgreSQL signal queue: if it is more than half full, you get a warning. The system administrator, a role with the
-`letopis.maintain` permission or an admin connection can call it. An external scheduler runs it (`letopis maintain`),
-or the library itself does: `connect({ maintain: '1h' })`. Of several processes, only one works: each batch is its own
+`maintain()` deletes sessions and one-time codes of all kinds (`OTP` and custom `OTP_<NAME>` from `issueOtp({ kind })`)
+from the `secret` table — expired ones, as well as
+revoked sessions and codes that were used, replaced by a new one or ran out of attempts, — thins the journal by the
+retention policy and checks the PostgreSQL signal queue: if it is more than half full, you get a warning. You do not
+need `maintain()` for the rows of a deleted account: the deletion itself erases them ([Deleting an account](#deleting-an-account)).
+The system administrator, a role with the `letopis.maintain` permission or an admin connection can call it. An external scheduler
+runs it (`letopis maintain`), or the library itself does: `connect({ maintain: '1h' })`. The interval is a number of
+milliseconds or a string (`'500ms'`, `'30s'`, `'15m'`, `'1h'`, `'1d'`) from 1 ms to 2³¹−1 ms (about 24 days):
+`connect()` rejects any other value, including zero, a negative number or `NaN`, with `invalid_data` without opening
+connections. `close()` waits for a scheduled run in progress: it finishes the current batch and does not start the
+next one. Of several processes, only one works: each batch is its own
 transaction, and the first thing it does is take the maintenance lock — a row of the `secret` table that neither the
 application role nor any other database role can take; the lock is released when the batch commits. If another
 process holds the lock, the call answers `skipped: true` before the first batch, and between batches it stops (that
@@ -2222,6 +2281,10 @@ letopis mcp --dsn <dsn> --schema <v2.name> --token <user token> [--write]
   (or LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; the service key --api-key is not accepted)
 ```
 
+`letopis types` and `letopis describe` build their output from the session's classes, so without a valid session (the
+token expired, was revoked, is wrong or not given, or the API key is wrong) they exit with code 1 and the `no_session`
+error and leave the `--out` file untouched.
+
 ### Monitoring
 
 - `connect({ onQuery, slowMs })`: for every chain query, the hook gets the mode, the classes, the duration, the row
@@ -2341,17 +2404,19 @@ Removed 0.21 names (`uuidv7`, `LETOPIS_NS` and the methods listed below) throw `
 | `link`, `lookup` | `{ account, kind, identifier, meta?, confirmed? }` → id; `{ kind, identifier, requireConfirmed?, ttl?, totp? }` → sign-in or `null` |
 | `credentials`, `revokeCredential`, `setFlags` | `(account)` → credentials without secrets; `(id, { keepCurrent? })`; `(id, { confirmed?, enabled? })` |
 | `sessionFor`, `refresh`, `revoke`, `revokeAll` | `(account, { ttl? })` → token; `({ ttl? })` → the new expiration time (the token stays the same); `()`; `(account?)` → number of sessions |
+| `session` | `(token)` → `{ account, tenant, member, expiresAt, loginAt, methods }` or `null` |
 | `tenants`, `switch` | `()` → `[{ tenant, roles }]`; `(tenant)` |
 | `purgeAccount` | `(account)` → `{ account, rows, versions, memberships, owned }` |
 
-Password, code and TOTP checks, session issuing and credential confirmation are called by the service (`auth.*`
-permissions); a regular user gets `acl_denied`. The credentials of System, services and system administrators can be
-changed only by the account itself after a recent interactive sign-in, or by the system administrator. The exception is
-the service's keys: the service issues and revokes its own API keys and "key + secret" pairs itself with a session of
-its own key, but not its other credentials; nobody can revoke the last active key of a service (`acl_denied`). With
-`totp`, `verifyPassword` and `lookup` also check the TOTP code (the `auth.totp` permission) and issue a session with the
-`TOTP` method. The credential kind `kind` is `^[A-Z][A-Z0-9_]{1,31}$` (`PASSWORD`, `EMAIL`,
-`TELEGRAM` …); `SESSION`, `APIKEY`, `KEYSECRET`, `OTP`, `TOTP` and `KEY` are taken.
+Password, code and TOTP checks, session issuing, session details by token and credential confirmation are called by the
+service (`auth.*` permissions); a regular user gets `acl_denied`. The credentials of System, services and system
+administrators can be changed only by the account itself after a recent interactive sign-in, or by the system
+administrator. The exception is the service's keys: the service issues and revokes its own API keys and "key + secret"
+pairs itself with a session of its own key, but not its other credentials; nobody can revoke the last active key of a
+service (`acl_denied`). With `totp`, `verifyPassword` and `lookup` also check the TOTP code (the `auth.totp` permission)
+and issue a session with the `TOTP` method. The credential kind `kind` is `^[A-Z][A-Z0-9_]{1,31}$` (`PASSWORD`, `EMAIL`,
+`TELEGRAM` …); `SESSION`, `APIKEY`, `KEYSECRET`, `OTP`, `TOTP`, `KEY`, `PROJECTOR` and `LOCK` are taken. The same rule
+applies to the password kind `user.kind` in `createTenant` and `up({ tenant })`.
 
 ### Projector
 
@@ -2368,7 +2433,7 @@ give `invalid_data`.
 | `stop()`, `close()` | stop `run()` after the current batch; the same plus unsubscribing from signals |
 | `ProjectorReport` | `{ batches, changes, created, updated, deleted, unchanged, skipped, rebuilds, locked }` |
 | `ProjectorChange` | `{ cursor, id, class, tenant, op, rev, at, author, row }` and, when present, `agent`, `reason`, `moved`, `before`, `rebuild` |
-| `ProjectorOut` | `upsert(class, row, { tenant })`, `inc(class, row, deltas, { tenant })`, `delete(class, key or id, { tenant })`, `get(class, key or id, { tenant })` → `Row \| null`; a row is a `ProjectorRow` in the loader format |
+| `ProjectorOut` | `upsert(class, row, { tenant })`, `inc(class, row, deltas, { tenant })`, `delete(class, key or id, { tenant })`, `get(class, key or id, { tenant })` → `Row \| null`; a row is a `ProjectorRow` in the loader format; for a class with a key `delete` and `get` go by the key, an id only for a class without a key |
 
 ### Result row
 
@@ -2385,9 +2450,11 @@ give `invalid_data`.
 
 ### Reserved names
 
-The Proxy parses the names below before classes, so a class with such a name cannot be reached as a step, and the
-database does not accept a link with such a name (`reserved_names()`; the installer fills in the list from
-`RESERVED_CLASS_NAMES`).
+A method name hides a class only where that method exists: after a step — chain methods, at the root `db` — its
+methods, in a batch — its own. So a hub named like a chain-only method (for example, `count`) is reachable as the first
+step `db.count(…)` but not after another step, and a hub named like a root method cannot be the first step. The
+database does not accept a link with any of these names (`reserved_names()`; the installer fills in the list from
+`RESERVED_CLASS_NAMES`). Do not give classes these names.
 
 - chain methods: `then`, `entity`, `paths`, `rows`, `first`, `ids`, `count`, `limit`, `offset`, `sort`, `asOf`,
   `withDeleted`, `deep`, `exact`, `sum`, `avg`, `min`, `max`, `countBy`, `after`, `versions`, `create`, `update`,
@@ -2444,7 +2511,7 @@ Library codes:
 | `tx_rolled_back` | PostgreSQL answered `ROLLBACK` to `COMMIT`: the error was caught inside `tr.transaction(fn)` |
 | `no_key` | `upsert`, `rekey` or `idOf` on a class without a key |
 | `no_path` | there is no hop between the classes of neighboring steps |
-| `invalid_query` | the chain or the API is used incorrectly (a step modifier `deep`, `exact`, `alias`, `tags` or `owner` after a verb, a slot not after a verb, an `after()` cursor with a value of a different type than the `sort` field, without `v` or with an `id` that is not a uuid, and so on) |
+| `invalid_query` | the chain or the API is used incorrectly (a step modifier `deep`, `exact`, `alias`, `tags` or `owner` after a verb, a selection modifier between a verb and a `rows`, `first`, `ids`, `count` or `paths` terminal, a slot not after a verb, an `after()` cursor with a value of a different type than the `sort` field, without `v` or with an `id` that is not a uuid, and so on) |
 | `admin_required` | the loader, a projector and `rebuildAggregates` need an admin connection |
 | `rebuild_required` | the projection was built by another version of the projector (`version`): a rebuild with `rebuild()` is needed; `rebuild({ tenant })` while there is no projection or a batch rebuild is in progress |
 | `projector_busy` | a rebuild cannot start: the projector is running in another process right now |
@@ -2579,8 +2646,8 @@ behavior.
 - Hot reference targets (an organization that almost everything references) accumulate `for key share` locks and
   MultiXact, as with regular foreign keys; this needs monitoring. Operations on one wallet go one after another under a
   lock of its row ([section 8](#8-transactions-batches-and-money), "Recipe: wallet").
-- A link cannot have a reserved name, and a hub with such a name cannot be reached as a step
-  (["Reserved names"](#reserved-names)).
+- A link cannot have a reserved name, and a hub with such a name is not reachable everywhere: for example, `count` —
+  only as the first step (["Reserved names"](#reserved-names)).
 
 **Access**
 
@@ -2779,7 +2846,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # cache — result cache: hits, own and others' writes, the key with the user, permissions, revoked sessions, listener drop, ttl, class marking, without LISTEN, a race, db.sql, the limit of signal counters (stage 6; plan 1.1, checkpoint A)
 # maintain — maintenance: expired sessions and codes, permissions, one process under a lock, schedule (stage 6)
 # up — the full installer: fresh installation, re-apply, custom seeds, automatic database creation, UTF8, version 17, upgrade with migrations, PGlite, the first tenant and user (up({ tenant }), createTenant) (stages 6, 8)
-# upgrade — schema upgrade from 1.1.0 (re-apply) and from 1.0.1 (upgrade: true, migration 0006) with the letopis-11 and letopis-1 packages: versions and hashes written by the old engine, verify(), the catalog against a clean installation, lock rows, the application, a subscription and a projector over old data, a repeated up() (work after 1.2.0, stage 1)
+# upgrade — schema upgrade from 1.1.0 (upgrade: true, migration 0007) and from 1.0.1 (upgrade: true, migrations 0006 and 0007) with the letopis-11 and letopis-1 packages: versions and hashes written by the old engine, verify(), the catalog against a clean installation, lock rows, secret rows without an account erased, the application, a subscription and a projector over old data, a repeated up() (work after 1.2.0, stage 1; revision 7)
 # scenario-salon — end-to-end salon scenario: 21 acts from 0.21 (salon) with a coverage matrix of the 1.0 API (stage 6)
 # telemetry — onQuery and slowMs, describe() and class metadata with inheritance, describeText (stage 6)
 # history — diff and blame over the log, the reason of a change for verbs, db.begin() and batches; a version hidden by an ACL condition, the changed column, a missing version, row_changes over 20 thousand targets (plan 1.1, stage 1 and checkpoint A)

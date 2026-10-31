@@ -1,0 +1,59 @@
+/* Код в плеере примеров: двойная тема shiki (светлая и тёмная), как у блоков кода VitePress. */
+html.dark .lt-ex-code span {
+  color: var(--shiki-dark) !important;
+}
+html.dark .lt-ex-code pre {
+  background-color: var(--vp-code-block-bg) !important;
+}
+.lt-ex-code pre {
+  background-color: var(--vp-code-block-bg) !important;
+}
+
+/* Таблицам данных нужно место: на широком экране колонка текста шире стандартной. */
+@media (min-width: 1280px) {
+  .VPDoc.has-aside .content-container {
+    max-width: 880px !important;
+  }
+}
+
+/* Подписи узлов схем Mermaid: размер узла Mermaid считает вне страницы (высота строки body), а .vp-doc p задаёт
+   свою — без сброса текст в узле обрезался. */
+.vp-doc .lt-mermaid svg p,
+.vp-doc .lt-flow svg p {
+  line-height: inherit;
+}
+
+/* подсказки глоссария (theme/glossary.ts): первое упоминание термина на странице */
+.lt-term {
+  position: relative;
+  border-bottom: 1px dotted var(--vp-c-text-3);
+  cursor: help;
+}
+.lt-term:hover::after,
+.lt-term:focus-visible::after {
+  content: attr(data-def);
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  z-index: 30;
+  width: max-content;
+  max-width: min(340px, 80vw);
+  padding: 6px 10px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  background: var(--vp-c-bg-elv);
+  box-shadow: var(--vp-shadow-2);
+  color: var(--vp-c-text-1);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.45;
+  white-space: normal;
+  pointer-events: none;
+}
+
+/* якорь плеера примера (#ex-…): не под шапкой сайта */
+.lt-ex { scroll-margin-top: calc(var(--vp-nav-height) + 16px); }
+/* Якорь прокрутки браузера (scroll anchoring) — только текст страницы. Иначе Chrome выбирает якорем закреплённый блок
+   «На этой странице» (.aside) или полосу навигации: они не двигаются вместе с текстом, и когда плеер выше по странице
+   догружает снимок, текст уезжает вниз из-под глаз. */
+.aside, .VPLocalNav, .VPNav, .VPSidebar { overflow-anchor: none; }

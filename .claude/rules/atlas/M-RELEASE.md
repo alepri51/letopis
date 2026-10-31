@@ -8,7 +8,7 @@ synced: f20b1cf
 # M-RELEASE — CI, тег, релиз, check-docs, check-package, контракт API (этапы 0, 8)
 
 **Инварианты и грабли**
-- Контур: push dev → `ci.yml` (typecheck, check:docs, тесты на `postgres:18`, check:package) | merge в main → `tag.yml` (аннотированный тег `v` + version) | publish Release → `release.yml` (заметки, npm, проверка из реестра). На каждое событие ровно одно действие; на PR и main тесты не гоняются — допуск даёт зелёный ci последнего push в dev. Трасса — `docs/atlas/F-RELEASE.md`.
+- Контур: push dev → `ci.yml` (typecheck, check:docs, check:package без живого прогона; у сайта — typecheck, ER, покрытие, нюансы; сборки сайта нет — он не разворачивается). Тестов в CI нет — решение владельца 01.11.2026: `npm test`, примеры со снимками, песочница и сценарии сервисов идут локально до выкатки | merge в main → `tag.yml` (аннотированный тег `v` + version) | publish Release → `release.yml` (заметки, npm, проверка из реестра). На каждое событие ровно одно действие; на PR и main тесты не гоняются — допуск даёт зелёный ci последнего push в dev. Трасса — `docs/atlas/F-RELEASE.md`.
 - Версия одна на трёх местах: `lib/package.json`, верхняя `## [x.y.z]` в `lib/CHANGELOG.md`, обе строки version в `lib/package-lock.json` — сверяет `check-docs.mjs:checkVersion`. Тег берётся из package.json; тег уже есть → `tag.yml` молча пропускает (забытый бамп = нет релиза).
 - Версия с дефисом уходит в npm под dist-tag `next` (`release.yml#«Publish to npm»`), без дефиса — `latest`. Выпуск — только по команде владельца.
 - На событии release workflow берётся из коммита тега: правка `release.yml` действует только с новым тегом.

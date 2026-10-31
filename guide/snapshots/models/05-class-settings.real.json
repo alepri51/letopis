@@ -1,0 +1,292 @@
+{
+  "id": "models/05-class-settings",
+  "context": {
+    "schema": "v2.g_models_05_class_settings",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_b93c228dfceba4efcdd88e4b85ba521700784c1258a03fb1bc4604ca5b1fda80",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "effefdc99c5f944e2efbf4d13a10ef7c0665b6c104ffee547f4a3007da2a8479",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": [
+        "Ping",
+        "Draft",
+        "Product"
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Class"
+      ]
+    },
+    {
+      "result": {
+        "versions": [],
+        "printed": [
+          "letopis: .versions() у класса Ping без журнала (history: false) — истории нет"
+        ]
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "ee39dc1f-9207-566c-b9c9-4209481ac31b",
+          "class": "Ping",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "source": "датчик-2"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3bc4fb60-f245-5868-b493-d7b08beaad4a",
+          "reason": null,
+          "at": "2026-10-31 21:23:53.500762+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Ping"
+      ]
+    },
+    {
+      "result": {
+        "draftOwner": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "productOwner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "f12b282f-b093-5eab-9cca-559752dfb454",
+          "class": "Draft",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "links": {},
+          "data": {
+            "text": "План на неделю"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3bc4fb60-f245-5868-b493-d7b08beaad4a",
+          "reason": null,
+          "at": "2026-10-31 21:23:53.533427+00"
+        },
+        {
+          "id": "e0ba53b1-adbc-51f9-bbef-21965f0bdbf7",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3bc4fb60-f245-5868-b493-d7b08beaad4a",
+          "reason": null,
+          "at": "2026-10-31 21:23:53.545303+00"
+        },
+        {
+          "id": "ee39dc1f-9207-566c-b9c9-4209481ac31b",
+          "class": "Ping",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "source": "датчик-2"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3bc4fb60-f245-5868-b493-d7b08beaad4a",
+          "reason": null,
+          "at": "2026-10-31 21:23:53.500762+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "37",
+          "id": "f12b282f-b093-5eab-9cca-559752dfb454",
+          "rev": 1,
+          "class": "Draft",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "text": "План на неделю"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3bc4fb60-f245-5868-b493-d7b08beaad4a",
+          "reason": null,
+          "at": "2026-10-31 21:23:53.533427+00",
+          "tx": "2611797"
+        },
+        {
+          "seq": "38",
+          "id": "e0ba53b1-adbc-51f9-bbef-21965f0bdbf7",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3bc4fb60-f245-5868-b493-d7b08beaad4a",
+          "reason": null,
+          "at": "2026-10-31 21:23:53.545303+00",
+          "tx": "2611799"
+        }
+      ],
+      "secret": [],
+      "signals": [
+        "Draft",
+        "Product"
+      ]
+    },
+    {
+      "result": {
+        "productMeta": {
+          "icon": "mdi:package-variant",
+          "order": 1,
+          "title": "Товар"
+        },
+        "text": [
+          "## Draft",
+          "## Ping",
+          "## Product — Товар"
+        ]
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "f12b282f-b093-5eab-9cca-559752dfb454",
+          "class": "Draft",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "links": {},
+          "data": {
+            "text": "План на неделю"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3bc4fb60-f245-5868-b493-d7b08beaad4a",
+          "reason": null,
+          "at": "2026-10-31 21:23:53.533427+00"
+        },
+        {
+          "id": "e0ba53b1-adbc-51f9-bbef-21965f0bdbf7",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3bc4fb60-f245-5868-b493-d7b08beaad4a",
+          "reason": null,
+          "at": "2026-10-31 21:23:53.545303+00"
+        },
+        {
+          "id": "ee39dc1f-9207-566c-b9c9-4209481ac31b",
+          "class": "Ping",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "source": "датчик-2"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3bc4fb60-f245-5868-b493-d7b08beaad4a",
+          "reason": null,
+          "at": "2026-10-31 21:23:53.500762+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "37",
+          "id": "f12b282f-b093-5eab-9cca-559752dfb454",
+          "rev": 1,
+          "class": "Draft",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "text": "План на неделю"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3bc4fb60-f245-5868-b493-d7b08beaad4a",
+          "reason": null,
+          "at": "2026-10-31 21:23:53.533427+00",
+          "tx": "2611797"
+        },
+        {
+          "seq": "38",
+          "id": "e0ba53b1-adbc-51f9-bbef-21965f0bdbf7",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3bc4fb60-f245-5868-b493-d7b08beaad4a",
+          "reason": null,
+          "at": "2026-10-31 21:23:53.545303+00",
+          "tx": "2611799"
+        }
+      ],
+      "secret": [],
+      "signals": []
+    }
+  ]
+}

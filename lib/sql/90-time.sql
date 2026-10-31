@@ -622,7 +622,7 @@ end $$;
 -- последнего включённого владельца. Данные и журнал арендатора-цели стираются физически; в чужих
 -- арендаторах членства снимаются (надгробия), владение строками переходит арендаторам (§2.10);
 -- остались ссылки на аккаунт — delete_restricted. Строка Account удаляется с надгробием (история
--- аккаунтов — аудит), сессии гаснут, креды удаляются.
+-- аккаунтов — аудит), сессии гаснут с сигналом, строки secret аккаунта стирает каскад внешнего ключа.
 create or replace function @SCHEMA@.account_purge(p_account uuid) returns jsonb
 language plpgsql volatile security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -658,6 +658,14 @@ begin
   if a.id is null or p_account = '@SYSTEM@'::uuid then
     perform @SCHEMA@.lt_fail('target_not_found', 'аккаунт не найден');
   end if;
+  -- владелец стирает арендатора, в котором работает: его членство уйдёт вместе с данными, а надгробия и
+  -- передача владения ниже перечитывают ctx() — остаток операции идёт в личном арендаторе вызывающего,
+  -- и его сессия больше не указывает на стёртого арендатора (иначе tenant_denied и откат всего вызова)
+  if c.tenant = p_account then
+    perform set_config('letopis.tenant', c.account::text, true);
+    update @SCHEMA@.secret s set meta = s.meta - 'tenant'
+    where s.id = c.session and s.kind = 'SESSION' and s.meta->>'tenant' = p_account::text;
+  end if;
   -- последний владелец: в каждом чужом арендаторе, где цель — владелец, должен остаться другой
   for t in select x.tenant from @SCHEMA@.entity x
            where x.class = 'member' and x.links->>'User' = p_account::text and x.tenant <> p_account
@@ -679,7 +687,7 @@ begin
     perform @SCHEMA@.tombstone(m);
     n_mem := n_mem + 1;
   end loop;
-  for t in select distinct x.tenant from @SCHEMA@.entity x where x.owner = p_account and x.owner <> x.tenant loop
+  for t in select distinct x.tenant from @SCHEMA@.entity x where x.owner = p_account and x.owner <> x.tenant order by x.tenant loop
     n_own := n_own + @SCHEMA@.owner_to_tenant(t.tenant, p_account);
   end loop;
   select coalesce(jsonb_agg(jsonb_build_object('id', x.id, 'class', x.class, 'tenant', x.tenant)), '[]'::jsonb) into blockers
@@ -687,10 +695,10 @@ begin
   if blockers <> '[]'::jsonb then
     perform @SCHEMA@.lt_fail('delete_restricted', 'на аккаунт ссылаются другие строки', @SCHEMA@.visible_detail(blockers, c.tenant));
   end if;
+  -- сессии аккаунта гасит с сигналом триггер до удаления (trg_entity_bd_account, срабатывает и для владельца), а его
+  -- строки secret — сессии и креды — стирает каскад внешнего ключа secret.account (ревизия 7)
   delete from @SCHEMA@.entity x where x.id = p_account;
   perform @SCHEMA@.tombstone(a);
-  perform @SCHEMA@.auth_kill(p_account, null);
-  delete from @SCHEMA@.secret s where s.account = p_account;
   -- данные арендатора-цели — его парами; Account и member — классы прав, их сигнал сбрасывает всё
   perform @SCHEMA@.signal(classes || array['Account', 'member'],
     array(select p_account from unnest(classes)) || array['@SYSTEM@'::uuid, '@SYSTEM@'::uuid]);
@@ -897,7 +905,9 @@ begin
   with d as (delete from @SCHEMA@.secret x where x.kind = 'SESSION'
              and (x.deleted_at is not null or x.expires_at <= clock_timestamp()) returning 1)
   select count(*)::int into s from d;
-  with d as (delete from @SCHEMA@.secret x where x.kind = 'OTP'
+  -- коды всех видов, которые выпускает auth_issue_otp: OTP и OTP_<имя> (тот же шаблон вида), — использованные,
+  -- заменённые, исчерпавшие попытки (deleted_at) и истёкшие
+  with d as (delete from @SCHEMA@.secret x where x.kind ~ '^OTP(_[A-Z0-9]{1,27})?$'
              and (x.deleted_at is not null or x.expires_at <= clock_timestamp()) returning 1)
   select count(*)::int into o from d;
   return jsonb_build_object('sessions', s, 'codes', o, 'queue', pg_notification_queue_usage())

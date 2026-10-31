@@ -1,0 +1,73 @@
+{
+  "id": "install/05-engine-stamp",
+  "context": {
+    "schema": "v2.g_install_05_engine_stamp",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_6f9886ae06a4a0034d5094b225c5982d063ee6a07478148023270d6a3d0e1c0f",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "4ebef7c1e4453bddbded7510c850d9f713a605a5123437d611a90d6810ec80aa",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": "letopis ddl_revision=7 engine=1.4.1-alpha.0 sql=0af50f4fdb035557",
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": [
+        "letopis: функции схемы v2.g_install_05_engine_stamp поставила версия до 1.4.0, библиотека — 1.4.1-alpha.0: обновите схему — вызовите up({ schema: 'v2.g_install_05_engine_stamp' })"
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": [],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "connect() предупредил": [
+          "letopis: движок схемы v2.g_install_05_engine_stamp ревизии 8 новее библиотеки (она знает 7) — обновите пакет letopis"
+        ],
+        "up() отказал": "letopis.up: схема v2.g_install_05_engine_stamp ревизии 8, а библиотека знает только 7 — обновите пакет"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    }
+  ]
+}

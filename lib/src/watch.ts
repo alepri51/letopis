@@ -13,7 +13,9 @@
  * без LISTEN и на случай потери сигнала — запасной опрос.
  *
  * Курсор подписчика старше яруса all политики хранения его классов — cursor_expired: события могли
- * проредиться, нужно перечитать текущее состояние и подписаться заново.
+ * проредиться, нужно перечитать текущее состояние и подписаться заново. Время курсора подписки — время последнего
+ * события, а догнавшей журнал подписки — время опроса (не позже самой старой ещё не отданной записи): подписка без
+ * событий не стареет. Курсор события хранит время события.
  */
 import { LetopisError } from './errors.js';
 import { toRow } from './sql.js';
@@ -22,13 +24,17 @@ import type { Row } from './types.js';
 import type { Signal } from './signals.js';
 
 export interface WatchOptions {
-  /** Откуда: курсор события, 'now' (по умолчанию — изменения после подписки) или 'start' (весь журнал). */
+  /** Откуда: курсор (sub.cursor или курсор события), 'now' (по умолчанию — изменения после подписки) или 'start' (весь журнал). */
   from?: string;
   /** Только эти классы (с потомками). */
   classes?: string[];
   /** Событий за запрос (по умолчанию 500). */
   batch?: number;
-  /** Запасной опрос, мс (по умолчанию 1000; без LISTEN — единственный способ узнать о событиях). */
+  /**
+   * Как часто подписка сама проверяет журнал, мс (по умолчанию 1000): так она находит события, даже если сигнал базы не
+   * пришёл. Без сигналов (`connect({ listen: false })` или установка с `up({ signals: 'none' })`) новые события она
+   * узнаёт только так.
+   */
   pollMs?: number;
 }
 
@@ -105,6 +111,8 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 export class Subscription implements AsyncIterable<WatchEvent> {
   private pos: Pos | null = null;
   private buf: WatchEvent[] = [];
+  /** Курсор после последнего выданного события, пока в буфере есть невыданные (pos — уже после всей пачки). */
+  private given: string | null = null;
   private closed = false;
   private wake: (() => void) | null = null;
   private dirty = true;
@@ -143,14 +151,21 @@ export class Subscription implements AsyncIterable<WatchEvent> {
     this.timer.unref?.();
   }
 
-  /** Курсор последнего выданного события (или начальной точки). */
+  /**
+   * Курсор подписки: позиция после последнего выданного события (или начальная точка). Догнав журнал, подписка обновляет
+   * в нём время и на пустых опросах, поэтому его, а не курсор события, сохраняют, чтобы продолжить после перезапуска:
+   * курсор события хранит время события, и когда оно выйдет за ярус all политики хранения, продолжение с него —
+   * cursor_expired.
+   */
   get cursor(): string | null {
+    if (this.buf.length) return this.given;
     return this.pos ? encode(this.pos) : null;
   }
 
   /**
-   * Начальная точка взята (доработки после точки Б): у from: 'now' — горизонт и снимок момента подписки (watch_head());
-   * у 'start' и курсора — сразу. Запись после await sub.ready() придёт в поток; ошибка начальной точки — отказ.
+   * Промис выполняется, когда подписка запомнила начальную точку: запись, сделанная после этого, придёт в поток
+   * (доработки после точки Б). У `from: 'now'` точку запоминает отдельный запрос к базе, у `'start'` и курсора промис
+   * выполняется сразу; если запрос не удался, промис отклоняется с его ошибкой.
    */
   async ready(): Promise<void> {
     if (!this.pos && this.start) this.pos = await this.start;
@@ -172,7 +187,10 @@ export class Subscription implements AsyncIterable<WatchEvent> {
     // уход строки из классов подписки сменой класса без смены id (хвост ревью безопасности №3) — надгробием прежней
     // версии в том же окне: полная пачка watch_read ограничивает окно своей последней строкой. Оба потока — одним
     // оператором: общий снимок и горизонт, иначе курсор перескочил бы событие, зафиксированное между запросами
-    // (автоматическое ревью). Потоки сливаются по (tx, seq) до границы — последней строки потока, обрезанного лимитом
+    // (автоматическое ревью). Потоки сливаются по (tx, seq) до границы — последней строки потока, обрезанного лимитом.
+    // Третья строка (src 2) — время курсора, когда пачка неполная (подписка догнала журнал): «сейчас», но не позже самой
+    // старой записи подписки, которая уже зафиксирована, а горизонт ещё не прошла (её держит более старая транзакция;
+    // снимок «now» — без записей, которые подписка не отдаёт). Тот же снимок, что у watch_read
     const S = this.ctx.S;
     const both = await this.ctx.exec.run((q) => q.unsafe(
       `with r as (select l.* from ${S}.watch_read($1::text::xid8, $2::bigint, $3::text::timestamptz, $4::text[], $5::int, $6::text::pg_snapshot) l),
@@ -180,12 +198,19 @@ export class Subscription implements AsyncIterable<WatchEvent> {
        select 0 as src, ${cols} from r l
        union all
        select 1 as src, ${cols} from ${S}.watch_leaving($1::text::xid8, $2::bigint, $4::text[], $5::int, $6::text::pg_snapshot,
-         (select tx from u), (select seq from u)) l`,
+         (select tx from u), (select seq from u)) l
+       union all
+       select 2 as src, null, null, jsonb_build_object('at', least(statement_timestamp(), min(l.at))) from ${S}.log l
+       where (select count(*) from r) < $5 and (l.tx, l.seq) > ($1::text::xid8, $2::bigint)
+         and l.tx >= pg_snapshot_xmin(pg_current_snapshot()) and ($4::text[] is null or l.class = any ($4::text[]))
+         and ($6::text::pg_snapshot is null or not pg_visible_in_snapshot(l.tx, $6::text::pg_snapshot))
+       having (select count(*) from r) < $5`,
       [p.tx, p.seq, p.at, this.ctx.classes, this.batch, p.snap ?? null] as never[]) as unknown as Promise<(R & { src: number })[]>, { read: true });
     const before = (a: R, b: R) => BigInt(a.tx) < BigInt(b.tx) || (a.tx === b.tx && BigInt(a.seq) < BigInt(b.seq));
     const order = (a: R, b: R) => (before(a, b) ? -1 : before(b, a) ? 1 : 0);
     const read = both.filter((r) => r.src === 0).sort(order);
     const away = both.filter((r) => r.src === 1).sort(order);
+    const caught = both.find((r) => r.src === 2);
     let rows: R[] = read;
     {
       const upto = read.length === this.batch ? read[read.length - 1] : null;
@@ -196,12 +221,17 @@ export class Subscription implements AsyncIterable<WatchEvent> {
         rows = [...read, ...away].sort(order).filter((r) => !bound || !before(bound, r));
       }
     }
+    // пока события пачки не выданы, курсор подписки — позиция до пачки
+    if (rows.length) this.given = encode(p);
     for (const r of rows) {
       const row = toRow(r.row);
       const snap = keepSnap(p.snap, r.tx);
       this.pos = { tx: r.tx, seq: r.seq, at: row.at, ...(snap ? { snap } : {}) };
       this.buf.push({ cursor: encode(this.pos), row, id: row.id, class: row.class, op: row.op, rev: row.rev, at: row.at });
     }
+    // догнала журнал — время курсора подписки (sub.cursor) обновляется и на пустых опросах: прореживать после него нечего,
+    // и подписка, к которой долго не было событий, не получает ложный cursor_expired. Курсоры событий хранят время события
+    if (caught && away.length < this.batch) this.pos = { ...(this.pos ?? p), at: String((caught.row as { at: string }).at) };
     return rows.length;
   }
 
@@ -219,7 +249,11 @@ export class Subscription implements AsyncIterable<WatchEvent> {
     let empty = 0;
     for (;;) {
       if (this.failure) throw this.failure;
-      if (this.buf.length) return { value: this.buf.shift()!, done: false };
+      if (this.buf.length) {
+        const ev = this.buf.shift()!;
+        this.given = ev.cursor;
+        return { value: ev, done: false };
+      }
       if (this.closed) return { value: undefined, done: true };
       if (this.dirty) {
         try {

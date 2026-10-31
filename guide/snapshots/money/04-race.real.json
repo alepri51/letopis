@@ -1,0 +1,181 @@
+{
+  "id": "money/04-race",
+  "context": {
+    "schema": "v2.g_money_04_race",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_772900e293f7f3a492e851028dad23704b4a29e22526f7423091ac3129ab9e06",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "756deb9bfb4799c79d3a90f34da523b0858475c2e9e19604360290ac38c25049",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "at": "2026-10-31T21:24:03.417895+00:00",
+        "id": "7059d160-3cdb-5650-ae26-befb9e94b84e",
+        "op": "create",
+        "rev": 1,
+        "data": {
+          "number": "4242",
+          "balance": 500
+        },
+        "tags": [],
+        "class": "Card",
+        "links": {},
+        "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "agent": "29a8d662-d986-5ff0-9b1e-51c01c7e1e6b"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "7059d160-3cdb-5650-ae26-befb9e94b84e",
+          "class": "Card",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "number": "4242",
+            "balance": 500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "29a8d662-d986-5ff0-9b1e-51c01c7e1e6b",
+          "reason": null,
+          "at": "2026-10-31 21:24:03.417895+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Card",
+        "Class"
+      ]
+    },
+    {
+      "result": {
+        "первое": "списано 400, остаток 100",
+        "второе": "списано 400, остаток 100",
+        "на карте": 100
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "7059d160-3cdb-5650-ae26-befb9e94b84e",
+          "class": "Card",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "number": "4242",
+            "balance": 100
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": null,
+          "reason": "списание 400",
+          "at": "2026-10-31 21:24:03.521517+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Card"
+      ]
+    },
+    {
+      "result": {
+        "первое": "списано 400, остаток 100",
+        "второе ждало блокировку": true,
+        "второе": "отказ: недостаточно средств: 100 < 400",
+        "на карте": 100
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "7059d160-3cdb-5650-ae26-befb9e94b84e",
+          "class": "Card",
+          "rev": 4,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "number": "4242",
+            "balance": 100
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "29a8d662-d986-5ff0-9b1e-51c01c7e1e6b",
+          "reason": "списание 400",
+          "at": "2026-10-31 21:24:03.686248+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Card"
+      ]
+    },
+    {
+      "result": {
+        "первое": "списано 400, остаток 100",
+        "второе ждало строку": true,
+        "второе": "отказ: недостаточно средств: 100 < 400",
+        "на карте": 100
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "7059d160-3cdb-5650-ae26-befb9e94b84e",
+          "class": "Card",
+          "rev": 6,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "number": "4242",
+            "balance": 100
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "29a8d662-d986-5ff0-9b1e-51c01c7e1e6b",
+          "reason": "списание 400",
+          "at": "2026-10-31 21:24:03.877345+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Card"
+      ]
+    }
+  ]
+}

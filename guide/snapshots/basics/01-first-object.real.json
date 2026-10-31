@@ -1,0 +1,615 @@
+{
+  "id": "basics/01-first-object",
+  "context": {
+    "schema": "v2.g_basics_01_first_object",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_9cc4242f2c523c230139c9086641b4db0e329a8948b753f3a715cab6b7611380",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "21fb10d1bcfa45be7a6a0d863ee4c00eb00bbff139f749a3b6bd994aceaf9aa5",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": null,
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Class"
+      ]
+    },
+    {
+      "result": {
+        "at": "2026-10-31T21:23:05.288811+00:00",
+        "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+        "op": "create",
+        "rev": 1,
+        "data": {
+          "name": "Анна",
+          "phone": "+7 900 111-22-33"
+        },
+        "tags": [],
+        "class": "Client",
+        "links": {},
+        "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "class": "Client",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 111-22-33"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2",
+          "reason": null,
+          "at": "2026-10-31 21:23:05.288811+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "35",
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "rev": 1,
+          "class": "Client",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 111-22-33"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2",
+          "reason": null,
+          "at": "2026-10-31 21:23:05.288811+00",
+          "tx": "2610664"
+        }
+      ],
+      "secret": [],
+      "signals": [
+        "Client"
+      ]
+    },
+    {
+      "result": [
+        {
+          "at": "2026-10-31T21:23:05.314222+00:00",
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "op": "update",
+          "rev": 2,
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "class": "Client",
+          "links": {},
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "class": "Client",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2",
+          "reason": null,
+          "at": "2026-10-31 21:23:05.314222+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "35",
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "rev": 1,
+          "class": "Client",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 111-22-33"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2",
+          "reason": null,
+          "at": "2026-10-31 21:23:05.288811+00",
+          "tx": "2610664"
+        },
+        {
+          "seq": "36",
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "rev": 2,
+          "class": "Client",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2",
+          "reason": null,
+          "at": "2026-10-31 21:23:05.314222+00",
+          "tx": "2610668"
+        }
+      ],
+      "secret": [],
+      "signals": [
+        "Client"
+      ]
+    },
+    {
+      "result": [
+        {
+          "at": "2026-10-31T21:23:05.288811+00:00",
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "op": "create",
+          "rev": 1,
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 111-22-33"
+          },
+          "tags": [],
+          "class": "Client",
+          "links": {},
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2"
+        },
+        {
+          "at": "2026-10-31T21:23:05.314222+00:00",
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "op": "update",
+          "rev": 2,
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "class": "Client",
+          "links": {},
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "class": "Client",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2",
+          "reason": null,
+          "at": "2026-10-31 21:23:05.314222+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "35",
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "rev": 1,
+          "class": "Client",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 111-22-33"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2",
+          "reason": null,
+          "at": "2026-10-31 21:23:05.288811+00",
+          "tx": "2610664"
+        },
+        {
+          "seq": "36",
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "rev": 2,
+          "class": "Client",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2",
+          "reason": null,
+          "at": "2026-10-31 21:23:05.314222+00",
+          "tx": "2610668"
+        }
+      ],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": [
+        {
+          "at": "2026-10-31T21:23:05.314222+00:00",
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "op": "update",
+          "rev": 2,
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "class": "Client",
+          "links": {},
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2",
+          "$action": "delete",
+          "$depth": 0
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "class": "Client",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2",
+          "reason": null,
+          "at": "2026-10-31 21:23:05.314222+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "35",
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "rev": 1,
+          "class": "Client",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 111-22-33"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2",
+          "reason": null,
+          "at": "2026-10-31 21:23:05.288811+00",
+          "tx": "2610664"
+        },
+        {
+          "seq": "36",
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "rev": 2,
+          "class": "Client",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2",
+          "reason": null,
+          "at": "2026-10-31 21:23:05.314222+00",
+          "tx": "2610668"
+        }
+      ],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": [
+        {
+          "at": "2026-10-31T21:23:05.387826+00:00",
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "op": "delete",
+          "rev": 3,
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "class": "Client",
+          "links": {},
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2",
+          "$deleted": true
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [
+        {
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "class": "Client",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2",
+          "reason": null,
+          "at": "2026-10-31 21:23:05.314222+00"
+        }
+      ],
+      "log": [
+        {
+          "seq": "35",
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "rev": 1,
+          "class": "Client",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 111-22-33"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2",
+          "reason": null,
+          "at": "2026-10-31 21:23:05.288811+00",
+          "tx": "2610664"
+        },
+        {
+          "seq": "36",
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "rev": 2,
+          "class": "Client",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2",
+          "reason": null,
+          "at": "2026-10-31 21:23:05.314222+00",
+          "tx": "2610668"
+        },
+        {
+          "seq": "37",
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "rev": 3,
+          "class": "Client",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2",
+          "reason": null,
+          "at": "2026-10-31 21:23:05.387826+00",
+          "tx": "2610674"
+        }
+      ],
+      "secret": [],
+      "signals": [
+        "Client"
+      ]
+    },
+    {
+      "result": [
+        {
+          "at": "2026-10-31T21:23:05.413111+00:00",
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "op": "restore",
+          "rev": 4,
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "class": "Client",
+          "links": {},
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "class": "Client",
+          "rev": 4,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "restore",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2",
+          "reason": null,
+          "at": "2026-10-31 21:23:05.413111+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "35",
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "rev": 1,
+          "class": "Client",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 111-22-33"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2",
+          "reason": null,
+          "at": "2026-10-31 21:23:05.288811+00",
+          "tx": "2610664"
+        },
+        {
+          "seq": "36",
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "rev": 2,
+          "class": "Client",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2",
+          "reason": null,
+          "at": "2026-10-31 21:23:05.314222+00",
+          "tx": "2610668"
+        },
+        {
+          "seq": "37",
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "rev": 3,
+          "class": "Client",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2",
+          "reason": null,
+          "at": "2026-10-31 21:23:05.387826+00",
+          "tx": "2610674"
+        },
+        {
+          "seq": "38",
+          "id": "3bad3325-7838-5793-8c3f-128753c63c86",
+          "rev": 4,
+          "class": "Client",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "phone": "+7 900 444-55-66"
+          },
+          "tags": [],
+          "op": "restore",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f426dd40-d895-5db5-b948-3cf3df20bcb2",
+          "reason": null,
+          "at": "2026-10-31 21:23:05.413111+00",
+          "tx": "2610677"
+        }
+      ],
+      "secret": [],
+      "signals": [
+        "Client"
+      ]
+    }
+  ]
+}

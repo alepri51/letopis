@@ -30,7 +30,7 @@ const r = await up({ dsn: ADMIN, schema: 'myapp',                  // схема
   tenant: { name: 'Салон', user: { name: 'Ольга', login: 'olga@salon.ru', password: 'Сирень-2026!' } } })
 // r: { schema, created, upgraded, revision, serviceKey, migrations, analyzed, tenant, … }
 // r.serviceKey ('lts_…') — ключ сервиса, выдаётся при первой установке (снова — только если в установке не осталось
-// действующих ключей API). Сохраните его.
+// ключей API, кроме отозванных). Сохраните его.
 // r.tenant: { tenant, user, token, created } — арендатор «Салон» и его первый пользователь Ольга
 ```
 - `up()` ждёт базу, создаёт её, проверяет PostgreSQL 18+ и UTF8, ставит роли `letopis_owner` и `letopis_app`.
@@ -77,14 +77,14 @@ db.tenant          // арендатор сессии: по умолчанию �
   allowBypassRls, models })`. `schema` — **полное** имя с `v2.`.
 - `db.auth`: `setPassword`, `verifyPassword`, `issueApiKey`, `verifyApiKey`, `issueKeySecret`, `verifyKeySecret`,
   `enrollTotp`, `verifyTotp`, `totpEnabled`, `issueOtp`, `verifyOtp`, `link`, `lookup`, `credentials`, `revokeCredential`,
-  `setFlags`, `sessionFor(account, { ttl })`, `refresh`, `revoke`, `revokeAll`, `switch(tenant)`, `tenants()`,
-  `purgeAccount`. Проверку паролей, OTP и TOTP, выпуск сессий и подтверждение кредов вызывает **сервис** (права
-  `auth.*`); обычному пользователю — `acl_denied`. Сигнатуры: `issueApiKey({ account, name?, ttl? })` →
-  `{ key, id }`; `verifyApiKey(key)` → `{ token, account } | null`; `sessionFor(account, { ttl })` → строка-токен —
-  дальше `connect({ dsn, schema, token })`, а для работы в чужом арендаторе по членству — `db.auth.switch(арендатор)`
-  (без него сессия — в собственном арендаторе аккаунта). Токен для CLI (`--token`) — тот же `token` из
-  `verifyPassword`/`verifyApiKey`/`sessionFor`. Администраторское подключение (`allowBypassRls`) печатает
-  предупреждение «RLS не действует» — так и должно быть.
+  `setFlags`, `sessionFor(account, { ttl })`, `session(token)`, `refresh`, `revoke`, `revokeAll`, `switch(tenant)`,
+  `tenants()`, `purgeAccount`. Проверку паролей, OTP и TOTP, выпуск сессий, сведения о сессии по токену и
+  подтверждение кредов вызывает **сервис** (права `auth.*`); обычному пользователю — `acl_denied`. Сигнатуры:
+  `issueApiKey({ account, name?, ttl? })` → `{ key, id }`; `verifyApiKey(key)` → `{ token, account } | null`;
+  `sessionFor(account, { ttl })` → строка-токен — дальше `connect({ dsn, schema, token })`, а для работы в чужом
+  арендаторе по членству — `db.auth.switch(арендатор)` (без него сессия — в собственном арендаторе аккаунта). Токен для
+  CLI (`--token`) — тот же `token` из `verifyPassword`/`verifyApiKey`/`sessionFor`. Администраторское подключение
+  (`allowBypassRls`) печатает предупреждение «RLS не действует» — так и должно быть.
 - Второй фактор: `verifyPassword({ identifier, password, totp })` и `lookup({ kind, identifier, totp })` после первой
   проверки сверяют код TOTP (право `auth.totp`, счётчик неудач и блокировка — общие с `verifyTotp`) → сессия со
   способами `[вид, 'TOTP']`, по ней пользователь с TOTP меняет свои креды сам. Неверный или повторный код и код у
@@ -93,6 +93,11 @@ db.tenant          // арендатор сессии: по умолчанию �
   `issueKeySecret` с `account` — id сервиса; `revokeCredential(id)`). Отзыв ключа гасит только сессии этого ключа —
   ротация без простоя: новый ключ → процессы на него → отзыв старого. Последний действующий ключ сервиса не
   отзывается (`acl_denied`); отключить сервис — `enabled: false` у его аккаунта.
+- Сессия по токену: `svc.auth.session(token)` → `{ account, tenant, member, expiresAt, loginAt, methods } | null`.
+  Сервис (право `auth.session`) узнаёт, чья сессия, в каком арендаторе она работает и цело ли там членство, не
+  подключаясь по токену и не продлевая сессию. Неверный, погашенный или истёкший токен и отключённый аккаунт —
+  `null`. Так веб-сервис проверяет сессию из cookie в начале каждого запроса: чтение по погашенной сессии ошибки не
+  даёт, ответы просто пустые.
 - Работа в чужом арендаторе по членству: `await user.auth.tenants()` → `[{ tenant, roles }]`, затем
   `await user.auth.switch(tenant)` (только от корня подключения). Имперсонация сервисом:
   `const u = await svc.as(account, { tenant, owner })` — проверяет база, в журнале `author` — пользователь,

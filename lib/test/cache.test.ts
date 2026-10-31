@@ -168,6 +168,16 @@ test('№7 обрыв слушателя: кэш сброшен, после во
   await insert(other, 70);
   await until(() => db.cache.stats().listens > listens);
   assert.equal(db.cache.stats().size, 0, 'кэш сброшен при переподключении слушателя');
+  // Сигнал о записи other нотификатор шлёт через свой интервал после фиксации. Ушёл до переподключения
+  // слушателя db — потерян; ушёл после — приходит с опозданием и может попасть в чтение следующего теста
+  // (№9: ответ не кладётся в кэш, к базе два запроса). Отсечка: отправить накопленное other, затем свой
+  // сигнал Price. База доставляет сигналы в порядке фиксации, поэтому когда db сбросил по нему ответ Price,
+  // сигнал записи уже получен или потерян и позже не придёт.
+  await other.flushSignals();
+  await db.Price().cache().rows();
+  assert.equal(db.cache.stats().size, 1, 'ответ Price — в кэше');
+  await e.app.unsafe(`select pg_notify($1, 'Price')`, [e.schema]);
+  await until(() => db.cache.stats().size === 0);
   assert.ok((await db.Item().cache().rows()).some((r) => r.data.n === 70));
 });
 

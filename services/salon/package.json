@@ -1,0 +1,16 @@
+{
+  "name": "letopis-salon",
+  "private": true,
+  "type": "module",
+  "description": "Сервис-пример «Салон записи» на letopis: интерфейс на shadcn/ui (React), JSON API, бронь без двойной записи, живое обновление, история брони",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "build:web": "npm --prefix web ci && npm --prefix web run build",
+    "scenario": "node scenario.mjs"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "letopis": "file:../../lib",
+    "postgres": "^3.4.9"
+  }
+}

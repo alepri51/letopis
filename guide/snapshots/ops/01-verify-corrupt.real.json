@@ -1,0 +1,103 @@
+{
+  "id": "ops/01-verify-corrupt",
+  "context": {
+    "schema": "v2.g_ops_01_verify_corrupt",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_e98cc233c6aaf727f5e6f0087d25fc26bb96344a76c6cff8ff9343708a52fdf5",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "982facfcb36376671e50ef52a078c6512bddf25595fd3e2041562b58d62c2546",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "ok": true,
+        "anchor": "c374d152d03d1bf997d440eeb9f35f5dff9c513a9b547fcac53d5fefac5d179b",
+        "issues": []
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Category",
+        "Class",
+        "Customer",
+        "Order",
+        "Product",
+        "Shop",
+        "Vip",
+        "line"
+      ]
+    },
+    {
+      "result": {
+        "ok": false,
+        "anchor": "c374d152d03d1bf997d440eeb9f35f5dff9c513a9b547fcac53d5fefac5d179b",
+        "issues": [
+          {
+            "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+            "rev": 2,
+            "problem": "хэш версии не совпадает с prev_hash следующей"
+          }
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "ok": true,
+        "anchor": "c374d152d03d1bf997d440eeb9f35f5dff9c513a9b547fcac53d5fefac5d179b",
+        "issues": []
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "ok": false,
+        "anchor": "c374d152d03d1bf997d440eeb9f35f5dff9c513a9b547fcac53d5fefac5d179b",
+        "issues": [
+          {
+            "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+            "rev": 2,
+            "problem": "разрыв: нет версий 2…2"
+          }
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    }
+  ]
+}

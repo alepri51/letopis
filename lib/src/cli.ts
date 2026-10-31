@@ -132,6 +132,12 @@ export async function main(argv: string[]): Promise<number> {
       console.log(JSON.stringify(r));
       return 0;
     }
+    if (cmd === 'describe' || cmd === 'types') {
+      // обе команды читают реестр сессии: без действующей сессии (токен истёк, погашен, неверен или не задан) он пуст,
+      // и команда выдала бы пустой результат с кодом 0, а с --out затёрла бы им файл. acl.check ничего не пишет, а без
+      // сессии отказывает no_session — тогда выход с кодом 1, файл не тронут
+      await db.acl.check('letopis.cli');
+    }
     if (cmd === 'describe') {
       const d = db.describe();
       const text = values.format === 'text' ? describeText(d) : JSON.stringify(d, null, 2);

@@ -1,0 +1,33 @@
+{
+  "name": "letopis-guide",
+  "private": true,
+  "type": "module",
+  "description": "letopis — понятная документация: исполняемые примеры, схемы процессов, сервисы-примеры (только локально)",
+  "scripts": {
+    "dev": "vitepress dev --host 127.0.0.1 --port 5173",
+    "build": "vitepress build",
+    "preview": "vitepress preview --host 127.0.0.1 --port 4173",
+    "serve": "node server.mjs",
+    "sandbox": "node -e \"process.env.SANDBOX='1'; import('./server.mjs')\"",
+    "examples": "tsx scripts/run-examples.ts",
+    "coverage": "tsx scripts/coverage.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@electric-sql/pglite-socket": "^0.2.11",
+    "@modelcontextprotocol/client": "^2.4.0",
+    "@modelcontextprotocol/server": "^2.4.0",
+    "postgres": "^3.4.9",
+    "shiki": "^2.5.0",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "mermaid": "^12.2.0",
+    "vitepress": "^1.6.4",
+    "vue": "^3.5.44"
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "id": "watch/02-quiet-cursor",
+  "context": {
+    "schema": "v2.g_watch_02_quiet_cursor",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_ee27e17802a92d3f495ac541990db504a6246ca8281db4632e1e40a46ef3a7e8",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "9cd7f3f7bace5fbeaf784a208e193b2c8182b15d9a21cc1ecb7ee4cfbfabb787",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": "подписка ждёт событий",
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Class"
+      ]
+    },
+    {
+      "result": {
+        "op": "create",
+        "датчик": "Давление",
+        "время события": "2026-01-01T00:00:00+00:00"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Gauge"
+      ]
+    },
+    {
+      "result": {
+        "op": "create",
+        "датчик": "Влажность"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Gauge"
+      ]
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "cursor_expired",
+        "message": "letopis: cursor_expired: курсор подписки старше яруса all — события могли проредиться, перечитайте текущее состояние",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "op": "update",
+        "датчик": "Влажность",
+        "значение": 42
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Gauge"
+      ]
+    }
+  ]
+}

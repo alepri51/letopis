@@ -32,7 +32,7 @@ const r = await up({ dsn: ADMIN, schema: 'myapp',                  // schema 'v2
   tenant: { name: 'Salon', user: { name: 'Olga', login: 'olga@salon.ru', password: 'Lilac-2026!' } } })
 // r: { schema, created, upgraded, revision, serviceKey, migrations, analyzed, tenant, … }
 // r.serviceKey ('lts_…') is the service key; it is issued at the first installation (again only if the installation has
-// no valid API keys left). Save it.
+// no API keys left except revoked ones). Save it.
 // r.tenant: { tenant, user, token, created } — the tenant "Salon" and its first user Olga
 ```
 - `up()` waits for the database, creates it, checks for PostgreSQL 18+ and UTF8, and installs the roles `letopis_owner`
@@ -82,10 +82,10 @@ db.tenant          // the session tenant: by default the account's own tenant (h
   allowBypassRls, models })`. `schema` is the **full** name with `v2.`.
 - `db.auth`: `setPassword`, `verifyPassword`, `issueApiKey`, `verifyApiKey`, `issueKeySecret`, `verifyKeySecret`,
   `enrollTotp`, `verifyTotp`, `totpEnabled`, `issueOtp`, `verifyOtp`, `link`, `lookup`, `credentials`, `revokeCredential`,
-  `setFlags`, `sessionFor(account, { ttl })`, `refresh`, `revoke`, `revokeAll`, `switch(tenant)`, `tenants()`,
-  `purgeAccount`. Password, OTP and TOTP checks, issuing sessions and confirming credentials are called by the
-  **service** (the `auth.*` permissions); a regular user gets `acl_denied`. Signatures:
-  `issueApiKey({ account, name?, ttl? })` → `{ key, id }`; `verifyApiKey(key)` → `{ token, account } | null`;
+  `setFlags`, `sessionFor(account, { ttl })`, `session(token)`, `refresh`, `revoke`, `revokeAll`, `switch(tenant)`,
+  `tenants()`, `purgeAccount`. Password, OTP and TOTP checks, issuing sessions, session details by token and
+  confirming credentials are called by the **service** (the `auth.*` permissions); a regular user gets `acl_denied`.
+  Signatures: `issueApiKey({ account, name?, ttl? })` → `{ key, id }`; `verifyApiKey(key)` → `{ token, account } | null`;
   `sessionFor(account, { ttl })` → a token string; then `connect({ dsn, schema, token })`, and to work in another
   tenant through a membership, `db.auth.switch(tenant)` (without it, the session is in the account's own tenant). The
   token for the CLI (`--token`) is the same `token` from `verifyPassword`/`verifyApiKey`/`sessionFor`. An admin
@@ -99,6 +99,11 @@ db.tenant          // the session tenant: by default the account's own tenant (h
   `issueKeySecret` with `account` set to the service id; `revokeCredential(id)`). Revoking a key revokes only the
   sessions of that key, so rotation has no downtime: new key → processes onto it → revoke the old one. The last active
   key of a service cannot be revoked (`acl_denied`); to disable a service, set `enabled: false` on its account.
+- Session by token: `svc.auth.session(token)` → `{ account, tenant, member, expiresAt, loginAt, methods } | null`.
+  The service (the `auth.session` permission) learns whose session it is, which tenant it works in and whether the
+  membership there is intact, without connecting with the token and without extending the session. A wrong, revoked
+  or expired token and a disabled account give `null`. This is how a web service checks the session from a cookie at
+  the start of every request: reading under a revoked session gives no error, the answers are simply empty.
 - Working in another tenant through a membership: `await user.auth.tenants()` → `[{ tenant, roles }]`, then
   `await user.auth.switch(tenant)` (only from the connection root). Impersonation by a service:
   `const u = await svc.as(account, { tenant, owner })` — the database checks it; in the journal, `author` is the user

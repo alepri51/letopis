@@ -1,0 +1,130 @@
+{
+  "id": "models/06-exports",
+  "context": {
+    "schema": "v2.g_models_06_exports",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_303777110c89dacb0b853d70e9bf1132ee13697cca8d38d31becabf2a4a27661",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "91ea5673f16f2a10a32a360e5330454135a3e65351c9b612882e8659519a2be9",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "idOf совпал с id строки": true,
+        "uuidv5(v5Name(…), арендатор) — то же": true,
+        "v5Name": "[\"Shop\", \"Ромашка\"]"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Class",
+        "Shop"
+      ]
+    },
+    {
+      "result": {
+        "хэш начинается с": "scrypt$",
+        "верный": true,
+        "неверный": false
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "invalid_data",
+        "message": "letopis: invalid_data: хэш пароля: параметры scrypt N=1048576, r=8, p=1 недопустимы или требуют больше 64 МБ памяти",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "ошибки на неполных данных": [
+          "price"
+        ],
+        "умолчания": {
+          "qty": 1
+        },
+        "ValidationError": "invalid_data"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "invalid_class",
+        "message": "letopis: invalid_class: pattern \"^(K\" — неверное регулярное выражение (узел [\"sku\"])",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "generateTypes, начало": "export interface CategoryData {",
+        "schemaToTs": "{\n  \"n\": number;\n}",
+        "реестр — экземпляр Registry": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "методов цепочки": 44,
+        "методов db": 35,
+        "зарезервировано имён": 80,
+        "среди них where?": false,
+        "ревизия движка": 7
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    }
+  ]
+}

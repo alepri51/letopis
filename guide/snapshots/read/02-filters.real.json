@@ -1,0 +1,257 @@
+{
+  "id": "read/02-filters",
+  "context": {
+    "schema": "v2.g_read_02_filters",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_0bf8366079e33e3e30b66a9d3e6c3727c39af3bf6bb99eb928df5476ed16f672",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "f2700fe44284fa11818ab5c9ed0a5addda3f71464b8b00712496438aa4e723f3",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": [
+        {
+          "title": "Кружка",
+          "price": 400,
+          "labels": [
+            "стекло"
+          ]
+        },
+        {
+          "title": "Сенча",
+          "price": 900,
+          "labels": [
+            "хит"
+          ]
+        },
+        {
+          "title": "Пуэр",
+          "price": 1500,
+          "labels": null
+        },
+        {
+          "title": "Чайник",
+          "price": 2500,
+          "labels": [
+            "хит",
+            "стекло"
+          ]
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Category",
+        "Class",
+        "Customer",
+        "Order",
+        "Product",
+        "Shop",
+        "Vip",
+        "line"
+      ]
+    },
+    {
+      "result": {
+        "ne(900)": [
+          "Кружка",
+          "Пуэр",
+          "Чайник"
+        ],
+        "gt(1500)": [
+          "Чайник"
+        ],
+        "gte(1500)": [
+          "Пуэр",
+          "Чайник"
+        ],
+        "lt(900)": [
+          "Кружка"
+        ],
+        "lte(900)": [
+          "Кружка",
+          "Сенча"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "between(500, 2000)": [
+          "Пуэр",
+          "Сенча"
+        ],
+        "inList(['K-1', 'M-1'])": [
+          "Кружка",
+          "Чайник"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "like('%а%')": [
+          "Кружка",
+          "Сенча",
+          "Чайник"
+        ],
+        "ilike('ч%')": [
+          "Чайник"
+        ],
+        "starts('T-')": [
+          "Пуэр",
+          "Сенча"
+        ],
+        "ends('-1')": [
+          "Кружка",
+          "Чайник"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "has('хит')": [
+          "Сенча",
+          "Чайник"
+        ],
+        "hasAny(['стекло', 'акция'])": [
+          "Кружка",
+          "Чайник"
+        ],
+        "hasAll(['хит', 'стекло'])": [
+          "Чайник"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "labels: exists(true)": [
+          "Кружка",
+          "Сенча",
+          "Чайник"
+        ],
+        "labels: exists(false)": [
+          "Пуэр"
+        ],
+        "specs: isNull()": [
+          "Кружка",
+          "Пуэр",
+          "Сенча"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "not('paid')": [
+          "A-1"
+        ],
+        "not(gte(1000))": [
+          "Кружка",
+          "Сенча"
+        ],
+        "or({ sku: 'K-1' }, { price: lt(500) })": [
+          "Кружка",
+          "Чайник"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "товары «Лютика»": [
+          "Кружка"
+        ],
+        "корневые категории": [
+          "Посуда",
+          "Чай"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "price: 900": [
+          "Сенча"
+        ],
+        "price: '900'": []
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "isOp(gt(1))": true,
+        "isOp(1)": false
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    }
+  ]
+}

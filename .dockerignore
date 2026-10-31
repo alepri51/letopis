@@ -1,0 +1,11 @@
+# Контекст сборки образов services/compose.yaml — корень репозитория; лишнее в него не берём.
+.git
+**/node_modules
+**/.vitepress/cache
+**/.vitepress/dist
+lib/dist
+lib/bench/results
+reports
+data
+.env
+*.log

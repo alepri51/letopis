@@ -795,6 +795,43 @@ begin
     where m.class = 'member' and m.links->>'User' = c.account::text and @SCHEMA@.auth_enabled(m.tenant);
 end $$;
 
+-- Сведения о сессии по токену (db.auth.session): сервис, у которого есть токен пользователя (например, из
+-- cookie), узнаёт, чья это сессия, жива ли она и в каком арендаторе работает, не подключаясь по этому токену.
+-- Право auth.session, как у issue_session. Неверный, погашенный или истёкший токен и отключённый аккаунт — null:
+-- причина не различается, как в ctx(). Сессия ищется только среди SESSION: ключ API или код с тем же sha256 не
+-- подойдут. member — проверка членства из ctx() без исключения: членство в рабочем арендаторе цело и арендатор
+-- включён; собственный арендатор — всегда true.
+create or replace function @SCHEMA@.auth_session_info(p_token text) returns jsonb
+language plpgsql stable security definer
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  c record;
+  s record;
+  t uuid;
+begin
+  select * into c from @SCHEMA@.ctx();
+  perform @SCHEMA@.auth_session_required(c.account);
+  perform @SCHEMA@.acl_require('auth.session');
+  select x.account, x.meta, x.expires_at into s from @SCHEMA@.secret x
+  where x.kind = 'SESSION' and x.deleted_at is null and x.material = sha256(convert_to(coalesce(p_token, ''), 'UTF8'))
+    and (x.expires_at is null or x.expires_at > clock_timestamp());
+  if s.account is null or not @SCHEMA@.auth_enabled(s.account) then
+    return null;
+  end if;
+  t := coalesce((s.meta->>'tenant')::uuid, s.account);
+  return jsonb_build_object(
+    'account', s.account,
+    'tenant', t,
+    'member', t = s.account or (
+      exists (select 1 from @SCHEMA@.entity x
+              where x.id = @SCHEMA@.v5_id(t, 'member', array[s.account::text, t::text]) and x.class = 'member' and x.tenant = t)
+      and @SCHEMA@.auth_enabled(t)),
+    'expiresAt', s.expires_at,
+    'loginAt', s.meta->'login_at',
+    'methods', coalesce(s.meta->'methods', '[]'::jsonb));
+end $$;
+
 do $$
 declare f text;
 begin
@@ -807,7 +844,7 @@ begin
     'login_otp(text, text, text)', 'totp_code(bytea, bigint)', 'auth_enroll_totp(uuid)', 'auth_verify_totp(uuid, text, int)',
     'auth_totp_enabled(uuid)', 'auth_link(uuid, text, text, jsonb, boolean)', 'auth_lookup(text, text, boolean)',
     'auth_credentials(uuid)', 'auth_revoke_credential(uuid, boolean)', 'auth_set_flags(uuid, boolean, boolean)',
-    'auth_refresh(interval)', 'auth_logout()', 'auth_logout_all(uuid)', 'auth_switch(uuid)', 'auth_tenants()'] loop
+    'auth_refresh(interval)', 'auth_logout()', 'auth_logout_all(uuid)', 'auth_switch(uuid)', 'auth_tenants()', 'auth_session_info(text)'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);
     execute format('revoke all on function @SCHEMA@.%s from public', f);
   end loop;
@@ -824,4 +861,4 @@ grant execute on function
   @SCHEMA@.auth_totp_enabled(uuid), @SCHEMA@.auth_link(uuid, text, text, jsonb, boolean), @SCHEMA@.auth_lookup(text, text, boolean),
   @SCHEMA@.auth_credentials(uuid), @SCHEMA@.auth_revoke_credential(uuid, boolean), @SCHEMA@.auth_set_flags(uuid, boolean, boolean),
   @SCHEMA@.auth_refresh(interval), @SCHEMA@.auth_logout(), @SCHEMA@.auth_logout_all(uuid), @SCHEMA@.auth_switch(uuid),
-  @SCHEMA@.auth_tenants() to @APP@;
+  @SCHEMA@.auth_tenants(), @SCHEMA@.auth_session_info(text) to @APP@;

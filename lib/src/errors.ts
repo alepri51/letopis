@@ -21,14 +21,14 @@ export class LetopisError extends Error {
   }
 }
 
+/** Версия, в которой снято старое API (её берёт и контракт API — scripts/gen-api-contract.mjs). */
+export const REMOVED_IN = '1.0.0';
+
 /** Охранник снесённого API (план, этап 3, п. 11): понятная ошибка с версией и заменой. */
 export function removed(name: string, replacement: string): LetopisError {
-  return new LetopisError('removed', `${name} снят в 1.0.0 — ${replacement}`);
-}
-
-/** Метод зарезервирован, но появится на следующем этапе плана. */
-export function notYet(name: string, stage: number): LetopisError {
-  return new LetopisError('not_implemented', `${name} появится на этапе ${stage} плана 1.0`);
+  // «опция …» — женского рода; методы и свойства — мужского
+  const verb = name.startsWith('опция ') ? 'снята' : 'снят';
+  return new LetopisError('removed', `${name} ${verb} в ${REMOVED_IN} — ${replacement}`);
 }
 
 /** Данные не проходят описание класса (`invalid_data`). */

@@ -1,0 +1,132 @@
+{
+  "id": "errors/01-api-errors",
+  "context": {
+    "schema": "v2.g_errors_01_api_errors",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_32533bbb7ac7ebb4a53b1e2453640c2b63d86f7fc8b2818c2750203be3ad75c5",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "506214ab766d648e49b670c56324dbffaf303141e2b431a7414cd3309e4b8a2c",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": null,
+      "error": {
+        "code": "target_not_found",
+        "message": "letopis: target_not_found: update(patch, { rev }): у шага Shop нет цели",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Category",
+        "Class",
+        "Customer",
+        "Order",
+        "Product",
+        "Shop",
+        "Vip",
+        "line"
+      ]
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "id_mismatch",
+        "message": "letopis: id_mismatch: id не равен v5 от ключа класса Shop",
+        "detail": {
+          "expected": "b5a03f96-6a14-5693-9f1b-26e6cc2a54e8"
+        }
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "no_path",
+        "message": "letopis: no_path: нет перехода Category → Customer: ни один класс не ссылается на другой",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "lock_unsupported",
+        "message": "letopis: lock_unsupported: forUpdate() — с терминалами rows, first, ids, без агрегатов, asOf, versions, withDeleted, deep и глаголов",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "no_session",
+        "message": "letopis: no_session: неверный ключ",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "user_session_required",
+        "message": "letopis: user_session_required: createMcpServer: корень сервиса держит права auth.* (имперсонация, выпуск сессий) — агенту нужен фасад db.as(пользователь) или сессия пользователя",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "tx_rolled_back",
+        "message": "letopis: tx_rolled_back: commit: PostgreSQL откатил транзакцию (в ней была ошибка)",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    }
+  ]
+}

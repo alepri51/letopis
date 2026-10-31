@@ -1,0 +1,17 @@
+{
+  "name": "letopis-wallet",
+  "private": true,
+  "type": "module",
+  "description": "Сервис-пример «Кошелёк и биллинг» на letopis: интерфейс на shadcnblocks, деньги без двойного списания, агрегат баланса, проектор выписки",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "build:web": "npm --prefix web ci && npm --prefix web run build",
+    "scenario": "node scenario.mjs"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "letopis": "file:../../lib",
+    "postgres": "^3.4.9",
+    "zod": "^4.1.0"
+  }
+}

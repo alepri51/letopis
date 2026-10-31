@@ -123,9 +123,9 @@ test('штамп движка: connect() предупреждает о схем�
   assert.equal(await comment(), stamp, 'up() пишет штамп в комментарий схемы');
   assert.equal(await warnsOf(), '', 'штамп совпадает — предупреждения нет');
   const rev = `letopis ddl_revision=${DDL_REVISION}`;
-  assert.match(await warnsOf(rev), /функции схемы v2\.t_up поставила версия до 1\.4\.0, библиотека — .+: накатите up\(\{ schema: 'v2\.t_up' \}\)/);
-  assert.match(await warnsOf(`${rev} engine=1.3.9 sql=0123456789abcdef`), /поставила letopis 1\.3\.9, библиотека — .+: накатите up/);
-  assert.match(await warnsOf(`${rev} engine=${st.version} sql=0123456789abcdef`), /поставила другая сборка letopis .+: накатите up/);
+  assert.match(await warnsOf(rev), /функции схемы v2\.t_up поставила версия до 1\.4\.0, библиотека — .+: обновите схему — вызовите up\(\{ schema: 'v2\.t_up' \}\)/);
+  assert.match(await warnsOf(`${rev} engine=1.3.9 sql=0123456789abcdef`), /поставила letopis 1\.3\.9, библиотека — .+: обновите схему — вызовите up/);
+  assert.match(await warnsOf(`${rev} engine=${st.version} sql=0123456789abcdef`), /поставила другая сборка letopis .+: обновите схему — вызовите up/);
   assert.match(await warnsOf(`${rev} engine=99.0.0 sql=0123456789abcdef`), /обновила letopis 99\.0\.0, библиотека старее .+ — обновите пакет/);
   await up({ dsn: ADMIN_DSN, schema: SCHEMA, quiet: true });
   assert.equal(await comment(), stamp, 'повторный up() пишет штамп своей версии');

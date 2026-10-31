@@ -22,24 +22,31 @@ export interface VerifyIssue {
 export interface VerifyResult {
   ok: boolean;
   issues: VerifyIssue[];
-  /** Хэш всех голов цепочек — храните вне базы: подмену последних версий выдаст его расхождение. */
+  /** Один хэш текущих версий всех объектов — храните его вне базы: подмену самых свежих версий выдаст его расхождение. */
   anchor: string;
 }
 
 export interface MaintainOptions {
-  /** Момент «сейчас» для прореживания — только в установке с allowReset (тесты). */
+  /** Момент «сейчас» для прореживания — только в установке с `allowReset` (тесты). */
   now?: string | Date;
-  /** Пачек прореживания за вызов (по умолчанию 100); каждая — своя транзакция. */
+  /** Сколько пачек прореживания журнала самое большее сделать за один вызов; каждая пачка — своя транзакция. */
   batches?: number;
-  /** Версий в пачке (по умолчанию 10 000). */
+  /** Сколько версий самое большее удалить в одной пачке прореживания. */
   limit?: number;
 }
+
+/** Внутренняя опция maintain(): остановка запуска по расписанию — текущая пачка доделывается, следующая не начинается. */
+export const MAINTAIN_STOP = Symbol('letopis.maintain.stop');
 
 export interface MaintainReport {
   /** Другой процесс уже обслуживает установку (держит строку-замок обслуживания): этот вызов ничего не делал. */
   skipped: boolean;
-  /** Удалено истёкших и погашенных сессий и одноразовых кодов. */
+  /** Удалено сессий: истёкших и погашенных (выход, отзыв, смена пароля, отключение или удаление аккаунта). */
   sessions: number;
+  /**
+   * Удалено одноразовых кодов (вид `OTP` и свои виды `OTP_<ИМЯ>` из `issueOtp({ kind })`): истёкших, использованных,
+   * заменённых новым и исчерпавших попытки.
+   */
   codes: number;
   /** Прорежено версий журнала. */
   thinned: number;
@@ -54,7 +61,7 @@ export interface ResetOptions {
   level: 'sessions' | 'tenant' | 'all';
   /** Подтверждение — имя схемы установки. */
   confirm: string;
-  /** level: 'tenant' — арендатор (по умолчанию — арендатор сессии). */
+  /** Какого арендатора сбросить при `level: 'tenant'` — его id; на других уровнях не учитывается. */
   tenant?: string;
 }
 
@@ -64,11 +71,11 @@ export interface ResetResult {
   tenant?: string;
   rows?: number;
   versions?: number;
-  /** level: 'all' — новый ключ сервиса: прежние сессии и ключи больше не действуют. */
+  /** `level: 'all'` — новый ключ сервиса: прежние сессии и ключи больше не действуют. */
   serviceKey?: string;
 }
 
-/** Машинное описание модели (db.describe()). */
+/** Машинное описание модели (`db.describe()`). */
 export interface ModelDescription {
   schema: string;
   tenant: string | null;
@@ -132,12 +139,14 @@ export async function verify(a: AdminCtx, opts: { data?: boolean } = {}): Promis
  * (skipped у всех). Блокировку держит другой процесс: до первой пачки — skipped; между пачками —
  * вызов останавливается (продолжит тот процесс), отчёт — о сделанном, more: true.
  */
-export async function maintain(a: AdminCtx, opts: MaintainOptions = {}): Promise<MaintainReport> {
+export async function maintain(a: AdminCtx, opts: MaintainOptions & { [MAINTAIN_STOP]?: () => boolean } = {}): Promise<MaintainReport> {
   if (a.exec.explicit) throw new LetopisError('invalid_query', 'maintain() — пачками в своих транзакциях, не внутри db.begin()');
   const now = opts.now === undefined ? null : opts.now instanceof Date ? opts.now.toISOString() : opts.now;
   const report: MaintainReport = { skipped: false, sessions: 0, codes: 0, thinned: 0, batches: 0, more: false, queue: 0 };
   const max = opts.batches ?? 100;
   for (let i = 0; i < max; i++) {
+    // запуск по расписанию остановлен (close()): следующая пачка не начинается, отчёт — с more: true
+    if (i > 0 && opts[MAINTAIN_STOP]?.()) break;
     // блокировку берёт сама maintain() базы — строку-замок, которую посторонняя роль не займёт; занята — null
     const [{ r }] = await runTx(a.txc, (q) => q.unsafe(`select ${a.S}.maintain($1::text::timestamptz, $2::int) as r`,
       [now, opts.limit ?? 10_000] as never[]));
@@ -164,26 +173,48 @@ export function queueWarning(queue: number): string | null {
   return queue > 0.5 ? `letopis: очередь сигналов PostgreSQL заполнена на ${(queue * 100).toFixed(0)} % — проверьте зависших слушателей` : null;
 }
 
-/** Интервал расписания: число мс или '30s', '15m', '1h', '1d'. */
-export function parseInterval(v: string | number): number {
-  if (typeof v === 'number') return v;
-  const m = /^(\d+(?:\.\d+)?)\s*(ms|s|m|h|d)$/.exec(v.trim());
-  if (!m) throw new LetopisError('invalid_data', `интервал ${v}: число мс или '30s', '15m', '1h', '1d'`);
-  const n = Number(m[1]);
-  return n * { ms: 1, s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }[m[2] as 'ms']!;
+/** Самый длинный интервал таймера Node.js — 2³¹−1 мс (около 24,8 суток): дольше таймер не ждёт и срабатывает сразу. */
+const MAX_TIMER_MS = 2 ** 31 - 1;
+
+/**
+ * Интервал расписания: число мс или строка '500ms', '30s', '15m', '1h', '1d' — конечный, от 1 мс до 2³¹−1 мс (около 24
+ * суток); иначе invalid_data. Ноль, отрицательное, NaN и слишком длинный интервал таймер Node.js превращает в 1 мс —
+ * обслуживание шло бы без перерыва.
+ */
+export function parseInterval(v: unknown): number {
+  let ms = Number.NaN;
+  if (typeof v === 'number') ms = v;
+  else if (typeof v === 'string') {
+    const m = /^(\d+(?:\.\d+)?)\s*(ms|s|m|h|d)$/.exec(v.trim());
+    if (m) ms = Number(m[1]) * { ms: 1, s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }[m[2] as 'ms']!;
+  }
+  if (!Number.isFinite(ms) || ms < 1 || ms > MAX_TIMER_MS) {
+    const shown = typeof v === 'string' ? `'${v}'` : typeof v === 'number' || typeof v === 'boolean' || v == null ? String(v) : typeof v;
+    throw new LetopisError('invalid_data', `интервал ${shown}: число мс или строка '30s', '15m', '1h', '1d' — от 1 мс до 2³¹−1 мс (около 24 суток)`);
+  }
+  return ms;
 }
 
-/** Запуск maintain() по расписанию (connect({ maintain: '1h' })): ошибки — предупреждением. */
-export function scheduleMaintain(run: () => Promise<unknown>, every: string | number): () => void {
-  const ms = parseInterval(every);
-  let busy = false;
+/**
+ * Запуск maintain() по расписанию (connect({ maintain: '1h' }); ms — уже проверенный интервал): ошибки — предупреждением,
+ * следующий запуск не начинается, пока идёт прежний. Возвращает остановку: она снимает таймер, просит идущий запуск не
+ * начинать новых пачек и ждёт его конца — close() закрывает пул после неё, а не посреди пачки.
+ */
+export function scheduleMaintain(run: (stopped: () => boolean) => Promise<unknown>, ms: number): () => Promise<void> {
+  let stopped = false;
+  let current: Promise<void> | null = null;
   const timer = setInterval(() => {
-    if (busy) return;
-    busy = true;
-    run().catch((e) => console.warn(`letopis: maintain по расписанию: ${(e as Error).message}`)).finally(() => (busy = false));
+    if (current || stopped) return;
+    current = run(() => stopped)
+      .then(() => {}, (e) => console.warn(`letopis: maintain по расписанию: ${(e as Error).message}`))
+      .finally(() => (current = null));
   }, ms);
   timer.unref?.();
-  return () => clearInterval(timer);
+  return async () => {
+    stopped = true;
+    clearInterval(timer);
+    await current;
+  };
 }
 
 /**
@@ -277,7 +308,7 @@ export function describe(a: AdminCtx): ModelDescription {
   return { schema: a.schema, tenant: a.tenant(), classes, methods: { chain: CHAIN_METHODS, db: DB_METHODS } };
 }
 
-/** Описание модели текстом для языковых моделей (llms.txt). */
+/** Описание модели текстом для языковых моделей. */
 export function describeText(d: ModelDescription): string {
   const out: string[] = [`# letopis: модель схемы ${d.schema}`, '',
     'Цепочка: db.Класс(фильтр).Связь().Класс().rows(); запись — create, update, upsert, delete; история — versions(), asOf(), withDeleted().', ''];

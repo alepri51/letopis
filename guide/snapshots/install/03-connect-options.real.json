@@ -1,0 +1,144 @@
+{
+  "id": "install/03-connect-options",
+  "context": {
+    "schema": "v2.g_install_03_connect_options",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_1a9dd32a03063823106d2ca2d340308e74c29319084d7809918370a7d6af0930",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "6b03e1b1c350c1d3d8ae80906ae12202dd3d06ef01dfc0f91278559b427b4d48",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": null,
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Class",
+        "Product"
+      ]
+    },
+    {
+      "result": [
+        {
+          "mode": "rows",
+          "classes": [
+            "Product"
+          ],
+          "rows": 1,
+          "slow": true,
+          "ms": "≥ 0"
+        },
+        {
+          "mode": "count",
+          "classes": [
+            "Product"
+          ],
+          "rows": 1,
+          "slow": true,
+          "ms": "≥ 0"
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": [
+        {
+          "price": 2500,
+          "title": "Чайник"
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "hits": 1,
+        "misses": 1,
+        "stores": 1
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "tenant": "a99fb168-e0f7-59a4-8fd4-80e9967690e8",
+        "schema": "v2.g_install_03_connect_options"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "0": "invalid_data",
+        "-5": "invalid_data",
+        "NaN": "invalid_data",
+        "'30d'": "invalid_data",
+        "'1d'": "подключено"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": "закрыто",
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    }
+  ]
+}

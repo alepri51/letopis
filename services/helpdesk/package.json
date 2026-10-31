@@ -1,0 +1,19 @@
+{
+  "name": "letopis-helpdesk",
+  "private": true,
+  "type": "module",
+  "description": "Сервис-пример «Helpdesk» на letopis: интерфейс на shadcnblocks, компании-арендаторы, роли и права, вход с TOTP и кодом на почту, ключи API, живая очередь, помощник MCP",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "build:web": "npm --prefix web ci && npm --prefix web run build",
+    "scenario": "node scenario.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/client": "^2.4.0",
+    "@modelcontextprotocol/server": "^2.4.0",
+    "express": "^5.1.0",
+    "letopis": "file:../../lib",
+    "postgres": "^3.4.9",
+    "zod": "^4.1.0"
+  }
+}

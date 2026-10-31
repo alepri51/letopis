@@ -1,0 +1,550 @@
+{
+  "id": "models/02-keys-and-ids",
+  "context": {
+    "schema": "v2.g_models_02_keys_and_ids",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_61c048afb2f58831b02d3638a95b190159fea96a7c34fe33abebb5cf86e17a47",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "bc05e3038b6ad4c4a3c6a017f2b7bb2c193e347d8700af764101f61e7526d24b",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "at": "2026-10-31T21:23:49.517346+00:00",
+        "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+        "op": "create",
+        "rev": 1,
+        "data": {
+          "name": "Ромашка"
+        },
+        "tags": [],
+        "class": "Shop",
+        "links": {},
+        "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
+          "reason": null,
+          "at": "2026-10-31 21:23:49.517346+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "37",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
+          "reason": null,
+          "at": "2026-10-31 21:23:49.517346+00",
+          "tx": "2611701"
+        }
+      ],
+      "secret": [],
+      "signals": [
+        "Class",
+        "Shop"
+      ]
+    },
+    {
+      "result": true,
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
+          "reason": null,
+          "at": "2026-10-31 21:23:49.517346+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "37",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
+          "reason": null,
+          "at": "2026-10-31 21:23:49.517346+00",
+          "tx": "2611701"
+        }
+      ],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "invalid_data",
+        "message": "letopis: invalid_data: данные не проходят описание класса Shop",
+        "detail": [
+          {
+            "path": [],
+            "keyword": "additionalProperties",
+            "message": "нарушено правило additionalProperties"
+          }
+        ]
+      },
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
+          "reason": null,
+          "at": "2026-10-31 21:23:49.517346+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "37",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
+          "reason": null,
+          "at": "2026-10-31 21:23:49.517346+00",
+          "tx": "2611701"
+        }
+      ],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": 2,
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
+          "reason": null,
+          "at": "2026-10-31 21:23:49.517346+00"
+        },
+        {
+          "id": "3edcf019-6459-524c-8455-9b915e00c100",
+          "class": "Visitor",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Пётр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
+          "reason": null,
+          "at": "2026-10-31 21:23:49.539875+00"
+        },
+        {
+          "id": "714ad668-a757-5105-b24f-17ae6d3ba65b",
+          "class": "Visitor",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Пётр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
+          "reason": null,
+          "at": "2026-10-31 21:23:49.547117+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "37",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
+          "reason": null,
+          "at": "2026-10-31 21:23:49.517346+00",
+          "tx": "2611701"
+        },
+        {
+          "seq": "38",
+          "id": "3edcf019-6459-524c-8455-9b915e00c100",
+          "rev": 1,
+          "class": "Visitor",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Пётр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
+          "reason": null,
+          "at": "2026-10-31 21:23:49.539875+00",
+          "tx": "2611707"
+        },
+        {
+          "seq": "39",
+          "id": "714ad668-a757-5105-b24f-17ae6d3ba65b",
+          "rev": 1,
+          "class": "Visitor",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Пётр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
+          "reason": null,
+          "at": "2026-10-31 21:23:49.547117+00",
+          "tx": "2611709"
+        }
+      ],
+      "secret": [],
+      "signals": [
+        "Visitor"
+      ]
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "immutable_key",
+        "message": "letopis: immutable_key: ключевое поле класса Shop менять нельзя: id изменился бы (rekey)",
+        "detail": {}
+      },
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
+          "reason": null,
+          "at": "2026-10-31 21:23:49.517346+00"
+        },
+        {
+          "id": "3edcf019-6459-524c-8455-9b915e00c100",
+          "class": "Visitor",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Пётр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
+          "reason": null,
+          "at": "2026-10-31 21:23:49.539875+00"
+        },
+        {
+          "id": "714ad668-a757-5105-b24f-17ae6d3ba65b",
+          "class": "Visitor",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Пётр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
+          "reason": null,
+          "at": "2026-10-31 21:23:49.547117+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "37",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
+          "reason": null,
+          "at": "2026-10-31 21:23:49.517346+00",
+          "tx": "2611701"
+        },
+        {
+          "seq": "38",
+          "id": "3edcf019-6459-524c-8455-9b915e00c100",
+          "rev": 1,
+          "class": "Visitor",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Пётр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
+          "reason": null,
+          "at": "2026-10-31 21:23:49.539875+00",
+          "tx": "2611707"
+        },
+        {
+          "seq": "39",
+          "id": "714ad668-a757-5105-b24f-17ae6d3ba65b",
+          "rev": 1,
+          "class": "Visitor",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Пётр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
+          "reason": null,
+          "at": "2026-10-31 21:23:49.547117+00",
+          "tx": "2611709"
+        }
+      ],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": true,
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
+          "reason": null,
+          "at": "2026-10-31 21:23:49.517346+00"
+        },
+        {
+          "id": "3edcf019-6459-524c-8455-9b915e00c100",
+          "class": "Visitor",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Пётр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
+          "reason": null,
+          "at": "2026-10-31 21:23:49.539875+00"
+        },
+        {
+          "id": "714ad668-a757-5105-b24f-17ae6d3ba65b",
+          "class": "Visitor",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Пётр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
+          "reason": null,
+          "at": "2026-10-31 21:23:49.547117+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "37",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
+          "reason": null,
+          "at": "2026-10-31 21:23:49.517346+00",
+          "tx": "2611701"
+        },
+        {
+          "seq": "38",
+          "id": "3edcf019-6459-524c-8455-9b915e00c100",
+          "rev": 1,
+          "class": "Visitor",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Пётр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
+          "reason": null,
+          "at": "2026-10-31 21:23:49.539875+00",
+          "tx": "2611707"
+        },
+        {
+          "seq": "39",
+          "id": "714ad668-a757-5105-b24f-17ae6d3ba65b",
+          "rev": 1,
+          "class": "Visitor",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Пётр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
+          "reason": null,
+          "at": "2026-10-31 21:23:49.547117+00",
+          "tx": "2611709"
+        }
+      ],
+      "secret": [],
+      "signals": []
+    }
+  ]
+}

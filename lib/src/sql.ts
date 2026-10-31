@@ -501,7 +501,10 @@ function cursorParams(c: unknown, sort: SortSpec): { v: unknown; id: string } {
   return { v: value, id };
 }
 
-/** Курсор keyset-пагинации из последней строки страницы. */
+/**
+ * Курсор постраничного вывода для `after()`: `{ v, id }` — значение поля сортировки и id последней строки страницы.
+ * Поле — то же, что в `sort()`; если его нет в данных строки, `v` — `null`.
+ */
 export function cursorOf(row: Row, field: string): Cursor {
   const f = field === 'updated' ? 'at' : field;
   if (f === 'at' || f === 'rev' || f === 'id') return { v: row[f], id: row.id };
@@ -689,10 +692,13 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
           + `where (v.op = 'delete') = ${isDead} and v.op not in ('purge', 'trim', 'reset')${dataCond('v')}${endsCond(`${S}.link_ids(v.links)`)}${rolesCond('v', 's.src')})`;
       };
       ctes.push(`p${i}a as (select q.src, q.id, q.rev from ${hopCall(atPh, false)} q)`);
-      parts.push(cur ? entityByIds(`select q.id from p${i}a q`) : logPart(`select q.id, q.rev from p${i}a q`));
+      // пары переходов — по одной на (источник, цель): объект, который ссылается на несколько объектов прошлого шага,
+      // встречается в них несколько раз; строка узла — одна на id, иначе rows(), count() и агрегаты его удваивали
+      // (entityByIds повторы отбрасывает сам, срез asOf() и надгробия withDeleted() — через distinct здесь)
+      parts.push(cur ? entityByIds(`select q.id from p${i}a q`) : logPart(`select distinct q.id, q.rev from p${i}a q`));
       if (dead) {
         ctes.push(`p${i}d as (select q.src, q.id, q.rev from ${hopCall(atPh, true)} q)`);
-        parts.push(logPart(`select q.id, q.rev from p${i}d q`));
+        parts.push(logPart(`select distinct q.id, q.rev from p${i}d q`));
         ctes.push(`p${i} as (select src, id from p${i}a union all select src, id from p${i}d)`);
       } else {
         ctes.push(`p${i} as (select src, id from p${i}a)`);
@@ -805,7 +811,9 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
         text = `${withClause}select ${acc} as k, count(*)::int as n from ${ents} z group by 1 order by 2 desc, 1${limitOffset()}`;
       } else {
         const cast = agg!.fn === 'sum' || agg!.fn === 'avg' ? '::numeric' : CAST[aggLeaf];
-        text = `${withClause}select ${agg!.fn}((${acc})${cast}) as v from ${ents} z`;
+        // у boolean в PostgreSQL нет min и max; false меньше true: наименьшее — «все ли true», наибольшее — «есть ли true»
+        const fn = aggLeaf === 'boolean' && agg!.fn === 'min' ? 'bool_and' : aggLeaf === 'boolean' && agg!.fn === 'max' ? 'bool_or' : agg!.fn;
+        text = `${withClause}select ${fn}((${acc})${cast}) as v from ${ents} z`;
       }
       break;
     }

@@ -128,6 +128,7 @@
         "Row",
         "RowOf",
         "Scalar",
+        "SessionInfo",
         "SignalMode",
         "StepFn",
         "StepsOf",
@@ -563,6 +564,10 @@
     {
       "module": "index",
       "message": "letopis: администраторское подключение — RLS не действует, данные всех арендаторов видны"
+    },
+    {
+      "module": "index",
+      "message": "letopis: движок схемы <…> ревизии <…> новее библиотеки (она знает <…>) — обновите пакет letopis"
     },
     {
       "module": "mcp",

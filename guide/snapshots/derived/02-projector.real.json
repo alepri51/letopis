@@ -1,0 +1,1688 @@
+{
+  "id": "derived/02-projector",
+  "context": {
+    "schema": "v2.g_derived_02_projector",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_45dfd4374e4f1bc935be7c7eefc5ccba4151f8ca4686dd3214150dddebe4b3ed",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "f693e4098561fad07936739cef9d32113c9e9f69490942e809444aa7fb9d8186",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": "готово",
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.462737+00"
+        },
+        {
+          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.471566+00"
+        },
+        {
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.480157+00"
+        },
+        {
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.486743+00"
+        },
+        {
+          "id": "1f88c837-a39c-5c94-802f-df6ce272198c",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.498379+00"
+        },
+        {
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "1f88c837-a39c-5c94-802f-df6ce272198c"
+            ]
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.505412+00"
+        },
+        {
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.518288+00"
+        },
+        {
+          "id": "f131b655-37ba-56ed-9572-de867c43ba2a",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            ]
+          },
+          "data": {
+            "sku": "T-9",
+            "price": 1500,
+            "title": "Пуэр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.530925+00"
+        },
+        {
+          "id": "5e7e56ac-d1e8-5064-9bdb-c099c4b6c7c7",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+            "Category": [
+              "1f88c837-a39c-5c94-802f-df6ce272198c"
+            ]
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.540936+00"
+        },
+        {
+          "id": "8251e061-8fd9-55b6-aac1-ac91c914c492",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.55331+00"
+        },
+        {
+          "id": "43fce8f1-38fd-5988-b3b6-eba1d0bf0e13",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.562191+00"
+        },
+        {
+          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "8251e061-8fd9-55b6-aac1-ac91c914c492"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.575829+00"
+        },
+        {
+          "id": "3dcabc48-7dc6-59da-a051-7bc9cdb97d99",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+            "Product": "099dcd72-c15a-5fe8-a95f-70da339186f0"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.581654+00"
+        },
+        {
+          "id": "fd3a3416-55d6-5445-bfbf-d33631bab515",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.59771+00"
+        },
+        {
+          "id": "78dbb446-b5b9-5308-a154-7af69a653b79",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "43fce8f1-38fd-5988-b3b6-eba1d0bf0e13"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.617294+00"
+        },
+        {
+          "id": "c2318e76-1d3d-59e7-a678-5be39e5e9aad",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "78dbb446-b5b9-5308-a154-7af69a653b79",
+            "Product": "f131b655-37ba-56ed-9572-de867c43ba2a"
+          },
+          "data": {
+            "qty": 1,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.622466+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Category",
+        "Class",
+        "Customer",
+        "Order",
+        "Product",
+        "Shop",
+        "Vip",
+        "line"
+      ]
+    },
+    {
+      "result": {
+        "changes": 3,
+        "created": 3,
+        "updated": 0
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.462737+00"
+        },
+        {
+          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.471566+00"
+        },
+        {
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.480157+00"
+        },
+        {
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.486743+00"
+        },
+        {
+          "id": "1f88c837-a39c-5c94-802f-df6ce272198c",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.498379+00"
+        },
+        {
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "1f88c837-a39c-5c94-802f-df6ce272198c"
+            ]
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.505412+00"
+        },
+        {
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.518288+00"
+        },
+        {
+          "id": "f131b655-37ba-56ed-9572-de867c43ba2a",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            ]
+          },
+          "data": {
+            "sku": "T-9",
+            "price": 1500,
+            "title": "Пуэр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.530925+00"
+        },
+        {
+          "id": "5e7e56ac-d1e8-5064-9bdb-c099c4b6c7c7",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+            "Category": [
+              "1f88c837-a39c-5c94-802f-df6ce272198c"
+            ]
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.540936+00"
+        },
+        {
+          "id": "8251e061-8fd9-55b6-aac1-ac91c914c492",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.55331+00"
+        },
+        {
+          "id": "43fce8f1-38fd-5988-b3b6-eba1d0bf0e13",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.562191+00"
+        },
+        {
+          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "8251e061-8fd9-55b6-aac1-ac91c914c492"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.575829+00"
+        },
+        {
+          "id": "3dcabc48-7dc6-59da-a051-7bc9cdb97d99",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+            "Product": "099dcd72-c15a-5fe8-a95f-70da339186f0"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.581654+00"
+        },
+        {
+          "id": "fd3a3416-55d6-5445-bfbf-d33631bab515",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.59771+00"
+        },
+        {
+          "id": "78dbb446-b5b9-5308-a154-7af69a653b79",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "43fce8f1-38fd-5988-b3b6-eba1d0bf0e13"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.617294+00"
+        },
+        {
+          "id": "c2318e76-1d3d-59e7-a678-5be39e5e9aad",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "78dbb446-b5b9-5308-a154-7af69a653b79",
+            "Product": "f131b655-37ba-56ed-9572-de867c43ba2a"
+          },
+          "data": {
+            "qty": 1,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.622466+00"
+        },
+        {
+          "id": "37e8fc2c-bd6d-51ae-b46d-a2d485db562f",
+          "class": "ProductSales",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Product": "099dcd72-c15a-5fe8-a95f-70da339186f0"
+          },
+          "data": {
+            "qty": 1,
+            "revenue": 2500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": "letopis projector product-sales",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.774518+00"
+        },
+        {
+          "id": "24f83d0c-50db-5856-9c9c-5fa61257ccbf",
+          "class": "ProductSales",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Product": "f131b655-37ba-56ed-9572-de867c43ba2a"
+          },
+          "data": {
+            "qty": 1,
+            "revenue": 1500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": "letopis projector product-sales",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.777904+00"
+        },
+        {
+          "id": "cd9b6b69-5b82-59e0-9e00-ae8171ca5f21",
+          "class": "ProductSales",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+          },
+          "data": {
+            "qty": 2,
+            "revenue": 1800
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": "letopis projector product-sales",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.780174+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "ProductSales"
+      ]
+    },
+    {
+      "result": {
+        "до прохода": {
+          "qty": 2,
+          "revenue": 1800
+        },
+        "после прохода": {
+          "qty": 5,
+          "revenue": 4500
+        }
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.462737+00"
+        },
+        {
+          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.471566+00"
+        },
+        {
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.480157+00"
+        },
+        {
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.486743+00"
+        },
+        {
+          "id": "1f88c837-a39c-5c94-802f-df6ce272198c",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.498379+00"
+        },
+        {
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "1f88c837-a39c-5c94-802f-df6ce272198c"
+            ]
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.505412+00"
+        },
+        {
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.518288+00"
+        },
+        {
+          "id": "f131b655-37ba-56ed-9572-de867c43ba2a",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            ]
+          },
+          "data": {
+            "sku": "T-9",
+            "price": 1500,
+            "title": "Пуэр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.530925+00"
+        },
+        {
+          "id": "5e7e56ac-d1e8-5064-9bdb-c099c4b6c7c7",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+            "Category": [
+              "1f88c837-a39c-5c94-802f-df6ce272198c"
+            ]
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.540936+00"
+        },
+        {
+          "id": "8251e061-8fd9-55b6-aac1-ac91c914c492",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.55331+00"
+        },
+        {
+          "id": "43fce8f1-38fd-5988-b3b6-eba1d0bf0e13",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.562191+00"
+        },
+        {
+          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "8251e061-8fd9-55b6-aac1-ac91c914c492"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.575829+00"
+        },
+        {
+          "id": "3dcabc48-7dc6-59da-a051-7bc9cdb97d99",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+            "Product": "099dcd72-c15a-5fe8-a95f-70da339186f0"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.581654+00"
+        },
+        {
+          "id": "fd3a3416-55d6-5445-bfbf-d33631bab515",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.59771+00"
+        },
+        {
+          "id": "78dbb446-b5b9-5308-a154-7af69a653b79",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "43fce8f1-38fd-5988-b3b6-eba1d0bf0e13"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.617294+00"
+        },
+        {
+          "id": "c2318e76-1d3d-59e7-a678-5be39e5e9aad",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "78dbb446-b5b9-5308-a154-7af69a653b79",
+            "Product": "f131b655-37ba-56ed-9572-de867c43ba2a"
+          },
+          "data": {
+            "qty": 1,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.622466+00"
+        },
+        {
+          "id": "cb4d5ea7-6415-5446-9dee-118f69e64d11",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "78dbb446-b5b9-5308-a154-7af69a653b79",
+            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+          },
+          "data": {
+            "qty": 3,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.818347+00"
+        },
+        {
+          "id": "37e8fc2c-bd6d-51ae-b46d-a2d485db562f",
+          "class": "ProductSales",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Product": "099dcd72-c15a-5fe8-a95f-70da339186f0"
+          },
+          "data": {
+            "qty": 1,
+            "revenue": 2500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": "letopis projector product-sales",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.774518+00"
+        },
+        {
+          "id": "24f83d0c-50db-5856-9c9c-5fa61257ccbf",
+          "class": "ProductSales",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Product": "f131b655-37ba-56ed-9572-de867c43ba2a"
+          },
+          "data": {
+            "qty": 1,
+            "revenue": 1500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": "letopis projector product-sales",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.777904+00"
+        },
+        {
+          "id": "cd9b6b69-5b82-59e0-9e00-ae8171ca5f21",
+          "class": "ProductSales",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+          },
+          "data": {
+            "qty": 5,
+            "revenue": 4500
+          },
+          "tags": [],
+          "op": "update",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": "letopis projector product-sales",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.84866+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "ProductSales",
+        "line"
+      ]
+    },
+    {
+      "result": {
+        "name": "product-sales",
+        "state": "running",
+        "version": 1,
+        "lag": 0
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.462737+00"
+        },
+        {
+          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.471566+00"
+        },
+        {
+          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.480157+00"
+        },
+        {
+          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.486743+00"
+        },
+        {
+          "id": "1f88c837-a39c-5c94-802f-df6ce272198c",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.498379+00"
+        },
+        {
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "1f88c837-a39c-5c94-802f-df6ce272198c"
+            ]
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.505412+00"
+        },
+        {
+          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.518288+00"
+        },
+        {
+          "id": "f131b655-37ba-56ed-9572-de867c43ba2a",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            ]
+          },
+          "data": {
+            "sku": "T-9",
+            "price": 1500,
+            "title": "Пуэр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.530925+00"
+        },
+        {
+          "id": "5e7e56ac-d1e8-5064-9bdb-c099c4b6c7c7",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+            "Category": [
+              "1f88c837-a39c-5c94-802f-df6ce272198c"
+            ]
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.540936+00"
+        },
+        {
+          "id": "8251e061-8fd9-55b6-aac1-ac91c914c492",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.55331+00"
+        },
+        {
+          "id": "43fce8f1-38fd-5988-b3b6-eba1d0bf0e13",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.562191+00"
+        },
+        {
+          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "8251e061-8fd9-55b6-aac1-ac91c914c492"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.575829+00"
+        },
+        {
+          "id": "3dcabc48-7dc6-59da-a051-7bc9cdb97d99",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+            "Product": "099dcd72-c15a-5fe8-a95f-70da339186f0"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.581654+00"
+        },
+        {
+          "id": "fd3a3416-55d6-5445-bfbf-d33631bab515",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.59771+00"
+        },
+        {
+          "id": "78dbb446-b5b9-5308-a154-7af69a653b79",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "43fce8f1-38fd-5988-b3b6-eba1d0bf0e13"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.617294+00"
+        },
+        {
+          "id": "c2318e76-1d3d-59e7-a678-5be39e5e9aad",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "78dbb446-b5b9-5308-a154-7af69a653b79",
+            "Product": "f131b655-37ba-56ed-9572-de867c43ba2a"
+          },
+          "data": {
+            "qty": 1,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.622466+00"
+        },
+        {
+          "id": "cb4d5ea7-6415-5446-9dee-118f69e64d11",
+          "class": "line",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "78dbb446-b5b9-5308-a154-7af69a653b79",
+            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+          },
+          "data": {
+            "qty": 3,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7abb5d41-48a6-5dda-ad0a-7df1df04c9f0",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.818347+00"
+        },
+        {
+          "id": "37e8fc2c-bd6d-51ae-b46d-a2d485db562f",
+          "class": "ProductSales",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Product": "099dcd72-c15a-5fe8-a95f-70da339186f0"
+          },
+          "data": {
+            "qty": 1,
+            "revenue": 2500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": "letopis projector product-sales",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.774518+00"
+        },
+        {
+          "id": "24f83d0c-50db-5856-9c9c-5fa61257ccbf",
+          "class": "ProductSales",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Product": "f131b655-37ba-56ed-9572-de867c43ba2a"
+          },
+          "data": {
+            "qty": 1,
+            "revenue": 1500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": "letopis projector product-sales",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.777904+00"
+        },
+        {
+          "id": "cd9b6b69-5b82-59e0-9e00-ae8171ca5f21",
+          "class": "ProductSales",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+          },
+          "data": {
+            "qty": 5,
+            "revenue": 4500
+          },
+          "tags": [],
+          "op": "update",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": "letopis projector product-sales",
+          "reason": null,
+          "at": "2026-10-31 21:23:12.84866+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    }
+  ]
+}

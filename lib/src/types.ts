@@ -2,8 +2,12 @@
  * Общие типы letopis 1.0. Файл наполняется по этапам плана (reports/PLAN-LETOPIS-1.0.md).
  */
 
-/** Ревизия движка в базе: штамп в lib/sql/99-revision.sql должен совпадать (этап 1). */
-export const DDL_REVISION = 6;
+/**
+ * Ревизия схемы, которую знает эта версия пакета, — номер версии SQL-части letopis (таблиц и функций в схеме установки).
+ * После `up()` у схемы та же ревизия (`r.revision`); схему отставшей ревизии `up()` обновляет только с `upgrade: true`,
+ * а `connect()` о ней предупреждает.
+ */
+export const DDL_REVISION = 7;
 
 /**
  * Классы, строки которых меняют права и схему: их запись повышает счётчик прав (загрузчик), а сигнал
@@ -15,7 +19,10 @@ export const ACL_CLASS_NAMES: readonly string[] = ['rule', 'Resource', 'member',
 // Методы цепочки — единственный источник зарезервированных имён (план, §2.14, этап 3, п. 10)
 // ---------------------------------------------------------------------------
 
-/** Методы цепочки: терминалы, модификаторы, глаголы записи (этап 4), охранники снесённого API. */
+/**
+ * Имена методов цепочки: модификаторы, терминалы, глаголы записи и слоты концов, а также `then` и снятые методы прежних
+ * версий. После шага цепочки эти имена библиотека не ищет среди классов; все они входят в `RESERVED_CLASS_NAMES`.
+ */
 export const CHAIN_METHODS = [
   'then', 'entity', 'paths', 'rows', 'first', 'ids', 'count', 'limit', 'offset', 'sort', 'asOf', 'withDeleted',
   'deep', 'exact', 'sum', 'avg', 'min', 'max', 'countBy', 'after', 'versions', 'create', 'update', 'upsert', 'set',
@@ -35,9 +42,9 @@ export const DB_METHODS = [
 export const BATCH_METHODS = ['discard', 'size'] as const;
 
 /**
- * Зарезервированные имена: Proxy разбирает их раньше классов, поэтому класс с таким именем
- * недостижим как шаг. Установщик подставляет список в функцию базы reserved_names(), которая
- * отклоняет связи с такими именами; совпадение со switch Proxy проверяет check-docs.
+ * Имена методов цепочки, корня `db` и батча. Там, где имя занято методом, библиотека не ищет его среди классов, и шаг с
+ * таким именем до класса не дойдёт; класс-связь (`link`) с таким именем база не создаст (`invalid_class`). Не давайте
+ * классам эти имена.
  */
 export const RESERVED_CLASS_NAMES: readonly string[] = [...new Set<string>([...CHAIN_METHODS, ...DB_METHODS, ...BATCH_METHODS])];
 
@@ -101,7 +108,7 @@ export type FieldFilter = Scalar | Scalar[] | Op | { [key: string]: FieldFilter 
  */
 export type Filter = string | string[] | Op | { id: string; class: string } | { [field: string]: FieldFilter | undefined };
 
-/** Курсор keyset-пагинации: значение поля сортировки и id последней строки страницы. */
+/** Курсор постраничного вывода для `after()`: значение поля сортировки и id последней строки страницы. */
 export interface Cursor {
   v: string | number | boolean | null;
   id: string;

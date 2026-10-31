@@ -1,0 +1,357 @@
+{
+  "id": "models/04-validation",
+  "context": {
+    "schema": "v2.g_models_04_validation",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_d2e82dee747e7b825e51f35068b3c9b5312e4fd3934b21e43bcd67873320f4a2",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "e52cf83c1fdde6dd43bbcb088b6d44dea575901e138d8d2c195fe643abccd7bb",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": [
+        "Product"
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Class"
+      ]
+    },
+    {
+      "result": [
+        {
+          "at": "2026-10-31T21:23:52.03469+00:00",
+          "id": "23b0416c-5728-5e06-92ba-4f23c5f694c7",
+          "op": "create",
+          "rev": 1,
+          "data": {
+            "price": 2500,
+            "title": "Чайник",
+            "status": "draft"
+          },
+          "tags": [],
+          "class": "Product",
+          "links": {},
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "06cae100-f841-5524-9e75-6165d068e384"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "23b0416c-5728-5e06-92ba-4f23c5f694c7",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "price": 2500,
+            "title": "Чайник",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "06cae100-f841-5524-9e75-6165d068e384",
+          "reason": null,
+          "at": "2026-10-31 21:23:52.03469+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "35",
+          "id": "23b0416c-5728-5e06-92ba-4f23c5f694c7",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "price": 2500,
+            "title": "Чайник",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "06cae100-f841-5524-9e75-6165d068e384",
+          "reason": null,
+          "at": "2026-10-31 21:23:52.03469+00",
+          "tx": "2611760"
+        }
+      ],
+      "secret": [],
+      "signals": [
+        "Product"
+      ]
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "invalid_data",
+        "message": "letopis: invalid_data: данные не проходят описание класса Product",
+        "detail": [
+          {
+            "path": [
+              "price"
+            ],
+            "keyword": "minimum",
+            "message": "нарушено правило minimum"
+          }
+        ]
+      },
+      "entity": [
+        {
+          "id": "23b0416c-5728-5e06-92ba-4f23c5f694c7",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "price": 2500,
+            "title": "Чайник",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "06cae100-f841-5524-9e75-6165d068e384",
+          "reason": null,
+          "at": "2026-10-31 21:23:52.03469+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "35",
+          "id": "23b0416c-5728-5e06-92ba-4f23c5f694c7",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "price": 2500,
+            "title": "Чайник",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "06cae100-f841-5524-9e75-6165d068e384",
+          "reason": null,
+          "at": "2026-10-31 21:23:52.03469+00",
+          "tx": "2611760"
+        }
+      ],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "tightening_conflict",
+        "message": "letopis: tightening_conflict: новому описанию класса Product не соответствуют строки",
+        "detail": {
+          "rows": [
+            {
+              "id": "23b0416c-5728-5e06-92ba-4f23c5f694c7",
+              "class": "Product",
+              "problem": "данные: [{\"path\": [\"sku\"], \"keyword\": \"required\", \"message\": \"нарушено правило required\"}]"
+            }
+          ],
+          "others": 0
+        }
+      },
+      "entity": [
+        {
+          "id": "23b0416c-5728-5e06-92ba-4f23c5f694c7",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "price": 2500,
+            "title": "Чайник",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "06cae100-f841-5524-9e75-6165d068e384",
+          "reason": null,
+          "at": "2026-10-31 21:23:52.03469+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "35",
+          "id": "23b0416c-5728-5e06-92ba-4f23c5f694c7",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "price": 2500,
+            "title": "Чайник",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "06cae100-f841-5524-9e75-6165d068e384",
+          "reason": null,
+          "at": "2026-10-31 21:23:52.03469+00",
+          "tx": "2611760"
+        }
+      ],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "updated": [
+          "Product"
+        ]
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "23b0416c-5728-5e06-92ba-4f23c5f694c7",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "price": 2500,
+            "title": "Чайник",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "06cae100-f841-5524-9e75-6165d068e384",
+          "reason": null,
+          "at": "2026-10-31 21:23:52.03469+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "35",
+          "id": "23b0416c-5728-5e06-92ba-4f23c5f694c7",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "price": 2500,
+            "title": "Чайник",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "06cae100-f841-5524-9e75-6165d068e384",
+          "reason": null,
+          "at": "2026-10-31 21:23:52.03469+00",
+          "tx": "2611760"
+        }
+      ],
+      "secret": [],
+      "signals": [
+        "Class"
+      ]
+    },
+    {
+      "result": {
+        "created": [
+          "Coupon"
+        ],
+        "lost": [
+          {
+            "path": "Coupon.code",
+            "kind": "refine"
+          }
+        ]
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "23b0416c-5728-5e06-92ba-4f23c5f694c7",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "price": 2500,
+            "title": "Чайник",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "06cae100-f841-5524-9e75-6165d068e384",
+          "reason": null,
+          "at": "2026-10-31 21:23:52.03469+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "35",
+          "id": "23b0416c-5728-5e06-92ba-4f23c5f694c7",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "price": 2500,
+            "title": "Чайник",
+            "status": "draft"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "06cae100-f841-5524-9e75-6165d068e384",
+          "reason": null,
+          "at": "2026-10-31 21:23:52.03469+00",
+          "tx": "2611760"
+        }
+      ],
+      "secret": [],
+      "signals": [
+        "Class"
+      ]
+    }
+  ]
+}

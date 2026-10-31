@@ -1,0 +1,96 @@
+# Локальный стенд документации letopis: PostgreSQL 18, сайт и четыре сервиса-примера.
+#
+#   docker compose -f services/compose.yaml up --build
+#
+# Сайт с песочницей — http://127.0.0.1:8080. Все порты открыты только на 127.0.0.1: стенд для своей машины,
+# наружу его не публикуют. Порт базы 15440 не пересекается с тестовыми 15433 и 15432.
+name: letopis-guide
+
+services:
+  pg:
+    image: postgres:18
+    environment:
+      POSTGRES_PASSWORD: guide
+      POSTGRES_DB: letopis
+    ports: ['127.0.0.1:15440:5432']
+    volumes: ['pgdata:/var/lib/postgresql']
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d letopis']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  guide:
+    build:
+      context: ..
+      dockerfile: guide/Dockerfile
+    environment:
+      # песочница исполняет код, присланный со страницы сайта, на базе стенда: порт — только 127.0.0.1
+      # ('0' — выключить; подробности — страница «Песочница»)
+      SANDBOX: '1'
+      ENTITY_DSN: postgres://postgres:guide@pg:5432/letopis
+    ports: ['127.0.0.1:8080:8080']
+    depends_on:
+      pg:
+        condition: service_healthy
+
+  salon:
+    build:
+      context: ..
+      dockerfile: services/salon/Dockerfile
+    environment:
+      ADMIN_DSN: postgres://postgres:guide@pg:5432/letopis
+      APP_DSN: postgres://salon_app:salon-app-secret@pg:5432/letopis
+      PORT: '8081'
+      HOST: 0.0.0.0
+    ports: ['127.0.0.1:8081:8081']
+    depends_on:
+      pg:
+        condition: service_healthy
+
+  wallet:
+    build:
+      context: ..
+      dockerfile: services/wallet/Dockerfile
+    environment:
+      ADMIN_DSN: postgres://postgres:guide@pg:5432/letopis
+      APP_DSN: postgres://wallet_app:wallet-app-secret@pg:5432/letopis
+      PORT: '8082'
+      HOST: 0.0.0.0
+    ports: ['127.0.0.1:8082:8082']
+    depends_on:
+      pg:
+        condition: service_healthy
+
+  helpdesk:
+    build:
+      context: ..
+      dockerfile: services/helpdesk/Dockerfile
+    environment:
+      ADMIN_DSN: postgres://postgres:guide@pg:5432/letopis
+      APP_DSN: postgres://helpdesk_app:helpdesk-app-secret@pg:5432/letopis
+      PORT: '8083'
+      HOST: 0.0.0.0
+      # демо-почта /mail показывает коды входа всем, кто её открыл: только для своей машины ('0' — выключить)
+      DEMO_MAIL: '1'
+    ports: ['127.0.0.1:8083:8083']
+    depends_on:
+      pg:
+        condition: service_healthy
+
+  documents:
+    build:
+      context: ..
+      dockerfile: services/documents/Dockerfile
+    environment:
+      ADMIN_DSN: postgres://postgres:guide@pg:5432/letopis
+      APP_DSN: postgres://documents_app:documents-app-secret@pg:5432/letopis
+      PORT: '8084'
+      HOST: 0.0.0.0
+    ports: ['127.0.0.1:8084:8084']
+    depends_on:
+      pg:
+        condition: service_healthy
+
+volumes:
+  pgdata: {}

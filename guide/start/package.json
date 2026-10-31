@@ -1,0 +1,8 @@
+{
+  "name": "letopis-start-from-zero",
+  "private": true,
+  "type": "module",
+  "description": "letopis с нуля: пустая установка, своя модель, первые данные — на вашей базе",
+  "scripts": { "start": "node start.mjs" },
+  "dependencies": { "letopis": "^1.4.0", "postgres": "^3.4.9", "zod": "^4.1.0" }
+}

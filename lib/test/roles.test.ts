@@ -111,6 +111,11 @@ test('7.3.8 №4: перечень функций владельца — search_
     auth_logout_all: () => assert.rejects(q(`select ${S}.auth_logout_all($1)`, [SYSTEM_ID]), lt('acl_denied')),
     auth_switch: () => assert.rejects(q(`select ${S}.auth_switch($1)`, [SYSTEM_ID]), lt('tenant_denied')),
     auth_tenants: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select * from ${S}.auth_tenants()`)), lt('no_session')),
+    // сведения о сессии по токену: без сессии — no_session; пользователь и со своим живым токеном — acl_denied
+    auth_session_info: async () => {
+      await assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.auth_session_info('x')`)), lt('no_session'));
+      await assert.rejects(q(`select ${S}.auth_session_info($1)`, [t.token]), lt('acl_denied'));
+    },
     // поиск без сессии не находит ничего
     find_ids: async () => {
       assert.deepEqual([...await e.as(null, (tx) => tx.unsafe(`select * from ${S}.find_ids(array['Doc'], null, null, null)`))], []);
@@ -158,6 +163,8 @@ test('7.3.8 №4: перечень функций владельца — search_
     trg_entity_ai: () => assert.rejects(q(`select ${S}.trg_entity_ai()`), lt('42501')),
     trg_entity_au: () => assert.rejects(q(`select ${S}.trg_entity_au()`), lt('42501')),
     trg_entity_bd: () => assert.rejects(q(`select ${S}.trg_entity_bd()`), lt('42501')),
+    // удаление аккаунта (ревизия 7): гашение сессий и запрет удалить System — триггерная функция приложению не выдана
+    trg_entity_bd_account: () => assert.rejects(q(`select ${S}.trg_entity_bd_account()`), lt('42501')),
     trg_entity_ad: () => assert.rejects(q(`select ${S}.trg_entity_ad()`), lt('42501')),
     // агрегаты в базе (план 1.1, этап 4б): триггерные функции приложению не выданы
     trg_entity_total_ai: () => assert.rejects(q(`select ${S}.trg_entity_total_ai()`), lt('42501')),
@@ -181,10 +188,10 @@ test('7.3.8 №6: приложение не создаёт постоянных 
   await assert.rejects(q(`create function ${S}.lt_evil() returns int language sql return 1`), lt('42501'));
 });
 
-test('7.3.8 №7: триггеры entity по каталогу — условие для владельца и enable always; триггеры агрегатов — без условия', async () => {
+test('7.3.8 №7: триггеры entity по каталогу — условие для владельца и enable always; триггеры агрегатов и удаления аккаунта — без условия для владельца', async () => {
   const trg = await e.sql.unsafe(`select tgname, tgenabled, pg_get_triggerdef(oid) as def from pg_trigger
     where tgrelid = $1::regclass and not tgisinternal order by tgname`, [`${S}.entity`]);
-  assert.deepEqual(trg.map((r) => r.tgname), ['entity_ad', 'entity_ai', 'entity_au', 'entity_bd', 'entity_bi', 'entity_bu',
+  assert.deepEqual(trg.map((r) => r.tgname), ['entity_ad', 'entity_ai', 'entity_au', 'entity_bd', 'entity_bd_account', 'entity_bi', 'entity_bu',
     'entity_total_ad', 'entity_total_ai', 'entity_total_au']);
   for (const r of trg) {
     assert.equal(r.tgenabled, 'A', r.tgname);
@@ -192,6 +199,11 @@ test('7.3.8 №7: триггеры entity по каталогу — услови
       // агрегаты в базе (план 1.1, §2.4): срабатывают и для владельца — каскад, функции владельца, загрузчик
       assert.doesNotMatch(r.def, /WHEN/, r.tgname);
       assert.match(r.def, /AFTER (INSERT|UPDATE|DELETE) ON .* REFERENCING .* FOR EACH STATEMENT/, r.tgname);
+    } else if (r.tgname === 'entity_bd_account') {
+      // удаление аккаунта (ревизия 7): аккаунты удаляют и функции владельца (каскад trg_entity_ad, account_purge) — сессии
+      // гаснут с сигналом до каскада внешнего ключа secret.account при любой роли
+      assert.doesNotMatch(r.def, /CURRENT_USER/, r.tgname);
+      assert.match(r.def, /BEFORE DELETE ON .* FOR EACH ROW WHEN \(+old\.class = 'Account'::text\)+/, r.tgname);
     } else {
       assert.match(r.def, /WHEN \(+CURRENT_USER <> 'letopis_owner'::name\)+/, r.tgname);
     }
@@ -221,7 +233,7 @@ test('права по каталогу: функции приложения — 
   assert.deepEqual(appFns.map((f) => f.proname), [
     'account_purge', 'acl_all', 'acl_check', 'acl_check_data', 'acl_ok', 'acl_plan', 'acl_token', 'auth_credentials', 'auth_enroll_totp', 'auth_issue_apikey',
     'auth_issue_keysecret', 'auth_issue_otp', 'auth_link', 'auth_login_apikey', 'auth_logout', 'auth_logout_all', 'auth_lookup', 'auth_password_get',
-    'auth_refresh', 'auth_revoke_credential', 'auth_set_flags', 'auth_set_password', 'auth_switch', 'auth_tenants', 'auth_totp_enabled',
+    'auth_refresh', 'auth_revoke_credential', 'auth_session_info', 'auth_set_flags', 'auth_set_password', 'auth_switch', 'auth_tenants', 'auth_totp_enabled',
     'auth_verify_totp', 'blame', 'change_paths', 'class_stamp', 'ctx', 'ctx_account', 'ctx_tenant', 'delete_preview', 'diff_versions', 'error_catalog', 'find_deep', 'find_hop', 'find_ids',
     'history_default', 'history_iv', 'history_policy', 'inc', 'issue_session', 'jsonb_changes', 'link_ids', 'links_patch', 'login_apikey', 'login_keysecret',
     'login_otp', 'maintain', 'merge', 'purge', 'reclass', 'rekey', 'rekey_class', 'reserved_names', 'reset', 'restore', 'role_has', 'role_ids', 'row_changes',

@@ -37,19 +37,28 @@ import type { Db } from './index.js';
 export interface McpOptions {
   /** Инструмент letopis_write (create, update, upsert, delete); по умолчанию сервер только читает. */
   write?: boolean;
-  /** Строк в ответе не больше (по умолчанию 100); дальше — курсор. */
+  /**
+   * Предел строк в одном ответе (по умолчанию 100). Остальные строки `letopis_query` отдаёт на следующих страницах по
+   * курсору, а версии, группы `countBy` и изменения `diff` и `blame` сверх предела обрезаются с пометкой `more` или
+   * `truncated`.
+   */
   maxRows?: number;
-  /** Байт JSON строк в ответе не больше (по умолчанию 50 000); дальше — курсор. */
+  /**
+   * Предел размера строк одного ответа в байтах JSON (по умолчанию 50 000); что не поместилось — так же, как сверх
+   * `maxRows`. Описание модели больше предела `letopis_model` отдаёт кратким.
+   */
   maxBytes?: number;
   /**
-   * letopis_write пишет и классы прав — rule, Resource, member, Account, Class и их потомков (правила, членства,
-   * описания классов). По умолчанию — отказ acl_denied: агент под инъекцией в данных выдал бы постороннему членство или
-   * правило без подтверждения человека (ревью безопасности №2, О5).
+   * Разрешить `letopis_write` писать и классы прав — `rule`, `Resource`, `member`, `Account`, `Class` и их потомков
+   * (правила, ресурсы, членства, аккаунты, описания классов). По умолчанию — отказ `acl_denied`: агент, которому в данных
+   * подсунули чужие инструкции, мог бы без подтверждения человека выдать постороннему членство или право
+   * (ревью безопасности №2, О5).
    */
   allowAclWrite?: boolean;
   /**
-   * Сессия в арендаторе System — так работает системный администратор: его роль admin даёт права на аккаунты,
-   * членства, правила и letopis.*. По умолчанию — отказ user_session_required (ревью безопасности №2, О5).
+   * Принять сессию в арендаторе System, то есть сессию системного администратора: с `true` агент получает его права на
+   * аккаунты, членства, правила и `letopis.*`, но писать классы прав по-прежнему может только с `allowAclWrite`. По
+   * умолчанию такая сессия — отказ `user_session_required` (ревью безопасности №2, О5).
    */
   allowSystemAdmin?: boolean;
 }
@@ -781,10 +790,10 @@ async function checkCredentials(db: Db, o: Limits): Promise<Actor> {
 }
 
 /**
- * Сервер MCP для одного пользователя letopis: инструменты letopis_model, letopis_query, letopis_history и при
- * { write: true } — letopis_write. Подключение — сессия пользователя (connect({ token })) или фасад db.as(пользователь).
- * Транспорт выбирает приложение: server.connect(транспорт), serveStdio(() => createMcpServer(db)) или
- * createMcpHandler(() => createMcpServer(db)) SDK — со своей авторизацией.
+ * Сервер MCP для одного пользователя letopis: инструменты `letopis_model`, `letopis_query`, `letopis_history`, а с
+ * `{ write: true }` — ещё `letopis_write`. Подключение — сессия пользователя (`connect({ token })`) или фасад
+ * `db.as(пользователь)`. Транспорт выбирает приложение: `server.connect(транспорт)`, `serveStdio(() => createMcpServer(db))`
+ * или обработчик HTTP `createMcpHandler(() => createMcpServer(db))` из SDK; токен запроса HTTP проверяет приложение.
  */
 export async function createMcpServer(db: Db, opts: McpOptions = {}): Promise<McpServer> {
   const o = limitsOf(opts);
