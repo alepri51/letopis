@@ -130,7 +130,7 @@ What happened here:
   from the journal.
 
 Calling `up()` again is safe: it re-applies the same revision and does not touch the data, and it does not issue the
-service key again while the installation still has a valid API key. Next, section 2 explains the design, and sections
+service key again while the installation still has at least one API key that is not revoked. Next, section 2 explains the design, and sections
 3–13 go through the tasks in order.
 
 ## 2. How letopis works
@@ -243,10 +243,15 @@ functions and the system seed. On the first installation, it issues a service ke
 | `owner`, `app` | the names of the owner and application roles (`letopis_owner`, `letopis_app` by default) |
 
 Result: `schema` (the full name), `serviceKey` (on the first installation, and on a re-run when the installation has no
-valid API key left; otherwise `null`), `created`, `upgraded`, `revision`, `migrations`, `analyzed`, `owner`, `app`,
+API key left except revoked ones: an expired or disabled key counts too; otherwise `null`), `created`, `upgraded`, `revision`, `migrations`, `analyzed`, `owner`, `app`,
 `signals` (the signal mode of the installation), `warnings` (without `quiet` they are printed), and also `tenant` and
 `pglite` if they were requested. On PostgreSQL below 18.2, `up()` warns: such a server could truncate CLOG that unread
 signals still need — upgrade it.
+
+Several instances of a service may call `up()` for the same schema at the same time: the installation runs under a lock
+on the schema. The first `up()` installs or upgrades it, the others wait and re-apply the ready schema
+(`created: false`, `upgraded: false`); one of them creates the first `tenant`, the others find it by name. `up()` calls
+for different schemas of one database do not wait for each other.
 
 To hide class names from signals, use the `opaque` mode (or `tenant` if the names are not secret but you want the
 cache to be precise per tenant); after changing the mode, restart the application processes — they read the mode on
@@ -367,7 +372,8 @@ const adm = await connect({ dsn: ADMIN, schema: r.schema, token: r.tenant!.token
 
 The schema has an engine revision (currently 7). If a new package version brings a new revision, `connect()` only warns
 and names the command. It is `up()` that refuses: a lagging schema without `upgrade: true`, and a schema newer than the
-package. So a startup script that calls `up()` on every start will stop after a package update until it gets
+package. To a schema newer than the package (a newer package has already upgraded it, and old application instances
+are still running) `connect()` connects anyway and warns that the letopis package should be updated. So a startup script that calls `up()` on every start will stop after a package update until it gets
 `upgrade: true`. `up({ dsn, schema, upgrade: true })` applies the migrations from `sql/migrate/` and re-applies the
 functions; the data is kept. Revision 7 (1.4.1) adds the foreign key `secret.account`: migration `0007` first erases
 the `secret` rows whose accounts are already gone (the credentials of accounts deleted earlier were kept with the
@@ -628,9 +634,10 @@ ends type is `InferLinks<typeof Product>`. Your own `meta` shape is typed by ext
 
 ### Class names
 
-A chain step is named after a class, its alias or a role name. The Proxy parses the names of chain and root methods
-(`count`, `sort`, `set`, `sql`, `auth` and others) before classes. So a class with such a name cannot be reached as a
-step, and the database does not accept a link with such a name. The full list is in the
+A chain step is named after a class, its alias or a role name. Where a chain or root method exists, the library parses
+its name (`count`, `sort`, `set`, `sql`, `auth` and others) before classes: a class `count` is reachable as the first
+step `db.count(…)`, but not after another step. The database does not accept a link with such a name. Do not give
+classes these names; the full list is in the
 ["Reserved names"](#reserved-names) section.
 
 ## 5. Writing
@@ -684,8 +691,9 @@ fields are not lost. If the step has no filter of its own, the target is taken f
 `data.id` all entities of the step are edited: `db.Product().update(…)` edits all products of the tenant. If the step
 found nothing, the result is empty and there is no error, so check the length of the result. If `update` affected fewer
 rows than the step found, the whole plan is rolled back: a row deleted in the meantime gives `target_not_found`, and a
-row that is visible but may not be edited gives `acl_denied`. The `.tags(…)` modifier before `update` both selects the
-rows and replaces their tags entirely.
+row that is visible but may not be edited gives `acl_denied`. The `.tags(…)` modifier before `update` selects the rows;
+a string or a list also replaces their tags entirely, while an operator (`has`, `hasAny`, `hasAll`) only selects — the
+tags stay as they are.
 
 ### Create or replace: `upsert`
 
@@ -820,7 +828,12 @@ await db.Order(order).line().create({ qty: 1, price: 900 }).Product.set(sencha).
   journal conflict, the library retries the whole plan, up to three times.
 - An error in any part rolls back the whole plan. `exists` and `conflict` are not retried: they are answers for the
   application.
-- Modifiers before a verb (`limit`, `sort`) narrow its targets.
+- Modifiers before a verb (`limit`, `offset`, `sort`) narrow its targets.
+- A modifier after a verb applies to what follows it: a class step, `versions()`, `diff()`, `blame()` and aggregates,
+  or the targets of the next verb. If a `rows`, `first`, `ids`, `count` or `paths` terminal follows right away, there is
+  nothing left to narrow — the verb has gone through all targets of the step — so
+  `db.Product().update(…).limit(1).rows()` gives `invalid_query` and writes nothing. In a batch, `run()` refuses the
+  same way.
 - A verb right after a verb writes to the same entities.
 
 ## 6. Reading
@@ -866,7 +879,7 @@ const roots = await db.Category({ Parent: null }).rows()       // root categorie
 | `ne(v)`, `gt(v)`, `gte(v)`, `lt(v)`, `lte(v)` | ≠ (taking `null` into account), >, ≥, <, ≤ |
 | `between(a, b)`, `inList([…])` | a ≤ x ≤ b; a value from the list |
 | `like(s)`, `ilike(s)`, `starts(s)`, `ends(s)` | a pattern with `%` and `_`; case-insensitive; starts with; ends with |
-| `has(v)`, `hasAny([…])`, `hasAll([…])` | an array field contains the value; at least one; all |
+| `has(v)`, `hasAny([…])`, `hasAll([…])` | an array field contains the value; at least one; all (`hasAll([])` matches every row, `hasAny([])` matches none) |
 | `exists(true \| false)`, `isNull()` | the field is present or not; the field is `null` or missing |
 | `not(v)` | negation of an operator; for a scalar, "not equal" |
 | `or(f1, f2, …)` | any of the step filters |
@@ -937,7 +950,9 @@ const byStatus = await db.Order().countBy('data.status')          // { new: 1 }
 ```
 
 The database computes aggregates over the entities of the last step. `limit(n)` and `offset(n)` before `countBy()`
-apply to the groups: `db.Order().limit(3).countBy('data.status')` gives the three most frequent values.
+apply to the groups: `db.Order().limit(3).countBy('data.status')` gives the three most frequent values. For a boolean
+field, `min()` is `false` if there is at least one `false` (whether all values are `true`), and `max()` is `true` if
+there is at least one `true`; `sum()` and `avg()` do not work on a boolean field — PostgreSQL returns an error.
 
 ### Paths
 
@@ -1921,11 +1936,11 @@ sales.close()                                    // stop() after the current bat
   at all — `derived_class`. Only an administrator may mark the classes of a tenant, so it is the administrator who
   chooses the participants: a tenant user cannot join a projector on their own. The option `tenants: [id, …]`
   is an explicit list of participants: the projector works only with these tenants (their `into` classes must be
-  marked too) and ignores the marks of the others. The sources are the `from` families of these tenants; a class
-  cannot be a source and a result at the same time. A projector does not see the changes of a class with
-  `history: false`: it has no journal. So a tenant with such a class among the sources drops out with the code
-  `invalid_class`, and the projector does not build its derived rows. Turn the journal of the class on and rebuild the
-  tenant with `rebuild({ tenant })`.
+  marked too) and ignores the marks of the others. The sources are the `from` families of these tenants; an `into`
+  class is never a source, even if it falls into `from`: a projector does not read its own results. A projector does
+  not see the changes of a class with `history: false`: it has no journal. So a tenant with such a class among the
+  sources drops out with the code `invalid_class`, and the projector does not build its derived rows. Turn the journal
+  of the class on and rebuild the tenant with `rebuild({ tenant })`.
 - `batch` is how many changes go into a batch (500), `pollMs` is fallback polling (1000 ms): source signals wake the
   projector earlier.
 - `lockTimeout` is how long a projector transaction waits for another transaction's row lock (5000 ms; 0 — no limit).
@@ -2019,8 +2034,10 @@ stays correct:
 - changes of permissions and classes, writes through `db.sql`, a revoked session and a listener reconnect clear the
   whole cache or the results of the session;
 - the default term is 60 seconds; the cache does not work inside `db.begin()`;
-- without `LISTEN` and in the `none` mode the cache is off, and `connect({ cache: { ttlOnly: true } })` enables it by
-  term only.
+- without `LISTEN` and in the `none` mode the cache is off, and `connect({ cache: { ttlOnly: true } })` enables it: an
+  answer lives until its term ends unless a write of this connection resets it;
+- `db.load()`, the projector and `db.rebuildAggregates()` reset the cache, even of this connection, only by a database
+  signal.
 
 A process re-reads the class registry right away on a class change signal (one re-read at a time), and the registry
 and the signal key on `*`, on an unknown token and on a payload of another mode (and without the key in the `opaque`
@@ -2041,7 +2058,8 @@ Between processes, the cache goes stale for the signal sending interval (`notify
 const report = await adm.maintain()     // { sessions, codes, thinned, batches, more, queue, skipped }
 ```
 
-`maintain()` deletes sessions and one-time codes of the `OTP` kind from the `secret` table — expired ones, as well as
+`maintain()` deletes sessions and one-time codes of all kinds (`OTP` and custom `OTP_<NAME>` from `issueOtp({ kind })`)
+from the `secret` table — expired ones, as well as
 revoked sessions and codes that were used, replaced by a new one or ran out of attempts, — thins the journal by the
 retention policy and checks the PostgreSQL signal queue: if it is more than half full, you get a warning. You do not
 need `maintain()` for the rows of a deleted account: the deletion itself erases them ([Deleting an account](#deleting-an-account)).
@@ -2261,6 +2279,10 @@ letopis mcp --dsn <dsn> --schema <v2.name> --token <user token> [--write]
   (or LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; the service key --api-key is not accepted)
 ```
 
+`letopis types` and `letopis describe` build their output from the session's classes, so without a valid session (the
+token expired, was revoked, is wrong or not given, or the API key is wrong) they exit with code 1 and the `no_session`
+error and leave the `--out` file untouched.
+
 ### Monitoring
 
 - `connect({ onQuery, slowMs })`: for every chain query, the hook gets the mode, the classes, the duration, the row
@@ -2426,9 +2448,11 @@ give `invalid_data`.
 
 ### Reserved names
 
-The Proxy parses the names below before classes, so a class with such a name cannot be reached as a step, and the
-database does not accept a link with such a name (`reserved_names()`; the installer fills in the list from
-`RESERVED_CLASS_NAMES`).
+A method name hides a class only where that method exists: after a step — chain methods, at the root `db` — its
+methods, in a batch — its own. So a hub named like a chain-only method (for example, `count`) is reachable as the first
+step `db.count(…)` but not after another step, and a hub named like a root method cannot be the first step. The
+database does not accept a link with any of these names (`reserved_names()`; the installer fills in the list from
+`RESERVED_CLASS_NAMES`). Do not give classes these names.
 
 - chain methods: `then`, `entity`, `paths`, `rows`, `first`, `ids`, `count`, `limit`, `offset`, `sort`, `asOf`,
   `withDeleted`, `deep`, `exact`, `sum`, `avg`, `min`, `max`, `countBy`, `after`, `versions`, `create`, `update`,
@@ -2485,7 +2509,7 @@ Library codes:
 | `tx_rolled_back` | PostgreSQL answered `ROLLBACK` to `COMMIT`: the error was caught inside `tr.transaction(fn)` |
 | `no_key` | `upsert`, `rekey` or `idOf` on a class without a key |
 | `no_path` | there is no hop between the classes of neighboring steps |
-| `invalid_query` | the chain or the API is used incorrectly (a step modifier `deep`, `exact`, `alias`, `tags` or `owner` after a verb, a slot not after a verb, an `after()` cursor with a value of a different type than the `sort` field, without `v` or with an `id` that is not a uuid, and so on) |
+| `invalid_query` | the chain or the API is used incorrectly (a step modifier `deep`, `exact`, `alias`, `tags` or `owner` after a verb, a selection modifier between a verb and a `rows`, `first`, `ids`, `count` or `paths` terminal, a slot not after a verb, an `after()` cursor with a value of a different type than the `sort` field, without `v` or with an `id` that is not a uuid, and so on) |
 | `admin_required` | the loader, a projector and `rebuildAggregates` need an admin connection |
 | `rebuild_required` | the projection was built by another version of the projector (`version`): a rebuild with `rebuild()` is needed; `rebuild({ tenant })` while there is no projection or a batch rebuild is in progress |
 | `projector_busy` | a rebuild cannot start: the projector is running in another process right now |
@@ -2620,8 +2644,8 @@ behavior.
 - Hot reference targets (an organization that almost everything references) accumulate `for key share` locks and
   MultiXact, as with regular foreign keys; this needs monitoring. Operations on one wallet go one after another under a
   lock of its row ([section 8](#8-transactions-batches-and-money), "Recipe: wallet").
-- A link cannot have a reserved name, and a hub with such a name cannot be reached as a step
-  (["Reserved names"](#reserved-names)).
+- A link cannot have a reserved name, and a hub with such a name is not reachable everywhere: for example, `count` —
+  only as the first step (["Reserved names"](#reserved-names)).
 
 **Access**
 

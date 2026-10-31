@@ -40,8 +40,9 @@ export interface IncMarker {
 }
 
 /**
- * Приращение в update: `update({ balance: inc(-300) })` — величина прибавляется в базе, внутри
- * оператора, над свежей строкой (функция inc). Поля нет — ошибка; `{ start }` — начать с него.
+ * Приращение числового поля в `update()`: `db.Wallet(w).update({ balance: inc(-300) })`. Сложение делает база над
+ * текущим значением поля в момент записи, поэтому одновременные приращения не теряются. Если поля ещё нет, `{ start }`
+ * задаёт, с чего начать (поле получит `start + by`), а без него — ошибка `invalid_data`.
  */
 export function inc(by: number, opts: { start?: number } = {}): IncMarker {
   return Object.freeze({ [INC]: true as const, by, ...(opts.start !== undefined ? { start: opts.start } : {}) });
@@ -419,8 +420,12 @@ function applySlotsLocal(links: Record<string, string | string[]>, ops: { role: 
   return out;
 }
 
+/**
+ * Теги, которые пишет глагол: строка или список из `.tags(…)` (перед update они же и отбирают цели). Оператор
+ * (has, hasAny, hasAll) только отбирает — теги целей не меняются; create и upsert его не принимают (precheck).
+ */
 const tagsValue = (s: Step): string[] | null =>
-  s.tagsFilter === undefined ? null : typeof s.tagsFilter === 'string' ? [s.tagsFilter] : (s.tagsFilter as string[]);
+  typeof s.tagsFilter === 'string' ? [s.tagsFilter] : Array.isArray(s.tagsFilter) ? (s.tagsFilter as string[]) : null;
 
 /** «Уже существует»: id вычисляет библиотека (idOf), а не разбирает текст ошибки сервера (§2.5). */
 function existsError(w: WriteCtx, cls: ClassInfo, data: Record<string, unknown>, links: Record<string, unknown>, given: string | undefined, cause: unknown): LetopisError {

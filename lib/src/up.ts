@@ -31,28 +31,36 @@ export interface InstallOptions {
   schema: string;
   owner?: string;
   app?: string;
-  /** Константа установки: разрешён ли reset (план, §2.2). По умолчанию выключен. */
+  /**
+   * Разрешить `db.reset()` и `maintain({ now })` — для тестовых установок и стендов; по умолчанию запрещено. Значение
+   * задаётся при установке и хранится в схеме: каждый `up()` записывает его заново (план, §2.2).
+   */
   allowReset?: boolean;
   /**
-   * Константа установки: политика хранения истории для классов без своей (план, §2.11), например
-   * `{ all: '1 day', daily: '1 week', weekly: '1 month', monthly: '1 year', yearly: 'forever' }`.
-   * Не задана — история хранится вся.
+   * Политика хранения истории для классов без своей, например
+   * `{ all: '1 day', daily: '1 week', weekly: '1 month', monthly: '1 year', yearly: 'forever' }`; не задана — история
+   * хранится вся. Значение задаётся при установке и хранится в схеме: каждый `up()` записывает его заново (план, §2.11).
    */
   history?: HistoryPolicy;
   /** Номер последнего накатываемого файла — для пошаговых тестов. */
   upTo?: number;
   /** Сиды после ядра: имена lib/sql/seed.<имя>.sql (например 'booking') или пути к своим файлам .sql. */
   seeds?: string[];
-  /** Обновление (upgrade): ревизия схемы до наката — миграции lib/sql/migrate/ с номером выше неё. */
+  /**
+   * Обновление (upgrade): ревизия схемы до наката — миграции lib/sql/migrate/ с номером выше неё. Если под блокировкой
+   * схемы видна более новая ревизия (её уже обновил одновременный up()), миграции считаются от неё.
+   */
   migrateFrom?: number;
+  /** Удалить схему и поставить заново (up({ fresh })) — под той же блокировкой схемы, что и накат. ДАННЫЕ ТЕРЯЮТСЯ. */
+  fresh?: boolean;
   /** Каталог миграций (по умолчанию lib/sql/migrate). */
   migrationsDir?: string;
   /** Свой ключ сервиса: зарегистрировать, если такого ещё нет (вместо выпуска случайного). */
   serviceKey?: string;
   /**
-   * Режим сигналов NOTIFY (план 1.1, §2.2): 'class' (по умолчанию, как в 1.0) — имена классов; 'tenant' —
-   * имя класса и токен арендатора; 'opaque' — только токены; 'none' — сигналов нет. Режим хранится в
-   * схеме: накат без опции его не меняет, reset({ all }) — сохраняет.
+   * Что видно в сигналах базы (`NOTIFY`): `'class'` (у новой схемы по умолчанию) — имя класса; `'tenant'` — имя класса и
+   * псевдоним арендатора (токен); `'opaque'` — только псевдонимы класса и арендатора; `'none'` — сигналов нет.
+   * Режим хранится в схеме: `up()` без опции его не меняет, `reset({ all })` сохраняет (план 1.1, §2.2).
    */
   signals?: SignalMode;
 }
@@ -72,12 +80,24 @@ export interface InstallResult {
   schema: string;
   owner: string;
   app: string;
-  /** Ключ сервисного аккаунта; выдаётся только при первой установке (или зарегистрированный свой), дальше — null. */
+  /**
+   * Ключ API сервисного аккаунта, выпущенный или зарегистрированный этим накатом, иначе `null`. Без опции `serviceKey`
+   * новый ключ выпускается на любом накате, где в схеме не осталось ни одного неотозванного ключа API, — не только при
+   * первой установке; свой `serviceKey` регистрируется и возвращается, если неотозванного ключа с таким значением ещё нет.
+   */
   serviceKey: string | null;
   /** Применённые миграции. */
   migrations: string[];
   /** Режим сигналов установки после наката. */
   signals: SignalMode;
+}
+
+/**
+ * Advisory-ключ наката одной схемы: пара int4, как у общей части установки (`hashtext('install')`), — имя схемы
+ * всегда с точкой (`v2.имя`), поэтому со словом install ключи не совпадут.
+ */
+async function lockSchema(tx: postgres.TransactionSql, schema: string): Promise<void> {
+  await tx.unsafe(`select pg_advisory_xact_lock(hashtext('letopis'), hashtext($1))`, [schema]);
 }
 
 const SQL_DIR = fileURLToPath(new URL('../sql/', import.meta.url));
@@ -160,7 +180,7 @@ export function substitute(text: string, vars: Record<string, string>): string {
   });
 }
 
-export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<InstallResult> {
+export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<InstallResult & { found: number | null }> {
   const owner = opts.owner ?? 'letopis_owner';
   const app = opts.app ?? 'letopis_app';
   if (!SCHEMA_NAME.test(opts.schema)) throw new Error(`letopis.up: bad schema name "${opts.schema}" (нужно v<N>.<имя>)`);
@@ -227,14 +247,26 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
   vars.ENGINE_VERSION = st.version;
   vars.ENGINE_SQL = st.sql;
 
-  // Схема создаётся до set role: у владельца может не быть права CREATE в базе.
-  await sql.unsafe(`create schema if not exists ${quoteIdent(opts.schema)} authorization ${quoteIdent(owner)}`);
-
   const files = await engineFiles(opts.upTo);
-  const migrations = opts.migrateFrom === undefined ? [] : await migrationFiles(opts.migrationsDir ?? MIGRATE_DIR, opts.migrateFrom);
+  let migrations: string[] = [];
+  let found: number | null = null;
   let serviceKey: string | null = null;
   let signals: SignalMode = 'class';
   await sql.begin(async (tx) => {
+    // Накат схемы — под advisory-блокировкой самой схемы. Несколько экземпляров сервиса зовут up() одной схемы при
+    // запуске разом: без блокировки второй create schema падал на уникальном индексе каталога (23505), а второй
+    // create or replace function или comment — «tuple concurrently updated» (XX000). С ней следующий up() ждёт, пока
+    // предыдущий зафиксирует накат, и делает повторный накат по готовой схеме. Поэтому и fresh, и ревизия, от которой
+    // считаются миграции, — под блокировкой: up() видит ревизию до неё, и второй upgrade повторил бы миграции, уже
+    // накатанные первым. Разные схемы друг друга не ждут: ключ — имя схемы.
+    await lockSchema(tx, opts.schema);
+    if (opts.fresh) await tx.unsafe(`drop schema if exists ${quoteIdent(opts.schema)} cascade`);
+    found = await schemaRevision(tx, opts.schema);
+    if (opts.migrateFrom !== undefined && found !== null) {
+      migrations = await migrationFiles(opts.migrationsDir ?? MIGRATE_DIR, Math.max(opts.migrateFrom, found));
+    }
+    // Схема создаётся до set role: у владельца может не быть права CREATE в базе.
+    await tx.unsafe(`create schema if not exists ${quoteIdent(opts.schema)} authorization ${quoteIdent(owner)}`);
     await tx.unsafe(`set local role ${quoteIdent(owner)}`);
     // режим сигналов (план 1.1, §2.6): опция, иначе сохранённый в схеме (meta строки ключа), иначе class
     let saved: SignalMode | null = null;
@@ -306,7 +338,7 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
       }
     }
   });
-  return { schema: opts.schema, owner, app, serviceKey, migrations, signals };
+  return { schema: opts.schema, owner, app, serviceKey, migrations, signals, found };
 }
 
 /** Миграции с номером выше ревизии from и не выше DDL_REVISION: `0004-описание.sql`, по номеру. */
@@ -342,11 +374,16 @@ export interface UpOptions extends Omit<InstallOptions, 'schema' | 'upTo' | 'mig
   /** Сколько ждать базу, мс (по умолчанию 60 000). */
   waitTimeoutMs?: number;
   /**
-   * База для разработки без PostgreSQL (решение 6 точки А): PGlite с pgcrypto через pglite-socket;
-   * одно соединение — connect({ dsn: r.pglite.dsn, listen: false, max: 1 }); не для гонок и CI.
+   * Запустить PGlite — PostgreSQL прямо в процессе Node — для разработки без своего сервера (решение 6 точки А);
+   * подключение к нему — `connect({ dsn: r.pglite.dsn, schema: r.schema, listen: false, max: 1, allowBypassRls: true })`.
+   * Соединение у PGlite одно, поэтому одновременные транзакции и гонки на нём не проверить: для таких тестов и в CI нужен
+   * настоящий PostgreSQL.
    */
   pglite?: boolean | PgliteOptions;
-  /** Арендатор и его первый пользователь — без своего сида (createTenant). */
+  /**
+   * Арендатор и его первый пользователь: после установки `up()` заводит их сам, как `createTenant()` с этими опциями, и
+   * кладёт итог в `r.tenant` — свой сид для этого не нужен.
+   */
   tenant?: TenantOptions;
 }
 
@@ -423,15 +460,16 @@ export function checkServer(versionNum: number, encoding: string): string[] {
 }
 
 /** Ревизия движка схемы по комментарию 'letopis ddl_revision=N'; схемы нет — null. */
-export async function schemaRevision(sql: postgres.Sql, schema: string): Promise<number | null> {
-  const [r] = await sql`select obj_description(n.oid, 'pg_namespace') as c from pg_namespace n where n.nspname = ${schema}`;
+export async function schemaRevision(sql: Pick<postgres.Sql, 'unsafe'>, schema: string): Promise<number | null> {
+  const [r] = await sql.unsafe(`select obj_description(n.oid, 'pg_namespace') as c from pg_namespace n where n.nspname = $1`, [schema]);
   if (!r) return null;
   return Number(/ddl_revision=(\d+)/.exec(String(r.c ?? ''))?.[1] ?? 0);
 }
 
 /**
- * Поставить или обновить установку letopis. Схема есть и её ревизия совпадает — повторный накат
- * (идемпотентный); ревизия отстала — только с upgrade: true; новее библиотеки — отказ.
+ * Ставит или обновляет установку letopis в схеме. Если схема уже есть и её ревизия та же, что у пакета, `up()` выполняет
+ * повторный накат: заново ставит функции, не трогая данные, — поэтому его можно вызывать при каждом запуске приложения.
+ * Схему отставшей ревизии `up()` обновляет только с `upgrade: true`, а на схеме новее пакета отказывает.
  */
 export async function up(opts: UpOptions): Promise<UpResult> {
   const log = opts.quiet ? () => {} : (m: string) => console.log(`letopis.up: ${m}`);
@@ -464,11 +502,8 @@ export async function up(opts: UpOptions): Promise<UpResult> {
       from pg_database where datname = current_database()`;
     const warnings = checkServer(srv.v as number, srv.enc as string);
     if (!opts.quiet) for (const w of warnings) console.warn(`letopis.up: ${w}`);
-    if (opts.fresh) {
-      await sql.unsafe(`drop schema if exists ${quoteIdent(schema)} cascade`);
-      log(`схема ${schema} удалена (fresh)`);
-    }
-    const before = await schemaRevision(sql, schema);
+    // ревизия до блокировки схемы — для ранних отказов; что накатывать, install() решает по ревизии под блокировкой
+    const before = opts.fresh ? null : await schemaRevision(sql, schema);
     if (before !== null && before > DDL_REVISION) {
       throw new Error(`letopis.up: схема ${schema} ревизии ${before}, а библиотека знает только ${DDL_REVISION} — обновите пакет`);
     }
@@ -476,16 +511,19 @@ export async function up(opts: UpOptions): Promise<UpResult> {
       throw new Error(`letopis.up: схема ${schema} ревизии ${before}, библиотека — ${DDL_REVISION}: обновите её up({ schema: '${schema}', upgrade: true })`);
     }
     const { dsn: _d, sql: _s, schema: _sc, fresh: _f, upgrade: _u, quiet: _q, waitTimeoutMs: _w, pglite: _p, ...rest } = opts;
-    const res = await install(sql, { ...rest, schema, ...(before !== null && before < DDL_REVISION ? { migrateFrom: before } : {}) });
+    const { found, ...res } = await install(sql, {
+      ...rest, schema, ...(opts.fresh ? { fresh: true } : {}), ...(before !== null && before < DDL_REVISION ? { migrateFrom: before } : {}),
+    });
+    if (opts.fresh) log(`схема ${schema} удалена и поставлена заново (fresh)`);
     // ANALYZE — только там, где статистики ещё нет: на повторном накате это самая дорогая часть
     const fresh = await sql`select relname from pg_stat_user_tables
       where schemaname = ${schema} and last_analyze is null and last_autoanalyze is null order by relname`;
     const analyzed = fresh.map((r) => r.relname as string);
     for (const t of analyzed) await sql.unsafe(`analyze ${quoteIdent(schema)}.${quoteIdent(t)}`);
     const revision = (await schemaRevision(sql, schema)) ?? 0;
-    log(`${before === null ? 'схема поставлена' : before < DDL_REVISION ? `схема обновлена с ревизии ${before}` : 'повторный накат'}: ${schema}, ревизия ${revision}`);
+    log(`${found === null ? 'схема поставлена' : found < DDL_REVISION ? `схема обновлена с ревизии ${found}` : 'повторный накат'}: ${schema}, ревизия ${revision}`);
     const tenant = opts.tenant ? await createTenant(sql, schema, opts.tenant, opts.owner) : undefined;
-    return { ...res, created: before === null, upgraded: before !== null && before < DDL_REVISION, revision, analyzed, warnings,
+    return { ...res, created: found === null, upgraded: found !== null && found < DDL_REVISION, revision, analyzed, warnings,
       ...(lite ? { pglite: lite } : {}), ...(tenant ? { tenant } : {}) };
   } catch (e) {
     if (lite) await sql.end({ timeout: 1 }).then(() => lite.close(), () => lite.close());
@@ -501,7 +539,10 @@ export async function up(opts: UpOptions): Promise<UpResult> {
 // ---------------------------------------------------------------------------
 
 export interface TenantOptions {
-  /** Имя арендатора (аккаунт в System; id — v5 от «tenant:<имя>», как у letopis import --tenant). */
+  /**
+   * Имя арендатора — его аккаунта в System. Из имени вычисляется id арендатора, поэтому одно имя — всегда один и тот же
+   * арендатор (так же его находит `letopis import --tenant`).
+   */
   name: string;
   /** Правило арендатора «аутентифицированным можно всё» (READ, WRITE, DELETE; по умолчанию да). */
   grantAll?: boolean;
@@ -566,14 +607,10 @@ function checkTenant(opts: TenantOptions): string[] {
 }
 
 /**
- * Арендатор и его первый пользователь — то, что раньше делал свой сид функциями владельца
- * (sys_create, sys_grant_all). Нужно администраторское подключение (роль может стать владельцем);
- * всё — одной транзакцией от владельца. Повтор с тем же именем и логином ничего не дублирует:
- * id — v5 от имени и логина, существующие строки пропускаются (пароль и роли членства не меняются),
- * сессия выдаётся заново. Удалённые арендатор, аккаунт пользователя или членство (строки нет, а
- * журнал id есть) — отказ invalid_data, транзакция откатывается целиком: повтор не воскрешает то,
- * что удалил администратор (up({ tenant }) идёт при каждом запуске), а sys_create пишет только
- * версию 1 — её занимает история; вернуть строку — restore() цепочкой.
+ * Заводит арендатора и, по желанию, его первого пользователя (аккаунт, членство, пароль, сессию) одной транзакцией от
+ * роли-владельца схемы — поэтому нужен администраторский пул. Повтор с тем же именем и логином ничего не дублирует и не
+ * меняет, только выдаёт пользователю новую сессию; одновременные вызовы заводят арендатора один раз. Если арендатор,
+ * пользователь или членство были удалены, повтор их не воскрешает — отказ `invalid_data`.
  */
 export async function createTenant(sql: postgres.Sql, schema: string, opts: TenantOptions, owner = 'letopis_owner'): Promise<TenantResult> {
   const roles = checkTenant(opts);
@@ -583,6 +620,9 @@ export async function createTenant(sql: postgres.Sql, schema: string, opts: Tena
   const user = u ? v5Id(SYSTEM_ID, 'Account', [`user:${u.login}`]) : null;
   const hash = u ? await hashPassword(u.password) : null;
   return sql.begin(async (tx) => {
+    // под блокировкой схемы, как накат: up({ tenant }) нескольких экземпляров сервиса разом заводит арендатора один
+    // раз, остальные находят его по имени (без неё оба вставили бы ту же строку и один упал бы на ключе)
+    await lockSchema(tx, schema);
     await tx.unsafe(`set local role ${quoteIdent(owner)}`);
     /** Строка есть — true, не было — false; строки нет, а журнал id есть, — удалена: отказ gone (что и как вернуть). */
     const exists = async (id: string, cls: 'Account' | 'member', gone: string) => {

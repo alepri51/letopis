@@ -905,7 +905,9 @@ begin
   with d as (delete from @SCHEMA@.secret x where x.kind = 'SESSION'
              and (x.deleted_at is not null or x.expires_at <= clock_timestamp()) returning 1)
   select count(*)::int into s from d;
-  with d as (delete from @SCHEMA@.secret x where x.kind = 'OTP'
+  -- коды всех видов, которые выпускает auth_issue_otp: OTP и OTP_<имя> (тот же шаблон вида), — использованные,
+  -- заменённые, исчерпавшие попытки (deleted_at) и истёкшие
+  with d as (delete from @SCHEMA@.secret x where x.kind ~ '^OTP(_[A-Z0-9]{1,27})?$'
              and (x.deleted_at is not null or x.expires_at <= clock_timestamp()) returning 1)
   select count(*)::int into o from d;
   return jsonb_build_object('sessions', s, 'codes', o, 'queue', pg_notification_queue_usage())

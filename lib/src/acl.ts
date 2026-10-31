@@ -9,12 +9,12 @@ import type { Executor } from './tx.js';
 
 export type AclOp = 'READ' | 'WRITE' | 'DELETE';
 
-/** Решение по эндпоинту API. */
+/** Решение по ресурсу приложения (эндпоинту): можно ли к нему обратиться. */
 export interface AclDecision {
   allow: boolean;
-  /** Победившее правило: id, группа и объект (alias ресурсов), вес, разрешение. */
+  /** Победившее правило: id, группа и объект (`alias` ресурсов), вес, разрешение. */
   rule?: { id: string; group: string; object: string; weight: number; permission: 'allow' | 'deny' };
-  /** Код и сообщение запрещающего правила (поля code, message строки rule). */
+  /** Код и сообщение запрещающего правила (поля `code`, `message` строки `rule`). */
   code?: number;
   message?: string;
 }
@@ -26,9 +26,15 @@ export interface AclDataDecision {
 }
 
 export interface AclApi {
-  /** Может ли актор вызвать эндпоинт (ресурсы категории API; правила System и арендатора). */
+  /**
+   * Можно ли тому, от чьего имени идёт запрос, обратиться к ресурсу приложения (эндпоинту). Решают правила доступа
+   * System и текущего арендатора.
+   */
   check(endpoint: string): Promise<AclDecision>;
-  /** Решение операции над классом для актора: allow и условие на строки (filter). */
+  /**
+   * Можно ли тому, от чьего имени идёт запрос, выполнять операцию `op` с объектами класса — со всеми или только с теми,
+   * что подходят под условие `filter` в ответе.
+   */
   checkData(className: string, op: AclOp): Promise<AclDataDecision>;
 }
 

@@ -327,7 +327,10 @@ function makeModel<N extends string>(kind: 'hub' | 'link', name: N, defArg: unkn
 type ShapeOf<F> = F extends z.ZodObject<infer S> ? S : F extends z.ZodRawShape ? F : Record<never, never>;
 type AliasOf<D> = D extends { alias: infer A extends string } ? A : string;
 
-/** Хаб — объект (мастер, услуга). */
+/**
+ * Описывает класс объектов (хаб): поля, ключ, концы и свойства класса. Класс-связь объектов со своими данными
+ * описывает `link()`.
+ */
 export function hub<N extends string, S extends z.ZodRawShape>(name: N, shape: S, opts: Omit<ClassDef, 'fields'>): Model<N, z.output<z.ZodObject<S>>, Record<never, never>>;
 export function hub<N extends string, const D extends ClassDef<z.ZodRawShape, EndsInput, AnyModel | undefined>>(name: N, def?: D):
   Model<N, DataOf<D['extends'], ShapeOf<D['fields']>>, AllLinks<D['extends'], D['ends'] extends EndsInput ? D['ends'] : Record<never, never>>, AliasOf<D>>;

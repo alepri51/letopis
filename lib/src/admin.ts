@@ -22,16 +22,16 @@ export interface VerifyIssue {
 export interface VerifyResult {
   ok: boolean;
   issues: VerifyIssue[];
-  /** Хэш всех голов цепочек — храните вне базы: подмену последних версий выдаст его расхождение. */
+  /** Один хэш текущих версий всех объектов — храните его вне базы: подмену самых свежих версий выдаст его расхождение. */
   anchor: string;
 }
 
 export interface MaintainOptions {
-  /** Момент «сейчас» для прореживания — только в установке с allowReset (тесты). */
+  /** Момент «сейчас» для прореживания — только в установке с `allowReset` (тесты). */
   now?: string | Date;
-  /** Пачек прореживания за вызов (по умолчанию 100); каждая — своя транзакция. */
+  /** Сколько пачек прореживания журнала самое большее сделать за один вызов; каждая пачка — своя транзакция. */
   batches?: number;
-  /** Версий в пачке (по умолчанию 10 000). */
+  /** Сколько версий самое большее удалить в одной пачке прореживания. */
   limit?: number;
 }
 
@@ -43,7 +43,10 @@ export interface MaintainReport {
   skipped: boolean;
   /** Удалено сессий: истёкших и погашенных (выход, отзыв, смена пароля, отключение или удаление аккаунта). */
   sessions: number;
-  /** Удалено одноразовых кодов вида OTP: истёкших, использованных, заменённых новым и исчерпавших попытки. */
+  /**
+   * Удалено одноразовых кодов (вид `OTP` и свои виды `OTP_<ИМЯ>` из `issueOtp({ kind })`): истёкших, использованных,
+   * заменённых новым и исчерпавших попытки.
+   */
   codes: number;
   /** Прорежено версий журнала. */
   thinned: number;
@@ -58,7 +61,7 @@ export interface ResetOptions {
   level: 'sessions' | 'tenant' | 'all';
   /** Подтверждение — имя схемы установки. */
   confirm: string;
-  /** level: 'tenant' — арендатор (по умолчанию — арендатор сессии). */
+  /** Какого арендатора сбросить при `level: 'tenant'` — его id; на других уровнях не учитывается. */
   tenant?: string;
 }
 
@@ -68,11 +71,11 @@ export interface ResetResult {
   tenant?: string;
   rows?: number;
   versions?: number;
-  /** level: 'all' — новый ключ сервиса: прежние сессии и ключи больше не действуют. */
+  /** `level: 'all'` — новый ключ сервиса: прежние сессии и ключи больше не действуют. */
   serviceKey?: string;
 }
 
-/** Машинное описание модели (db.describe()). */
+/** Машинное описание модели (`db.describe()`). */
 export interface ModelDescription {
   schema: string;
   tenant: string | null;
@@ -305,7 +308,7 @@ export function describe(a: AdminCtx): ModelDescription {
   return { schema: a.schema, tenant: a.tenant(), classes, methods: { chain: CHAIN_METHODS, db: DB_METHODS } };
 }
 
-/** Описание модели текстом для языковых моделей (llms.txt). */
+/** Описание модели текстом для языковых моделей. */
 export function describeText(d: ModelDescription): string {
   const out: string[] = [`# letopis: модель схемы ${d.schema}`, '',
     'Цепочка: db.Класс(фильтр).Связь().Класс().rows(); запись — create, update, upsert, delete; история — versions(), asOf(), withDeleted().', ''];

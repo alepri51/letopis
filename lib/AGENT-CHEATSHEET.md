@@ -30,7 +30,7 @@ const r = await up({ dsn: ADMIN, schema: 'myapp',                  // схема
   tenant: { name: 'Салон', user: { name: 'Ольга', login: 'olga@salon.ru', password: 'Сирень-2026!' } } })
 // r: { schema, created, upgraded, revision, serviceKey, migrations, analyzed, tenant, … }
 // r.serviceKey ('lts_…') — ключ сервиса, выдаётся при первой установке (снова — только если в установке не осталось
-// действующих ключей API). Сохраните его.
+// ключей API, кроме отозванных). Сохраните его.
 // r.tenant: { tenant, user, token, created } — арендатор «Салон» и его первый пользователь Ольга
 ```
 - `up()` ждёт базу, создаёт её, проверяет PostgreSQL 18+ и UTF8, ставит роли `letopis_owner` и `letopis_app`.

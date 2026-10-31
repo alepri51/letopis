@@ -130,7 +130,10 @@ export class Registry {
     return this.all().filter((c) => c.ancestors.includes(root));
   }
 
-  /** Тип листа по пути полей класса: по JSON Schema (type и format). */
+  /**
+   * Тип листа — поля в конце пути `path` — у класса `cls`, по его JSON Schema (`type` и `format`). По этому типу
+   * библиотека сравнивает значения поля в фильтрах, сортировке и итогах.
+   */
   leafType(cls: string, path: readonly string[]): LeafType {
     let node: JsonSchema | undefined = this.resolve(cls).schema;
     for (const p of path) {

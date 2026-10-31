@@ -46,6 +46,8 @@ export interface ChainCtx {
 /** План в очереди батча; steps обновляется по мере роста цепочки. */
 export interface BatchEntry {
   steps: Step[];
+  /** Модификатор выборки, поставленный сразу после последнего глагола плана: run() откажет (`afterVerbError`). */
+  loose?: { name: string; verb: string };
 }
 /** Ссылка цепочки на очередь: первый глагол регистрирует план, следующие — обновляют. */
 export interface BatchRef {
@@ -57,9 +59,16 @@ export interface BatchRef {
 export type Batch = { run(): Promise<Row[][]>; discard(): void; size(): number } & { [className: string]: StepFn };
 
 export interface ChainCore {
-  /** Пути: [{ шаг1: Row, шаг2: Row, … }] — узлы каждого варианта. */
+  /**
+   * Все пути цепочки. Путь — строки всех шагов, по одной на шаг, связанные ссылками; приходит объектом, где ключ — имя
+   * шага (или имя из `alias()`), а значение — строка этого шага: `{ Shop: …, Product: … }`. Если к объекту последнего
+   * шага ведут несколько путей, придут все.
+   */
   paths(): Promise<Path[]>;
-  /** Уникальные сущности последнего шага. */
+  /**
+   * Строки объектов последнего шага — каждый объект один раз, сколько бы путей к нему ни вело. Если цепочка кончается
+   * глаголом записи — строки этого глагола.
+   */
   rows(): Promise<Row[]>;
   first(): Promise<Row | null>;
   ids(): Promise<string[]>;
@@ -74,33 +83,84 @@ export interface ChainCore {
   diff(opts?: DiffOptions): Promise<DiffResult[]>;
   /** Кто, когда и почему последним изменил каждое поле версии (по умолчанию текущей), план 1.1. */
   blame(opts?: BlameOptions): Promise<BlameResult[]>;
-  /** Агрегаты по полю последнего шага ('data.<путь>') — по сущностям, считает база. */
+  /**
+   * Сумма поля `'data.<путь>'` по объектам последнего шага: значения приводятся к числу, складывает база. `limit()` и
+   * `offset()` на итог не влияют; нет ни одного значения — `null`.
+   */
   sum(field: string): Promise<number | null>;
+  /**
+   * Среднее значение поля `'data.<путь>'` по объектам последнего шага: значения приводятся к числу, считает база.
+   * `limit()` и `offset()` на итог не влияют; нет ни одного значения — `null`.
+   */
   avg(field: string): Promise<number | null>;
+  /**
+   * Наименьшее значение поля `'data.<путь>'` среди объектов последнего шага; считает база. Числа сравниваются как числа
+   * и приходят числом, даты — как даты, поле без описания в классе — как текст. `limit()` и `offset()` на итог не
+   * влияют; нет ни одного значения — `null`.
+   */
   min(field: string): Promise<unknown>;
+  /**
+   * Наибольшее значение поля `'data.<путь>'` среди объектов последнего шага; считает база. Числа сравниваются как числа
+   * и приходят числом, даты — как даты, поле без описания в классе — как текст. `limit()` и `offset()` на итог не
+   * влияют; нет ни одного значения — `null`.
+   */
   max(field: string): Promise<unknown>;
+  /**
+   * Сколько объектов последнего шага с каждым значением поля `'data.<путь>'`: объект «значение → число», объекты без
+   * значения — под ключом `'null'`. Перед `countBy()` `limit()` и `offset()` отбирают группы — от самых частых значений.
+   */
   countBy(field: string): Promise<Record<string, number>>;
+  /**
+   * Не больше n строк ответа: объектов последнего шага, у `paths()` — путей, у `versions()` — версий, перед `countBy()` —
+   * групп. До глагола сужает его цели. Сразу после глагола перед `rows`, `first`, `ids`, `count` и `paths` —
+   * `invalid_query`: глагол уже прошёл по всем целям, сужать нечего.
+   */
   limit(n: number): Chain;
+  /** Пропустить первые n строк ответа — тех же, что считает `limit()`; где действует — как у `limit()`. */
   offset(n: number): Chain;
   /** Сортировка по полю последнего шага: 'at' | 'rev' | 'id' | 'data.<путь>'. */
   sort(field: string, dir?: 'asc' | 'desc' | boolean): Chain;
   /** Срез «как было на момент T»: версии журнала. */
   asOf(t: string | Date): Chain;
-  /** Keyset-пагинация: строго после курсора (cursorOf). Требует sort(). */
+  /**
+   * Постраничный вывод по курсору: ответ начинается строго после строки, на которой кончилась прошлая страница, в
+   * порядке `sort()` (без `sort()` — ошибка `invalid_query`). Курсор этой строки даёт `cursorOf(строка, поле)` с тем же
+   * полем, что в `sort()`.
+   */
   after(cursor: Cursor): Chain;
-  /** Последний шаг включает удалённые (надгробия, $deleted). */
+  /**
+   * Последний шаг находит и удалённые объекты. Удалённый объект приходит надгробием — своей последней версией, версией
+   * удаления, — с `$deleted: true`.
+   */
   withDeleted(): Chain;
   /** Дети любой глубины на переходе к тому же классу; $depth в строке. */
   deep(max?: number): Chain;
-  /** Только сам класс шага, без потомков. */
+  /**
+   * Последний шаг находит объекты только своего класса — без классов-наследников (`extends` в модели), которых без
+   * `exact()` находит тоже.
+   */
   exact(): Chain;
   /** Ключ текущего шага в путях. */
   alias(name: string): Chain;
-  /** Колонка tags: строка | список (все) | has / hasAny / hasAll. */
+  /**
+   * Теги строки. В чтении и перед глаголами — отбор: строка или список — строки со всеми этими тегами (пустой список
+   * подходит любой строке), `has`, `hasAny`, `hasAll` — оператором. Перед `create()` и `upsert()` — теги новой строки
+   * (строка или список). Перед `update()` строка или список и отбирают, и заменяют теги целиком, а оператор только
+   * отбирает.
+   */
   tags(v: string | string[] | object): Chain;
-  /** Колонка owner. */
+  /**
+   * Владелец строк последнего шага (поле `owner`). В чтении и перед `update()`, `delete()` и другими глаголами — отбор:
+   * только строки этого владельца; перед `create()` и `upsert()` — владелец новой строки (существующей строке `upsert()`
+   * владельца не меняет).
+   */
   owner(v: string | { id: string }): Chain;
-  /** Вставить узел: ленивая цепочка-паттерн или строка ответа; та же переменная повторно — возврат к её узлу. */
+  /**
+   * Добавляет в цепочку шаги из строки ответа (шаг её класса с её id) или из ещё не исполненной цепочки без глаголов
+   * записи (все её шаги как есть); `limit()`, `sort()`, `asOf()` и другие модификаторы всей цепочки не переносятся. Та
+   * же цепочка (та же переменная) второй раз в одном пути шагов не добавляет, а возвращает к своему последнему шагу:
+   * следующий шаг пойдёт от него.
+   */
   entity(x: Chain | Row): Chain;
   /** Создать объект: концы — из пути и слотов; занятый ключ — ошибка exists с id. */
   create(data?: Record<string, unknown>, opts?: { reason?: string }): Chain;
@@ -108,7 +168,11 @@ export interface ChainCore {
   update(patch?: Record<string, unknown>, opts?: { rev?: number; reason?: string }): Chain;
   /** Создать или заменить целиком (класс с ключом); строка ответа несёт $upsert. */
   upsert(data: Record<string, unknown>, opts?: { reason?: string }): Chain;
-  /** Удалить цели шага с каскадом; без { confirm: true } — превью замыкания ($action). */
+  /**
+   * Удаляет цели шага; строки, которые на них ссылаются, база удаляет вместе с ними, отвязывает или не даёт удалить цель —
+   * как задано в `onDelete` их ссылок. Без `{ confirm: true }` — предпросмотр удаления: ничего не удаляется, терминал
+   * вернёт все строки, которых оно коснулось бы, у каждой `$action` — что с ней будет.
+   */
   delete(opts?: { confirm?: boolean; reason?: string }): Chain;
   /** Затереть строковые поля ('[erased]') и пометить тегом anonymized. */
   anonymize(fields: string[], opts?: { reason?: string }): Chain;
@@ -118,17 +182,26 @@ export interface ChainCore {
   forUpdate(): Chain;
   /** Восстановить удалённые объекты шага: последний снимок новой версией (id прежний). */
   restore(opts?: { reason?: string }): Chain;
-  /** Стереть историю удалённых объектов шага; без { confirm: true } — превью ($versions). */
+  /**
+   * Стирает историю удалённых объектов шага: все их версии в журнале, от каждого остаётся одна запись `purge`. Удалённые
+   * объекты шаг находит сам, без `withDeleted()`. Без `{ confirm: true }` — предпросмотр: ничего не стирается, терминал
+   * вернёт надгробия с `$versions` — сколько версий сотрётся.
+   */
   purge(opts?: { confirm?: boolean; reason?: string }): Chain;
-  /** Новое значение ключа: строка с новым id, ссылки переведены (поля — данные, роли — концы). */
+  /**
+   * Новое значение ключа объектов шага. id вычисляется из ключа, поэтому объект получает новый id: ссылки других строк
+   * на него переводятся на новый id, а журнал связывает старый id с новым.
+   */
   rekey(patch: Record<string, unknown>, opts?: { reason?: string }): Chain;
   /** Кэш результатов (§2.12): ответ хранится в памяти процесса ttl секунд (по умолчанию 60). */
   cache(opts?: { ttl?: number }): Chain;
 }
 
 /**
- * Шаг цепочки: вызов — переход (фильтр); после глагола записи без вызова — слот конца версии:
- * `.Роль.set(id | [id] | строка | цепочка)`, `.unset()`, у множественного конца `.add()` и `.remove()`.
+ * Шаг цепочки — имя класса, его алиаса или роли с необязательным фильтром: `db.Shop(id).Product({ price: gt(1000) })`;
+ * каждый следующий шаг переходит по ссылкам от объектов предыдущего. После `create()`, `update()` или `upsert()` имя
+ * роли без вызова задаёт ссылку записываемой строки: `.Роль.set(…)`, `.Роль.unset()`, у множественной ссылки ещё
+ * `.Роль.add(…)` и `.Роль.remove(…)`.
  */
 export type StepFn = ((filter?: Filter) => Chain) & {
   set(value: unknown): Chain;
@@ -254,6 +327,30 @@ async function read<T>(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: Read
   const q = buildRead(ctx.reg, ctx.schema, steps, plain, mode, agg);
   const ev: QueryEvent['mode'] = mode === 'countPaths' ? 'count' : mode;
   return exec<T>(ctx, q, ev, steps, mods).then((res) => ({ q, res }));
+}
+
+/** Модификатор выборки, заданный в mods, — именем метода цепочки; forUpdate() отказывает сам (lock_unsupported). */
+function modName(mods: ChainMods): string | undefined {
+  const key = (Object.keys(mods) as (keyof ChainMods)[]).find((k) => mods[k] !== undefined && k !== 'forUpdate');
+  return key === 'order' || key === 'desc' ? 'sort' : key;
+}
+
+function afterVerbError(name: string, verb: string): LetopisError {
+  return new LetopisError('invalid_query',
+    `${name}() после ${verb}() ни на что не действует: глагол проходит по всем целям шага, а ответ — его строки. ` +
+    `Цели сужают limit(), offset() и sort() до глагола: db.Класс(…).limit(n).${verb}(…)`);
+}
+
+/**
+ * Терминалы rows, first, ids, count и paths цепочки, которая кончается глаголом, отдают строки самой правки.
+ * Модификатор выборки между глаголом и терминалом ни на что не подействовал бы: limit резал бы только ответ, хотя
+ * правка прошла по всем целям, остальные молча пропускались. Поэтому — отказ до записи. После глагола модификатор
+ * относится к чтению за ним (шаг класса, versions(), diff(), blame(), агрегаты) или сужает цели следующего глагола.
+ */
+function checkAfterVerb(steps: Step[], mods: ChainMods): void {
+  const op = steps[steps.length - 1]?.op;
+  const name = op ? modName(mods) : undefined;
+  if (op && name) throw afterVerbError(name, op.kind);
 }
 
 /**
@@ -389,6 +486,13 @@ function classProp(ctx: ChainCtx, name: string, found: { cls: ClassInfo; role?: 
 }
 
 export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: NodeMap = NO_NODES): Chain {
+  // батч: терминала нет, план исполнит run() — он и откажет, если цепочка кончилась модификатором после глагола
+  // (как checkAfterVerb вне батча); следующий шаг или глагол забирает модификатор себе, и отметка снимается
+  if (ctx.batch?.entry) {
+    const op = steps[steps.length - 1]?.op;
+    const name = op ? modName(mods) : undefined;
+    ctx.batch.entry.loose = op && name ? { name, verb: op.kind } : undefined;
+  }
   const withLast = (patch: Partial<Step>): Chain => {
     const lastOp = steps[steps.length - 1]?.op;
     if (lastOp) throw new LetopisError('invalid_query', `модификатор шага после ${lastOp.kind}() — сначала шаг класса`);
@@ -468,22 +572,32 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
           return entityStep;
         case 'paths':
           return async () => {
+            checkAfterVerb(steps, mods);
             // q === null — пути из результата глагола: строки уже готовы
             const { q, res } = await read<{ path: Record<string, Record<string, unknown>> }>(ctx, steps, mods, 'paths');
             return res.map((r) => Object.fromEntries(Object.entries(r.path).map(([k, v]) => [k, q === null ? (v as unknown as Row) : toRow(v)])) as Path);
           };
         case 'rows':
-          return async () => (await read<{ row: Record<string, unknown>; done?: true }>(ctx, steps, mods, 'rows')).res.map(rowOf);
+          return async () => {
+            checkAfterVerb(steps, mods);
+            return (await read<{ row: Record<string, unknown>; done?: true }>(ctx, steps, mods, 'rows')).res.map(rowOf);
+          };
         case 'first':
           return async () => {
+            checkAfterVerb(steps, mods);
             const { res } = await read<{ row: Record<string, unknown>; done?: true }>(ctx, steps, { ...mods, limit: 1 }, 'rows');
             return res[0] ? rowOf(res[0]) : null;
           };
         case 'ids':
-          return async () => (await read<{ id: string }>(ctx, steps, mods, 'ids')).res.map((r) => r.id);
+          return async () => {
+            checkAfterVerb(steps, mods);
+            return (await read<{ id: string }>(ctx, steps, mods, 'ids')).res.map((r) => r.id);
+          };
         case 'count':
-          return async (opts?: { paths?: boolean }) =>
-            (await read<{ n: number }>(ctx, steps, mods, opts?.paths ? 'countPaths' : 'count')).res[0].n;
+          return async (opts?: { paths?: boolean }) => {
+            checkAfterVerb(steps, mods);
+            return (await read<{ n: number }>(ctx, steps, mods, opts?.paths ? 'countPaths' : 'count')).res[0].n;
+          };
         case 'versions':
           return async (opts?: { follow?: boolean }) => {
             warnNoHistory(steps, 'versions');
@@ -600,7 +714,10 @@ export function makeBatch(ctx: ChainCtx, queue: BatchEntry[]): Batch {
       switch (prop) {
         case 'run':
           return async () => {
-            const plans = queue.splice(0, queue.length).map((x) => x.steps);
+            const entries = queue.splice(0, queue.length);
+            const loose = entries.find((x) => x.loose)?.loose;
+            if (loose) throw afterVerbError(loose.name, loose.verb);
+            const plans = entries.map((x) => x.steps);
             for (const p of plans) precheckPlan(ctx.reg, p);
             if (!plans.length) return [];
             return ctx.exec.run((q) => execBatch({ reg: ctx.reg, schema: ctx.schema, q, tenant: ctx.tenant(), owner: ctx.owner, ...reasons(ctx) }, plans));

@@ -32,7 +32,7 @@ const r = await up({ dsn: ADMIN, schema: 'myapp',                  // schema 'v2
   tenant: { name: 'Salon', user: { name: 'Olga', login: 'olga@salon.ru', password: 'Lilac-2026!' } } })
 // r: { schema, created, upgraded, revision, serviceKey, migrations, analyzed, tenant, … }
 // r.serviceKey ('lts_…') is the service key; it is issued at the first installation (again only if the installation has
-// no valid API keys left). Save it.
+// no API keys left except revoked ones). Save it.
 // r.tenant: { tenant, user, token, created } — the tenant "Salon" and its first user Olga
 ```
 - `up()` waits for the database, creates it, checks for PostgreSQL 18+ and UTF8, and installs the roles `letopis_owner`

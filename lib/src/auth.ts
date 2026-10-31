@@ -32,8 +32,13 @@ export async function verifyHash(password: string, stored: string): Promise<bool
   const [algo, N, r, p, saltB64, hashB64] = stored.split('$');
   if (algo !== 'scrypt' || !hashB64) return false;
   const want = Buffer.from(hashB64, 'base64');
+  // N, r, p — из строки хэша (подходят и хэши, импортированные из других систем), память — не больше 64 МБ: хэш,
+  // которому нужно больше, или с недопустимыми параметрами scrypt Node.js отвергает — это понятная ошибка, а не «неверный
+  // пароль» (false). Текст Node.js в сообщение не идёт: он зависит от сборки OpenSSL
   const got = await scryptAsync(password, Buffer.from(saltB64, 'base64'), want.length,
-    { N: Number(N), r: Number(r), p: Number(p), maxmem: SCRYPT.maxmem });
+    { N: Number(N), r: Number(r), p: Number(p), maxmem: SCRYPT.maxmem }).catch(() => {
+    throw new LetopisError('invalid_data', `хэш пароля: параметры scrypt N=${N}, r=${r}, p=${p} недопустимы или требуют больше 64 МБ памяти`);
+  });
   return got.length === want.length && timingSafeEqual(got, want);
 }
 
@@ -99,11 +104,11 @@ export interface LoginResult {
   token: string;
 }
 
-/** Сведения о сессии по её токену (db.auth.session). Время — строкой ISO 8601. */
+/** Сведения о сессии по её токену (`db.auth.session()`). Время — строкой ISO 8601. */
 export interface SessionInfo {
   /** Аккаунт сессии. */
   account: string;
-  /** Рабочий арендатор сессии: выбранный auth.switch() или собственный арендатор аккаунта. */
+  /** Рабочий арендатор сессии: выбранный `auth.switch()` или собственный арендатор аккаунта. */
   tenant: string;
   /** Членство в рабочем арендаторе цело и арендатор включён; в собственном арендаторе — всегда true. */
   member: boolean;
@@ -112,8 +117,8 @@ export interface SessionInfo {
   /** Время входа. */
   loginAt: string;
   /**
-   * Способы входа: вид креда, по которому вошли (PASSWORD, APIKEY, KEYSECRET, OTP, TELEGRAM и т. п.), SERVICE —
-   * сессию выпустил сервис (sessionFor), TOTP — пройден второй фактор. У сессии от createTenant список пуст.
+   * Способы входа: вид креда, по которому вошли (`PASSWORD`, `APIKEY`, `KEYSECRET`, `OTP`, `TELEGRAM` и т. п.), `SERVICE` —
+   * сессию выпустил сервис (`sessionFor()`), `TOTP` — пройден второй фактор. У сессии от `createTenant()` список пуст.
    */
   methods: string[];
 }
@@ -132,12 +137,12 @@ export interface Credential {
 }
 
 export interface AuthApi {
-  /** Пароль (и любой «логин/пароль»: kind — PASSWORD, EMAIL, …): создать или заменить. Смена гасит остальные сессии аккаунта. */
+  /** Пароль (и любой «логин/пароль»: `kind` — `PASSWORD`, `EMAIL`, …): создать или заменить. Смена гасит остальные сессии аккаунта. */
   setPassword(a: { account: AccountRef; identifier: string; password: string; kind?: string; confirmed?: boolean; keepCurrent?: boolean }): Promise<string>;
   /**
-   * Вход по паролю — для сервиса с правом auth.password и auth.session. Неудача — null. С `totp` после
-   * верного пароля база проверяет код TOTP аккаунта (право auth.totp; счётчик неудач и блокировка — общие
-   * с verifyTotp): верный — сессия со способами [kind, 'TOTP'], неверный или повторный — null.
+   * Вход по паролю — для сервиса с правом `auth.password` и `auth.session`. Неудача — `null`. С `totp` после
+   * верного пароля база проверяет код TOTP аккаунта (право `auth.totp`; счётчик неудач и блокировка — общие
+   * с `verifyTotp()`): верный — сессия со способами `[kind, 'TOTP']`, неверный или повторный — `null`.
    */
   verifyPassword(a: { identifier: string; password: string; kind?: string; requireConfirmed?: boolean; ttl?: number; totp?: string }): Promise<LoginResult | null>;
   /** Ключ API `lts_…`: отдаётся один раз. Себе сервис выпускает ключ сам по сессии своего ключа. */
@@ -146,39 +151,52 @@ export interface AuthApi {
   /** Пара ключ + секрет: секрет отдаётся один раз. Себе сервис выпускает пару сам по сессии своего ключа. */
   issueKeySecret(a: { account: AccountRef; name?: string }): Promise<{ key: string; secret: string; id: string }>;
   verifyKeySecret(key: string, secret: string): Promise<LoginResult | null>;
-  /** TOTP: секрет в base32 и ссылка otpauth:// для QR; фактор включает первая успешная проверка. */
+  /**
+   * Подключает второй фактор TOTP: выдаёт секрет (base32) и адрес `otpauth://` для QR-кода в приложении-аутентификаторе.
+   * Фактор включится после первой верной проверки кода — `verifyTotp()` или входа с `totp`.
+   */
   enrollTotp(a: { account: AccountRef; issuer?: string; label?: string }): Promise<{ secret: string; uri: string }>;
   verifyTotp(a: { account: AccountRef; code: string; window?: number }): Promise<boolean>;
   totpEnabled(account: AccountRef): Promise<boolean>;
-  /** Одноразовый код для доставки сервисом (право auth.otp). */
+  /** Одноразовый код для доставки сервисом (право `auth.otp`). */
   issueOtp(a: { account: AccountRef; identifier: string; kind?: string; ttl?: number; digits?: number; maxAttempts?: number }): Promise<{ code: string }>;
-  /** Вход по одноразовому коду: успех и перебор (лимит задал выпуск, 1–10, по умолчанию 5) сжигают код. */
+  /**
+   * Вход по одноразовому коду: верный код открывает новую сессию. Код сгорает после верного ввода и после исчерпания
+   * неверных попыток — их число задаёт `issueOtp({ maxAttempts })`.
+   */
   verifyOtp(a: { identifier: string; code: string; kind?: string }): Promise<LoginResult | null>;
-  /** Внешняя identity (TELEGRAM, GOOGLE, SSO): токен проверяет сервис, здесь — связка. */
+  /**
+   * Привязывает к аккаунту внешнюю учётную запись — например, для входа через Telegram, Google или SSO. Входят по привязке
+   * через `lookup()`; токен внешнего сервиса ваш сервис проверяет сам.
+   */
   link(a: { account: AccountRef; kind: string; identifier: string; meta?: Record<string, unknown>; confirmed?: boolean }): Promise<string>;
-  /** Вход по identity — для сервиса с правами auth.identity и auth.session; `totp` — как у verifyPassword. */
+  /**
+   * Вход через привязанную внешнюю учётную запись: находит аккаунт по виду и id у внешнего сервиса и открывает ему новую
+   * сессию. Вызывает сервис с правами `auth.identity` и `auth.session`, когда уже сам проверил токен внешнего сервиса;
+   * `totp` — как у `verifyPassword()`.
+   */
   lookup(a: { kind: string; identifier: string; requireConfirmed?: boolean; ttl?: number; totp?: string }): Promise<LoginResult | null>;
-  /** Креды аккаунта без секретов. */
+  /** Способы входа (креды) аккаунта — без хэшей и секретов. */
   credentials(account: AccountRef): Promise<Credential[]>;
   /**
    * Удалить кред. Ключ API и пара ключ + секрет гасят только свои сессии, прочие креды — остальные сессии
-   * аккаунта; текущая гаснет, если keepCurrent: false. Свои ключи сервис отзывает сам; последний
-   * действующий ключ сервиса не отзывается (acl_denied).
+   * аккаунта; текущая гаснет, если `keepCurrent: false`. Свои ключи сервис отзывает сам; последний
+   * действующий ключ сервиса не отзывается (`acl_denied`).
    */
   revokeCredential(id: string, opts?: { keepCurrent?: boolean }): Promise<boolean>;
-  /** Признаки креда confirmed и enabled (право auth.credential). */
+  /** Признаки креда `confirmed` и `enabled` (право `auth.credential`). */
   setFlags(id: string, flags: { confirmed?: boolean; enabled?: boolean }): Promise<boolean>;
-  /** Сессия пользователя для другого процесса (право auth.session); срок — ttl в секундах, по умолчанию 7 суток. */
+  /** Сессия пользователя для другого процесса (право `auth.session`); срок — `ttl` в секундах, по умолчанию 7 суток. */
   sessionFor(account: AccountRef, opts?: { ttl?: number }): Promise<string>;
   /**
    * Сведения о сессии по её токену — для сервиса, который держит токен пользователя (например, в cookie): чья это
    * сессия, в каком арендаторе она работает, цело ли там членство, когда истечёт, когда и как был вход. Подключение
    * по этому токену не открывается, срок сессии не продлевается. Вызывает сервис или системный администратор
-   * (право auth.session).
-   * @param token Токен сессии пользователя — тот, что выдали вход или sessionFor.
-   * @returns Сведения о сессии или null: токен неверный, сессия погашена или истекла, аккаунт отключён — причина
+   * (право `auth.session`).
+   * @param token Токен сессии пользователя — тот, что выдали вход или `sessionFor()`.
+   * @returns Сведения о сессии или `null`: токен неверный, сессия погашена или истекла, аккаунт отключён — причина
    * не различается.
-   * @throws LetopisError `acl_denied` — у вызывающего нет права auth.session (например, это обычный пользователь);
+   * @throws LetopisError `acl_denied` — у вызывающего нет права `auth.session` (например, это обычный пользователь);
    * `no_session` — у подключения нет действующей сессии.
    */
   session(token: string): Promise<SessionInfo | null>;
@@ -186,11 +204,11 @@ export interface AuthApi {
   refresh(opts?: { ttl?: number }): Promise<string>;
   /** Выход: погасить текущую сессию. */
   revoke(): Promise<boolean>;
-  /** Выход везде: все сессии аккаунта (чужого — с правом auth.session). */
+  /** Выход везде: все сессии аккаунта (чужого — с правом `auth.session`). */
   revokeAll(account?: AccountRef): Promise<number>;
   /** Переключить арендатора сессии: собственный или по членству. */
   switch(tenant: string): Promise<void>;
-  /** Арендаторы, доступные аккаунту сессии: собственный (owner) и по членству. */
+  /** Арендаторы, доступные аккаунту сессии: собственный (`owner`) и по членству. */
   tenants(): Promise<{ tenant: string; roles: string[] }[]>;
   /**
    * Удалить аккаунт (этап 6; accounts.purge 0.21): системный администратор или владелец его

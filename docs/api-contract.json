@@ -566,6 +566,10 @@
       "message": "letopis: администраторское подключение — RLS не действует, данные всех арендаторов видны"
     },
     {
+      "module": "index",
+      "message": "letopis: движок схемы <…> ревизии <…> новее библиотеки (она знает <…>) — обновите пакет letopis"
+    },
+    {
       "module": "mcp",
       "message": "letopis.mcp: нужен пакет @modelcontextprotocol/server — npm i @modelcontextprotocol/server"
     },

@@ -138,7 +138,15 @@ function compileNode(s: J, sel: Select, path: Path, inAny: boolean, out: Rule[])
   if (sch.exclusiveMaximum !== undefined) out.push({ path, keyword: 'exclusiveMaximum', select: sel, test: num((v, b) => v < b, sch.exclusiveMaximum as number) });
   if (sch.multipleOf !== undefined) out.push({ path, keyword: 'multipleOf', select: sel, test: num((v, b) => isMultiple(v, b), sch.multipleOf as number) });
   if (sch.pattern !== undefined) {
-    const re = new RegExp(translatePattern(sch.pattern as string));
+    const src = translatePattern(sch.pattern as string); // то, чего база не понимает, — своя ошибка invalid_class
+    let re: RegExp;
+    try {
+      re = new RegExp(src);
+    } catch {
+      // шаблон, неверный уже для JavaScript (незакрытая скобка и т. п.): translatePattern его пропускает, RegExp — нет.
+      // Текст V8 в сообщение не идёт: он зависит от версии движка
+      fail(path, `pattern ${JSON.stringify(sch.pattern)} — неверное регулярное выражение`);
+    }
     out.push({ path, keyword: 'pattern', select: sel, test: (v) => typeof v !== 'string' || re.test(v) });
   }
   if (sch.format !== undefined) {
@@ -206,7 +214,10 @@ export interface Validator {
   (data: unknown): Issue[];
 }
 
-/** Компилирует JSON Schema (разворот resolved.schema класса) в функцию проверки. */
+/**
+ * Превращает JSON Schema данных класса в функцию проверки — ту же проверку, что выполняет база при записи. Схема
+ * класса — `db.registry.resolve(имя).schema`.
+ */
 export function compileValidator(schema: JsonSchema): Validator {
   const rules: Rule[] = [];
   compileNode(schema, (root) => [root], [], false, rules);
@@ -227,7 +238,11 @@ export function compileValidator(schema: JsonSchema): Validator {
   };
 }
 
-/** Умолчания, как apply_defaults в базе: на каждом уровне, во вложенные объекты — только если они есть. */
+/**
+ * Подставляет в данные значения по умолчанию (`default`) из JSON Schema класса, как база перед проверкой при каждой
+ * записи: только в отсутствующие поля, а во вложенный объект — только если он в данных уже есть. Исходные данные не
+ * меняются.
+ */
 export function applyDefaults(schema: JsonSchema, data: unknown): unknown {
   if (!isObj(data) || !isObj(schema.properties)) return data;
   const out: Record<string, J> = { ...data };
