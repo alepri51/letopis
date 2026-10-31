@@ -1,4 +1,4 @@
-import { totpCode } from 'letopis';
+import { connect, totpCode } from 'letopis';
 import { example } from '../../kit/example.ts';
 
 let keyId: string, key: string, secret: string;
@@ -56,6 +56,21 @@ export default example({
         const first = await svc.auth.verifyOtp({ identifier: user.login, code });
         const again = await svc.auth.verifyOtp({ identifier: user.login, code });
         return { 'первый раз': !!first, 'тот же код снова': again };
+      },
+    },
+    {
+      title: 'Свой вид кода и уборка: maintain() удаляет использованные коды',
+      text:
+        'Коду можно дать свой вид — например `OTP_RESET` для сброса пароля. Использованные, истёкшие и исчерпавшие ' +
+        'попытки коды больше не нужны: `maintain()` удаляет их из таблицы `secret` — и вида `OTP`, и своих видов ' +
+        '`OTP_<ИМЯ>`. Здесь удалены оба использованных кода: из прошлого шага и этот.',
+      run: async ({ svc, up, user, dsn, schema }) => {
+        const { code } = await svc.auth.issueOtp({ account: up.tenant!.user!, identifier: user.login, kind: 'OTP_RESET', ttl: 300 });
+        const ok = !!(await svc.auth.verifyOtp({ identifier: user.login, code, kind: 'OTP_RESET' }));
+        const adm = await connect({ dsn: dsn.admin, schema, allowBypassRls: true }); // скрыть
+        const report = await adm.maintain();
+        await adm.close(); // скрыть
+        return { 'код OTP_RESET принят': ok, 'удалено кодов': report.codes };
       },
     },
     {

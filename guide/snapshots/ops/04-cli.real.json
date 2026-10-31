@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_bd443c4a67be332e8a49aa37d318799c2bd3db1147aed733837b17d17ec7e464",
+      "serviceKey": "lts_adfc21ace534a3b5406f7028b08041f168699c65d2a92fda5bf31c8eda1e827d",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "07795bb547a98347bb03a2ea6dfbaf394f991c7a68108074e7930022e3a86f6b",
+        "token": "5050483c9aeb549ca78dd4b6686da98a2066fe150c1b775cbd88bf8c633c987c",
         "created": true
       }
     }
@@ -68,7 +68,7 @@
           },
           "external": 0,
           "portions": 1,
-          "ms": 220.09870000000228
+          "ms": 226.4594000000002
         }
       },
       "error": null,
@@ -85,6 +85,19 @@
         "# letopis: модель схемы v2.g_ops_04_cli",
         ""
       ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "код выхода": 1,
+        "ошибка": "letopis: no_session: нет действующей сессии",
+        "model.txt начинается с": "# letopis: модель схемы v2.g_ops_04_cli"
+      },
       "error": null,
       "entity": [],
       "removed": [],

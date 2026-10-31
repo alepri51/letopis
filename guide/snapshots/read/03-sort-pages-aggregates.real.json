@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_1282054c009ec27b61c1e478a8b3c097849e1cde8d8dcf15a442aac18f9c2dd3",
+      "serviceKey": "lts_ca41a47dd2fc31d9000b40865b904cacdfdd7f6576b4f883afc1ab85128d7f06",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "cc04f2c600c6f014cdcd7aab20e2ddf717ce9f1ba4f1adf966a6b4fc5345e082",
+        "token": "44819fb1191a32c7396cb6a480f30dd6f19cfa1306d688e5c81fd2ea4f35f9fb",
         "created": true
       }
     }
@@ -124,6 +124,21 @@
       "log": [],
       "secret": [],
       "signals": []
+    },
+    {
+      "result": {
+        "min(done)": false,
+        "max(done)": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Class",
+        "Task"
+      ]
     },
     {
       "result": {

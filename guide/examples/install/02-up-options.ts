@@ -14,6 +14,7 @@ export default example({
   covers: [
     'up.seeds', 'up.signals', 'up.serviceKey', 'up.allowReset', 'up.history', 'up.upgrade', 'up.fresh',
     'up.waitTimeoutMs', 'signals.tenant', 'signals.opaque', 'nuance.signals-mode-sticky', 'nuance.fresh-drops-data',
+    'nuance.up-concurrent',
   ],
   steps: [
     {
@@ -71,6 +72,26 @@ export default example({
       run: async ({ dsn, schema }) => {
         const r = await up({ dsn: dsn.admin, schema, quiet: true, fresh: true });
         return { created: r.created, signals: r.signals, newKey: r.serviceKey !== null && r.serviceKey !== MY_KEY };
+      },
+    },
+    {
+      title: 'Три экземпляра сервиса запускают up() одновременно',
+      text:
+        'Сервис зовёт `up()` при каждом запуске, а экземпляров бывает несколько. Перед шагом схему удалили — база ' +
+        'пустая. Накат идёт под блокировкой самой схемы: первый `up()` ставит её (`created: true`), остальные ждут его ' +
+        'и делают повторный накат по готовой. Первого арендатора (`tenant`) тоже заводит только один из них — ' +
+        'остальные находят его по имени.',
+      run: async ({ dsn, schema, admin }) => {
+        await admin.unsafe(`drop schema if exists "${schema}" cascade`); // скрыть
+        const tenant = { name: 'Ромашка', user: { name: 'Анна', login: 'anna@romashka.ru', password: 'Ромашка-2026!' } };
+        const start = () => up({ dsn: dsn.admin, schema, quiet: true, tenant });
+        const rs = await Promise.all([start(), start(), start()]);
+        return {
+          created: rs.filter((r) => r.created).length,
+          reinstalled: rs.filter((r) => !r.created).length,
+          tenantCreated: rs.filter((r) => r.tenant!.created).length,
+          revisions: [...new Set(rs.map((r) => r.revision))],
+        };
       },
     },
   ],

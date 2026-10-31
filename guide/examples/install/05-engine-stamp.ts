@@ -39,5 +39,21 @@ export default example({
         return printed;
       },
     },
+    {
+      title: 'Схему уже обновил более новый пакет',
+      text:
+        'Изображаем схему, которую обновила следующая версия пакета: ревизия в комментарии на единицу больше. ' +
+        '`connect()` подключается — во время раскатки новой версии старые экземпляры сервиса продолжают работать, — но ' +
+        'предупреждает: этот пакет может не знать функций и колонок новой ревизии. `up()` такую схему не трогает и отказывает.',
+      run: async ({ admin, connect, warnings, dsn, schema, up: installed }) => {
+        const [row] = await admin`select obj_description(oid, 'pg_namespace') as comment from pg_namespace where nspname = ${schema}`;
+        const comment = String(row.comment);
+        await admin.unsafe(`comment on schema "${schema}" is '${comment.replace(/ddl_revision=\d+/, `ddl_revision=${DDL_REVISION + 1}`)}'`);
+        const { warnings: printed } = await warnings(() => connect({ dsn: dsn.app, schema, token: installed.tenant!.token! }));
+        const again = await up({ dsn: dsn.admin, schema, quiet: true }).then(() => 'поставлено', (e: Error) => e.message);
+        await admin.unsafe(`comment on schema "${schema}" is '${comment}'`); // скрыть
+        return { 'connect() предупредил': printed, 'up() отказал': again };
+      },
+    },
   ],
 });

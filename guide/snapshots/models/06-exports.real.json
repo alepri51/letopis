@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_e2bf4c9781c9622e3a307c90be7441abed382239040b501b20b283676f544712",
+      "serviceKey": "lts_2cc25f596b294fae82243c91d873ba529990e059d571964fae2af7c0e862be78",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "82f5971035419f1813b7c152c4ba1a006180e16a1509f25551aa310c3902fd88",
+        "token": "f7a3ba069daceaf7ddb0a15e802e6151c48e1585bcf6d0d09cc969055debbd74",
         "created": true
       }
     }
@@ -56,6 +56,19 @@
       "signals": []
     },
     {
+      "result": null,
+      "error": {
+        "code": "invalid_data",
+        "message": "letopis: invalid_data: хэш пароля: параметры scrypt N=1048576, r=8, p=1 недопустимы или требуют больше 64 МБ памяти",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
       "result": {
         "ошибки на неполных данных": [
           "price"
@@ -66,6 +79,19 @@
         "ValidationError": "invalid_data"
       },
       "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "invalid_class",
+        "message": "letopis: invalid_class: pattern \"^(K\" — неверное регулярное выражение (узел [\"sku\"])",
+        "detail": null
+      },
       "entity": [],
       "removed": [],
       "log": [],

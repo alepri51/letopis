@@ -24,13 +24,13 @@ outline: [2, 2]
 
 ## [Вход: db.auth](./auth)
 
-`db.auth` — креды, вход и сессии. Проверку паролей, кодов и TOTP, выпуск сессий и подтверждение кредов вызывает сервис (права `auth.*`); обычному пользователю отвечают `acl_denied`.
+`db.auth` — способы входа (креды), вход по ним и сессии. Проверку паролей, кодов и TOTP, выпуск сессий и подтверждение кредов вызывает сервис (права `auth.*`); обычному пользователю отвечают `acl_denied`.
 
 [db.auth](./auth#db-auth) · [db.auth.setPassword()](./auth#auth-setpassword) · [db.auth.verifyPassword()](./auth#auth-verifypassword) · [db.auth.issueApiKey()](./auth#auth-issueapikey) · [db.auth.verifyApiKey()](./auth#auth-verifyapikey) · [db.auth.issueKeySecret()](./auth#auth-issuekeysecret) · [db.auth.verifyKeySecret()](./auth#auth-verifykeysecret) · [db.auth.enrollTotp()](./auth#auth-enrolltotp) · [db.auth.verifyTotp()](./auth#auth-verifytotp) · [db.auth.totpEnabled()](./auth#auth-totpenabled) · [db.auth.issueOtp()](./auth#auth-issueotp) · [db.auth.verifyOtp()](./auth#auth-verifyotp) · [db.auth.link()](./auth#auth-link) · [db.auth.lookup()](./auth#auth-lookup) · [db.auth.credentials()](./auth#auth-credentials) · [db.auth.revokeCredential()](./auth#auth-revokecredential) · [db.auth.setFlags()](./auth#auth-setflags) · [db.auth.sessionFor()](./auth#auth-sessionfor) · [db.auth.session()](./auth#auth-session) · [db.auth.refresh()](./auth#auth-refresh) · [db.auth.revoke()](./auth#auth-revoke) · [db.auth.revokeAll()](./auth#auth-revokeall) · [db.auth.tenants()](./auth#auth-tenants) · [db.auth.switch()](./auth#auth-switch) · [db.auth.purgeAccount()](./auth#auth-purgeaccount)
 
 ## [Права: db.acl](./acl)
 
-Права проверяет база: правила (`rule`) и ресурсы (`Resource`) — обычные классы. `db.acl` только спрашивает решение для текущего актора.
+Права проверяет база: правила (`rule`) и ресурсы (`Resource`) — обычные классы. `db.acl` только спрашивает решение для того, от чьего имени идёт запрос.
 
 [db.acl](./acl#db-acl) · [db.acl.check()](./acl#acl-check) · [db.acl.checkData()](./acl#acl-checkdata)
 

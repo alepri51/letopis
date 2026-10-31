@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_46ed0403a8b1e309395eb0864fbce9ce3bf0517235a29070f4aed3575d2ecd94",
+      "serviceKey": "lts_63419b34964e1031fff2db679bf155fc337582d853fe34b3592476da1f2f0dfa",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "46330c25add8acec542d95556ceb79e4d7dde1143108fcb413be944f15d07bec",
+        "token": "c95148c0dc3203146191786cd5e1adef1c066b8b6959e96786bda62561ed79e5",
         "created": true
       }
     }
@@ -28,7 +28,7 @@
   "steps": [
     {
       "result": {
-        "at": "2026-10-30T09:41:34.5837+00:00",
+        "at": "2026-10-31T19:49:32.959597+00:00",
         "id": "820d0964-969f-5ad6-bc38-f38710912f70",
         "op": "create",
         "rev": 1,
@@ -41,7 +41,7 @@
         "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "author": "3defbabb-a94d-5359-8463-dc947de193e1",
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "agent": "20b6d944-656f-5029-9599-67276444e3f4"
+        "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4"
       },
       "error": null,
       "entity": [
@@ -58,9 +58,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": null,
-          "at": "2026-10-30 09:41:34.5837+00"
+          "at": "2026-10-31 19:49:32.959597+00"
         }
       ],
       "removed": [],
@@ -78,10 +78,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": null,
-          "at": "2026-10-30 09:41:34.5837+00",
-          "tx": "2511257"
+          "at": "2026-10-31 19:49:32.959597+00",
+          "tx": "2577187"
         }
       ],
       "secret": [],
@@ -113,9 +113,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": null,
-          "at": "2026-10-30 09:41:34.5837+00"
+          "at": "2026-10-31 19:49:32.959597+00"
         },
         {
           "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
@@ -134,9 +134,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": "новая коллекция",
-          "at": "2026-10-30 09:41:34.611158+00"
+          "at": "2026-10-31 19:49:32.99308+00"
         },
         {
           "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
@@ -155,9 +155,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": "новая коллекция",
-          "at": "2026-10-30 09:41:34.621623+00"
+          "at": "2026-10-31 19:49:33.001671+00"
         }
       ],
       "removed": [],
@@ -175,10 +175,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": null,
-          "at": "2026-10-30 09:41:34.5837+00",
-          "tx": "2511257"
+          "at": "2026-10-31 19:49:32.959597+00",
+          "tx": "2577187"
         },
         {
           "seq": "42",
@@ -197,10 +197,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": "новая коллекция",
-          "at": "2026-10-30 09:41:34.611158+00",
-          "tx": "2511261"
+          "at": "2026-10-31 19:49:32.99308+00",
+          "tx": "2577191"
         },
         {
           "seq": "43",
@@ -219,10 +219,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": "новая коллекция",
-          "at": "2026-10-30 09:41:34.621623+00",
-          "tx": "2511261"
+          "at": "2026-10-31 19:49:33.001671+00",
+          "tx": "2577191"
         }
       ],
       "secret": [],
@@ -249,9 +249,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": null,
-          "at": "2026-10-30 09:41:34.5837+00"
+          "at": "2026-10-31 19:49:32.959597+00"
         },
         {
           "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
@@ -270,9 +270,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": "новая коллекция",
-          "at": "2026-10-30 09:41:34.611158+00"
+          "at": "2026-10-31 19:49:32.99308+00"
         },
         {
           "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
@@ -291,9 +291,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": "новая коллекция",
-          "at": "2026-10-30 09:41:34.621623+00"
+          "at": "2026-10-31 19:49:33.001671+00"
         }
       ],
       "removed": [],
@@ -311,10 +311,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": null,
-          "at": "2026-10-30 09:41:34.5837+00",
-          "tx": "2511257"
+          "at": "2026-10-31 19:49:32.959597+00",
+          "tx": "2577187"
         },
         {
           "seq": "42",
@@ -333,10 +333,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": "новая коллекция",
-          "at": "2026-10-30 09:41:34.611158+00",
-          "tx": "2511261"
+          "at": "2026-10-31 19:49:32.99308+00",
+          "tx": "2577191"
         },
         {
           "seq": "43",
@@ -355,10 +355,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": "новая коллекция",
-          "at": "2026-10-30 09:41:34.621623+00",
-          "tx": "2511261"
+          "at": "2026-10-31 19:49:33.001671+00",
+          "tx": "2577191"
         }
       ],
       "secret": [],
@@ -367,7 +367,7 @@
     {
       "result": [
         {
-          "at": "2026-10-30T09:41:34.659566+00:00",
+          "at": "2026-10-31T19:49:33.03255+00:00",
           "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
           "op": "create",
           "rev": 1,
@@ -387,7 +387,7 @@
           "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": "зимняя витрина"
         }
       ],
@@ -406,9 +406,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": null,
-          "at": "2026-10-30 09:41:34.5837+00"
+          "at": "2026-10-31 19:49:32.959597+00"
         },
         {
           "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
@@ -427,9 +427,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": "новая коллекция",
-          "at": "2026-10-30 09:41:34.611158+00"
+          "at": "2026-10-31 19:49:32.99308+00"
         },
         {
           "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
@@ -448,9 +448,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": "новая коллекция",
-          "at": "2026-10-30 09:41:34.621623+00"
+          "at": "2026-10-31 19:49:33.001671+00"
         },
         {
           "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
@@ -472,9 +472,9 @@
           ],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": "зимняя витрина",
-          "at": "2026-10-30 09:41:34.659566+00"
+          "at": "2026-10-31 19:49:33.03255+00"
         }
       ],
       "removed": [],
@@ -492,10 +492,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": null,
-          "at": "2026-10-30 09:41:34.5837+00",
-          "tx": "2511257"
+          "at": "2026-10-31 19:49:32.959597+00",
+          "tx": "2577187"
         },
         {
           "seq": "42",
@@ -514,10 +514,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": "новая коллекция",
-          "at": "2026-10-30 09:41:34.611158+00",
-          "tx": "2511261"
+          "at": "2026-10-31 19:49:32.99308+00",
+          "tx": "2577191"
         },
         {
           "seq": "43",
@@ -536,10 +536,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": "новая коллекция",
-          "at": "2026-10-30 09:41:34.621623+00",
-          "tx": "2511261"
+          "at": "2026-10-31 19:49:33.001671+00",
+          "tx": "2577191"
         },
         {
           "seq": "44",
@@ -561,10 +561,10 @@
           ],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": "зимняя витрина",
-          "at": "2026-10-30 09:41:34.659566+00",
-          "tx": "2511266"
+          "at": "2026-10-31 19:49:33.03255+00",
+          "tx": "2577196"
         }
       ],
       "secret": [],
@@ -575,7 +575,7 @@
     {
       "result": [
         {
-          "at": "2026-10-30T09:41:34.6908+00:00",
+          "at": "2026-10-31T19:49:33.054647+00:00",
           "id": "379e28b2-fd4d-58ea-bed9-d4b3b59814d9",
           "op": "create",
           "rev": 1,
@@ -592,7 +592,7 @@
           "owner": "3defbabb-a94d-5359-8463-dc947de193e1",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4"
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4"
         }
       ],
       "error": null,
@@ -610,9 +610,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": null,
-          "at": "2026-10-30 09:41:34.5837+00"
+          "at": "2026-10-31 19:49:32.959597+00"
         },
         {
           "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
@@ -631,9 +631,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": "новая коллекция",
-          "at": "2026-10-30 09:41:34.611158+00"
+          "at": "2026-10-31 19:49:32.99308+00"
         },
         {
           "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
@@ -652,9 +652,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": "новая коллекция",
-          "at": "2026-10-30 09:41:34.621623+00"
+          "at": "2026-10-31 19:49:33.001671+00"
         },
         {
           "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
@@ -676,9 +676,9 @@
           ],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": "зимняя витрина",
-          "at": "2026-10-30 09:41:34.659566+00"
+          "at": "2026-10-31 19:49:33.03255+00"
         },
         {
           "id": "379e28b2-fd4d-58ea-bed9-d4b3b59814d9",
@@ -697,9 +697,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": null,
-          "at": "2026-10-30 09:41:34.6908+00"
+          "at": "2026-10-31 19:49:33.054647+00"
         }
       ],
       "removed": [],
@@ -717,10 +717,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": null,
-          "at": "2026-10-30 09:41:34.5837+00",
-          "tx": "2511257"
+          "at": "2026-10-31 19:49:32.959597+00",
+          "tx": "2577187"
         },
         {
           "seq": "42",
@@ -739,10 +739,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": "новая коллекция",
-          "at": "2026-10-30 09:41:34.611158+00",
-          "tx": "2511261"
+          "at": "2026-10-31 19:49:32.99308+00",
+          "tx": "2577191"
         },
         {
           "seq": "43",
@@ -761,10 +761,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": "новая коллекция",
-          "at": "2026-10-30 09:41:34.621623+00",
-          "tx": "2511261"
+          "at": "2026-10-31 19:49:33.001671+00",
+          "tx": "2577191"
         },
         {
           "seq": "44",
@@ -786,10 +786,10 @@
           ],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": "зимняя витрина",
-          "at": "2026-10-30 09:41:34.659566+00",
-          "tx": "2511266"
+          "at": "2026-10-31 19:49:33.03255+00",
+          "tx": "2577196"
         },
         {
           "seq": "45",
@@ -808,16 +808,1139 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "20b6d944-656f-5029-9599-67276444e3f4",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
           "reason": null,
-          "at": "2026-10-30 09:41:34.6908+00",
-          "tx": "2511270"
+          "at": "2026-10-31 19:49:33.054647+00",
+          "tx": "2577200"
         }
       ],
       "secret": [],
       "signals": [
         "Product"
       ]
+    },
+    {
+      "result": [
+        {
+          "at": "2026-10-31T19:49:33.083333+00:00",
+          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "op": "update",
+          "rev": 2,
+          "data": {
+            "sku": "W-1",
+            "price": 800,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "class": "Product",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:32.959597+00"
+        },
+        {
+          "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "C-1",
+            "price": 300,
+            "title": "Чашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": "новая коллекция",
+          "at": "2026-10-31 19:49:32.99308+00"
+        },
+        {
+          "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "C-2",
+            "price": 200,
+            "title": "Блюдце"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": "новая коллекция",
+          "at": "2026-10-31 19:49:33.001671+00"
+        },
+        {
+          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "class": "Product",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 800,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:33.083333+00"
+        },
+        {
+          "id": "379e28b2-fd4d-58ea-bed9-d4b3b59814d9",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "P-1",
+            "price": 100,
+            "title": "Личный заказ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:33.054647+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:32.959597+00",
+          "tx": "2577187"
+        },
+        {
+          "seq": "42",
+          "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "C-1",
+            "price": 300,
+            "title": "Чашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": "новая коллекция",
+          "at": "2026-10-31 19:49:32.99308+00",
+          "tx": "2577191"
+        },
+        {
+          "seq": "43",
+          "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "C-2",
+            "price": 200,
+            "title": "Блюдце"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": "новая коллекция",
+          "at": "2026-10-31 19:49:33.001671+00",
+          "tx": "2577191"
+        },
+        {
+          "seq": "44",
+          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 700,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": "зимняя витрина",
+          "at": "2026-10-31 19:49:33.03255+00",
+          "tx": "2577196"
+        },
+        {
+          "seq": "45",
+          "id": "379e28b2-fd4d-58ea-bed9-d4b3b59814d9",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "P-1",
+            "price": 100,
+            "title": "Личный заказ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:33.054647+00",
+          "tx": "2577200"
+        },
+        {
+          "seq": "46",
+          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 800,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:33.083333+00",
+          "tx": "2577204"
+        }
+      ],
+      "secret": [],
+      "signals": [
+        "Product"
+      ]
+    },
+    {
+      "result": [
+        {
+          "at": "2026-10-31T19:49:33.107598+00:00",
+          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "op": "update",
+          "rev": 3,
+          "data": {
+            "sku": "W-1",
+            "price": 900,
+            "title": "Варежки"
+          },
+          "tags": [
+            "зима"
+          ],
+          "class": "Product",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:32.959597+00"
+        },
+        {
+          "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "C-1",
+            "price": 300,
+            "title": "Чашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": "новая коллекция",
+          "at": "2026-10-31 19:49:32.99308+00"
+        },
+        {
+          "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "C-2",
+            "price": 200,
+            "title": "Блюдце"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": "новая коллекция",
+          "at": "2026-10-31 19:49:33.001671+00"
+        },
+        {
+          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "class": "Product",
+          "rev": 3,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 900,
+            "title": "Варежки"
+          },
+          "tags": [
+            "зима"
+          ],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:33.107598+00"
+        },
+        {
+          "id": "379e28b2-fd4d-58ea-bed9-d4b3b59814d9",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "P-1",
+            "price": 100,
+            "title": "Личный заказ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:33.054647+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:32.959597+00",
+          "tx": "2577187"
+        },
+        {
+          "seq": "42",
+          "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "C-1",
+            "price": 300,
+            "title": "Чашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": "новая коллекция",
+          "at": "2026-10-31 19:49:32.99308+00",
+          "tx": "2577191"
+        },
+        {
+          "seq": "43",
+          "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "C-2",
+            "price": 200,
+            "title": "Блюдце"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": "новая коллекция",
+          "at": "2026-10-31 19:49:33.001671+00",
+          "tx": "2577191"
+        },
+        {
+          "seq": "44",
+          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 700,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": "зимняя витрина",
+          "at": "2026-10-31 19:49:33.03255+00",
+          "tx": "2577196"
+        },
+        {
+          "seq": "45",
+          "id": "379e28b2-fd4d-58ea-bed9-d4b3b59814d9",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "P-1",
+            "price": 100,
+            "title": "Личный заказ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:33.054647+00",
+          "tx": "2577200"
+        },
+        {
+          "seq": "46",
+          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 800,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:33.083333+00",
+          "tx": "2577204"
+        },
+        {
+          "seq": "47",
+          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 900,
+            "title": "Варежки"
+          },
+          "tags": [
+            "зима"
+          ],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:33.107598+00",
+          "tx": "2577208"
+        }
+      ],
+      "secret": [],
+      "signals": [
+        "Product"
+      ]
+    },
+    {
+      "result": {
+        "hasAll([])": 4,
+        "hasAny([])": 0
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:32.959597+00"
+        },
+        {
+          "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "C-1",
+            "price": 300,
+            "title": "Чашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": "новая коллекция",
+          "at": "2026-10-31 19:49:32.99308+00"
+        },
+        {
+          "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "C-2",
+            "price": 200,
+            "title": "Блюдце"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": "новая коллекция",
+          "at": "2026-10-31 19:49:33.001671+00"
+        },
+        {
+          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "class": "Product",
+          "rev": 3,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 900,
+            "title": "Варежки"
+          },
+          "tags": [
+            "зима"
+          ],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:33.107598+00"
+        },
+        {
+          "id": "379e28b2-fd4d-58ea-bed9-d4b3b59814d9",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "P-1",
+            "price": 100,
+            "title": "Личный заказ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:33.054647+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:32.959597+00",
+          "tx": "2577187"
+        },
+        {
+          "seq": "42",
+          "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "C-1",
+            "price": 300,
+            "title": "Чашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": "новая коллекция",
+          "at": "2026-10-31 19:49:32.99308+00",
+          "tx": "2577191"
+        },
+        {
+          "seq": "43",
+          "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "C-2",
+            "price": 200,
+            "title": "Блюдце"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": "новая коллекция",
+          "at": "2026-10-31 19:49:33.001671+00",
+          "tx": "2577191"
+        },
+        {
+          "seq": "44",
+          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 700,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": "зимняя витрина",
+          "at": "2026-10-31 19:49:33.03255+00",
+          "tx": "2577196"
+        },
+        {
+          "seq": "45",
+          "id": "379e28b2-fd4d-58ea-bed9-d4b3b59814d9",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "P-1",
+            "price": 100,
+            "title": "Личный заказ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:33.054647+00",
+          "tx": "2577200"
+        },
+        {
+          "seq": "46",
+          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 800,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:33.083333+00",
+          "tx": "2577204"
+        },
+        {
+          "seq": "47",
+          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 900,
+            "title": "Варежки"
+          },
+          "tags": [
+            "зима"
+          ],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:33.107598+00",
+          "tx": "2577208"
+        }
+      ],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "invalid_query",
+        "message": "letopis: invalid_query: limit() после update() ни на что не действует: глагол проходит по всем целям шага, а ответ — его строки. Цели сужают limit(), offset() и sort() до глагола: db.Класс(…).limit(n).update(…)",
+        "detail": null
+      },
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:32.959597+00"
+        },
+        {
+          "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "C-1",
+            "price": 300,
+            "title": "Чашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": "новая коллекция",
+          "at": "2026-10-31 19:49:32.99308+00"
+        },
+        {
+          "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "C-2",
+            "price": 200,
+            "title": "Блюдце"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": "новая коллекция",
+          "at": "2026-10-31 19:49:33.001671+00"
+        },
+        {
+          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "class": "Product",
+          "rev": 3,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 900,
+            "title": "Варежки"
+          },
+          "tags": [
+            "зима"
+          ],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:33.107598+00"
+        },
+        {
+          "id": "379e28b2-fd4d-58ea-bed9-d4b3b59814d9",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "P-1",
+            "price": 100,
+            "title": "Личный заказ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:33.054647+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:32.959597+00",
+          "tx": "2577187"
+        },
+        {
+          "seq": "42",
+          "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "C-1",
+            "price": 300,
+            "title": "Чашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": "новая коллекция",
+          "at": "2026-10-31 19:49:32.99308+00",
+          "tx": "2577191"
+        },
+        {
+          "seq": "43",
+          "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "C-2",
+            "price": 200,
+            "title": "Блюдце"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": "новая коллекция",
+          "at": "2026-10-31 19:49:33.001671+00",
+          "tx": "2577191"
+        },
+        {
+          "seq": "44",
+          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 700,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": "зимняя витрина",
+          "at": "2026-10-31 19:49:33.03255+00",
+          "tx": "2577196"
+        },
+        {
+          "seq": "45",
+          "id": "379e28b2-fd4d-58ea-bed9-d4b3b59814d9",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "P-1",
+            "price": 100,
+            "title": "Личный заказ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:33.054647+00",
+          "tx": "2577200"
+        },
+        {
+          "seq": "46",
+          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 800,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:33.083333+00",
+          "tx": "2577204"
+        },
+        {
+          "seq": "47",
+          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 900,
+            "title": "Варежки"
+          },
+          "tags": [
+            "зима"
+          ],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "f4c9882f-394c-5aff-a3fd-6de66a5715c4",
+          "reason": null,
+          "at": "2026-10-31 19:49:33.107598+00",
+          "tx": "2577208"
+        }
+      ],
+      "secret": [],
+      "signals": []
     }
   ]
 }

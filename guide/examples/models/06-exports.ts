@@ -37,6 +37,15 @@ export default example({
       },
     },
     {
+      title: 'Хэш, которому нужно слишком много памяти, — понятный отказ',
+      text:
+        'Параметры scrypt берутся из строки хэша, поэтому подходят и хэши из других систем — пока scrypt укладывается в ' +
+        '64 МБ памяти. Хэшу с N = 2²⁰ нужен гигабайт: ответ — `invalid_data` с объяснением, а не сырая ошибка Node.js и не ' +
+        '«неверный пароль».',
+      run: async () => verifyHash('Секрет-2026', 'scrypt$1048576$8$1$c2FsdA==$aGFzaA=='),
+      expect: { error: 'invalid_data' },
+    },
+    {
       title: 'Валидатор и значения по умолчанию — те же проверки, что в базе',
       text: '`compileValidator(схема)` проверяет данные до отправки; `applyDefaults` дописывает значения по умолчанию; ошибка — `ValidationError` со списком нарушений.',
       run: async ({ db }) => {
@@ -49,6 +58,12 @@ export default example({
           'ValidationError': new ValidationError('Product', bad).code,
         };
       },
+    },
+    {
+      title: 'Неверный шаблон pattern — отказ invalid_class',
+      text: 'Шаблон, неверный уже для JavaScript (здесь — незакрытая скобка), валидатор отвергает с путём поля — так же, как база отвергла бы такое описание класса.',
+      run: async () => compileValidator({ type: 'object', properties: { sku: { type: 'string', pattern: '^(K' } } }),
+      expect: { error: 'invalid_class' },
     },
     {
       title: 'Типы TypeScript по модели и реестр',

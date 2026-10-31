@@ -78,6 +78,22 @@
       "log": [],
       "secret": [],
       "signals": []
+    },
+    {
+      "result": {
+        "created": 1,
+        "reinstalled": 2,
+        "tenantCreated": 1,
+        "revisions": [
+          7
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
     }
   ]
 }

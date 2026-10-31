@@ -10,7 +10,7 @@ export default example({
     'asOf(момент) — состояние на любой момент, diff — что изменилось между версиями, blame — кто последним менял ' +
     'каждое поле.',
   tables: ['log'],
-  covers: ['chain.versions', 'chain.asOf', 'chain.diff', 'chain.blame', 'nuance.reason-in-log'],
+  covers: ['chain.versions', 'chain.asOf', 'chain.diff', 'chain.blame', 'nuance.reason-in-log', 'nuance.asof-reverse-once'],
   steps: [
     {
       title: 'Товар и три правки — с причинами',
@@ -46,6 +46,24 @@ export default example({
       title: 'Кто последним менял каждое поле',
       text: '`blame()` — для каждого поля версия, которая его последней изменила: номер, автор, время, вид операции.',
       run: async ({ db }) => db.Product(kettle).blame(),
+    },
+    {
+      title: 'Срез по обратному переходу: товар в двух категориях — один раз',
+      text:
+        'Чайник положили в две категории. Шаг `Product()` после `Category()` идёт по ссылкам назад — от категорий к ' +
+        'товарам, которые на них ссылаются, а чайник ссылается на обе. В срезе `asOf()` он приходит один раз, как и без ' +
+        'среза, а `count()` и путей — по одному на категорию.',
+      run: async ({ db }) => {
+        const [tea] = await db.Category().create({ name: 'Чай и кофе' }).rows();
+        const [dishes] = await db.Category().create({ name: 'Посуда' }).rows();
+        const [row] = await db.Product(kettle).update({}).Category.add([tea.id, dishes.id]).rows();
+        return {
+          'строк сейчас': (await db.Category().Product().rows()).length,
+          'строк в срезе asOf': (await db.Category().Product().asOf(row.at).rows()).length,
+          'count() в срезе': await db.Category().Product().asOf(row.at).count(),
+          'путей в срезе': (await db.Category().Product().asOf(row.at).paths()).length,
+        };
+      },
     },
   ],
 });

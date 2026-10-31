@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_f80309b4783e95e3988f6bd17e1ed20248053f92667bfce52e7d516da878ab5c",
+      "serviceKey": "lts_ed50116a8d53346e1abc46e0889b41cfc27368d3a753d524457522975a036328",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "950f201f9438af33122610f516ad352b3ab47880043053511491e21144aeeaf3",
+        "token": "c610ace3d4113735b746383800ae6492c4d4b885f88ad32a72e998f32afddcd4",
         "created": true
       }
     }
@@ -27,7 +27,7 @@
   },
   "steps": [
     {
-      "result": "letopis ddl_revision=7 engine=1.4.1-alpha.0 sql=5f82214869be7696",
+      "result": "letopis ddl_revision=7 engine=1.4.1-alpha.0 sql=0af50f4fdb035557",
       "error": null,
       "entity": [],
       "removed": [],
@@ -48,6 +48,20 @@
     },
     {
       "result": [],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "connect() предупредил": [
+          "letopis: движок схемы v2.g_install_05_engine_stamp ревизии 8 новее библиотеки (она знает 7) — обновите пакет letopis"
+        ],
+        "up() отказал": "letopis.up: схема v2.g_install_05_engine_stamp ревизии 8, а библиотека знает только 7 — обновите пакет"
+      },
       "error": null,
       "entity": [],
       "removed": [],

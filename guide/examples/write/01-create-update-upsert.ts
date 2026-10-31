@@ -9,7 +9,7 @@ export default example({
   summary:
     'create только создаёт, update только правит, upsert создаёт или заменяет целиком. Глагол ничего не делает ' +
     'сам: план исполняет терминал (rows, first, ids, count), и весь план — одна транзакция.',
-  covers: ['chain.create', 'chain.update', 'chain.upsert', 'chain.first', 'export.gte', 'error.no_key', 'nuance.update-merge', 'nuance.update-empty-target', 'nuance.upsert-replaces'],
+  covers: ['chain.create', 'chain.update', 'chain.upsert', 'chain.first', 'export.gte', 'error.no_key', 'nuance.update-merge', 'nuance.update-empty-target', 'nuance.upsert-replaces', 'nuance.mods-after-verb'],
   steps: [
     {
       title: 'Модель магазина и магазин',
@@ -45,6 +45,21 @@ export default example({
       title: 'Ничего не нашлось — пустой ответ, не ошибка',
       text: 'Если шаг не нашёл строк, `update` возвращает пустой список. Проверяйте длину ответа.',
       run: async ({ db }) => db.Shop(shop).Product({ price: gte(100_000) }).update({ title: 'Золотой чайник' }).rows(),
+    },
+    {
+      title: 'Сузить правку — модификатором до глагола',
+      text:
+        '`sort` и `limit` перед `update` выбирают его цели: здесь — один самый дорогой товар магазина. Кружка не ' +
+        'изменилась. Так же действует `offset`.',
+      run: async ({ db }) => db.Shop(shop).Product().sort('data.price', 'desc').limit(1).update({ labels: ['дорогой'] }).rows(),
+    },
+    {
+      title: 'limit после глагола — ошибка',
+      text:
+        'Модификатор между глаголом и терминалом уже ничего не сужает: `update` прошёл бы по всем товарам, а `limit` ' +
+        'обрезал бы только ответ. Поэтому библиотека отказывает `invalid_query` и ничего не пишет — проверьте журнал.',
+      run: async ({ db }) => db.Shop(shop).Product().update({ labels: ['распродажа'] }).limit(1).rows(),
+      expect: { error: 'invalid_query' },
     },
     {
       title: 'upsert: такого нет — создать',

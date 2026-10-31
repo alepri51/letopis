@@ -1,7 +1,12 @@
-import { cursorOf } from 'letopis';
+import { cursorOf, syncModels } from 'letopis';
 import type { Row } from 'letopis';
+import { hub } from 'letopis/model';
+import { z } from 'zod';
 import { example } from '../../kit/example.ts';
 import { seedShop, type ShopData } from '../../kit/shop.ts';
+
+/** Задача с логическим полем — для итогов min и max по true/false. */
+const Task = hub('Task', { title: z.string(), done: z.boolean() }, {});
 
 let d: ShopData;
 let page1: Row[];
@@ -63,6 +68,18 @@ export default example({
         'самый дорогой': await db.Product().max('data.price'),
         'сумма по пустому': await db.Shop(d.lutik).Order().line().sum('data.price'),
       }),
+    },
+    {
+      title: 'Минимум и максимум логического поля',
+      text:
+        'У логического поля `false` меньше `true`: `min` даёт `false`, если есть хоть одно `false` («все ли сделаны»), ' +
+        '`max` — `true`, если есть хоть одно `true` («сделана ли хоть одна»).',
+      run: async ({ db }) => {
+        await syncModels(db, [Task], { apply: true }); // скрыть
+        await db.Task().create({ title: 'Позвонить', done: true }).rows();
+        await db.Task().create({ title: 'Написать', done: false }).rows();
+        return { 'min(done)': await db.Task().min('data.done'), 'max(done)': await db.Task().max('data.done') };
+      },
     },
     {
       title: 'Группировка countBy',

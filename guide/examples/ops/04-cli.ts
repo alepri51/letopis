@@ -70,6 +70,17 @@ export default example({
       },
     },
     {
+      title: 'Без действующей сессии types и describe отказывают',
+      text:
+        'Обе команды читают модель от имени сессии. С неверным, истёкшим или погашенным токеном модели не видно — и ' +
+        'вместо пустого результата команда выходит с кодом 1 и ошибкой `no_session`, а файл `--out` остаётся прежним: ' +
+        'в нём всё ещё описание из прошлого шага.',
+      run: async ({ dsn, schema }) => {
+        const r = await cli(['types', '--dsn', dsn.app, '--schema', schema, '--token', 'погашенный-токен', '--out', join(dir, 'model.txt')]);
+        return { 'код выхода': r.code, ошибка: r.err.split('\n')[0], 'model.txt начинается с': (await readFile(join(dir, 'model.txt'), 'utf8')).split('\n')[0] };
+      },
+    },
+    {
       title: 'verify и maintain',
       text: '`verify` завершается с кодом 1, если нашёл нарушения (удобно в CI); `maintain` печатает отчёт одной строкой.',
       run: async ({ dsn, schema }) => {
