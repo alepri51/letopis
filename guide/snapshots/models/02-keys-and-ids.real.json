@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_d7111ce45eee061b046303c9aac3c016540b6042195633cc24189ea0344d52ce",
+      "serviceKey": "lts_61c048afb2f58831b02d3638a95b190159fea96a7c34fe33abebb5cf86e17a47",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "a58eb37d07e908136aa4a0dc9139d2be77e685c5ac987a4858ad2ac0532b598f",
+        "token": "bc05e3038b6ad4c4a3c6a017f2b7bb2c193e347d8700af764101f61e7526d24b",
         "created": true
       }
     }
@@ -28,7 +28,7 @@
   "steps": [
     {
       "result": {
-        "at": "2026-10-30T09:40:51.06271+00:00",
+        "at": "2026-10-31T21:23:49.517346+00:00",
         "id": "820d0964-969f-5ad6-bc38-f38710912f70",
         "op": "create",
         "rev": 1,
@@ -41,7 +41,7 @@
         "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "author": "3defbabb-a94d-5359-8463-dc947de193e1",
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184"
+        "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b"
       },
       "error": null,
       "entity": [
@@ -58,9 +58,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
           "reason": null,
-          "at": "2026-10-30 09:40:51.06271+00"
+          "at": "2026-10-31 21:23:49.517346+00"
         }
       ],
       "removed": [],
@@ -78,10 +78,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
           "reason": null,
-          "at": "2026-10-30 09:40:51.06271+00",
-          "tx": "2510279"
+          "at": "2026-10-31 21:23:49.517346+00",
+          "tx": "2611701"
         }
       ],
       "secret": [],
@@ -107,9 +107,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
           "reason": null,
-          "at": "2026-10-30 09:40:51.06271+00"
+          "at": "2026-10-31 21:23:49.517346+00"
         }
       ],
       "removed": [],
@@ -127,10 +127,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
           "reason": null,
-          "at": "2026-10-30 09:40:51.06271+00",
-          "tx": "2510279"
+          "at": "2026-10-31 21:23:49.517346+00",
+          "tx": "2611701"
         }
       ],
       "secret": [],
@@ -163,9 +163,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
           "reason": null,
-          "at": "2026-10-30 09:40:51.06271+00"
+          "at": "2026-10-31 21:23:49.517346+00"
         }
       ],
       "removed": [],
@@ -183,10 +183,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
           "reason": null,
-          "at": "2026-10-30 09:40:51.06271+00",
-          "tx": "2510279"
+          "at": "2026-10-31 21:23:49.517346+00",
+          "tx": "2611701"
         }
       ],
       "secret": [],
@@ -209,12 +209,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
           "reason": null,
-          "at": "2026-10-30 09:40:51.06271+00"
+          "at": "2026-10-31 21:23:49.517346+00"
         },
         {
-          "id": "ef4005ed-4c14-5e56-b2d4-688d1fd7d18e",
+          "id": "3edcf019-6459-524c-8455-9b915e00c100",
           "class": "Visitor",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -226,12 +226,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
           "reason": null,
-          "at": "2026-10-30 09:40:51.097352+00"
+          "at": "2026-10-31 21:23:49.539875+00"
         },
         {
-          "id": "3b68fd58-d680-54b8-9642-ca5e8713439c",
+          "id": "714ad668-a757-5105-b24f-17ae6d3ba65b",
           "class": "Visitor",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -243,9 +243,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
           "reason": null,
-          "at": "2026-10-30 09:40:51.107502+00"
+          "at": "2026-10-31 21:23:49.547117+00"
         }
       ],
       "removed": [],
@@ -263,14 +263,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
           "reason": null,
-          "at": "2026-10-30 09:40:51.06271+00",
-          "tx": "2510279"
+          "at": "2026-10-31 21:23:49.517346+00",
+          "tx": "2611701"
         },
         {
           "seq": "38",
-          "id": "ef4005ed-4c14-5e56-b2d4-688d1fd7d18e",
+          "id": "3edcf019-6459-524c-8455-9b915e00c100",
           "rev": 1,
           "class": "Visitor",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -281,14 +281,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
           "reason": null,
-          "at": "2026-10-30 09:40:51.097352+00",
-          "tx": "2510285"
+          "at": "2026-10-31 21:23:49.539875+00",
+          "tx": "2611707"
         },
         {
           "seq": "39",
-          "id": "3b68fd58-d680-54b8-9642-ca5e8713439c",
+          "id": "714ad668-a757-5105-b24f-17ae6d3ba65b",
           "rev": 1,
           "class": "Visitor",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -299,10 +299,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
           "reason": null,
-          "at": "2026-10-30 09:40:51.107502+00",
-          "tx": "2510287"
+          "at": "2026-10-31 21:23:49.547117+00",
+          "tx": "2611709"
         }
       ],
       "secret": [],
@@ -331,12 +331,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
           "reason": null,
-          "at": "2026-10-30 09:40:51.06271+00"
+          "at": "2026-10-31 21:23:49.517346+00"
         },
         {
-          "id": "ef4005ed-4c14-5e56-b2d4-688d1fd7d18e",
+          "id": "3edcf019-6459-524c-8455-9b915e00c100",
           "class": "Visitor",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -348,12 +348,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
           "reason": null,
-          "at": "2026-10-30 09:40:51.097352+00"
+          "at": "2026-10-31 21:23:49.539875+00"
         },
         {
-          "id": "3b68fd58-d680-54b8-9642-ca5e8713439c",
+          "id": "714ad668-a757-5105-b24f-17ae6d3ba65b",
           "class": "Visitor",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -365,9 +365,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
           "reason": null,
-          "at": "2026-10-30 09:40:51.107502+00"
+          "at": "2026-10-31 21:23:49.547117+00"
         }
       ],
       "removed": [],
@@ -385,14 +385,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
           "reason": null,
-          "at": "2026-10-30 09:40:51.06271+00",
-          "tx": "2510279"
+          "at": "2026-10-31 21:23:49.517346+00",
+          "tx": "2611701"
         },
         {
           "seq": "38",
-          "id": "ef4005ed-4c14-5e56-b2d4-688d1fd7d18e",
+          "id": "3edcf019-6459-524c-8455-9b915e00c100",
           "rev": 1,
           "class": "Visitor",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -403,14 +403,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
           "reason": null,
-          "at": "2026-10-30 09:40:51.097352+00",
-          "tx": "2510285"
+          "at": "2026-10-31 21:23:49.539875+00",
+          "tx": "2611707"
         },
         {
           "seq": "39",
-          "id": "3b68fd58-d680-54b8-9642-ca5e8713439c",
+          "id": "714ad668-a757-5105-b24f-17ae6d3ba65b",
           "rev": 1,
           "class": "Visitor",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -421,10 +421,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
           "reason": null,
-          "at": "2026-10-30 09:40:51.107502+00",
-          "tx": "2510287"
+          "at": "2026-10-31 21:23:49.547117+00",
+          "tx": "2611709"
         }
       ],
       "secret": [],
@@ -447,12 +447,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
           "reason": null,
-          "at": "2026-10-30 09:40:51.06271+00"
+          "at": "2026-10-31 21:23:49.517346+00"
         },
         {
-          "id": "ef4005ed-4c14-5e56-b2d4-688d1fd7d18e",
+          "id": "3edcf019-6459-524c-8455-9b915e00c100",
           "class": "Visitor",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -464,12 +464,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
           "reason": null,
-          "at": "2026-10-30 09:40:51.097352+00"
+          "at": "2026-10-31 21:23:49.539875+00"
         },
         {
-          "id": "3b68fd58-d680-54b8-9642-ca5e8713439c",
+          "id": "714ad668-a757-5105-b24f-17ae6d3ba65b",
           "class": "Visitor",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -481,9 +481,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
           "reason": null,
-          "at": "2026-10-30 09:40:51.107502+00"
+          "at": "2026-10-31 21:23:49.547117+00"
         }
       ],
       "removed": [],
@@ -501,14 +501,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
           "reason": null,
-          "at": "2026-10-30 09:40:51.06271+00",
-          "tx": "2510279"
+          "at": "2026-10-31 21:23:49.517346+00",
+          "tx": "2611701"
         },
         {
           "seq": "38",
-          "id": "ef4005ed-4c14-5e56-b2d4-688d1fd7d18e",
+          "id": "3edcf019-6459-524c-8455-9b915e00c100",
           "rev": 1,
           "class": "Visitor",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -519,14 +519,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
           "reason": null,
-          "at": "2026-10-30 09:40:51.097352+00",
-          "tx": "2510285"
+          "at": "2026-10-31 21:23:49.539875+00",
+          "tx": "2611707"
         },
         {
           "seq": "39",
-          "id": "3b68fd58-d680-54b8-9642-ca5e8713439c",
+          "id": "714ad668-a757-5105-b24f-17ae6d3ba65b",
           "rev": 1,
           "class": "Visitor",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -537,10 +537,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "360a2d5b-5b77-5011-b3e3-fab3f50cb184",
+          "agent": "5f8780d3-f6f4-54d8-acad-8ea19d9f4c0b",
           "reason": null,
-          "at": "2026-10-30 09:40:51.107502+00",
-          "tx": "2510287"
+          "at": "2026-10-31 21:23:49.547117+00",
+          "tx": "2611709"
         }
       ],
       "secret": [],

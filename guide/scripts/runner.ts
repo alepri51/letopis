@@ -48,9 +48,12 @@ const dedent = (text: string): string => {
   return lines.map((l) => l.slice(pad)).join('\n');
 };
 
+/** Переводы строк — LF: на Windows git выдаёт файлы с CRLF, и снимок, записанный там, разошёлся бы с CI (Linux). */
+const lf = (text: string): string => text.split(String.fromCharCode(13) + String.fromCharCode(10)).join(String.fromCharCode(10));
+
 /** Тела функций `run` шагов — ровно тот код, что исполняется; строки с `// скрыть` убираются. */
 function stepCodes(file: string): { code: string; params: string[] }[] {
-  const src = readFileSync(file, 'utf8');
+  const src = lf(readFileSync(file, 'utf8'));
   const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const codes: { code: string; params: string[] }[] = [];
   const visit = (node: ts.Node): void => {
@@ -489,7 +492,7 @@ export async function runExample(
     schema, dsn: { admin: ADMIN_DSN, app: appDsn() }, user: { login: USER.login, password: USER.password },
     up: r ? { serviceKey: r.serviceKey ?? null, tenant: r.tenant ?? null } : null,
   };
-  const source = readFileSync(file, 'utf8');
+  const source = lf(readFileSync(file, 'utf8'));
   const sourceHtml = await codeToHtml(source, { lang: 'ts', themes: { light: 'github-light', dark: 'github-dark' } });
   return {
     id,

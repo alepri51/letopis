@@ -54,6 +54,17 @@ export default example({
       run: async ({ db }) => db.Shop(shop).Product().sort('data.price', 'desc').limit(1).update({ labels: ['дорогой'] }).rows(),
     },
     {
+      title: 'Ответ правки — в порядке sort() до глагола',
+      text:
+        'Строки ответа глагола идут в порядке его целей: по `sort()` до глагола, без него — по id. Поэтому `first()` ' +
+        'после глагола — первая по этому порядку строка, а не случайная из исправленных.',
+      run: async ({ db }) => ({
+        'по возрастанию цены': (await db.Shop(shop).Product().sort('data.price').update({ labels: ['по возрастанию'] }).rows()).map((p) => p.data.sku),
+        'по убыванию цены': (await db.Shop(shop).Product().sort('data.price', 'desc').update({ labels: ['по убыванию'] }).rows()).map((p) => p.data.sku),
+        'first() после sort по убыванию': (await db.Shop(shop).Product().sort('data.price', 'desc').update({ labels: ['дорогой'] }).first())?.data.sku,
+      }),
+    },
+    {
       title: 'limit после глагола — ошибка',
       text:
         'Модификатор между глаголом и терминалом уже ничего не сужает: `update` прошёл бы по всем товарам, а `limit` ' +

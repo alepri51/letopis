@@ -489,6 +489,15 @@ async function explainMissing(w: WriteCtx, missing: string[], rev?: number): Pro
   return fail('acl_denied', `строки видны, но изменить их нельзя: ${seen.map((r) => r.id).join(', ')}`, { ids: seen.map((r) => r.id) });
 }
 
+/**
+ * Строки ответа глагола — в порядке целей (`targetIds`: по `sort()` до глагола, иначе по id). `update … returning`
+ * отдаёт их в порядке обхода таблицы, и `first()` после глагола брал бы случайную из исправленных строк.
+ */
+function inTargetOrder<T extends { id?: unknown }>(ids: string[], rows: T[]): T[] {
+  const pos = new Map(ids.map((id, i) => [id, i]));
+  return rows.sort((a, b) => (pos.get(a.id as string) ?? 0) - (pos.get(b.id as string) ?? 0));
+}
+
 /** Цели update/delete/anonymize/reclass: id из пути (limit и sort сужают); data.id — если у шага нет фильтра. */
 async function targetIds(w: WriteCtx, steps: Step[], opStep: Step, dataId?: string): Promise<string[]> {
   const path = steps.map(bare);
@@ -528,7 +537,7 @@ async function updateOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<Write
     const got = new Set(res.map((r) => r.row.id as string));
     await explainMissing(w, ids.filter((x) => !got.has(x)), op.rev);
   }
-  return res.map((r) => toRow(r.row));
+  return inTargetOrder(ids, res.map((r) => toRow(r.row)));
 }
 
 async function deleteOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {
@@ -585,7 +594,7 @@ async function anonymizeOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<Wr
     const got = new Set(res.map((r) => r.row.id as string));
     await explainMissing(w, ids.filter((x) => !got.has(x)));
   }
-  return res.map((r) => toRow(r.row));
+  return inTargetOrder(ids, res.map((r) => toRow(r.row)));
 }
 
 async function reclassOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {

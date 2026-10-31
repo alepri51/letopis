@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_a041874f52ab3248af69da1784aceceb07d1e8efd4e77446b6dcbfcea3ecc95f",
+      "serviceKey": "lts_e98cc233c6aaf727f5e6f0087d25fc26bb96344a76c6cff8ff9343708a52fdf5",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "03e6576a8e5fa61d315502a4ead51b382aa691074a14b56c3da5fb46948ab5c8",
+        "token": "982facfcb36376671e50ef52a078c6512bddf25595fd3e2041562b58d62c2546",
         "created": true
       }
     }
@@ -29,7 +29,7 @@
     {
       "result": {
         "ok": true,
-        "anchor": "23247aa4901bea20d4db52cfc8f06c7a00cd59db7c78ea640b4f62d9011cbb1e",
+        "anchor": "c374d152d03d1bf997d440eeb9f35f5dff9c513a9b547fcac53d5fefac5d179b",
         "issues": []
       },
       "error": null,
@@ -51,7 +51,7 @@
     {
       "result": {
         "ok": false,
-        "anchor": "23247aa4901bea20d4db52cfc8f06c7a00cd59db7c78ea640b4f62d9011cbb1e",
+        "anchor": "c374d152d03d1bf997d440eeb9f35f5dff9c513a9b547fcac53d5fefac5d179b",
         "issues": [
           {
             "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
@@ -70,7 +70,7 @@
     {
       "result": {
         "ok": true,
-        "anchor": "23247aa4901bea20d4db52cfc8f06c7a00cd59db7c78ea640b4f62d9011cbb1e",
+        "anchor": "c374d152d03d1bf997d440eeb9f35f5dff9c513a9b547fcac53d5fefac5d179b",
         "issues": []
       },
       "error": null,
@@ -83,7 +83,7 @@
     {
       "result": {
         "ok": false,
-        "anchor": "23247aa4901bea20d4db52cfc8f06c7a00cd59db7c78ea640b4f62d9011cbb1e",
+        "anchor": "c374d152d03d1bf997d440eeb9f35f5dff9c513a9b547fcac53d5fefac5d179b",
         "issues": [
           {
             "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",

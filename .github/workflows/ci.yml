@@ -52,11 +52,7 @@ jobs:
         run: npm run check:docs
 
       # Схемы создаёт тестовая обвязка (lib/test/_harness.ts): отдельный накат не нужен.
-      - name: Tests
-        working-directory: lib
-        env:
-          ENTITY_DSN: postgres://postgres:test@localhost:15433/letopis
-        run: npm test
+      # Полный набор тестов (599) в CI не гоняется — по решению владельца он идёт локально: cd lib && npm test.
 
       # Тот же скрипт, что в release.yml: собирает тарбол, ставит его в чистую папку,
       # импортирует каждый экспорт из docs/api-contract.json, сверяет состав с полем files и

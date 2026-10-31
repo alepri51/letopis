@@ -38,8 +38,8 @@
       }
     }
   },
-  "source": "import { gte } from 'letopis';\nimport { example } from '../../kit/example.ts';\nimport { syncShop } from '../../kit/shop.ts';\n\nlet shop: { id: string }, kettle: { id: string };\n\nexport default example({\n  title: 'Создать, изменить, создать-или-заменить',\n  summary:\n    'create только создаёт, update только правит, upsert создаёт или заменяет целиком. Глагол ничего не делает ' +\n    'сам: план исполняет терминал (rows, first, ids, count), и весь план — одна транзакция.',\n  covers: ['chain.create', 'chain.update', 'chain.upsert', 'chain.first', 'export.gte', 'error.no_key', 'nuance.update-merge', 'nuance.update-empty-target', 'nuance.upsert-replaces', 'nuance.mods-after-verb'],\n  steps: [\n    {\n      title: 'Модель магазина и магазин',\n      run: async ({ db }) => {\n        await syncShop(db); // скрыть\n        [shop] = await db.Shop().create({ name: 'Ромашка', city: 'Казань' }).rows();\n        return shop;\n      },\n    },\n    {\n      title: 'Два товара',\n      text: 'Ссылка на магазин берётся из пути цепочки `db.Shop(shop).Product()`.',\n      run: async ({ db }) => {\n        [kettle] = await db.Shop(shop).Product()\n          .create({ sku: 'K-1', title: 'Чайник', price: 2500, specs: { color: 'белый', volume: 1.7 }, labels: ['хит'] }).rows();\n        return db.Shop(shop).Product().create({ sku: 'M-1', title: 'Кружка', price: 400 }).rows();\n      },\n    },\n    {\n      title: 'update меняет только переданные поля',\n      text:\n        'Вложенный объект `specs` меняется по полям: передали только цвет — объём остался. Массив `labels` и простые ' +\n        'значения (строки, числа) заменяются целиком. Изменения применяет сама база, поэтому одновременные правки ' +\n        'разных полей не теряются.',\n      run: async ({ db }) => db.Product(kettle).update({ specs: { color: 'чёрный' }, labels: ['хит', 'новинка'] }).rows(),\n    },\n    {\n      title: 'update по фильтру правит все найденные',\n      text: 'Шаг с фильтром `price ≥ 1000` нашёл один товар — он и изменён. Без фильтра `update` правит все строки шага.',\n      run: async ({ db }) => db.Shop(shop).Product({ price: gte(1000) }).update({ title: 'Чайник стеклянный' }).rows(),\n    },\n    {\n      title: 'Ничего не нашлось — пустой ответ, не ошибка',\n      text: 'Если шаг не нашёл строк, `update` возвращает пустой список. Проверяйте длину ответа.',\n      run: async ({ db }) => db.Shop(shop).Product({ price: gte(100_000) }).update({ title: 'Золотой чайник' }).rows(),\n    },\n    {\n      title: 'Сузить правку — модификатором до глагола',\n      text:\n        '`sort` и `limit` перед `update` выбирают его цели: здесь — один самый дорогой товар магазина. Кружка не ' +\n        'изменилась. Так же действует `offset`.',\n      run: async ({ db }) => db.Shop(shop).Product().sort('data.price', 'desc').limit(1).update({ labels: ['дорогой'] }).rows(),\n    },\n    {\n      title: 'limit после глагола — ошибка',\n      text:\n        'Модификатор между глаголом и терминалом уже ничего не сужает: `update` прошёл бы по всем товарам, а `limit` ' +\n        'обрезал бы только ответ. Поэтому библиотека отказывает `invalid_query` и ничего не пишет — проверьте журнал.',\n      run: async ({ db }) => db.Shop(shop).Product().update({ labels: ['распродажа'] }).limit(1).rows(),\n      expect: { error: 'invalid_query' },\n    },\n    {\n      title: 'upsert: такого нет — создать',\n      text:\n        '`upsert` — один SQL-оператор `INSERT … ON CONFLICT`. Поэтому не бывает гонки, когда два запроса одновременно ' +\n        'убедились, что объекта нет, и оба его создают. Поле `$upsert` в ответе говорит, что произошло: здесь `created`.',\n      run: async ({ db }) => db.Shop().upsert({ name: 'Лютик', city: 'Уфа' }).rows(),\n    },\n    {\n      title: 'upsert: то же самое — без изменений',\n      run: async ({ db }) => db.Shop().upsert({ name: 'Лютик', city: 'Уфа' }).rows(),\n    },\n    {\n      title: 'upsert заменяет целиком',\n      text:\n        'Объект передаётся целиком: поля, которых нет в переданном объекте, пропадают. Здесь не передали `city` — ' +\n        'город исчез. Для денег `upsert` не годится: он затирает параллельные приращения.',\n      run: async ({ db }) => db.Shop().upsert({ name: 'Лютик' }).rows(),\n    },\n    {\n      title: 'upsert без ключа невозможен',\n      text: 'У покупателя нет ключа — найти «тот же» объект не по чему. Отказ `no_key` приходит ещё до обращения к базе.',\n      run: async ({ db }) => db.Customer().upsert({ name: 'Ольга', email: 'olga@mail.ru' }).rows(),\n      expect: { error: 'no_key' },\n    },\n  ],\n});\n",
-  "sourceHtml": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { gte } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'letopis'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { example } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> '../../kit/example.ts'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { syncShop } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> '../../kit/shop.ts'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">let</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> shop</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">id</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, kettle</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">id</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> };</span></span>\n<span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">export</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> default</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> example</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Создать, изменить, создать-или-заменить'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  summary:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'create только создаёт, update только правит, upsert создаёт или заменяет целиком. Глагол ничего не делает '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'сам: план исполняет терминал (rows, first, ids, count), и весь план — одна транзакция.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  covers: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'chain.create'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'chain.update'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'chain.upsert'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'chain.first'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'export.gte'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'error.no_key'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.update-merge'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.update-empty-target'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.upsert-replaces'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.mods-after-verb'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  steps: [</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Модель магазина и магазин'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncShop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db); </span><span style=\"color:#6A737D;--shiki-dark:#6A737D\">// скрыть</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        [shop] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, city: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Казань'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> shop;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Два товара'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ссылка на магазин берётся из пути цепочки `db.Shop(shop).Product()`.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        [kettle] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">          .</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'K-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2500</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, specs: { color: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'белый'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, volume: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1.7</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'хит'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'M-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Кружка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">400</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'update меняет только переданные поля'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Вложенный объект `specs` меняется по полям: передали только цвет — объём остался. Массив `labels` и простые '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'значения (строки, числа) заменяются целиком. Изменения применяет сама база, поэтому одновременные правки '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'разных полей не теряются.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ specs: { color: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'чёрный'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'хит'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'новинка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'update по фильтру правит все найденные'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Шаг с фильтром `price ≥ 1000` нашёл один товар — он и изменён. Без фильтра `update` правит все строки шага.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">gte</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник стеклянный'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ничего не нашлось — пустой ответ, не ошибка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Если шаг не нашёл строк, `update` возвращает пустой список. Проверяйте длину ответа.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">gte</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">100_000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Золотой чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Сузить правку — модификатором до глагола'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '`sort` и `limit` перед `update` выбирают его цели: здесь — один самый дорогой товар магазина. Кружка не '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'изменилась. Так же действует `offset`.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sort</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'data.price'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'desc'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">limit</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'дорогой'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'limit после глагола — ошибка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Модификатор между глаголом и терминалом уже ничего не сужает: `update` прошёл бы по всем товарам, а `limit` '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'обрезал бы только ответ. Поэтому библиотека отказывает `invalid_query` и ничего не пишет — проверьте журнал.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'распродажа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">limit</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      expect: { error: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'invalid_query'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'upsert: такого нет — создать'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '`upsert` — один SQL-оператор `INSERT … ON CONFLICT`. Поэтому не бывает гонки, когда два запроса одновременно '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'убедились, что объекта нет, и оба его создают. Поле `$upsert` в ответе говорит, что произошло: здесь `created`.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, city: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Уфа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'upsert: то же самое — без изменений'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, city: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Уфа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'upsert заменяет целиком'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Объект передаётся целиком: поля, которых нет в переданном объекте, пропадают. Здесь не передали `city` — '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'город исчез. Для денег `upsert` не годится: он затирает параллельные приращения.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'upsert без ключа невозможен'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'У покупателя нет ключа — найти «тот же» объект не по чему. Отказ `no_key` приходит ещё до обращения к базе.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ольга'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'olga@mail.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      expect: { error: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'no_key'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  ],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">});</span></span>\n<span class=\"line\"></span></code></pre>",
+  "source": "import { gte } from 'letopis';\nimport { example } from '../../kit/example.ts';\nimport { syncShop } from '../../kit/shop.ts';\n\nlet shop: { id: string }, kettle: { id: string };\n\nexport default example({\n  title: 'Создать, изменить, создать-или-заменить',\n  summary:\n    'create только создаёт, update только правит, upsert создаёт или заменяет целиком. Глагол ничего не делает ' +\n    'сам: план исполняет терминал (rows, first, ids, count), и весь план — одна транзакция.',\n  covers: ['chain.create', 'chain.update', 'chain.upsert', 'chain.first', 'export.gte', 'error.no_key', 'nuance.update-merge', 'nuance.update-empty-target', 'nuance.upsert-replaces', 'nuance.mods-after-verb'],\n  steps: [\n    {\n      title: 'Модель магазина и магазин',\n      run: async ({ db }) => {\n        await syncShop(db); // скрыть\n        [shop] = await db.Shop().create({ name: 'Ромашка', city: 'Казань' }).rows();\n        return shop;\n      },\n    },\n    {\n      title: 'Два товара',\n      text: 'Ссылка на магазин берётся из пути цепочки `db.Shop(shop).Product()`.',\n      run: async ({ db }) => {\n        [kettle] = await db.Shop(shop).Product()\n          .create({ sku: 'K-1', title: 'Чайник', price: 2500, specs: { color: 'белый', volume: 1.7 }, labels: ['хит'] }).rows();\n        return db.Shop(shop).Product().create({ sku: 'M-1', title: 'Кружка', price: 400 }).rows();\n      },\n    },\n    {\n      title: 'update меняет только переданные поля',\n      text:\n        'Вложенный объект `specs` меняется по полям: передали только цвет — объём остался. Массив `labels` и простые ' +\n        'значения (строки, числа) заменяются целиком. Изменения применяет сама база, поэтому одновременные правки ' +\n        'разных полей не теряются.',\n      run: async ({ db }) => db.Product(kettle).update({ specs: { color: 'чёрный' }, labels: ['хит', 'новинка'] }).rows(),\n    },\n    {\n      title: 'update по фильтру правит все найденные',\n      text: 'Шаг с фильтром `price ≥ 1000` нашёл один товар — он и изменён. Без фильтра `update` правит все строки шага.',\n      run: async ({ db }) => db.Shop(shop).Product({ price: gte(1000) }).update({ title: 'Чайник стеклянный' }).rows(),\n    },\n    {\n      title: 'Ничего не нашлось — пустой ответ, не ошибка',\n      text: 'Если шаг не нашёл строк, `update` возвращает пустой список. Проверяйте длину ответа.',\n      run: async ({ db }) => db.Shop(shop).Product({ price: gte(100_000) }).update({ title: 'Золотой чайник' }).rows(),\n    },\n    {\n      title: 'Сузить правку — модификатором до глагола',\n      text:\n        '`sort` и `limit` перед `update` выбирают его цели: здесь — один самый дорогой товар магазина. Кружка не ' +\n        'изменилась. Так же действует `offset`.',\n      run: async ({ db }) => db.Shop(shop).Product().sort('data.price', 'desc').limit(1).update({ labels: ['дорогой'] }).rows(),\n    },\n    {\n      title: 'Ответ правки — в порядке sort() до глагола',\n      text:\n        'Строки ответа глагола идут в порядке его целей: по `sort()` до глагола, без него — по id. Поэтому `first()` ' +\n        'после глагола — первая по этому порядку строка, а не случайная из исправленных.',\n      run: async ({ db }) => ({\n        'по возрастанию цены': (await db.Shop(shop).Product().sort('data.price').update({ labels: ['по возрастанию'] }).rows()).map((p) => p.data.sku),\n        'по убыванию цены': (await db.Shop(shop).Product().sort('data.price', 'desc').update({ labels: ['по убыванию'] }).rows()).map((p) => p.data.sku),\n        'first() после sort по убыванию': (await db.Shop(shop).Product().sort('data.price', 'desc').update({ labels: ['дорогой'] }).first())?.data.sku,\n      }),\n    },\n    {\n      title: 'limit после глагола — ошибка',\n      text:\n        'Модификатор между глаголом и терминалом уже ничего не сужает: `update` прошёл бы по всем товарам, а `limit` ' +\n        'обрезал бы только ответ. Поэтому библиотека отказывает `invalid_query` и ничего не пишет — проверьте журнал.',\n      run: async ({ db }) => db.Shop(shop).Product().update({ labels: ['распродажа'] }).limit(1).rows(),\n      expect: { error: 'invalid_query' },\n    },\n    {\n      title: 'upsert: такого нет — создать',\n      text:\n        '`upsert` — один SQL-оператор `INSERT … ON CONFLICT`. Поэтому не бывает гонки, когда два запроса одновременно ' +\n        'убедились, что объекта нет, и оба его создают. Поле `$upsert` в ответе говорит, что произошло: здесь `created`.',\n      run: async ({ db }) => db.Shop().upsert({ name: 'Лютик', city: 'Уфа' }).rows(),\n    },\n    {\n      title: 'upsert: то же самое — без изменений',\n      run: async ({ db }) => db.Shop().upsert({ name: 'Лютик', city: 'Уфа' }).rows(),\n    },\n    {\n      title: 'upsert заменяет целиком',\n      text:\n        'Объект передаётся целиком: поля, которых нет в переданном объекте, пропадают. Здесь не передали `city` — ' +\n        'город исчез. Для денег `upsert` не годится: он затирает параллельные приращения.',\n      run: async ({ db }) => db.Shop().upsert({ name: 'Лютик' }).rows(),\n    },\n    {\n      title: 'upsert без ключа невозможен',\n      text: 'У покупателя нет ключа — найти «тот же» объект не по чему. Отказ `no_key` приходит ещё до обращения к базе.',\n      run: async ({ db }) => db.Customer().upsert({ name: 'Ольга', email: 'olga@mail.ru' }).rows(),\n      expect: { error: 'no_key' },\n    },\n  ],\n});\n",
+  "sourceHtml": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { gte } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'letopis'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { example } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> '../../kit/example.ts'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { syncShop } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> '../../kit/shop.ts'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">let</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> shop</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">id</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, kettle</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">id</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> };</span></span>\n<span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">export</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> default</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> example</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Создать, изменить, создать-или-заменить'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  summary:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'create только создаёт, update только правит, upsert создаёт или заменяет целиком. Глагол ничего не делает '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'сам: план исполняет терминал (rows, first, ids, count), и весь план — одна транзакция.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  covers: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'chain.create'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'chain.update'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'chain.upsert'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'chain.first'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'export.gte'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'error.no_key'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.update-merge'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.update-empty-target'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.upsert-replaces'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.mods-after-verb'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  steps: [</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Модель магазина и магазин'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncShop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db); </span><span style=\"color:#6A737D;--shiki-dark:#6A737D\">// скрыть</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        [shop] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, city: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Казань'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> shop;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Два товара'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ссылка на магазин берётся из пути цепочки `db.Shop(shop).Product()`.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        [kettle] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">          .</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'K-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2500</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, specs: { color: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'белый'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, volume: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1.7</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'хит'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'M-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Кружка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">400</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'update меняет только переданные поля'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Вложенный объект `specs` меняется по полям: передали только цвет — объём остался. Массив `labels` и простые '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'значения (строки, числа) заменяются целиком. Изменения применяет сама база, поэтому одновременные правки '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'разных полей не теряются.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ specs: { color: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'чёрный'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'хит'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'новинка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'update по фильтру правит все найденные'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Шаг с фильтром `price ≥ 1000` нашёл один товар — он и изменён. Без фильтра `update` правит все строки шага.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">gte</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник стеклянный'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ничего не нашлось — пустой ответ, не ошибка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Если шаг не нашёл строк, `update` возвращает пустой список. Проверяйте длину ответа.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">gte</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">100_000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Золотой чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Сузить правку — модификатором до глагола'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '`sort` и `limit` перед `update` выбирают его цели: здесь — один самый дорогой товар магазина. Кружка не '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'изменилась. Так же действует `offset`.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sort</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'data.price'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'desc'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">limit</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'дорогой'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ответ правки — в порядке sort() до глагола'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Строки ответа глагола идут в порядке его целей: по `sort()` до глагола, без него — по id. Поэтому `first()` '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'после глагола — первая по этому порядку строка, а не случайная из исправленных.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'по возрастанию цены'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sort</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'data.price'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'по возрастанию'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">p</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> p.data.sku),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'по убыванию цены'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sort</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'data.price'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'desc'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'по убыванию'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">p</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> p.data.sku),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'first() после sort по убыванию'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sort</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'data.price'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'desc'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'дорогой'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())?.data.sku,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      }),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'limit после глагола — ошибка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Модификатор между глаголом и терминалом уже ничего не сужает: `update` прошёл бы по всем товарам, а `limit` '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'обрезал бы только ответ. Поэтому библиотека отказывает `invalid_query` и ничего не пишет — проверьте журнал.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'распродажа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">limit</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      expect: { error: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'invalid_query'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'upsert: такого нет — создать'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '`upsert` — один SQL-оператор `INSERT … ON CONFLICT`. Поэтому не бывает гонки, когда два запроса одновременно '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'убедились, что объекта нет, и оба его создают. Поле `$upsert` в ответе говорит, что произошло: здесь `created`.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, city: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Уфа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'upsert: то же самое — без изменений'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, city: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Уфа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'upsert заменяет целиком'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Объект передаётся целиком: поля, которых нет в переданном объекте, пропадают. Здесь не передали `city` — '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'город исчез. Для денег `upsert` не годится: он затирает параллельные приращения.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'upsert без ключа невозможен'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'У покупателя нет ключа — найти «тот же» объект не по чему. Отказ `no_key` приходит ещё до обращения к базе.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ольга'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'olga@mail.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      expect: { error: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'no_key'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  ],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">});</span></span>\n<span class=\"line\"></span></code></pre>",
   "initial": {
     "entity": [],
     "log": [],
@@ -1296,6 +1296,439 @@
       ]
     },
     {
+      "title": "Ответ правки — в порядке sort() до глагола",
+      "text": "Строки ответа глагола идут в порядке его целей: по `sort()` до глагола, без него — по id. Поэтому `first()` после глагола — первая по этому порядку строка, а не случайная из исправленных.",
+      "code": "({\n        'по возрастанию цены': (await db.Shop(shop).Product().sort('data.price').update({ labels: ['по возрастанию'] }).rows()).map((p) => p.data.sku),\n        'по убыванию цены': (await db.Shop(shop).Product().sort('data.price', 'desc').update({ labels: ['по убыванию'] }).rows()).map((p) => p.data.sku),\n        'first() после sort по убыванию': (await db.Shop(shop).Product().sort('data.price', 'desc').update({ labels: ['дорогой'] }).first())?.data.sku,\n      })",
+      "params": [
+        "db"
+      ],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'по возрастанию цены'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sort</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'data.price'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'по возрастанию'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">p</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> p.data.sku),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'по убыванию цены'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sort</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'data.price'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'desc'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'по убыванию'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">p</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> p.data.sku),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'first() после sort по убыванию'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sort</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'data.price'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'desc'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'дорогой'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())?.data.sku,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      })</span></span></code></pre>",
+      "result": {
+        "по возрастанию цены": [
+          "M-1",
+          "K-1"
+        ],
+        "по убыванию цены": [
+          "K-1",
+          "M-1"
+        ],
+        "first() после sort по убыванию": "K-1"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Product «Чайник»",
+          "class": "Product",
+          "rev": 7,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t9",
+          "$changed": [
+            "rev",
+            "at"
+          ]
+        },
+        {
+          "id": "Product «Кружка»",
+          "class": "Product",
+          "rev": 4,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t9",
+          "$changed": [
+            "rev",
+            "data.labels",
+            "op",
+            "at"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "42",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "43",
+          "id": "Product «Кружка»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "44",
+          "id": "Product «Чайник»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$new": false
+        },
+        {
+          "seq": "45",
+          "id": "Product «Чайник»",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "хит",
+              "новинка"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$new": false
+        },
+        {
+          "seq": "46",
+          "id": "Product «Чайник»",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t6",
+          "$new": false
+        },
+        {
+          "seq": "47",
+          "id": "Product «Чайник»",
+          "rev": 5,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t7",
+          "$new": true
+        },
+        {
+          "seq": "48",
+          "id": "Product «Кружка»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t7",
+          "$new": true
+        },
+        {
+          "seq": "49",
+          "id": "Product «Чайник»",
+          "rev": 6,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "по убыванию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t8",
+          "$new": true
+        },
+        {
+          "seq": "50",
+          "id": "Product «Кружка»",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по убыванию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t8",
+          "$new": true
+        },
+        {
+          "seq": "51",
+          "id": "Product «Чайник»",
+          "rev": 7,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t9",
+          "$new": true
+        },
+        {
+          "seq": "52",
+          "id": "Product «Кружка»",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t9",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null,
+      "signals": [
+        "Product"
+      ]
+    },
+    {
       "title": "limit после глагола — ошибка",
       "text": "Модификатор между глаголом и терминалом уже ничего не сужает: `update` прошёл бы по всем товарам, а `limit` обрезал бы только ответ. Поэтому библиотека отказывает `invalid_query` и ничего не пишет — проверьте журнал.",
       "code": "db.Shop(shop).Product().update({ labels: ['распродажа'] }).limit(1).rows()",
@@ -1333,7 +1766,7 @@
         {
           "id": "Product «Чайник»",
           "class": "Product",
-          "rev": 4,
+          "rev": 7,
           "tenant": "Ромашка",
           "owner": "Ромашка",
           "links": {
@@ -1356,13 +1789,13 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t6",
+          "at": "t9",
           "$changed": []
         },
         {
           "id": "Product «Кружка»",
           "class": "Product",
-          "rev": 1,
+          "rev": 4,
           "tenant": "Ромашка",
           "owner": "Ромашка",
           "links": {
@@ -1371,14 +1804,17 @@
           "data": {
             "sku": "M-1",
             "price": 400,
-            "title": "Кружка"
+            "title": "Кружка",
+            "labels": [
+              "дорогой"
+            ]
           },
           "tags": [],
-          "op": "create",
+          "op": "update",
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t3",
+          "at": "t9",
           "$changed": []
         }
       ],
@@ -1542,6 +1978,168 @@
           "reason": null,
           "at": "t6",
           "$new": false
+        },
+        {
+          "seq": "47",
+          "id": "Product «Чайник»",
+          "rev": 5,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t7",
+          "$new": false
+        },
+        {
+          "seq": "48",
+          "id": "Product «Кружка»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t7",
+          "$new": false
+        },
+        {
+          "seq": "49",
+          "id": "Product «Чайник»",
+          "rev": 6,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "по убыванию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t8",
+          "$new": false
+        },
+        {
+          "seq": "50",
+          "id": "Product «Кружка»",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по убыванию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t8",
+          "$new": false
+        },
+        {
+          "seq": "51",
+          "id": "Product «Чайник»",
+          "rev": 7,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t9",
+          "$new": false
+        },
+        {
+          "seq": "52",
+          "id": "Product «Кружка»",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t9",
+          "$new": false
         }
       ],
       "secret": [],
@@ -1558,7 +2156,7 @@
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, city: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Уфа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
-          "at": "t7",
+          "at": "t10",
           "id": "Shop «Лютик»",
           "op": "create",
           "rev": 1,
@@ -1600,7 +2198,7 @@
         {
           "id": "Product «Чайник»",
           "class": "Product",
-          "rev": 4,
+          "rev": 7,
           "tenant": "Ромашка",
           "owner": "Ромашка",
           "links": {
@@ -1623,13 +2221,13 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t6",
+          "at": "t9",
           "$changed": []
         },
         {
           "id": "Product «Кружка»",
           "class": "Product",
-          "rev": 1,
+          "rev": 4,
           "tenant": "Ромашка",
           "owner": "Ромашка",
           "links": {
@@ -1638,14 +2236,17 @@
           "data": {
             "sku": "M-1",
             "price": 400,
-            "title": "Кружка"
+            "title": "Кружка",
+            "labels": [
+              "дорогой"
+            ]
           },
           "tags": [],
-          "op": "create",
+          "op": "update",
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t3",
+          "at": "t9",
           "$changed": []
         },
         {
@@ -1664,7 +2265,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t7",
+          "at": "t10",
           "$changed": [
             "*"
           ]
@@ -1833,6 +2434,168 @@
         },
         {
           "seq": "47",
+          "id": "Product «Чайник»",
+          "rev": 5,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t7",
+          "$new": false
+        },
+        {
+          "seq": "48",
+          "id": "Product «Кружка»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t7",
+          "$new": false
+        },
+        {
+          "seq": "49",
+          "id": "Product «Чайник»",
+          "rev": 6,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "по убыванию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t8",
+          "$new": false
+        },
+        {
+          "seq": "50",
+          "id": "Product «Кружка»",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по убыванию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t8",
+          "$new": false
+        },
+        {
+          "seq": "51",
+          "id": "Product «Чайник»",
+          "rev": 7,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t9",
+          "$new": false
+        },
+        {
+          "seq": "52",
+          "id": "Product «Кружка»",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t9",
+          "$new": false
+        },
+        {
+          "seq": "53",
           "id": "Shop «Лютик»",
           "rev": 1,
           "class": "Shop",
@@ -1847,7 +2610,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t7",
+          "at": "t10",
           "$new": true
         }
       ],
@@ -1867,7 +2630,7 @@
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, city: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Уфа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
-          "at": "t7",
+          "at": "t10",
           "id": "Shop «Лютик»",
           "op": "create",
           "rev": 1,
@@ -1909,7 +2672,7 @@
         {
           "id": "Product «Чайник»",
           "class": "Product",
-          "rev": 4,
+          "rev": 7,
           "tenant": "Ромашка",
           "owner": "Ромашка",
           "links": {
@@ -1932,13 +2695,13 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t6",
+          "at": "t9",
           "$changed": []
         },
         {
           "id": "Product «Кружка»",
           "class": "Product",
-          "rev": 1,
+          "rev": 4,
           "tenant": "Ромашка",
           "owner": "Ромашка",
           "links": {
@@ -1947,14 +2710,17 @@
           "data": {
             "sku": "M-1",
             "price": 400,
-            "title": "Кружка"
+            "title": "Кружка",
+            "labels": [
+              "дорогой"
+            ]
           },
           "tags": [],
-          "op": "create",
+          "op": "update",
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t3",
+          "at": "t9",
           "$changed": []
         },
         {
@@ -1973,7 +2739,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t7",
+          "at": "t10",
           "$changed": []
         }
       ],
@@ -2140,6 +2906,168 @@
         },
         {
           "seq": "47",
+          "id": "Product «Чайник»",
+          "rev": 5,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t7",
+          "$new": false
+        },
+        {
+          "seq": "48",
+          "id": "Product «Кружка»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t7",
+          "$new": false
+        },
+        {
+          "seq": "49",
+          "id": "Product «Чайник»",
+          "rev": 6,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "по убыванию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t8",
+          "$new": false
+        },
+        {
+          "seq": "50",
+          "id": "Product «Кружка»",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по убыванию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t8",
+          "$new": false
+        },
+        {
+          "seq": "51",
+          "id": "Product «Чайник»",
+          "rev": 7,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t9",
+          "$new": false
+        },
+        {
+          "seq": "52",
+          "id": "Product «Кружка»",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t9",
+          "$new": false
+        },
+        {
+          "seq": "53",
           "id": "Shop «Лютик»",
           "rev": 1,
           "class": "Shop",
@@ -2154,7 +3082,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t7",
+          "at": "t10",
           "$new": false
         }
       ],
@@ -2172,7 +3100,7 @@
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
-          "at": "t8",
+          "at": "t11",
           "id": "Shop «Лютик»",
           "op": "update",
           "rev": 2,
@@ -2213,7 +3141,7 @@
         {
           "id": "Product «Чайник»",
           "class": "Product",
-          "rev": 4,
+          "rev": 7,
           "tenant": "Ромашка",
           "owner": "Ромашка",
           "links": {
@@ -2236,13 +3164,13 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t6",
+          "at": "t9",
           "$changed": []
         },
         {
           "id": "Product «Кружка»",
           "class": "Product",
-          "rev": 1,
+          "rev": 4,
           "tenant": "Ромашка",
           "owner": "Ромашка",
           "links": {
@@ -2251,14 +3179,17 @@
           "data": {
             "sku": "M-1",
             "price": 400,
-            "title": "Кружка"
+            "title": "Кружка",
+            "labels": [
+              "дорогой"
+            ]
           },
           "tags": [],
-          "op": "create",
+          "op": "update",
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t3",
+          "at": "t9",
           "$changed": []
         },
         {
@@ -2276,7 +3207,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t8",
+          "at": "t11",
           "$changed": [
             "rev",
             "data.city",
@@ -2448,6 +3379,168 @@
         },
         {
           "seq": "47",
+          "id": "Product «Чайник»",
+          "rev": 5,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t7",
+          "$new": false
+        },
+        {
+          "seq": "48",
+          "id": "Product «Кружка»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t7",
+          "$new": false
+        },
+        {
+          "seq": "49",
+          "id": "Product «Чайник»",
+          "rev": 6,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "по убыванию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t8",
+          "$new": false
+        },
+        {
+          "seq": "50",
+          "id": "Product «Кружка»",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по убыванию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t8",
+          "$new": false
+        },
+        {
+          "seq": "51",
+          "id": "Product «Чайник»",
+          "rev": 7,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t9",
+          "$new": false
+        },
+        {
+          "seq": "52",
+          "id": "Product «Кружка»",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t9",
+          "$new": false
+        },
+        {
+          "seq": "53",
           "id": "Shop «Лютик»",
           "rev": 1,
           "class": "Shop",
@@ -2462,11 +3555,11 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t7",
+          "at": "t10",
           "$new": false
         },
         {
-          "seq": "48",
+          "seq": "54",
           "id": "Shop «Лютик»",
           "rev": 2,
           "class": "Shop",
@@ -2480,7 +3573,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t8",
+          "at": "t11",
           "$new": true
         }
       ],
@@ -2528,7 +3621,7 @@
         {
           "id": "Product «Чайник»",
           "class": "Product",
-          "rev": 4,
+          "rev": 7,
           "tenant": "Ромашка",
           "owner": "Ромашка",
           "links": {
@@ -2551,13 +3644,13 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t6",
+          "at": "t9",
           "$changed": []
         },
         {
           "id": "Product «Кружка»",
           "class": "Product",
-          "rev": 1,
+          "rev": 4,
           "tenant": "Ромашка",
           "owner": "Ромашка",
           "links": {
@@ -2566,14 +3659,17 @@
           "data": {
             "sku": "M-1",
             "price": 400,
-            "title": "Кружка"
+            "title": "Кружка",
+            "labels": [
+              "дорогой"
+            ]
           },
           "tags": [],
-          "op": "create",
+          "op": "update",
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t3",
+          "at": "t9",
           "$changed": []
         },
         {
@@ -2591,7 +3687,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t8",
+          "at": "t11",
           "$changed": []
         }
       ],
@@ -2758,6 +3854,168 @@
         },
         {
           "seq": "47",
+          "id": "Product «Чайник»",
+          "rev": 5,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t7",
+          "$new": false
+        },
+        {
+          "seq": "48",
+          "id": "Product «Кружка»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t7",
+          "$new": false
+        },
+        {
+          "seq": "49",
+          "id": "Product «Чайник»",
+          "rev": 6,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "по убыванию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t8",
+          "$new": false
+        },
+        {
+          "seq": "50",
+          "id": "Product «Кружка»",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по убыванию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t8",
+          "$new": false
+        },
+        {
+          "seq": "51",
+          "id": "Product «Чайник»",
+          "rev": 7,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t9",
+          "$new": false
+        },
+        {
+          "seq": "52",
+          "id": "Product «Кружка»",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t9",
+          "$new": false
+        },
+        {
+          "seq": "53",
           "id": "Shop «Лютик»",
           "rev": 1,
           "class": "Shop",
@@ -2772,11 +4030,11 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t7",
+          "at": "t10",
           "$new": false
         },
         {
-          "seq": "48",
+          "seq": "54",
           "id": "Shop «Лютик»",
           "rev": 2,
           "class": "Shop",
@@ -2790,7 +4048,7 @@
           "author": "Анна",
           "agent": "service",
           "reason": null,
-          "at": "t8",
+          "at": "t11",
           "$new": false
         }
       ],

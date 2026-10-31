@@ -25,7 +25,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 | Импорт полигона 0.21 | `cd lib && npm run test:import-salon` | засевка 0.21, `up({ fresh })` 1.0, импорт, сверка объектов и версий, `verify()`; код 1 при расхождении | `lib/bench/import-salon.mjs` |
 | Бенч против 0.21 | `cd lib && npx tsx bench/compare.bench.mjs` (`BENCH_SCALE=0.1` — быстро) | 0.21 — dev-зависимость `letopis-0` (`npm:letopis@0.21.0`) на контейнере `letopis-timescale`, порт 15432; итог — `bench/results/compare.md` | `lib/bench/compare.bench.mjs` |
 | Бенч против 1.0.1 | `cd lib && npx tsx bench/vs-101.bench.mjs` (`BENCH_SCALE=0.1` — быстро) | 1.0.1 — dev-зависимость `letopis-1` (`npm:letopis@1.0.1`), обе стороны на `letopis-pg18` в схемах `v2.vs101_old` и `v2.vs101_new`; итог — `bench/results/vs-101.md` | `lib/bench/vs-101.bench.mjs` |
-| GitHub Actions | `.github/workflows/` | ci — push в dev (typecheck, check:docs, тесты на `postgres:18`, check:package); tag — push в main; release — published (npm, dist-tag `next` для версий с дефисом, проверка пакета из реестра) | `docs/atlas/F-RELEASE.md` |
+| GitHub Actions | `.github/workflows/` | ci — push в dev (typecheck, check:docs, check:package на `postgres:18`; полный набор тестов в CI не гоняется — только локально, по решению владельца); tag — push в main; release — published (npm, dist-tag `next` для версий с дефисом, проверка пакета из реестра) | `docs/atlas/F-RELEASE.md` |
 
 ## Модули
 Набор 1.0 (план §4) и модули плана 1.1 (§4 плана 1.1). Карточка — `.claude/rules/atlas/<ID>.md`.

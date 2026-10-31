@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_0cb6e93d026a83397793f7602680196e43667f9c35ed7d928c2d7be486986b0c",
+      "serviceKey": "lts_d5d62ba02424608f5761b01db6943078ebd80fd3f4f4ccdba9433576eb54a880",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "ab23abe5f58b285ec82fea98419cddc2639accd6d56f5d15ace9611c3b40dbc2",
+        "token": "2f9bcb6d50a2bd0c6246042aa2122710605bbe74adffea9c8a3945e2a40b1263",
         "created": true
       }
     }
@@ -90,7 +90,7 @@
         "detail": {
           "rows": [
             {
-              "id": "3d393192-cf86-5978-9f4d-d5500d023acb",
+              "id": "d9cf42a0-2c3f-5d48-83cf-0937683d7179",
               "role": "Pet",
               "class": "Holder"
             }

@@ -835,6 +835,8 @@ await db.Order(order).line().create({ qty: 1, price: 900 }).Product.set(sencha).
   `db.Product().update(…).limit(1).rows()` gives `invalid_query` and writes nothing. In a batch, `run()` refuses the
   same way.
 - A verb right after a verb writes to the same entities.
+- The result rows of a verb come in the order of its targets: by `sort()` before the verb, otherwise by id; `first()`
+  after a verb is the first one in that order.
 
 ## 6. Reading
 
