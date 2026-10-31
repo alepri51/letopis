@@ -946,6 +946,21 @@ export async function createApp() {
     if (!ok) throw new HttpError(422, 'Неверный код — фактор не включён');
     res.json({ enabled: true });
   }));
+  // отключить второй фактор — только с действующим кодом из приложения: иначе его снял бы любой, кто сел за открытую вкладку
+  app.post('/api/security/totp/disable', auth, route(async (req, res) => {
+    const s = req.s;
+    if (s.acting) throw new HttpError(409, 'Сначала вернитесь к себе');
+    const off = await act(s, 'Отключение TOTP', async (lines) => {
+      lines.push('svc.auth.verifyTotp({ account, code }) — отключить фактор можно только с действующим кодом');
+      if (!(await svc.auth.verifyTotp({ account: s.account, code: String(req.body?.code ?? '') }))) return null;
+      const creds = (await svc.auth.credentials(s.account)).filter((c) => c.kind === 'TOTP');
+      lines.push(`svc.auth.credentials(account) — кредов TOTP: ${creds.length}; svc.auth.revokeCredential(id) гасит каждый`);
+      for (const c of creds) await svc.auth.revokeCredential(c.id);
+      return creds.length;
+    });
+    if (off === null) throw new HttpError(422, 'Неверный код — второй фактор не отключён');
+    res.json({ enabled: false });
+  }));
   app.post('/api/security/revoke-all', auth, route(async (req, res) => {
     const s = req.s;
     if (s.acting) throw new HttpError(409, 'Сначала вернитесь к себе');

@@ -1,13 +1,12 @@
 /**
  * Сценарий «день работы» кошелька: сервис в этом же процессе, шаги — через его JSON API (как интерфейс).
  *   ADMIN_DSN=… APP_DSN=… node scenario.mjs        Код выхода 1 — сбой.
- * «Чужая транзакция», которая держит строки выписки (проверка lockTimeout и lockRetries проектора), — прямое
- * подключение администратора по ADMIN_DSN: так её держал бы отчёт или сеанс psql.
+ * «Чужая транзакция», которая держит строку выписки (проверка lockTimeout и lockRetries проектора), и порча данных
+ * в обход библиотеки для verify — тоже через API сервиса, как кнопки интерфейса.
  */
-import postgres from 'postgres';
 import { createApp, OPERATOR } from './src/server.mjs';
 
-const { app, schema, close } = await createApp();
+const { app, close } = await createApp();
 const server = app.listen(0, '127.0.0.1');
 await new Promise((r) => server.once('listening', r));
 const base = `http://127.0.0.1:${server.address().port}`;
@@ -110,35 +109,20 @@ try {
   const rb = await call(cookie, '/api/statement/rebuild', {});
   check(rb.status === 200 && rb.data.created > 0 && (await topups()) === t0, 'перестроить выписку — rebuild(): строки построены заново, итоги те же');
 
-  // чужая транзакция держит строки выписки, когда пачка проектора до них доходит: пачка упирается в lockTimeout, после
-  // lockRetries проходов подряд арендатор выбывает (55P03); после её конца rebuild({ tenant }) возвращает его. Журнал
-  // проектор читает ниже горизонта — самой старой незавершённой транзакции, поэтому порядок такой: третья транзакция
-  // держит горизонт, пополнение, чужая транзакция берёт строки выписки (for update), горизонт отпущен — пачка доходит
-  // до пополнения и встаёт на строке выписки
-  const adminDsn = process.env.ADMIN_DSN ?? 'postgres://postgres:guide@127.0.0.1:15440/letopis';
-  const sessions = [postgres(adminDsn, { max: 1, onnotice: () => {} }), postgres(adminDsn, { max: 1, onnotice: () => {} })];
-  /** Открыть транзакцию с оператором text и держать её до release(). */
-  const hold = async (sql, text) => {
-    let release = () => {};
-    let ready;
-    const opened = new Promise((r) => { ready = r; });
-    const done = sql.begin(async (q) => {
-      await q.unsafe(text);
-      await new Promise((r) => { release = r; ready(); });
-    });
-    await Promise.race([opened, done]);
-    return { release: () => release(), done };
-  };
-  const horizon = await hold(sessions[0], 'select pg_current_xact_id()');
+  // «чужая транзакция» из интерфейса: сначала держит горизонт (проектор не видит новых операций), после пополнения
+  // берёт строку выписки этого счёта (for update), горизонт закрывается — пачка доходит до пополнения и упирается в
+  // lockTimeout; после lockRetries проходов подряд арендатор выбывает (55P03), и сервис сам закрывает чужую транзакцию;
+  // rebuild({ tenant }) возвращает арендатора
+  const armed = await call(cookie, '/api/admin/hold', {});
+  check(armed.status === 200 && (await statusOf()).hold?.stage === 'armed', 'чужая транзакция: держит горизонт и ждёт пополнения');
   await call(cookie, '/api/topup', { wallet: w1.id, amount: 700, card, opId: `ph-${run}` });
-  const rows = await hold(sessions[1], `select id from "${schema}".entity where class = 'Statement' for update`);
-  horizon.release();
-  await horizon.done;
+  st = await statusOf();
+  check(st.hold?.stage === 'rows', 'после пополнения чужая транзакция держит строку выписки счёта');
   for (let i = 0; i < 60 && !st.failed; i++) { await sleep(250); st = await statusOf(); }
-  check(st.failed?.code === '55P03', `строки выписки держит чужая транзакция — после ${st.options.lockRetries} проходов дольше lockTimeout арендатор выбыл (status().failed, 55P03)`);
-  rows.release();
-  await rows.done;
-  for (const sql of sessions) await sql.end({ timeout: 2 });
+  check(st.failed?.code === '55P03' && /в течение 3 проходов подряд дольше lockTimeout/.test(st.failed.message),
+    `строку выписки держит чужая транзакция — после ${st.options.lockRetries} проходов дольше lockTimeout арендатор выбыл (status().failed, 55P03)`);
+  for (let i = 0; i < 20 && st.hold; i++) { await sleep(250); st = await statusOf(); }
+  check(!st.hold, 'арендатор выбыл — сервис сам закрыл чужую транзакцию');
   const fix = await call(cookie, '/api/statement/rebuild', {});
   const hoodFix = (await call(cookie, '/api/trace')).data?.[0];
   check(fix.status === 200 && !(await statusOf()).failed && (await topups()) === t0 + 700 && hoodFix?.lines.some((l) => l.startsWith('statement.rebuild({ tenant })')),
@@ -148,6 +132,15 @@ try {
   const v = await call(cookie, '/api/admin/verify');
   check(v.status === 200 && v.data.ok === true && v.data.issues.length === 0 && v.data.checked > 0 && /^[0-9a-f]{64}$/.test(v.data.anchor),
     'verify({ data: true }) — нарушений нет: цепочки хэшей, данные, balance равен сумме операций');
+
+  // порча журнала в обход библиотеки: verify находит разрыв цепочки хэшей, «вернуть как было» отменяет
+  const bad = await call(cookie, '/api/admin/corrupt', {});
+  const v1 = await call(cookie, '/api/admin/verify');
+  check(bad.status === 200 && v1.data.ok === false && v1.data.issues.some((i) => i.label === bad.data.label && i.rev === bad.data.rev && /хэш/.test(i.problem)),
+    `испортить запись журнала: verify нашёл версию ${bad.data?.rev} счёта ${bad.data?.label} (${v1.data.issues.map((i) => i.problem).join('; ')})`);
+  const fixed = await call(cookie, '/api/admin/repair', {});
+  const v3 = await call(cookie, '/api/admin/verify');
+  check(fixed.status === 200 && v3.data.ok === true && v3.data.issues.length === 0, 'вернуть как было: нарушений снова нет');
 } catch (e) {
   failures.push(String(e?.stack ?? e));
   console.log(`✗ сценарий упал: ${e?.stack ?? e}`);

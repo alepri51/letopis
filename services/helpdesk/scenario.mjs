@@ -68,6 +68,7 @@ try {
   check(/^otpauth:\/\/totp\//.test(enroll.data?.url ?? ''), 'агент подключает TOTP: секрет и адрес otpauth:// для QR');
   check((await call(agent0.cookie, '/api/security/totp/verify', { code: '000000' })).status === 422, 'неверный код TOTP — фактор не включён');
   check((await call(agent0.cookie, '/api/security/totp/verify', { code: totpCode(enroll.data.secret) })).status === 200, 'верный код TOTP — фактор включён');
+  const enabledStep = Math.floor(Date.now() / 30_000);
   const step1 = await call('', '/api/login', { login: DEMO.agent.login, password: DEMO.agent.password });
   check(step1.data?.needTotp === true && !step1.cookie.startsWith('sid='), 'вход агента теперь просит код TOTP');
   // код следующего 30-секундного шага: текущий уже потрачен на включение фактора
@@ -246,6 +247,16 @@ try {
   await call(second.cookie, '/api/security/revoke-all', {});
   check((await call(boss.cookie, '/api/me')).data === null && (await call(boss.cookie, '/api/stats')).status === 401, '«Выйти на всех устройствах» завершило и другой сеанс руководителя');
   check((await asAgent(bossSes.token)).status === 401, '«Выйти на всех устройствах» (revokeAll) погасило и сессию его ИИ-агента');
+
+  // 10. отключить второй фактор агента — только с действующим кодом; дальше вход снова без кода. Потрачены коды шага
+  // включения и следующего (вход), поэтому годится код шага после них: он попадает в окно ±1, когда часы дойдут до
+  // следующего шага
+  while (Math.floor(Date.now() / 30_000) < enabledStep + 1) await new Promise((r) => setTimeout(r, 500));
+  check((await call(agent, '/api/security/totp/disable', { code: '000000' })).status === 422, 'неверный код — второй фактор не отключён');
+  check((await call(agent, '/api/security/totp/disable', { code: totpCode(enroll.data.secret, Date.now() + 30_000) })).status === 200, 'верный код — второй фактор отключён (auth.revokeCredential)');
+  check((await call(agent, '/api/me')).data === null, 'сессия, открытая с TOTP, погашена вместе с кредом фактора');
+  const plain = await call('', '/api/login', { login: DEMO.agent.login, password: DEMO.agent.password });
+  check(plain.status === 200 && plain.data?.needTotp !== true && plain.cookie.startsWith('sid='), 'после отключения агент входит по паролю без кода TOTP');
 } catch (e) {
   failures.push(String(e?.stack ?? e));
   console.log(`✗ сценарий упал: ${e?.stack ?? e}`);

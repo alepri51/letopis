@@ -274,6 +274,8 @@ export async function createApp() {
       const { result, unknown } = cut === 'before' || cut === 'after'
         ? await act(req.s, `Пополнение ${opId} (обрыв ${cut === 'before' ? 'до' : 'после'} COMMIT)`, (lines) => operateCut(req.s, wallet, op, cut, lines))
         : { result: await act(req.s, `Пополнение ${opId}`, (lines) => operate(req.s.db, wallet, op, lines)), unknown: null };
+      // открыт горизонт «чужой транзакции» — теперь она берёт строку выписки этого счёта (55P03 проектора)
+      await grabStatement(req.s, wallet).catch((e) => console.error('чужая транзакция не взяла строку выписки:', e.message));
       // режим «потерять ответ»: операция проведена, но клиент ответа не получает — и повторяет её с тем же opId
       if (lose) return res.status(504).json({ error: 'Ответ потерян (имитация сбоя сети) — повторите операцию', lost: true });
       res.json({ result, unknown });
@@ -360,13 +362,130 @@ export async function createApp() {
       res.json({ ok: v.ok, checked: n, anchor: v.anchor, issues: issues.map((i) => ({ id: i.id, rev: i.rev ?? null, class: i.class ?? '', problem: i.problem, label: label.get(i.id) || i.id.slice(0, 8) })) });
     } catch (e) { fail(res, e); }
   });
+  // ---------- порча журнала в обход библиотеки — чтобы verify было что найти ----------
+  // «Испортить запись журнала» меняет баланс в промежуточной версии счёта прямым UPDATE от суперпользователя, как правка
+  // руками в SQL: хэш этой версии больше не сходится с цепочкой. «Вернуть как было» возвращает данные байт в байт.
+  // Подделать сам баланс в entity так нельзя: триггеры entity включены и в режиме репликации (enable always), без
+  // сессии они отказывают, а с ней — пишут версию и пересчитывают агрегат.
+  let damaged = null; // { id, rev, data } — испорченная версия журнала
+  app.post('/api/admin/corrupt', auth, async (req, res) => {
+    if (damaged) return res.status(409).json({ error: 'Одна запись уже испорчена — сначала верните её' });
+    try {
+      const out = await act(req.s, 'Порча записи журнала', async (lines) => {
+        // версия счёта, за которой есть следующая: её хэш входит в цепочку
+        const [row] = await admin.unsafe(`select l.id, l.rev, l.data from ${S}.log l where l.tenant = $1 and l.class = 'Wallet' and l.op = 'update'
+          and exists (select 1 from ${S}.log n where n.id = l.id and n.rev > l.rev) order by l.data->>'number', l.rev desc limit 1`, [t.tenant]);
+        if (!row) return null;
+        lines.push(`update log set data = jsonb_set(data, '{balance}', баланс + 1000 ₽) where id = счёт ${row.data.number} and rev = ${row.rev} — в обход библиотеки, от суперпользователя`);
+        await admin.unsafe(`update ${S}.log set data = jsonb_set(data, '{balance}', to_jsonb((data->>'balance')::bigint + 100000)) where id = $1 and rev = $2`, [row.id, row.rev]);
+        damaged = { id: row.id, rev: row.rev, data: row.data };
+        return { label: row.data.number, rev: row.rev };
+      });
+      if (!out) return res.status(404).json({ error: 'У счетов ещё нет промежуточных версий — проведите две операции' });
+      res.json(out);
+    } catch (e) { fail(res, e); }
+  });
+  app.post('/api/admin/repair', auth, async (req, res) => {
+    const d = damaged;
+    if (!d) return res.status(409).json({ error: 'Испорченной записи нет' });
+    try {
+      await act(req.s, 'Вернуть запись журнала', async (lines) => {
+        lines.push('update log set data = прежние данные версии — её хэш снова сходится с цепочкой');
+        await admin.unsafe(`update ${S}.log set data = $3::jsonb where id = $1 and rev = $2`, [d.id, d.rev, d.data]);
+      });
+      damaged = null;
+      res.json({ ok: true });
+    } catch (e) { fail(res, e); }
+  });
+
+  // ---------- «чужая транзакция» над строкой выписки: 55P03 проектора ----------
+  // Проектор читает журнал ниже горизонта — самой старой незавершённой транзакции. Поэтому сначала транзакция-горизонт:
+  // пока она открыта, проектор не видит новых операций. Следующее пополнение записывается, затем вторая транзакция
+  // берёт строку выписки этого счёта за месяц (for update), а горизонт закрывается: пачка доходит до пополнения и ждёт
+  // строку не дольше lockTimeout; после lockRetries таких проходов подряд арендатор выбывает (55P03). Горизонт стоит у
+  // подписок и проекторов всех сервисов этой базы, поэтому сервис держит его недолго: горизонт — до пополнения (не
+  // дольше 30 с), строку — пока арендатор не выбыл (не дольше 15 с). Подключения — отдельные, администратора: так строку
+  // держал бы отчёт или сеанс psql.
+  let hold = null; // { stage: 'armed' | 'rows', since, tx, timer, watch }
+  /** Открыть транзакцию на своём подключении, выполнить text и держать её до release(). */
+  const openTx = async (text, params = []) => {
+    const sql = postgres(ENV.admin, { max: 1, onnotice: () => {} });
+    let release = () => {};
+    let ready;
+    let rows = [];
+    const opened = new Promise((r) => { ready = r; });
+    const done = sql.begin(async (q) => {
+      rows = await q.unsafe(text, params);
+      await new Promise((r) => { release = r; ready(); });
+    }).finally(() => sql.end({ timeout: 2 }));
+    done.catch(() => {}); // ошибку получит тот, кто ждёт done; без обработчика оборванная транзакция уронила бы процесс
+    await Promise.race([opened, done]);
+    return { rows, release: () => release(), done };
+  };
+  const releaseHold = async () => {
+    const h = hold;
+    if (!h) return false;
+    hold = null;
+    clearTimeout(h.timer);
+    clearInterval(h.watch);
+    h.tx.release();
+    await h.tx.done.catch(() => {});
+    return true;
+  };
+  app.post('/api/admin/hold', auth, async (req, res) => {
+    if (hold) return res.status(409).json({ error: 'Чужая транзакция уже открыта — отпустите её' });
+    try {
+      await act(req.s, 'Чужая транзакция: горизонт', async (lines) => {
+        lines.push('begin; select pg_current_xact_id() — отдельное подключение администратора: пока транзакция открыта, проектор не видит операций новее неё');
+        const tx = await openTx('select pg_current_xact_id()');
+        hold = { stage: 'armed', since: Date.now(), tx, timer: setTimeout(() => { releaseHold().catch(() => {}); }, 30_000) };
+        lines.push('дальше — пополнение: после него чужая транзакция займёт строку выписки этого счёта за месяц');
+      });
+      res.json({ stage: 'armed' });
+    } catch (e) { fail(res, e); }
+  });
+  app.post('/api/admin/hold/release', auth, async (_req, res) => {
+    try { res.json({ released: await releaseHold() }); } catch (e) { fail(res, e); }
+  });
+  /** После пополнения при открытом горизонте: вторая транзакция берёт строку выписки, горизонт закрывается. */
+  async function grabStatement(s, wallet) {
+    const h = hold;
+    if (h?.stage !== 'armed') return;
+    hold = { ...h, stage: 'grabbing' };
+    await act(s, 'Чужая транзакция: строка выписки', async (lines) => {
+      const month = new Date().toISOString().slice(0, 7);
+      lines.push(`begin; select … from entity where class = 'Statement' and Wallet = счёт and month = '${month}' for update — вторая транзакция берёт строку выписки`);
+      const tx = await openTx(`select id from ${S}.entity where class = 'Statement' and tenant = $1 and links->>'Wallet' = $2 and data->>'month' = $3 for update`,
+        [t.tenant, wallet, month]).catch(async (e) => { await releaseHold(); throw e; });
+      clearTimeout(h.timer);
+      h.tx.release();
+      await h.tx.done.catch(() => {});
+      lines.push('commit горизонта — пачка проектора доходит до пополнения и ждёт строку выписки не дольше lockTimeout');
+      if (!tx.rows.length) {
+        tx.release();
+        await tx.done.catch(() => {});
+        hold = null;
+        lines.push(`строки выписки за ${month} у счёта ещё нет — проектор её вставит, ждать ему нечего; чужая транзакция закрыта`);
+        return;
+      }
+      const cur = { stage: 'rows', since: Date.now(), tx };
+      cur.timer = setTimeout(() => { if (hold === cur) releaseHold().catch(() => {}); }, 15_000);
+      // арендатор выбыл — строку больше держать незачем: горизонт отпускается сразу
+      cur.watch = setInterval(() => {
+        statement.status().then((st) => { if (hold === cur && st.failed[t.tenant]) releaseHold().catch(() => {}); }, () => {});
+      }, 250);
+      hold = cur;
+    });
+  }
+
   // выписка: состояние проектора — status() (выбывший арендатор — только свой), опции; «перестроить» — rebuild
   app.get('/api/statement', auth, async (_req, res) => {
     try {
       const st = await statement.status();
       const f = st.failed[t.tenant];
       res.json({ state: st.state, version: st.version, cursor: st.cursor, at: st.at, lag: Math.round(st.lag), options: STATEMENT,
-        failed: f ? { code: f.code, message: f.message.replaceAll(t.tenant, '«Копейка»') } : null });
+        failed: f ? { code: f.code, message: f.message.replaceAll(t.tenant, '«Копейка»') } : null,
+        hold: hold ? { stage: hold.stage === 'rows' ? 'rows' : 'armed', since: new Date(hold.since).toISOString() } : null });
     } catch (e) { fail(res, e); }
   });
   app.post('/api/statement/rebuild', auth, async (req, res) => {
@@ -407,7 +526,7 @@ export async function createApp() {
 
   return {
     app, schema: r.schema,
-    close: async () => { await statement.stop?.(); await follow; await adm.close(); await svc.close(); await admin.end({ timeout: 2 }); },
+    close: async () => { await releaseHold(); await statement.stop?.(); await follow; await adm.close(); await svc.close(); await admin.end({ timeout: 2 }); },
   };
 }
 

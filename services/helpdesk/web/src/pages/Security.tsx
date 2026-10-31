@@ -8,10 +8,14 @@ import { Label } from '@/components/ui/label';
 import { Qr } from '@/components/qr';
 import { api, type Me } from '@/lib/api';
 
-/** Безопасность: второй фактор TOTP (QR-код, первый верный код включает фактор) и выход на всех устройствах. */
+/**
+ * Безопасность: второй фактор TOTP (QR-код, первый верный код включает фактор; отключение — с действующим кодом) и
+ * выход на всех устройствах.
+ */
 export function Security({ me, onMe, onChanged }: { me: Me; onMe: (me: Me | null) => void; onChanged: () => void }) {
   const [enroll, setEnroll] = useState<{ secret: string; url: string } | null>(null);
   const [code, setCode] = useState('');
+  const [offCode, setOffCode] = useState('');
   return (
     <div className="grid gap-6">
       <Card>
@@ -20,11 +24,27 @@ export function Security({ me, onMe, onChanged }: { me: Me; onMe: (me: Me | null
           <CardDescription>
             После пароля или кода из письма сервис попросит шестизначный код из приложения-аутентификатора.
             letopis хранит секрет в таблице <code>secret</code>, сверяет код и не даёт использовать один код дважды.
+            Отключить фактор можно только с действующим кодом: сервис гасит его кред (<code>auth.revokeCredential</code>).
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
           {!me.totp && !enroll && (
             <Button className="w-fit" onClick={async () => { setEnroll(await api('/api/security/totp/enroll', {})); onChanged(); }}>Подключить приложение-аутентификатор</Button>
+          )}
+          {me.totp && (
+            <form className="grid content-start gap-3" onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                await api('/api/security/totp/disable', { code: offCode });
+                // гашение креда TOTP закрывает и сессии, открытые с этим фактором, — в том числе эту
+                toast.success('Второй фактор отключён. Сессии, открытые с ним, закрыты — войдите снова, уже без кода из приложения');
+                setOffCode(''); onMe(null);
+              } catch (err) { toast.error((err as Error).message); onChanged(); }
+            }}>
+              <Label htmlFor="totp-off">Код из приложения — чтобы отключить второй фактор</Label>
+              <Input id="totp-off" inputMode="numeric" autoComplete="one-time-code" value={offCode} onChange={(e) => setOffCode(e.target.value)} required className="w-40" />
+              <Button type="submit" variant="outline" className="w-fit">Отключить второй фактор</Button>
+            </form>
           )}
           {enroll && (
             <div className="grid gap-4 md:grid-cols-[auto_1fr]">

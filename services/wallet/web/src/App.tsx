@@ -22,7 +22,9 @@ type Data = { wallets: W[]; movements: M[]; statements: S[] };
 type Version = { rev: number; op: string; balance: number; reason: string; at: string };
 /** Состояние проектора выписки (status()) и его опции; failed — арендатор сессии выбыл. */
 type Status = { state: string; version: number | null; cursor: string | null; at: string | null; lag: number;
-  failed: { code: string; message: string } | null; options: { lockTimeout: number; lockRetries: number } };
+  failed: { code: string; message: string } | null; options: { lockTimeout: number; lockRetries: number };
+  /** «Чужая транзакция»: armed — держит горизонт и ждёт пополнения, rows — держит строку выписки. */
+  hold: { stage: 'armed' | 'rows'; since: string } | null };
 type Verify = { ok: boolean; checked: number; anchor: string; issues: { id: string; rev: number | null; class: string; problem: string; label: string }[] };
 type ApiError = Error & { status?: number; code?: string };
 
@@ -96,6 +98,25 @@ function Billing({ me }: { me: { name: string } }) {
     try { setVerify(await api<Verify>('/api/admin/verify')); } catch (e) { toast.error((e as Error).message); }
     reload();
   };
+  const refreshStatus = () => api<Status>('/api/statement').then(setStatus, () => {});
+  const arm = async () => {
+    try { await api('/api/admin/hold', {}); toast.message('Чужая транзакция держит горизонт — теперь пополните счёт'); }
+    catch (e) { toast.error((e as Error).message); }
+    refreshStatus();
+  };
+  const release = async () => {
+    try { await api('/api/admin/hold/release', {}); toast.success('Чужая транзакция закрыта'); } catch (e) { toast.error((e as Error).message); }
+    refreshStatus();
+  };
+  const corrupt = async () => {
+    try { const r = await api<{ label: string; rev: number }>('/api/admin/corrupt', {}); toast.warning(`Запись журнала: счёт ${r.label}, версия ${r.rev} испорчена прямым UPDATE`); }
+    catch (e) { toast.error((e as Error).message); }
+    await check();
+  };
+  const repair = async () => {
+    try { await api('/api/admin/repair', {}); toast.success('Возвращено как было'); } catch (e) { toast.error((e as Error).message); }
+    await check();
+  };
   const remove = async (w: W) => {
     setDrop(null);
     try { await api(`/api/wallets/${w.id}/delete`, {}); toast.success(`Счёт ${w.number} удалён`); }
@@ -149,7 +170,7 @@ function Billing({ me }: { me: { name: string } }) {
             </Table></CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle>Выписка по месяцам</CardTitle><CardDescription>Пишет проектор statement из журнала операций — с небольшим отставанием. Чужую блокировку строки выписки пачка ждёт не дольше lockTimeout; после lockRetries таких проходов подряд арендатор выбывает до перестройки.</CardDescription></CardHeader>
+            <CardHeader><CardTitle>Выписка по месяцам</CardTitle><CardDescription>Пишет проектор statement из журнала операций — с небольшим отставанием. Чужую блокировку строки выписки пачка ждёт не дольше lockTimeout; после lockRetries таких проходов подряд арендатор выбывает до перестройки. Проверить: «Чужая транзакция: занять выписку», затем пополнение.</CardDescription></CardHeader>
             <CardContent className="grid gap-3">
               {status && (
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground" data-status={status.state}>
@@ -168,15 +189,31 @@ function Billing({ me }: { me: { name: string } }) {
                 <TableHeader><TableRow><TableHead>месяц</TableHead><TableHead>счёт</TableHead><TableHead className="text-right">пополнено</TableHead><TableHead className="text-right">списано</TableHead><TableHead className="text-right">операций</TableHead></TableRow></TableHeader>
                 <TableBody>{data.statements.map((s, i) => <TableRow key={i}><TableCell>{s.month}</TableCell><TableCell>{s.wallet}</TableCell><TableCell className="text-right" data-topup={s.wallet}>{rub(s.topup)}</TableCell><TableCell className="text-right">{rub(s.debit)}</TableCell><TableCell className="text-right">{s.count}</TableCell></TableRow>)}</TableBody>
               </Table>
-              <div><Button size="sm" variant="outline" data-act="rebuild" onClick={rebuild}>Перестроить выписку</Button></div>
+              {status?.hold && (
+                <Alert data-hold={status.hold.stage}>
+                  <AlertTitle>{status.hold.stage === 'armed' ? 'Чужая транзакция держит горизонт' : 'Чужая транзакция держит строку выписки'}</AlertTitle>
+                  <AlertDescription>{status.hold.stage === 'armed'
+                    ? 'Пока она открыта, проектор не видит новых операций. Пополните счёт: после пополнения она займёт строку выписки этого счёта за месяц.'
+                    : `Пачка проектора ждёт строку не дольше lockTimeout; после ${status.options.lockRetries} таких проходов подряд арендатор выбудет (55P03), и чужая транзакция закроется сама.`}</AlertDescription>
+                </Alert>)}
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" data-act="rebuild" onClick={rebuild}>Перестроить выписку</Button>
+                {status?.hold
+                  ? <Button size="sm" variant="secondary" data-act="release" onClick={release}>Отпустить чужую транзакцию</Button>
+                  : <Button size="sm" variant="outline" data-act="hold" onClick={arm}>Чужая транзакция: занять выписку</Button>}
+              </div>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle>Целостность</CardTitle><CardDescription>verify({'{'} data: true {'}'}) администраторским подключением: цепочки хэшей журнала, данные против описаний классов, баланс каждого счёта против суммы его операций.</CardDescription></CardHeader>
+            <CardHeader><CardTitle>Целостность</CardTitle><CardDescription>verify({'{'} data: true {'}'}) администраторским подключением: цепочки хэшей журнала, данные против описаний классов, баланс каждого счёта против суммы его операций. «Испортить запись журнала» меняет баланс в старой версии счёта прямым UPDATE в обход библиотеки — как правка руками в SQL.</CardDescription></CardHeader>
             <CardContent className="grid gap-3">
-              <div><Button size="sm" data-act="verify" onClick={check}>Проверить целостность</Button></div>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" data-act="verify" onClick={check}>Проверить целостность</Button>
+                <Button size="sm" variant="destructive" data-act="corrupt" onClick={corrupt}>Испортить запись журнала</Button>
+                <Button size="sm" variant="outline" data-act="repair" onClick={repair}>Вернуть как было</Button>
+              </div>
               {verify && (verify.ok
-                ? <Alert data-verify="ok"><AlertTitle>Нарушений нет</AlertTitle><AlertDescription>Проверено версий: {verify.checked}. Цепочки хэшей сходятся, балансы равны сумме операций. Якорь {verify.anchor.slice(0, 16)}… — хэш голов цепочек: храните его вне базы.</AlertDescription></Alert>
+                ? <Alert data-verify="ok"><AlertTitle>Нарушений нет</AlertTitle><AlertDescription>Проверено версий: {verify.checked}. Цепочки хэшей сходятся, балансы равны сумме операций. Якорь {verify.anchor.slice(0, 16)}… — один хэш текущих версий всех объектов: храните его вне базы, тогда заметна и подмена самых свежих версий.</AlertDescription></Alert>
                 : <Alert variant="destructive" data-verify="issues"><AlertTitle>Найдены нарушения: {verify.issues.length}</AlertTitle>
                     <AlertDescription><ul>{verify.issues.map((i, k) => <li key={k}>{i.class} {i.label} v{i.rev ?? '—'}: {i.problem}</li>)}</ul></AlertDescription></Alert>)}
             </CardContent>
