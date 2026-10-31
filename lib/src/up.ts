@@ -172,23 +172,39 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
   const [{ v }] = await sql<{ v: string }[]>`select current_setting('server_version_num') as v`;
   if (Number(v) < 180000) throw new Error(`letopis.up: нужен PostgreSQL 18 или новее, а сервер — ${v}`);
 
-  // Роли — общие для кластера; создаются идемпотентно.
-  for (const r of [owner, app]) {
-    await sql.unsafe(`do $$ begin
-      if not exists (select 1 from pg_roles where rolname = ${quoteLiteral(r)}) then
-        create role ${quoteIdent(r)} nologin;
-      end if;
-    exception when duplicate_object then null; end $$`);
-  }
-  // Установщик получает права владельца только на время set role (план, §2.9).
-  await sql.unsafe(`grant ${quoteIdent(owner)} to current_user with inherit false, set true`).catch((e: { code?: string }) => {
-    if (e.code !== '0LP01') throw e; // уже выдано циклом — нет
+  // Общая часть установки — роли, членство установщика, pgcrypto и право владельца на схему pgcrypto — одна на все
+  // установки базы, а роли — на весь кластер. Параллельные up() разных схем меняли её одновременно: grant на схему
+  // pgcrypto переписывает её строку pg_namespace, даже если право уже есть, и второй такой grant падал «tuple
+  // concurrently updated» (XX000); на чистой базе второй create role или create extension упал бы на уникальном индексе
+  // каталога. Поэтому общая часть — отдельная транзакция под advisory-блокировкой: другой up() ждёт её фиксации и
+  // видит готовые объекты. Строка-замок, как у внутренних блокировок движка (60-write.sql), не годится: таблицы secret
+  // до установки нет, и у каждой схемы она своя — разные установки друг друга не увидели бы. Advisory-ключ может занять
+  // любая роль базы (ревью безопасности №2 и №3), но так посторонний задержит только up() — операцию администратора, а
+  // не запись; кто держит ключ, видно в pg_locks. Ключ — пара int4: это пространство ключей отдельно от lock() явной
+  // транзакции (int8). Блокировка живёт до конца транзакции, обрыв соединения её снимает.
+  // Advisory-блокировка действует в пределах базы, а роли общие для кластера: up() в другой базе может создать роль
+  // или членство одновременно с этим, тогда здесь unique_violation (23505) — роль или членство уже есть.
+  const nsp = await sql.begin(async (tx) => {
+    await tx.unsafe(`select pg_advisory_xact_lock(hashtext('letopis'), hashtext('install'))`);
+    for (const r of [owner, app]) {
+      await tx.unsafe(`do $$ begin
+        if not exists (select 1 from pg_roles where rolname = ${quoteLiteral(r)}) then
+          create role ${quoteIdent(r)} nologin;
+        end if;
+      exception when duplicate_object or unique_violation then null; end $$`);
+    }
+    // Установщик получает права владельца только на время set role (план, §2.9). Отказ гранта откатывает только
+    // точку сохранения, а не всю транзакцию.
+    await tx.savepoint((sp) => sp.unsafe(`grant ${quoteIdent(owner)} to current_user with inherit false, set true`))
+      .catch((e: { code?: string }) => {
+        if (e.code !== '0LP01' && e.code !== '23505') throw e; // уже выдано циклом — нет; 23505 — выдал up() другой базы
+      });
+    await tx.unsafe(`create extension if not exists pgcrypto`);
+    const [{ nsp }] = await tx.unsafe<{ nsp: string }[]>(`
+      select n.nspname as nsp from pg_extension e join pg_namespace n on n.oid = e.extnamespace where e.extname = 'pgcrypto'`);
+    await tx.unsafe(`grant usage on schema ${quoteIdent(nsp)} to ${quoteIdent(owner)}`);
+    return nsp;
   });
-
-  await sql.unsafe(`create extension if not exists pgcrypto`);
-  const [{ nsp }] = await sql<{ nsp: string }[]>`
-    select n.nspname as nsp from pg_extension e join pg_namespace n on n.oid = e.extnamespace where e.extname = 'pgcrypto'`;
-  await sql.unsafe(`grant usage on schema ${quoteIdent(nsp)} to ${quoteIdent(owner)}`);
 
   const vars: Record<string, string> = {
     SCHEMA: quoteIdent(opts.schema),
