@@ -324,7 +324,10 @@ export async function runExample(
   opts: RunOptions = {},
 ): Promise<{ id: string; snapshot: unknown; real: unknown; failures: string[] }> {
   const id = opts.id ?? relative(EXAMPLES, file).split(sep).join('/').replace(/\.ts$/, '');
-  const schema = opts.schema ?? `v2.g_${id.replace(/[^a-z0-9]+/gi, '_').toLowerCase()}`.slice(0, 60);
+  // схема прогона документации; песочница идёт в своей, случайной, но в «Дано» снимка — всегда эта, иначе снимок
+  // песочницы разошёлся бы с записанным
+  const canonical = `v2.g_${id.replace(/[^a-z0-9]+/gi, '_').toLowerCase()}`.slice(0, 60);
+  const schema = opts.schema ?? canonical;
   const ex = (await import(pathToFileURL(file).href)).default as Example;
   const codes = stepCodes(file);
   const failures: string[] = [];
@@ -489,7 +492,7 @@ export async function runExample(
   };
   // «Дано»: что раннер передаёт шагам в run(ctx) и чему это равно в этом прогоне; весь код примера — для показа
   const given = {
-    schema, dsn: { admin: ADMIN_DSN, app: appDsn() }, user: { login: USER.login, password: USER.password },
+    schema: canonical, dsn: { admin: ADMIN_DSN, app: appDsn() }, user: { login: USER.login, password: USER.password },
     up: r ? { serviceKey: r.serviceKey ?? null, tenant: r.tenant ?? null } : null,
   };
   const source = lf(readFileSync(file, 'utf8'));
