@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_ec46bf3404cce02f33e970cf3e4de73a3785b894fdcf766ed5b5664af4d6650e",
+      "serviceKey": "lts_06fa89cdfb1d5701437f2186da7ded2eabbffb041e48bf7c1e0f1248ecb81d88",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "5fd94590c7d94ce275574a3f59d667ac1faf535d4626933eacb94be0d3e67123",
+        "token": "a80a8e29469807b2b71e5b29899e45aca018b0fd2eb43d8072c4648b22c09759",
         "created": true
       }
     }
@@ -29,7 +29,9 @@
     {
       "result": {
         "сухой прогон": "сухой прогон: создать 7, изменить 0, без изменений 0, системных 0",
-        "с --apply": "применено: создать 7, изменить 0, без изменений 0, системных 0"
+        "--check до --apply, код": 1,
+        "с --apply": "применено: создать 7, изменить 0, без изменений 0, системных 0",
+        "--check после --apply, код": 0
       },
       "error": null,
       "entity": [],
@@ -68,7 +70,7 @@
           },
           "external": 0,
           "portions": 1,
-          "ms": 216.7344000000012
+          "ms": 215.5358000000001
         }
       },
       "error": null,
@@ -132,6 +134,21 @@
         "letopis_query",
         "letopis_history"
       ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "код выхода": 1,
+        "ошибки": [
+          "3:36 delete-preview: delete() без { confirm: true } — только предпросмотр: ничего не удаляется, а его результат не используется",
+          "4:24 unknown-name: класс или роль Prodct не найдены в моделях — похожие: Product"
+        ]
+      },
       "error": null,
       "entity": [],
       "removed": [],

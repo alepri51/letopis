@@ -30,22 +30,28 @@ function mcpTools(args: string[]): Promise<string[]> {
 }
 
 export default example({
-  title: 'Командная строка: letopis sync, types, load, describe, verify, maintain, mcp',
+  title: 'Командная строка: letopis sync, types, load, describe, verify, maintain, mcp, check',
   summary:
-    'Те же операции — из терминала и CI. Всем командам нужны --dsn и --schema; операциям пользователя — ещё ' +
-    '--token или --api-key. Здесь команды запускаются в процессе примера (кроме mcp — отдельным процессом по stdio).',
+    'Те же операции — из терминала и CI. Командам, которые работают с базой, нужны --dsn и --schema; операциям ' +
+    'пользователя — ещё --token или --api-key; check проверяет код без базы. Здесь команды запускаются в процессе ' +
+    'примера (кроме mcp — отдельным процессом по stdio).',
   tables: ['counts'],
-  covers: ['cli.sync', 'cli.types', 'cli.load', 'cli.describe', 'cli.verify', 'cli.maintain', 'cli.mcp'],
+  covers: ['cli.sync', 'cli.types', 'cli.load', 'cli.describe', 'cli.verify', 'cli.maintain', 'cli.mcp', 'cli.check'],
   steps: [
     {
-      title: 'sync: сухой прогон и запись моделей',
-      text: '`letopis sync модуль.ts --token …` берёт из модуля всё, у чего есть `describe()`, и сравнивает с базой. Без `--apply` это сухой прогон — ничего не записывается; с `--apply` модели записываются.',
+      title: 'sync: сухой прогон, проверка и запись моделей',
+      text: '`letopis sync модуль.ts --token …` берёт из модуля всё, у чего есть `describe()`, и сравнивает с базой. Без `--apply` это сухой прогон — ничего не записывается; с `--apply` модели записываются. `--check` — тот же сухой прогон, но с кодом 1, если есть что создать или изменить: шаг CI перед `--apply`.',
       run: async ({ dsn, schema, up }) => {
         token = up.tenant!.token!;
         base = ['--dsn', dsn.app, '--schema', schema, '--token', token];
         const dry = await cli(['sync', SHOP, ...base]);
+        const before = await cli(['sync', SHOP, ...base, '--check']);
         const real = await cli(['sync', SHOP, ...base, '--apply']);
-        return { 'сухой прогон': dry.out.split('\n')[0], 'с --apply': real.out.split('\n')[0] };
+        const after = await cli(['sync', SHOP, ...base, '--check']);
+        return {
+          'сухой прогон': dry.out.split('\n')[0], '--check до --apply, код': before.code,
+          'с --apply': real.out.split('\n')[0], '--check после --apply, код': after.code,
+        };
       },
     },
     {
@@ -93,6 +99,25 @@ export default example({
       title: 'mcp: сервер инструментов для ИИ-агента по stdio',
       text: '`letopis mcp --token …` — то, что подключают в Claude Code или другом клиенте MCP; `--write` разрешает запись.',
       run: async () => mcpTools(base),
+    },
+    {
+      title: 'check: проверки кода до запуска, без базы',
+      text:
+        '`letopis check файлы… --models модуль.ts` разбирает код TypeScript Compiler API и находит ошибки в цепочках до ' +
+        'запуска: здесь `delete()` без `{ confirm: true }`, чей результат не используется (это превью — ничего не ' +
+        'удаляется), и опечатка в имени класса — с похожими именами. Есть ошибки — код 1; `--json` — отчёт в JSON.',
+      run: async () => {
+        const file = join(dir, 'app.ts');
+        await writeFile(file, [
+          "import { connect } from 'letopis';",
+          "const db = await connect({ dsn: process.env.DSN!, schema: 'v2.shop' });",
+          "await db.Shop({ name: 'Ромашка' }).delete();",
+          "const found = await db.Prodct({ sku: 'K-1' }).rows();",
+        ].join('\n'));
+        const r = await cli(['check', file, '--models', SHOP, '--json']);
+        const report = JSON.parse(r.out) as { problems: { line: number; column: number; rule: string; message: string }[] };
+        return { 'код выхода': r.code, ошибки: report.problems.map((p) => `${p.line}:${p.column} ${p.rule}: ${p.message}`) };
+      },
     },
   ],
 });

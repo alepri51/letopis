@@ -6,7 +6,7 @@ outline: [2, 2]
 
 # Справочник API
 
-Все методы и функции letopis: сигнатура с типами, что делает, параметры и опции (тип, значение по умолчанию, смысл), что возвращает, какие коды ошибок бросает и где на сайте живой пример. Пунктов — 210, опций — 99.
+Все методы и функции letopis: сигнатура с типами, что делает, параметры и опции (тип, значение по умолчанию, смысл), что возвращает, какие коды ошибок бросает и где на сайте живой пример. Пунктов — 211, опций — 99.
 
 Справочник собран из исходников пакета: сигнатуры и типы — из кода, описания — из комментариев к коду и дополнений сайта. Коды ошибок — в главе [Ошибки](../errors/), объявления типов — на странице [Типы](./types).
 
@@ -80,7 +80,7 @@ outline: [2, 2]
 
 Команда `letopis` ставится вместе с пакетом. Подключение — `--dsn` и `--schema`, вход — `--token` (токен сессии) или `--api-key` (ключ API); `letopis mcp` принимает только `--token`.
 
-[letopis sync](./cli#cli-sync) · [letopis types](./cli#cli-types) · [letopis load](./cli#cli-load) · [letopis verify](./cli#cli-verify) · [letopis maintain](./cli#cli-maintain) · [letopis describe](./cli#cli-describe) · [letopis mcp](./cli#cli-mcp)
+[letopis sync](./cli#cli-sync) · [letopis types](./cli#cli-types) · [letopis load](./cli#cli-load) · [letopis verify](./cli#cli-verify) · [letopis maintain](./cli#cli-maintain) · [letopis describe](./cli#cli-describe) · [letopis mcp](./cli#cli-mcp) · [letopis check](./cli#cli-check)
 
 ## [Типы](./types)
 

@@ -35,13 +35,14 @@
 
 | Команда | Что делает |
 |---|---|
-| `letopis sync модуль [--apply]` | сравнить модели модуля с базой; `--apply` — записать |
+| `letopis sync модуль [--apply \| --check]` | сравнить модели модуля с базой; `--apply` — записать, `--check` — код 1, если есть что создать или изменить |
 | `letopis types [--out файл]` | интерфейсы TypeScript по модели из базы |
 | `letopis load файлы… [--existing …] [--initial]` | загрузка NDJSON (администраторское подключение) |
 | `letopis describe [--format text]` | модель для людей и ИИ-агентов |
 | `letopis verify [--data]` | проверка журнала; код 1 при находках |
 | `letopis maintain [--batches N]` | обслуживание: прореживание, истёкшие сессии и коды |
 | `letopis mcp [--write]` | сервер MCP по stdio ([глава 15](../mcp/)) |
+| `letopis check файлы… [--models модуль] [--json]` | проверки кода до запуска, без базы (нужен пакет `typescript`); код 1 при ошибках |
 
 Запуск из репозитория без сборки: `node --import tsx lib/src/cli.ts <команда> …`.
 
