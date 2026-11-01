@@ -24,6 +24,7 @@
  */
 import type postgres from 'postgres';
 import { LetopisError, fromDbError } from './errors.js';
+import { release, rollbackAfter } from './tx.js';
 import { toRow } from './sql.js';
 import { wakes } from './watch.js';
 import { schemaRevision, SYSTEM_ID } from './up.js';
@@ -630,6 +631,7 @@ export class Projector {
   /** Транзакция под ролью владельца на отдельном соединении пула. */
   private async tx<T>(fn: (q: Conn) => Promise<T>): Promise<T> {
     const q = await this.env.sql.reserve();
+    let failure: unknown = null;
     try {
       await q.unsafe('begin isolation level read committed');
       await q.unsafe(`set local role ${ident(this.env.ownerRole)}`);
@@ -641,10 +643,12 @@ export class Projector {
       await q.unsafe('commit');
       return out;
     } catch (e) {
-      await q.unsafe('rollback').catch(() => {});
+      // обрыв: rollback и возврат мёртвого соединения в пул роняли процесс (план 2.0, 7.4 №7)
+      failure = e;
+      await rollbackAfter(q, e);
       throw fromDbError(e);
     } finally {
-      q.release();
+      release(q, failure);
     }
   }
 

@@ -27,6 +27,7 @@ import { v5Id } from './uuid.js';
 import { applyDefaults } from './validate.js';
 import { isInc } from './write.js';
 import { ACL_CLASS_NAMES } from './types.js';
+import { isConnectionError, release, rollbackAfter } from './tx.js';
 
 const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -766,9 +767,10 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       await conn.unsafe('commit');
     } catch (e) {
       failed = e;
-      if (!ini) await conn.unsafe('rollback').catch(() => {});
+      // обрыв: в мёртвое соединение не пишут и в пул его не возвращают (план 2.0, 7.4 №7)
+      if (!ini) await rollbackAfter(conn, e);
     } finally {
-      if (!ini) conn.release();
+      if (!ini) release(conn, failed);
     }
     if (failed) {
       const err = failed as { code?: string; constraint_name?: string };
@@ -1135,6 +1137,7 @@ export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) =>
   const ident = (n: string) => `"${n.replace(/"/g, '""')}"`;
   const conn = await env.sql.reserve();
   const q = (text: string, params: unknown[] = []) => conn.unsafe(text, params as never[]);
+  let initialFailure: unknown = null;
   try {
     await q('begin isolation level read committed');
     await q(`set local role ${ident(env.ownerRole)}`);
@@ -1227,9 +1230,10 @@ export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) =>
     await q('commit');
     return out;
   } catch (e) {
-    await q('rollback').catch(() => {});
+    initialFailure = e;
+    if (!isConnectionError(e)) await q('rollback').catch(() => {});
     throw e instanceof LetopisError ? e : fromDbError(e);
   } finally {
-    conn.release();
+    release(conn, initialFailure);
   }
 }

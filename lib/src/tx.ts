@@ -49,11 +49,20 @@ export function isConnectionError(e: unknown): boolean {
 }
 
 /**
+ * Откатить транзакцию на зарезервированном соединении после ошибки: после обрыва в него не пишут (postgres.js 3.4
+ * уронил бы процесс необработанным TypeError), иначе — rollback, ошибка которого не важна (план 2.0, 7.4 №7).
+ */
+export async function rollbackAfter(conn: { unsafe(text: string): Promise<unknown> }, err: unknown): Promise<void> {
+  if (isConnectionError(err)) return;
+  await conn.unsafe('rollback').catch(() => {});
+}
+
+/**
  * Вернуть зарезервированное соединение в пул. После обрыва сокета пул postgres.js уже перевёл
  * соединение в закрытые (onclose); release() вернул бы его в открытые, и следующая операция
  * писала бы в сокет null — необработанный TypeError роняет процесс.
  */
-function release(conn: { release(): void }, err: unknown): void {
+export function release(conn: { release(): void }, err: unknown): void {
   const e = err as { code?: string; severity?: string } | null;
   if (e && !e.severity && isConnectionError(e)) return;
   conn.release();
@@ -281,8 +290,8 @@ export class ExplicitTx implements Executor {
       await setupSql(conn as unknown as Tx, ctx, pass);
       if (!pass && ctx.passes && ctx.token) ctx.passes.set(ctx, ((await passSql(conn as unknown as Tx, ctx)) as unknown as { p: string }[])[0]?.p);
     } catch (e) {
-      await conn.unsafe('rollback').catch(() => {});
-      conn.release();
+      await rollbackAfter(conn, e);
+      release(conn, e);
       throw fromDbError(e);
     }
     return new ExplicitTx(ctx, conn);
