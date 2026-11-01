@@ -27,7 +27,7 @@ export const REMOVED_IN = '1.0.0';
 /** Охранник снесённого API (план, этап 3, п. 11): понятная ошибка с версией и заменой. */
 export function removed(name: string, replacement: string): LetopisError {
   // «опция …» — женского рода; методы и свойства — мужского
-  const verb = name.startsWith('опция ') ? 'снята' : 'снят';
+  const verb = name.startsWith('опция ') ? 'снята' : / и /.test(name) ? 'сняты' : 'снят';
   return new LetopisError('removed', `${name} ${verb} в ${REMOVED_IN} — ${replacement}`);
 }
 

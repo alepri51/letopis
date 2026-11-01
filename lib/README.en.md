@@ -2606,7 +2606,7 @@ behavior.
 **Platform**
 
 - PostgreSQL 18 or newer is required; there are no workarounds for 15–17. AWS RDS, Google Cloud SQL, Azure Flexible
-  Server and Neon support 18, while Supabase, as of October 2026, offers only 15 and 17, so 1.0 will not work there.
+  Server and Neon support 18, while Supabase, as of October 2026, offers only 15 and 17, so letopis will not work there.
 - The database must be in UTF8 encoding (`casefold()` and the `pg_unicode_fast` collation). If a new major PostgreSQL
   version updates the Unicode tables, the unique index of credential identifiers is rebuilt with the `reindex` command.
 - PGlite has one superuser connection: no concurrent writers and no `LISTEN`, and RLS does not apply

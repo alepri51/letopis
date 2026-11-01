@@ -123,7 +123,7 @@ const describeQuery = (o: Limits): string => [
   'Чтение JSON-цепочкой, без SQL. Старт: class (класс, алиас или роль) и filter, id или ids.',
   'steps — переходы по связям: [{ step: "Роль или Класс", filter? | id? | ids? }].',
   'Фильтр: { поле: значение } — равенство; вложенные поля — вложенным объектом; конец — { Роль: id };',
-  'операторы — { поле: { $gt: 5 } }: $ne, $gt, $gte, $lt, $lte, $between [a, b], $in [..], $like, $ilike, $starts, $ends, $has, $hasAny [..], $hasAll [..], $exists true|false, $isNull true, $not; ИЛИ — { $or: [фильтр, …] }.',
+  'операторы — { поле: { $gt: 5 } }: $ne, $gt, $gte, $lt, $lte, $between [a, b], $in [..], $like, $ilike, $starts, $ends (% и _ в значении $starts и $ends — шаблон LIKE, не экранируются), $has, $hasAny [..], $hasAll [..], $exists true|false, $isNull true, $not; ИЛИ — { $or: [фильтр, …] }.',
   'Модификаторы: asOf (момент ISO — срез на дату), withDeleted, sort { field: "at" | "rev" | "id" | "data.<путь>", dir }, limit, cursor (из прошлого ответа).',
   'terminal: rows (по умолчанию), first, ids, count, sum, avg, min, max, countBy — с field "data.<путь>".',
   `Ответ — не больше ${o.maxRows} строк и ${o.maxBytes} байт; дальше — cursor. Без sort строки идут по id. Только чтение.`,

@@ -352,7 +352,7 @@ they drop out. A tenant with a source with `history: false` drops out (`invalid_
 `withBefore`) is the previous version of the same id or `null`: `null` for a creation, for the first version of a new
 id after `reclass` and `rekey` (the tombstone of the former id subtracts the former data), during a rebuild and when
 the previous version is a deletion (after `restore`) or lies outside the `from` family; `purge`, `trim` and `reset`
-have no such field, so subtract `before` only after checking it for `null`. A class change that keeps the id (a class
+have no such field (`undefined`), so subtract `before` only after checking that it is truthy: `if (c.before)`. A class change that keeps the id (a class
 without a key) and takes the row out of the `from` family comes as a deletion (`op` `delete`, `row` is the last
 version in the family with `$deleted`). `handle` gets the changes of one tenant. An error of its data (the
 database rejected its results, or `out` rejected its row or delta) rolls back only this tenant: it drops out
@@ -407,7 +407,7 @@ data, not instructions); `data` by terminal: `rows` — `{ rows, count, more, cu
 `{ ids, count, more, cursor? }` (`count` is the rows on the page), `first` — `{ row }`, `count` — `{ count }`,
 `countBy` — `{ counts, truncated? }`, `sum`, `avg`, `min`, `max` —
 `{ value }`. A refusal is `isError: true` with a `structuredContent` of the form `{ notice, error }` (`error` is
-`{ code, message, similar? }`). Writing only
+`{ code, message, detail?, sqlstate?, similar? }`). Writing only
 with `write: true` (without it `letopis_write` is not in the list, and a call is an SDK protocol error): `update` with
 `rev`; `delete` without `confirm` is a preview, with `confirm` a human confirms it (elicitation), and without that it
 is `confirmation_required`. Data from the database in an answer sits inside `<untrusted-data-…>`.
