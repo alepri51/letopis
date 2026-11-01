@@ -1575,13 +1575,10 @@ const pg2 = postgres(ADMIN)
 const OLEG = (await createTenant(pg2, r.schema, {          // the same shop: only the user is created
   name: 'Chamomile', user: { name: 'Oleg', login: 'oleg@shop.ru', password: 'Oleg-2026!' } })).user!
 await pg2.end()
-await db.member(db.idOf('member', { User: OLEG, Tenant: SHOP })).update({ roles: ['staff'] }).rows()
+await db.acl.roles(OLEG, ['staff'])                         // Oleg's roles in the current tenant (a member row)
 
-const [staff] = await db.Resource().create({ alias: 'staff:ACCOUNT', category: 'ACCOUNT', pattern: { roles: '{staff}' } }).rows()
-const [delProduct] = await db.Resource().create({ alias: 'product:DELETE', category: 'DELETE', pattern: { class: 'Product' } }).rows()
-await db.rule().create({ permission: 'deny', weight: 50 }).Group.set(staff).Object.set(delProduct).rows()   // stronger than "may do everything" (10)
-const [reports] = await db.Resource().create({ alias: 'reports:API', category: 'API', pattern: { endpoint: 'shop.reports.*' } }).rows()
-await db.rule().create({ permission: 'allow', weight: 50 }).Group.set(staff).Object.set(reports).rows()
+await db.acl.deny({ role: 'staff', delete: 'Product' })     // weight 50 — stronger than "may do everything" (10)
+await db.acl.grant({ role: 'staff', api: 'shop.reports.*' })
 
 const asOleg = await svc.as(OLEG, { tenant: SHOP })
 const canDelete = await asOleg.acl.checkData('Product', 'DELETE')   // { allow: false }
@@ -1589,11 +1586,25 @@ const canRead = await asOleg.acl.checkData('Product', 'READ')       // { allow: 
 const canReport = await asOleg.acl.check('shop.reports.daily')      // { allow: true, rule: { weight: 50, … } }
 ```
 
+- `db.acl.grant` and `db.acl.deny` take a role and targets: `read`, `write`, `delete` — a class (with descendants),
+  `'*'` — all classes, or a class with a condition on rows (`{ class: 'Ticket', owner: '$actor' }`); `api` — an endpoint
+  mask; a list means several. Each operation and target gets one rule with the weight `weight` (50 by default, from 1
+  to 999). Under the hood these are the same `Resource` rows (`role:staff:ACCOUNT`, `class:Product:DELETE`,
+  `api:shop.reports.*:API`) and `rule` rows of the current tenant, and the rule key is the group and object pair: a
+  repeated call changes nothing, and `grant` after `deny` for the same role and target replaces the denial with a
+  permission. Inside `db.begin()` it runs in that transaction. Rules can be written by whoever has `WRITE` on
+  `Resource` and `rule` (after `createTenant`, any member through the "may do everything" rule; to close it — `deny`
+  with `write: ['Resource', 'rule', 'member']`). A wrong call gives `invalid_data` before anything is written.
+- `db.acl.revoke({ role, … })` removes the role's rules — permissions and denials — for these targets and returns the
+  number removed. `db.acl.roles(account)` gives the roles in the current tenant (`null` — not a member),
+  `db.acl.roles(account, ['staff'])` replaces them (the membership is created), `db.acl.roles(account, null)` removes
+  the membership. `db.acl.list()` gives the tenant's rules `{ role, group, op, target, condition, permission, weight }`,
+  its own and "may do everything" from `createTenant`.
 - `acl.check(endpoint)` → `{ allow, rule, code, message }`: the `code` and `message` fields of the denying rule set the
   endpoint's own denial.
 - `acl.checkData(class, 'READ' | 'WRITE' | 'DELETE')` → `{ allow, filter }`: `filter` is the condition on rows.
-- The database recomputes permissions by itself. To remove a permission, delete the rule:
-  `db.rule(id).delete({ confirm: true })`.
+- The database recomputes permissions by itself. Rules can also be written directly with `Resource` and `rule`
+  chains — the fields are below.
 - The library takes the actor's signed permission plan — the permission pass — from the database once and passes it
   in every transaction, so a permission check costs tens of microseconds. Raw SQL without the pass pays 0.3–1.3 ms per
   query.
@@ -2849,6 +2860,7 @@ order; the first red step stops the run. The same load for a day: `cd lib && npm
 # access-rest — the remaining rows of stage 5: loading on behalf of a user, balance No. 20, 22, 29, upsert and { rev } under ACL, inlining of acl_ok (stage 5)
 # aggregate — aggregates in the database: 20 writers of one wallet, raw SQL, a cascade, reclass, restore, the loader, account deletion, restore and rekey of the target, a description change under writes and race No. 18, aggregate_field, repair and verify, a System row (plan 1.1, stage 4b)
 # acl — ACL permissions: the 0.21 suite ported, row conditions, weight and default deny, cascade, deny on a descendant, deep, an invisible target, raw SQL versus the library; a change of parent and alias of a class only with permissions on all its rows, an alias is not the name of another class, a name is not another class's alias (stage 5; security review No. 2)
+# acl-grant — the db.acl wrapper: grant, deny, revoke, roles and list are idempotent, the database enforces them on top of "may do everything", deny wins on equal weight, the $actor condition, api, the db.begin() transaction, invalid_data before writing (plan 2.0, 7.9 No. 1)
 # acl-parity — 1000 random rule sets: the database permission plan and endpoint decisions versus decide from 0.21 (stage 5)
 # auth — credentials (password, key, key + secret, OTP, TOTP, identity), timing equalization, case, session revocation, recent sign-in (stage 5)
 # balance — top-up and debit: idempotency by opId, races, deadlock, connection drop (TCP proxy), adjustment under { rev } and forUpdate (stage 4)

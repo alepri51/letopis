@@ -9,31 +9,33 @@ export default example({
   title: 'Права: роль сотрудника, запрет удаления, право на отчёты',
   summary:
     'Права в letopis всегда включены и по умолчанию запрещают всё. Правило — связь «кто» (ресурс-группа) и «что» ' +
-    '(ресурс-объект) с разрешением и весом. Проверяет их сама база — одинаково для библиотеки и для прямых SQL-запросов.',
+    '(ресурс-объект) с разрешением и весом; `db.acl.grant` и `db.acl.deny` заводят их по роли и цели. Проверяет ' +
+    'правила сама база — одинаково для библиотеки и для прямых SQL-запросов.',
   tables: ['entity'],
   classes: ['member', 'Resource', 'rule'],
   covers: ['db.acl', 'nuance.deny-by-default', 'nuance.rule-weight', 'nuance.tenant-classes', 'error.acl_denied', 'error.invalid_class'],
   steps: [
     {
       title: 'Магазин и второй сотрудник — Олег',
-      text: '`createTenant` с именем того же магазина заводит только пользователя. Ему дают роль `staff` в членстве.',
+      text: '`createTenant` с именем того же магазина заводит только пользователя. `db.acl.roles` даёт ему роль `staff` ' +
+        'в текущем арендаторе — это строка членства `member`.',
       run: async ({ db, admin, schema, up }) => {
         d = await seedShop(db);
         oleg = (await createTenant(admin, schema, { name: 'Ромашка', user: { name: 'Олег', login: 'oleg@romashka.ru', password: 'Олег-2026!' } })).user!;
-        return db.member(await db.idOf('member', { User: oleg, Tenant: up.tenant!.tenant })).update({ roles: ['staff'] }).rows();
+        return db.acl.roles(oleg, ['staff']);
       },
     },
     {
       title: 'Правило: сотрудникам нельзя удалять товары',
       text:
-        'Ресурс-группа «роль staff», ресурс-объект «удаление товаров» и запрет с весом 50 — сильнее правила «своим можно всё» (вес 10). ' +
-        'Второе правило разрешает той же роли отчёты — эндпоинты `shop.reports.*`.',
+        '`db.acl.deny` — запрет роли `staff` удалять товары с весом 50: сильнее правила «своим можно всё» (вес 10). ' +
+        '`db.acl.grant` разрешает той же роли отчёты — эндпоинты `shop.reports.*`. Под капотом — ресурсы ' +
+        '`role:staff:ACCOUNT`, `class:Product:DELETE`, `api:shop.reports.*:API` и правила между ними; повтор вызова ничего ' +
+        'не меняет. `db.acl.list()` показывает правила арендатора — и эти, и «можно всё» от `createTenant`.',
       run: async ({ db }) => {
-        const [staff] = await db.Resource().create({ alias: 'staff:ACCOUNT', category: 'ACCOUNT', pattern: { roles: '{staff}' } }).rows();
-        const [delProduct] = await db.Resource().create({ alias: 'product:DELETE', category: 'DELETE', pattern: { class: 'Product' } }).rows();
-        await db.rule().create({ permission: 'deny', weight: 50 }).Group.set(staff).Object.set(delProduct).rows();
-        const [reports] = await db.Resource().create({ alias: 'reports:API', category: 'API', pattern: { endpoint: 'shop.reports.*' } }).rows();
-        return db.rule().create({ permission: 'allow', weight: 50 }).Group.set(staff).Object.set(reports).rows();
+        await db.acl.deny({ role: 'staff', delete: 'Product' });
+        await db.acl.grant({ role: 'staff', api: 'shop.reports.*' });
+        return (await db.acl.list()).map((r) => `${r.role ?? r.group} ${r.op} ${r.target}: ${r.permission}, вес ${r.weight}`);
       },
     },
     {

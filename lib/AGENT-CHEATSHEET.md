@@ -236,30 +236,33 @@ npx letopis load shops.ndjson wallets.ndjson --dsn "$ADMIN" --schema v2.myapp --
 
 Правило = группа (`Resource` категории `ACCOUNT`) → объект (`API` — эндпоинт, `READ`/`WRITE`/`DELETE` — строки
 класса с условием) с `allow`/`deny` и весом. Решает одно правило: наибольший вес, при равном — запрет.
-Вес правила арендатора больше 999 урезается до 999. Писать строки прав в арендаторе может тот, у кого есть `WRITE` на них
-(здесь — сам арендатор по правилу «можно всё»).
+Вес правила арендатора больше 999 урезается до 999. `db.acl.grant` и `db.acl.deny` пишут такие строки сами (вес по
+умолчанию 50); писать их может тот, у кого есть `WRITE` на них (здесь — сам арендатор по правилу «можно всё»).
 <!-- run -->
 ```ts
 // членство Ольги в салоне создал up({ tenant }) с ролью owner; делаем её сотрудником с ролью staff
-await db.member(db.idOf('member', { User: OLGA, Tenant: SALON })).update({ roles: ['staff'] }).rows()
-const [staff] = await db.Resource().create({ alias: 'staff:ACCOUNT', category: 'ACCOUNT', pattern: { roles: '{staff}' } }).rows()
-const [api] = await db.Resource().create({ alias: 'reports:API', category: 'API', pattern: { endpoint: 'shop.reports.*' } }).rows()
-await db.rule().create({ permission: 'allow', weight: 50 }).Group.set(staff).Object.set(api).rows()
-const [del] = await db.Resource().create({ alias: 'wallet:DELETE', category: 'DELETE', pattern: { class: 'Wallet' } }).rows()
-await db.rule().create({ permission: 'deny', weight: 50 }).Group.set(staff).Object.set(del).rows()   // сильнее «можно всё» (10)
+await db.acl.roles(OLGA, ['staff'])
+await db.acl.grant({ role: 'staff', api: 'shop.reports.*' })
+await db.acl.deny({ role: 'staff', delete: 'Wallet' })      // вес 50 — сильнее «можно всё» (10)
 // проверка от имени Ольги (сервис действует от её имени в салоне)
 const olga = await svc.as(OLGA, { tenant: SALON })
 const canReport = await olga.acl.check('shop.reports.view')       // { allow: true, rule: { weight: 50, … }, code?, message? }
 const canDelete = await olga.acl.checkData('Wallet', 'DELETE')    // { allow: false } | { allow: true, filter? }
 ```
-- Членство — строка `member` с концами `User` и `Tenant`, ключ `[User, Tenant]`: новое членство —
-  `db.member().create({ roles }).User.set(аккаунт).Tenant.set(арендатор)`, если его ещё нет (иначе `exists`).
-- Группа: `{ categories: '{Staff}' }` (категории аккаунта) или `{ roles: '{staff}' }` (роли членства). Маска
+- `grant`/`deny({ role, read | write | delete, api, weight })`: цель — класс (с потомками), `'*'` — все классы, класс
+  с условием `{ class: 'Wallet', owner: '$actor' }` или `{ class: 'Wallet', data: { … } }`; `api` — маска эндпоинта;
+  списком — несколько. Повтор ничего не меняет, `grant` после `deny` той же роли и цели заменяет запрет; внутри
+  `db.begin()` — в её транзакции; неверный вызов — `invalid_data` до записи.
+- `db.acl.revoke({ role, … })` — снять (ответ — число снятых). `db.acl.roles(аккаунт)` — роли в текущем арендаторе
+  (`null` — не член), `db.acl.roles(аккаунт, ['staff'])` — заменить (членство — строка `member`, ключ `[User, Tenant]`,
+  заводится), `null` — снять членство. `db.acl.list()` — правила арендатора, свои и «можно всё».
+- Напрямую строками `Resource` и `rule`: группа `{ categories: '{Staff}' }` (категории аккаунта) или
+  `{ roles: '{staff}' }` (роли членства). Маска
   (`categories`, `roles`, `endpoint`, `class`) — **только строка**: массив (`['staff']`), число или `null` база
   отклоняет с `invalid_data`.
   Условие объекта: `{ class: 'Wallet', owner: '$actor' }`, `{ class: 'Wallet', data: { … } }`; маска класса —
   с потомками, `'{rule,Resource,member}'` — несколько классов. `deny` с `{ code, message }` — свой отказ эндпоинта.
-- Права пересчитываются базой сами; убрать право — `db.rule(id).delete({ confirm: true }).rows()`.
+- Права пересчитываются базой сами.
 
 ### 9. Подписка и кэш
 

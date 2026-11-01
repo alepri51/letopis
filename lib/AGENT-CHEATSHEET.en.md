@@ -243,32 +243,37 @@ reference needs `$class`. `$tags` are the row's tags, `$owner` is its owner.
 
 A rule = a group (a `Resource` of category `ACCOUNT`) → an object (`API` — an endpoint, `READ`/`WRITE`/`DELETE` — rows
 of a class with a condition) with `allow`/`deny` and a weight. One rule decides: the highest weight; on a tie, deny.
-A tenant rule weight above 999 is cut down to 999. Rows of access rules in a tenant can be written by whoever has
-`WRITE` on them (here, the tenant itself, through the "may do everything" rule).
+A tenant rule weight above 999 is cut down to 999. `db.acl.grant` and `db.acl.deny` write such rows themselves (weight
+50 by default); they can be written by whoever has `WRITE` on them (here, the tenant itself, through the "may do
+everything" rule).
 <!-- run -->
 ```ts
 // Olga's membership in the salon was created by up({ tenant }) with the role owner; we make her an employee with the role staff
-await db.member(db.idOf('member', { User: OLGA, Tenant: SALON })).update({ roles: ['staff'] }).rows()
-const [staff] = await db.Resource().create({ alias: 'staff:ACCOUNT', category: 'ACCOUNT', pattern: { roles: '{staff}' } }).rows()
-const [api] = await db.Resource().create({ alias: 'reports:API', category: 'API', pattern: { endpoint: 'shop.reports.*' } }).rows()
-await db.rule().create({ permission: 'allow', weight: 50 }).Group.set(staff).Object.set(api).rows()
-const [del] = await db.Resource().create({ alias: 'wallet:DELETE', category: 'DELETE', pattern: { class: 'Wallet' } }).rows()
-await db.rule().create({ permission: 'deny', weight: 50 }).Group.set(staff).Object.set(del).rows()   // stronger than "may do everything" (10)
+await db.acl.roles(OLGA, ['staff'])
+await db.acl.grant({ role: 'staff', api: 'shop.reports.*' })
+await db.acl.deny({ role: 'staff', delete: 'Wallet' })      // weight 50 — stronger than "may do everything" (10)
 // check on behalf of Olga (the service acts on her behalf in the salon)
 const olga = await svc.as(OLGA, { tenant: SALON })
 const canReport = await olga.acl.check('shop.reports.view')       // { allow: true, rule: { weight: 50, … }, code?, message? }
 const canDelete = await olga.acl.checkData('Wallet', 'DELETE')    // { allow: false } | { allow: true, filter? }
 ```
-- A membership is a `member` row with the ends `User` and `Tenant` and the key `[User, Tenant]`: a new membership is
-  `db.member().create({ roles }).User.set(account).Tenant.set(tenant)` if it does not exist yet (otherwise `exists`).
-- Group: `{ categories: '{Staff}' }` (account categories) or `{ roles: '{staff}' }` (membership roles). A mask
+- `grant`/`deny({ role, read | write | delete, api, weight })`: a target is a class (with descendants), `'*'` — all
+  classes, a class with a condition `{ class: 'Wallet', owner: '$actor' }` or `{ class: 'Wallet', data: { … } }`;
+  `api` is an endpoint mask; a list means several. A repeated call changes nothing, `grant` after `deny` for the same
+  role and target replaces the denial; inside `db.begin()` it runs in that transaction; a wrong call gives
+  `invalid_data` before writing.
+- `db.acl.revoke({ role, … })` removes (the answer is the number removed). `db.acl.roles(account)` gives the roles in
+  the current tenant (`null` — not a member), `db.acl.roles(account, ['staff'])` replaces them (the membership is a
+  `member` row with the key `[User, Tenant]`, created if missing), `null` removes the membership. `db.acl.list()`
+  gives the tenant's rules, its own and "may do everything".
+- Directly with `Resource` and `rule` rows: group `{ categories: '{Staff}' }` (account categories) or
+  `{ roles: '{staff}' }` (membership roles). A mask
   (`categories`, `roles`, `endpoint`, `class`) is **a string only**: the database rejects an array (`['staff']`), a
   number or `null` with `invalid_data`.
   Object condition: `{ class: 'Wallet', owner: '$actor' }`, `{ class: 'Wallet', data: { … } }`; a class mask includes
   descendants, `'{rule,Resource,member}'` means several classes. `deny` with `{ code, message }` is a custom endpoint
   refusal.
-- The database recomputes access rights by itself; to remove a permission, use
-  `db.rule(id).delete({ confirm: true }).rows()`.
+- The database recomputes access rights by itself.
 
 ### 9. Subscription and cache
 

@@ -19,6 +19,7 @@ synced: f20b1cf
 - Вход с `totp` (`auth.ts:makeAuthCore`) проверяет код той же `auth_verify_totp`, что `verifyTotp` (счётчик неудач и блокировка общие; секрет из базы не выходит); неудача и аккаунт без TOTP — null. Без `totp` код не проверяется — у сессии нет отметки `TOTP`.
 - Ключи сервиса: свои `APIKEY`/`KEYSECRET` сервис выпускает и отзывает сам (`auth_service_self`), прочие свои креды и чужие ключи — `auth_can_manage`. Вход по ключу пишет id ключа в `meta.cred` (`login_apikey`, `auth_login_apikey`, `login_keysecret`) — по нему отзыв ключа гасит его сессии, а не все сессии аккаунта (`auth_kill_cred`). Последний действующий ключ сервиса не отзывается никем (`acl_denied`).
 - Ключ сигналов: `signal_key()` (`90-time.sql`) отдаёт HMAC(ключ строки KEY, `'letopis:signals'`), а не сам ключ строки: им подписаны пропуска прав. Право — `letopis.signals` (`letopis_allowed`: правило System «сервисам» из сида или `admin_role` — администратор по действующей роли сеанса, SET ROLE). Тесты — `roles` №4, `engine-attacks` №31.
+- Обёртка `db.acl` (`grant`, `deny`, `revoke`, `roles`, `list`; план 2.0, 7.9 №1) пишет цепочками самого фасада (`makeAcl(S, exec, () => facade)`): права на запись `Resource`, `rule`, `member`, RLS и триггеры проверяет база. Alias детерминированные — `role:<роль>:ACCOUNT`, `class:<класс>[условие — канонический JSON]:<ОП>`, `api:<маска>:API`; ресурсы — `upsert` целиком (та же строка — пустая правка, без версии), правило — `upsert` по ключу `[Group, Object]`: `grant` после `deny` той же пары заменяет запрет. Ресурсы обёртки — в арендаторе: ссылку правила арендатора на ресурс System не пропустит `targets_bad` (цель должна быть видна); `list()` узнаёт ресурсы System правил grantAll по их id (`v5Id(System, 'Resource', [alias])`). Явная транзакция фасада (`internalsOf(db).explicit`) — запись в ней, иначе своя `db.begin()`. Имя роли — правило `checkTenant` (`up.ts`), вес — 1…999.
 
 **Что ещё менять вместе**
 - Новая функция владельца (security definer): негативный тест и белый список в `roles.test.ts` №4.
@@ -26,7 +27,7 @@ synced: f20b1cf
 - Новый класс прав или изменение того, что входит в план: список классов `acl_bump` в триггерах, `sys_create`, `ACL_CLASS_NAMES` (`types.ts`).
 
 **Проверка**
-- `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `acl`, `acl-parity`, `auth`, `impersonation`, `member`, `system-classes`, `access-rest`, `engine-attacks`, `roles`, `context`.
+- `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `acl`, `acl-grant` (обёртка db.acl, 7.9 №1), `acl-parity`, `auth`, `impersonation`, `member`, `system-classes`, `access-rest`, `engine-attacks`, `roles`, `context`.
 - Цена прав: `cd lib && npx tsx bench/acl-cost.mjs`.
 
 **Точки входа**
@@ -37,4 +38,4 @@ synced: f20b1cf
 - `lib/sql/80-auth.sql:auth_set_password` — креды
 - `lib/sql/80-auth.sql:auth_revoke_credential` — отзыв креда, ключи сервиса
 - `lib/src/auth.ts:makeAuth` — db.auth
-- `lib/src/acl.ts:makeAcl` — db.acl
+- `lib/src/acl.ts:makeAcl` — db.acl: check, checkData и обёртка grant, deny, revoke, roles, list

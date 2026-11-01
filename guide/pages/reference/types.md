@@ -22,6 +22,24 @@ interface AclApi {
    * что подходят под условие `filter` в ответе.
    */
   checkData(className: string, op: AclOp): Promise<AclDataDecision>;
+  /**
+   * Разрешить роли операции с классами и ресурсы приложения — по правилу на каждую операцию и цель, с весом `weight`
+   * (по умолчанию 50). Повтор ничего не меняет; запрет той же роли и цели заменяется разрешением. Внутри `db.begin()` —
+   * в её транзакции, иначе — своей.
+   */
+  grant(spec: AclRuleSpec): Promise<AclRule[]>;
+  /** Запретить — те же правила с запретом: при равном весе запрет сильнее разрешения. */
+  deny(spec: AclRuleSpec): Promise<AclRule[]>;
+  /** Снять правила роли — разрешения и запреты — для этих операций и целей; число снятых. */
+  revoke(spec: Omit<AclRuleSpec, 'weight'>): Promise<number>;
+  /**
+   * Роли аккаунта в текущем арендаторе (строка `member`); null — не член. Со списком ролей — заменить их (членство
+   * заводится, если его нет), с null — снять членство. Сам арендатор (вход под его аккаунтом) — владелец без строки
+   * `member`: для него ответ null.
+   */
+  roles(account: string | { id: string }, roles?: readonly string[] | null): Promise<string[] | null>;
+  /** Правила текущего арендатора — свои и «можно всё» от createTenant. */
+  list(): Promise<AclRule[]>;
 }
 ```
 
@@ -53,6 +71,54 @@ interface AclDecision {
 
 ```ts
 type AclOp = 'READ' | 'WRITE' | 'DELETE';
+```
+
+## AclRule {#type-aclrule}
+
+```ts
+/** Правило арендатора в виде обёртки. */
+interface AclRule {
+  id: string;
+  /** Роль группы `role:<роль>:ACCOUNT`; null — группа не одной роли (например, `authenticated:ACCOUNT` от createTenant). */
+  role: string | null;
+  /** Alias группы. */
+  group: string;
+  op: AclOp | 'API';
+  /** Класс (`'*'` — все классы) или маска эндпоинта. */
+  target: string;
+  /** Условие на строки — шаблон колонок. */
+  condition?: Record<string, unknown>;
+  permission: 'allow' | 'deny';
+  weight: number;
+}
+```
+
+## AclRuleSpec {#type-aclrulespec}
+
+```ts
+/** Что разрешить, запретить или снять: роль и операции — с классами, ресурсами приложения или с теми и другими. */
+interface AclRuleSpec {
+  /** Роль членства в текущем арендаторе (как в `member.roles`). */
+  role: string;
+  read?: AclTarget | readonly AclTarget[];
+  write?: AclTarget | readonly AclTarget[];
+  delete?: AclTarget | readonly AclTarget[];
+  /** Ресурсы приложения — маски эндпоинтов, как у `check()`: `'reports.*'` — `reports.daily`, но не `reports`. */
+  api?: string | readonly string[];
+  /** Вес правила, целое от 1 до 999; по умолчанию 50 — сильнее правила «можно всё» (вес 10) от createTenant. */
+  weight?: number;
+}
+```
+
+## AclTarget {#type-acltarget}
+
+```ts
+/**
+ * Цель правила на строки: имя класса (правило действует и на потомков), `'*'` — все классы, или класс с условием на
+ * строки — шаблоном колонок `owner`, `tenant`, `tags`, `data`, `links`, `id` (`'$actor'` — тот, от чьего имени запрос,
+ * `'$tenant'` — рабочий арендатор): `{ class: 'Ticket', owner: '$actor' }`.
+ */
+type AclTarget = string | ({ class: string } & { [column: string]: unknown });
 ```
 
 ## AggregateDef {#type-aggregatedef}

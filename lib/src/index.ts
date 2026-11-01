@@ -42,7 +42,7 @@ export { ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends, has, 
 export { cursorOf } from './sql.js';
 export { inc, isInc, type IncMarker, type WriteRow } from './write.js';
 export { totpCode, hashPassword, verifyHash, type AuthApi, type LoginResult, type Credential, type SessionInfo } from './auth.js';
-export type { AclApi, AclDecision, AclDataDecision, AclOp } from './acl.js';
+export type { AclApi, AclDecision, AclDataDecision, AclOp, AclRule, AclRuleSpec, AclTarget } from './acl.js';
 export type { LoadOptions, LoadReport, LoadIssue, LoadInput } from './load.js';
 export type { Chain, ChainCore, StepFn, BatchEntry } from './chain.js';
 export type { ModelLike, AnyModelLike, RowOf, FilterOf, FieldFilterOf, TypedChain, StepsOf, PatchOf } from './typed.js';
@@ -308,7 +308,8 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
     sh.passes.clear();
     await sh.refresh();
   }, scope.root && !tx);
-  const acl = makeAcl(sh.S, exec);
+  // запись правил (grant, deny, revoke, roles) идёт цепочками самого фасада — он объявлен ниже, берётся при вызове
+  const acl = makeAcl(sh.S, exec, () => facade);
   const adm: AdminCtx = { sql: sh.sql, schema: sh.schema, S: sh.S, txc, exec, registry: scope.registry, tenant: scope.tenant };
   const core: DbCore = {
     schema: sh.schema,

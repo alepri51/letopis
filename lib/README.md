@@ -1529,13 +1529,10 @@ const pg2 = postgres(ADMIN)
 const OLEG = (await createTenant(pg2, r.schema, {          // тот же магазин: создаётся только пользователь
   name: 'Ромашка', user: { name: 'Олег', login: 'oleg@shop.ru', password: 'Олег-2026!' } })).user!
 await pg2.end()
-await db.member(db.idOf('member', { User: OLEG, Tenant: SHOP })).update({ roles: ['staff'] }).rows()
+await db.acl.roles(OLEG, ['staff'])                         // роли Олега в текущем арендаторе (строка member)
 
-const [staff] = await db.Resource().create({ alias: 'staff:ACCOUNT', category: 'ACCOUNT', pattern: { roles: '{staff}' } }).rows()
-const [delProduct] = await db.Resource().create({ alias: 'product:DELETE', category: 'DELETE', pattern: { class: 'Product' } }).rows()
-await db.rule().create({ permission: 'deny', weight: 50 }).Group.set(staff).Object.set(delProduct).rows()   // сильнее «можно всё» (10)
-const [reports] = await db.Resource().create({ alias: 'reports:API', category: 'API', pattern: { endpoint: 'shop.reports.*' } }).rows()
-await db.rule().create({ permission: 'allow', weight: 50 }).Group.set(staff).Object.set(reports).rows()
+await db.acl.deny({ role: 'staff', delete: 'Product' })     // вес 50 — сильнее «можно всё» (10)
+await db.acl.grant({ role: 'staff', api: 'shop.reports.*' })
 
 const asOleg = await svc.as(OLEG, { tenant: SHOP })
 const canDelete = await asOleg.acl.checkData('Product', 'DELETE')   // { allow: false }
@@ -1543,10 +1540,22 @@ const canRead = await asOleg.acl.checkData('Product', 'READ')       // { allow: 
 const canReport = await asOleg.acl.check('shop.reports.daily')      // { allow: true, rule: { weight: 50, … } }
 ```
 
+- `db.acl.grant` и `db.acl.deny` принимают роль и цели: `read`, `write`, `delete` — класс (с потомками), `'*'` — все
+  классы или класс с условием на строки (`{ class: 'Ticket', owner: '$actor' }`); `api` — маска эндпоинта; списком —
+  несколько. На каждую операцию и цель — одно правило с весом `weight` (по умолчанию 50, от 1 до 999). Под капотом —
+  те же строки `Resource` (`role:staff:ACCOUNT`, `class:Product:DELETE`, `api:shop.reports.*:API`) и `rule` текущего
+  арендатора, ключ правила — пара группа и объект: повтор ничего не меняет, а `grant` после `deny` той же роли и цели
+  заменяет запрет разрешением. Внутри `db.begin()` — в её транзакции. Писать правила может тот, у кого есть `WRITE` на
+  `Resource` и `rule` (после `createTenant` — любой участник по правилу «можно всё»; закрыть — `deny` с
+  `write: ['Resource', 'rule', 'member']`). Неверный вызов — `invalid_data` до записи.
+- `db.acl.revoke({ role, … })` снимает правила роли — разрешения и запреты — для этих целей и отвечает числом снятых.
+  `db.acl.roles(аккаунт)` — роли в текущем арендаторе (`null` — не член), `db.acl.roles(аккаунт, ['staff'])` — заменить
+  их (членство заводится), `db.acl.roles(аккаунт, null)` — снять членство. `db.acl.list()` — правила арендатора
+  `{ role, group, op, target, condition, permission, weight }`, свои и «можно всё» от `createTenant`.
 - `acl.check(эндпоинт)` → `{ allow, rule, code, message }`: свой отказ эндпоинта задают поля `code` и `message`
   запрещающего правила.
 - `acl.checkData(класс, 'READ' | 'WRITE' | 'DELETE')` → `{ allow, filter }`: `filter` — условие на строки.
-- Права пересчитываются базой сами. Убрать право — удалить правило: `db.rule(id).delete({ confirm: true })`.
+- Права пересчитываются базой сами. Правила можно писать и цепочками `Resource` и `rule` напрямую — поля ниже.
 - Библиотека один раз берёт у базы подписанный план прав актора — пропуск прав — и передаёт его в каждой
   транзакции, поэтому проверка прав стоит десятки микросекунд. Сырой SQL без пропуска платит 0,3–1,3 мс на запрос.
 - На вопрос «у кого был доступ на дату» отвечает срез `asOf` по классам `rule`, `member` и `Resource`.
@@ -2739,6 +2748,7 @@ p50 — от −0,28 до +0,21 мс. Бенч против 1.0.1 (`bench/vs-101
 # access-rest — оставшиеся строки этапа 5: загрузка от имени пользователя, баланс №20, 22, 29, upsert и { rev } под ACL, встраивание acl_ok (этап 5)
 # aggregate — агрегаты в базе: 20 писателей одного кошелька, сырой SQL, каскад, reclass, restore, загрузчик, удаление аккаунта, restore и rekey цели, смена описания под записью и гонка №18, aggregate_field, ремонт и verify, строка System (план 1.1, этап 4б)
 # acl — права ACL: перенос набора 0.21, условия на строки, вес и запрет по умолчанию, каскад, запрет на потомке, deep, невидимая цель, сырой SQL против библиотеки; смена parent и alias класса — только с правами на все его строки, алиас — не имя другого класса, имя — не чужой алиас (этап 5; ревью безопасности №2)
+# acl-grant — обёртка прав db.acl: grant, deny, revoke, roles и list идемпотентны, их соблюдает база поверх «можно всё», при равном весе запрет сильнее, условие $actor, api, транзакция db.begin(), invalid_data до записи (план 2.0, 7.9 №1)
 # acl-parity — 1000 случайных наборов правил: план прав и решения по эндпоинтам базы против decide 0.21 (этап 5)
 # auth — креды (пароль, ключ, ключ + секрет, OTP, TOTP, identity), выравнивание времени, регистр, гашение сессий, недавний вход (этап 5)
 # balance — пополнение и списание: идемпотентность по opId, гонки, взаимная блокировка, обрыв связи (TCP-прокси), корректировка под { rev } и forUpdate (этап 4)
