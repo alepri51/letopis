@@ -133,6 +133,8 @@ for (const file of walk(join(ROOT, 'examples'))) {
 // (их же примечания — на странице главы 16)
 const EXEMPT: Record<string, string> = {
   'error.removed': 'охранники API, снятого после 0.21: переход с 0.21 сайт не описывает (решение владельца)',
+  'connect.lang': 'язык сообщений об ошибках: сайт только на русском (решение владельца), английские тексты проверяет тест messages библиотеки',
+  'mcpopt.lang': 'язык сообщений сервера MCP: сайт только на русском (решение владельца), английские тексты проверяет тест messages библиотеки',
 };
 for (const [item, why] of Object.entries(EXEMPT)) if (!covered.has(item)) covered.set(item, [`исключение: ${why}`]);
 

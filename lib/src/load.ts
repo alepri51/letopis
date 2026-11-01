@@ -19,7 +19,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
-import { LetopisError, fromDbError, removed, type Issue } from './errors.js';
+import { LetopisError, checkOptions, fromDbError, removed, type Issue } from './errors.js';
 import { isOp } from './ops.js';
 import { Registry, aggregateFields, type ClassInfo, type EndInfo } from './registry.js';
 import { accepts } from './sql.js';
@@ -73,6 +73,12 @@ export interface LoadOptions {
    */
   initial?: boolean;
 }
+
+/** Все опции load(): неизвестную checkOptions называет с похожими (план 2.0, 7.9 №6). */
+const LOAD_OPTIONS = {
+  duplicates: true, existing: true, batch: true, commitEvery: true, withHistory: true, verify: true, class: true, tenant: true,
+  agent: true, as: true, initial: true,
+} satisfies Record<keyof LoadOptions, true>;
 
 export interface LoadReport {
   /** Строк во входе. */
@@ -455,6 +461,7 @@ async function verifyIds(conn: Sql, S: string, ids: string[], to: Issues): Promi
  */
 export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {}): Promise<LoadReport> {
   if ('trust' in opts) throw removed('load({ trust })', 'запрос по целям вне загрузки стоит 0,1–1,3 % её времени — режим доверия убран (решение 2 точки А)');
+  checkOptions('load', opts, LOAD_OPTIONS);
   if (!env.admin) throw new LetopisError('admin_required', 'загрузчику нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы)');
   const asAcc = opts.as;
   if (asAcc !== undefined && (typeof asAcc !== 'string' || !UUID.test(asAcc))) throw new LetopisError('invalid_data', 'load({ as }): id аккаунта');

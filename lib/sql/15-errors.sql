@@ -52,12 +52,70 @@ begin
   perform @SCHEMA@.lt_raise(coalesce(c, 'LT000'), p_name, p_msg, p_detail);
 end $$;
 
+-- Каталог сообщений базы (план 2.0, этап 3, п. 3): ключ → имя ошибки и русский шаблон, {имя} — параметр. Строки
+-- подставляет установщик (@MESSAGES@) из разделов sql-* каталога библиотеки (lib/src/messages); английский и другие
+-- тексты библиотека собирает сама по ключу и параметрам из DETAIL. Обновляет обычный up(), как прочие функции.
+create or replace function @SCHEMA@.message_catalog() returns table (key text, name text, ru text)
+language sql immutable parallel safe
+as $catalog$
+  select m.key, m.value->>'name', m.value->>'ru' from jsonb_each(@MESSAGES@::jsonb) m
+$catalog$;
+
+-- Русский текст по ключу каталога: шаблон, где {имя} — значение p_params текстом (null — пусто, как у format('%s'));
+-- ключа нет — сам ключ. Выдана приложению: функции, которые оно исполняет (lt_fail ему не выдан), бросают raise с ней.
+create or replace function @SCHEMA@.lt_text(p_key text, p_params jsonb default null)
+returns text
+language plpgsql stable parallel safe
+as $$
+declare
+  t text;
+  p record;
+begin
+  select m.ru into t from @SCHEMA@.message_catalog() m where m.key = p_key;
+  t := coalesce(t, p_key);
+  for p in select * from jsonb_each_text(coalesce(p_params, '{}'::jsonb)) loop
+    t := replace(t, '{' || p.key || '}', coalesce(p.value, ''));
+  end loop;
+  return t;
+end $$;
+
+-- Ошибка по ключу каталога сообщений: имя (и SQLSTATE) — из каталога, текст — русский шаблон с параметрами (его видит
+-- сырой SQL), в DETAIL — поля p_detail и ещё key, params: по ним библиотека собирает текст на языке подключения.
+-- Без параметров — один аргумент: литерал без типа вторым аргументом выбрал бы lt_fail(имя, текст).
+create or replace function @SCHEMA@.lt_fail(p_key text, p_params jsonb default '{}'::jsonb, p_detail jsonb default null)
+returns void
+language plpgsql
+as $$
+declare
+  n text;
+begin
+  select m.name into n from @SCHEMA@.message_catalog() m where m.key = p_key;
+  perform @SCHEMA@.lt_fail(coalesce(n, p_key), @SCHEMA@.lt_text(p_key, p_params),
+    coalesce(p_detail, '{}'::jsonb) || jsonb_build_object('key', p_key, 'params', coalesce(p_params, '{}'::jsonb)));
+end $$;
+
+-- То же со своим SQLSTATE не из каталога (например, 40001 — повторяемый конфликт).
+create or replace function @SCHEMA@.lt_raise(p_code text, p_key text, p_params jsonb, p_detail jsonb default null)
+returns void
+language plpgsql
+as $$
+declare
+  n text;
+begin
+  select m.name into n from @SCHEMA@.message_catalog() m where m.key = p_key;
+  perform @SCHEMA@.lt_raise(p_code, coalesce(n, p_key), @SCHEMA@.lt_text(p_key, p_params),
+    coalesce(p_detail, '{}'::jsonb) || jsonb_build_object('key', p_key, 'params', coalesce(p_params, '{}'::jsonb)));
+end $$;
+
 do $$
 declare f text;
 begin
-  foreach f in array array['error_catalog()', 'lt_raise(text, text, text, jsonb)', 'lt_fail(text, text, jsonb)'] loop
+  foreach f in array array['error_catalog()', 'lt_raise(text, text, text, jsonb)', 'lt_fail(text, text, jsonb)',
+      'message_catalog()', 'lt_text(text, jsonb)', 'lt_fail(text, jsonb, jsonb)', 'lt_raise(text, text, jsonb, jsonb)'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);
     execute format('revoke all on function @SCHEMA@.%s from public', f);
   end loop;
 end $$;
 grant execute on function @SCHEMA@.error_catalog() to @APP@;
+grant execute on function @SCHEMA@.message_catalog() to @APP@;
+grant execute on function @SCHEMA@.lt_text(text, jsonb) to @APP@;

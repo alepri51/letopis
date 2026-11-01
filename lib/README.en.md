@@ -349,6 +349,7 @@ const anna = await connect({ dsn: APP, schema: r.schema, token: r.tenant!.token!
 | `refreshSession` | extend the session once per minute of activity (yes by default) |
 | `notifyIntervalMs` | the interval for sending deferred signals (100 ms) |
 | `allowBypassRls`, `owner` | allow a role that bypasses RLS (admin connection); the name of the owner role |
+| `lang` | the language of error messages: `'ru'` (the default) or `'en'` ([section 16](#16-errors)) |
 
 A connection has `db.schema`, `db.token`, `db.tenant` (the session tenant) and `db.close()`. Connections obtained
 through `as()` share the pool with the original one: close the original one.
@@ -2423,8 +2424,8 @@ The full machine-readable list of exports, methods and error texts is `docs/api-
 |---|---|
 | `letopis` | `connect`, `up`, `createTenant`; operators `ne`, `gt`, `gte`, `lt`, `lte`, `between`, `inList`, `like`, `ilike`, `starts`, `ends`, `has`, `hasAny`, `hasAll`, `exists`, `isNull`, `not`, `or`, `isOp`; `inc`, `isInc`, `cursorOf`; `idOf`, `uuidv5`, `v5Name`, `v5Id`; `LetopisError`, `ValidationError`, `fromDbError`; `syncModels`, `generateTypes`, `schemaToTs`; `compileValidator`, `applyDefaults`, `Registry`; `totpCode`, `hashPassword`, `verifyHash`; `describeText`; constants `DDL_REVISION`, `RESERVED_CLASS_NAMES`, `CHAIN_METHODS`, `DB_METHODS`; types `Db`, `DbTx`, `TypedDb`, `Chain`, `Row`, `Filter`, `Cursor`, `ConnectOptions`, `UpOptions`, `LoadOptions`, `LoadReport`, `WatchOptions`, `WatchEvent`, `AuthApi`, `AclApi`, `DiffResult`, `DiffChange`, `BlameResult`, `BlameField`, `Projector`, `ProjectorOptions`, `ProjectorChange`, `ProjectorOut`, `ProjectorRow`, `ProjectorReport`, `ProjectorStatus`, `ProjectorFailure` ([Projector](#projector)), `AggregateInfo` and others |
 | `letopis/model` | `hub`, `link`, `one`, `many`, `End`, types `Infer`, `InferLinks`, `Model`, `ClassDef`, `ClassMeta`, `HistoryPolicy`, `AggregateDef`; `normalizeSchema`, `translatePattern`, type `JsonSchema` |
-| `letopis/mcp` | `createMcpServer(db, options)`: an MCP SDK server with the letopis tools; the type `McpOptions`: `write` adds the `letopis_write` tool (absent by default), `maxRows` is the rows in an answer (100, from 1 to 10,000), `maxBytes` is the bytes in an answer (50,000, from 1,000 to 50,000,000); `allowAclWrite` lets `letopis_write` write the permission classes too (by default `acl_denied`); `allowSystemAdmin` accepts a session in the System tenant (by default `user_session_required`); a value out of range gives `invalid_data`. Needs the `@modelcontextprotocol/server` package ([section 13](#agents-and-mcp)) |
-| CLI `letopis` | `sync`, `types`, `load`, `verify`, `maintain`, `describe`, `import`, `mcp` ([section 13](#13-operations)); `mcp` takes `--dsn`, `--schema`, `--token` (or `LETOPIS_DSN`, `LETOPIS_SCHEMA`, `LETOPIS_TOKEN`) and `--write` |
+| `letopis/mcp` | `createMcpServer(db, options)`: an MCP SDK server with the letopis tools; the type `McpOptions`: `write` adds the `letopis_write` tool (absent by default), `maxRows` is the rows in an answer (100, from 1 to 10,000), `maxBytes` is the bytes in an answer (50,000, from 1,000 to 50,000,000); `allowAclWrite` lets `letopis_write` write the permission classes too (by default `acl_denied`); `allowSystemAdmin` accepts a session in the System tenant (by default `user_session_required`); `lang` is the language of error messages, `'ru'` (the default) or `'en'` ([section 16](#16-errors)); a value out of range gives `invalid_data`. Needs the `@modelcontextprotocol/server` package ([section 13](#agents-and-mcp)) |
+| CLI `letopis` | `sync`, `types`, `load`, `verify`, `maintain`, `describe`, `import`, `mcp` ([section 13](#13-operations)); `mcp` takes `--dsn`, `--schema`, `--token` (or `LETOPIS_DSN`, `LETOPIS_SCHEMA`, `LETOPIS_TOKEN`) and `--write`; any command takes `--lang ru\|en`, the language of error messages |
 
 Removed 0.21 names (`uuidv7`, `LETOPIS_NS` and the methods listed below) throw `removed` with the replacement.
 
@@ -2538,58 +2539,88 @@ database does not accept a link with any of these names (`reserved_names()`; the
 ## 16. Errors
 
 The text of an error is `letopis: <code>: <message>`. The code is in `err.code`, the details are in `err.detail`.
-Errors are `LetopisError` objects; data errors are `ValidationError` with `err.issues: [{ path, keyword, message }]`.
+Errors are `LetopisError` objects; data errors are `ValidationError` with `err.issues: [{ path, keyword, message }]`. An
+error also has:
+
+- `err.hint` — what to do: a hint from the message catalog of the library, either the place's own or the general one of
+  the code;
+- `err.docs` — a link to the row of the code in this README section on GitHub, at the tag of the package version;
+- `err.key` and `err.params` — the key of the message catalog and the parameters of the text. Places already moved to
+  the catalog have them, and so do database errors whose `DETAIL` carries a key.
+
+The language of the messages is set by the `lang` option: `'ru'` (the default) or `'en'`. `connect()`,
+`createMcpServer()` and the command line (`--lang ru|en` with any command) accept it. The text and the `hint` of errors
+of the connection itself, of the `db` methods, chains, `db.auth`, `db.acl`, subscriptions and projectors come in this
+language. The library rebuilds a database error that carries a key in the language of the connection, while raw SQL
+outside the library gets the Russian text of the database. The catalog is translated in parts: places not translated yet
+answer in Russian with any `lang`, but they have `hint` and `docs` too.
+
+```ts
+const db = await connect({ dsn, schema: 'v2.shop', token, lang: 'en' })
+try {
+  await db.Shpo().rows()
+} catch (e) {
+  // e.code is 'invalid_class', e.params.similar is ['Shop']
+  // e.message is 'letopis: invalid_class: class or role Shpo not found — similar: Shop'
+  // e.hint says what to do; e.docs is https://github.com/alepri51/letopis/blob/v<version>/lib/README.md#invalid_class
+}
+```
+
+Similar names. An unknown class or role in a chain is the `invalid_class` error: similar names of the registry are in the
+text and in `err.params.similar`. An unknown field in a filter, `sort()` or an aggregate and an unknown option of
+`connect()`, `up()`, `load()`, a projector, `watch()` and `createMcpServer()` give a warning in `console.warn` with
+similar names in 1.5 — once per name per process. In 2.0 this becomes an error.
 
 Database codes. Raw SQL gets them too: SQLSTATE class `LT`, the details are JSON in `DETAIL`.
 
 | Code | SQLSTATE | When |
 |---|---|---|
-| `no_session` | LT001 | there is no valid session |
-| `target_not_found` | LT002 | the target is not found; the same for a nonexistent, a foreign and an invisible target |
-| `invalid_data` | LT003 | the data does not match the class description; `err.issues` gives the path, keyword and message |
-| `undeclared_end` | LT004 | the end is not declared in the class |
-| `tenant_denied` | LT005 | a foreign tenant or no membership |
-| `acl_denied` | LT006 | denied by the access rules |
-| `id_mismatch`, `id_from_db` | LT007, LT008 | the id is not v5 of the key; the id of a class without a key is assigned by the database |
-| `immutable_key` | LT009 | a key field, the id, the tenant and the owner do not change (a new key is `rekey`) |
-| `invalid_class` | LT010 | the class description is rejected, the class is not found or is abstract; a class with rows, descendants or a history of rows is not deleted |
-| `use_reclass`, `reclass_denied` | LT011, LT012 | changing the class with `update` when the old or the new class has a key: the id changes, so use `reclass()`; the roles of referencing rows do not accept the new class |
-| `tightening_conflict` | LT013 | rows prevent tightening the description |
-| `isolation_level` | LT014 | deleting, changing the class and changing the key work only in `read committed` |
-| `recreated_in_statement` | LT015 | an id was deleted and created again in one statement |
-| `cursor_expired` | LT016 | the cursor of a subscription or a projector is older than the `all` tier of the retention policy |
-| `delete_restricted` | LT017 | referencing rows prevent the deletion (`onDelete: 'restrict'`) |
-| `not_deleted` | LT018 | `restore` and `purge` work only for deleted objects |
-| `reset_disabled` | LT019 | reset is disabled in the installation (`allowReset`) |
-| `confirm_mismatch` | LT020 | the reset confirmation does not match the schema name |
-| `derived_class` | LT021 | a row of a derived class (`derivedBy`) is written, edited or deleted by someone other than its projector; an end leads to such a row or to a derived class; a projector writes to a class outside its `into` or has found no tenant in which every `into` class is marked with its `derivedBy` |
-| `aggregate_field` | LT022 | the application passed or changed an aggregate field (`aggregate`): the database calculates it |
-| `projector_pending` | LT023 | `purge` of a deleted object whose deletion a projector of its class has not read yet, or `trimHistory` whose first remaining version it has not read yet: run the projector first |
+| `no_session`<a id="no_session"></a> | LT001 | there is no valid session |
+| `target_not_found`<a id="target_not_found"></a> | LT002 | the target is not found; the same for a nonexistent, a foreign and an invisible target |
+| `invalid_data`<a id="invalid_data"></a> | LT003 | the data does not match the class description; `err.issues` gives the path, keyword and message |
+| `undeclared_end`<a id="undeclared_end"></a> | LT004 | the end is not declared in the class |
+| `tenant_denied`<a id="tenant_denied"></a> | LT005 | a foreign tenant or no membership |
+| `acl_denied`<a id="acl_denied"></a> | LT006 | denied by the access rules |
+| `id_mismatch`, `id_from_db`<a id="id_mismatch"></a><a id="id_from_db"></a> | LT007, LT008 | the id is not v5 of the key; the id of a class without a key is assigned by the database |
+| `immutable_key`<a id="immutable_key"></a> | LT009 | a key field, the id, the tenant and the owner do not change (a new key is `rekey`) |
+| `invalid_class`<a id="invalid_class"></a> | LT010 | the class description is rejected, the class is not found or is abstract; a class with rows, descendants or a history of rows is not deleted |
+| `use_reclass`, `reclass_denied`<a id="use_reclass"></a><a id="reclass_denied"></a> | LT011, LT012 | changing the class with `update` when the old or the new class has a key: the id changes, so use `reclass()`; the roles of referencing rows do not accept the new class |
+| `tightening_conflict`<a id="tightening_conflict"></a> | LT013 | rows prevent tightening the description |
+| `isolation_level`<a id="isolation_level"></a> | LT014 | deleting, changing the class and changing the key work only in `read committed` |
+| `recreated_in_statement`<a id="recreated_in_statement"></a> | LT015 | an id was deleted and created again in one statement |
+| `cursor_expired`<a id="cursor_expired"></a> | LT016 | the cursor of a subscription or a projector is older than the `all` tier of the retention policy |
+| `delete_restricted`<a id="delete_restricted"></a> | LT017 | referencing rows prevent the deletion (`onDelete: 'restrict'`) |
+| `not_deleted`<a id="not_deleted"></a> | LT018 | `restore` and `purge` work only for deleted objects |
+| `reset_disabled`<a id="reset_disabled"></a> | LT019 | reset is disabled in the installation (`allowReset`) |
+| `confirm_mismatch`<a id="confirm_mismatch"></a> | LT020 | the reset confirmation does not match the schema name |
+| `derived_class`<a id="derived_class"></a> | LT021 | a row of a derived class (`derivedBy`) is written, edited or deleted by someone other than its projector; an end leads to such a row or to a derived class; a projector writes to a class outside its `into` or has found no tenant in which every `into` class is marked with its `derivedBy` |
+| `aggregate_field`<a id="aggregate_field"></a> | LT022 | the application passed or changed an aggregate field (`aggregate`): the database calculates it |
+| `projector_pending`<a id="projector_pending"></a> | LT023 | `purge` of a deleted object whose deletion a projector of its class has not read yet, or `trimHistory` whose first remaining version it has not read yet: run the projector first |
 
 Library codes:
 
 | Code | When |
 |---|---|
-| `exists` | the object already exists: `create` (`detail.id` is its id), `rekey` (the new id is taken) or the loader |
-| `duplicate`, `deleted` | the loader: a repeated id in the load; an object with this id existed before. The loader throws the code of the first problem row, the first 100 are in `detail.rows`, the total is `detail.total` |
-| `conflict` | `update(patch, { rev })`: the row was changed in the meantime (`detail`: `id`, `rev`, `expected`) |
-| `rev_ambiguous` | `{ rev }` on a step that does not have exactly one target |
-| `tx_required` | `forUpdate()`, `lock()`, `commit()` or `rollback()` outside an active `db.begin()` |
-| `lock_unsupported` | `forUpdate()` with an aggregate, `asOf`, `versions`, `withDeleted`, `deep` or a verb |
-| `commit_unknown` | the connection dropped during `COMMIT`: the outcome is unknown |
-| `tx_rolled_back` | PostgreSQL answered `ROLLBACK` to `COMMIT`: the error was caught inside `tr.transaction(fn)` |
-| `no_key` | `upsert`, `rekey` or `idOf` on a class without a key |
-| `no_path` | there is no hop between the classes of neighboring steps |
-| `invalid_query` | the chain or the API is used incorrectly (a step modifier `deep`, `exact`, `alias`, `tags` or `owner` after a verb, a selection modifier between a verb and a `rows`, `first`, `ids`, `count` or `paths` terminal, a slot not after a verb, an `after()` cursor with a value of a different type than the `sort` field, without `v` or with an `id` that is not a uuid, and so on) |
-| `admin_required` | the loader, a projector and `rebuildAggregates` need an admin connection |
-| `rebuild_required` | the projection was built by another version of the projector (`version`): a rebuild with `rebuild()` is needed; `rebuild({ tenant })` while there is no projection or a batch rebuild is in progress |
-| `projector_busy` | a rebuild cannot start: the projector is running in another process right now |
-| `not_empty` | the initial load (`initial`) goes only into an empty schema |
-| `class_not_loadable` | the loader does not accept `Class` rows |
-| `bypass_rls` | `connect()` with a role that bypasses RLS, without `allowBypassRls`; `createMcpServer` with a connection that bypasses RLS |
-| `user_session_required` | `createMcpServer` and `letopis mcp`: a user session is needed — the connection has no session, it is the service root without `as()`, a session in the System tenant without `allowSystemAdmin`, or the command line got the service key or no token |
-| `confirmation_required` | `letopis_write` (MCP): a deletion without a human confirmation — the client has no elicitation, the human declined, the answer belongs to another operation, or the data changed after the preview |
-| `removed` | a removed 0.21 API; the text gives the replacement |
+| `exists`<a id="exists"></a> | the object already exists: `create` (`detail.id` is its id), `rekey` (the new id is taken) or the loader |
+| `duplicate`, `deleted`<a id="duplicate"></a><a id="deleted"></a> | the loader: a repeated id in the load; an object with this id existed before. The loader throws the code of the first problem row, the first 100 are in `detail.rows`, the total is `detail.total` |
+| `conflict`<a id="conflict"></a> | `update(patch, { rev })`: the row was changed in the meantime (`detail`: `id`, `rev`, `expected`) |
+| `rev_ambiguous`<a id="rev_ambiguous"></a> | `{ rev }` on a step that does not have exactly one target |
+| `tx_required`<a id="tx_required"></a> | `forUpdate()`, `lock()`, `commit()` or `rollback()` outside an active `db.begin()` |
+| `lock_unsupported`<a id="lock_unsupported"></a> | `forUpdate()` with an aggregate, `asOf`, `versions`, `withDeleted`, `deep` or a verb |
+| `commit_unknown`<a id="commit_unknown"></a> | the connection dropped during `COMMIT`: the outcome is unknown |
+| `tx_rolled_back`<a id="tx_rolled_back"></a> | PostgreSQL answered `ROLLBACK` to `COMMIT`: the error was caught inside `tr.transaction(fn)` |
+| `no_key`<a id="no_key"></a> | `upsert`, `rekey` or `idOf` on a class without a key |
+| `no_path`<a id="no_path"></a> | there is no hop between the classes of neighboring steps |
+| `invalid_query`<a id="invalid_query"></a> | the chain or the API is used incorrectly (a step modifier `deep`, `exact`, `alias`, `tags` or `owner` after a verb, a selection modifier between a verb and a `rows`, `first`, `ids`, `count` or `paths` terminal, a slot not after a verb, an `after()` cursor with a value of a different type than the `sort` field, without `v` or with an `id` that is not a uuid, and so on) |
+| `admin_required`<a id="admin_required"></a> | the loader, a projector and `rebuildAggregates` need an admin connection |
+| `rebuild_required`<a id="rebuild_required"></a> | the projection was built by another version of the projector (`version`): a rebuild with `rebuild()` is needed; `rebuild({ tenant })` while there is no projection or a batch rebuild is in progress |
+| `projector_busy`<a id="projector_busy"></a> | a rebuild cannot start: the projector is running in another process right now |
+| `not_empty`<a id="not_empty"></a> | the initial load (`initial`) goes only into an empty schema |
+| `class_not_loadable`<a id="class_not_loadable"></a> | the loader does not accept `Class` rows |
+| `bypass_rls`<a id="bypass_rls"></a> | `connect()` with a role that bypasses RLS, without `allowBypassRls`; `createMcpServer` with a connection that bypasses RLS |
+| `user_session_required`<a id="user_session_required"></a> | `createMcpServer` and `letopis mcp`: a user session is needed — the connection has no session, it is the service root without `as()`, a session in the System tenant without `allowSystemAdmin`, or the command line got the service key or no token |
+| `confirmation_required`<a id="confirmation_required"></a> | `letopis_write` (MCP): a deletion without a human confirmation — the client has no elicitation, the human declined, the answer belongs to another operation, or the data changed after the preview |
+| `removed`<a id="removed"></a> | a removed 0.21 API; the text gives the replacement |
 
 A PostgreSQL permission denial (`42501`) comes, for example, on an `upsert` over someone else's row that you may not
 edit.
@@ -2939,4 +2970,5 @@ order; the first red step stops the run. The same load for a day: `cd lib && npm
 # watch-contract — README promises about subscriptions and connections (plan 2.0, 7.4): an idle subscription polls the journal once per pollMs, close() of the connection closes live subscriptions, a reclass without a key resets the cache of the old class, a new projector participant gets an initial rebuild, a projector without LISTEN re-reads its participants, at most a limit of db.as() registries
 # model-contract — README promises about models, types, the CLI and errors (plan 2.0, 7.5): letopis types gives valid TypeScript for Cyrillic names, a class without fields and anyOf, the full form of hub() with z.object, clear errors instead of raw ones, CLI exit codes
 # read-contract — README promises about reads and history (plan 2.0, 7.1): an asOf slice by class and by ends after a class change without an id change, versions, diff and blame with follow after rekey, the after() cursor in versions() and paths(), a field name with @S@
+# messages — the message catalog (plan 2.0, 7.9 №5, №6): with lang: 'en' every code has an English text and hint, errors of translated places and of the database come in the language of the connection, raw SQL gets Russian, with ru everything is as before, docs leads to the anchor of the code; similar names for an unknown class, role, field and option
 ```

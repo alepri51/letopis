@@ -17,7 +17,7 @@
  * Значения всегда уходят параметрами, поэтому текст запроса зависит только от формы цепочки: его
  * кэширует план (chain.ts), а postgres.js готовит оператор один раз на соединение.
  */
-import { LetopisError } from './errors.js';
+import { LetopisError, lerr, lwarn, similar } from './errors.js';
 import { isOp } from './ops.js';
 import type { ClassInfo, LeafType, Registry } from './registry.js';
 import { OP, type ChainMods, type Cursor, type Filter, type Op, type Path, type Row } from './types.js';
@@ -73,6 +73,20 @@ export interface BuiltQuery {
 const fail = (msg: string): never => {
   throw new LetopisError('invalid_query', msg);
 };
+
+/**
+ * Поле фильтра, sort() или агрегата не описано ни в одном классе шага (верхний уровень data закрыт: в нём только поля
+ * описания, 40-class.sql) — такое условие ничего не найдёт. В 1.5 — предупреждение с похожими именами, один раз на класс
+ * и поле, в 2.0 — invalid_query (план 2.0, 7.9 №6). ends — роли концов тоже годятся (фильтр).
+ */
+function warnField(classes: ClassInfo[], field: string, where: string, ends: boolean): void {
+  if (!classes.length) return;
+  const fields = (c: ClassInfo) => Object.keys((c.schema.properties ?? {}) as Record<string, unknown>);
+  if (classes.some((c) => fields(c).includes(field) || (ends && c.ends[field] !== undefined))) return;
+  const names = classes.flatMap((c) => [...fields(c), ...(ends ? Object.keys(c.ends) : [])]);
+  lwarn('query.unknown_field', { where, field, cls: classes[0].name, similar: similar(field, names) },
+    { once: `${classes[0].name}\u0000${field}`, future: true });
+}
 
 // ---------------------------------------------------------------------------
 // Классы шага и правила переходов
@@ -364,6 +378,8 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
       out.frags.push((a) => `${SCHEMA_MARK}.role_has(${a}.links, array[${role}], ${ph}::uuid)`);
       continue;
     }
+    // поле данных: не описано ни в одном классе шага — предупреждение с похожими (план 2.0, 7.9 №6)
+    warnField(classes, key, `${classes[0]?.name ?? ''}({ ${key} })`, true);
     if (isOp(value)) {
       out.frags.push(compileOp([key], leafOf(reg, classes, [key]), value, p));
       continue;
@@ -420,7 +436,7 @@ function sortSpec(order: string, leaf: (path: string[]) => LeafType): SortSpec {
     const t = leaf(path);
     return { expr: (a) => (CAST[t] ? `(${accessor(path)(a)})${CAST[t]}` : accessor(path)(a)), pcast: PCAST[t], field: order, type: t, nullable: true };
   }
-  return fail(`sort: поле 'at', 'rev', 'id' или 'data.<путь>', а не '${order}'`);
+  throw lerr('query.sort_field', { field: order });
 }
 
 /** Формы значений курсора — как у форматов uuid, date и date-time валидатора (validate.ts). */
@@ -766,6 +782,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
   const single = tail.length === 0 && !steps.some((st) => st.pivotKey !== undefined);
   const ents = single ? `n${lastNode}` : `(select z0.* from n${lastNode} z0 where z0.id in (select h${lastNode}.id ${from}${whereOf(tail)}))`;
   const leaf = (path: string[]) => leafOf(reg, rowsNode(lastNode), path);
+  if (mods.order?.startsWith('data.')) warnField(rowsNode(lastNode), mods.order.slice(5).split('.')[0], `sort('${mods.order}')`, false);
   const sort = mods.order ? sortSpec(mods.order, leaf) : undefined;
   const dir = mods.desc ? ' desc' : '';
   /** Порядок: поле sort, id строки и разделители равных (id прочих узлов пути). */
@@ -882,6 +899,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
     case 'agg': {
       if (!agg || !agg.field.startsWith('data.')) fail("агрегат по полю 'data.<путь>'");
       const path = agg!.field.slice(5).split('.');
+      warnField(rowsNode(lastNode), path[0], `${agg!.fn}('${agg!.field}')`, false);
       const acc = accessor(path)('z');
       aggLeaf = leaf(path);
       if (agg!.fn === 'countBy') {

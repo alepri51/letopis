@@ -19,7 +19,8 @@ import postgres from 'postgres';
 import { DDL_REVISION, RESERVED_CLASS_NAMES } from './types.js';
 import { startPglite, type PgliteOptions, type PgliteServer } from './pglite.js';
 import { hashPassword } from './auth.js';
-import { LetopisError } from './errors.js';
+import { LetopisError, checkOptions } from './errors.js';
+import { sqlCatalog } from './messages/index.js';
 import { v5Id } from './uuid.js';
 import { SIGNAL_MODES, type SignalMode } from './signals.js';
 
@@ -123,13 +124,15 @@ export interface EngineStamp {
 let stamp: EngineStamp | undefined;
 
 /**
- * Штамп движка этого пакета. Хэш — по исходному тексту файлов ядра до подстановок (переводы строк — LF): одна и та же
- * сборка даёт один штамп при любых опциях установки, а версия пакета без правок SQL штамп не меняет.
+ * Штамп движка этого пакета. Хэш — по исходному тексту файлов ядра до подстановок (переводы строк — LF) и по каталогу
+ * сообщений базы (разделы sql-*, подстановка @MESSAGES@): одна и та же сборка даёт один штамп при любых опциях
+ * установки, а версия пакета без правок SQL и этих разделов штамп не меняет.
  */
 export async function engineStamp(): Promise<EngineStamp> {
   if (stamp) return stamp;
   const h = createHash('sha256');
   for (const f of await engineFiles()) h.update(`${f}\n${(await readFile(join(SQL_DIR, f), 'utf8')).replace(/\r\n/g, '\n')}\n`);
+  h.update(`@MESSAGES@\n${JSON.stringify(sqlCatalog())}\n`);
   const version = (createRequire(import.meta.url)('../package.json') as { version: string }).version;
   return (stamp = { version, sql: h.digest('hex').slice(0, 16) });
 }
@@ -244,6 +247,9 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
     HISTORY_DEFAULT: quoteLiteral(JSON.stringify(opts.history ?? null)),
     // методы цепочки — в тексте функции reserved_names() (план, §2.14)
     RESERVED_NAMES: RESERVED_CLASS_NAMES.map(quoteLiteral).join(', '),
+    // каталог сообщений базы — разделы sql-* (план 2.0, этап 3, п. 3): ключ → имя ошибки и русский шаблон, JSON-литерал
+    // функции message_catalog() (15-errors.sql); обновляет его каждый up(), как прочие функции
+    MESSAGES: quoteLiteral(JSON.stringify(sqlCatalog())),
     // режим сигналов — после set role: сохранённый режим лежит в строке ключа secret владельца
     SIGNALS: 'class',
   };
@@ -406,6 +412,13 @@ export interface LoginOptions {
   password: string;
 }
 
+/** Все опции up(): неизвестную checkOptions называет с похожими (план 2.0, 7.9 №6). */
+const UP_OPTIONS = {
+  dsn: true, sql: true, schema: true, fresh: true, upgrade: true, quiet: true, waitTimeoutMs: true, pglite: true, tenant: true,
+  login: true, owner: true, app: true, allowReset: true, history: true, seeds: true, migrationsDir: true, serviceKey: true,
+  signals: true,
+} satisfies Record<keyof UpOptions, true>;
+
 export interface UpResult extends InstallResult {
   /** Схемы не было — поставлена. */
   created: boolean;
@@ -496,6 +509,7 @@ export async function schemaRevision(sql: Pick<postgres.Sql, 'unsafe'>, schema: 
  * Схему отставшей ревизии `up()` обновляет только с `upgrade: true`, а на схеме новее пакета отказывает.
  */
 export async function up(opts: UpOptions): Promise<UpResult> {
+  checkOptions('up', opts, UP_OPTIONS);
   const log = opts.quiet ? () => {} : (m: string) => console.log(`letopis.up: ${m}`);
   const schema = opts.schema.includes('.') ? opts.schema : `${SCHEMA_VERSION}.${opts.schema}`;
   if (!SCHEMA_NAME.test(schema)) throw new Error(`letopis.up: bad schema name "${opts.schema}" (нужно <имя> или v<N>.<имя>)`);

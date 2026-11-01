@@ -23,7 +23,7 @@
  * этого арендатора, чья транзакция в нём видна.
  */
 import type postgres from 'postgres';
-import { LetopisError, fromDbError } from './errors.js';
+import { LetopisError, checkOptions, fromDbError } from './errors.js';
 import { release, rollbackAfter } from './tx.js';
 import { toRow } from './sql.js';
 import { wakes } from './watch.js';
@@ -143,6 +143,12 @@ export interface ProjectorOptions {
    */
   tenants?: string[];
 }
+
+/** Все опции проектора: неизвестную checkOptions называет с похожими (план 2.0, 7.9 №6). */
+const PROJECTOR_OPTIONS = {
+  from: true, into: true, version: true, handle: true, withBefore: true, onExpired: true, batch: true, pollMs: true,
+  lockTimeout: true, lockRetries: true, tenants: true,
+} satisfies Record<keyof ProjectorOptions, true>;
 
 export interface ProjectorReport {
   /** Пачек журнала, записанных проектором. */
@@ -485,6 +491,7 @@ export class Projector {
     if (!def || !names(def.from) || !names(def.into)) throw new LetopisError('invalid_data', `проектор ${name}: from и into — непустые списки классов`);
     if (!Number.isInteger(def.version) || def.version < 1) throw new LetopisError('invalid_data', `проектор ${name}: version — целое число от 1`);
     if (typeof def.handle !== 'function') throw new LetopisError('invalid_data', `проектор ${name}: нужна функция handle(changes, out)`);
+    checkOptions('projector', def, PROJECTOR_OPTIONS);
     if (def.onExpired !== undefined && def.onExpired !== 'rebuild' && def.onExpired !== 'error') {
       throw new LetopisError('invalid_data', `проектор ${name}: onExpired — 'rebuild' или 'error'`);
     }

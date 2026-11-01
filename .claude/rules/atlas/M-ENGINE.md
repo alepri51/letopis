@@ -17,6 +17,7 @@ synced: f20b1cf
 - `derivedBy`: строки производного класса пишет только проектор (`derived_apply` в `88-derived.sql`, от владельца). Триггеры и `move_row` отказывают `derived_class`, ссылку на такую строку не пропускает `targets_bad`. Описание с пометкой и предка производного класса правят только с правом `letopis.projector` (атаки №33, №38, №50).
 - Права на агрегаты проверяются в `class_admit` до записи, а в `trg_entity_ai`, `trg_entity_au` и `class_evolve` — после (`agg_source_admit`, `agg_author_admit`): новый класс план прав видит только после вставки. Источник описывают раньше агрегата; класс-источник не удаляется, пока его называет агрегат того же арендатора (атаки №52, №53, №57).
 - Ошибки — `lt_fail(имя)` по `error_catalog()`; функции, которые исполняет приложение (`inc`, `links_patch`), бросают `raise` сами: `lt_raise` ему не выдан.
+- Тексты ошибок — по ключам каталога сообщений (план 2.0, этап 3, п. 3): `lt_fail(ключ, параметры jsonb, detail jsonb)` (`lib/sql/15-errors.sql`) берёт имя ошибки и русский шаблон из `message_catalog()`, текст собирает `lt_text()` (`{имя}` → параметр, null — пусто), в `DETAIL` кладёт поля `detail` и `key`, `params`; по ним `fromDbError` собирает текст на языке подключения, а сырой SQL видит русский. Свой SQLSTATE — `lt_raise(код, ключ, параметры, detail)`; функции приложения — `raise` с `lt_text()` и `detail` с `key`, `params` (`lt_text` и `message_catalog` выданы приложению). Без параметров — `lt_fail('ключ')` одним аргументом: литерал без типа вторым аргументом выбрал бы прежнюю `lt_fail(имя, текст)`. Прежние `lt_fail(имя, текст)` и `lt_raise(код, имя, текст)` остаются, пока места не переведены (список `PENDING_LITERALS` в `lib/scripts/check-docs.mjs`).
 - Смена класса через `sys_update` (`reclass` без ключа) сигналит и прежний класс: `log_version` сигналит только новый, а ответы кэша и подписки прежнего класса тоже устарели (план 2.0, 7.4 №4).
 - Сигнал — только через `signal()` или `signal_raw()`; `pg_notify` напрямую не зовут ни функции, ни загрузчик, ни импорт.
 
@@ -25,17 +26,18 @@ synced: f20b1cf
 - Колонка снимка версии → `snapshot()`, обе таблицы и все вставки в журнал: триггеры, `log_version`, `88-derived.sql`, `90-time.sql`, `95-seed.system.sql`, `lib/src/load.ts`. Колонка журнала → грант на `log` по колонкам и тест «права по каталогу» (`roles`).
 - Проверки смены класса — в `trg_entity_bu` (без ключа) и в `reclass`; уровни каскада — в `trg_entity_ad` и `delete_preview` (общее правило `ref_action`).
 - Новый код ошибки → `error_catalog()`, таблица в `lib/sql/README.md`, `cd lib && npm run api:contract`.
+- Новый текст ошибки базы → запись в разделе `sql-*` каталога `lib/src/messages` (раздел — по файлу: `sql-core` — 10–40, `sql-write` — 60, `sql-access` — 50 и 80, `sql-time` — 70–99 и `migrate`) и `lt_fail('ключ', …)`; ключи в SQL сверяет `check:docs` (`messages`). Разделы `sql-*` подставляет установщик (`@MESSAGES@`) и входит в хэш штампа движка: правка шаблона — тоже «функции схемы поставила другая сборка», пока не накатят `up()`.
 - Новая функция → список `owner`/`revoke` в конце её файла; `security definer` — негативный тест `roles` №4; выданная приложению — белый список `roles`. Новый триггер `entity` → `roles` №7 и атака №19.
 - Сигнатура или текст `trg_entity_ai`, `targets_bad`, `signal_raw`, `family_lock` → бенчи, которые их подменяют (M-BENCH).
 - Новый служебный вид строки `secret` (как `LOCK`) → исключить его в функциях кредов `80-auth.sql`.
 
 **Неимпортные связи**
 - RLS (`50-acl.sql`) отсекает чужие строки до триггеров правки и удаления, вставку первым проверяет триггер (`tenant_denied`).
-- `99-revision.sql`: `@ENGINE_VERSION@` и `@ENGINE_SQL@` подставляет `lib/src/up.ts:engineStamp`; формат комментария схемы разбирают `lib/src/up.ts` (`schemaRevision`, `stampDrift`) и `connect()`. `@RESERVED_NAMES@` — из `RESERVED_CLASS_NAMES` (`lib/src/types.ts`).
+- `99-revision.sql`: `@ENGINE_VERSION@` и `@ENGINE_SQL@` подставляет `lib/src/up.ts:engineStamp`; формат комментария схемы разбирают `lib/src/up.ts` (`schemaRevision`, `stampDrift`) и `connect()`. `@RESERVED_NAMES@` — из `RESERVED_CLASS_NAMES` (`lib/src/types.ts`). `@MESSAGES@` (`message_catalog()` в `15-errors.sql`) — `lib/src/messages/index.ts:sqlCatalog`: разделы `sql-*` каталога, ключ → `{ name, ru }`.
 - Строки-замки: семейств заводят заранее `class_admit` (`family_rows`) и `seed_system`; `lock_try` берут `maintain` (`90-time.sql`) и проектор (`lib/src/project.ts`). Строки семейств, чей корень удалён, убирает `maintain()` по имени (`family_name`: схема, арендатор корня, имя корня) — формат имени менять вместе с разбором в `maintain`; пропавшую строку `lock_row` и `family_lock` заводят заново (план 2.0, 7.7 №8).
 
 **Проверка**
-- `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `engine-attacks` (атаки №…), `engine-races`, `engine-write`, `engine-class`, `write-races`, `security-final`, `hash`, `roles`, `upgrade`, `aggregate`, `projector`.
+- `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `engine-attacks` (атаки №…), `engine-races`, `engine-write`, `engine-class`, `write-races`, `security-final`, `hash`, `roles`, `upgrade`, `aggregate`, `projector`, `messages` (ключ и параметры в DETAIL, русский текст сырого SQL — 7.9 №5).
 
 **Точки входа**
 - `lib/sql/60-write.sql:trg_entity_bi` — вставка, сверка надгробия класса

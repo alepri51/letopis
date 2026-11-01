@@ -11,7 +11,7 @@
  */
 import { createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
-import { LetopisError, removed } from './errors.js';
+import { LetopisError, lerr, removed, wrapLang, type LangRun } from './errors.js';
 import type { Executor } from './tx.js';
 
 const scryptAsync = promisify(scrypt) as (password: string, salt: Buffer, keylen: number,
@@ -219,13 +219,19 @@ export interface AuthApi {
   purgeAccount(account: AccountRef): Promise<{ account: string; rows: number; versions: number; memberships: number; owned: number }>;
 }
 
-/** Фасад db.auth. onSwitch — подключение перечитывает арендатора, реестр и пропуска прав. */
-export function makeAuth(S: string, exec: Executor, onSwitch: () => Promise<void>, canSwitch: boolean): AuthApi {
+/**
+ * Фасад db.auth. onSwitch — подключение перечитывает арендатора, реестр и пропуска прав; lang — язык подключения, если
+ * не ru (план 2.0, этап 3, п. 3): методы исполняются на нём.
+ */
+export function makeAuth(S: string, exec: Executor, onSwitch: () => Promise<void>, canSwitch: boolean, lang?: LangRun): AuthApi {
   const api = makeAuthCore(S, exec, onSwitch, canSwitch);
+  const member = (t: AuthApi, p: string | symbol, r: unknown): unknown => {
+    if (p === 'sessions') throw removed('db.auth.sessions(store)', 'сессии хранятся в базе: sessionFor, refresh, revoke, revokeAll');
+    return Reflect.get(t, p, r);
+  };
   return new Proxy(api, {
     get(t, p, r) {
-      if (p === 'sessions') throw removed('db.auth.sessions(store)', 'сессии хранятся в базе: sessionFor, refresh, revoke, revokeAll');
-      return Reflect.get(t, p, r);
+      return lang ? lang(() => wrapLang(lang, member(t, p, r))) : member(t, p, r);
     },
   });
 }
@@ -333,7 +339,7 @@ function makeAuthCore(S: string, exec: Executor, onSwitch: () => Promise<void>, 
       return (await one<{ n: number }>(`select ${S}.auth_logout_all($1::uuid) as n`, [account === undefined ? null : accId(account)])).n;
     },
     async switch(tenant) {
-      if (!canSwitch) throw new LetopisError('invalid_query', 'auth.switch() — от корня подключения: при имперсонации арендатора задаёт db.as(…, { tenant })');
+      if (!canSwitch) throw lerr('access.switch_not_root');
       await one(`select ${S}.auth_switch($1::uuid)`, [tenant]);
       await onSwitch();
     },

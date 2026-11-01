@@ -657,6 +657,12 @@ interface ConnectOptions {
    * запуск доделает текущую пачку.
    */
   maintain?: string | number;
+  /**
+   * Язык сообщений об ошибках: `'ru'` (по умолчанию) или `'en'`. На этом языке — текст и
+   * подсказка `hint` ошибок самого `connect()`, методов `db`, цепочек, батчей, `db.auth`, `db.acl`, подписок и проекторов
+   * подключения; у ошибок базы с ключом каталога — тоже. Сырой SQL мимо библиотеки получает русский текст базы.
+   */
+  lang?: Lang;
 }
 ```
 
@@ -973,6 +979,13 @@ interface KeyedClass {
 }
 ```
 
+## Lang {#type-lang}
+
+```ts
+/** Язык сообщений: опция `lang` у `connect()`, `createMcpServer()` и CLI (`--lang`); по умолчанию `ru`. */
+type Lang = 'ru' | 'en';
+```
+
 ## LeafType {#type-leaftype}
 
 ```ts
@@ -1163,6 +1176,11 @@ interface McpOptions {
    * умолчанию такая сессия — отказ `user_session_required`.
    */
   allowSystemAdmin?: boolean;
+  /**
+   * Язык сообщений об ошибках: `'ru'` (по умолчанию) или `'en'`. Ошибки letopis в вызовах
+   * инструментов и в самом `createMcpServer` — на этом языке, с подсказкой `hint`.
+   */
+  lang?: Lang;
 }
 ```
 

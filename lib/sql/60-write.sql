@@ -1010,7 +1010,7 @@ begin
     NEW.data := @SCHEMA@.apply_defaults(res->'schema', coalesce(NEW.data, '{}'::jsonb));
     bad := @SCHEMA@.validate_data(res->'rules', cls.validator, res->'vars', NEW.data);
     if bad <> '[]'::jsonb then
-      perform @SCHEMA@.lt_fail('invalid_data', format('данные не проходят описание класса %s', NEW.class), jsonb_build_object('issues', bad));
+      perform @SCHEMA@.lt_fail('sql-write.invalid_data', jsonb_build_object('cls', NEW.class), jsonb_build_object('issues', bad));
     end if;
     NEW.validator := null;
   end if;
@@ -1160,7 +1160,7 @@ begin
     NEW.data := @SCHEMA@.apply_defaults(res->'schema', NEW.data);
     bad := @SCHEMA@.validate_data(res->'rules', cls.validator, res->'vars', NEW.data);
     if bad <> '[]'::jsonb then
-      perform @SCHEMA@.lt_fail('invalid_data', format('данные не проходят описание класса %s', NEW.class), jsonb_build_object('issues', bad));
+      perform @SCHEMA@.lt_fail('sql-write.invalid_data', jsonb_build_object('cls', NEW.class), jsonb_build_object('issues', bad));
     end if;
     NEW.validator := null;
   end if;
@@ -1891,7 +1891,7 @@ begin
   d := @SCHEMA@.apply_defaults(res->'schema', d);
   bad := @SCHEMA@.validate_data(res->'rules', cls.validator, res->'vars', d);
   if bad <> '[]'::jsonb then
-    perform @SCHEMA@.lt_fail('invalid_data', format('данные не проходят описание класса %s', p_class), jsonb_build_object('issues', bad));
+    perform @SCHEMA@.lt_fail('sql-write.invalid_data', jsonb_build_object('cls', p_class), jsonb_build_object('issues', bad));
   end if;
   select * into lk from @SCHEMA@.check_links(res, o.links, o.tenant, true, rd);
   if lk.code is not null then

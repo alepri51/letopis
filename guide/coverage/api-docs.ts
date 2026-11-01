@@ -2335,6 +2335,11 @@ const docs: Record<string, ApiDoc> = {
       '`close()` закрывает и его.',
     default: 'нет — администраторские вызовы только у администраторского подключения',
   },
+  'connect.lang': {
+    details: 'Иное значение — отказ `invalid_data`. Места, ещё не переведённые на каталог сообщений, отвечают по-русски при ' +
+      'любом языке, но подсказка `hint` у них — на языке подключения.',
+    default: "`'ru'`",
+  },
   'connect.maintain': {
     details: 'Интервал — число миллисекунд или строка с единицей: `\'500ms\'`, `\'30s\'`, `\'15m\'`, `\'1h\'`, ' +
       '`\'1d\'`; другой формат — тоже `invalid_data`. Предел нужен потому, что интервал вне его таймер Node.js ' +
@@ -2909,6 +2914,13 @@ const docs: Record<string, ApiDoc> = {
       code: 'Код ошибки, например `\'conflict\'` или `\'invalid_data\'`.',
       message: 'Сообщение для человека; в `err.message` к нему спереди добавляется `letopis: <код>: `.',
       detail: { text: 'Подробности для программы, например `{ id, rev, expected }` у `conflict`.', default: 'нет (`undefined`)' },
+      msg: {
+        text: 'Ключ каталога сообщений и параметры текста — `{ key, params }`, они попадают в `err.key` и `err.params`. Так ' +
+          'ошибку создают библиотека и `fromDbError()`; подсказка `err.hint` и ссылка `err.docs` есть и без них.',
+        default: 'нет (`undefined`)',
+      },
+      'msg.key': 'Ключ каталога сообщений вида `<раздел>.<имя>`, например `\'api.unknown_step\'`.',
+      'msg.params': { text: 'Параметры текста `{ имя: значение }`; `similar` — похожие имена.', default: '`{}`' },
     },
   },
   'export.ValidationError': {
@@ -2918,6 +2930,12 @@ const docs: Record<string, ApiDoc> = {
     params: {
       cls: 'Имя класса — попадает в сообщение «данные не проходят описание класса …».',
       issues: 'Нарушения: `[{ path, keyword, message }]`, например результат функции из `compileValidator()`.',
+      msg: {
+        text: 'Ключ каталога сообщений и параметры текста — `{ key, params }`; у ошибки базы их ставит `fromDbError()`.',
+        default: "проверка на TypeScript: `{ key: 'api.validation_failed', params: { cls } }`",
+      },
+      'msg.key': 'Ключ каталога сообщений, например `\'sql-write.invalid_data\'` у ошибки базы.',
+      'msg.params': { text: 'Параметры текста, например `{ cls }`.', default: '`{}`' },
     },
   },
   'export.fromDbError': {
@@ -3125,6 +3143,10 @@ const docs: Record<string, ApiDoc> = {
   },
   'mcpopt.allowSystemAdmin': {
     default: '`false`',
+  },
+  'mcpopt.lang': {
+    details: 'Иное значение — отказ `invalid_data` при создании сервера.',
+    default: "`'ru'`",
   },
 
   'mcptool.letopis_model': {

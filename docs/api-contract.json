@@ -104,6 +104,7 @@
         "IncMarker",
         "Issue",
         "KeyedClass",
+        "Lang",
         "LeafType",
         "LoadInput",
         "LoadIssue",
@@ -392,6 +393,7 @@
     "conflict",
     "cursor_expired",
     "delete_restricted",
+    "deleted",
     "derived_class",
     "duplicate",
     "exists",
@@ -617,6 +619,18 @@
     {
       "module": "mcp",
       "message": "letopis.mcp: нужен пакет @modelcontextprotocol/server — npm i @modelcontextprotocol/server"
+    },
+    {
+      "module": "messages/index",
+      "message": "letopis.up: …"
+    },
+    {
+      "module": "messages/index",
+      "message": "letopis: ключ каталога <…> повторяется"
+    },
+    {
+      "module": "messages/index",
+      "message": "letopis: ключ каталога <…> — не из раздела <…>"
     },
     {
       "module": "pglite",

@@ -86,7 +86,7 @@ begin
     select e.id into t from @SCHEMA@.entity e
     where e.id = tenant and e.class = 'Account' and e.tenant = '@SYSTEM@'::uuid and coalesce((e.data->>'enabled')::boolean, true);
     if m is null or t.id is null then
-      perform @SCHEMA@.lt_fail('tenant_denied', 'нет членства в арендаторе');
+      perform @SCHEMA@.lt_fail('sql-core.no_membership');
     end if;
     roles := array(select jsonb_array_elements_text(coalesce(m.data->'roles', '[]'::jsonb)));
   end if;

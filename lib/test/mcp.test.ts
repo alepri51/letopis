@@ -536,7 +536,8 @@ test('№12: основная точка входа и CLI не импортир
       }
     }
     assert.ok(seen.size > 3, 'разбор импортов нашёл модули');
-    assert.ok(![...seen].some((f) => f.endsWith('mcp.ts')), `${entry} тянет mcp.ts статически`);
+    // сам модуль letopis/mcp, а не раздел каталога сообщений src/messages/mcp.ts (план 2.0, этап 3, п. 3)
+    assert.ok(![...seen].some((f) => f === join(LIB, 'src', 'mcp.ts')), `${entry} тянет mcp.ts статически`);
   }
 });
 

@@ -588,9 +588,18 @@ id строки класса по значениям ключа в объявл�
 
 ```ts
 class LetopisError extends Error {
-  constructor(code: string, message: string, detail?: unknown);
+  constructor(
+    code: string,
+    message: string,
+    detail?: unknown,
+    msg?: { key: string; params?: Params },
+  );
   readonly code: string;
   readonly detail: unknown;
+  declare readonly key?: string;
+  declare readonly params?: Params;
+  declare readonly hint?: string;
+  declare readonly docs?: string;
 }
 ```
 
@@ -603,6 +612,9 @@ class LetopisError extends Error {
 | `code` | `string` | обязательный | Код ошибки, например `'conflict'` или `'invalid_data'`. |
 | `message` | `string` | обязательный | Сообщение для человека; в `err.message` к нему спереди добавляется `letopis: <код>: `. |
 | `detail` | `unknown` | нет (`undefined`) | Подробности для программы, например `{ id, rev, expected }` у `conflict`. |
+| `msg` | `{ key: string; params?: Params }` | нет (`undefined`) | Ключ каталога сообщений и параметры текста — `{ key, params }`, они попадают в `err.key` и `err.params`. Так ошибку создают библиотека и `fromDbError()`; подсказка `err.hint` и ссылка `err.docs` есть и без них. |
+| `msg.key` | `string` | обязательный | Ключ каталога сообщений вида `<раздел>.<имя>`, например `'api.unknown_step'`. |
+| `msg.params` | `Params` | `{}` | Параметры текста `{ имя: значение }`; `similar` — похожие имена. |
 
 **Примеры:** [Деньги без двойного списания: ключ операции и inc](../money/#деньги-без-двоиного-списания)
 
@@ -610,12 +622,12 @@ class LetopisError extends Error {
 
 ```ts
 class ValidationError extends LetopisError {
-  constructor(cls: string, issues: Issue[]);
+  constructor(cls: string, issues: Issue[], msg?: { key: string; params?: Params });
   readonly issues: Issue[];
 }
 ```
 
-Данные не проходят описание класса (`invalid_data`).
+Данные не проходят описание класса (`invalid_data`); текст — по ключу (по умолчанию api.validation_failed).
 
 Подкласс `LetopisError` с кодом `invalid_data`. Список нарушений — в `err.issues` (и в `err.detail.issues`): у каждого путь к полю, ключевое слово правила JSON Schema и сообщение. Такую ошибку дают проверка в библиотеке до отправки и проверка в базе (через `fromDbError()`).
 
@@ -625,6 +637,9 @@ class ValidationError extends LetopisError {
 |---|---|---|---|
 | `cls` | `string` | обязательный | Имя класса — попадает в сообщение «данные не проходят описание класса …». |
 | `issues` | `Issue[]` | обязательный | Нарушения: `[{ path, keyword, message }]`, например результат функции из `compileValidator()`. |
+| `msg` | `{ key: string; params?: Params }` | проверка на TypeScript: `{ key: 'api.validation_failed', params: { cls } }` | Ключ каталога сообщений и параметры текста — `{ key, params }`; у ошибки базы их ставит `fromDbError()`. |
+| `msg.key` | `string` | обязательный | Ключ каталога сообщений, например `'sql-write.invalid_data'` у ошибки базы. |
+| `msg.params` | `Params` | `{}` | Параметры текста, например `{ cls }`. |
 
 **Примеры:** [Служебные экспорты: id из ключа, пароли, валидатор, типы, зарезервированные имена](../models/#служебные-функции-пакета)
 
@@ -634,7 +649,7 @@ class ValidationError extends LetopisError {
 fromDbError(e: unknown): unknown
 ```
 
-Ошибка базы → LetopisError (ValidationError для invalid_data с нарушениями). Детали из DETAIL (JSON) переносятся в detail; прочие ошибки возвращаются как есть.
+Ошибка базы → LetopisError (ValidationError для invalid_data с нарушениями). Детали из DETAIL (JSON) переносятся в detail; ключ каталога и параметры из DETAIL (lt_fail(ключ, …)) — в key и params: русский текст — тот, что собрала база, другой язык вокруг — из каталога; без ключа — текст базы. Прочие ошибки возвращаются как есть.
 
 Библиотека сама переводит ошибки базы, поэтому вызывать функцию нужно только для сырого SQL через свой клиент PostgreSQL. Ошибка с SQLSTATE `LT001`–`LT023` становится `LetopisError` с кодом из главы «Ошибки», а отказ RLS на новых значениях строки (SQLSTATE `42501`) — `acl_denied`. Исходная ошибка остаётся в `cause`.
 

@@ -341,6 +341,7 @@ const anna = await connect({ dsn: APP, schema: r.schema, token: r.tenant!.token!
 | `refreshSession` | продлевать сессию раз в минуту работы (по умолчанию да) |
 | `notifyIntervalMs` | интервал отправки отложенных сигналов (100 мс) |
 | `allowBypassRls`, `owner` | разрешить роль в обход RLS (администраторское подключение); имя роли-владельца |
+| `lang` | язык сообщений об ошибках: `'ru'` (по умолчанию) или `'en'` ([раздел 16](#16-ошибки)) |
 
 У подключения есть `db.schema`, `db.token`, `db.tenant` (арендатор сессии) и `db.close()`. Подключения,
 полученные через `as()`, делят пул с исходным: закрывать нужно исходное.
@@ -2325,8 +2326,8 @@ npx letopis import --from postgres://…/old --from-schema v1.salon --dsn postgr
 |---|---|
 | `letopis` | `connect`, `up`, `createTenant`; операторы `ne`, `gt`, `gte`, `lt`, `lte`, `between`, `inList`, `like`, `ilike`, `starts`, `ends`, `has`, `hasAny`, `hasAll`, `exists`, `isNull`, `not`, `or`, `isOp`; `inc`, `isInc`, `cursorOf`; `idOf`, `uuidv5`, `v5Name`, `v5Id`; `LetopisError`, `ValidationError`, `fromDbError`; `syncModels`, `generateTypes`, `schemaToTs`; `compileValidator`, `applyDefaults`, `Registry`; `totpCode`, `hashPassword`, `verifyHash`; `describeText`; константы `DDL_REVISION`, `RESERVED_CLASS_NAMES`, `CHAIN_METHODS`, `DB_METHODS`; типы `Db`, `DbTx`, `TypedDb`, `Chain`, `Row`, `Filter`, `Cursor`, `ConnectOptions`, `UpOptions`, `LoadOptions`, `LoadReport`, `WatchOptions`, `WatchEvent`, `AuthApi`, `AclApi`, `DiffResult`, `DiffChange`, `BlameResult`, `BlameField`, `Projector`, `ProjectorOptions`, `ProjectorChange`, `ProjectorOut`, `ProjectorRow`, `ProjectorReport`, `ProjectorStatus`, `ProjectorFailure` ([«Проектор»](#проектор)), `AggregateInfo` и другие |
 | `letopis/model` | `hub`, `link`, `one`, `many`, `End`, типы `Infer`, `InferLinks`, `Model`, `ClassDef`, `ClassMeta`, `HistoryPolicy`, `AggregateDef`; `normalizeSchema`, `translatePattern`, тип `JsonSchema` |
-| `letopis/mcp` | `createMcpServer(db, опции)` — сервер MCP SDK с инструментами letopis; тип `McpOptions`: `write` — инструмент `letopis_write` (по умолчанию его нет), `maxRows` — строк в ответе (100, от 1 до 10 000), `maxBytes` — байт в ответе (50 000, от 1 000 до 50 000 000); `allowAclWrite` — `letopis_write` пишет и классы прав (по умолчанию — `acl_denied`); `allowSystemAdmin` — сессия в арендаторе System (по умолчанию — `user_session_required`); значение вне пределов — `invalid_data`. Нужен пакет `@modelcontextprotocol/server` ([раздел 13](#агенты-и-mcp)) |
-| CLI `letopis` | `sync`, `types`, `load`, `verify`, `maintain`, `describe`, `import`, `mcp` ([раздел 13](#13-эксплуатация)); у `mcp` — `--dsn`, `--schema`, `--token` (или `LETOPIS_DSN`, `LETOPIS_SCHEMA`, `LETOPIS_TOKEN`) и `--write` |
+| `letopis/mcp` | `createMcpServer(db, опции)` — сервер MCP SDK с инструментами letopis; тип `McpOptions`: `write` — инструмент `letopis_write` (по умолчанию его нет), `maxRows` — строк в ответе (100, от 1 до 10 000), `maxBytes` — байт в ответе (50 000, от 1 000 до 50 000 000); `allowAclWrite` — `letopis_write` пишет и классы прав (по умолчанию — `acl_denied`); `allowSystemAdmin` — сессия в арендаторе System (по умолчанию — `user_session_required`); `lang` — язык сообщений об ошибках, `'ru'` (по умолчанию) или `'en'` ([раздел 16](#16-ошибки)); значение вне пределов — `invalid_data`. Нужен пакет `@modelcontextprotocol/server` ([раздел 13](#агенты-и-mcp)) |
+| CLI `letopis` | `sync`, `types`, `load`, `verify`, `maintain`, `describe`, `import`, `mcp` ([раздел 13](#13-эксплуатация)); у `mcp` — `--dsn`, `--schema`, `--token` (или `LETOPIS_DSN`, `LETOPIS_SCHEMA`, `LETOPIS_TOKEN`) и `--write`; у любой команды — `--lang ru\|en`, язык сообщений об ошибках |
 
 Снятые имена 0.21 (`uuidv7`, `LETOPIS_NS` и методы, перечисленные ниже) бросают `removed` с заменой.
 
@@ -2439,58 +2440,85 @@ npx letopis import --from postgres://…/old --from-schema v1.salon --dsn postgr
 ## 16. Ошибки
 
 Текст ошибки — `letopis: <код>: <сообщение>`. Код — в `err.code`, подробности — в `err.detail`. Ошибки — объекты
-`LetopisError`, у ошибок данных — `ValidationError` с `err.issues: [{ path, keyword, message }]`.
+`LetopisError`, у ошибок данных — `ValidationError` с `err.issues: [{ path, keyword, message }]`. Ещё у ошибки есть:
+
+- `err.hint` — что делать: подсказка из каталога сообщений библиотеки, своя у места или общая у кода;
+- `err.docs` — ссылка на строку кода в этом разделе README на GitHub, по тегу версии пакета;
+- `err.key` и `err.params` — ключ каталога сообщений и параметры текста. Они есть у мест, уже переведённых на каталог, и
+  у ошибок базы, которая прислала ключ в `DETAIL`.
+
+Язык сообщений задаёт опция `lang`: `'ru'` (по умолчанию) или `'en'`. Её принимают `connect()`, `createMcpServer()` и
+командная строка (`--lang ru|en` у любой команды). На этом языке приходят текст и `hint` ошибок самого подключения,
+методов `db`, цепочек, `db.auth`, `db.acl`, подписок и проекторов. Ошибку базы с ключом библиотека пересобирает на языке
+подключения, а сырой SQL мимо библиотеки получает русский текст базы. Каталог переводится по частям: места, ещё не
+переведённые, отвечают по-русски при любом `lang`, но `hint` и `docs` есть и у них.
+
+```ts
+const db = await connect({ dsn, schema: 'v2.shop', token, lang: 'en' })
+try {
+  await db.Shpo().rows()
+} catch (e) {
+  // e.code — 'invalid_class', e.params.similar — ['Shop']
+  // e.message — 'letopis: invalid_class: class or role Shpo not found — similar: Shop'
+  // e.hint — что делать; e.docs — https://github.com/alepri51/letopis/blob/v<версия>/lib/README.md#invalid_class
+}
+```
+
+Похожие имена. Неизвестный класс или роль в цепочке — ошибка `invalid_class`: похожие имена реестра — в тексте и в
+`err.params.similar`. Неизвестное поле в фильтре, `sort()` или агрегате и неизвестная опция `connect()`, `up()`,
+`load()`, проектора, `watch()` и `createMcpServer()` в 1.5 дают предупреждение в `console.warn` с похожими именами —
+один раз на имя за процесс. В 2.0 это станет ошибкой.
 
 Коды базы. Их получает и сырой SQL: SQLSTATE класса `LT`, подробности — JSON в `DETAIL`.
 
 | Код | SQLSTATE | Когда |
 |---|---|---|
-| `no_session` | LT001 | нет действующей сессии |
-| `target_not_found` | LT002 | цель не найдена — одинаково для несуществующей, чужой и невидимой |
-| `invalid_data` | LT003 | данные не проходят описание класса; `err.issues` — путь, ключевое слово, сообщение |
-| `undeclared_end` | LT004 | конец не объявлен в классе |
-| `tenant_denied` | LT005 | чужой арендатор или нет членства |
-| `acl_denied` | LT006 | отказ по правилам доступа |
-| `id_mismatch`, `id_from_db` | LT007, LT008 | id не равен v5 от ключа; id класса без ключа выдаёт база |
-| `immutable_key` | LT009 | ключевое поле, id, арендатор и владелец не меняются (новый ключ — `rekey`) |
-| `invalid_class` | LT010 | описание класса отклонено, класс не найден или абстрактный; класс со строками, потомками или историей строк не удаляется |
-| `use_reclass`, `reclass_denied` | LT011, LT012 | смена класса через `update`, когда у старого или нового класса есть ключ: id меняется, нужен `reclass()`; роли ссылающихся строк не принимают новый класс |
-| `tightening_conflict` | LT013 | ужесточению описания мешают строки |
-| `isolation_level` | LT014 | удаление, смена класса и ключа — только в `read committed` |
-| `recreated_in_statement` | LT015 | id удалён и создан заново одним оператором |
-| `cursor_expired` | LT016 | курсор подписки или проектора старше яруса `all` политики хранения |
-| `delete_restricted` | LT017 | удалению мешают ссылающиеся строки (`onDelete: 'restrict'`) |
-| `not_deleted` | LT018 | `restore` и `purge` — только для удалённых |
-| `reset_disabled` | LT019 | сброс выключен в установке (`allowReset`) |
-| `confirm_mismatch` | LT020 | подтверждение сброса не совпадает с именем схемы |
-| `derived_class` | LT021 | строку производного класса (`derivedBy`) пишет, правит или удаляет не его проектор; конец ведёт на такую строку или на производный класс; проектор пишет в класс вне своих `into` или не нашёл ни одного арендатора, у которого все классы `into` помечены его `derivedBy` |
-| `aggregate_field` | LT022 | приложение передало или изменило агрегатное поле (`aggregate`): его считает база |
-| `projector_pending` | LT023 | `purge` удалённого объекта, чьё удаление ещё не прочёл проектор его класса, или `trimHistory`, чью первую оставшуюся версию он ещё не прочёл: сначала `run()` проектора |
+| `no_session`<a id="no_session"></a> | LT001 | нет действующей сессии |
+| `target_not_found`<a id="target_not_found"></a> | LT002 | цель не найдена — одинаково для несуществующей, чужой и невидимой |
+| `invalid_data`<a id="invalid_data"></a> | LT003 | данные не проходят описание класса; `err.issues` — путь, ключевое слово, сообщение |
+| `undeclared_end`<a id="undeclared_end"></a> | LT004 | конец не объявлен в классе |
+| `tenant_denied`<a id="tenant_denied"></a> | LT005 | чужой арендатор или нет членства |
+| `acl_denied`<a id="acl_denied"></a> | LT006 | отказ по правилам доступа |
+| `id_mismatch`, `id_from_db`<a id="id_mismatch"></a><a id="id_from_db"></a> | LT007, LT008 | id не равен v5 от ключа; id класса без ключа выдаёт база |
+| `immutable_key`<a id="immutable_key"></a> | LT009 | ключевое поле, id, арендатор и владелец не меняются (новый ключ — `rekey`) |
+| `invalid_class`<a id="invalid_class"></a> | LT010 | описание класса отклонено, класс не найден или абстрактный; класс со строками, потомками или историей строк не удаляется |
+| `use_reclass`, `reclass_denied`<a id="use_reclass"></a><a id="reclass_denied"></a> | LT011, LT012 | смена класса через `update`, когда у старого или нового класса есть ключ: id меняется, нужен `reclass()`; роли ссылающихся строк не принимают новый класс |
+| `tightening_conflict`<a id="tightening_conflict"></a> | LT013 | ужесточению описания мешают строки |
+| `isolation_level`<a id="isolation_level"></a> | LT014 | удаление, смена класса и ключа — только в `read committed` |
+| `recreated_in_statement`<a id="recreated_in_statement"></a> | LT015 | id удалён и создан заново одним оператором |
+| `cursor_expired`<a id="cursor_expired"></a> | LT016 | курсор подписки или проектора старше яруса `all` политики хранения |
+| `delete_restricted`<a id="delete_restricted"></a> | LT017 | удалению мешают ссылающиеся строки (`onDelete: 'restrict'`) |
+| `not_deleted`<a id="not_deleted"></a> | LT018 | `restore` и `purge` — только для удалённых |
+| `reset_disabled`<a id="reset_disabled"></a> | LT019 | сброс выключен в установке (`allowReset`) |
+| `confirm_mismatch`<a id="confirm_mismatch"></a> | LT020 | подтверждение сброса не совпадает с именем схемы |
+| `derived_class`<a id="derived_class"></a> | LT021 | строку производного класса (`derivedBy`) пишет, правит или удаляет не его проектор; конец ведёт на такую строку или на производный класс; проектор пишет в класс вне своих `into` или не нашёл ни одного арендатора, у которого все классы `into` помечены его `derivedBy` |
+| `aggregate_field`<a id="aggregate_field"></a> | LT022 | приложение передало или изменило агрегатное поле (`aggregate`): его считает база |
+| `projector_pending`<a id="projector_pending"></a> | LT023 | `purge` удалённого объекта, чьё удаление ещё не прочёл проектор его класса, или `trimHistory`, чью первую оставшуюся версию он ещё не прочёл: сначала `run()` проектора |
 
 Коды библиотеки:
 
 | Код | Когда |
 |---|---|
-| `exists` | объект уже существует: `create` (`detail.id` — его id), `rekey` (новый id занят) или загрузчик |
-| `duplicate`, `deleted` | загрузчик: повтор id в загрузке; объект с этим id жил раньше. Загрузчик бросает код первой проблемной строки, первые 100 — в `detail.rows`, всего — `detail.total` |
-| `conflict` | `update(патч, { rev })`: строку успели изменить (`detail`: `id`, `rev`, `expected`) |
-| `rev_ambiguous` | `{ rev }` у шага, у которого не одна цель |
-| `tx_required` | `forUpdate()`, `lock()`, `commit()` или `rollback()` вне действующей `db.begin()` |
-| `lock_unsupported` | `forUpdate()` с агрегатом, `asOf`, `versions`, `withDeleted`, `deep` или глаголом |
-| `commit_unknown` | связь оборвалась во время `COMMIT`: исход неизвестен |
-| `tx_rolled_back` | PostgreSQL ответил `ROLLBACK` на `COMMIT`: ошибку перехватили внутри `tr.transaction(fn)` |
-| `no_key` | `upsert`, `rekey` или `idOf` у класса без ключа |
-| `no_path` | между классами соседних шагов нет перехода |
-| `invalid_query` | цепочку или API используют неверно (модификатор шага `deep`, `exact`, `alias`, `tags` или `owner` после глагола, модификатор выборки между глаголом и терминалом `rows`, `first`, `ids`, `count` или `paths`, слот не после глагола, курсор `after()` со значением не того типа, что поле `sort`, без `v` или с `id` не uuid и т. п.) |
-| `admin_required` | загрузчику, проектору и `rebuildAggregates` нужно администраторское подключение |
-| `rebuild_required` | проекция построена другой версией проектора (`version`): нужна перестройка `rebuild()`; `rebuild({ tenant })`, пока проекции нет или идёт перестройка пачками |
-| `projector_busy` | перестройку не начать: проектор сейчас работает в другом процессе |
-| `not_empty` | первая заливка (`initial`) — только в пустую схему |
-| `class_not_loadable` | строки `Class` загрузчик не принимает |
-| `bypass_rls` | `connect()` с ролью, которая обходит RLS, без `allowBypassRls`; `createMcpServer` с подключением в обход RLS |
-| `user_session_required` | `createMcpServer` и `letopis mcp`: нужна сессия пользователя — у подключения нет сессии, это корень сервиса без `as()`, сессия в арендаторе System без `allowSystemAdmin`, в командной строке ключ сервиса или нет токена |
-| `confirmation_required` | `letopis_write` (MCP): удаление без подтверждения человека — клиент без elicitation, человек отказал, ответ не к этой операции или данные изменились после превью |
-| `removed` | снесённое API 0.21; в тексте — замена |
+| `exists`<a id="exists"></a> | объект уже существует: `create` (`detail.id` — его id), `rekey` (новый id занят) или загрузчик |
+| `duplicate`, `deleted`<a id="duplicate"></a><a id="deleted"></a> | загрузчик: повтор id в загрузке; объект с этим id жил раньше. Загрузчик бросает код первой проблемной строки, первые 100 — в `detail.rows`, всего — `detail.total` |
+| `conflict`<a id="conflict"></a> | `update(патч, { rev })`: строку успели изменить (`detail`: `id`, `rev`, `expected`) |
+| `rev_ambiguous`<a id="rev_ambiguous"></a> | `{ rev }` у шага, у которого не одна цель |
+| `tx_required`<a id="tx_required"></a> | `forUpdate()`, `lock()`, `commit()` или `rollback()` вне действующей `db.begin()` |
+| `lock_unsupported`<a id="lock_unsupported"></a> | `forUpdate()` с агрегатом, `asOf`, `versions`, `withDeleted`, `deep` или глаголом |
+| `commit_unknown`<a id="commit_unknown"></a> | связь оборвалась во время `COMMIT`: исход неизвестен |
+| `tx_rolled_back`<a id="tx_rolled_back"></a> | PostgreSQL ответил `ROLLBACK` на `COMMIT`: ошибку перехватили внутри `tr.transaction(fn)` |
+| `no_key`<a id="no_key"></a> | `upsert`, `rekey` или `idOf` у класса без ключа |
+| `no_path`<a id="no_path"></a> | между классами соседних шагов нет перехода |
+| `invalid_query`<a id="invalid_query"></a> | цепочку или API используют неверно (модификатор шага `deep`, `exact`, `alias`, `tags` или `owner` после глагола, модификатор выборки между глаголом и терминалом `rows`, `first`, `ids`, `count` или `paths`, слот не после глагола, курсор `after()` со значением не того типа, что поле `sort`, без `v` или с `id` не uuid и т. п.) |
+| `admin_required`<a id="admin_required"></a> | загрузчику, проектору и `rebuildAggregates` нужно администраторское подключение |
+| `rebuild_required`<a id="rebuild_required"></a> | проекция построена другой версией проектора (`version`): нужна перестройка `rebuild()`; `rebuild({ tenant })`, пока проекции нет или идёт перестройка пачками |
+| `projector_busy`<a id="projector_busy"></a> | перестройку не начать: проектор сейчас работает в другом процессе |
+| `not_empty`<a id="not_empty"></a> | первая заливка (`initial`) — только в пустую схему |
+| `class_not_loadable`<a id="class_not_loadable"></a> | строки `Class` загрузчик не принимает |
+| `bypass_rls`<a id="bypass_rls"></a> | `connect()` с ролью, которая обходит RLS, без `allowBypassRls`; `createMcpServer` с подключением в обход RLS |
+| `user_session_required`<a id="user_session_required"></a> | `createMcpServer` и `letopis mcp`: нужна сессия пользователя — у подключения нет сессии, это корень сервиса без `as()`, сессия в арендаторе System без `allowSystemAdmin`, в командной строке ключ сервиса или нет токена |
+| `confirmation_required`<a id="confirmation_required"></a> | `letopis_write` (MCP): удаление без подтверждения человека — клиент без elicitation, человек отказал, ответ не к этой операции или данные изменились после превью |
+| `removed`<a id="removed"></a> | снесённое API 0.21; в тексте — замена |
 
 Отказ PostgreSQL в праве (`42501`) приходит, например, при `upsert` поверх чужой строки, которую нельзя править.
 
@@ -2824,4 +2852,5 @@ p50 — от −0,28 до +0,21 мс. Бенч против 1.0.1 (`bench/vs-101
 # watch-contract — обещания README о подписке и подключении (план 2.0, 7.4): молчащая подписка опрашивает журнал раз в pollMs, close() подключения закрывает живые подписки, reclass без ключа сбрасывает кэш прежнего класса, новый участник проектора получает начальную перестройку, проектор без LISTEN перечитывает состав, реестров db.as() не больше предела
 # model-contract — обещания README о моделях, типах, CLI и ошибках (план 2.0, 7.5): letopis types — верный TypeScript для кириллицы, класса без полей и anyOf, полная форма hub() с z.object, понятные ошибки вместо сырых, коды выхода CLI
 # read-contract — обещания README о чтении и истории (план 2.0, 7.1): срез asOf по классу и по концам после смены класса без смены id, versions, diff и blame с follow после rekey, курсор after() в versions() и paths(), имя поля с @S@
+# messages — каталог сообщений (план 2.0, 7.9 №5, №6): с lang: 'en' у каждого кода английские текст и hint, ошибки переведённых мест и базы — на языке подключения, сырой SQL — по-русски, с ru — как раньше, docs ведёт на якорь кода; похожие имена для неизвестного класса, роли, поля и опции
 ```

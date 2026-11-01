@@ -26,7 +26,7 @@ import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from
 import { createRequire } from 'node:module';
 import type { CallToolResult, InputRequiredResult, McpServer, ServerContext } from '@modelcontextprotocol/server';
 import { lookupStep, type Chain, type StepFn } from './chain.js';
-import { LetopisError } from './errors.js';
+import { LetopisError, checkLang, checkOptions, langRun, similar, type Lang, type LangRun } from './errors.js';
 import { internalsOf } from './internal.js';
 import { between, ends, exists, gt, gte, has, hasAll, hasAny, ilike, inList, isNull, like, lt, lte, ne, not, or, starts } from './ops.js';
 import type { Registry } from './registry.js';
@@ -61,7 +61,17 @@ export interface McpOptions {
    * умолчанию такая сессия — отказ `user_session_required` (ревью безопасности №2, О5).
    */
   allowSystemAdmin?: boolean;
+  /**
+   * Язык сообщений об ошибках (план 2.0, этап 3, п. 3): `'ru'` (по умолчанию) или `'en'`. Ошибки letopis в вызовах
+   * инструментов и в самом `createMcpServer` — на этом языке, с подсказкой `hint`.
+   */
+  lang?: Lang;
 }
+
+/** Все опции createMcpServer: неизвестную checkOptions называет с похожими (план 2.0, 7.9 №6). */
+const MCP_OPTIONS = {
+  write: true, maxRows: true, maxBytes: true, allowAclWrite: true, allowSystemAdmin: true, lang: true,
+} satisfies Record<keyof McpOptions, true>;
 
 type Sdk = typeof import('@modelcontextprotocol/server');
 type Args = Record<string, unknown>;
@@ -266,34 +276,6 @@ function fit<T>(items: T[], o: Limits): number {
 
 const isObj = (v: unknown): v is Args => typeof v === 'object' && v !== null && !Array.isArray(v);
 const invalid = (msg: string, detail?: unknown): LetopisError => new LetopisError('invalid_query', msg, detail);
-
-/** Расстояние Левенштейна (вставка, удаление, замена). */
-function distance(a: string, b: string): number {
-  if (!a.length) return b.length;
-  if (!b.length) return a.length;
-  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
-  for (let i = 1; i <= a.length; i++) {
-    const cur = [i];
-    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-    prev = cur;
-  }
-  return prev[b.length];
-}
-
-/** Похожие имена: до пяти ближайших по Левенштейну (без учёта регистра) или содержащих искомое. */
-function similar(name: string, pool: Iterable<string>, n = 5): string[] {
-  if (name.length > 64) return [];
-  const want = name.toLowerCase();
-  const max = Math.max(2, Math.ceil(want.length / 3));
-  const scored: { x: string; d: number }[] = [];
-  for (const x of new Set(pool)) {
-    if (x === name) continue;
-    const low = x.toLowerCase();
-    const d = distance(want, low);
-    if (d <= max || (want.length >= 3 && low.includes(want))) scored.push({ x, d });
-  }
-  return scored.sort((p, q) => p.d - q.d || (p.x < q.x ? -1 : p.x > q.x ? 1 : 0)).slice(0, n).map((s) => s.x);
-}
 
 /** Неизвестный ключ входа — отказ с подсказкой: лишний параметр не должен молча пропадать. */
 function checkKeys(a: Args, allowed: readonly string[], where: string): void {
@@ -798,16 +780,27 @@ async function checkCredentials(db: Db, o: Limits): Promise<Actor> {
  * или обработчик HTTP `createMcpHandler(() => createMcpServer(db))` из SDK; токен запроса HTTP проверяет приложение.
  */
 export async function createMcpServer(db: Db, opts: McpOptions = {}): Promise<McpServer> {
+  // lang (план 2.0, этап 3, п. 3): допуск и каждый вызов инструмента — на языке сервера
+  const L = langRun(checkLang(opts?.lang, 'createMcpServer'));
+  return L ? L(() => serve(db, opts, L)) : serve(db, opts, undefined);
+}
+
+async function serve(db: Db, opts: McpOptions, L: LangRun | undefined): Promise<McpServer> {
+  checkOptions('createMcpServer', opts, MCP_OPTIONS);
   const o = limitsOf(opts);
   const who = await checkCredentials(db, o);
   const sdk = await loadSdk();
   const server = new sdk.McpServer({ name: 'letopis', version: VERSION }, { instructions: instructions(o), capabilities: { tools: {} } });
+  // вызов инструмента приходит от SDK позже, вне createMcpServer: язык сервера ставится на каждый
   const guard = (fn: (a: Args, ctx: ServerContext) => ToolResult | Promise<ToolResult>) => async (args: unknown, ctx: ServerContext): Promise<ToolResult> => {
-    try {
-      return await fn(isObj(args) ? args : {}, ctx);
-    } catch (e) {
-      return failure(e);
-    }
+    const call = async (): Promise<ToolResult> => {
+      try {
+        return await fn(isObj(args) ? args : {}, ctx);
+      } catch (e) {
+        return failure(e);
+      }
+    };
+    return L ? L(call) : call();
   };
   server.registerTool('letopis_model', { title: 'Модель letopis', description: DESCRIBE_MODEL, inputSchema: sdk.fromJsonSchema(MODEL_SCHEMA), annotations: READ_ONLY },
     guard((a) => model(db, a, o)));

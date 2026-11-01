@@ -677,7 +677,7 @@ begin
                    join @SCHEMA@.entity u on u.id = (x.links->>'User')::uuid and u.class = 'Account' and u.tenant = '@SYSTEM@'::uuid
                    where x.class = 'member' and x.tenant = t.tenant and x.links->>'User' <> p_account::text
                      and coalesce(x.data->'roles' ? 'owner', false) and coalesce((u.data->>'enabled')::boolean, true)) then
-      perform @SCHEMA@.lt_fail('acl_denied', format('аккаунт — последний владелец арендатора %s', t.tenant), jsonb_build_object('tenant', t.tenant));
+      perform @SCHEMA@.lt_fail('sql-time.last_owner', jsonb_build_object('tenant', t.tenant), jsonb_build_object('tenant', t.tenant));
     end if;
   end loop;
   -- данные арендатора-цели — физически, вместе с журналом

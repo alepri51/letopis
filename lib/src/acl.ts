@@ -11,7 +11,7 @@
  * после deny той же роли и цели заменяет запрет разрешением. Ресурсы обёртки живут в арендаторе: ссылку правила
  * арендатора на ресурс System база не пропустит (цель должна быть видна).
  */
-import { LetopisError, removed } from './errors.js';
+import { LetopisError, removed, wrapLang, type LangRun } from './errors.js';
 import { internalsOf } from './internal.js';
 import type { Executor } from './tx.js';
 import { v5Id } from './uuid.js';
@@ -212,9 +212,9 @@ type Facade = any;
 
 /**
  * db.acl фасада. db — сам фасад (корень, db.as(), db.begin()): запись правил идёт его цепочками, внутри db.begin() — в её
- * транзакции.
+ * транзакции. lang — язык подключения, если не ru (план 2.0, этап 3, п. 3): методы исполняются на нём.
  */
-export function makeAcl(S: string, exec: Executor, db?: () => unknown): AclApi {
+export function makeAcl(S: string, exec: Executor, db?: () => unknown, lang?: LangRun): AclApi {
   const facade = (): Facade => {
     const d = db?.();
     if (!d) throw new LetopisError('invalid_query', 'db.acl: запись правил — от фасада подключения');
@@ -331,10 +331,13 @@ export function makeAcl(S: string, exec: Executor, db?: () => unknown): AclApi {
       return out.sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
     },
   };
+  const member = (t: AclApi, p: string | symbol, r: unknown): unknown => {
+    if (p === 'reload') throw removed('db.acl.reload()', 'права обновляются сами: база применяет действующие правила');
+    return Reflect.get(t, p, r);
+  };
   return new Proxy(api, {
     get(t, p, r) {
-      if (p === 'reload') throw removed('db.acl.reload()', 'права обновляются сами: база применяет действующие правила');
-      return Reflect.get(t, p, r);
+      return lang ? lang(() => wrapLang(lang, member(t, p, r))) : member(t, p, r);
     },
   });
 }

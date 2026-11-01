@@ -8,7 +8,7 @@
  * Этап 6: история (restore, purge, rekey, trimHistory), verify, maintain, reset, watch, кэш результатов.
  */
 import postgres from 'postgres';
-import { LetopisError, fromDbError, removed } from './errors.js';
+import { LetopisError, checkLang, checkOptions, fromDbError, langMethods, langRun, lerr, removed, wrapLang, type Lang, type LangRun } from './errors.js';
 import { Registry } from './registry.js';
 import { AclPasses, ExplicitTx, Notifier, poolExecutor, runTx, type Executor, type Tx, type TxContext } from './tx.js';
 import { checkReason } from './write.js';
@@ -34,7 +34,7 @@ import { stampDrift } from './up.js';
 
 export { DDL_REVISION } from './types.js';
 export { uuidv5, v5Name, v5Id, idOf, type KeyedClass } from './uuid.js';
-export { LetopisError, ValidationError, fromDbError, type Issue } from './errors.js';
+export { LetopisError, ValidationError, fromDbError, type Issue, type Lang } from './errors.js';
 export { Registry, type AggregateInfo, type ClassInfo, type EndInfo, type LeafType } from './registry.js';
 export { compileValidator, applyDefaults, type Validator } from './validate.js';
 export { syncModels, generateTypes, schemaToTs, type SyncResult } from './sync.js';
@@ -122,7 +122,22 @@ export interface ConnectOptions {
    * запуск доделает текущую пачку.
    */
   maintain?: string | number;
+  /**
+   * Язык сообщений об ошибках (план 2.0, этап 3, п. 3): `'ru'` (по умолчанию) или `'en'`. На этом языке — текст и
+   * подсказка `hint` ошибок самого `connect()`, методов `db`, цепочек, батчей, `db.auth`, `db.acl`, подписок и проекторов
+   * подключения; у ошибок базы с ключом каталога — тоже. Сырой SQL мимо библиотеки получает русский текст базы.
+   */
+  lang?: Lang;
 }
+
+/** Все опции connect(): неизвестную checkOptions называет с похожими (план 2.0, 7.9 №6). */
+const CONNECT_OPTIONS = {
+  dsn: true, sql: true, schema: true, token: true, apiKey: true, service: true, refreshSession: true, allowBypassRls: true,
+  admin: true, owner: true, notifyIntervalMs: true, max: true, onQuery: true, slowMs: true, models: true, listen: true,
+  cache: true, maintain: true, lang: true,
+} satisfies Record<keyof ConnectOptions, true>;
+/** Опции watch() (WatchOptions). */
+const WATCH_OPTIONS = { from: true, classes: true, batch: true, pollMs: true } satisfies Record<keyof WatchOptions, true>;
 
 /** Опции 0.21, снятые в 1.0.0, и их замены (этап 3, п. 11). */
 const REMOVED_OPTIONS: Record<string, string> = {
@@ -297,15 +312,19 @@ interface Shared {
   subs: Set<Subscription>;
   track(s: Subscription): Subscription;
   close: () => Promise<void>;
+  /** Язык подключения, если не ru (план 2.0, этап 3, п. 3): вызовы фасадов, цепочек, auth, acl, подписок и проекторов. */
+  lang?: LangRun;
 }
 
 /** Фасад db: пул (exec — исполнитель пула) или явная транзакция (tx). */
 function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: ExplicitTx): Db {
   const txc = scope.txc;
+  const L = sh.lang;
   const chainCtx: ChainCtx = {
     reg: scope.registry(), schema: sh.schema, exec, tenant: scope.tenant, owner, onQuery: sh.onQuery, slowMs: sh.slowMs,
     reason: txc.reason ?? '', txReason: txc.reason ?? '',
     ...(sh.cache ? { cache: { store: sh.cache, who: () => ({ token: txc.token, account: txc.account, tenant: scope.tenant() }) } } : {}),
+    ...(L ? { lang: L } : {}),
   };
   // реестр корня меняется после auth.switch — цепочки берут действующий
   Object.defineProperty(chainCtx, 'reg', { get: scope.registry, enumerable: true });
@@ -318,9 +337,9 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
   const auth = makeAuth(sh.S, exec, async () => {
     sh.passes.clear();
     await sh.refresh();
-  }, scope.root && !tx);
+  }, scope.root && !tx, L);
   // запись правил (grant, deny, revoke, roles) идёт цепочками самого фасада — он объявлен ниже, берётся при вызове
-  const acl = makeAcl(sh.S, exec, () => facade);
+  const acl = makeAcl(sh.S, exec, () => facade, L);
   const adm: AdminCtx = { sql: sh.sql, schema: sh.schema, S: sh.S, txc, exec, registry: scope.registry, tenant: scope.tenant };
   // один процесс (план 2.0, 7.9 №3): у корня с connect({ admin }) администраторские вызовы идут вторым пулом с той же
   // сессией, а цепочки и db.sql — пулом приложения под RLS; db.as() и db.begin() администраторский пул не берут
@@ -360,9 +379,11 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
     describe: () => describeModel(adm),
     watch: (o = {}) => {
       if (typeof o === 'function' || typeof o === 'string') throw removed('watch(cb) и watch(класс, cb)', 'watch({ from }) — подписка по курсору');
+      checkOptions('watch', o, WATCH_OPTIONS);
       const reg = scope.registry();
       const classes = o.classes ? [...new Set(o.classes.flatMap((c) => reg.family(c).map((x) => x.name)))] : null;
-      return sh.track(new Subscription({
+      // события читают позже, вне watch(): next(), ready() и lag() — на языке подключения
+      return langMethods(L, sh.track(new Subscription({
         S: sh.S, exec: poolExecutor(txc), classes, onClose: (s) => void sh.subs.delete(s),
         // не бросает: класс удалили — список, снятый при watch(); иначе ошибка в общем разборе сигналов остановила бы
         // доставку другим подписчикам
@@ -377,7 +398,7 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
           onSignal: (fn: (s: Signal) => void) => { sh.signals.add(fn); return () => void sh.signals.delete(fn); },
           tenant: () => (sh.allTenants ? null : sh.sig.tenantToken(scope.tenant())),
         } : {}),
-      }, o));
+      }, o)), ['next', 'ready', 'lag']);
     },
     cache: {
       clear: () => sh.cache?.clear(),
@@ -424,11 +445,12 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
     projector: (name, o) => {
       if (tx) throw new LetopisError('invalid_query', 'projector() — от корня подключения, а не внутри db.begin()');
       if (!sh.admin && !viaAdmin) throw new LetopisError('admin_required', 'проектору нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы, или connect({ admin }))');
-      return new Projector({
+      // run(), rebuild() и status() зовут позже, вне projector(): на языке подключения
+      return langMethods(L, new Projector({
         sql: viaAdmin ?? sh.sql, schema: sh.schema, S: sh.S, ownerRole: sh.ownerRole,
         ...(sh.listen ? { onSignal: (fn: (s: Signal) => void) => { sh.signals.add(fn); return () => void sh.signals.delete(fn); } } : {}),
         ...(viaAdmin ? { ready: adminReady } : {}),
-      }, name, o);
+      }, name, o), ['run', 'rebuild', 'status']);
     },
     rebuildAggregates: async (cls) => {
       if (tx) throw new LetopisError('invalid_query', 'rebuildAggregates() — своей транзакцией, не внутри db.begin()');
@@ -449,23 +471,36 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
     rollback: async (tr) => (tr ? tr.rollback() : tx ? tx.rollback() : noTx('rollback()')),
     close: () => (tx ? tx.rollback() : sh.close()),
   };
+  /** Свойство фасада: служебное — из core, снятое API — охранник, иначе шаг класса, алиаса или роли. */
+  const member = (t: DbCore, prop: string | symbol, r: unknown): unknown => {
+    if (typeof prop === 'symbol' || prop in t) return Reflect.get(t, prop, r);
+    switch (prop) {
+      case 'then':
+        return undefined;
+      case 'reloadSchema':
+        throw removed('reloadSchema()', 'реестр обновляется сам по сигналу; принудительно — db.refresh()');
+      case 'accounts':
+      case 'credentials':
+      case 'resources':
+      case 'rules':
+        throw removed(`фасад db.${prop}`, 'системные классы Account, Resource, rule, member и db.auth (accounts.purge — db.auth.purgeAccount)');
+      case 'compact':
+        throw removed('compact()', 'db.trimHistory(цель, момент), политика хранения history и history: false');
+    }
+    return startStep(chainCtx, prop);
+  };
+  // язык подключения не ru (план 2.0, этап 3, п. 3): методы core — обёртки на нём (одна на метод), шаг класса ставит язык
+  // сам (chain.ts), auth и acl — свои обёртки; у ru обёрток нет
+  const wrapped = L ? new Map<string | symbol, unknown>() : null;
   const facade = new Proxy(core, {
     get(t, prop, r) {
-      if (typeof prop === 'symbol' || prop in t) return Reflect.get(t, prop, r);
-      switch (prop) {
-        case 'then':
-          return undefined;
-        case 'reloadSchema':
-          throw removed('reloadSchema()', 'реестр обновляется сам по сигналу; принудительно — db.refresh()');
-        case 'accounts':
-        case 'credentials':
-        case 'resources':
-        case 'rules':
-          throw removed(`фасад db.${prop}`, 'системные классы Account, Resource, rule, member и db.auth (accounts.purge — db.auth.purgeAccount)');
-        case 'compact':
-          throw removed('compact()', 'db.trimHistory(цель, момент), политика хранения history и history: false');
-      }
-      return startStep(chainCtx, prop);
+      if (!L) return member(t, prop, r);
+      return L(() => {
+        const v = member(t, prop, r);
+        if (typeof v !== 'function' || !(prop in t)) return v;
+        if (!wrapped!.has(prop)) wrapped!.set(prop, wrapLang(L, v));
+        return wrapped!.get(prop);
+      });
     },
   }) as Db;
   // модули пакета (letopis/mcp) узнают обход RLS по самому подключению, а не со слов вызывающего (internal.ts)
@@ -479,9 +514,16 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
 export function connect<const M extends readonly AnyModelLike[]>(opts: ConnectOptions & { models: M }): Promise<TypedDb<M>>;
 export function connect(opts: ConnectOptions): Promise<Db>;
 export async function connect(opts: ConnectOptions): Promise<Db> {
-  if (!SCHEMA_NAME.test(opts.schema)) throw new LetopisError('invalid_data', `connect: схема ${opts.schema} — нужно v<N>.<имя>`);
+  // lang (план 2.0, этап 3, п. 3): и само подключение, и все вызовы его фасадов — на языке подключения
+  const L = langRun(checkLang(opts?.lang, 'connect'));
+  return L ? L(() => open(opts, L)) : open(opts, undefined);
+}
+
+async function open(opts: ConnectOptions, L: LangRun | undefined): Promise<Db> {
+  if (!SCHEMA_NAME.test(opts.schema)) throw lerr('api.connect_schema', { schema: opts.schema });
   if (!opts.sql && !opts.dsn) throw new LetopisError('invalid_data', 'connect: нужен dsn или sql');
   for (const k of Object.keys(opts)) if (k in REMOVED_OPTIONS) throw removed(`опция connect({ ${k} })`, REMOVED_OPTIONS[k]);
+  checkOptions('connect', opts, CONNECT_OPTIONS);
   // интервал обслуживания — до пула и таймеров: неверный не оставляет за собой открытых соединений
   const maintainEvery = opts.maintain === undefined ? undefined : parseInterval(opts.maintain);
   if (opts.admin !== undefined && typeof opts.admin !== 'string' && typeof opts.admin !== 'function') {
@@ -765,6 +807,7 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
         if (own) await sql.end({ timeout: 5 });
         if (ownAdmin) await adminSql!.end({ timeout: 5 });
       },
+      ...(L ? { lang: L } : {}),
     };
     const db = makeDb(shared, { txc: ctx, tenant: () => root.tenant, registry: () => root.registry, root: true }, poolExecutor(ctx));
     if (maintainEvery !== undefined) stopMaintain = scheduleMaintain((stopped) => db.maintain({ [MAINTAIN_STOP]: stopped } as MaintainOptions), maintainEvery);

@@ -15,6 +15,7 @@
  *   --initial — первая заливка (план 1.1, §2.3): пустая схема, одна транзакция, индексы и триггеры — после загрузки
  *   letopis mcp --dsn … --schema v2.x --token … [--write]   — сервер MCP по stdio (план 1.1, §2.5); dsn, schema и
  *     token — ещё из LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; только токен пользователя: --api-key — отказ
+ *   --lang ru|en у любой команды — язык сообщений об ошибках (план 2.0, этап 3, п. 3), по умолчанию ru
  */
 import { parseArgs } from 'node:util';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -25,9 +26,10 @@ import { connect, describeText } from './index.js';
 import { syncModels, generateTypes } from './sync.js';
 import { import021 } from './import.js';
 import type { AnyModel } from './model.js';
-import { LetopisError } from './errors.js';
+import { LetopisError, checkLang, currentLang, langRun, type Lang } from './errors.js';
 
-const USAGE = `letopis sync <модуль> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--apply]
+const USAGE = `у любой команды: --lang ru|en — язык сообщений об ошибках (по умолчанию ru)
+letopis sync <модуль> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--apply]
 letopis types --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--out <файл>]
 letopis load <файлы…> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--class <Класс>]
   [--duplicates error|first|last] [--existing error|skip|update] [--commit-every <N>] [--verify] [--initial]
@@ -56,9 +58,13 @@ export async function main(argv: string[]): Promise<number> {
       format: { type: 'string' },
       from: { type: 'string' }, 'from-schema': { type: 'string' }, tenant: { type: 'string' }, partition: { type: 'string' },
       keyless: { type: 'string', multiple: true }, rename: { type: 'string', multiple: true }, update: { type: 'boolean' },
-      initial: { type: 'boolean' }, write: { type: 'boolean' },
+      initial: { type: 'boolean' }, write: { type: 'boolean' }, lang: { type: 'string' },
     },
   });
+  // --lang ru|en (план 2.0, этап 3, п. 3): команда целиком — на этом языке, у mcp — ещё и каждый вызов инструмента
+  const lang = checkLang(values.lang, 'letopis --lang');
+  const L = langRun(lang);
+  if (L && currentLang() !== lang) return L(() => main(argv));
   const [cmd, arg] = positionals;
   // клиенты MCP передают строку подключения и токен окружением (план 1.1, §2.5) — только для этой команды
   if (cmd === 'mcp') {
@@ -92,9 +98,10 @@ export async function main(argv: string[]): Promise<number> {
     console.log(JSON.stringify(r, null, 2));
     return r.verify.ok ? 0 : 1;
   }
-  if (cmd === 'mcp') return mcp(values);
+  if (cmd === 'mcp') return mcp({ ...values, lang });
   // загрузчику нужно администраторское подключение (§2.6, п. 1)
   const db = await connect({ dsn: values.dsn, schema: values.schema, token: values.token, apiKey: values['api-key'], max: 2,
+    ...(lang ? { lang } : {}),
     // verify и maintain работают и на администраторском подключении без сессии; производные классы (derivedBy)
     // синхронизирует администраторское подключение с сессией арендатора
     ...(cmd === 'load' || cmd === 'verify' || cmd === 'maintain' || cmd === 'sync' ? { allowBypassRls: true } : {}) });
@@ -173,7 +180,7 @@ export async function main(argv: string[]): Promise<number> {
  * грузятся только здесь: letopis --help и прочие команды работают без SDK. В stdout — только протокол (предупреждения
  * connect() идут в stderr); процесс живёт, пока клиент не закроет stdin.
  */
-async function mcp(v: { dsn?: string; schema?: string; token?: string; 'api-key'?: string; write?: boolean }): Promise<number> {
+async function mcp(v: { dsn?: string; schema?: string; token?: string; 'api-key'?: string; write?: boolean; lang?: Lang }): Promise<number> {
   if (v['api-key'] !== undefined) {
     console.error('letopis: user_session_required: letopis mcp принимает только токен сессии пользователя (--token или LETOPIS_TOKEN): ключ сервиса даёт все права auth.* и не должен лежать на машине агента');
     return 2;
@@ -183,9 +190,9 @@ async function mcp(v: { dsn?: string; schema?: string; token?: string; 'api-key'
     return 2;
   }
   const { createMcpServer } = await import('./mcp.js');
-  const db = await connect({ dsn: v.dsn!, schema: v.schema!, token: v.token, max: 4 });
+  const db = await connect({ dsn: v.dsn!, schema: v.schema!, token: v.token, max: 4, ...(v.lang ? { lang: v.lang } : {}) });
   try {
-    const opts = { write: v.write === true };
+    const opts = { write: v.write === true, ...(v.lang ? { lang: v.lang } : {}) };
     // учётные данные — до начала протокола: отказ виден кодом выхода и текстом в stderr
     await createMcpServer(db, opts);
     const { serveStdio } = await import('@modelcontextprotocol/server/stdio');

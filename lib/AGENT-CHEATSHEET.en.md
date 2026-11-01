@@ -481,7 +481,11 @@ await adm.close(); await db.close(); await svc.close()
     (`grantAll`) are the quick start. The `auth.*` permissions (passwords, sessions, impersonation) belong to the
     service and the system administrator.
 15. **Errors:** `err.code` is a lowercase code (`exists`, `conflict`, `invalid_data` …), the text is
-    `letopis: <code>: …`; data errors (`ValidationError`) have `err.issues: [{ path, keyword, message }]`.
+    `letopis: <code>: …`; data errors (`ValidationError`) have `err.issues: [{ path, keyword, message }]`. `err.hint`
+    says what to do, `err.docs` links to the code in the README "Errors" section; `connect({ lang: 'en' })` (and
+    `createMcpServer({ lang })`, `--lang en`) gives English texts and hints. An unknown class or role brings similar
+    names in the text and in `err.params.similar`; a typo in a filter field, `sort()`, an aggregate or an option gives a
+    warning with similar names.
 16. **A subscription with `'now'` starts when the database answers.** `db.watch()` returns immediately, and the
     subscription takes the "now" moment with its first query to the database. A write made right after `db.watch()`
     can be committed earlier and miss the stream. If you need a guarantee — `await sub.ready()` before the write, a
