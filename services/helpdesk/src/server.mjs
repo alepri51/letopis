@@ -453,16 +453,43 @@ export async function createApp() {
   app.use(express.json());
 
   // ---------- регистрация и вход ----------
+  /**
+   * Незаконченная компания (план 2.0, 7.6 №3): строки Desk нет — регистрация прервалась после того, как арендатор
+   * заведён. account — её руководитель (членство с ролью owner); null — руководителя нет вовсе, и компания заведена
+   * больше минуты назад: брошенный остаток, а не регистрация, которая идёт прямо сейчас.
+   */
+  async function unfinished(company, account) {
+    const tenant = v5Id(SYSTEM_ID, 'Account', ['tenant:' + company]);
+    const [x] = await admin.unsafe(`select
+        exists (select 1 from ${S}.entity d where d.tenant = $1 and d.class = 'Desk') as desk,
+        exists (select 1 from ${S}.entity m where m.tenant = $1 and m.class = 'member' and m.data->'roles' ? 'owner'
+          and ($2::uuid is null or m.links->>'User' = $2::text)) as owner,
+        (select a.created_at < now() - interval '1 minute' from ${S}.entity a where a.id = $1) as old`, [tenant, account]);
+    return !x.desk && (account ? x.owner : !x.owner && x.old === true);
+  }
+
   app.post('/api/register', route(async (req, res) => {
     const company = String(req.body?.company ?? '').trim(), name = String(req.body?.name ?? '').trim();
     const login = String(req.body?.login ?? '').trim().toLowerCase(), password = String(req.body?.password ?? '');
     if (company.length < 2 || company.length > 60 || !name || !/^[^@\s]+@[^@\s]+$/.test(login) || password.length < 8) {
       throw new HttpError(422, 'Нужны название компании, имя, email и пароль от 8 символов');
     }
-    if ((await svc.auth.credentials(accountOf(login)).catch(() => [])).length) throw new HttpError(409, 'Этот email уже зарегистрирован — войдите');
-    if (!(await createTenant(admin, r.schema, { name: company })).created) throw new HttpError(409, 'Компания с таким названием уже есть');
+    // повтор после сбоя (план 2.0, 7.6 №3): прерванная регистрация оставляет компанию без строки Desk — тот же человек
+    // (email, верный пароль, руководитель этой компании) повтором её достраивает; чужой получает 409, как раньше
+    if ((await svc.auth.credentials(accountOf(login)).catch(() => [])).length) {
+      const ok = await svc.auth.verifyPassword({ identifier: login, password, ttl: 60 }).catch(() => null);
+      if (ok) await dropToken(ok.token);
+      if (!ok || !(await unfinished(company, ok.account))) throw new HttpError(409, 'Этот email уже зарегистрирован — войдите');
+    } else if (!(await createTenant(admin, r.schema, { name: company })).created && !(await unfinished(company, null))) {
+      throw new HttpError(409, 'Компания с таким названием уже есть');
+    }
     const t = await createTenant(admin, r.schema, { name: company, user: { name, login, password, ttl: `${WEB_TTL} seconds` } });
     await syncCompany(t.tenant, t.user);
+    // имитация сбоя посреди регистрации — только сценарий (scenario.mjs) ставит эту переменную на одну регистрацию
+    if (process.env.HELPDESK_FAIL_REGISTER === company) {
+      delete process.env.HELPDESK_FAIL_REGISTER;
+      throw new Error('имитация сбоя посреди регистрации (сценарий, план 2.0, 7.6 №3)');
+    }
     const db = await open({ token: t.token });
     await setupCompany(db, company, { account: t.user, name, login });
     names.set(t.tenant, company);

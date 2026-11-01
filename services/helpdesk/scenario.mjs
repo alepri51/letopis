@@ -241,6 +241,16 @@ try {
   check(regModel?.tenant === reg.data?.tenant && severModel?.tenant === me.tenant && own(regModel).includes('"name":"Ticket"') && own(regModel) === own(severModel),
     'модель новой компании записана при регистрации — классы те же, что у «Севера»', { reg: own(regModel).slice(0, 120), sever: own(severModel).slice(0, 120) });
   check((await call('', '/api/register', { company: `Проба ${run}`, name: 'Чужой', login: `x-${run}@proba.ru`, password: 'Proba-2026!' })).status === 409, 'второй раз то же название — 409');
+  // 8а. сбой посреди регистрации (план 2.0, 7.6 №3): компания не остаётся полузаведённой — тот же человек повтором её
+  // достраивает, чужой получает 409
+  const failBody = { company: `Сбой ${run}`, name: 'Яна', login: `yana-${run}@proba.ru`, password: 'Proba-2026!' };
+  process.env.HELPDESK_FAIL_REGISTER = failBody.company;
+  check((await call('', '/api/register', failBody)).status === 500, 'сбой посреди регистрации — 500');
+  check((await call('', '/api/register', { ...failBody, password: 'Chuzhoi-2026!' })).status === 409, 'повтор с чужим паролем — 409');
+  check((await call('', '/api/register', { ...failBody, login: `zz-${run}@proba.ru` })).status === 409, 'то же название другим человеком — 409');
+  const again = await call('', '/api/register', failBody);
+  check(again.status === 200 && again.data?.role === 'manager', 'повтор тем же человеком достраивает компанию — он руководитель', { status: again.status });
+  check((await call(again.cookie, '/api/tickets', { subject: 'После сбоя', body: 'тест' })).status === 200, 'достроенная компания работает — заявка создана');
   await call(reg.cookie, '/api/tickets', { subject: 'Проверка связи', body: 'тест' });
   check((await call(boss.cookie, '/api/company/close', {})).status === 403, 'демо-компанию закрыть нельзя');
   const closed = await call(reg.cookie, '/api/company/close', {});
