@@ -152,6 +152,12 @@ try {
   const credLine = issuedHood?.lines.find((l) => l.startsWith('svc.auth.credentials')) ?? '';
   check(issuedHood?.title === 'Сессия для ИИ-агента' && credLine.includes('APIKEY') && !credLine.includes('SESSION') && !JSON.stringify(issuedHood).includes(ses.token),
     'под капотом: ключ агента — кред (APIKEY в credentials()), сессии там нет; токена в панели нет', issuedHood);
+  // клиент через MCP — только чтение: служебные строки компании (счётчик заявок) ему не правятся (план 2.0, 7.6 №1)
+  const asClient = new Client({ name: 'сценарий-клиент', version: '1.0.0' });
+  await asClient.connect(new StreamableHTTPClientTransport(new URL(`${base}/mcp`), { requestInit: { headers: { cookie: client.cookie } } }));
+  const clientTools = (await asClient.listTools()).tools.map((x) => x.name);
+  check(clientTools.includes('letopis_query') && !clientTools.includes('letopis_write'), `клиент через MCP — только чтение: ${clientTools.join(', ')}`);
+  await asClient.close();
   const viaSession = new Client({ name: 'сценарий-сессия', version: '1.0.0' });
   await viaSession.connect(new StreamableHTTPClientTransport(new URL(`${base}${ses.url}`), { requestInit: { headers: { authorization: `Bearer ${ses.token}` } } }));
   const bySession = (await viaSession.callTool({ name: 'letopis_query', arguments: { class: 'Ticket', filter: { number: t.number } } })).structuredContent?.data?.rows?.[0];
@@ -235,6 +241,24 @@ try {
   check(regModel?.tenant === reg.data?.tenant && severModel?.tenant === me.tenant && own(regModel).includes('"name":"Ticket"') && own(regModel) === own(severModel),
     'модель новой компании записана при регистрации — классы те же, что у «Севера»', { reg: own(regModel).slice(0, 120), sever: own(severModel).slice(0, 120) });
   check((await call('', '/api/register', { company: `Проба ${run}`, name: 'Чужой', login: `x-${run}@proba.ru`, password: 'Proba-2026!' })).status === 409, 'второй раз то же название — 409');
+  // 8а. сбой посреди регистрации (план 2.0, 7.6 №3): компания не остаётся полузаведённой — тот же человек повтором её
+  // достраивает, чужой получает 409
+  const failBody = { company: `Сбой ${run}`, name: 'Яна', login: `yana-${run}@proba.ru`, password: 'Proba-2026!' };
+  process.env.HELPDESK_FAIL_REGISTER = failBody.company;
+  check((await call('', '/api/register', failBody)).status === 500, 'сбой посреди регистрации — 500');
+  check((await call('', '/api/register', { ...failBody, password: 'Chuzhoi-2026!' })).status === 409, 'повтор с чужим паролем — 409');
+  check((await call('', '/api/register', { ...failBody, login: `zz-${run}@proba.ru` })).status === 409, 'то же название другим человеком — 409');
+  const again = await call('', '/api/register', failBody);
+  check(again.status === 200 && again.data?.role === 'manager', 'повтор тем же человеком достраивает компанию — он руководитель', { status: again.status });
+  check((await call(again.cookie, '/api/tickets', { subject: 'После сбоя', body: 'тест' })).status === 200, 'достроенная компания работает — заявка создана');
+  // с включённым вторым фактором повтор регистрации сессию по одному паролю не выдаёт — только вход с кодом
+  const zoya = { company: `Сбой-2 ${run}`, name: 'Зоя', login: `zoya-${run}@proba.ru`, password: 'Proba-2026!' };
+  process.env.HELPDESK_FAIL_REGISTER = zoya.company;
+  await call('', '/api/register', zoya);
+  const zl = await call('', '/api/login', { login: zoya.login, password: zoya.password });
+  const zt = await call(zl.cookie, '/api/security/totp/enroll', {});
+  await call(zl.cookie, '/api/security/totp/verify', { code: totpCode(zt.data?.secret ?? '') });
+  check((await call('', '/api/register', zoya)).status === 409, 'повтор регистрации с включённым TOTP — 409, не обход второго фактора');
   await call(reg.cookie, '/api/tickets', { subject: 'Проверка связи', body: 'тест' });
   check((await call(boss.cookie, '/api/company/close', {})).status === 403, 'демо-компанию закрыть нельзя');
   const closed = await call(reg.cookie, '/api/company/close', {});

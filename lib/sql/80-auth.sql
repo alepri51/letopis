@@ -755,7 +755,8 @@ declare
   s record;
 begin
   if nullif(current_setting('letopis.account', true), '') is not null then
-    perform @SCHEMA@.lt_fail('invalid_query', 'auth.switch — для собственной сессии, не при имперсонации');
+    -- код из каталога базы (invalid_query в нём нет — lt_fail дал бы LT000 и сырую ошибку; план 2.0, 7.5 №3)
+    perform @SCHEMA@.lt_fail('acl_denied', 'auth.switch — для собственной сессии, не при имперсонации');
   end if;
   select x.id, x.account into s from @SCHEMA@.secret x
   where x.kind = 'SESSION' and x.deleted_at is null and x.material = sha256(convert_to(coalesce(tok, ''), 'UTF8'))

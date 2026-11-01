@@ -103,6 +103,7 @@ const RESOURCES = {
   'role-owner:ACCOUNT': { category: 'ACCOUNT', pattern: { roles: '{owner}' } },
   'role-agent:ACCOUNT': { category: 'ACCOUNT', pattern: { roles: '{agent}' } },
   'role-client:ACCOUNT': { category: 'ACCOUNT', pattern: { roles: '{client}' } },
+  'role-integration:ACCOUNT': { category: 'ACCOUNT', pattern: { roles: '{integration}' } },
   'not-owner:ACCOUNT': { category: 'ACCOUNT', pattern: { roles: '!{owner}' } },
   'own-ticket:READ': { category: 'READ', pattern: { class: 'Ticket', owner: '$actor' } },
   'own-ticket:WRITE': { category: 'WRITE', pattern: { class: 'Ticket', owner: '$actor' } },
@@ -129,6 +130,10 @@ const RULES = [
   ['role-client:ACCOUNT', 'profile:WRITE', 'deny', 50],
   ['role-client:ACCOUNT', 'note:READ', 'deny', 50],
   ['role-client:ACCOUNT', 'note:WRITE', 'deny', 50],
+  // ключ интеграции (форма на сайте) заводит заявки — внутренние заметки и профили ему закрыты (план 2.0, 7.6 №2)
+  ['role-integration:ACCOUNT', 'note:READ', 'deny', 50],
+  ['role-integration:ACCOUNT', 'note:WRITE', 'deny', 50],
+  ['role-integration:ACCOUNT', 'profile:WRITE', 'deny', 50],
   ['not-owner:ACCOUNT', 'ticket:DELETE', 'deny', 50],
   ['not-owner:ACCOUNT', 'desk:WRITE', 'deny', 50],
   ['not-owner:ACCOUNT', 'acl:WRITE', 'deny', 60],
@@ -149,9 +154,12 @@ export async function createApp() {
   const admin = postgres(ENV.admin, { max: 2, onnotice: () => {} });
   const r = await up({ dsn: ENV.admin, schema: ENV.schema, upgrade: true, fresh: ENV.fresh, serviceKey: ENV.serviceKey, signals: ENV.signals, quiet: true });
   const appUrl = new URL(ENV.app);
-  await admin.unsafe(`do $$ begin if not exists (select 1 from pg_roles where rolname = '${appUrl.username}') then
-    create role ${appUrl.username} login password '${decodeURIComponent(appUrl.password)}'; end if; end $$`);
-  await admin.unsafe(`grant letopis_app to ${appUrl.username}`);
+  // роль приложения — имя и пароль квотируются, а не склеиваются в SQL: пароль с ' не ломает запуск (план 2.0, 7.6 №7)
+  const appUser = decodeURIComponent(appUrl.username);
+  const ident = (v) => `"${v.replace(/"/g, '""')}"`;
+  const [{ known }] = await admin`select exists (select 1 from pg_roles where rolname = ${appUser}) as known`;
+  if (!known) await admin.unsafe(`create role ${ident(appUser)} login password '${decodeURIComponent(appUrl.password).replace(/'/g, "''")}'`);
+  await admin.unsafe(`grant letopis_app to ${ident(appUser)}`);
   // один пул на всех: подключения пользователей (connect({ sql, token })) делят его соединения
   const pool = postgres(ENV.app, { max: 10, onnotice: () => {} });
   // журнал «под капотом»: запросы к базе, записанные версии и сигналы текущего действия
@@ -260,7 +268,8 @@ export async function createApp() {
   }
 
   async function createTicket(db, { subject, body, priority = 'normal', clientName, channel, owner, ago }, lines, reason) {
-    if (!HOURS[priority]) throw new HttpError(422, 'Неизвестный приоритет');
+    // свой ключ объекта, а не унаследованный: constructor, __proto__ не приоритеты (план 2.0, 7.6 №4)
+    if (!Object.hasOwn(HOURS, priority)) throw new HttpError(422, 'Неизвестный приоритет');
     const tr = await db.begin({ reason });
     try {
       const [counter] = await tr.Counter({ name: 'tickets' }).update({ next: inc(1) }).rows();
@@ -444,16 +453,46 @@ export async function createApp() {
   app.use(express.json());
 
   // ---------- регистрация и вход ----------
+  /**
+   * Незаконченная компания (план 2.0, 7.6 №3): строки Desk нет — регистрация прервалась после того, как арендатор
+   * заведён. account — её руководитель (членство с ролью owner); null — руководителя нет вовсе, и компания заведена
+   * больше минуты назад: брошенный остаток, а не регистрация, которая идёт прямо сейчас.
+   */
+  async function unfinished(company, account) {
+    const tenant = v5Id(SYSTEM_ID, 'Account', ['tenant:' + company]);
+    const [x] = await admin.unsafe(`select
+        exists (select 1 from ${S}.entity d where d.tenant = $1 and d.class = 'Desk') as desk,
+        exists (select 1 from ${S}.entity m where m.tenant = $1 and m.class = 'member' and m.data->'roles' ? 'owner'
+          and ($2::uuid is null or m.links->>'User' = $2::text)) as owner,
+        (select a.created_at < now() - interval '1 minute' from ${S}.entity a where a.id = $1) as old`, [tenant, account]);
+    return !x.desk && (account ? x.owner : !x.owner && x.old === true);
+  }
+
   app.post('/api/register', route(async (req, res) => {
     const company = String(req.body?.company ?? '').trim(), name = String(req.body?.name ?? '').trim();
     const login = String(req.body?.login ?? '').trim().toLowerCase(), password = String(req.body?.password ?? '');
     if (company.length < 2 || company.length > 60 || !name || !/^[^@\s]+@[^@\s]+$/.test(login) || password.length < 8) {
       throw new HttpError(422, 'Нужны название компании, имя, email и пароль от 8 символов');
     }
-    if ((await svc.auth.credentials(accountOf(login)).catch(() => [])).length) throw new HttpError(409, 'Этот email уже зарегистрирован — войдите');
-    if (!(await createTenant(admin, r.schema, { name: company })).created) throw new HttpError(409, 'Компания с таким названием уже есть');
+    // повтор после сбоя (план 2.0, 7.6 №3): прерванная регистрация оставляет компанию без строки Desk — тот же человек
+    // (email, верный пароль, руководитель этой компании) повтором её достраивает; чужой получает 409, как раньше
+    if ((await svc.auth.credentials(accountOf(login)).catch(() => [])).length) {
+      const ok = await svc.auth.verifyPassword({ identifier: login, password, ttl: 60 }).catch(() => null);
+      if (ok) await dropToken(ok.token);
+      // второй фактор: с включённым TOTP сессию по одному паролю не выдаём — вход (/api/login) проверит код
+      if (!ok || (await svc.auth.totpEnabled(ok.account)) || !(await unfinished(company, ok.account))) {
+        throw new HttpError(409, 'Этот email уже зарегистрирован — войдите');
+      }
+    } else if (!(await createTenant(admin, r.schema, { name: company })).created && !(await unfinished(company, null))) {
+      throw new HttpError(409, 'Компания с таким названием уже есть');
+    }
     const t = await createTenant(admin, r.schema, { name: company, user: { name, login, password, ttl: `${WEB_TTL} seconds` } });
     await syncCompany(t.tenant, t.user);
+    // имитация сбоя посреди регистрации — только сценарий (scenario.mjs) ставит эту переменную на одну регистрацию
+    if (process.env.HELPDESK_FAIL_REGISTER === company) {
+      delete process.env.HELPDESK_FAIL_REGISTER;
+      throw new Error('имитация сбоя посреди регистрации (сценарий, план 2.0, 7.6 №3)');
+    }
     const db = await open({ token: t.token });
     await setupCompany(db, company, { account: t.user, name, login });
     names.set(t.tenant, company);
@@ -552,7 +591,12 @@ export async function createApp() {
 
   app.get('/api/tickets', auth, route(async (req, res) => {
     const s = req.s, db = dbOf(s), staff = roleOf(whoOf(s).roles) !== 'client';
-    const after = req.query.after ? JSON.parse(String(req.query.after)) : null;
+    let after = null;
+    try {
+      after = req.query.after ? JSON.parse(String(req.query.after)) : null;
+    } catch {
+      throw new HttpError(400, 'Неверный курсор after');
+    }
     const read = async (lines) => {
       let q = db.Ticket(staff ? { status: inList(['new', 'open', 'pending']) } : {}).sort('data.due');
       if (after) q = q.after(after);
@@ -665,7 +709,7 @@ export async function createApp() {
   app.post('/api/team/invite', auth, guard('desk.team'), route(async (req, res) => {
     const s = req.s, company = await companyName(s, s.tenant);
     const name = String(req.body?.name ?? '').trim(), login = String(req.body?.login ?? '').trim().toLowerCase(), role = String(req.body?.role ?? 'client');
-    if (!name || !/^[^@\s]+@[^@\s]+$/.test(login) || !ROLE_OF[role]) throw new HttpError(422, 'Нужны имя, email и роль');
+    if (!name || !/^[^@\s]+@[^@\s]+$/.test(login) || !Object.hasOwn(ROLE_OF, role)) throw new HttpError(422, 'Нужны имя, email и роль');
     // чужую учётную запись в компанию без её согласия не добавляем: приглашение — только для новых адресов
     if ((await svc.auth.credentials(accountOf(login)).catch(() => [])).length) throw new HttpError(409, 'У этого email уже есть учётная запись — без её согласия в компанию не добавить');
     await act(s, `Приглашение: ${name}`, async (lines) => {
@@ -892,7 +936,9 @@ export async function createApp() {
   }));
 
   // ---------- MCP: инструменты letopis по HTTP от имени пользователя, его сессии агента или ключа ----------
-  const mcp = createMcpHandler(async ({ authInfo }) => createMcpServer(authInfo.extra.db, { write: true, maxRows: 50 }));
+  // запись через MCP — только сотрудникам (руководитель, агент) и сессии агента, выданной сотрудником; клиент и ключ
+  // интеграции — только чтение: иначе клиент правил бы служебные строки компании, например счётчик заявок (план 2.0, 7.6 №1)
+  const mcp = createMcpHandler(async ({ authInfo }) => createMcpServer(authInfo.extra.db, { write: authInfo.extra.write === true, maxRows: 50 }));
   app.all('/mcp', route(async (req, res) => {
     let s = web.get(req);
     if (s && !(await aliveWeb(s))) { await web.close(web.sidOf(req)); s = undefined; }
@@ -906,7 +952,10 @@ export async function createApp() {
     const request = new Request(`http://127.0.0.1${req.originalUrl}`, {
       method: req.method, headers, body: req.method === 'POST' ? JSON.stringify(req.body) : undefined,
     });
-    const call = () => mcp.fetch(request, { authInfo: { token: key || 'cookie', clientId: 'helpdesk', scopes: [], extra: { db } } });
+    // ключ API — по ролям его аккаунта в арендаторе ключа: ключ агента пишет, ключ интеграции и клиента — нет
+    const keyRoles = k ? (await k.db.member({ User: k.account, Tenant: k.tenant }).first())?.data.roles ?? [] : [];
+    const write = a ? true : s ? roleOf(whoOf(s).roles) !== 'client' : k ? roleOf(keyRoles) !== 'client' : false;
+    const call = () => mcp.fetch(request, { authInfo: { token: key || 'cookie', clientId: 'helpdesk', scopes: [], extra: { db, write } } });
     const what = Array.isArray(req.body) ? 'пачка' : `${req.body?.method ?? req.method}${req.body?.params?.name ? ` ${req.body.params.name}` : ''}`;
     // «под капотом»: вызов по cookie — у этой вкладки, по сессии агента — у вкладки, которая её выдала (автор версий — вы)
     const who = s ?? (a && { db: a.db, account: a.account, trace: a.owner.trace });

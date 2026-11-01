@@ -50,11 +50,12 @@ export async function createApp() {
   const admin = postgres(ENV.admin, { max: 2, onnotice: () => {} });
   const r = await up({ dsn: ENV.admin, schema: ENV.schema, upgrade: true, seeds: ['booking'], serviceKey: ENV.serviceKey, quiet: true });
   const appUrl = new URL(ENV.app);
-  await admin.unsafe(`do $$ begin
-    if not exists (select 1 from pg_roles where rolname = '${appUrl.username}') then
-      create role ${appUrl.username} login password '${decodeURIComponent(appUrl.password)}';
-    end if; end $$`);
-  await admin.unsafe(`grant letopis_app to ${appUrl.username}`);
+  // роль приложения — имя и пароль квотируются, а не склеиваются в SQL: пароль с ' не ломает запуск (план 2.0, 7.6 №7)
+  const appUser = decodeURIComponent(appUrl.username);
+  const ident = (v) => `"${v.replace(/"/g, '""')}"`;
+  const [{ known }] = await admin`select exists (select 1 from pg_roles where rolname = ${appUser}) as known`;
+  if (!known) await admin.unsafe(`create role ${ident(appUser)} login password '${decodeURIComponent(appUrl.password).replace(/'/g, "''")}'`);
+  await admin.unsafe(`grant letopis_app to ${ident(appUser)}`);
 
   // журнал «под капотом»: запросы к базе, записанные версии и сигналы текущего действия
   const trace = await createTrace({
@@ -73,7 +74,7 @@ export async function createApp() {
     // может стать владельцем схемы. Сессия — токен createTenant: управляющий в своём салоне (новый на каждый старт,
     // живёт 7 дней простоя, connect продлевает), так подключение работает в арендаторе салона вошедшего.
     const adm = await connect({ dsn: ENV.admin, schema: r.schema, token: t.token, allowBypassRls: true, onQuery: trace.onQuery });
-    tenants.set(s.user.login, { tenant: t.tenant, account: t.user, adm });
+    tenants.set(s.user.login.toLowerCase(), { tenant: t.tenant, account: t.user, adm });
     const db = await svc.as(t.user, { tenant: t.tenant });
     if (await db.Org().count()) continue;
     const [org] = await db.Org().create({ name: s.name }).rows();
@@ -98,9 +99,12 @@ export async function createApp() {
   app.post('/api/login', async (req, res) => {
     const { login: id = '', password = '' } = req.body ?? {};
     const login = await svc.auth.verifyPassword({ identifier: String(id), password: String(password) });
-    const known = login && tenants.get(String(id));
+    // логин без учёта регистра, как его сверяет verifyPassword: иначе верный пароль с другим регистром давал 401
+    // (план 2.0, 7.6 №6)
+    const key = String(id).toLowerCase();
+    const known = login && tenants.get(key);
     if (!login || !known) return res.status(401).json({ error: 'Неверный логин или пароль' });
-    const salon = SALONS.find((x) => x.user.login === id);
+    const salon = SALONS.find((x) => x.user.login.toLowerCase() === key);
     const db = await svc.as(login.account, { tenant: known.tenant });
     web.open(res, { account: login.account, tenant: known.tenant, name: salon.user.name, salon: salon.name, trace: [], db, adm: known.adm });
     res.json({ salon: salon.name, name: salon.user.name });

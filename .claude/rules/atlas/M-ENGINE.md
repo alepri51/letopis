@@ -17,6 +17,7 @@ synced: f20b1cf
 - `derivedBy`: строки производного класса пишет только проектор (`derived_apply` в `88-derived.sql`, от владельца). Триггеры и `move_row` отказывают `derived_class`, ссылку на такую строку не пропускает `targets_bad`. Описание с пометкой и предка производного класса правят только с правом `letopis.projector` (атаки №33, №38, №50).
 - Права на агрегаты проверяются в `class_admit` до записи, а в `trg_entity_ai`, `trg_entity_au` и `class_evolve` — после (`agg_source_admit`, `agg_author_admit`): новый класс план прав видит только после вставки. Источник описывают раньше агрегата; класс-источник не удаляется, пока его называет агрегат того же арендатора (атаки №52, №53, №57).
 - Ошибки — `lt_fail(имя)` по `error_catalog()`; функции, которые исполняет приложение (`inc`, `links_patch`), бросают `raise` сами: `lt_raise` ему не выдан.
+- Смена класса через `sys_update` (`reclass` без ключа) сигналит и прежний класс: `log_version` сигналит только новый, а ответы кэша и подписки прежнего класса тоже устарели (план 2.0, 7.4 №4).
 - Сигнал — только через `signal()` или `signal_raw()`; `pg_notify` напрямую не зовут ни функции, ни загрузчик, ни импорт.
 
 **Что ещё менять вместе**
@@ -31,7 +32,7 @@ synced: f20b1cf
 **Неимпортные связи**
 - RLS (`50-acl.sql`) отсекает чужие строки до триггеров правки и удаления, вставку первым проверяет триггер (`tenant_denied`).
 - `99-revision.sql`: `@ENGINE_VERSION@` и `@ENGINE_SQL@` подставляет `lib/src/up.ts:engineStamp`; формат комментария схемы разбирают `lib/src/up.ts` (`schemaRevision`, `stampDrift`) и `connect()`. `@RESERVED_NAMES@` — из `RESERVED_CLASS_NAMES` (`lib/src/types.ts`).
-- Строки-замки: семейств заводят заранее `class_admit` (`family_rows`) и `seed_system`; `lock_try` берут `maintain` (`90-time.sql`) и проектор (`lib/src/project.ts`).
+- Строки-замки: семейств заводят заранее `class_admit` (`family_rows`) и `seed_system`; `lock_try` берут `maintain` (`90-time.sql`) и проектор (`lib/src/project.ts`). Строки семейств, чей корень удалён, убирает `maintain()` по имени (`family_name`: схема, арендатор корня, имя корня) — формат имени менять вместе с разбором в `maintain`; пропавшую строку `lock_row` и `family_lock` заводят заново (план 2.0, 7.7 №8).
 
 **Проверка**
 - `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `engine-attacks` (атаки №…), `engine-races`, `engine-write`, `engine-class`, `write-races`, `security-final`, `hash`, `roles`, `upgrade`, `aggregate`, `projector`.

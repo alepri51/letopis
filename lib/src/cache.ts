@@ -137,7 +137,8 @@ export class ResultCache {
       return undefined;
     }
     this.st.hits++;
-    return e.value;
+    // копия: правка выданного ответа не портит запись кэша (план 2.0, 7.2 №5)
+    return structuredClone(e.value);
   }
 
   /** Положить ответ, если с момента снимка не было сигналов о его классах и сессии. */
@@ -151,7 +152,7 @@ export class ResultCache {
       return false;
     }
     if (this.map.size >= this.max) this.map.delete(this.map.keys().next().value as string);
-    this.map.set(key, { value, classes: [...classes], session, tenant: tok.tenant, expires: Date.now() + ttlMs, sessionExpires });
+    this.map.set(key, { value: structuredClone(value), classes: [...classes], session, tenant: tok.tenant, expires: Date.now() + ttlMs, sessionExpires });
     this.st.stores++;
     return true;
   }

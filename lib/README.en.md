@@ -392,11 +392,30 @@ class name. While the index is being built, writes to the journal wait. On a lar
 without stopping writes: `create index concurrently log_class_tenant_at on "v2.<schema>".log (class, tenant, at)` as
 the owner role — then `up()` only drops the old one.
 
-The `upgrade` test checks upgrading 1.1.0 and 1.0.1 schemas. The old package installs the schema and the old engine
+The `upgrade` test checks upgrading 1.4.1, 1.1.0 and 1.0.1 schemas; every release checks the upgrade from the previous
+release. The old package installs the schema and the old engine
 writes the data, then the current version's `up()` runs. After it, the versions and hashes written by the old engine
-are in place, `verify({ data: true })` is clean, and the schema catalog matches a clean installation. Both schemas are
-upgraded with `up({ upgrade: true })`: 1.1.0 (revision 6) with migration `0007`, 1.0.1 (revision 5) with migrations
-`0006` and `0007`.
+are in place, `verify({ data: true })` is clean, and the schema catalog matches a clean installation. A 1.4.1 schema of the
+same revision 7 is upgraded with a plain `up()`, without migrations; 1.1.0 (revision 6) and 1.0.1 (revision 5) — with
+`up({ upgrade: true })`: with migration `0007` and with migrations `0006` and `0007`.
+
+### Versions and compatibility
+
+letopis versions follow semver. What each version step promises:
+
+- **Patch** (1.4.1 → 1.4.2) — fixes only. The engine revision stays the same: a plain `up({ schema })` re-applies the
+  fixed functions, there are no migrations; until it runs, `connect()` warns about the stamp mismatch. Working code gets
+  no new refusals, and no methods, options, exports or error codes disappear.
+- **Minor** (1.4 → 1.5) — new features: methods, options, error codes; behavior changes that do not break working code;
+  a new engine revision. `up({ schema, upgrade: true })` applies the new revision. Nothing is removed or renamed.
+- **Major** (1.x → 2.0) — removed and renamed methods, options, exports and error codes, changed signatures and types,
+  new refusals for everyone. `MIGRATION.md` describes what to change in your code.
+
+The text of an error message is not part of the API: a patch may make it more precise. Rely on `err.code`.
+
+Before every release the `check:semver` script checks the version step: it compares the API contract
+(`docs/api-contract.json`) and the engine revision with the previous release and requires at least the matching step.
+Every release checks the schema upgrade from the previous release (the `upgrade` test).
 
 ### Development without PostgreSQL: PGlite
 
@@ -917,14 +936,20 @@ const page2 = await db.Product().sort('data.price', 'desc')
 
 `sort(field, 'asc' | 'desc')` sorts by `'at'`, `'rev'`, `'id'` or `'data.<path>'`. `after(cursorOf(row, field))` is
 pagination "after this row"; it requires `sort()`. Such pagination withstands inserts and deletes between pages, but a
-row whose sort field has changed may drop out or repeat. A cursor is an object `{ v, id }` (the field value and the row
-id): it survives JSON, so you can hand it to a client. The field in `cursorOf` must match the `sort` field. The cursor
+row whose sort field has changed may drop out or repeat. A cursor is an object `{ v, id, rev }` (the field value, the
+row id and its version number): it survives JSON, so you can hand it to a client. The field in `cursorOf` must match the `sort` field. The cursor
 value is checked against the type of the `sort` field before the query, and a wrong one is `invalid_query`: a numeric
 field needs a finite number, `rev` an integer, a boolean field `true` or `false`, a text field a string, uuid fields
 and `id` a uuid, time fields and `at` an ISO string with a time zone, a date field `YYYY-MM-DD`, a field without a
 description a string, a number or `true`/`false`. `null` fits only data fields, and the cursor's `id` is always a uuid.
 The check cannot tell apart a cursor of the same type taken from another field. `limit` and `offset` are available
 too.
+
+`after()` also pages `versions()`: the cursor of a version carries its `rev`, so versions of one object with an equal
+sort field are not lost. In `paths()` the cursor comes from `cursorOf(path, field)`: the field and the id are those of
+the last node of the path, and `path` holds the ids of all nodes, so paths to the same node are not lost. A cursor
+`cursorOf(path.Node, field)` taken from a single node skips the other paths to that node. `count()`, aggregates,
+`diff()` and `blame()` ignore the cursor.
 
 A data field may be `null` or missing. `sort` places such rows the way `order by` in PostgreSQL does: last when
 ascending, first when descending, and `after()` treats `null` as a value after all others (ascending) or before them
@@ -964,7 +989,8 @@ const orderPaths = await db.Order(order).line().Product().paths()   // [{ Order:
 ```
 
 `paths()` returns the nodes of every variant of the path; the key of a node is the step name or the name from
-`.alias(name)`. Repeating a link in the chain returns to its node: this way you can go from one link in several
+`.alias(name)`. The keys follow the order of the steps; if the chain ends by returning to an earlier node, that node
+comes last. Repeating a link in the chain returns to its node: this way you can go from one link in several
 directions. `db.entity(row | chain)` inserts a ready node into the path.
 
 ## 7. Deleting and restoring
@@ -1277,7 +1303,7 @@ const changed = await adm.load({ Shop: [{ name: 'Cornflower', city: 'Samara' }] 
 | Option | Values |
 |---|---|
 | `duplicates`: a repeated id within the load | `'error'` (default): cancel; `'first'` or `'last'`: keep the first or the last row |
-| `existing`: the object already exists in the database | `'error'` (default): cancel; `'skip'`: skip, do not resurrect deleted objects; `'update'`: a new version if the content differs (unchanged objects are counted in `skipped`), deleted objects are created again |
+| `existing`: the object already exists in the database | `'error'` (default): cancel; `'skip'`: skip, do not resurrect deleted objects; `'update'`: a new version if the content differs (unchanged objects are counted in `skipped`), deleted objects are created again; an object of another class with the same id (a class without a key after `reclass`) is `exists` |
 
 ### Portions, history and verification
 
@@ -1486,8 +1512,9 @@ A service acts on behalf of a user through `svc.as(account, { tenant, owner })`.
 `auth.impersonate` permission (by System rules), that the user exists and is enabled, and that the tenant is available
 to the user, either their own or through membership. You cannot act on behalf of System, services, system
 administrators or disabled accounts. The user's visibility under the access rules is not checked. In the journal,
-`author` is the user and `agent` is the service. A user's connection by their own token switches between tenants like
-this:
+`author` is the user and `agent` is the service. The class registry of `db.as()` is one per tenant, and a connection
+keeps at most 1000 of them: a long unused one is evicted, and a facade whose registry was evicted keeps working — the
+registry is re-read. A user's connection by their own token switches between tenants like this:
 
 <!-- run: guide -->
 ```ts
@@ -1622,6 +1649,12 @@ Without `sort()`, versions go by id and version number (with `follow`, by time).
 too, and `limit()` limits them in the query itself: `db.Product(kettle).sort('at', 'desc').limit(5).versions()` gives
 the five latest versions, newest first.
 
+`follow: true` gives the history of the object across all its ids: before a move, the versions of the former id;
+after it, of the new one. An object created later on the former id (the same key after `rekey`) is a different one,
+and its versions are not in this history; its own history with `follow` starts at its creation. `diff({ follow: true
+})` and `blame()` work the same way. Without `follow`, `versions()` gives every version of the id, whoever it
+belonged to.
+
 ### Point-in-time read
 
 <!-- run: guide -->
@@ -1724,7 +1757,8 @@ none.
   single-valued end, every id of a multi-valued end (`['links', role, id]`), every tag (`['tags', tag]`), `owner` and
   `class`. `rev`, `at`, `author`, `agent`, `op` and `reason` come from the version that changed the leaf last. Empty
   `agent` and `reason` are omitted; `id` is present only if it is a version of the former id (the history went
-  through `reclass` or `rekey`).
+  through `reclass` or `rekey`). `blame()` does not look at versions of another object on the same id — one that
+  lived there before a move or was created after it.
 - `exact: false` means there are gaps between the current version and the found one (the history is thinned,
   trimmed or partly invisible): a missing version may have changed the leaf too. `complete: true` means the whole
   history was scanned without gaps; by default at most the 1000 latest versions are scanned.
@@ -1943,6 +1977,10 @@ sales.close()                                    // stop() after the current bat
   not see the changes of a class with `history: false`: it has no journal. So a tenant with such a class among the
   sources drops out with the code `invalid_class`, and the projector does not build its derived rows. Turn the journal
   of the class on and rebuild the tenant with `rebuild({ tenant })`.
+- A tenant that became a participant after the first projection (the administrator marked its classes later) gets an
+  initial batch rebuild: the rows created before it joined get into the projection too. A projector re-reads its
+  participants on a class signal, and on a connection without LISTEN (`listen: false`) at the start of `run()` and at
+  least every 5 seconds.
 - `batch` is how many changes go into a batch (500), `pollMs` is fallback polling (1000 ms): source signals wake the
   projector earlier.
 - `lockTimeout` is how long a projector transaction waits for another transaction's row lock (5000 ms; 0 — no limit).
@@ -2062,7 +2100,8 @@ const report = await adm.maintain()     // { sessions, codes, thinned, batches, 
 
 `maintain()` deletes sessions and one-time codes of all kinds (`OTP` and custom `OTP_<NAME>` from `issueOtp({ kind })`)
 from the `secret` table — expired ones, as well as
-revoked sessions and codes that were used, replaced by a new one or ran out of attempts, — thins the journal by the
+revoked sessions and codes that were used, replaced by a new one or ran out of attempts, — and the lock rows of deleted
+classes (two per class; a row held by a transaction goes on the next call), thins the journal by the
 retention policy and checks the PostgreSQL signal queue: if it is more than half full, you get a warning. You do not
 need `maintain()` for the rows of a deleted account: the deletion itself erases them ([Deleting an account](#deleting-an-account)).
 The system administrator, a role with the `letopis.maintain` permission or an admin connection can call it. An external scheduler
@@ -2587,7 +2626,7 @@ behavior.
 **Platform**
 
 - PostgreSQL 18 or newer is required; there are no workarounds for 15–17. AWS RDS, Google Cloud SQL, Azure Flexible
-  Server and Neon support 18, while Supabase, as of October 2026, offers only 15 and 17, so 1.0 will not work there.
+  Server and Neon support 18, while Supabase, as of October 2026, offers only 15 and 17, so letopis will not work there.
 - The database must be in UTF8 encoding (`casefold()` and the `pg_unicode_fast` collation). If a new major PostgreSQL
   version updates the Unicode tables, the unique index of credential identifiers is rebuilt with the `reindex` command.
 - PGlite has one superuser connection: no concurrent writers and no `LISTEN`, and RLS does not apply
@@ -2798,6 +2837,12 @@ behavior.
 This section is for those who develop letopis itself. Run: `cd lib && npm test`. The harness starts the
 `letopis-pg18` container (`postgres:18`, port 15433) by itself if the database does not respond; each test file works in its own schema `v2.t_<name>`.
 
+CI runs no tests: before a push and a release, everything that checks behavior runs as one command,
+`cd lib && npm run prerelease` — typecheck, the documentation check, all tests, the site examples against snapshots, the
+sandbox, the service scenarios, a quick soak run (15 minutes of mixed load) and the package check with a live run, in
+order; the first red step stops the run. The same load for a day: `cd lib && npm run soak` (duration — `SOAK_HOURS`,
+24 hours by default). A test for a fix is named after its test-plan item ("plan 2.0, 7.3 No. 1") and fails without the fix.
+
 ```
 # connect — connecting under a session, refusing roles that bypass RLS, the registry, the deferred signal, error translation (stage 2)
 # context — sessions, service sign-in by key, the RLS policies of stage 1 (stage 1)
@@ -2844,9 +2889,9 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # retention — retention policy: tiers, a finite term, special versions, deleted rows, asOf, cursor_expired, time zone, catch-up run, inheritance and default — versus a reference in TypeScript (stage 6)
 # watch — cursor subscription: commit order, a long transaction, resuming, listener drop, two tenants (stage 6)
 # cache — result cache: hits, own and others' writes, the key with the user, permissions, revoked sessions, listener drop, ttl, class marking, without LISTEN, a race, db.sql, the limit of signal counters (stage 6; plan 1.1, checkpoint A)
-# maintain — maintenance: expired sessions and codes, permissions, one process under a lock, schedule (stage 6)
+# maintain — maintenance: expired sessions and codes, permissions, one process under a lock, schedule (stage 6), lock rows of deleted classes
 # up — the full installer: fresh installation, re-apply, custom seeds, automatic database creation, UTF8, version 17, upgrade with migrations, PGlite, the first tenant and user (up({ tenant }), createTenant) (stages 6, 8)
-# upgrade — schema upgrade from 1.1.0 (upgrade: true, migration 0007) and from 1.0.1 (upgrade: true, migrations 0006 and 0007) with the letopis-11 and letopis-1 packages: versions and hashes written by the old engine, verify(), the catalog against a clean installation, lock rows, secret rows without an account erased, the application, a subscription and a projector over old data, a repeated up() (work after 1.2.0, stage 1; revision 7)
+# upgrade — schema upgrade from 1.4.1 (a plain up() without migrations, plan 2.0, 7.8 No. 2), from 1.1.0 (upgrade: true, migration 0007) and from 1.0.1 (upgrade: true, migrations 0006 and 0007) with the letopis-141, letopis-11 and letopis-1 packages: versions and hashes written by the old engine, verify(), the catalog against a clean installation, lock rows, secret rows without an account erased, the application, a subscription and a projector over old data, a repeated up() (work after 1.2.0, stage 1; revision 7)
 # scenario-salon — end-to-end salon scenario: 21 acts from 0.21 (salon) with a coverage matrix of the 1.0 API (stage 6)
 # telemetry — onQuery and slowMs, describe() and class metadata with inheritance, describeText (stage 6)
 # history — diff and blame over the log, the reason of a change for verbs, db.begin() and batches; a version hidden by an ACL condition, the changed column, a missing version, row_changes over 20 thousand targets (plan 1.1, stage 1 and checkpoint A)
@@ -2856,4 +2901,10 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # mcp — MCP tools: the model and meta only in results, tenant rights, the JSON chain and hints of similar names, row and byte limits with a cursor, the untrusted-data wrapper, writing only with write, update only with rev, deletion with a human confirmation (elicitation in revisions 2025 and 2026-07-28), the reason in blame, credentials, tool schemas, letopis without the SDK; letopis mcp over stdio, the HTTP handler; the confirmation window without the alias and meta, countBy and versions limited in the query itself, limits of steps and $or conditions; the permission classes only with allowAclWrite, a session in the System tenant only with allowSystemAdmin; structuredContent with a note, a requestState signature of the server user with an expiry (plan 1.1, stage 5; security review No. 2; checkpoint B and the work after it)
 # import — import from 0.21 with a fixture of a real 0.21: key violation, --keyless, per-class counters, verify, self-reference, repeat, ids without a key, a dangling reference, $$strict and fields starting with $, update, credentials, CLI (stage 7)
 # security-final — the final security review (stage 8, §7.10 No. 8.4): a family lock by the tenant of the root, account_purge without permission and restore/purge of a foreign id give neither a leak nor a lock; the functions of stage 6, log_refs_at, journal-based find_* reads and watch_read stay within their own tenant; NOTIFY carries only names or mode tokens; the cache key distinguishes the token, the actor and the tenant (stage 8)
+# semver — version rules: check:semver requires at least the matching version step — a major for a removed method or error code, a minor for a new method and a new engine revision, a patch for texts only (plan 2.0, 7.8 No. 1)
+# prerelease — the pre-release check: steps run strictly in order, the first red one stops the run and the following ones do not start (plan 2.0, 7.8 No. 3)
+# write-contract — README promises about writes (plan 2.0, 7.2): a repeated key in a batch gives exists and a rollback, the row order of reclass, restore and rekey responses, a chain with a verb as a slot value, the loader with existing: update does not edit a row of another class, a cached answer is not spoiled by editing an earlier answer
+# watch-contract — README promises about subscriptions and connections (plan 2.0, 7.4): an idle subscription polls the journal once per pollMs, close() of the connection closes live subscriptions, a reclass without a key resets the cache of the old class, a new projector participant gets an initial rebuild, a projector without LISTEN re-reads its participants, at most a limit of db.as() registries
+# model-contract — README promises about models, types, the CLI and errors (plan 2.0, 7.5): letopis types gives valid TypeScript for Cyrillic names, a class without fields and anyOf, the full form of hub() with z.object, clear errors instead of raw ones, CLI exit codes
+# read-contract — README promises about reads and history (plan 2.0, 7.1): an asOf slice by class and by ends after a class change without an id change, versions, diff and blame with follow after rekey, the after() cursor in versions() and paths(), a field name with @S@
 ```

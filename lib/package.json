@@ -1,6 +1,6 @@
 {
   "name": "letopis",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "Letopis (летопись): versioned entity store on PostgreSQL 18 — integrity, history, tenants and access control enforced by the database itself, dot-notation chains on top",
   "keywords": [
     "postgres",
@@ -68,16 +68,19 @@
     "seed:booking": "tsx scripts/gen-seed-booking.mjs",
     "test:import-salon": "tsx bench/import-salon.mjs",
     "api:contract": "node scripts/gen-api-contract.mjs",
-    "prepublishOnly": "npm run typecheck && npm run check:docs && npm run build"
+    "prepublishOnly": "npm run typecheck && npm run check:docs && npm run build",
+    "check:semver": "node scripts/check-semver.mjs",
+    "prerelease": "node scripts/prerelease.mjs",
+    "soak": "tsx bench/soak.mjs"
   },
   "dependencies": {
     "postgres": "^3.4.9"
   },
   "peerDependencies": {
-    "zod": "^4",
     "@electric-sql/pglite": "^0.5.8",
     "@electric-sql/pglite-socket": "^0.2.11",
-    "@modelcontextprotocol/server": "^2.4.0"
+    "@modelcontextprotocol/server": "^2.4.0",
+    "zod": "^4"
   },
   "peerDependenciesMeta": {
     "zod": {
@@ -102,6 +105,7 @@
     "letopis-0": "npm:letopis@0.21.0",
     "letopis-1": "npm:letopis@1.0.1",
     "letopis-11": "npm:letopis@1.1.0",
+    "letopis-141": "npm:letopis@1.4.1",
     "tsx": "^4.23.15",
     "typescript": "~5.9.3",
     "zod": "4.6.5"

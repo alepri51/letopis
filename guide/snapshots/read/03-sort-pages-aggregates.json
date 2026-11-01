@@ -110,7 +110,8 @@
       "result": {
         "cursor": {
           "v": 1500,
-          "id": "id·5"
+          "id": "id·5",
+          "rev": 1
         },
         "page2": [
           {

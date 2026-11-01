@@ -353,7 +353,8 @@ interface ChainCore {
   /**
    * Постраничный вывод по курсору: ответ начинается строго после строки, на которой кончилась прошлая страница, в
    * порядке `sort()` (без `sort()` — ошибка `invalid_query`). Курсор этой строки даёт `cursorOf(строка, поле)` с тем же
-   * полем, что в `sort()`.
+   * полем, что в `sort()`. Листает `rows()`, `ids()`, `versions()` и `paths()` (курсор пути — `cursorOf(путь, поле)`);
+   * `count()`, агрегаты, `diff()` и `blame()` курсор не учитывают.
    */
   after(cursor: Cursor): Chain;
   /**
@@ -605,10 +606,17 @@ interface Credential {
 ## Cursor {#type-cursor}
 
 ```ts
-/** Курсор постраничного вывода для `after()`: значение поля сортировки и id последней строки страницы. */
+/**
+ * Курсор постраничного вывода для `after()`: значение поля сортировки и id последней строки страницы. Равные по полю
+ * строки разводят `rev` (версии в `versions()`) и `path` (id всех узлов пути в `paths()`); `cursorOf` заполняет их сам.
+ */
 interface Cursor {
   v: string | number | boolean | null;
   id: string;
+  /** Номер версии строки: в `versions()` отделяет версии одного объекта с равным полем сортировки. */
+  rev?: number;
+  /** Узлы пути из `paths()`: ключ узла → id; отделяет пути с общим последним узлом. */
+  path?: Record<string, string>;
 }
 ```
 
@@ -691,8 +699,7 @@ interface DbCore {
    * `auth.impersonate`.
    */
   as(account: string | { id: string } | null, opts?: { owner?: string; tenant?: string }): Promise<Db>;
-  /** Явная транзакция `read committed`: те же цепочки, `commit()`, `rollback()`, `lock()`, `forUpdate()`. */
-  /** Явная транзакция; `reason` — причина изменения для всех операций блока. */
+  /** Явная транзакция `read committed`: те же цепочки, `commit()`, `rollback()`, `lock()`, `forUpdate()`; `reason` — причина изменения для всех операций блока. */
   begin(opts?: { reason?: string }): Promise<DbTx>;
   /**
    * Массовая загрузка строк любых классов одной транзакцией (или порциями `commitEvery`) — быстрее записи цепочками.

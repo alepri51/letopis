@@ -60,17 +60,22 @@ export async function createApp() {
   const admin = postgres(ENV.admin, { max: 2, onnotice: () => {} });
   const r = await up({ dsn: ENV.admin, schema: ENV.schema, upgrade: true, fresh: ENV.fresh, serviceKey: ENV.serviceKey, allowReset: true, quiet: true });
   const appUrl = new URL(ENV.app);
-  await admin.unsafe(`do $$ begin if not exists (select 1 from pg_roles where rolname = '${appUrl.username}') then
-    create role ${appUrl.username} login password '${decodeURIComponent(appUrl.password)}'; end if; end $$`);
-  await admin.unsafe(`grant letopis_app to ${appUrl.username}`);
+  // роль приложения — имя и пароль квотируются, а не склеиваются в SQL: пароль с ' не ломает запуск (план 2.0, 7.6 №7)
+  const appUser = decodeURIComponent(appUrl.username);
+  const ident = (v) => `"${v.replace(/"/g, '""')}"`;
+  const [{ known }] = await admin`select exists (select 1 from pg_roles where rolname = ${appUser}) as known`;
+  if (!known) await admin.unsafe(`create role ${ident(appUser)} login password '${decodeURIComponent(appUrl.password).replace(/'/g, "''")}'`);
+  await admin.unsafe(`grant letopis_app to ${ident(appUser)}`);
   // журнал «под капотом»: запросы к базе, записанные версии и сигналы текущего действия;
   // обслуживание (trimHistory, maintain) идёт администраторским подключением adm — его сигналы тоже
   const trace = await createTrace({ admin, schema: r.schema, size: 15, flush: (s) => [s.db, adm] });
   const { onQuery } = trace;
   const svc = await connect({ dsn: ENV.app, schema: r.schema, apiKey: ENV.serviceKey, onQuery });
-  const t = await createTenant(admin, r.schema, { name: FIRM, user: { name: USERS.head.name, login: USERS.head.login, password: USERS.head.password, ttl: '10 minutes' } });
+  const t = await createTenant(admin, r.schema, { name: FIRM, user: { name: USERS.head.name, login: USERS.head.login, password: USERS.head.password, ttl: '7 days' } });
   await createTenant(admin, r.schema, { name: FIRM, user: { name: USERS.lawyer.name, login: USERS.lawyer.login, password: USERS.lawyer.password, roles: ['staff'], ttl: '1 minute' } });
   // обслуживание (verify, maintain, trimHistory, load, reset) — администраторское подключение в сессии руководителя
+  // сессия руководителя — на 7 дней простоя (connect её продлевает): с 10 минутами trimHistory после простоя падал
+  // на no_session (план 2.0, 7.6 №5)
   const adm = await connect({ dsn: ENV.admin, schema: r.schema, token: t.token, allowBypassRls: true, onQuery });
   // модель — классы арендатора фирмы: при каждом запуске их пишет syncModels этого подключения, сессия пользователя
   // модель не пишет. Не System: классы System syncModels пропускает, а сид установки уже существующий класс не меняет —

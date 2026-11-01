@@ -472,8 +472,12 @@ as $$
 declare
   e @SCHEMA@.entity;
   c record;
+  was text;
 begin
   select * into c from @SCHEMA@.ctx();
+  if p_class is not null then
+    select x.class into was from @SCHEMA@.entity x where x.id = p_id;
+  end if;
   update @SCHEMA@.entity x
      set class = coalesce(p_class, x.class), data = p_data, links = p_links, validator = p_validator,
          rev = x.rev + 1, prev_hash = x.hash,
@@ -489,6 +493,11 @@ begin
     select x.* into e from @SCHEMA@.entity x where x.id = p_id;
   end if;
   perform @SCHEMA@.log_version(e);
+  -- смена класса: сигнал и прежнего класса — его ответы кэша и подписки тоже устарели (log_version сигналит только новый;
+  -- путь через триггер шлёт оба; план 2.0, 7.4 №4)
+  if was is not null and was <> e.class then
+    perform @SCHEMA@.signal(array[was], array[e.tenant]);
+  end if;
   return e;
 end $$;
 

@@ -32,7 +32,7 @@ after(async () => {
 });
 
 const removedErr = (replacement: RegExp) => (err: { code?: string; message?: string }) =>
-  err.code === 'removed' && /снята? в 1\.0\.0/.test(err.message ?? '') && replacement.test(err.message ?? '');
+  err.code === 'removed' && /сняты? в 1\.0\.0|снята в 1\.0\.0/.test(err.message ?? '') && replacement.test(err.message ?? '');
 
 test('охранники снесённого API: ошибка с версией 1.0.0 и заменой (3.9)', async () => {
   const any = db as unknown as Record<string, unknown>;
@@ -110,7 +110,7 @@ test('ошибки построения: курсор другого поля и
   }
   // курсор null — поля в строке нет — принимается
   const noNotes = (await db.booking(s.bookings[1]).first())!;
-  assert.deepEqual(cursorOf(noNotes, 'data.notes'), { v: null, id: noNotes.id });
+  assert.deepEqual(cursorOf(noNotes, 'data.notes'), { v: null, id: noNotes.id, rev: noNotes.rev });
   assert.ok(Array.isArray(await db.booking().sort('data.notes').after(cursorOf(noNotes, 'data.notes')).rows()));
   // поле без описания (лист jsonb) сравнивается текстом: курсор true уходит текстом 'true' (раньше 42883 сервера)
   await e.defineClass(t, { name: 'Mark', kind: 'hub', fields: { properties: { any: {} } } });

@@ -59,6 +59,11 @@ jobs:
       - name: Install
         working-directory: lib
         run: npm ci
+      # Шаг версии против прошлого выпуска (README, «Версии и совместимость»): контракт API и ревизия
+      # движка из тега этой версии сравниваются с тегом прошлого выпуска; неверный шаг — публикации нет.
+      - name: Check semver
+        working-directory: lib
+        run: npm run check:semver -- --release
       # Версии с дефисом (1.1.0-rc.1 и т.п.) уходят под dist-tag next, чтобы не стать latest.
       - name: Publish to npm
         working-directory: lib

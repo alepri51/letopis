@@ -6,7 +6,7 @@
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { engine, type Engine, type Tenant } from './_engine.js';
+import { engine, SYSTEM_ID, waitForLock, type Engine, type Tenant } from './_engine.js';
 import { appDsn, ident } from './_harness.js';
 import { connect, type Db } from '../src/index.js';
 import { install } from '../src/up.js';
@@ -227,6 +227,95 @@ test('7.8.1 №4: удалённые — пока надгробие молож�
   assert.equal((await db.Temp(newId).withDeleted().rows()).length, 1);
   const [back] = await db.Temp(newId).restore().rows();
   assert.equal(back.id, newId);
+});
+
+test('план 2.0, 7.3 №1: журнал класса арендатора прореживается по политике своего класса, даже когда позже заведён одноимённый класс System', async () => {
+  const pol = { all: '1 day', daily: '30 days' };
+  await defineHub('Twin', pol);
+  await db.refresh();
+  // по версии в день, все старше суток: ярус daily оставляет каждую
+  const ats = Array.from({ length: 10 }, (_, i) => NOW - 12 * DAY + i * DAY + 3600_000);
+  const id = await history('Twin', 'W1', ats);
+  // класс System с тем же именем появился позже и со своей политикой: строки арендатора — строки его собственного класса
+  const sysDesc = { name: 'Twin', kind: 'hub', key: ['code'], history: { all: '1 day' },
+    fields: { properties: { code: { type: 'string' }, n: { type: 'integer' } }, required: ['code'] } };
+  await e.asOwner((tx) => tx.unsafe(`select ${e.S}.sys_create(${e.S}.v5_id($1::uuid, 'Class', array[$2]), 'Class', $1::uuid, '{}', $3::jsonb)`,
+    [SYSTEM_ID, 'Twin', sysDesc as never]));
+  await maintainAll();
+  assert.deepEqual(await revs(id), expected(pol, ats.map((at, i) => ({ rev: i + 1, at, op: i ? 'update' : 'create' })), NOW),
+    'версии ярусов политики своего класса на месте');
+  const v = await adm.verify();
+  assert.deepEqual(v.issues, [], 'verify: разрывов нет');
+});
+
+test('план 2.0, 7.3 №1: срок курсора подписки — по ярусу all своего класса, а не одноимённого класса System', async () => {
+  await defineHub('Slow', { all: '1 year' });
+  const sysDesc = { name: 'Slow', kind: 'hub', key: ['code'], history: { all: '1 day' },
+    fields: { properties: { code: { type: 'string' }, n: { type: 'integer' } }, required: ['code'] } };
+  await e.asOwner((tx) => tx.unsafe(`select ${e.S}.sys_create(${e.S}.v5_id($1::uuid, 'Class', array[$2]), 'Class', $1::uuid, '{}', $3::jsonb)`,
+    [SYSTEM_ID, 'Slow', sysDesc as never]));
+  await db.refresh();
+  await db.Slow().create({ code: 'L1', n: 1 }).rows();
+  // курсор трёхдневной давности: для своего класса (ярус all — год) он не просрочен
+  const sub = db.watch({ from: `1:1:${iso(NOW - 3 * DAY)}`, classes: ['Slow'] });
+  try {
+    const ev = await sub.next();
+    assert.equal(ev.value.class, 'Slow');
+  } finally {
+    sub.close();
+  }
+});
+
+test('план 2.0, 7.3 №2: история удалённого объекта стирается целиком — вместе с версиями прежнего класса до reclass', async () => {
+  await e.defineClass(t, { name: 'Lead2', kind: 'hub', fields: { properties: { name: { type: 'string' } } } });
+  await e.defineClass(t, { name: 'Vip2', kind: 'hub', history: { all: '1 day', daily: '30 days' }, fields: { properties: { name: { type: 'string' } } } });
+  await db.refresh();
+  const [o] = await db.Lead2().create({ name: 'Ольга' }).rows();
+  await db.Lead2(o.id).update({ name: 'Ольга П.' }).rows();
+  await db.Lead2(o.id).reclass('Vip2').rows(); // класс без ключа: id тот же
+  await db.Vip2(o.id).delete({ confirm: true }).rows();
+  await maintainAll(Date.now() + 40 * DAY);
+  assert.deepEqual(await revs(o.id), [], 'надгробие старше срока: стёрты и версии Lead2');
+});
+
+test('план 2.0, 7.3 №3: стирание истории удалённого ждёт начатый restore() и после него историю не трогает', async () => {
+  await defineHub('Gone3', { all: '1 day', daily: '30 days' });
+  await db.refresh();
+  const [g] = await db.Gone3().create({ code: 'G3', n: 1 }).rows();
+  await db.Gone3(g.id).delete({ confirm: true }).rows();
+  const held = await e.hold(t.token, (tx) => tx.unsafe(`select ${e.S}.restore($1::uuid)`, [g.id]));
+  const run = maintainAll(Date.now() + 40 * DAY);
+  await waitForLock(e.sql);
+  await held.finish(true);
+  await run;
+  assert.deepEqual(await revs(g.id), [1, 2, 3], 'create, delete и restore на месте');
+  assert.deepEqual((await adm.verify()).issues, [], 'цепочка цела');
+});
+
+test('план 2.0, 7.4 №3: watch({ from: start }) отдаёт весь журнал — без cursor_expired на старых событиях после первой пачки', async () => {
+  await defineHub('Old3', { all: '1 day', daily: 'forever' });
+  await db.refresh();
+  await history('Old3', 'O1', [NOW - 10 * DAY, NOW - 9 * DAY, NOW - 8 * DAY]);
+  const sub = db.watch({ from: 'start', classes: ['Old3'], batch: 2 });
+  let first = '';
+  try {
+    const got: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      const ev = (await sub.next()).value;
+      first ||= ev.cursor;
+      got.push(ev.rev as number);
+    }
+    assert.deepEqual(got, [1, 2, 3]);
+  } finally {
+    sub.close();
+  }
+  // курсор события хранит его время: продолжение с него старше яруса all — cursor_expired, как обещает README
+  const again = db.watch({ from: first, classes: ['Old3'] });
+  try {
+    await assert.rejects(again.next(), (err: { code?: string }) => err.code === 'cursor_expired');
+  } finally {
+    again.close();
+  }
 });
 
 test('7.8.1 №6: подписчик с курсором старше яруса all — cursor_expired; после перечитывания поток идёт', async () => {

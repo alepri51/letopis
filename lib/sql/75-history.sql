@@ -11,6 +11,7 @@
 --   change_paths  — пути для колонки changed (пишут триггер правки и log_version);
 --   row_leaves    — листья снимка строки (то, что объясняет blame);
 --   version_paths — пути из changed тех версий, у которых предыдущая версия видна вызывающему;
+--   history_segments — отрезки истории объекта по переносам id (follow и blame);
 --   diff_versions — что изменилось между двумя версиями или моментами (jsonb в виде ответа diff());
 --   blame         — какая версия, кто, когда и почему последней изменила каждый лист (ответ blame()).
 
@@ -154,21 +155,79 @@ begin
   if c_account is null then
     return;
   end if;
+  -- обе версии — поиском по (id, rev) на каждую пару: lateral с limit 1 не даёт планировщику соединить журнал хэшем.
+  -- Свой план вызова (первые пять на соединении) по фильтру видимости оценивал версии n в 2 строки и искал
+  -- предыдущую версию по одному id, проверяя номер фильтром, — квадрат от числа версий: blame по 1000 версиям
+  -- ~250 мс, по 10 000 — секунды (план 2.0, попутно с 7.1 №2)
   return query
     select n.id, n.rev, n.changed
     from unnest(p_ids, p_revs) q(id, rev)
-    join @SCHEMA@.log n on n.id = q.id and n.rev = q.rev
-    join @SCHEMA@.log o on o.id = n.id and o.rev = n.rev - 1
-    where n.changed is not null
-      and n.op not in ('purge', 'trim', 'reset') and o.op not in ('purge', 'trim', 'reset')
-      and @SCHEMA@.row_visible(n.tenant, n.class, n.id, n.owner, n.tags, n.data, n.links, c_tenant, c_account, c_plan)
-      and @SCHEMA@.row_visible(o.tenant, o.class, o.id, o.owner, o.tags, o.data, o.links, c_tenant, c_account, c_plan);
+    cross join lateral (select x.id, x.rev, x.changed from @SCHEMA@.log x
+      where x.id = q.id and x.rev = q.rev and x.changed is not null and x.op not in ('purge', 'trim', 'reset')
+        and @SCHEMA@.row_visible(x.tenant, x.class, x.id, x.owner, x.tags, x.data, x.links, c_tenant, c_account, c_plan)
+      limit 1) n
+    cross join lateral (select 1 from @SCHEMA@.log o
+      where o.id = n.id and o.rev = n.rev - 1 and o.op not in ('purge', 'trim', 'reset')
+        and @SCHEMA@.row_visible(o.tenant, o.class, o.id, o.owner, o.tags, o.data, o.links, c_tenant, c_account, c_plan)
+      limit 1) o;
+end $$;
+
+-- Отрезки истории объекта (план 2.0, 7.1 №2): версии id с номерами (lo, hi], hi null — до последней. Границы
+-- отрезков на id — переносы: надгробие переноса (delete с moved) кончает отрезок, первая версия на новом id (reclass,
+-- rekey с moved) начинает. Объект, заведённый на прежнем id после переноса, — другой отрезок: follow и blame его не
+-- берут (прежде брали все версии всех связанных id). Начало — отрезок с версией p_rev объекта p_id (n = 0), дальше по
+-- переносам назад (n < 0) и, если не p_back, вперёд (n > 0). Перенос пишется парой строк с moved друг на друга
+-- (надгробие на старом id → новый id, первая версия на новом → старый): строки переноса id находит индекс log_moved
+-- через парную строку, без прохода по версиям id; у объекта без переносов — один пустой поиск. Строка, чья пара стёрта
+-- (история другой стороны удалена целиком или обрезана), границей не считается. Пара одного переноса — ближайшая по
+-- seq (время у них может разойтись на микросекунды). Тот же обход строит versions({ follow }) в построителе
+-- (lib/src/sql.ts:buildRead): меняются вместе. plpgsql, а не sql: план запроса кэшируется (тело функции на sql
+-- планировалось на каждом вызове).
+create or replace function @SCHEMA@.history_segments(p_id uuid, p_rev int, p_back boolean default false)
+returns table (id uuid, lo int, hi int, n int)
+language plpgsql stable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+#variable_conflict use_column
+begin
+  return query with recursive s(id, lo, hi, n) as (
+    select p_id, b.lo, b.hi, 0 from (
+      select greatest(coalesce(max(x.rev) filter (where x.op = 'delete' and x.rev < p_rev), 0),
+                      coalesce(max(x.rev - 1) filter (where x.op <> 'delete' and x.rev <= p_rev), 0)) as lo,
+             least(min(x.rev) filter (where x.op = 'delete' and x.rev >= p_rev),
+                   min(x.rev - 1) filter (where x.op <> 'delete' and x.rev > p_rev)) as hi
+      from @SCHEMA@.log m join @SCHEMA@.log x on x.moved = m.id and x.id = p_id where m.moved = p_id) b
+    union
+    select g.id, b.lo, b.hi, g.n
+    from s cross join lateral (
+      -- назад: первая версия отрезка — прибытие с прежнего id; прежний отрезок кончается надгробием переноса сюда
+      select a.moved as id, (select t.rev from @SCHEMA@.log t where t.id = a.moved and t.op = 'delete' and t.moved = s.id
+          order by abs(t.seq - a.seq) limit 1) as r, s.n - 1 as n
+      from @SCHEMA@.log a
+      where s.n <= 0 and a.id = s.id and a.rev = s.lo + 1 and a.moved is not null and a.op <> 'delete'
+      union all
+      -- вперёд: последняя версия отрезка — надгробие переноса; следующий отрезок начинается прибытием отсюда
+      select t.moved, (select a.rev from @SCHEMA@.log a where a.id = t.moved and a.op <> 'delete' and a.moved = s.id
+          order by abs(a.seq - t.seq) limit 1), s.n + 1
+      from @SCHEMA@.log t
+      where not p_back and s.n >= 0 and t.id = s.id and t.rev = s.hi and t.op = 'delete' and t.moved is not null
+    ) g
+    cross join lateral (
+      select greatest(coalesce(max(x.rev) filter (where x.op = 'delete' and x.rev < g.r), 0),
+                      coalesce(max(x.rev - 1) filter (where x.op <> 'delete' and x.rev <= g.r), 0)) as lo,
+             least(min(x.rev) filter (where x.op = 'delete' and x.rev >= g.r),
+                   min(x.rev - 1) filter (where x.op <> 'delete' and x.rev > g.r)) as hi
+      from @SCHEMA@.log m join @SCHEMA@.log x on x.moved = m.id and x.id = g.id where m.moved = g.id) b
+    where g.r is not null and abs(g.n) <= 1000
+  )
+  select s.id, s.lo, s.hi, s.n from s;
 end $$;
 
 -- diff: что изменилось между двумя версиями объекта (ответ терминала diff()). «После» — номер версии
 -- p_to, последняя версия на момент p_to_at или последняя вообще; «до» — номер p_from, последняя живая
 -- версия на момент p_from_at (объекта не было — null, все пути added) или версия перед «после».
--- p_follow — через смену id (reclass, rekey) по колонке moved; надгробие переноса — не версия.
+-- p_follow — через смену id (reclass, rekey) по колонке moved: отрезки истории этого объекта (history_segments) от
+-- версии p_to или последней версии p_id; надгробие переноса — не версия.
 -- «После» — надгробие: to.deleted, изменения полей не перечисляются.
 create or replace function @SCHEMA@.diff_versions(p_id uuid, p_from int default null, p_to int default null,
   p_from_at timestamptz default null, p_to_at timestamptz default null, p_follow boolean default false)
@@ -181,21 +240,26 @@ set jit = off
 as $$
 declare
   ids uuid[] := array[p_id];
+  los int[] := array[0];
+  his int[] := array[null::int];
+  multi boolean := false;
+  whole boolean := true;
   t record;
   f record;
   has_f boolean;
 begin
   if p_follow then
-    with recursive g(id) as (
-      select p_id
-      union
-      select x.id from g cross join lateral (
-        select l.moved as id from @SCHEMA@.log l where l.id = g.id and l.moved is not null
-        union select l.id from @SCHEMA@.log l where l.moved = g.id) x)
-    select array_agg(g.id) into ids from g;
+    select array_agg(s.id), array_agg(s.lo), array_agg(s.hi) into ids, los, his
+    from (select distinct g.id, g.lo, g.hi from @SCHEMA@.history_segments(p_id, coalesce(p_to, (select max(l.rev) from @SCHEMA@.log l
+      where l.id = p_id and l.op not in ('purge', 'trim', 'reset')))) g) s;
+    multi := cardinality(ids) > (select count(distinct x) from unnest(ids) x);
+    whole := cardinality(ids) = 1 and los[1] = 0 and his[1] is null;
   end if;
   select l.id, l.rev, l.at, l.seq, l.op, l.class, l.data, l.links, l.tags, l.owner into t from @SCHEMA@.log l
   where l.id = any (ids) and l.op not in ('purge', 'trim', 'reset') and not (p_follow and l.op = 'delete' and l.moved is not null)
+    and case when whole then true when multi then exists (select 1 from unnest(ids, los, his) s(id, lo, hi) where s.id = l.id and l.rev > s.lo
+        and l.rev <= coalesce(s.hi, 2147483647))
+      else l.rev > los[array_position(ids, l.id)] and l.rev <= coalesce(his[array_position(ids, l.id)], 2147483647) end
     and (p_to is null or (l.id = p_id and l.rev = p_to)) and (p_to_at is null or l.at <= p_to_at)
   order by l.at desc, l.seq desc limit 1;
   if t.id is null then
@@ -208,6 +272,9 @@ begin
   elsif p_from_at is not null then
     select l.id, l.rev, l.at, l.op, l.class, l.data, l.links, l.tags, l.owner into f from @SCHEMA@.log l
     where l.id = any (ids) and l.op not in ('purge', 'trim', 'reset') and not (p_follow and l.op = 'delete' and l.moved is not null)
+      and case when whole then true when multi then exists (select 1 from unnest(ids, los, his) s(id, lo, hi) where s.id = l.id and l.rev > s.lo
+          and l.rev <= coalesce(s.hi, 2147483647))
+        else l.rev > los[array_position(ids, l.id)] and l.rev <= coalesce(his[array_position(ids, l.id)], 2147483647) end
       and l.at <= p_from_at
     order by l.at desc, l.seq desc limit 1;
     -- срез на момент: удалённого объекта тогда не было
@@ -215,6 +282,9 @@ begin
   else
     select l.id, l.rev, l.at, l.op, l.class, l.data, l.links, l.tags, l.owner into f from @SCHEMA@.log l
     where l.id = any (ids) and l.op not in ('purge', 'trim', 'reset') and not (p_follow and l.op = 'delete' and l.moved is not null)
+      and case when whole then true when multi then exists (select 1 from unnest(ids, los, his) s(id, lo, hi) where s.id = l.id and l.rev > s.lo
+          and l.rev <= coalesce(s.hi, 2147483647))
+        else l.rev > los[array_position(ids, l.id)] and l.rev <= coalesce(his[array_position(ids, l.id)], 2147483647) end
       and (l.at, l.seq) < (t.at, t.seq)
     order by l.at desc, l.seq desc limit 1;
     has_f := f.id is not null;
@@ -241,7 +311,9 @@ end $$;
 -- blame: для каждого листа версии (последней на момент p_at или текущей) — версия, которая последней его
 -- изменила, с автором, агентом, видом операции и причиной (ответ терминала blame()). Просматривается не
 -- больше p_limit последних версий, назад через смену id (первая версия нового id указывает на прежний
--- колонкой moved). Пропуск номера версии (прореживание, обрезка, невидимая версия) — выпавшая версия могла
+-- колонкой moved) — по отрезкам истории этого объекта (history_segments): объект, что жил на этом id до переноса
+-- или заведён на прежнем id после, — не его история; начало истории — первая версия самого раннего отрезка (у
+-- объекта без переносов — версия 1). Пропуск номера версии (прореживание, обрезка, невидимая версия) — выпавшая версия могла
 -- изменить лист и вернуть значение, поэтому лист точен (exact), только если от текущей версии до найденной
 -- пропусков нет; лист, не менявшийся в просмотренной истории, принадлежит самой старой просмотренной версии —
 -- exact, только если это версия 1 и пропусков нет вовсе. complete — история просмотрена целиком и без пропусков.
@@ -254,9 +326,12 @@ set search_path = pg_catalog, @SCHEMA@, pg_temp
 set jit = off
 as $$
 declare
-  ids uuid[] := array[p_id];
+  ids uuid[];
+  los int[];
+  his int[];
+  multi boolean;
+  whole boolean;
   t record;
-  prev uuid;
   lim int := greatest(coalesce(p_limit, 1000), 1);
   res jsonb;
 begin
@@ -264,12 +339,11 @@ begin
   where l.id = p_id and l.op not in ('purge', 'trim', 'reset') and (p_at is null or l.at <= p_at)
   order by l.rev desc limit 1;
   if t.id is null then return null; end if;
-  loop
-    select l.moved into prev from @SCHEMA@.log l
-    where l.id = ids[cardinality(ids)] and l.moved is not null and l.op in ('reclass', 'rekey') order by l.rev limit 1;
-    exit when prev is null or prev = any (ids);
-    ids := ids || prev;
-  end loop;
+  -- отрезки от самого раннего: ids[1], los[1] — начало истории объекта
+  select array_agg(s.id order by s.n), array_agg(s.lo order by s.n), array_agg(s.hi order by s.n) into ids, los, his
+  from (select g.id, g.lo, g.hi, min(g.n) as n from @SCHEMA@.history_segments(p_id, t.rev, true) g group by 1, 2, 3) s;
+  multi := cardinality(ids) > (select count(distinct x) from unnest(ids) x);
+  whole := cardinality(ids) = 1 and los[1] = 0 and his[1] is null;
   with v as (
     -- соседняя более старая версия — окном (lead), а не соединением CTE с собой: соединение шло бы вложенным
     -- циклом по квадрату числа версий
@@ -279,6 +353,9 @@ begin
            lead(l.owner) over o as o_owner, lead(l.class) over o as o_class
     from @SCHEMA@.log l
     where l.id = any (ids) and l.op not in ('purge', 'trim', 'reset') and not (l.op = 'delete' and l.moved is not null)
+      and case when whole then true when multi then exists (select 1 from unnest(ids, los, his) s(id, lo, hi) where s.id = l.id and l.rev > s.lo
+          and l.rev <= coalesce(s.hi, 2147483647))
+        else l.rev > los[array_position(ids, l.id)] and l.rev <= coalesce(his[array_position(ids, l.id)], 2147483647) end
       and (l.at, l.seq) <= (t.at, t.seq)
     window o as (order by l.at desc, l.seq desc)
     order by l.at desc, l.seq desc limit lim + 1
@@ -312,14 +389,15 @@ begin
     from leaves lv join ch on lv.path[1:cardinality(ch.path)] = ch.path or ch.path[1:cardinality(lv.path)] = lv.path
     group by lv.path
   ), oldest as (
-    select w.n, w.rev from w order by w.n desc limit 1
+    -- first — самая старая версия окна и есть начало истории объекта
+    select w.n, w.rev, w.id = ids[1] and w.rev = los[1] + 1 as first from w order by w.n desc limit 1
   ), cut as (
     select count(*) > lim as cut from v
   ), fields as (
     select lv.path,
       jsonb_build_object('path', to_jsonb(lv.path), 'rev', cv.rev, 'at', cv.at, 'author', cv.author, 'op', cv.op,
         'exact', case when h.n is not null then not exists (select 1 from gaps g where g.n <= h.n)
-                      else (select o.rev = 1 from oldest o) and not (select c.cut from cut c) and not exists (select 1 from gaps) end)
+                      else (select o.first from oldest o) and not (select c.cut from cut c) and not exists (select 1 from gaps) end)
       || case when cv.id <> p_id then jsonb_build_object('id', cv.id) else '{}'::jsonb end
       || case when cv.agent is not null then jsonb_build_object('agent', cv.agent) else '{}'::jsonb end
       || case when cv.reason is not null then jsonb_build_object('reason', cv.reason) else '{}'::jsonb end as obj
@@ -328,7 +406,7 @@ begin
     join w cv on cv.n = coalesce(h.n, (select o.n from oldest o))
   )
   select jsonb_build_object('id', p_id, 'class', t.class, 'rev', t.rev,
-           'complete', (select o.rev = 1 from oldest o) and not (select c.cut from cut c) and not exists (select 1 from gaps),
+           'complete', (select o.first from oldest o) and not (select c.cut from cut c) and not exists (select 1 from gaps),
            'fields', coalesce((select jsonb_agg(f.obj order by f.path) from fields f), '[]'::jsonb))
          || case when t.op = 'delete' then '{"deleted": true}'::jsonb else '{}'::jsonb end
   into res;
@@ -342,7 +420,7 @@ begin
     'jsonb_changes(jsonb, jsonb, text[])',
     'row_changes(jsonb, jsonb, text[], uuid, text, jsonb, jsonb, text[], uuid, text)',
     'change_paths(jsonb, jsonb, text[], uuid, text, jsonb, jsonb, text[], uuid, text)',
-    'row_leaves(jsonb, jsonb, text[], uuid, text)', 'version_paths(uuid[], int[])',
+    'row_leaves(jsonb, jsonb, text[], uuid, text)', 'version_paths(uuid[], int[])', 'history_segments(uuid, int, boolean)',
     'diff_versions(uuid, int, int, timestamptz, timestamptz, boolean)', 'blame(uuid, timestamptz, int)'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);
     execute format('revoke all on function @SCHEMA@.%s from public', f);
@@ -354,5 +432,5 @@ grant execute on function @SCHEMA@.jsonb_changes(jsonb, jsonb, text[]),
   @SCHEMA@.row_changes(jsonb, jsonb, text[], uuid, text, jsonb, jsonb, text[], uuid, text),
   @SCHEMA@.change_paths(jsonb, jsonb, text[], uuid, text, jsonb, jsonb, text[], uuid, text),
   @SCHEMA@.row_leaves(jsonb, jsonb, text[], uuid, text), @SCHEMA@.version_paths(uuid[], int[]),
-  @SCHEMA@.diff_versions(uuid, int, int, timestamptz, timestamptz, boolean),
+  @SCHEMA@.history_segments(uuid, int, boolean), @SCHEMA@.diff_versions(uuid, int, int, timestamptz, timestamptz, boolean),
   @SCHEMA@.blame(uuid, timestamptz, int) to @APP@;

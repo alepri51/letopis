@@ -53,9 +53,11 @@ as $$
       where r.class = any (p_classes) and r.at <= coalesce(p_at, 'infinity'::timestamptz)) c
   cross join lateral (
       select y.* from (select x.* from @SCHEMA@.log x where x.id = c.id offset 0) y
-      where y.class = any (p_classes) and y.at <= coalesce(p_at, 'infinity'::timestamptz)
+      where y.at <= coalesce(p_at, 'infinity'::timestamptz)
       order by y.rev desc limit 1) w
-  where @SCHEMA@.link_ids(w.links) @> array[p_src]
+  -- класс — у последней версии на момент, а не среди версий классов шага: после смены класса без смены id объект
+  -- не числится в прежнем классе (план 2.0, 7.1 №1)
+  where w.class = any (p_classes) and @SCHEMA@.link_ids(w.links) @> array[p_src]
 $$;
 
 -- id строк классов p_classes: по вложению в data (GIN entity_data), по целям концов (GIN entity_ends),
@@ -134,12 +136,16 @@ begin
   else
     -- арендатор id неизменен, записи purge и trim несут арендатора объекта: условие до distinct on не меняет, какая
     -- версия id последняя (индекс log_class_tenant_at)
+    -- кандидаты — по классу (индекс log_class_tenant_at), последняя версия id на момент — любого класса, и класс
+    -- проверяется у неё: иначе после смены класса без смены id объект числился бы в прежнем классе (план 2.0, 7.1 №1)
     return query select v.id, v.rev from (
-        select distinct on (l.id) l.id, l.rev, l.op, l.class, l.tenant, l.owner, l.tags, l.data, l.links
-        from @SCHEMA@.log l
-        where l.class = any (p_classes) and l.tenant = any (v_tenants) and l.at <= coalesce(p_at, 'infinity'::timestamptz)
-        order by l.id, l.rev desc) v
-      where (v.op = 'delete') = p_dead and v.op not in ('purge', 'trim', 'reset')
+        select distinct l.id from @SCHEMA@.log l
+        where l.class = any (p_classes) and l.tenant = any (v_tenants) and l.at <= coalesce(p_at, 'infinity'::timestamptz)) c
+      cross join lateral (
+        select y.id, y.rev, y.op, y.class, y.tenant, y.owner, y.tags, y.data, y.links
+        from @SCHEMA@.log y where y.id = c.id and y.at <= coalesce(p_at, 'infinity'::timestamptz)
+        order by y.rev desc limit 1) v
+      where v.class = any (p_classes) and (v.op = 'delete') = p_dead and v.op not in ('purge', 'trim', 'reset')
         and (p_data is null or v.data @> p_data) and (p_ends is null or @SCHEMA@.link_ids(v.links) @> p_ends)
         and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan);
     -- свои членства в других арендаторах: версии, ссылавшиеся на аккаунт (GIN log_ends)

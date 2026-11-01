@@ -20,7 +20,7 @@
 import { LetopisError } from './errors.js';
 import { isOp } from './ops.js';
 import type { ClassInfo, LeafType, Registry } from './registry.js';
-import { OP, type ChainMods, type Cursor, type Filter, type Op, type Row } from './types.js';
+import { OP, type ChainMods, type Cursor, type Filter, type Op, type Path, type Row } from './types.js';
 
 export interface Step {
   /** Имя, как вызвано в цепочке (класс, алиас или роль). */
@@ -64,7 +64,7 @@ export interface AggSpec {
 export interface BuiltQuery {
   text: string;
   params: unknown[];
-  /** Ключи шагов в путях (алиасы, повторы — _2, _3). */
+  /** Ключи шагов в путях (алиасы, повторы — _2, _3) в порядке шагов; ключ узла последнего шага — последний. */
   keys: string[];
   /** Тип листа агрегата (min/max числового поля приводятся к числу). */
   aggLeaf?: LeafType;
@@ -361,7 +361,7 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
       const id = idOfValue(value) ?? fail(`конец ${key}: ожидался id, строка ответа или null`);
       out.ends.push(id);
       const ph = p.push(id);
-      out.frags.push((a) => `@S@.role_has(${a}.links, array[${role}], ${ph}::uuid)`);
+      out.frags.push((a) => `${SCHEMA_MARK}.role_has(${a}.links, array[${role}], ${ph}::uuid)`);
       continue;
     }
     if (isOp(value)) {
@@ -501,17 +501,46 @@ function cursorParams(c: unknown, sort: SortSpec): { v: unknown; id: string } {
   return { v: value, id };
 }
 
+/** rev курсора: в versions() отделяет версии одного объекта с равным полем сортировки (план 2.0, 7.1 №4). */
+function cursorRev(c: Cursor): number | undefined {
+  const rev = (c as { rev?: unknown }).rev;
+  if (rev === undefined) return undefined;
+  if (!Number.isInteger(rev) || (rev as number) < 1) return fail(`after(cursor): rev курсора — номер версии (целое ≥ 1), а не ${shown(rev)}`);
+  return rev as number;
+}
+
+/** id узлов пути из курсора paths() по ключам узлов (план 2.0, 7.1 №3); курсор без path — undefined. */
+function cursorPath(c: Cursor, keys: string[]): string[] | undefined {
+  const path = (c as { path?: unknown }).path;
+  if (path === undefined) return undefined;
+  return keys.map((k) => {
+    const id = typeof path === 'object' && path !== null ? (path as Record<string, unknown>)[k] : undefined;
+    if (typeof id !== 'string' || !UUID_RE.test(id)) return fail(`after(cursor): в курсоре пути нет id узла ${k} — нужен cursorOf(путь, поле) из paths() этой же цепочки`);
+    return id;
+  });
+}
+
+const isPath = (x: Row | Path): x is Path => typeof (x as { id?: unknown }).id !== 'string'
+  && Object.values(x).length > 0 && Object.values(x).every((n) => typeof n === 'object' && n !== null && typeof (n as Row).id === 'string');
+
 /**
- * Курсор постраничного вывода для `after()`: `{ v, id }` — значение поля сортировки и id последней строки страницы.
- * Поле — то же, что в `sort()`; если его нет в данных строки, `v` — `null`.
+ * Курсор постраничного вывода для `after()`: значение поля сортировки, id и номер версии последней строки страницы.
+ * Поле — то же, что в `sort()`; если его нет в данных строки, `v` — `null`. Для пути из `paths()` — то же по его
+ * последнему узлу (узлу последнего шага) и id всех узлов: курсор отделяет пути с общим последним узлом.
  */
-export function cursorOf(row: Row, field: string): Cursor {
+export function cursorOf(row: Row | Path, field: string): Cursor {
+  if (isPath(row)) {
+    const keys = Object.keys(row);
+    const { v, id } = cursorOf(row[keys[keys.length - 1]], field);
+    return { v, id, path: Object.fromEntries(keys.map((k) => [k, row[k].id])) };
+  }
   const f = field === 'updated' ? 'at' : field;
-  if (f === 'at' || f === 'rev' || f === 'id') return { v: row[f], id: row.id };
+  const rev = typeof row.rev === 'number' ? { rev: row.rev } : {};
+  if (f === 'at' || f === 'rev' || f === 'id') return { v: row[f], id: row.id, ...rev };
   if (f.startsWith('data.')) {
     let v: unknown = row.data;
     for (const k of f.slice(5).split('.')) v = (v as Record<string, unknown> | undefined)?.[k];
-    return { v: (v ?? null) as Cursor['v'], id: row.id };
+    return { v: (v ?? null) as Cursor['v'], id: row.id, ...rev };
   }
   return fail(`cursorOf: поле 'at', 'rev', 'id' или 'data.<путь>', а не '${field}'`);
 }
@@ -519,6 +548,12 @@ export function cursorOf(row: Row, field: string): Cursor {
 // ---------------------------------------------------------------------------
 // Построение запроса
 // ---------------------------------------------------------------------------
+
+/**
+ * Метка схемы во фрагментах, собранных до имени схемы: символ NUL не бывает в тексте PostgreSQL, поэтому замена не
+ * заденет литералы — имя поля вида a@S@b прежде портилось (план 2.0, 7.1 №5).
+ */
+const SCHEMA_MARK = '\u0000S\u0000';
 
 const COLS = ['id', 'rev', 'class', 'tenant', 'owner', 'links', 'data', 'tags', 'at', 'author', 'agent', 'op', 'reason', 'moved'];
 /** Колонки журнала, выданные приложению: все, кроме changed (ревью №1 точки А плана 1.1, 10-core.sql). */
@@ -611,7 +646,8 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
         return `(select v.id, v.rev from ${S}.entity v where v.class = any (${clsPh})${dataCond('v')}${endsCond('v.ends')}`
           + `${ids ? ` and v.id = any (${ids})` : ''})`;
       }
-      return `(select v.id, v.rev from ${versionsAt(at, ids ? `l.id = any (${ids})` : `l.class = any (${clsPh})`)} v `
+      // по классу: id-кандидаты классов шага, последняя версия — любого класса (как find_ids, план 2.0, 7.1 №1)
+      return `(select v.id, v.rev from ${versionsAt(at, ids ? `l.id = any (${ids})` : `l.id in (select c.id from ${S}.log c where c.class = any (${clsPh}))`)} v `
         + `where v.class = any (${clsPh}) and (v.op = 'delete') = ${isDead} and v.op not in ('purge', 'trim', 'reset')${dataCond('v')}${endsCond(`${S}.link_ids(v.links)`)})`;
     };
     const entityPart = (src: string | undefined, depth = 'null::int', from = `${S}.entity x`) =>
@@ -732,30 +768,61 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
   const leaf = (path: string[]) => leafOf(reg, rowsNode(lastNode), path);
   const sort = mods.order ? sortSpec(mods.order, leaf) : undefined;
   const dir = mods.desc ? ' desc' : '';
-  const orderBy = (a: string) => (sort ? ` order by ${sort.expr(a)}${dir}, ${a}.id${dir}` : '');
-  const after = (a: string) => {
+  /** Порядок: поле sort, id строки и разделители равных (id прочих узлов пути). */
+  const orderBy = (a: string, more: string[] = []) => (sort ? ` order by ${[sort.expr(a), `${a}.id`, ...more].map((x) => `${x}${dir}`).join(', ')}` : '');
+  /**
+   * «Строго после курсора» в порядке order by: поле sort, id строки и разделители равных из курсора — rev версии
+   * (versions()) или id прочих узлов пути (paths()). Без них страница начиналась бы после всех строк с тем же полем
+   * и id: терялись бы другие версии объекта и другие пути к тому же узлу. Курсор без rev или path сравнивается по
+   * началу порядка, как прежде.
+   */
+  const after = (a: string, ties: (c: Cursor) => { col: string; val: unknown; cast: string }[] = () => []) => {
     if (!mods.after) return undefined;
     if (!sort) fail('after(cursor) требует sort(поле)');
     const c = cursorParams(mods.after, sort!);
-    if (!sort!.nullable) return `(${sort!.expr(a)}, ${a}.id) ${mods.desc ? '<' : '>'} (${p.push(c.v)}${sort!.pcast}, ${p.push(c.id)}::uuid)`;
+    const t = ties(mods.after);
+    const lt = mods.desc ? '<' : '>';
     // Поле данных бывает null (или его нет): order by ставит такие строки в конец при возрастании и в
     // начало при убывании, а сравнение строк с null даёт null — одно сравнение их теряло, курсор null
     // давал пустую страницу. Здесь null — значение после всех прочих (asc) или перед ними (desc); текст
     // один на оба вида курсора (параметр — с явным приведением: он стоит и в is null).
+    const v = `${p.push(c.v)}${sort!.nullable ? sort!.pcast || '::text' : sort!.pcast}`;
+    const cols = [`${a}.id`, ...t.map((x) => x.col)];
+    const vals = [`${p.push(c.id)}::uuid`, ...t.map((x) => `${p.push(x.val)}${x.cast}`)];
+    if (!sort!.nullable) return `(${sort!.expr(a)}, ${cols.join(', ')}) ${lt} (${v}, ${vals.join(', ')})`;
     const e = `(${sort!.expr(a)})`;
-    const v = `${p.push(c.v)}${sort!.pcast || '::text'}`;
-    const id = `${p.push(c.id)}::uuid`;
+    const rest = cols.length === 1 ? `${cols[0]} ${lt} ${vals[0]}` : `(${cols.join(', ')}) ${lt} (${vals.join(', ')})`;
     return mods.desc
-      ? `((${e}, ${a}.id) < (${v}, ${id}) or (${v} is null and (${e} is not null or ${a}.id < ${id})))`
-      : `((${e}, ${a}.id) > (${v}, ${id}) or (${e} is null and (${v} is not null or ${a}.id > ${id})))`;
+      ? `((${e}, ${cols.join(', ')}) < (${v}, ${vals.join(', ')}) or (${v} is null and (${e} is not null or ${rest})))`
+      : `((${e}, ${cols.join(', ')}) > (${v}, ${vals.join(', ')}) or (${e} is null and (${v} is not null or ${rest})))`;
   };
+  // ключи пути — в порядке шагов, узел последнего шага (его строки отдают rows()) — последним: по нему cursorOf(путь)
+  // берёт поле и id курсора, по прочим — разделители путей к одному узлу (план 2.0, 7.1 №3)
+  const others = keyed.filter((k) => k.node !== lastNode);
+  const pathKeys = [...others, ...keyed.filter((k) => k.node === lastNode)].map((k) => k.key);
   const limitOffset = () =>
     (mods.limit !== undefined ? ` limit ${p.push(mods.limit)}::bigint` : '') + (mods.offset !== undefined ? ` offset ${p.push(mods.offset)}::bigint` : '');
-  // versions({ follow: true }): id, связанные колонкой moved (reclass, rekey), в обе стороны
+  // versions({ follow: true }): отрезки истории объектов шага по переносам id (reclass, rekey) в обе стороны — версии
+  // id с номерами (lo, hi]. Надгробие переноса кончает отрезок, первая версия на новом id начинает: объект, заведённый
+  // на прежнем id после переноса, в историю не попадает (план 2.0, 7.1 №2). Тот же обход — history_segments в
+  // lib/sql/75-history.sql (diff и blame); здесь он в самом запросе, чтобы работал и на схеме до up() этой версии.
   if (mode === 'versions' && mods.follow) {
-    ctes.push(`f(id) as (select z.id from ${ents} z union select x.id from f cross join lateral (`
-      + `select l.moved as id from ${S}.log l where l.id = f.id and l.moved is not null `
-      + `union select l.id from ${S}.log l where l.moved = f.id) x)`);
+    // границы отрезка с версией r: строки переноса id — через парную строку по индексу log_moved (moved друг на друга),
+    // без прохода по версиям id
+    const bounds = (i: string, r: string) =>
+      `cross join lateral (select greatest(coalesce(max(x.rev) filter (where x.op = 'delete' and x.rev < ${r}), 0), `
+      + `coalesce(max(x.rev - 1) filter (where x.op <> 'delete' and x.rev <= ${r}), 0)) as lo, `
+      + `least(min(x.rev) filter (where x.op = 'delete' and x.rev >= ${r}), min(x.rev - 1) filter (where x.op <> 'delete' and x.rev > ${r})) as hi `
+      + `from ${S}.log m join ${S}.log x on x.moved = m.id and x.id = ${i} where m.moved = ${i}) b`;
+    ctes.push(`f(id, lo, hi, n) as (select z.id, b.lo, b.hi, 0 from ${ents} z ${bounds('z.id', 'z.rev')} `
+      + `union select g.id, b.lo, b.hi, g.n from f cross join lateral (`
+      + `select a.moved as id, (select t.rev from ${S}.log t where t.id = a.moved and t.op = 'delete' and t.moved = f.id `
+      + `order by abs(t.seq - a.seq) limit 1) as r, f.n - 1 as n from ${S}.log a `
+      + `where f.n <= 0 and a.id = f.id and a.rev = f.lo + 1 and a.moved is not null and a.op <> 'delete' `
+      + `union all select t.moved, (select a.rev from ${S}.log a where a.id = t.moved and a.op <> 'delete' and a.moved = f.id `
+      + `order by abs(a.seq - t.seq) limit 1), f.n + 1 from ${S}.log t `
+      + `where f.n >= 0 and t.id = f.id and t.rev = f.hi and t.op = 'delete' and t.moved is not null) g ${bounds('g.id', 'g.r')} `
+      + `where g.r is not null and abs(g.n) <= 1000)`);
   }
   const withClause = `with ${mode === 'versions' && mods.follow ? 'recursive ' : ''}${ctes.join(',\n')}\n`;
 
@@ -765,7 +832,12 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
     case 'paths': {
       const obj = keyed.map(({ key, node }) => `${lit(key)}::text, to_jsonb(h${node})`).join(', ');
       const h = `h${lastNode}`;
-      text = `${withClause}select jsonb_build_object(${obj}) as path ${from}${whereOf([...tail, after(h)])}${orderBy(h)}${limitOffset()}`;
+      const ties = (c: Cursor) => {
+        const ids = cursorPath(c, others.map((k) => k.key));
+        return ids ? others.map((k, j) => ({ col: `h${k.node}.id`, val: ids[j], cast: '::uuid' })) : [];
+      };
+      text = `${withClause}select jsonb_build_object(${obj}) as path ${from}${whereOf([...tail, after(h, ties)])}`
+        + `${orderBy(h, others.map((k) => `h${k.node}.id`))}${limitOffset()}`;
       break;
     }
     case 'rows':
@@ -782,11 +854,17 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
       // с sort — по полю и направлению (последние версии первыми — sort('at', 'desc'), с limit — в самом запросе);
       // без sort: с follow — по времени через все связанные id, без follow — по id и номеру версии
       const order = sort ? `${sort.expr('v')}${dir}, v.id${dir}, v.rev${dir}` : mods.follow ? 'v.at, v.id, v.rev' : 'v.id, v.rev';
+      // курсор — поле sort, id и номер версии: версии одного объекта с равным полем не теряются (план 2.0, 7.1 №4)
+      const cond = whereOf([after('v', (c) => {
+        const rev = cursorRev(c);
+        return rev === undefined ? [] : [{ col: 'v.rev', val: rev, cast: '::int' }];
+      })]);
       text = mods.follow
-        ? `${withClause}select to_jsonb(v) as row from (select ${colsOf('l')}, null::int as depth from ${S}.log l `
-          + `where l.id in (select f.id from f)) v order by ${order}${limitOffset()}`
+        ? `${withClause}select to_jsonb(v) as row from (select ${colsOf('l')}, null::int as depth from (select distinct f.id, f.lo, f.hi from f) s `
+          + `cross join lateral (select ${colsOf('l')} from ${S}.log l where l.id = s.id and l.rev > s.lo and l.rev <= coalesce(s.hi, 2147483647)) l) v`
+          + `${cond} order by ${order}${limitOffset()}`
         : `${withClause}select to_jsonb(v) as row from (select ${colsOf('l')}, null::int as depth from ${S}.log l `
-          + `where l.id in (select z.id from ${ents} z)) v order by ${order}${limitOffset()}`;
+          + `where l.id in (select z.id from ${ents} z)) v${cond} order by ${order}${limitOffset()}`;
       break;
     }
     case 'diff':
@@ -818,7 +896,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
       break;
     }
   }
-  return { text: text!.replaceAll('@S@', S), params: p.list, keys: keyed.map((k) => k.key), aggLeaf };
+  return { text: text!.replaceAll(SCHEMA_MARK, S), params: p.list, keys: pathKeys, aggLeaf };
 }
 
 /** Строка из to_jsonb(узла): служебные поля в $deleted / $depth, пустые необязательные — без ключа. */

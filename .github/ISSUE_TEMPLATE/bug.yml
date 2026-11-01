@@ -1,0 +1,54 @@
+name: Ошибка / Bug
+description: Библиотека ведёт себя не так, как обещает документация / The library does not behave as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо! Чем короче воспроизведение, тем быстрее исправление. Можно писать по-русски или по-английски.
+        Thank you! The shorter the reproduction, the faster the fix. Russian or English is fine.
+  - type: textarea
+    id: what
+    attributes:
+      label: Что случилось / What happened
+      description: Что вы сделали, что ожидали и что получили / What you did, what you expected and what you got
+    validations:
+      required: true
+  - type: textarea
+    id: chain
+    attributes:
+      label: Минимальная цепочка / Minimal chain
+      description: Модель класса и цепочка, которые воспроизводят ошибку / A class model and a chain that reproduce the bug
+      render: ts
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: Ошибка / Error
+      description: "`err.code`, текст и, если есть, `err.detail` / `err.code`, the message and `err.detail` if present"
+      render: text
+  - type: input
+    id: letopis
+    attributes:
+      label: Версия letopis / letopis version
+      placeholder: "1.4.2"
+    validations:
+      required: true
+  - type: input
+    id: postgres
+    attributes:
+      label: Версия PostgreSQL / PostgreSQL version
+      placeholder: "18.3"
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Версия Node / Node version
+      placeholder: "22.20"
+  - type: textarea
+    id: env
+    attributes:
+      label: Окружение / Environment
+      description: Где работает база (Docker, управляемый сервис, PGlite), пулер, режим сигналов / Where the database runs (Docker, a managed service, PGlite), a pooler, the signal mode

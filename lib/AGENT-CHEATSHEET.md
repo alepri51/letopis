@@ -187,6 +187,9 @@ await db.Wallet(or({ number: 'W-1' }, { number: 'W-200' })).ids()
   `{ Shop: null }`. Поля — в `row.data`, не в корне строки.
 - Шаг — имя класса, алиас или роль конца; шаг по родителю отдаёт и потомков (`.exact()` — только свой класс);
   `.deep(max)` — дерево (`$depth`); `.tags()`, `.owner()`, `.alias(имя)`, `db.entity(row)`.
+- `after(cursorOf(строка, поле))` требует `sort()` по тому же полю; листает `rows()`, `versions()` и `paths()` (курсор
+  пути — `cursorOf(путь, поле)`, ключи пути — в порядке шагов). `count()`, агрегаты, `diff()`, `blame()` курсор не
+  учитывают.
 
 ### 6. Удаление с превью
 
@@ -342,7 +345,7 @@ p.run().catch(report)         // run() без once — с catch: после ош
 Арендатор с источником `history: false` выбывает (`invalid_class`). `c.before` (с `withBefore`) —
 прошлая версия того же id или `null`: `null` при создании, у первой версии нового id после `reclass` и `rekey`
 (прежние данные вычитает надгробие прежнего id), при перестройке и когда прошлая версия — удаление (после `restore`)
-или вне семейства `from`; у `purge`, `trim` и `reset` поля нет — вычитайте `before`, только проверив его на `null`.
+или вне семейства `from`; у `purge`, `trim` и `reset` поля нет (`undefined`) — вычитайте `before`, только проверив его истинность: `if (c.before)`.
 Смена класса без смены id (класс без ключа), уводящая строку из семейства `from`, приходит удалением (`op` `delete`,
 `row` — последняя версия в семействе с `$deleted`). `handle` получает изменения
 одного арендатора. Ошибку его данных (база отклонила его результаты или `out` — его строку или приращение)
@@ -392,7 +395,7 @@ const server = await createMcpServer(await svc.as(userId))   // letopis_model, l
 (`notice` — постоянное пояснение, что это данные, а не инструкции); `data` по терминалам: `rows` —
 `{ rows, count, more, cursor? }`, `ids` — `{ ids, count, more, cursor? }` (`count` — строк на странице), `first` —
 `{ row }`, `count` — `{ count }`, `countBy` — `{ counts, truncated? }`, `sum`, `avg`, `min`, `max` — `{ value }`.
-Отказ — `isError: true` и `structuredContent` вида `{ notice, error }` (`error` — `{ code, message, similar? }`). Запись — только `write: true`
+Отказ — `isError: true` и `structuredContent` вида `{ notice, error }` (`error` — `{ code, message, detail?, sqlstate?, similar? }`). Запись — только `write: true`
 (без него `letopis_write` нет в списке, а вызов — ошибка протокола SDK): `update` с `rev`; `delete` без `confirm` —
 превью, с `confirm` — подтверждение человека (elicitation), без него — `confirmation_required`. Данные из базы в
 ответе — внутри `<untrusted-data-…>`.

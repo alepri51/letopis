@@ -123,7 +123,7 @@ const describeQuery = (o: Limits): string => [
   'Чтение JSON-цепочкой, без SQL. Старт: class (класс, алиас или роль) и filter, id или ids.',
   'steps — переходы по связям: [{ step: "Роль или Класс", filter? | id? | ids? }].',
   'Фильтр: { поле: значение } — равенство; вложенные поля — вложенным объектом; конец — { Роль: id };',
-  'операторы — { поле: { $gt: 5 } }: $ne, $gt, $gte, $lt, $lte, $between [a, b], $in [..], $like, $ilike, $starts, $ends, $has, $hasAny [..], $hasAll [..], $exists true|false, $isNull true, $not; ИЛИ — { $or: [фильтр, …] }.',
+  'операторы — { поле: { $gt: 5 } }: $ne, $gt, $gte, $lt, $lte, $between [a, b], $in [..], $like, $ilike, $starts, $ends (% и _ в значении $starts и $ends — шаблон LIKE, не экранируются), $has, $hasAny [..], $hasAll [..], $exists true|false, $isNull true, $not; ИЛИ — { $or: [фильтр, …] }.',
   'Модификаторы: asOf (момент ISO — срез на дату), withDeleted, sort { field: "at" | "rev" | "id" | "data.<путь>", dir }, limit, cursor (из прошлого ответа).',
   'terminal: rows (по умолчанию), first, ids, count, sum, avg, min, max, countBy — с field "data.<путь>".',
   `Ответ — не больше ${o.maxRows} строк и ${o.maxBytes} байт; дальше — cursor. Без sort строки идут по id. Только чтение.`,
@@ -547,7 +547,9 @@ async function query(db: Db, a: Args, o: Limits): Promise<CallToolResult> {
   const got = await chain.limit(want + 1).rows();
   const page = got.slice(0, fit(got.slice(0, want), o));
   const more = got.length > page.length;
-  const next = more && page.length ? encodeCursor({ f: field, d: dir, ...cursorOf(page[page.length - 1], field) }) : undefined;
+  const last = more && page.length ? cursorOf(page[page.length - 1], field) : undefined;
+  // курсор MCP — { f, d, v, id }: списки rows и ids листаются без rev (он разводит только версии)
+  const next = last ? encodeCursor({ f: field, d: dir, v: last.v, id: last.id }) : undefined;
   const body = terminal === 'ids' ? { ids: page.map((r) => r.id) } : { rows: page };
   return ok({ ...body, count: page.length, more, ...(next ? { cursor: next } : {}) });
 }

@@ -24,6 +24,7 @@
  */
 import type postgres from 'postgres';
 import { LetopisError, fromDbError } from './errors.js';
+import { release, rollbackAfter } from './tx.js';
 import { toRow } from './sql.js';
 import { wakes } from './watch.js';
 import { schemaRevision, SYSTEM_ID } from './up.js';
@@ -226,6 +227,12 @@ interface Meta {
   since?: Record<string, string>;
   /** Классы from при последнем сдвиге — их читает purge базы. */
   from?: string[];
+  /**
+   * Участники, чьи данные уже в проекции (полная перестройка, начатая перестройка арендатора). Участник не из списка
+   * — вступивший после проекции: ему начальная перестройка пачками (план 2.0, 7.4 №5). Нет поля (чекпоинт до 1.4.2) —
+   * известен нынешний состав.
+   */
+  tenants?: string[];
 }
 
 const enc = (p: Pos): string => `${p.tx}:${p.seq}${p.snap ? `~${p.snap}` : ''}`;
@@ -442,6 +449,10 @@ export class Projector {
   /** Источники арендатора без журнала (history: false): их изменений проектор не увидит — арендатор выбывает. */
   private blind = new Map<string, string[]>();
   private stale = true;
+  /** Когда состав читался в последний раз: без LISTEN сигнала о новых классах нет (план 2.0, 7.4 №6). */
+  private resolvedAt = 0;
+  /** Участники, которых чекпоинт ещё не знает: им начальная перестройка пачками (tenantWork). */
+  private newcomers: string[] = [];
   /** В чекпоинте есть начатая перестройка арендатора пачками (по последней пачке; до первой — проверить). */
   private tenantsPending = true;
   private running = false;
@@ -455,6 +466,14 @@ export class Projector {
   /** Проходов подряд, в которых запись арендатора упиралась в lockTimeout (lockRetries). */
   private readonly lockHits = new Map<string, number>();
   private readonly only: ReadonlySet<string> | null;
+
+  /**
+   * Перечитать состав: по сигналу классов, а без LISTEN (сигналов нет) — не реже раза в 5 с, как реестр подключения в
+   * режиме none, и в начале run() (план 2.0, 7.4 №6): иначе арендатор, вступивший после запуска, не участвовал бы.
+   */
+  private due(): boolean {
+    return this.stale || (!this.env.onSignal && Date.now() - this.resolvedAt >= 5000);
+  }
 
   constructor(readonly env: ProjectorEnv, name: string, private def: ProjectorOptions) {
     if (typeof name !== 'string' || !NAME.test(name)) {
@@ -497,6 +516,7 @@ export class Projector {
     if (this.running) throw new LetopisError('invalid_query', `проектор ${this.name} уже запущен в этом процессе`);
     this.running = true;
     this.stopped = false;
+    if (!this.env.onSignal) this.stale = true;
     const rep = emptyReport();
     try {
       for (;;) {
@@ -585,7 +605,7 @@ export class Projector {
 
   async status(): Promise<ProjectorStatus> {
     return this.tx(async (q) => {
-      if (this.stale) await this.resolve(q);
+      if (this.due()) await this.resolve(q);
       const [r] = await q.unsafe(`select s.meta from ${this.env.S}.secret s
         where s.kind = 'PROJECTOR' and s.ident = $1 and s.account = $2::uuid and s.deleted_at is null`, [this.name, SYSTEM_ID]);
       const meta = (r?.meta ?? {}) as Meta;
@@ -630,6 +650,7 @@ export class Projector {
   /** Транзакция под ролью владельца на отдельном соединении пула. */
   private async tx<T>(fn: (q: Conn) => Promise<T>): Promise<T> {
     const q = await this.env.sql.reserve();
+    let failure: unknown = null;
     try {
       await q.unsafe('begin isolation level read committed');
       await q.unsafe(`set local role ${ident(this.env.ownerRole)}`);
@@ -641,10 +662,12 @@ export class Projector {
       await q.unsafe('commit');
       return out;
     } catch (e) {
-      await q.unsafe('rollback').catch(() => {});
+      // обрыв: rollback и возврат мёртвого соединения в пул роняли процесс (план 2.0, 7.4 №7)
+      failure = e;
+      await rollbackAfter(q, e);
       throw fromDbError(e);
     } finally {
-      q.release();
+      release(q, failure);
     }
   }
 
@@ -743,6 +766,7 @@ export class Projector {
     this.scopes = scopes;
     this.tenants = tenants;
     this.stale = false;
+    this.resolvedAt = Date.now();
   }
 
   /** Одна пачка журнала. */
@@ -752,11 +776,16 @@ export class Projector {
         rep.skipped++;
         return 'busy';
       }
-      if (this.stale) await this.resolve(q);
+      if (this.due()) await this.resolve(q);
       const meta = await this.state(q);
       if (!meta.cursor || meta.state === 'rebuilding') return 'rebuild';
       if (meta.version !== this.def.version) throw this.versionError(meta);
       this.tenantsPending = Object.values(meta.retenant ?? {}).some((v) => !v.done);
+      // участники, которых чекпоинт не знает (вступили после проекции): начальную перестройку пачками начнёт tenantWork,
+      // их изменения до неё учтёт она же (план 2.0, 7.4 №5)
+      const known = new Set(meta.tenants ?? this.tenants);
+      this.newcomers = this.tenants.filter((x) => !known.has(x) && !meta.failed?.[x] && !meta.retenant?.[x]);
+      if (this.newcomers.length) this.tenantsPending = true;
       const cur = dec(meta.cursor);
       const rows = await q.unsafe(`select l.tx::text as tx, l.seq::text as seq, ${rowJson('l')} as row
         from ${this.env.S}.watch_read($1::text::xid8, $2::bigint, null, $3::text[], $4::int, $5::text::pg_snapshot, true) l`,
@@ -789,6 +818,7 @@ export class Projector {
         const snap = keepSnap(cur.snap, r.tx as string);
         pos = { tx: r.tx as string, seq: r.seq as string, ...(snap ? { snap } : {}) };
         const row = toRow(r.row as Record<string, unknown>);
+        if (this.newcomers.includes(row.tenant)) continue;
         const leaves = this.leaves(row, failed);
         if (!leaves && !this.ours(row, failed)) continue;
         if (meta.chunks && seen(meta.chunks, row.id, pos.tx)) continue;
@@ -810,7 +840,8 @@ export class Projector {
         await this.apply(q, changes, rep, failed);
       }
       const caught = rows.length < this.batch;
-      const next: Meta = withFailed({ ...meta, cursor: enc(pos) }, failed);
+      // состав — известные нынешние участники: выбывший из участников, вернувшись, снова новичок
+      const next: Meta = withFailed({ ...meta, cursor: enc(pos), tenants: this.tenants.filter((x) => known.has(x)) }, failed);
       if (!rows.length) {
         // пусто: отметить время прохода, но не чаще раза в минуту — иначе каждый опрос писал бы чекпоинт
         if (meta.at && Date.now() - Date.parse(meta.at) < 60_000) return 'empty';
@@ -1075,7 +1106,8 @@ export class Projector {
       for (const x of this.blind.keys()) failed[x].cursor = enc(head!);
       // выбывший посреди перестройки — без производных строк: прежние пачки построили их лишь частично
       if (Object.keys(failed).length) await this.clear(q, Object.keys(failed));
-      await this.advance(q, meta.cursor, withFailed({ cursor: enc(head!), at: await this.now(q), version: this.def.version, state: 'running' }, failed));
+      await this.advance(q, meta.cursor, withFailed({ cursor: enc(head!), at: await this.now(q), version: this.def.version, state: 'running',
+        tenants: [...this.tenants] }, failed));
       rep.rebuilds++;
     });
   }
@@ -1112,7 +1144,7 @@ export class Projector {
     for (;;) {
       const r = await this.tx(async (q): Promise<'busy' | 'done' | 'more'> => {
         if (!(await this.lock(q))) return busy();
-        if (this.stale) await this.resolve(q);
+        if (this.due()) await this.resolve(q);
         const meta = await this.state(q);
         const rb = meta.rebuild;
         if (meta.state !== 'rebuilding' || !rb) return 'done';
@@ -1128,7 +1160,7 @@ export class Projector {
         const real = rows.filter((r) => r.row);
         if (!real.length) {
           await this.advance(q, meta.cursor, withFailed({ cursor: rb.start, at: await this.now(q), version: this.def.version, state: 'running',
-            chunks: [...rb.chunks, { upto: LAST_ID, snap: rows[0].snap as string }] }, failed));
+            chunks: [...rb.chunks, { upto: LAST_ID, snap: rows[0].snap as string }], tenants: [...this.tenants] }, failed));
           rep.rebuilds++;
           return 'done';
         }
@@ -1246,7 +1278,7 @@ export class Projector {
         const resync = { ...(meta.resync ?? {}) };
         delete resync[tenant];
         const next: Meta = { ...meta, retenant: { ...(meta.retenant ?? {}), [tenant]: { last: null, chunks: [] } },
-          since: { ...(meta.since ?? {}), [tenant]: now }, resync };
+          since: { ...(meta.since ?? {}), [tenant]: now }, resync, tenants: [...new Set([...(meta.tenants ?? this.tenants), tenant])] };
         if (!Object.keys(resync).length) delete next.resync;
         await this.advance(q, meta.cursor, withFailed(next, failed));
         return 'ok';
@@ -1273,7 +1305,7 @@ export class Projector {
         rep.skipped++;
         return 'busy';
       }
-      if (this.stale) await this.resolve(q);
+      if (this.due()) await this.resolve(q);
       const meta = await this.state(q);
       const rt = meta.retenant?.[tenant];
       if (!rt || rt.done || meta.failed?.[tenant] || meta.state === 'rebuilding') return 'done';
@@ -1325,13 +1357,17 @@ export class Projector {
     const meta = await this.tx(async (q) => this.state(q));
     if (!meta.cursor || meta.state === 'rebuilding' || meta.version !== this.def.version) return false;
     let more = false;
+    // новые участники — начальная перестройка пачками и без onExpired (план 2.0, 7.4 №5)
+    const newcomers = this.newcomers;
+    this.newcomers = [];
+    for (const t of newcomers) if ((await this.startTenant(rep, t, true)) === 'ok') more = true;
     if (start) {
       for (const [t, f] of Object.entries(meta.failed ?? {})) {
         if (f.code !== 'cursor_expired' || this.blind.has(t) || !this.scopes.has(t)) continue;
         if ((await this.startTenant(rep, t, true)) === 'ok') more = true;
       }
     }
-    const fresh = start ? await this.tx(async (q) => this.state(q)) : meta;
+    const fresh = start || newcomers.length ? await this.tx(async (q) => this.state(q)) : meta;
     for (const [t, v] of Object.entries(fresh.retenant ?? {})) {
       if (v.done) continue;
       if ((await this.tenantChunk(rep, t)) === 'more') more = true;

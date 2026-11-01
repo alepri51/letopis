@@ -80,10 +80,14 @@ export interface WatchCtx {
   exec: Executor;
   /** Классы подписки с потомками (null — все). */
   classes: string[] | null;
+  /** Классы с потомками заново — по текущему реестру: потомки, заведённые после watch(), тоже в подписке (план 2.0, 7.4 №2). */
+  classesOf?: () => string[] | null;
   /** Подписка на сигналы базы (разобранные); возвращает отписку. */
   onSignal?: (fn: (s: Signal) => void) => () => void;
   /** Токен арендатора подписки (null — процесс без ключа или режим без токенов). */
   tenant?: () => string | null;
+  /** Подписка закрылась: подключение перестаёт её учитывать (план 2.0, 7.4 №8). */
+  onClose?: (s: Subscription) => void;
 }
 
 /**
@@ -116,6 +120,14 @@ export class Subscription implements AsyncIterable<WatchEvent> {
   private closed = false;
   private wake: (() => void) | null = null;
   private dirty = true;
+  /** Пришёл сигнал: пустой ответ — ещё не горизонт, нужны короткие повторы. Таймер их не запускает (план 2.0, 7.4 №1). */
+  private burst = false;
+  /**
+   * from: 'start' — пока подписка не догнала журнал, свои чтения она шлёт без времени курсора: весь журнал, без
+   * cursor_expired на старых событиях (план 2.0, 7.4 №3). Курсоры событий и sub.cursor время хранят: продолжение с них
+   * после прореживания — cursor_expired, как обещано.
+   */
+  private catchingUp = false;
   private off: (() => void) | null = null;
   private timer: NodeJS.Timeout | null = null;
   private failure: unknown = null;
@@ -130,17 +142,21 @@ export class Subscription implements AsyncIterable<WatchEvent> {
     this.batch = opts.batch ?? 500;
     this.pollMs = opts.pollMs ?? 1000;
     const from = opts.from ?? 'now';
-    if (from === 'start') this.pos = { tx: '0', seq: '0', at: null };
+    if (from === 'start') {
+      this.pos = { tx: '0', seq: '0', at: null };
+      this.catchingUp = true;
+    }
     else if (from !== 'now') this.pos = decode(from);
     else {
       this.start = this.head();
       this.start.catch(() => {});
     }
     if (ctx.onSignal) {
-      const watched = ctx.classes ? new Set(ctx.classes) : null;
       this.off = ctx.onSignal((s) => {
-        if (!wakes(s, watched, ctx.tenant?.() ?? null)) return;
+        const cls = ctx.classesOf?.() ?? ctx.classes;
+        if (!wakes(s, cls ? new Set(cls) : null, ctx.tenant?.() ?? null)) return;
         this.dirty = true;
+        this.burst = true;
         this.wake?.();
       });
     }
@@ -205,7 +221,7 @@ export class Subscription implements AsyncIterable<WatchEvent> {
          and l.tx >= pg_snapshot_xmin(pg_current_snapshot()) and ($4::text[] is null or l.class = any ($4::text[]))
          and ($6::text::pg_snapshot is null or not pg_visible_in_snapshot(l.tx, $6::text::pg_snapshot))
        having (select count(*) from r) < $5`,
-      [p.tx, p.seq, p.at, this.ctx.classes, this.batch, p.snap ?? null] as never[]) as unknown as Promise<(R & { src: number })[]>, { read: true });
+      [p.tx, p.seq, this.catchingUp ? null : p.at, this.ctx.classesOf?.() ?? this.ctx.classes, this.batch, p.snap ?? null] as never[]) as unknown as Promise<(R & { src: number })[]>, { read: true });
     const before = (a: R, b: R) => BigInt(a.tx) < BigInt(b.tx) || (a.tx === b.tx && BigInt(a.seq) < BigInt(b.seq));
     const order = (a: R, b: R) => (before(a, b) ? -1 : before(b, a) ? 1 : 0);
     const read = both.filter((r) => r.src === 0).sort(order);
@@ -231,7 +247,10 @@ export class Subscription implements AsyncIterable<WatchEvent> {
     }
     // догнала журнал — время курсора подписки (sub.cursor) обновляется и на пустых опросах: прореживать после него нечего,
     // и подписка, к которой долго не было событий, не получает ложный cursor_expired. Курсоры событий хранят время события
-    if (caught && away.length < this.batch) this.pos = { ...(this.pos ?? p), at: String((caught.row as { at: string }).at) };
+    if (caught && away.length < this.batch) {
+      this.pos = { ...(this.pos ?? p), at: String((caught.row as { at: string }).at) };
+      this.catchingUp = false;
+    }
     return rows.length;
   }
 
@@ -267,12 +286,15 @@ export class Subscription implements AsyncIterable<WatchEvent> {
           this.close();
           throw e;
         }
-        // сигнал был, а событий ниже горизонта ещё нет: короткие повторы, затем — запасной опрос
-        if (++empty < 40) {
+        // сигнал был, а событий ниже горизонта ещё нет: короткие повторы, затем — запасной опрос. Опрос по таймеру —
+        // один запрос: серия повторов на каждый тик давала около 4 запросов в секунду на молчащую подписку (план 2.0,
+        // 7.4 №1)
+        if (this.burst && ++empty < 40) {
           await sleep(Math.min(25 * empty, 250));
           continue;
         }
         this.dirty = false;
+        this.burst = false;
         empty = 0;
       }
       await new Promise<void>((r) => {
@@ -302,6 +324,7 @@ export class Subscription implements AsyncIterable<WatchEvent> {
     if (this.closed) return;
     this.closed = true;
     this.off?.();
+    this.ctx.onClose?.(this);
     if (this.timer) clearInterval(this.timer);
     this.wake?.();
   }

@@ -75,9 +75,12 @@ export async function createApp() {
   const admin = postgres(ENV.admin, { max: 2, onnotice: () => {} });
   const r = await up({ dsn: ENV.admin, schema: ENV.schema, upgrade: true, serviceKey: ENV.serviceKey, quiet: true });
   const appUrl = new URL(ENV.app);
-  await admin.unsafe(`do $$ begin if not exists (select 1 from pg_roles where rolname = '${appUrl.username}') then
-    create role ${appUrl.username} login password '${decodeURIComponent(appUrl.password)}'; end if; end $$`);
-  await admin.unsafe(`grant letopis_app to ${appUrl.username}`);
+  // роль приложения — имя и пароль квотируются, а не склеиваются в SQL: пароль с ' не ломает запуск (план 2.0, 7.6 №7)
+  const appUser = decodeURIComponent(appUrl.username);
+  const ident = (v) => `"${v.replace(/"/g, '""')}"`;
+  const [{ known }] = await admin`select exists (select 1 from pg_roles where rolname = ${appUser}) as known`;
+  if (!known) await admin.unsafe(`create role ${ident(appUser)} login password '${decodeURIComponent(appUrl.password).replace(/'/g, "''")}'`);
+  await admin.unsafe(`grant letopis_app to ${ident(appUser)}`);
   // журнал «под капотом»: запросы к базе, записанные версии и сигналы текущего действия
   const trace = await createTrace({ admin, schema: r.schema, size: 12 });
   const svc = await connect({ dsn: ENV.app, schema: r.schema, apiKey: ENV.serviceKey, onQuery: trace.onQuery });

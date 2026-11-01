@@ -12,7 +12,7 @@ import { LetopisError, fromDbError, removed } from './errors.js';
 import { Registry } from './registry.js';
 import { AclPasses, ExplicitTx, Notifier, poolExecutor, runTx, type Executor, type Tx, type TxContext } from './tx.js';
 import { checkReason } from './write.js';
-import { registerDb } from './internal.js';
+import { limits, registerDb } from './internal.js';
 import { makeAuth, type AuthApi } from './auth.js';
 import { makeAcl, type AclApi } from './acl.js';
 import { idOf as idOfClass } from './uuid.js';
@@ -197,8 +197,7 @@ export interface DbCore {
    * `auth.impersonate`.
    */
   as(account: string | { id: string } | null, opts?: { owner?: string; tenant?: string }): Promise<Db>;
-  /** Явная транзакция `read committed`: те же цепочки, `commit()`, `rollback()`, `lock()`, `forUpdate()`. */
-  /** Явная транзакция; `reason` — причина изменения для всех операций блока (план 1.1). */
+  /** Явная транзакция `read committed`: те же цепочки, `commit()`, `rollback()`, `lock()`, `forUpdate()`; `reason` — причина изменения для всех операций блока (план 1.1). */
   begin(opts?: { reason?: string }): Promise<DbTx>;
   /**
    * Массовая загрузка строк любых классов одной транзакцией (или порциями `commitEvery`) — быстрее записи цепочками.
@@ -265,6 +264,8 @@ interface Shared {
   /** Реестр классов арендатора (System + арендатор), загруженный контекстом txc. */
   /** Реестр арендатора для db.as(); null — контекст уже не в этом арендаторе (реестр не загружен и не кэширован). */
   registryFor: (tenant: string, txc: TxContext) => Promise<Registry | null>;
+  /** Реестр фасада db.as() при каждом обращении: вытесненный возвращается в карту и перечитывается (план 2.0, 7.4 №8). */
+  registryOf: (tenant: string, registry: Registry, txc: TxContext) => Registry;
   refresh: () => Promise<void>;
   onQuery?: (e: QueryEvent) => void;
   slowMs?: number;
@@ -281,6 +282,9 @@ interface Shared {
   signals: Set<(s: Signal) => void>;
   /** LISTEN включён. */
   listen: boolean;
+  /** Живые подписки подключения: close() закрывает их (план 2.0, 7.4 №8). */
+  subs: Set<Subscription>;
+  track(s: Subscription): Subscription;
   close: () => Promise<void>;
 }
 
@@ -338,13 +342,22 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
       if (typeof o === 'function' || typeof o === 'string') throw removed('watch(cb) и watch(класс, cb)', 'watch({ from }) — подписка по курсору');
       const reg = scope.registry();
       const classes = o.classes ? [...new Set(o.classes.flatMap((c) => reg.family(c).map((x) => x.name)))] : null;
-      return new Subscription({
-        S: sh.S, exec: poolExecutor(txc), classes,
+      return sh.track(new Subscription({
+        S: sh.S, exec: poolExecutor(txc), classes, onClose: (s) => void sh.subs.delete(s),
+        // не бросает: класс удалили — список, снятый при watch(); иначе ошибка в общем разборе сигналов остановила бы
+        // доставку другим подписчикам
+        ...(o.classes ? { classesOf: () => {
+          try {
+            return [...new Set(o.classes!.flatMap((c) => scope.registry().family(c).map((x) => x.name)))];
+          } catch {
+            return classes;
+          }
+        } } : {}),
         ...(sh.listen ? {
           onSignal: (fn: (s: Signal) => void) => { sh.signals.add(fn); return () => void sh.signals.delete(fn); },
           tenant: () => (sh.allTenants ? null : sh.sig.tenantToken(scope.tenant())),
         } : {}),
-      }, o);
+      }, o));
     },
     cache: {
       clear: () => sh.cache?.clear(),
@@ -367,7 +380,7 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
       for (let attempt = 1; ; attempt++) {
         const tenant = r.tenant as string;
         const registry = await sh.registryFor(tenant, scoped);
-        if (registry) return makeDb(sh, { txc: scoped, tenant: () => tenant, registry: () => registry, root: false }, poolExecutor(scoped), nextOwner);
+        if (registry) return makeDb(sh, { txc: scoped, tenant: () => tenant, registry: () => sh.registryOf(tenant, registry, scoped), root: false }, poolExecutor(scoped), nextOwner);
         if (attempt === 3) throw new LetopisError('no_session', 'db.as(): контекст сессии меняется — реестр арендатора не загружен');
         [r] = await runTx(scoped, (q) => q.unsafe(`select account, tenant from ${sh.S}.ctx()`), { read: true });
         if (!r?.account) throw new LetopisError('no_session', 'db.as(): нет действующей сессии');
@@ -450,6 +463,9 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
   const owner = opts.owner ?? 'letopis_owner';
   try {
     // роль, которая обходит RLS, видела бы данные всех арендаторов (§2.9)
+    // роли владельца нет (опечатка в owner) — понятная ошибка, а не сырая 42704 PostgreSQL (план 2.0, 7.5 №3)
+    const [known] = await sql`select exists (select 1 from pg_roles where rolname = ${owner}) as ok`;
+    if (!known.ok) throw new LetopisError('invalid_data', `connect: роли владельца ${owner} в базе нет — проверьте опцию owner (по умолчанию letopis_owner)`);
     const [role] = await sql`select r.rolsuper, r.rolbypassrls,
         pg_has_role(current_user, ${owner}, 'USAGE') as inherits, pg_has_role(current_user, ${owner}, 'SET') as can_set
       from pg_roles r where r.rolname = current_user`;
@@ -512,8 +528,17 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
       if (String(t?.t ?? '').toLowerCase() !== tenant.toLowerCase()) return null;
       return q.unsafe(`select tenant, rev, data from ${S}.entity where class = 'Class' and tenant in (${S}.ctx_tenant(), '${SYSTEM_ID}')`);
     }, { read: true });
-    // реестры db.as() — общие на арендатора; txc — контекст последнего успешного as() этого арендатора
+    // реестры db.as() — общие на арендатора; txc — контекст последнего успешного as() этого арендатора. Порядок карты —
+    // давность обращения: сверх limits.asRegistries вытесняется самый давний (план 2.0, 7.4 №8 — иначе процесс,
+    // который ходит от имени многих арендаторов, копил бы реестры и перечитывал их все на каждый сигнал классов)
     const others = new Map<string, { registry: Registry; txc: TxContext }>();
+    let latest: string | null = null;
+    const keep = (tenant: string, entry: { registry: Registry; txc: TxContext }) => {
+      latest = tenant;
+      others.delete(tenant);
+      others.set(tenant, entry);
+      while (others.size > Math.max(1, limits.asRegistries)) others.delete(others.keys().next().value as string);
+    };
     const loading = new Map<string, Promise<Registry | null>>();
     // токены классов (режим opaque) — по именам всех реестров подключения
     const tokens = () => sig.setClasses([root.registry, ...[...others.values()].map((o) => o.registry)].flatMap((r) => r.all().map((c) => c.name)));
@@ -537,7 +562,7 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
     const registryFor = async (tenant: string, txc: TxContext): Promise<Registry | null> => {
       const known = others.get(tenant);
       if (known) {
-        known.txc = txc;
+        keep(tenant, { registry: known.registry, txc });
         return known.registry;
       }
       // одновременные as() нового арендатора получают один реестр
@@ -548,13 +573,25 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
           if (!rows) return null;
           const registry = new Registry();
           registry.load(rows as never);
-          others.set(tenant, { registry, txc });
+          keep(tenant, { registry, txc });
           tokens();
           return registry;
         })().finally(() => loading.delete(tenant));
         loading.set(tenant, pending);
       }
       return pending;
+    };
+    // фасад db.as() берёт реестр через карту: свежий реестр арендатора, если его перечитал другой as(); вытесненный —
+    // обратно в карту (его снова обновляют сигналы) и перечитать фоном: пока он был вне карты, сигналы его не трогали
+    const registryOf = (tenant: string, registry: Registry, txc: TxContext): Registry => {
+      const cur = others.get(tenant);
+      if (cur) {
+        if (latest !== tenant) keep(tenant, cur);
+        return cur.registry;
+      }
+      keep(tenant, { registry, txc });
+      void loadClasses(txc, tenant).then((rows) => { if (rows) registry.load(rows as never); }).catch(() => {}).finally(tokens);
+      return registry;
     };
     // ключ сигналов (режимы tenant и opaque) — сессии с правом letopis.signals; без права процесс
     // работает без ключа: арендатора (а в opaque — и класса) в сигнале не различает
@@ -650,8 +687,9 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
       stamper.unref?.();
     }
     let stopMaintain: (() => Promise<void>) | null = null;
+    const subs = new Set<Subscription>();
     const shared: Shared = {
-      sql, schema: opts.schema, S, notifier, passes, root, registryFor, refresh, onQuery: opts.onQuery, slowMs: opts.slowMs,
+      sql, schema: opts.schema, S, notifier, passes, root, registryFor, registryOf, refresh, onQuery: opts.onQuery, slowMs: opts.slowMs,
       admin: Boolean(bypass && (role.rolsuper || role.can_set)),
       ownerRole: owner,
       cache,
@@ -659,7 +697,15 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
       allTenants: Boolean(bypass),
       signals,
       listen,
+      subs,
+      track: (s) => {
+        subs.add(s);
+        return s;
+      },
       async close() {
+        // живые подписки закрываются: иначе с чужим пулом (connect({ sql })) они опрашивали бы журнал и после close()
+        // (план 2.0, 7.4 №8)
+        for (const s of [...subs]) s.close();
         // идущий maintain() по расписанию доделывает пачку: пул закрывается после неё, а не посреди транзакции
         await stopMaintain?.();
         resync.stop();

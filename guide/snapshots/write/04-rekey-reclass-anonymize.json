@@ -1048,6 +1048,7 @@
       "secret": [],
       "counts": null,
       "signals": [
+        "Customer",
         "Vip"
       ]
     },

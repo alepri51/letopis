@@ -184,6 +184,9 @@ export type InferLinks<M> = M extends Model<string, unknown, infer L> ? L : neve
 
 const NAME = /^[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё0-9_]{0,62}$/;
 
+/** Ключи полной формы описания класса (ClassDef). */
+const DEF_KEYS = new Set(['alias', 'extends', 'abstract', 'ends', 'fields', 'key', 'onDelete', 'history', 'ownerDefault', 'cache', 'meta', 'derivedBy', 'aggregate']);
+
 function isZod(v: unknown): v is z.ZodType {
   return typeof v === 'object' && v !== null && '_zod' in v;
 }
@@ -207,7 +210,11 @@ function makeModel<N extends string>(kind: 'hub' | 'link', name: N, defArg: unkn
   if (!NAME.test(name)) throw new LetopisError('invalid_class', `имя класса ${name} недопустимо`);
   // короткая форма: hub(name, { поле: z…, … }, { key, meta, … })
   let def: ClassDef<z.ZodRawShape, EndsInput, AnyModel | undefined>;
-  const isShape = defArg && typeof defArg === 'object' && Object.values(defArg).length > 0 && Object.values(defArg).every(isZod);
+  // { fields: z.object(…) } без других ключей описания — полная форма, а не класс с единственным полем fields (план 2.0,
+  // 7.5 №2); короткая форма — все значения Zod и хотя бы один ключ вне описания класса
+  const fullForm = !!defArg && typeof defArg === 'object' && (defArg as { fields?: unknown }).fields instanceof z.ZodObject
+    && Object.keys(defArg).every((k) => DEF_KEYS.has(k));
+  const isShape = !fullForm && defArg && typeof defArg === 'object' && Object.values(defArg).length > 0 && Object.values(defArg).every(isZod);
   if (optsArg !== undefined || isShape) {
     def = { ...(optsArg as object), fields: (defArg ?? {}) as z.ZodRawShape };
   } else {

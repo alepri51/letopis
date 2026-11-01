@@ -125,7 +125,8 @@ export interface ChainCore {
   /**
    * Постраничный вывод по курсору: ответ начинается строго после строки, на которой кончилась прошлая страница, в
    * порядке `sort()` (без `sort()` — ошибка `invalid_query`). Курсор этой строки даёт `cursorOf(строка, поле)` с тем же
-   * полем, что в `sort()`.
+   * полем, что в `sort()`. Листает `rows()`, `ids()`, `versions()` и `paths()` (курсор пути — `cursorOf(путь, поле)`);
+   * `count()`, агрегаты, `diff()` и `blame()` курсор не учитывают.
    */
   after(cursor: Cursor): Chain;
   /**
@@ -436,7 +437,11 @@ const rowOf = (r: { row: Record<string, unknown>; done?: true }): Row => (r.done
 /** Значение слота: id, список id, строка ответа или ленивая цепочка. */
 function slotValue(v: unknown): SlotValue {
   const peek = peekPlan(v);
-  if (peek) return { plan: peek.steps, mods: peek.mods };
+  if (peek) {
+    // модификатор сразу после глагола вложенной цепочки — тот же отказ, что у терминала (план 2.0, 7.2 №3)
+    checkAfterVerb(peek.steps, peek.mods);
+    return { plan: peek.steps, mods: peek.mods };
+  }
   if (v === null || typeof v === 'string') return v as SlotValue;
   if (Array.isArray(v)) return v.map((x) => (typeof x === 'string' ? x : (x as { id: string }).id));
   if (typeof v === 'object' && typeof (v as { id?: unknown }).id === 'string') return { id: (v as { id: string }).id };
@@ -573,9 +578,11 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
         case 'paths':
           return async () => {
             checkAfterVerb(steps, mods);
-            // q === null — пути из результата глагола: строки уже готовы
+            // q === null — пути из результата глагола: строки уже готовы. Ключи — в порядке шагов (jsonb хранит их
+            // по длине), узел последнего шага — последним: по нему cursorOf(путь, поле) берёт курсор (план 2.0, 7.1 №3)
             const { q, res } = await read<{ path: Record<string, Record<string, unknown>> }>(ctx, steps, mods, 'paths');
-            return res.map((r) => Object.fromEntries(Object.entries(r.path).map(([k, v]) => [k, q === null ? (v as unknown as Row) : toRow(v)])) as Path);
+            if (q === null) return res.map((r) => r.path as unknown as Path);
+            return res.map((r) => Object.fromEntries(q.keys.map((k) => [k, toRow(r.path[k])])) as Path);
           };
         case 'rows':
           return async () => {

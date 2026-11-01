@@ -217,6 +217,11 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
     // точку сохранения, а не всю транзакцию.
     await tx.savepoint((sp) => sp.unsafe(`grant ${quoteIdent(owner)} to current_user with inherit false, set true`))
       .catch((e: { code?: string }) => {
+        // роль владельца создал кто-то другой, а у установщика нет на неё ADMIN — понятная ошибка вместо сырой 42501
+        // (план 2.0, 7.5 №3)
+        if (e.code === '42501') {
+          throw Object.assign(new Error(`letopis.up: роль ${owner} уже есть, а у установщика нет на неё ADMIN OPTION — установку ведёт роль, создавшая ${owner}, или роль с этим правом (grant ${owner} to <установщик> with admin option)`), { cause: e });
+        }
         if (e.code !== '0LP01' && e.code !== '23505') throw e; // уже выдано циклом — нет; 23505 — выдал up() другой базы
       });
     await tx.unsafe(`create extension if not exists pgcrypto`);

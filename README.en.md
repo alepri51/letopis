@@ -67,8 +67,10 @@ npm ci
 npm run typecheck        # tsc --noEmit
 npm run check:docs       # check the documentation against the code (versions, links, anchors, test list, API contract, names, English versions)
 npm test                 # the whole suite against a live PostgreSQL 18, including running the documentation examples
+npm run prerelease       # everything before a push and a release: tests, site examples, sandbox, service scenarios, package
 ```
 
 The tests are integration tests, without database mocks: the harness starts the `letopis-pg18` container
 (`postgres:18`, port 15433) by itself if the database does not respond. `ENTITY_DSN` and `ENTITY_APP_DSN` override the
-connections.
+connections. CI runs no tests — they run locally with `npm run prerelease`. How to contribute —
+[CONTRIBUTING.en.md](CONTRIBUTING.en.md).

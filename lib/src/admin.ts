@@ -147,9 +147,17 @@ export async function maintain(a: AdminCtx, opts: MaintainOptions & { [MAINTAIN_
   for (let i = 0; i < max; i++) {
     // запуск по расписанию остановлен (close()): следующая пачка не начинается, отчёт — с more: true
     if (i > 0 && opts[MAINTAIN_STOP]?.()) break;
-    // блокировку берёт сама maintain() базы — строку-замок, которую посторонняя роль не займёт; занята — null
-    const [{ r }] = await runTx(a.txc, (q) => q.unsafe(`select ${a.S}.maintain($1::text::timestamptz, $2::int) as r`,
-      [now, opts.limit ?? 10_000] as never[]));
+    // блокировку берёт сама maintain() базы — строку-замок, которую посторонняя роль не займёт; занята — null.
+    // Истёкшие сессии и коды — только в первой пачке (план 2.0, 7.3 №4); схема, функции которой ещё не обновил up()
+    // (нет третьего аргумента, 42883), — прежний вызов: он чистит в каждой пачке
+    const call = (cleanup: boolean | null) => runTx(a.txc, (q) => q.unsafe(cleanup === null
+      ? `select ${a.S}.maintain($1::text::timestamptz, $2::int) as r`
+      : `select ${a.S}.maintain($1::text::timestamptz, $2::int, $3::boolean) as r`,
+    (cleanup === null ? [now, opts.limit ?? 10_000] : [now, opts.limit ?? 10_000, cleanup]) as never[]));
+    const [{ r }] = await call(i === 0).catch((e: { code?: string }) => {
+      if (e.code === '42883') return call(null);
+      throw e;
+    });
     if (r === null) {
       if (i === 0) return { ...report, skipped: true };
       break;

@@ -108,10 +108,17 @@ export type FieldFilter = Scalar | Scalar[] | Op | { [key: string]: FieldFilter 
  */
 export type Filter = string | string[] | Op | { id: string; class: string } | { [field: string]: FieldFilter | undefined };
 
-/** Курсор постраничного вывода для `after()`: значение поля сортировки и id последней строки страницы. */
+/**
+ * Курсор постраничного вывода для `after()`: значение поля сортировки и id последней строки страницы. Равные по полю
+ * строки разводят `rev` (версии в `versions()`) и `path` (id всех узлов пути в `paths()`); `cursorOf` заполняет их сам.
+ */
 export interface Cursor {
   v: string | number | boolean | null;
   id: string;
+  /** Номер версии строки: в `versions()` отделяет версии одного объекта с равным полем сортировки. */
+  rev?: number;
+  /** Узлы пути из `paths()`: ключ узла → id; отделяет пути с общим последним узлом. */
+  path?: Record<string, string>;
 }
 
 /** Модификаторы выборки цепочки. */
