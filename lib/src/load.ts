@@ -19,7 +19,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
-import { LetopisError, checkOptions, fromDbError, removed, type Issue } from './errors.js';
+import { LetopisError, checkOptions, fromDbError, lerr, lmsg, removed, type Issue } from './errors.js';
 import { isOp } from './ops.js';
 import { Registry, aggregateFields, type ClassInfo, type EndInfo } from './registry.js';
 import { accepts } from './sql.js';
@@ -210,9 +210,12 @@ class Issues {
     const first = this.list[0];
     const rest = this.total - 1;
     const why = [...this.unchecked].join('; ');
-    const more = why ? ` (${rest ? `и ещё не меньше ${rest}` : 'возможно, не единственная'}: ${why})` : rest ? ` (и ещё ${rest})` : '';
-    throw new LetopisError(first.code, `загрузка отменена: строка ${first.line} — ${first.message}${more}`,
-      { rows: this.list, total: this.total, truncated: this.total > this.list.length, limit: ISSUES_LIMIT, complete: !why });
+    // форма текста — по полноте проверки и числу остальных нарушений: четыре записи каталога, а не склейка
+    const key = why ? (rest ? 'write.load_cancelled_at_least' : 'write.load_cancelled_maybe_more') : rest ? 'write.load_cancelled_more' : 'write.load_cancelled';
+    const params = { line: first.line, message: first.message, rest, why };
+    // код ошибки — код первого нарушения, а не записи каталога (поэтому не lerr): ключ и параметры — как у fromDbError
+    throw new LetopisError(first.code, lmsg(key, params),
+      { rows: this.list, total: this.total, truncated: this.total > this.list.length, limit: ISSUES_LIMIT, complete: !why }, { key, params });
   }
 }
 
@@ -229,7 +232,7 @@ async function toList(input: LoadInput, cls?: string): Promise<Raw[]> {
     return Array.from(input as Iterable<Raw>, (r) => (cls && !r.$class ? { ...r, $class: cls } : r));
   }
   if (isObj(input)) return Object.entries(input).flatMap(([c, rows]) => tag(rows as Iterable<Raw>, c));
-  throw new LetopisError('invalid_data', 'load(): вход — объект «класс → строки», массив или поток строк с $class');
+  throw lerr('write.load_bad_input');
 }
 
 interface Plan1 {
@@ -239,22 +242,22 @@ interface Plan1 {
 
 /** Ссылка на цель: id, { $key: […] } или { $ext } (у полиморфного конца — с $class). */
 function refOf(reg: Registry, tenant: string, end: EndInfo, v: unknown): { id: string } | { error: string } {
-  if (typeof v === 'string') return UUID.test(v) ? { id: v.toLowerCase() } : { error: 'значение конца не uuid' };
-  if (!isObj(v) || (!('$key' in v) && !('$ext' in v))) return { error: 'значение конца — id, { $key } или { $ext }' };
+  if (typeof v === 'string') return UUID.test(v) ? { id: v.toLowerCase() } : { error: lmsg('write.load_end_not_uuid') };
+  if (!isObj(v) || (!('$key' in v) && !('$ext' in v))) return { error: lmsg('write.load_end_value') };
   const classes = asList(end.class);
   const name = typeof v.$class === 'string' ? v.$class : classes.length === 1 ? classes[0] : null;
-  if (!name) return { error: 'полиморфный конец: укажите $class цели' };
+  if (!name) return { error: lmsg('write.load_end_polymorphic') };
   const c = reg.find(name);
-  if (!c || c.abstract) return { error: `класс цели ${name} не найден или абстрактный` };
+  if (!c || c.abstract) return { error: lmsg('write.load_target_class', { name }) };
   if ('$key' in v) {
     const vals = v.$key;
     if (!Array.isArray(vals) || vals.length !== c.key.length || !vals.every((x) => typeof x === 'string')) {
-      return { error: `$key цели ${c.name} — список строк ключа [${c.key.join(', ')}]` };
+      return { error: lmsg('write.load_target_key', { cls: c.name, key: c.key.join(', ') }) };
     }
     return { id: v5Id(tenant, c.name, vals.map((x, i) => (c.ends[c.key[i]] ? (x as string).toLowerCase() : (x as string)))) };
   }
-  if (c.key.length) return { error: `$ext — для класса без ключа, а у ${c.name} ключ [${c.key.join(', ')}]` };
-  if (typeof v.$ext !== 'string') return { error: '$ext — строка' };
+  if (c.key.length) return { error: lmsg('write.load_ext_keyed', { cls: c.name, key: c.key.join(', ') }) };
+  if (typeof v.$ext !== 'string') return { error: lmsg('write.load_ext_string') };
   return { id: v5Id(tenant, c.name, [v.$ext]) };
 }
 
@@ -278,18 +281,18 @@ function shape(reg: Registry, tenant: string, cls: ClassInfo, raw: Raw, check: b
       if (v === null || v === undefined) continue;
       const end = cls.ends[k];
       if (end.many) {
-        if (!Array.isArray(v)) return { data, links, error: { code: 'invalid_data', message: `конец ${k} — список целей` } };
+        if (!Array.isArray(v)) return { data, links, error: { code: 'invalid_data', message: lmsg('write.load_end_list', { role: k }) } };
         const ids: string[] = [];
         for (const x of v) {
           const r = refOf(reg, tenant, end, x);
-          if ('error' in r) return { data, links, error: { code: 'invalid_data', message: `конец ${k}: ${r.error}` } };
-          if (ids.includes(r.id)) return { data, links, error: { code: 'invalid_data', message: `конец ${k}: цель повторяется` } };
+          if ('error' in r) return { data, links, error: { code: 'invalid_data', message: lmsg('write.load_end_ref', { role: k, error: r.error }) } };
+          if (ids.includes(r.id)) return { data, links, error: { code: 'invalid_data', message: lmsg('write.load_end_repeat', { role: k }) } };
           ids.push(r.id);
         }
         links[k] = ids;
       } else {
         const r = refOf(reg, tenant, end, v);
-        if ('error' in r) return { data, links, error: { code: 'invalid_data', message: `конец ${k}: ${r.error}` } };
+        if ('error' in r) return { data, links, error: { code: 'invalid_data', message: lmsg('write.load_end_ref', { role: k, error: r.error }) } };
         links[k] = r.id;
       }
     } else {
@@ -301,8 +304,8 @@ function shape(reg: Registry, tenant: string, cls: ClassInfo, raw: Raw, check: b
   for (const f of aggregateFields(cls)) data[f] = 0;
   if (!check) return { data, links };
   const scan = (v: unknown, path: string): string | null => {
-    if (isInc(v)) return `inc() — только в update() (${path})`;
-    if (isOp(v)) return `оператор фильтра в данных (${path})`;
+    if (isInc(v)) return lmsg('write.load_inc', { path });
+    if (isOp(v)) return lmsg('write.load_filter_op', { path });
     if (Array.isArray(v)) {
       for (let i = 0; i < v.length; i++) {
         const m = scan(v[i], `${path}.${i}`);
@@ -320,12 +323,12 @@ function shape(reg: Registry, tenant: string, cls: ClassInfo, raw: Raw, check: b
   if (bad) return { data, links, error: { code: 'invalid_data', message: bad } };
   const full = applyDefaults(cls.schema, data) as Raw;
   const issues = cls.validator()(full);
-  if (issues.length) return { data: full, links, error: { code: 'invalid_data', message: `данные не проходят описание класса ${cls.name}`, issues } };
+  if (issues.length) return { data: full, links, error: { code: 'invalid_data', message: lmsg('write.load_invalid_data', { cls: cls.name }), issues } };
   for (const [role, end] of Object.entries(cls.ends)) {
     const n = end.many ? (links[role]?.length ?? 0) : links[role] ? 1 : 0;
     const min = Math.max(end.min ?? 0, end.required ? 1 : 0);
-    if (end.many ? n < min : end.required && !n) return { data: full, links, error: { code: 'invalid_data', message: end.many ? `у конца ${role} слишком мало целей` : `обязательный конец ${role} не задан` } };
-    if (end.many && end.max !== undefined && n > end.max) return { data: full, links, error: { code: 'invalid_data', message: `у конца ${role} слишком много целей` } };
+    if (end.many ? n < min : end.required && !n) return { data: full, links, error: { code: 'invalid_data', message: lmsg(end.many ? 'write.load_end_too_few' : 'write.load_end_required', { role }) } };
+    if (end.many && end.max !== undefined && n > end.max) return { data: full, links, error: { code: 'invalid_data', message: lmsg('write.load_end_too_many', { role }) } };
   }
   return { data: full, links };
 }
@@ -333,18 +336,18 @@ function shape(reg: Registry, tenant: string, cls: ClassInfo, raw: Raw, check: b
 /** id строки: класс с ключом — v5 от ключа; без ключа — от $ext или от случайной части (§2.3). */
 function idOfRow(reg: Registry, tenant: string, cls: ClassInfo, raw: Raw): string | { error: string } {
   if (!cls.key.length) {
-    if (raw.$ext !== undefined) return typeof raw.$ext === 'string' ? v5Id(tenant, cls.name, [raw.$ext]) : { error: '$ext — строка' };
+    if (raw.$ext !== undefined) return typeof raw.$ext === 'string' ? v5Id(tenant, cls.name, [raw.$ext]) : { error: lmsg('write.load_ext_string') };
     return v5Id(tenant, cls.name, [randomUUID()]);
   }
   const vals: string[] = [];
   for (const k of cls.key) {
     if (cls.ends[k]) {
       const r = refOf(reg, tenant, cls.ends[k], raw[k]);
-      if ('error' in r) return { error: `часть ключа ${k}: ${r.error}` };
+      if ('error' in r) return { error: lmsg('write.load_key_part_ref', { part: k, error: r.error }) };
       vals.push(r.id);
     } else {
       const v = raw[k] ?? (cls.schema.properties as Record<string, { default?: unknown }> | undefined)?.[k]?.default;
-      if (typeof v !== 'string') return { error: `часть ключа ${k} — строка` };
+      if (typeof v !== 'string') return { error: lmsg('write.load_key_part_string', { part: k }) };
       vals.push(v);
     }
   }
@@ -444,13 +447,13 @@ async function verifyIds(conn: Sql, S: string, ids: string[], to: Issues): Promi
   const bad = await conn.unsafe(`select e.id, e.class, ${S}.validate_data(c.data->'resolved'->'rules', c.validator, c.data->'resolved'->'vars', e.data) as issues
     from ${S}.entity e cross join lateral ${S}.class_row(e.class, e.tenant) c
     where e.id = any ($1::uuid[]) and ${S}.validate_data(c.data->'resolved'->'rules', c.validator, c.data->'resolved'->'vars', e.data) <> '[]'::jsonb limit ${ISSUES_LIMIT}`, [ids]);
-  for (const r of bad) to.add({ line: 0, code: 'invalid_data', message: `проверка базы: строка ${r.id} не проходит описание класса ${r.class}`, id: r.id as string, issues: r.issues as Issue[] });
-  if (bad.length >= ISSUES_LIMIT) to.unchecked.add(`проверка базы называет не больше ${ISSUES_LIMIT} строк`);
+  for (const r of bad) to.add({ line: 0, code: 'invalid_data', message: lmsg('write.load_db_invalid', { id: r.id, cls: r.class }), id: r.id as string, issues: r.issues as Issue[] });
+  if (bad.length >= ISSUES_LIMIT) to.unchecked.add(lmsg('write.load_db_check_limit', { limit: ISSUES_LIMIT }));
   const [t] = await conn.unsafe(`select ${S}.targets_bad((select jsonb_agg(jsonb_build_object('class', e.class, 'tenant', e.tenant, 'links', e.links))
     from ${S}.entity e where e.id = any ($1::uuid[]) and e.links <> '{}'::jsonb), false) as role`, [ids]);
   const role = t?.role as string | null | undefined;
-  if (role?.startsWith('!')) to.add({ line: 0, code: 'derived_class', message: `проверка базы: конец ${role.slice(1)} ведёт на строку производного класса` });
-  else if (role) to.add({ line: 0, code: 'target_not_found', message: `проверка базы: цель конца ${role} не найдена` });
+  if (role?.startsWith('!')) to.add({ line: 0, code: 'derived_class', message: lmsg('write.load_db_derived', { role: role.slice(1) }) });
+  else if (role) to.add({ line: 0, code: 'target_not_found', message: lmsg('write.load_db_target', { role }) });
 }
 
 /**
@@ -462,20 +465,20 @@ async function verifyIds(conn: Sql, S: string, ids: string[], to: Issues): Promi
 export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {}): Promise<LoadReport> {
   if ('trust' in opts) throw removed('load({ trust })', 'запрос по целям вне загрузки стоит 0,1–1,3 % её времени — режим доверия убран (решение 2 точки А)');
   checkOptions('load', opts, LOAD_OPTIONS);
-  if (!env.admin) throw new LetopisError('admin_required', 'загрузчику нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы)');
+  if (!env.admin) throw lerr('write.load_admin_required');
   const asAcc = opts.as;
-  if (asAcc !== undefined && (typeof asAcc !== 'string' || !UUID.test(asAcc))) throw new LetopisError('invalid_data', 'load({ as }): id аккаунта');
-  if (asAcc !== undefined && opts.withHistory) throw new LetopisError('invalid_data', 'load({ as }) и режим истории несовместимы: историю импортирует администратор');
-  if (opts.withHistory && opts.existing === 'update') throw new LetopisError('invalid_data', "режим истории: existing — 'error' или 'skip' (новую версию существующего объекта пишет загрузка без истории)");
+  if (asAcc !== undefined && (typeof asAcc !== 'string' || !UUID.test(asAcc))) throw lerr('write.load_as_not_uuid');
+  if (asAcc !== undefined && opts.withHistory) throw lerr('write.load_as_history');
+  if (opts.withHistory && opts.existing === 'update') throw lerr('write.load_history_update');
   const ini = env.session ?? null;
   if (opts.initial || ini) {
     // снятые индексы и TRUNCATE — одна транзакция; в пустой схеме пропускать и обновлять нечего
-    if (opts.commitEvery) throw new LetopisError('invalid_data', 'первая заливка (initial) несовместима с commitEvery: снятые индексы и TRUNCATE требуют одной транзакции');
-    if (opts.existing !== undefined && opts.existing !== 'error') throw new LetopisError('invalid_data', "первая заливка (initial): existing — только 'error', в пустой схеме пропускать и обновлять нечего");
-    if (asAcc !== undefined) throw new LetopisError('invalid_data', 'первая заливка (initial) — от администратора, без { as }');
+    if (opts.commitEvery) throw lerr('write.load_initial_commit_every');
+    if (opts.existing !== undefined && opts.existing !== 'error') throw lerr('write.load_initial_existing');
+    if (asAcc !== undefined) throw lerr('write.load_initial_as');
   }
   const tenant = opts.tenant ?? asAcc ?? env.tenant;
-  if (!tenant) throw new LetopisError('invalid_data', 'load(): нет арендатора — сессия без арендатора и не задан { tenant }');
+  if (!tenant) throw lerr('write.load_no_tenant');
   const dupMode = opts.duplicates ?? 'error';
   const existing = opts.existing ?? 'error';
   const batch = opts.batch ?? 10000;
@@ -522,23 +525,23 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     const name = raw?.$class;
     const cls = typeof name === 'string' ? reg0.find(name) : undefined;
     if (!cls) {
-      issues.add({ line, code: 'invalid_class', message: typeof name === 'string' ? `класс ${name} не найден` : 'нет $class' });
+      issues.add({ line, code: 'invalid_class', message: typeof name === 'string' ? lmsg('write.load_class_not_found', { name }) : lmsg('write.load_no_class') });
       p1[i] = null;
       continue;
     }
     if (cls.name === 'Class') {
-      issues.add({ line, code: 'class_not_loadable', message: 'строки Class задают letopis sync и create — там база компилирует проверку', class: cls.name });
+      issues.add({ line, code: 'class_not_loadable', message: lmsg('write.load_class_rows'), class: cls.name });
       p1[i] = null;
       continue;
     }
     if (cls.abstract) {
-      issues.add({ line, code: 'invalid_class', message: `класс ${cls.name} абстрактный`, class: cls.name });
+      issues.add({ line, code: 'invalid_class', message: lmsg('write.load_class_abstract', { cls: cls.name }), class: cls.name });
       p1[i] = null;
       continue;
     }
     // строки производного класса пишет только его проектор (план 1.1, §2.4)
     if (cls.derivedBy) {
-      issues.add({ line, code: 'derived_class', message: `класс ${cls.name} производный: его строки пишет проектор ${cls.derivedBy}`, class: cls.name });
+      issues.add({ line, code: 'derived_class', message: lmsg('write.load_class_derived', { cls: cls.name, projector: cls.derivedBy }), class: cls.name });
       p1[i] = null;
       continue;
     }
@@ -550,7 +553,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     }
     // первая заливка: первичного ключа нет — повтор id со строками системных классов и прошлых загрузок сессии ловит проход 1
     if (ini?.ids.has(id)) {
-      issues.add({ line, code: 'exists', message: 'объект уже есть в схеме: строка системного класса или запись этой же первой заливки', id, class: cls.name });
+      issues.add({ line, code: 'exists', message: lmsg('write.load_taken'), id, class: cls.name });
       p1[i] = null;
       continue;
     }
@@ -567,7 +570,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       lineOf.set(id, i);
       chosen.add(i);
     } else if (dupMode === 'error') {
-      issues.add({ line, code: 'duplicate', message: `id ${id} уже был в строке ${prev + 1}`, id, class: cls.name });
+      issues.add({ line, code: 'duplicate', message: lmsg('write.load_duplicate', { id, prev: prev + 1 }), id, class: cls.name });
     } else {
       report.duplicates++;
       if (dupMode === 'last') {
@@ -656,7 +659,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
           const n = p1[i]!.cls.name;
           if (!(n in acl.write) && !denied.has(n)) {
             denied.add(n);
-            issues.add({ line: i + 1, code: 'acl_denied', message: `нет права WRITE на класс ${n}`, class: n });
+            issues.add({ line: i + 1, code: 'acl_denied', message: lmsg('write.load_no_write', { cls: n }), class: n });
           }
         }
         if (issues.any) issues.fail();
@@ -731,9 +734,9 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
           const ref = external.get(id)!;
           const f = found.get(id);
           if (!f || (f.tenant !== tenant && f.tenant !== SYSTEM_ID) || !accepts(reg, ref.allowed, f.class)) {
-            issues.add({ line: ref.line, code: 'target_not_found', message: `цель конца ${ref.role} не найдена`, id });
+            issues.add({ line: ref.line, code: 'target_not_found', message: lmsg('write.load_target_not_found', { role: ref.role }), id });
           } else if (reg.find(f.class)?.derivedBy) {
-            issues.add({ line: ref.line, code: 'derived_class', message: `цель конца ${ref.role} — строка производного класса ${f.class}`, id });
+            issues.add({ line: ref.line, code: 'derived_class', message: lmsg('write.load_target_derived', { role: ref.role, cls: f.class }), id });
           }
         }
       }
@@ -743,7 +746,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
         const found = new Set(ids.length
           ? (await conn.unsafe(`select e.id from ${S}.entity e where e.id = any ($1::uuid[]) and e.class = 'Account' order by e.id for key share`, [ids])).map((r) => r.id as string)
           : []);
-        for (const id of ids) if (!found.has(id)) issues.add({ line: owners.get(id)!, code: 'target_not_found', message: `владелец ${id} не найден`, id });
+        for (const id of ids) if (!found.has(id)) issues.add({ line: owners.get(id)!, code: 'target_not_found', message: lmsg('write.load_owner_not_found', { id }), id });
       }
       // от имени пользователя цели ссылок должны быть ему видны (право READ): и из загрузки, и вне её
       if (acl && targets.size) {
@@ -753,12 +756,12 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
           [ids, tenant, asAcc, acl.read as never]);
         for (const h of hidden) {
           const t = targets.get(h.id as string)!;
-          issues.add({ line: t.line, code: 'target_not_found', message: `цель конца ${t.role} не найдена`, id: h.id as string });
+          issues.add({ line: t.line, code: 'target_not_found', message: lmsg('write.load_target_not_found', { role: t.role }), id: h.id as string });
         }
       }
       // арендатор существует и включён
       const [acc] = await conn.unsafe(`select coalesce((data->>'enabled')::boolean, true) as enabled from ${S}.entity where id = $1::uuid and class = 'Account'`, [tenant]);
-      if (!acc || !acc.enabled) issues.add({ line: portion.length ? portion[0] + 1 : 0, code: 'tenant_denied', message: `арендатор ${tenant} не найден или отключён` });
+      if (!acc || !acc.enabled) issues.add({ line: portion.length ? portion[0] + 1 : 0, code: 'tenant_denied', message: lmsg('write.load_tenant_denied', { tenant }) });
       if (issues.any) issues.fail();
       if (opts.verify && written.length) {
         await verifyIds(conn as unknown as Sql, S, written, issues);
@@ -791,7 +794,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
 
   /** Порция не последняя (commitEvery): следующие порции загрузчик уже не проверит — нарушений может быть больше. */
   function laterUnchecked(portion: number[], to: Issues): void {
-    if (portion !== portions[portions.length - 1]) to.unchecked.add('следующие порции не проверялись');
+    if (portion !== portions[portions.length - 1]) to.unchecked.add(lmsg('write.load_later_portions'));
   }
 
   function isLastVersion(i: number): boolean {
@@ -811,10 +814,10 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     laterUnchecked(portion, out);
     for (const i of portion) {
       const c = taken.get(p1[i]!.id);
-      if (c) out.add({ line: i + 1, code: c, message: c === 'exists' ? 'объект уже есть в базе' : 'объект с этим id жил раньше и удалён (existing: update воскресит)', id: p1[i]!.id, class: p1[i]!.cls.name });
+      if (c) out.add({ line: i + 1, code: c, message: lmsg(c === 'exists' ? 'write.load_exists' : 'write.load_deleted'), id: p1[i]!.id, class: p1[i]!.cls.name });
     }
     if (out.any) out.fail();
-    throw new LetopisError('exists', 'загрузка отменена: часть объектов уже есть в базе');
+    throw lerr('write.load_objects_exist');
   }
 
   /** Проверки строки и ссылок; null — строка не пишется (нарушение уже в отчёте). */
@@ -829,23 +832,23 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     }
     // аккаунты — только в System; членство лежит в арендаторе, в которого вступают (как в триггерах)
     if (cls.name === 'Account' && tenant !== SYSTEM_ID) {
-      issues.add({ line: i + 1, code: 'tenant_denied', message: 'аккаунты лежат в арендаторе System', id: p1[i]!.id, class: cls.name });
+      issues.add({ line: i + 1, code: 'tenant_denied', message: lmsg('write.load_account_tenant'), id: p1[i]!.id, class: cls.name });
       return null;
     }
     if (cls.name === 'member' && sh.links.Tenant !== tenant) {
-      issues.add({ line: i + 1, code: 'invalid_data', message: 'конец Tenant членства — арендатор строки', id: p1[i]!.id, class: cls.name });
+      issues.add({ line: i + 1, code: 'invalid_data', message: lmsg('write.load_member_tenant'), id: p1[i]!.id, class: cls.name });
       return null;
     }
     const tags = raw.$tags;
     if (tags !== undefined && (!Array.isArray(tags) || !tags.every((x) => typeof x === 'string'))) {
-      issues.add({ line: i + 1, code: 'invalid_data', message: '$tags — список строк', id: p1[i]!.id, class: cls.name });
+      issues.add({ line: i + 1, code: 'invalid_data', message: lmsg('write.load_tags'), id: p1[i]!.id, class: cls.name });
       return null;
     }
     if (tags) sh.tags = tags as string[];
     const own = raw.$owner;
     if (own !== undefined && own !== null) {
       if (asAcc || typeof own !== 'string' || !UUID.test(own)) {
-        issues.add({ line: i + 1, code: 'invalid_data', message: asAcc ? 'load({ as }): $owner не задаётся — владелец по ownerDefault класса' : '$owner — id аккаунта', id: p1[i]!.id, class: cls.name });
+        issues.add({ line: i + 1, code: 'invalid_data', message: lmsg(asAcc ? 'write.load_as_owner' : 'write.load_owner_id'), id: p1[i]!.id, class: cls.name });
         return null;
       }
       sh.owner = own.toLowerCase();
@@ -859,7 +862,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
         if (acl && !targets.has(id)) targets.set(id, { line: i + 1, role });
         const t = inLoad.get(id);
         if (t) {
-          if (!t.alive || !accepts(reg, allowed, t.cls)) issues.add({ line: i + 1, code: 'target_not_found', message: `цель конца ${role} не найдена`, id: p1[i]!.id, class: cls.name });
+          if (!t.alive || !accepts(reg, allowed, t.cls)) issues.add({ line: i + 1, code: 'target_not_found', message: lmsg('write.load_target_not_found', { role }), id: p1[i]!.id, class: cls.name });
         } else if (!external.has(id)) {
           external.set(id, { line: i + 1, role, allowed });
         }
@@ -939,7 +942,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
         // прошла бы мимо триггеров с данными, проверенными по чужой схеме, — exists (план 2.0, 7.2 №4)
         const was = live.get(id)!;
         if (was !== cls.name) {
-          issues.add({ line: i + 1, code: 'exists', message: `объект с этим id уже есть в классе ${was}: строка класса ${cls.name} его не правит`, id, class: cls.name });
+          issues.add({ line: i + 1, code: 'exists', message: lmsg('write.load_other_class', { was, cls: cls.name }), id, class: cls.name });
           continue;
         }
         updates.push({ id, data: sh.data, links: sh.links, tags: sh.tags ?? null, line: i + 1 });
@@ -965,7 +968,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       written.push(id);
     }
     if (issues.any) {
-      if (aclRan) issues.unchecked.add('условия ACL следующих пачек не проверялись');
+      if (aclRan) issues.unchecked.add(lmsg('write.load_later_batches'));
       return null;
     }
     return { ent, log, updates, rowsAcl };
@@ -981,7 +984,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
           where not ${S}.acl_row_ok($2::jsonb, x->>'class', (x->>'id')::uuid, (x->>'owner')::uuid, $3::uuid,
             array(select jsonb_array_elements_text(x->'tags')), x->'data', x->'links')`,
         [rowsAcl as never, acl.write as never, tenant]);
-      for (const b of bad) issues.add({ line: (b.i as number) + 1, code: 'acl_denied', message: 'строку запрещает условие ACL', id: p1[b.i as number]!.id });
+      for (const b of bad) issues.add({ line: (b.i as number) + 1, code: 'acl_denied', message: lmsg('write.load_acl_row'), id: p1[b.i as number]!.id });
       if (updates.length) {
         // existing: 'update' — условие на прежние значения и на новые (как политика правки)
         const ids = updates.map((u) => u.id);
@@ -992,7 +995,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
             where not ${S}.acl_row_ok($2::jsonb, e.class, e.id, e.owner, e.tenant, coalesce(u.tags, e.tags), u.data, u.links)`,
           [updates.map((u) => ({ id: u.id, data: u.data, links: u.links, tags: u.tags })) as never, acl.write as never]);
         const lineOfId = new Map(updates.map((u) => [u.id, u.line]));
-        for (const r of [...old, ...fresh]) issues.add({ line: lineOfId.get(r.id as string) ?? 0, code: 'acl_denied', message: 'правку строки запрещает условие ACL', id: r.id as string });
+        for (const r of [...old, ...fresh]) issues.add({ line: lineOfId.get(r.id as string) ?? 0, code: 'acl_denied', message: lmsg('write.load_acl_update'), id: r.id as string });
       }
       if (issues.any) return;
     }
@@ -1040,7 +1043,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       for (let k = 0; k < l.length; k++) {
         const r = rows[l[k]];
         if (Number(r.$rev) !== k + 1 || typeof r.$at !== 'string') {
-          issues.add({ line: l[k] + 1, code: 'invalid_data', message: 'режим истории: версии с $rev подряд от 1 и $at — время версии', id: p1[l[k]]!.id });
+          issues.add({ line: l[k] + 1, code: 'invalid_data', message: lmsg('write.load_history_versions'), id: p1[l[k]]!.id });
         }
       }
     }
@@ -1147,7 +1150,7 @@ async function catalogOf(conn: Sql, S: string) {
  * откатывает всё: DDL в PostgreSQL транзакционен.
  */
 export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) => Promise<T>, tune: InitialTuning = {}): Promise<T> {
-  if (!env.admin) throw new LetopisError('admin_required', 'загрузчику нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы)');
+  if (!env.admin) throw lerr('write.load_admin_required');
   const S = `"${env.schema.replace(/"/g, '""')}"`;
   const ident = (n: string) => `"${n.replace(/"/g, '""')}"`;
   const conn = await env.sql.reserve();
@@ -1163,7 +1166,7 @@ export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) =>
     const [busy] = await q(`select exists (select 1 from ${S}.entity where class <> all ($1::text[]))
         or exists (select 1 from ${S}.log where class <> all ($2::text[])) as b`, [SYSTEM_CLASSES, [...SYSTEM_CLASSES, '#reset']]);
     if (busy.b) {
-      throw new LetopisError('not_empty', 'первая заливка — только в пустую схему: в entity и log, кроме строк системных классов (Class, Account, member, Resource, rule) и записей reset, ничего быть не должно');
+      throw lerr('write.load_not_empty');
     }
     // 3. системные строки и определения из каталога — в память процесса (так режим не повторяет 10-core.sql)
     const [sys] = await q(`select coalesce((select jsonb_agg(to_jsonb(e)) from ${S}.entity e), '[]') as ent,
@@ -1219,19 +1222,19 @@ export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) =>
           const ref = p.external.get(id)!;
           const f = found.get(id);
           if (!f || (f.tenant !== p.tenant && f.tenant !== SYSTEM_ID) || !accepts(p.reg, ref.allowed, f.class)) {
-            issues.add({ line: ref.line, code: 'target_not_found', message: `цель конца ${ref.role} не найдена`, id });
+            issues.add({ line: ref.line, code: 'target_not_found', message: lmsg('write.load_target_not_found', { role: ref.role }), id });
           } else if (p.reg.find(f.class)?.derivedBy) {
-            issues.add({ line: ref.line, code: 'derived_class', message: `цель конца ${ref.role} — строка производного класса ${f.class}`, id });
+            issues.add({ line: ref.line, code: 'derived_class', message: lmsg('write.load_target_derived', { role: ref.role, cls: f.class }), id });
           }
         }
       }
       if (p.owners.size) {
         const own = [...p.owners.keys()].sort();
         const found = new Set((await q(`select e.id from ${S}.entity e where e.id = any ($1::uuid[]) and e.class = 'Account'`, [own])).map((r) => r.id as string));
-        for (const id of own) if (!found.has(id)) issues.add({ line: p.owners.get(id)!, code: 'target_not_found', message: `владелец ${id} не найден`, id });
+        for (const id of own) if (!found.has(id)) issues.add({ line: p.owners.get(id)!, code: 'target_not_found', message: lmsg('write.load_owner_not_found', { id }), id });
       }
       const [acc] = await q(`select coalesce((data->>'enabled')::boolean, true) as enabled from ${S}.entity where id = $1::uuid and class = 'Account'`, [p.tenant]);
-      if (!acc || !acc.enabled) issues.add({ line: 0, code: 'tenant_denied', message: `арендатор ${p.tenant} не найден или отключён` });
+      if (!acc || !acc.enabled) issues.add({ line: 0, code: 'tenant_denied', message: lmsg('write.load_tenant_denied', { tenant: p.tenant }) });
       if (p.verify?.length) await verifyIds(conn as unknown as Sql, S, p.verify, issues);
     }
     if (issues.any) issues.fail();

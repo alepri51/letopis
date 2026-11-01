@@ -25,7 +25,7 @@ language plpgsql immutable
 as $$
 begin
   if p_account is null then
-    perform @SCHEMA@.lt_fail('no_session', 'нет действующей сессии');
+    perform @SCHEMA@.lt_fail('sql-access.no_session');
   end if;
 end $$;
 
@@ -42,7 +42,7 @@ declare
 begin
   select * into c from @SCHEMA@.ctx();
   if c.account is null then
-    perform @SCHEMA@.lt_fail('no_session', 'нет действующей сессии');
+    perform @SCHEMA@.lt_fail('sql-access.no_session');
   end if;
   if c.account = p_account and c.service is null then
     select (s.meta->>'login_at')::timestamptz, coalesce(s.meta->'methods', '[]'::jsonb) into login_at, methods
@@ -57,12 +57,12 @@ begin
     end if;
   end if;
   if not coalesce((@SCHEMA@.acl_api_for(c.tenant, c.categories, c.roles, 'auth.credential', true)->>'allow')::boolean, false) then
-    perform @SCHEMA@.lt_fail('acl_denied', 'привязка отклонена: нужен недавний вход или право auth.credential');
+    perform @SCHEMA@.lt_fail('sql-access.bind_denied');
   end if;
   -- креды System, сервисов и системных администраторов выдаёт только системный администратор: иначе
   -- сервис привязал бы себе вход под ними (ревью этапа 5)
   if not @SCHEMA@.auth_target_ok(p_account) and not @SCHEMA@.auth_is_sysadmin() then
-    perform @SCHEMA@.lt_fail('acl_denied', 'привязка отклонена: нужен недавний вход или право auth.credential');
+    perform @SCHEMA@.lt_fail('sql-access.bind_denied');
   end if;
 end $$;
 
@@ -77,7 +77,7 @@ declare
 begin
   select * into c from @SCHEMA@.ctx();
   if p_account is distinct from c.account and not @SCHEMA@.auth_target_ok(p_account) and not @SCHEMA@.auth_is_sysadmin() then
-    perform @SCHEMA@.lt_fail('acl_denied', 'креды и сессии этого аккаунта меняет только он сам или системный администратор');
+    perform @SCHEMA@.lt_fail('sql-access.self_or_sysadmin');
   end if;
 end $$;
 
@@ -203,7 +203,7 @@ begin
   perform @SCHEMA@.auth_session_required(c.account);
   perform @SCHEMA@.acl_require('auth.session');
   if not @SCHEMA@.auth_target_ok(p_account) then
-    perform @SCHEMA@.lt_fail('acl_denied', 'сессии для этого аккаунта не выпускаются');
+    perform @SCHEMA@.lt_fail('sql-access.no_sessions_for_account');
   end if;
   return @SCHEMA@.new_session(p_account, p_ttl, jsonb_build_object('methods', to_jsonb(p_methods), 'service', c.account));
 end $$;
@@ -248,14 +248,14 @@ begin
     p_confirmed := null;
   end if;
   if not @SCHEMA@.auth_kind_ok(p_kind) or coalesce(p_ident, '') = '' or p_hash !~ '^scrypt\$' then
-    perform @SCHEMA@.lt_fail('invalid_data', 'пароль: вид, идентификатор и хэш scrypt$… обязательны');
+    perform @SCHEMA@.lt_fail('sql-access.password_args');
   end if;
   select s.id, s.account into cur from @SCHEMA@.secret s
   where s.kind = p_kind and s.deleted_at is null
     and casefold(s.ident) collate pg_unicode_fast = casefold(p_ident) collate pg_unicode_fast
   for update;
   if cur.id is not null and cur.account <> p_account then
-    perform @SCHEMA@.lt_fail('acl_denied', 'привязка отклонена: нужен недавний вход или право auth.credential');
+    perform @SCHEMA@.lt_fail('sql-access.bind_denied');
   end if;
   if cur.id is not null then
     update @SCHEMA@.secret s
@@ -270,7 +270,7 @@ begin
       values (p_account, p_kind, p_ident, convert_to(p_hash, 'UTF8'), jsonb_build_object('confirmed', coalesce(p_confirmed, false)))
       returning id into cid;
     exception when unique_violation then
-      perform @SCHEMA@.lt_fail('acl_denied', 'привязка отклонена: нужен недавний вход или право auth.credential');
+      perform @SCHEMA@.lt_fail('sql-access.bind_denied');
     end;
   end if;
   return cid;
@@ -308,7 +308,7 @@ begin
       null; -- совпал префикс: новый ключ
     end;
   end loop;
-  perform @SCHEMA@.lt_raise('40001', 'conflict', 'не удалось выпустить ключ с уникальным префиксом');
+  perform @SCHEMA@.lt_raise('40001','sql-access.apikey_prefix_conflict', '{}'::jsonb);
 end $$;
 
 -- Вход по ключу API для db.auth.verifyApiKey: { account, token } или null (login_apikey — для
@@ -390,13 +390,13 @@ declare
 begin
   perform @SCHEMA@.acl_require('auth.otp');
   if p_kind !~ '^OTP(_[A-Z0-9]{1,27})?$' or coalesce(p_ident, '') = '' or p_digits not between 4 and 10 then
-    perform @SCHEMA@.lt_fail('invalid_data', 'код: вид OTP или OTP_<имя>, идентификатор, 4–10 знаков');
+    perform @SCHEMA@.lt_fail('sql-access.otp_args');
   end if;
   if not @SCHEMA@.auth_enabled(p_account) then
-    perform @SCHEMA@.lt_fail('target_not_found', 'аккаунт не найден');
+    perform @SCHEMA@.lt_fail('sql-access.account_not_found');
   end if;
   if not @SCHEMA@.auth_target_ok(p_account) and not @SCHEMA@.auth_is_sysadmin() then
-    perform @SCHEMA@.lt_fail('acl_denied', 'коды входа для System, сервисов и системных администраторов выпускает только системный администратор');
+    perform @SCHEMA@.lt_fail('sql-access.otp_sysadmin_only');
   end if;
   code := lpad((('x' || encode(@PGCRYPTO@.gen_random_bytes(7), 'hex'))::bit(56)::bigint % (10::bigint ^ p_digits)::bigint)::text, p_digits, '0');
   update @SCHEMA@.secret s set deleted_at = clock_timestamp()
@@ -564,7 +564,7 @@ begin
     p_confirmed := false;
   end if;
   if not @SCHEMA@.auth_kind_ok(p_kind) or p_kind = 'PASSWORD' or coalesce(p_ident, '') = '' then
-    perform @SCHEMA@.lt_fail('invalid_data', 'identity: вид (TELEGRAM, GOOGLE, …) и идентификатор обязательны');
+    perform @SCHEMA@.lt_fail('sql-access.identity_args');
   end if;
   begin
     insert into @SCHEMA@.secret (account, kind, ident, meta)
@@ -572,7 +572,7 @@ begin
                                           || jsonb_build_object('confirmed', coalesce(p_confirmed, false)))
     returning id into cid;
   exception when unique_violation then
-    perform @SCHEMA@.lt_fail('acl_denied', 'привязка отклонена: нужен недавний вход или право auth.credential');
+    perform @SCHEMA@.lt_fail('sql-access.bind_denied');
   end;
   return cid;
 end $$;
@@ -655,7 +655,7 @@ begin
     if not exists (select 1 from @SCHEMA@.secret s
                    where s.account = cr.account and s.kind in ('APIKEY', 'KEYSECRET') and s.deleted_at is null and s.id <> p_id
                      and (s.expires_at is null or s.expires_at > clock_timestamp()) and coalesce((s.meta->>'enabled')::boolean, true)) then
-      perform @SCHEMA@.lt_fail('acl_denied', 'последний действующий ключ сервиса не отзывается: сначала выпустите новый');
+      perform @SCHEMA@.lt_fail('sql-access.last_service_key');
     end if;
   end if;
   update @SCHEMA@.secret s set deleted_at = clock_timestamp() where s.id = p_id and s.deleted_at is null;
@@ -756,20 +756,20 @@ declare
 begin
   if nullif(current_setting('letopis.account', true), '') is not null then
     -- код из каталога базы (invalid_query в нём нет — lt_fail дал бы LT000 и сырую ошибку; план 2.0, 7.5 №3)
-    perform @SCHEMA@.lt_fail('acl_denied', 'auth.switch — для собственной сессии, не при имперсонации');
+    perform @SCHEMA@.lt_fail('sql-access.switch_impersonating');
   end if;
   select x.id, x.account into s from @SCHEMA@.secret x
   where x.kind = 'SESSION' and x.deleted_at is null and x.material = sha256(convert_to(coalesce(tok, ''), 'UTF8'))
     and (x.expires_at is null or x.expires_at > clock_timestamp())
   for update;
   if s.id is null or not @SCHEMA@.auth_enabled(s.account) then
-    perform @SCHEMA@.lt_fail('no_session', 'нет действующей сессии');
+    perform @SCHEMA@.lt_fail('sql-access.no_session');
   end if;
   if p_tenant <> s.account and not (
        exists (select 1 from @SCHEMA@.entity x
                where x.id = @SCHEMA@.v5_id(p_tenant, 'member', array[s.account::text, p_tenant::text]) and x.class = 'member' and x.tenant = p_tenant)
        and @SCHEMA@.auth_enabled(p_tenant)) then
-    perform @SCHEMA@.lt_fail('tenant_denied', 'нет членства в арендаторе');
+    perform @SCHEMA@.lt_fail('sql-access.no_membership');
   end if;
   update @SCHEMA@.secret x
      set meta = case when p_tenant = s.account then x.meta - 'tenant' else x.meta || jsonb_build_object('tenant', p_tenant) end

@@ -195,8 +195,11 @@ end $$;
 -- Разбор и нормализация концов (этап 1, п. 7): объявлены, обязательные на месте, у множественных
 -- нет повторов, соблюдены min и max; uuid — в каноническом виде строчными. К таблицам не обращается:
 -- цели проверяет targets_bad() — триггером после оператора, одним запросом на все строки.
--- Ошибку не бросает: возвращает код и сообщение.
-create or replace function @SCHEMA@.links_shape(p_res jsonb, p_links jsonb, out links jsonb, out code text, out msg text)
+-- Ошибку не бросает: возвращает ключ каталога сообщений и параметры отказа (план 2.0, этап 3, п. 3; вызывающий бросает
+-- ошибку по ним). До плана 2.0 отказ возвращался кодом и текстом: тип ответа другой, а create or replace его не
+-- меняет — поэтому drop (функцию зовут только функции plpgsql, зависимостей в каталоге у неё нет).
+drop function if exists @SCHEMA@.links_shape(jsonb, jsonb);
+create or replace function @SCHEMA@.links_shape(p_res jsonb, p_links jsonb, out links jsonb, out key text, out params jsonb)
 language plpgsql immutable
 as $$
 #variable_conflict use_variable
@@ -212,47 +215,48 @@ begin
     p_links := '{}'::jsonb;
   end if;
   if jsonb_typeof(p_links) <> 'object' then
-    code := 'invalid_data'; msg := 'links — не объект'; return;
+    key := 'sql-write.links_not_object'; params := '{}'::jsonb; return;
   end if;
-  for l in select key, value from jsonb_each(p_links) loop
+  -- столбцы jsonb_each — с псевдонимом: key — ещё и выходной параметр (variable_conflict use_variable)
+  for l in select j.key, j.value from jsonb_each(p_links) j loop
     if not coalesce(p_res->'ends' ? l.key, false) then
-      code := 'undeclared_end'; msg := format('конец %s не объявлен в классе %s', l.key, p_res->>'name'); return;
+      key := 'sql-write.end_undeclared'; params := jsonb_build_object('end', l.key, 'cls', p_res->>'name'); return;
     end if;
     continue when l.value = 'null'::jsonb;
     if coalesce((p_res->'ends'->l.key->>'many')::boolean, false) then
       if jsonb_typeof(l.value) <> 'array' then
-        code := 'invalid_data'; msg := format('конец %s — список id', l.key); return;
+        key := 'sql-write.end_not_list'; params := jsonb_build_object('end', l.key); return;
       end if;
       arr := '[]'::jsonb;
       for v in select value from jsonb_array_elements(l.value) loop
         if jsonb_typeof(v) <> 'string' or not pg_input_is_valid(v #>> '{}', 'uuid') then
-          code := 'invalid_data'; msg := format('конец %s: значение не uuid', l.key); return;
+          key := 'sql-write.end_not_uuid'; params := jsonb_build_object('end', l.key); return;
         end if;
         v := to_jsonb((v #>> '{}')::uuid::text);
         if arr @> jsonb_build_array(v) then
-          code := 'invalid_data'; msg := format('конец %s: цель повторяется', l.key); return;
+          key := 'sql-write.end_target_repeated'; params := jsonb_build_object('end', l.key); return;
         end if;
         arr := arr || jsonb_build_array(v);
       end loop;
       links := links || jsonb_build_object(l.key, arr);
     else
       if jsonb_typeof(l.value) <> 'string' or not pg_input_is_valid(l.value #>> '{}', 'uuid') then
-        code := 'invalid_data'; msg := format('конец %s: значение не uuid', l.key); return;
+        key := 'sql-write.end_not_uuid'; params := jsonb_build_object('end', l.key); return;
       end if;
       links := links || jsonb_build_object(l.key, (l.value #>> '{}')::uuid::text);
     end if;
   end loop;
-  for e in select key, value from jsonb_each(coalesce(p_res->'ends', '{}'::jsonb)) loop
+  for e in select j.key, j.value from jsonb_each(coalesce(p_res->'ends', '{}'::jsonb)) j loop
     if coalesce((e.value->>'many')::boolean, false) then
       n := coalesce(jsonb_array_length(links->e.key), 0);
       if n < greatest(coalesce((e.value->>'min')::int, 0), case when coalesce((e.value->>'required')::boolean, false) then 1 else 0 end) then
-        code := 'invalid_data'; msg := format('у конца %s слишком мало целей', e.key); return;
+        key := 'sql-write.end_too_few'; params := jsonb_build_object('end', e.key); return;
       end if;
       if e.value ? 'max' and n > (e.value->>'max')::int then
-        code := 'invalid_data'; msg := format('у конца %s слишком много целей', e.key); return;
+        key := 'sql-write.end_too_many'; params := jsonb_build_object('end', e.key); return;
       end if;
     elsif coalesce((e.value->>'required')::boolean, false) and not links ? e.key then
-      code := 'invalid_data'; msg := format('обязательный конец %s не задан', e.key); return;
+      key := 'sql-write.end_required'; params := jsonb_build_object('end', e.key); return;
     end if;
   end loop;
 end $$;
@@ -332,9 +336,11 @@ drop function if exists @SCHEMA@.targets_bad(jsonb, boolean);
 
 -- Разбор концов и проверка целей одной строки — для функций владельца (reclass, проверка строк
 -- семейства), которые пишут мимо триггеров. При p_lock цели блокируются for key share; p_acl — как
--- у targets_bad (цели видны актору).
+-- у targets_bad (цели видны актору). Отказ — ключ каталога и параметры, как у links_shape (вызывающий бросает
+-- ошибку по ним); до плана 2.0 — код и текст: тип ответа другой, поэтому drop.
+drop function if exists @SCHEMA@.check_links(jsonb, jsonb, uuid, boolean, jsonb);
 create or replace function @SCHEMA@.check_links(p_res jsonb, p_links jsonb, p_tenant uuid, p_lock boolean, p_acl jsonb,
-  out links jsonb, out code text, out msg text)
+  out links jsonb, out key text, out params jsonb)
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
@@ -342,16 +348,16 @@ as $$
 declare
   bad text;
 begin
-  select s.links, s.code, s.msg into links, code, msg from @SCHEMA@.links_shape(p_res, p_links) s;
-  if code is not null or links = '{}'::jsonb then
+  select s.links, s.key, s.params into links, key, params from @SCHEMA@.links_shape(p_res, p_links) s;
+  if key is not null or links = '{}'::jsonb then
     return;
   end if;
   bad := @SCHEMA@.targets_bad(jsonb_build_array(jsonb_build_object(
     'class', p_res->>'name', 'tenant', p_tenant, 'links', links, 'ends', coalesce(p_res->'ends', '{}'::jsonb))), p_lock, p_acl);
   if bad like '!%' then
-    code := 'derived_class'; msg := format('конец %s ведёт на строку производного класса', substr(bad, 2));
+    key := 'sql-write.end_target_derived'; params := jsonb_build_object('end', substr(bad, 2));
   elsif bad is not null then
-    code := 'target_not_found'; msg := format('цель конца %s не найдена', bad);
+    key := 'sql-write.end_target_missing'; params := jsonb_build_object('end', bad);
   end if;
 end $$;
 drop function if exists @SCHEMA@.check_links(jsonb, jsonb, uuid, boolean);
@@ -615,17 +621,17 @@ begin
     res := cls.data->'resolved';
     problem := null;
     if coalesce((res->>'abstract')::boolean, false) then
-      problem := 'класс абстрактный';
+      problem := @SCHEMA@.lt_text('sql-write.problem_abstract');
     else
       bad := @SCHEMA@.validate_data(res->'rules', cls.validator, res->'vars', r.data);
       if bad <> '[]'::jsonb then
-        problem := 'данные: ' || bad::text;
+        problem := @SCHEMA@.lt_text('sql-write.problem_data', jsonb_build_object('issues', bad::text));
       else
         select * into lk from @SCHEMA@.check_links(res, r.links, r.tenant, false, null);
-        if lk.code is not null then
-          problem := lk.msg;
+        if lk.key is not null then
+          problem := @SCHEMA@.lt_text(lk.key, lk.params);
         elsif coalesce(@SCHEMA@.key_id(res, r.class, r.tenant, r.data, r.links), r.id) <> r.id then
-          problem := 'id не соответствует ключу класса';
+          problem := @SCHEMA@.lt_text('sql-write.problem_key');
         end if;
       end if;
     end if;
@@ -641,8 +647,8 @@ begin
         left join @SCHEMA@.entity x on x.id = (i.v->>'id')::uuid
         order by seen desc, i.v->>'id' limit 1;
         problem := case when vis
-          then format('на строку ссылается роль %s строки %s, которая не принимает класс', ref->>'role', ref->>'id')
-          else 'на строку ссылается строка, которой актор не видит, и она не принимает класс' end;
+          then @SCHEMA@.lt_text('sql-write.problem_ref', jsonb_build_object('role', ref->>'role', 'id', ref->>'id'))
+          else @SCHEMA@.lt_text('sql-write.problem_ref_hidden') end;
       end if;
     end if;
     if problem is not null then
@@ -671,12 +677,12 @@ language plpgsql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 begin
-  perform @SCHEMA@.class_rows_admit(p_class, p_tenant, array['READ', 'WRITE', 'DELETE'],
-    format('класс %s меняет предков, алиас или derivedBy', p_class));
+  perform @SCHEMA@.class_rows_admit(p_class, p_tenant, array['READ', 'WRITE', 'DELETE'], 'reparent');
 end $$;
 
 -- Право актора на все строки класса p_class и каждого его потомка арендатора p_tenant: по каждой операции p_ops —
--- без условий, иначе acl_denied с текстом «<p_what>: нужно право <op> на все строки класса <класс>». Сам класс первым,
+-- без условий, иначе acl_denied «<что меняется>: нужно право <op> на все строки класса <класс>». Что меняется — p_what,
+-- по нему ключ каталога (план 2.0, этап 3, п. 3): reparent, history, tighten, rekey; иное — готовый текст. Сам класс первым,
 -- потомки — по глубине и имени; потомков у арендаторов класса System план сессии System не видит — они пропускаются.
 -- Зовут class_acl_admit (смена предков, алиаса, derivedBy), ужесточение (class_evolve, rekey_class) и смена политики
 -- хранения истории (class_admit; доработки после точки Б).
@@ -688,6 +694,7 @@ declare
   c text;
   op text;
   chk jsonb;
+  p jsonb;
 begin
   for c in select p_class
            union all
@@ -698,7 +705,14 @@ begin
     foreach op in array p_ops loop
       chk := @SCHEMA@.acl_check_data(c, op);
       if not coalesce((chk->>'allow')::boolean, false) or chk ? 'filter' then
-        perform @SCHEMA@.lt_fail('acl_denied', format('%s: нужно право %s на все строки класса %s', p_what, op, c));
+        p := jsonb_build_object('cls', p_class, 'op', op, 'target', c);
+        case p_what
+          when 'reparent' then perform @SCHEMA@.lt_fail('sql-write.reparent_needs_all', p);
+          when 'history' then perform @SCHEMA@.lt_fail('sql-write.history_needs_all', p);
+          when 'tighten' then perform @SCHEMA@.lt_fail('sql-write.tighten_needs_all', p);
+          when 'rekey' then perform @SCHEMA@.lt_fail('sql-write.rekey_needs_all', p);
+          else perform @SCHEMA@.lt_fail('sql-write.change_needs_all', jsonb_build_object('what', p_what, 'op', op, 'target', c));
+        end case;
       end if;
     end loop;
   end loop;
@@ -759,14 +773,14 @@ declare
 begin
   if p_tenant <> '@SYSTEM@'::uuid then
     if (p_data->>'name') = any (array['Class', 'Account', 'member', 'Resource', 'rule']) then
-      perform @SCHEMA@.lt_fail('invalid_class', format('имя %s зарезервировано за системным классом', p_data->>'name'));
+      perform @SCHEMA@.lt_fail('sql-write.system_name_reserved', jsonb_build_object('name', p_data->>'name'));
     end if;
     if coalesce((p_data->>'system')::boolean, false) then
-      perform @SCHEMA@.lt_fail('invalid_class', 'признак system задаёт только установка');
+      perform @SCHEMA@.lt_fail('sql-write.system_flag');
     end if;
     if exists (select 1 from @SCHEMA@.entity s
                where s.id = @SCHEMA@.v5_id('@SYSTEM@'::uuid, 'Class', array[p_data->>'name']) and s.class = 'Class') then
-      perform @SCHEMA@.lt_fail('invalid_class', format('имя %s занято системным классом', p_data->>'name'));
+      perform @SCHEMA@.lt_fail('sql-write.system_name_taken', jsonb_build_object('name', p_data->>'name'));
     end if;
   end if;
   -- родитель — под разделяемой блокировкой своего семейства (хвост ревью доработок после 1.2.0): удаление класса берёт
@@ -779,7 +793,7 @@ begin
   end if;
   select c.data, c.validator into data, validator from @SCHEMA@.class_prepare(p_data, p_tenant) c;
   if data->>'kind' = 'link' and (data->>'name') = any (@SCHEMA@.reserved_names()) then
-    perform @SCHEMA@.lt_fail('invalid_class', format('имя связи %s совпадает с методом цепочки', data->>'name'));
+    perform @SCHEMA@.lt_fail('sql-write.link_name_reserved', jsonb_build_object('name', data->>'name'));
   end if;
   -- алиас — второе имя класса и для правил прав (ревью безопасности №2): совпади он с именем другого класса (в том
   -- числе Class и системных) или с чужим алиасом арендатора и System, правила одного класса действовали бы на строки
@@ -789,15 +803,14 @@ begin
           or exists (select 1 from @SCHEMA@.entity x
                      where x.class = 'Class' and x.tenant in (p_tenant, '@SYSTEM@'::uuid) and x.data->>'name' <> data->>'name'
                        and (x.data->>'name' = data->>'alias' or x.data->>'alias' = data->>'alias'))) then
-    perform @SCHEMA@.lt_fail('invalid_class', format('алиас %s класса %s совпадает с именем или алиасом другого класса',
-      data->>'alias', data->>'name'));
+    perform @SCHEMA@.lt_fail('sql-write.alias_taken', jsonb_build_object('alias', data->>'alias', 'cls', data->>'name'));
   end if;
   -- и наоборот: имя класса — не чужой алиас арендатора и System, иначе правила, написанные для нового класса, действовали
   -- бы и на строки класса с этим алиасом
   if exists (select 1 from @SCHEMA@.entity x
              where x.class = 'Class' and x.tenant in (p_tenant, '@SYSTEM@'::uuid) and x.data->>'name' <> data->>'name'
                and x.data->>'alias' = data->>'name') then
-    perform @SCHEMA@.lt_fail('invalid_class', format('имя класса %s совпадает с алиасом другого класса', data->>'name'));
+    perform @SCHEMA@.lt_fail('sql-write.name_is_alias', jsonb_build_object('cls', data->>'name'));
   end if;
   -- агрегаты (план 1.1, §2.4; ревью коммита этапа 4б): поле считают функции владельца по всем строкам источника
   -- арендатора, без прав чтения, поэтому строки попадают в агрегат только с ведома того, кто читает их все. Пути
@@ -811,8 +824,7 @@ begin
   -- подключения и по правилам System (системный администратор — маска letopis.*)
   if (data->'resolved' ? 'derivedBy' or coalesce(prevd->'resolved' ? 'derivedBy', false))
      and not @SCHEMA@.letopis_allowed('letopis.projector') then
-    perform @SCHEMA@.lt_fail('acl_denied', format('класс %s производный: его описание задаёт только администратор (право letopis.projector)',
-      data->>'name'));
+    perform @SCHEMA@.lt_fail('sql-write.derived_admin', jsonb_build_object('cls', data->>'name'));
   end if;
   -- предок производного класса (ревью безопасности №3): правка предка пересчитывает описание потомка (class_evolve) —
   -- поля, ключ, history, — поэтому класс с производными потомками (своего арендатора, у класса System — всех, кроме
@@ -827,8 +839,7 @@ begin
       and x.data->'resolved'->'ancestors' ? (data->>'name') and x.data->'resolved' ? 'derivedBy'
     order by x.data->>'name' limit 1;
     if dkid is not null then
-      perform @SCHEMA@.lt_fail('acl_denied', format('класс %s — предок производного класса %s: его описание задаёт только администратор (право letopis.projector)',
-        data->>'name', dkid));
+      perform @SCHEMA@.lt_fail('sql-write.derived_ancestor_admin', jsonb_build_object('cls', data->>'name', 'derived', dkid));
     end if;
   end if;
   -- агрегат развёрнутого описания (свой или унаследованный), новый или изменённый против прежнего — описание
@@ -842,15 +853,17 @@ begin
       -- на чем, а когда класс заведёт другой пользователь, проверялись бы только его права — и описавший агрегат читал бы
       -- в истории цели вклад каждой строки источника. Поэтому источник описывают раньше агрегата
       if cardinality(@SCHEMA@.agg_classes(e.value->>'of', p_tenant, p_tenant = '@SYSTEM@'::uuid)) = 0 then
-        perform @SCHEMA@.lt_fail('invalid_class', format('агрегат %s.%s: класса-источника %s и его потомков %s нет — источник описывают раньше агрегата',
-          data->>'name', e.key, e.value->>'of', case when p_tenant = '@SYSTEM@'::uuid then 'в System' else 'у арендатора' end));
+        if p_tenant = '@SYSTEM@'::uuid then
+          perform @SCHEMA@.lt_fail('sql-write.aggregate_source_missing_system', jsonb_build_object('cls', data->>'name', 'field', e.key, 'of', e.value->>'of'));
+        end if;
+        perform @SCHEMA@.lt_fail('sql-write.aggregate_source_missing', jsonb_build_object('cls', data->>'name', 'field', e.key, 'of', e.value->>'of'));
       end if;
       -- сам класс of первым, потомки — по имени
       foreach src in array array(select n from unnest(@SCHEMA@.agg_classes(e.value->>'of', p_tenant, p_tenant = '@SYSTEM@'::uuid)) n
                                  order by n = (e.value->>'of') desc, n) loop
         chk := @SCHEMA@.acl_check_data(src, 'READ');
         if not coalesce((chk->>'allow')::boolean, false) or chk ? 'filter' then
-          perform @SCHEMA@.lt_fail('acl_denied', format('агрегат %s.%s: нужно право READ на все строки класса %s', data->>'name', e.key, src));
+          perform @SCHEMA@.lt_fail('sql-write.aggregate_source_read', jsonb_build_object('cls', data->>'name', 'field', e.key, 'source', src));
         end if;
       end loop;
     end loop;
@@ -880,16 +893,14 @@ begin
   -- версии и по алиасам предков, а надгробие потомка их не записывает — алиас меняется после purge() их строк
   if prevd is not null and prevd->>'alias' is distinct from data->>'alias'
      and @SCHEMA@.class_orphan_history(data->>'name', p_tenant) then
-    perform @SCHEMA@.lt_fail('invalid_class', format('удалённые потомки класса %s хранят историю строк: алиас меняется после purge() их строк',
-      data->>'name'));
+    perform @SCHEMA@.lt_fail('sql-write.alias_orphan_history', jsonb_build_object('cls', data->>'name'));
   end if;
   -- политика хранения истории (доработки после точки Б): по ней maintain() прореживает журнал строк класса, а
   -- history: false выключает журнал. Одним правом WRITE на Class автор правки стирал бы аудит строк, на которые у него
   -- нет прав, поэтому смена развёрнутой history существующего класса требует права READ и DELETE без условий на все
   -- строки класса и его потомков своего арендатора — как trimHistory требует их на каждую цель
   if prevd is not null and prevd->'resolved'->'history' is distinct from data->'resolved'->'history' then
-    perform @SCHEMA@.class_rows_admit(data->>'name', p_tenant, array['READ', 'DELETE'],
-      format('класс %s меняет политику хранения истории', data->>'name'));
+    perform @SCHEMA@.class_rows_admit(data->>'name', p_tenant, array['READ', 'DELETE'], 'history');
   end if;
   for e in select key, value from jsonb_each(coalesce(data->'resolved'->'ends', '{}'::jsonb)) loop
     select x.data->>'name' as name into o
@@ -900,7 +911,7 @@ begin
       and @SCHEMA@.class_set(x.data->'resolved'->'ends'->e.key->'class') <> @SCHEMA@.class_set(e.value->'class')
     limit 1;
     if o.name is not null then
-      perform @SCHEMA@.lt_fail('invalid_class', format('конец %s в классе %s ведёт на другой класс', e.key, o.name));
+      perform @SCHEMA@.lt_fail('sql-write.end_other_class', jsonb_build_object('end', e.key, 'cls', o.name));
     end if;
   end loop;
   -- на строки производного класса (план 1.1, §2.4) не ссылаются: проектор удаляет и строит их заново.
@@ -921,7 +932,7 @@ begin
       dname := data->>'name';
     end if;
     if dname is not null then
-      perform @SCHEMA@.lt_fail('derived_class', format('конец %s ведёт на производный класс %s', e.key, dname));
+      perform @SCHEMA@.lt_fail('sql-write.end_to_derived', jsonb_build_object('end', e.key, 'cls', dname));
     end if;
   end loop;
   if data->'resolved' ? 'derivedBy' then
@@ -942,8 +953,7 @@ begin
           and y.data->'resolved'->'ancestors' ? (data->>'name')))
     limit 1;
     if dname is not null then
-      perform @SCHEMA@.lt_fail('derived_class', format('класс %s не может стать производным: на него ссылается конец %s класса %s',
-        data->>'name', drole, dname));
+      perform @SCHEMA@.lt_fail('sql-write.derived_referenced', jsonb_build_object('cls', data->>'name', 'end', drole, 'ref', dname));
     end if;
   end if;
   -- строки-замки семейства (family_lock) — заранее: первая запись в новое семейство их не вставляет
@@ -968,32 +978,32 @@ declare
 begin
   select * into c from @SCHEMA@.ctx();
   if c.account is null then
-    perform @SCHEMA@.lt_fail('no_session', 'нет действующей сессии');
+    perform @SCHEMA@.lt_fail('sql-write.no_session');
   end if;
   NEW.tenant := coalesce(NEW.tenant, c.tenant);
   if NEW.tenant <> c.tenant then
-    perform @SCHEMA@.lt_fail('tenant_denied', 'запись в чужого арендатора');
+    perform @SCHEMA@.lt_fail('sql-write.foreign_tenant');
   end if;
   -- аккаунты (с их категориями) — только в System: их пишет системный администратор (этап 5)
   if NEW.class = 'Account' and NEW.tenant <> '@SYSTEM@'::uuid then
-    perform @SCHEMA@.lt_fail('tenant_denied', 'аккаунты лежат в арендаторе System');
+    perform @SCHEMA@.lt_fail('sql-write.account_tenant');
   end if;
   cls := @SCHEMA@.class_row(NEW.class, NEW.tenant);
   if cls.id is null then
-    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s не найден', NEW.class));
+    perform @SCHEMA@.lt_fail('sql-write.class_not_found', jsonb_build_object('cls', NEW.class));
   end if;
   -- разделяемая блокировка корня семейства, затем описание перечитывается под ней (класс могли удалить, пока ждали)
   perform @SCHEMA@.family_lock(cls, false);
   cls := @SCHEMA@.class_row(NEW.class, NEW.tenant);
   if cls.id is null then
-    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s удалён', NEW.class));
+    perform @SCHEMA@.lt_fail('sql-write.class_deleted', jsonb_build_object('cls', NEW.class));
   end if;
   res := cls.data->'resolved';
   if coalesce((res->>'abstract')::boolean, false) then
-    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s абстрактный', NEW.class));
+    perform @SCHEMA@.lt_fail('sql-write.class_abstract', jsonb_build_object('cls', NEW.class));
   end if;
   if res ? 'derivedBy' then
-    perform @SCHEMA@.lt_fail('derived_class', format('класс %s производный: его строки пишет проектор %s', NEW.class, res->>'derivedBy'));
+    perform @SCHEMA@.lt_fail('sql-write.derived_write_projector', jsonb_build_object('cls', NEW.class, 'projector', res->>'derivedBy'));
   end if;
   if NEW.class = 'Class' then
     select a.data, a.validator into NEW.data, NEW.validator from @SCHEMA@.class_admit(coalesce(NEW.data, '{}'::jsonb), NEW.tenant) a;
@@ -1002,8 +1012,8 @@ begin
     -- проверки; итог из живых источников ставит триггер после оператора
     if res ? 'aggregate' then
       if coalesce(NEW.data, '{}'::jsonb) ?| @SCHEMA@.agg_fields(res) then
-        perform @SCHEMA@.lt_fail('aggregate_field', format('поля %s класса %s считает база (aggregate) — их не передают',
-          array_to_string(array(select x from unnest(@SCHEMA@.agg_fields(res)) x where NEW.data ? x), ', '), NEW.class));
+        perform @SCHEMA@.lt_fail('sql-write.aggregate_given', jsonb_build_object(
+          'fields', array_to_string(array(select x from unnest(@SCHEMA@.agg_fields(res)) x where NEW.data ? x), ', '), 'cls', NEW.class));
       end if;
       NEW.data := @SCHEMA@.agg_zero(res, coalesce(NEW.data, '{}'::jsonb));
     end if;
@@ -1016,22 +1026,22 @@ begin
   end if;
   -- цели проверяет и блокирует триггер после оператора (targets_bad) — один раз на оператор
   select * into lk from @SCHEMA@.links_shape(res, NEW.links);
-  if lk.code is not null then
-    perform @SCHEMA@.lt_fail(lk.code, lk.msg);
+  if lk.key is not null then
+    perform @SCHEMA@.lt_fail(lk.key, lk.params);
   end if;
   NEW.links := lk.links;
   if NEW.class = 'member' and NEW.links->>'Tenant' is distinct from NEW.tenant::text then
-    perform @SCHEMA@.lt_fail('invalid_data', 'конец Tenant членства — арендатор строки');
+    perform @SCHEMA@.lt_fail('sql-write.member_tenant');
   end if;
   kid := @SCHEMA@.key_id(res, NEW.class, NEW.tenant, NEW.data, NEW.links);
   if kid is null then
     if NEW.id is not null then
-      perform @SCHEMA@.lt_fail('id_from_db', format('id класса без ключа %s выдаёт база', NEW.class));
+      perform @SCHEMA@.lt_fail('sql-write.id_from_db', jsonb_build_object('cls', NEW.class));
     end if;
     NEW.id := @SCHEMA@.v5_id(NEW.tenant, NEW.class, array[gen_random_uuid()::text]);
   else
     if NEW.id is not null and NEW.id <> kid then
-      perform @SCHEMA@.lt_fail('id_mismatch', format('id не равен v5 от ключа класса %s', NEW.class), jsonb_build_object('expected', kid));
+      perform @SCHEMA@.lt_fail('sql-write.id_mismatch', jsonb_build_object('cls', NEW.class), jsonb_build_object('expected', kid));
     end if;
     NEW.id := kid;
   end if;
@@ -1054,8 +1064,7 @@ begin
               and last.data->>'alias' is not distinct from NEW.data->>'alias'
               and last.data->'resolved'->'derivedBy' is not distinct from NEW.data->'resolved'->'derivedBy'
               and coalesce(last.data->'resolved'->'history', 'true'::jsonb) is not distinct from coalesce(NEW.data->'resolved'->'history', 'true'::jsonb)) then
-    perform @SCHEMA@.lt_fail('invalid_class', format('журнал хранит историю строк класса %s или его удалённых потомков: создать его можно только заново и с прежними parent, alias, derivedBy и history (или сначала стереть её purge())',
-      NEW.data->>'name'));
+    perform @SCHEMA@.lt_fail('sql-write.history_recreate', jsonb_build_object('cls', NEW.data->>'name'));
   end if;
   ts := @SCHEMA@.now_ts();
   NEW.rev := coalesce(last.rev, 0) + 1;
@@ -1068,7 +1077,7 @@ begin
   elsif NEW.owner not in (NEW.tenant, c.account)
         and not exists (select 1 from @SCHEMA@.entity a where a.id = NEW.owner and a.class = 'Account' and a.tenant = '@SYSTEM@'::uuid) then
     -- явный владелец — существующий аккаунт; разрешает ли его условие ACL, решает политика вставки
-    perform @SCHEMA@.lt_fail('target_not_found', 'владелец строки не найден');
+    perform @SCHEMA@.lt_fail('sql-write.owner_not_found');
   end if;
   NEW.author := c.author;
   NEW.agent := c.agent;
@@ -1096,43 +1105,42 @@ declare
 begin
   select * into c from @SCHEMA@.ctx();
   if c.account is null then
-    perform @SCHEMA@.lt_fail('no_session', 'нет действующей сессии');
+    perform @SCHEMA@.lt_fail('sql-write.no_session');
   end if;
   if NEW.id <> OLD.id or NEW.tenant <> OLD.tenant or NEW.owner <> OLD.owner or NEW.created_at <> OLD.created_at then
-    perform @SCHEMA@.lt_fail('immutable_key', 'id, арендатора, владельца и время создания менять нельзя');
+    perform @SCHEMA@.lt_fail('sql-write.immutable_columns');
   end if;
   if (NEW.class = 'Class') <> (OLD.class = 'Class') then
-    perform @SCHEMA@.lt_fail('invalid_class', 'строку Class нельзя превратить в данные и наоборот');
+    perform @SCHEMA@.lt_fail('sql-write.class_row_kind');
   end if;
   -- строки прав не получаются сменой класса: аккаунт с категориями — только в System (ревью этапа 5)
   if NEW.class <> OLD.class and (NEW.class in ('Account', 'member', 'Resource', 'rule') or OLD.class in ('Account', 'member', 'Resource', 'rule')) then
-    perform @SCHEMA@.lt_fail('reclass_denied', 'класс системной строки не меняется');
+    perform @SCHEMA@.lt_fail('sql-write.system_row_reclass');
   end if;
   cls := @SCHEMA@.class_row(NEW.class, OLD.tenant);
   if cls.id is null then
-    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s не найден', NEW.class));
+    perform @SCHEMA@.lt_fail('sql-write.class_not_found', jsonb_build_object('cls', NEW.class));
   end if;
   perform @SCHEMA@.family_lock(cls, false);
   cls := @SCHEMA@.class_row(NEW.class, OLD.tenant);
   if cls.id is null then
-    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s удалён', NEW.class));
+    perform @SCHEMA@.lt_fail('sql-write.class_deleted', jsonb_build_object('cls', NEW.class));
   end if;
   res := cls.data->'resolved';
   if coalesce((res->>'abstract')::boolean, false) then
-    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s абстрактный', NEW.class));
+    perform @SCHEMA@.lt_fail('sql-write.class_abstract', jsonb_build_object('cls', NEW.class));
   end if;
   if res ? 'derivedBy' or (NEW.class <> OLD.class and (@SCHEMA@.class_row(OLD.class, OLD.tenant)).data->'resolved' ? 'derivedBy') then
-    perform @SCHEMA@.lt_fail('derived_class', format('класс %s производный: его строки пишет проектор',
-      case when res ? 'derivedBy' then NEW.class else OLD.class end));
+    perform @SCHEMA@.lt_fail('sql-write.derived_write', jsonb_build_object('cls', case when res ? 'derivedBy' then NEW.class else OLD.class end));
   end if;
   if NEW.class <> OLD.class then
     -- смена класса (этап 1, п. 9): только read committed, только для классов без ключа
     if current_setting('transaction_isolation') <> 'read committed' then
-      perform @SCHEMA@.lt_fail('isolation_level', 'смена класса разрешена только в read committed');
+      perform @SCHEMA@.lt_fail('sql-write.reclass_isolation');
     end if;
     old_res := (@SCHEMA@.class_row(OLD.class, OLD.tenant)).data->'resolved';
     if jsonb_array_length(coalesce(old_res->'key', '[]'::jsonb)) > 0 or jsonb_array_length(coalesce(res->'key', '[]'::jsonb)) > 0 then
-      perform @SCHEMA@.lt_fail('use_reclass', format('у класса %s или %s есть ключ: id меняется, используйте reclass()', OLD.class, NEW.class));
+      perform @SCHEMA@.lt_fail('sql-write.use_reclass', jsonb_build_object('from', OLD.class, 'to', NEW.class));
     end if;
     -- обычный update берёт слабую блокировку; смене класса нужна for update, чтобы дождаться
     -- транзакций, которые как раз пишут ссылку на эту строку
@@ -1140,11 +1148,11 @@ begin
     -- строка уходит из своего класса — как удаление из него: нужно право DELETE на прежнюю строку (доработки после
     -- точки Б; иначе с одним WRITE строку переносили в класс, где есть DELETE, и удаляли там)
     if not @SCHEMA@.acl_row_ok(@SCHEMA@.acl_plan('DELETE'), OLD.class, OLD.id, OLD.owner, OLD.tenant, OLD.tags, OLD.data, OLD.links) then
-      perform @SCHEMA@.lt_fail('acl_denied', format('нет права DELETE на строку класса %s: смена класса убирает её из класса', OLD.class));
+      perform @SCHEMA@.lt_fail('sql-write.reclass_delete_denied', jsonb_build_object('cls', OLD.class));
     end if;
     inc := @SCHEMA@.incoming_conflicts(OLD.id, NEW.class, OLD.tenant);
     if inc <> '[]'::jsonb then
-      perform @SCHEMA@.lt_fail('reclass_denied', format('роли ссылающихся строк не принимают класс %s', NEW.class),
+      perform @SCHEMA@.lt_fail('sql-write.reclass_refs', jsonb_build_object('cls', NEW.class),
         @SCHEMA@.visible_detail(inc, c.tenant));
     end if;
     op := 'reclass';
@@ -1165,16 +1173,16 @@ begin
     NEW.validator := null;
   end if;
   select * into lk from @SCHEMA@.links_shape(res, NEW.links);
-  if lk.code is not null then
-    perform @SCHEMA@.lt_fail(lk.code, lk.msg);
+  if lk.key is not null then
+    perform @SCHEMA@.lt_fail(lk.key, lk.params);
   end if;
   NEW.links := lk.links;
   if NEW.class = 'member' and NEW.links->>'Tenant' is distinct from OLD.tenant::text then
-    perform @SCHEMA@.lt_fail('invalid_data', 'конец Tenant членства — арендатор строки');
+    perform @SCHEMA@.lt_fail('sql-write.member_tenant');
   end if;
   kid := @SCHEMA@.key_id(res, NEW.class, OLD.tenant, NEW.data, NEW.links);
   if kid is not null and kid <> OLD.id then
-    perform @SCHEMA@.lt_fail('immutable_key', format('ключевое поле класса %s менять нельзя: id изменился бы (rekey)', NEW.class));
+    perform @SCHEMA@.lt_fail('sql-write.key_changed', jsonb_build_object('cls', NEW.class));
   end if;
   -- ничего не изменилось: строка возвращается как есть, версии нет, оператор считает её затронутой
   if NEW.class = OLD.class and NEW.data = OLD.data and NEW.links = OLD.links and NEW.tags = OLD.tags then
@@ -1218,9 +1226,9 @@ begin
                                  from added n where n.links <> '{}'::jsonb), true, @SCHEMA@.acl_actor('READ'));
   end if;
   if bad like '!%' then
-    perform @SCHEMA@.lt_fail('derived_class', format('конец %s ведёт на строку производного класса', substr(bad, 2)));
+    perform @SCHEMA@.lt_fail('sql-write.end_target_derived', jsonb_build_object('end', substr(bad, 2)));
   elsif bad is not null then
-    perform @SCHEMA@.lt_fail('target_not_found', format('цель конца %s не найдена', bad));
+    perform @SCHEMA@.lt_fail('sql-write.end_target_missing', jsonb_build_object('end', bad));
   end if;
   insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
   select n.id, n.rev, n.class, n.cv, n.tenant, n.owner, n.links, n.data, n.tags, n.at, n.author, n.agent, n.op, n.reason, n.moved, n.prev_hash
@@ -1273,9 +1281,9 @@ begin
                                  where n.links <> '{}'::jsonb and (n.links <> o.links or n.class <> o.class)), true, @SCHEMA@.acl_actor('READ'));
   end if;
   if bad like '!%' then
-    perform @SCHEMA@.lt_fail('derived_class', format('конец %s ведёт на строку производного класса', substr(bad, 2)));
+    perform @SCHEMA@.lt_fail('sql-write.end_target_derived', jsonb_build_object('end', substr(bad, 2)));
   elsif bad is not null then
-    perform @SCHEMA@.lt_fail('target_not_found', format('цель конца %s не найдена', bad));
+    perform @SCHEMA@.lt_fail('sql-write.end_target_missing', jsonb_build_object('end', bad));
   end if;
   insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash, changed)
   select n.id, n.rev, n.class, n.cv, n.tenant, n.owner, n.links, n.data, n.tags, n.at, n.author, n.agent, n.op, n.reason, n.moved, n.prev_hash,
@@ -1374,11 +1382,11 @@ begin
     -- ужесточение (maximum, enum, pattern…) было оракулом по чужим строкам (доработки после точки Б). Нужно право READ
     -- без условий на все строки класса и потомков своего арендатора; строки других арендаторов (класс System) —
     -- уровень установки, их число остаётся в others
-    perform @SCHEMA@.class_rows_admit(n.data->>'name', n.tenant, array['READ'], format('ужесточение класса %s', n.data->>'name'));
+    perform @SCHEMA@.class_rows_admit(n.data->>'name', n.tenant, array['READ'], 'tighten');
     conflicts := @SCHEMA@.family_conflicts(classes, n.tenant, o.data->'resolved'->'ancestors' is distinct from n.data->'resolved'->'ancestors');
     if conflicts <> '[]'::jsonb then
       select * into c from @SCHEMA@.ctx();
-      perform @SCHEMA@.lt_fail('tightening_conflict', format('новому описанию класса %s не соответствуют строки', n.data->>'name'),
+      perform @SCHEMA@.lt_fail('sql-write.tightening_mismatch', jsonb_build_object('cls', n.data->>'name'),
         @SCHEMA@.visible_detail(conflicts, c.tenant));
     end if;
   end if;
@@ -1391,7 +1399,7 @@ set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 begin
   if current_setting('transaction_isolation') <> 'read committed' then
-    perform @SCHEMA@.lt_fail('isolation_level', 'удаление разрешено только в read committed');
+    perform @SCHEMA@.lt_fail('sql-write.delete_isolation');
   end if;
   return null;
 end $$;
@@ -1408,7 +1416,7 @@ set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 begin
   if OLD.id = '@SYSTEM@'::uuid then
-    perform @SCHEMA@.lt_fail('acl_denied', 'аккаунт System не удаляется: ему принадлежат служебные строки установки');
+    perform @SCHEMA@.lt_fail('sql-write.system_account_delete');
   end if;
   perform @SCHEMA@.auth_kill(OLD.id, null);
   return OLD;
@@ -1497,13 +1505,13 @@ begin
   dplan := @SCHEMA@.acl_plan('DELETE');
   wplan := @SCHEMA@.acl_plan('WRITE');
   if exists (select 1 from @SCHEMA@.entity x join gone g on g.id = x.id) then
-    perform @SCHEMA@.lt_fail('recreated_in_statement', 'id удалён и создан заново одним оператором');
+    perform @SCHEMA@.lt_fail('sql-write.recreated_in_statement');
   end if;
   -- строки производного класса удаляет только проектор (каскад функции владельца сюда не доходит)
   select d.class into denied from (select distinct g.class, g.tenant from gone g) d
   where (@SCHEMA@.class_row(d.class, d.tenant)).data->'resolved' ? 'derivedBy' limit 1;
   if denied is not null then
-    perform @SCHEMA@.lt_fail('derived_class', format('класс %s производный: его строки удаляет проектор', denied));
+    perform @SCHEMA@.lt_fail('sql-write.derived_delete', jsonb_build_object('cls', denied));
   end if;
   -- удаление класса (хвост ревью безопасности доработок после 1.2.0): проверки ниже — нет строк, потомков и истории —
   -- не видят строку, которую писатель ещё не зафиксировал, и она осталась бы без класса, а с ней история удалённого
@@ -1515,7 +1523,7 @@ begin
   for r in select g.id, g.tenant, g.data->>'name' as name, g.data->'resolved' ? 'derivedBy' as derived from gone g where g.class = 'Class' loop
     -- производный класс удаляет только администратор (class_admit)
     if r.derived and not @SCHEMA@.letopis_allowed('letopis.projector') then
-      perform @SCHEMA@.lt_fail('acl_denied', format('класс %s производный: его описание задаёт только администратор (право letopis.projector)', r.name));
+      perform @SCHEMA@.lt_fail('sql-write.derived_admin', jsonb_build_object('cls', r.name));
     end if;
     -- класс-источник агрегата (автоматическое ревью коммита 5290be1): пока его называет агрегат класса того же
     -- арендатора, класс не удаляется — иначе класс с этим именем завёл бы потом другой пользователь, и право READ
@@ -1527,8 +1535,7 @@ begin
       where x.class = 'Class' and x.tenant = r.tenant and x.data->'resolved' ? 'aggregate' and a.value->>'of' = r.name
       order by 1 limit 1;
       if denied is not null then
-        perform @SCHEMA@.lt_fail('invalid_class', format('класс %s — источник агрегата %s: сначала уберите агрегат из описания цели',
-          r.name, denied));
+        perform @SCHEMA@.lt_fail('sql-write.aggregate_source_delete', jsonb_build_object('cls', r.name, 'aggregate', denied));
       end if;
     end if;
     -- у класса System — строки и потомки любого арендатора, кроме арендаторов со своим одноимённым классом: их строки и
@@ -1541,12 +1548,12 @@ begin
                where x.class = r.name and (x.tenant = r.tenant or r.tenant = '@SYSTEM@'::uuid and x.tenant <> all (own)))
        or exists (select 1 from @SCHEMA@.entity x where x.class = 'Class' and x.data->>'parent' = r.name
                   and (x.tenant = r.tenant or r.tenant = '@SYSTEM@'::uuid and x.tenant <> all (own))) then
-      perform @SCHEMA@.lt_fail('invalid_class', format('у класса %s есть строки или потомки', r.name));
+      perform @SCHEMA@.lt_fail('sql-write.class_not_empty', jsonb_build_object('cls', r.name));
     end if;
     -- и история строк (остаток Н2; доработки после точки Б): удалённый класс с историей, созданный заново с другими
     -- предками или алиасом, подставил бы её под чужие правила — сначала purge() удалённых строк
     if @SCHEMA@.class_has_history(r.name, r.tenant) then
-      perform @SCHEMA@.lt_fail('invalid_class', format('у класса %s есть история строк в журнале: сначала стереть её purge() удалённых строк', r.name));
+      perform @SCHEMA@.lt_fail('sql-write.class_has_history', jsonb_build_object('cls', r.name));
     end if;
   end loop;
   -- удалена цель агрегатов (план 1.1, §2.4): метки её источников — уже без неё
@@ -1605,8 +1612,10 @@ begin
     -- класс отказавшей строки называется, только если актор её видит (ревью безопасности №3)
     if drows is not null then
       denied := @SCHEMA@.visible_class(drows);
-      perform @SCHEMA@.lt_fail('acl_denied', case when denied is not null then format('нет права DELETE на класс %s в каскаде удаления', denied)
-                                                   else 'нет права DELETE на строки в каскаде удаления' end);
+      if denied is not null then
+        perform @SCHEMA@.lt_fail('sql-write.cascade_delete_denied', jsonb_build_object('cls', denied));
+      end if;
+      perform @SCHEMA@.lt_fail('sql-write.cascade_delete_denied_hidden');
     end if;
     mems := mems || lvl_mems;
     classes := classes || lvl_classes;
@@ -1614,9 +1623,10 @@ begin
     -- unset: снять конец, новая версия
     for r in select x.* from @SCHEMA@.entity x where x.id = any (unsets) order by x.id for update loop
       if not @SCHEMA@.acl_row_ok(wplan, r.class, r.id, r.owner, r.tenant, r.tags, r.data, r.links) then
-        perform @SCHEMA@.lt_fail('acl_denied', case when @SCHEMA@.visible_class(jsonb_build_array(to_jsonb(r))) is not null
-                                                     then format('нет права WRITE на класс %s: снятие конца при удалении', r.class)
-                                                     else 'нет права WRITE на ссылающуюся строку: снятие конца при удалении' end);
+        if @SCHEMA@.visible_class(jsonb_build_array(to_jsonb(r))) is not null then
+          perform @SCHEMA@.lt_fail('sql-write.unset_write_denied', jsonb_build_object('cls', r.class));
+        end if;
+        perform @SCHEMA@.lt_fail('sql-write.unset_write_denied_hidden');
       end if;
       newlinks := '{}'::jsonb;
       for k in select key, value from jsonb_each(r.links) loop
@@ -1647,7 +1657,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('id', x.id, 'class', x.class, 'tenant', x.tenant)), '[]'::jsonb) into blockers
   from (select x.id, x.class, x.tenant from @SCHEMA@.entity x where x.ends && all_ids order by x.id limit 1000) x;
   if blockers <> '[]'::jsonb then
-    perform @SCHEMA@.lt_fail('delete_restricted', 'на удаляемые строки ссылаются другие строки (onDelete: restrict)',
+    perform @SCHEMA@.lt_fail('sql-write.delete_restricted', '{}'::jsonb,
       @SCHEMA@.visible_detail(blockers, c.tenant));
   end if;
   return null;
@@ -1791,13 +1801,13 @@ begin
     -- строки производного класса пишет только проектор: перевод их ссылок мимо него оставил бы проекцию
     -- несогласованной (ревью безопасности №3, №3)
     if (@SCHEMA@.class_row(r.class, r.tenant)).data->'resolved' ? 'derivedBy' then
-      perform @SCHEMA@.lt_fail('derived_class',
-        case when p_plan is null or @SCHEMA@.visible_class(jsonb_build_array(to_jsonb(r))) is not null
-             then format('на строку ссылается строка производного класса %s: её пишет проектор', r.class)
-             else 'на строку ссылается строка производного класса: её пишет проектор' end);
+      if p_plan is null or @SCHEMA@.visible_class(jsonb_build_array(to_jsonb(r))) is not null then
+        perform @SCHEMA@.lt_fail('sql-write.derived_ref', jsonb_build_object('cls', r.class));
+      end if;
+      perform @SCHEMA@.lt_fail('sql-write.derived_ref_hidden');
     end if;
     if p_plan is not null and not @SCHEMA@.acl_row_ok(p_plan, r.class, r.id, r.owner, r.tenant, r.tags, r.data, r.links) then
-      perform @SCHEMA@.lt_fail('acl_denied', 'нет права WRITE на ссылающиеся строки');
+      perform @SCHEMA@.lt_fail('sql-write.refs_write_denied');
     end if;
     nl := @SCHEMA@.links_replace(r.links, o.id, p_new_id);
     rid := coalesce(@SCHEMA@.key_id((@SCHEMA@.class_row(r.class, r.tenant)).data->'resolved', r.class, r.tenant, r.data, nl), r.id);
@@ -1840,51 +1850,51 @@ declare
 begin
   select * into c from @SCHEMA@.ctx();
   if c.account is null then
-    perform @SCHEMA@.lt_fail('no_session', 'нет действующей сессии');
+    perform @SCHEMA@.lt_fail('sql-write.no_session');
   end if;
   if current_setting('transaction_isolation') <> 'read committed' then
-    perform @SCHEMA@.lt_fail('isolation_level', 'смена класса разрешена только в read committed');
+    perform @SCHEMA@.lt_fail('sql-write.reclass_isolation');
   end if;
   rd := @SCHEMA@.acl_actor('READ');
   wplan := @SCHEMA@.acl_plan('WRITE');
   select x.* into o from @SCHEMA@.entity x where x.id = p_id and x.tenant = c.tenant for update;
   if o.id is null or not @SCHEMA@.row_visible(o.tenant, o.class, o.id, o.owner, o.tags, o.data, o.links, c.tenant, c.account, rd->'plan') then
-    perform @SCHEMA@.lt_fail('target_not_found', 'цель не найдена');
+    perform @SCHEMA@.lt_fail('sql-write.target_not_found');
   end if;
   if not @SCHEMA@.acl_row_ok(wplan, o.class, o.id, o.owner, o.tenant, o.tags, o.data, o.links) then
-    perform @SCHEMA@.lt_fail('acl_denied', format('нет права WRITE на строку класса %s', o.class));
+    perform @SCHEMA@.lt_fail('sql-write.row_write_denied', jsonb_build_object('cls', o.class));
   end if;
   -- строка уходит из своего класса — как удаление из него: нужно право DELETE на прежнюю строку (доработки после
   -- точки Б; иначе с одним WRITE строку переносили в класс, где есть DELETE, и удаляли там)
   if not @SCHEMA@.acl_row_ok(@SCHEMA@.acl_plan('DELETE'), o.class, o.id, o.owner, o.tenant, o.tags, o.data, o.links) then
-    perform @SCHEMA@.lt_fail('acl_denied', format('нет права DELETE на строку класса %s: смена класса убирает её из класса', o.class));
+    perform @SCHEMA@.lt_fail('sql-write.reclass_delete_denied', jsonb_build_object('cls', o.class));
   end if;
   -- строки прав и классов функция не трогает
   if o.class in ('Class', 'Account', 'member', 'Resource', 'rule') or p_class in ('Class', 'Account', 'member', 'Resource', 'rule') then
-    perform @SCHEMA@.lt_fail('reclass_denied', 'класс системной строки не меняется');
+    perform @SCHEMA@.lt_fail('sql-write.system_row_reclass');
   end if;
   cls := @SCHEMA@.class_row(p_class, o.tenant);
   if cls.id is null then
-    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s не найден', p_class));
+    perform @SCHEMA@.lt_fail('sql-write.class_not_found', jsonb_build_object('cls', p_class));
   end if;
   perform @SCHEMA@.family_lock(cls, false);
   cls := @SCHEMA@.class_row(p_class, o.tenant);
   if cls.id is null then
-    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s удалён', p_class));
+    perform @SCHEMA@.lt_fail('sql-write.class_deleted', jsonb_build_object('cls', p_class));
   end if;
   res := cls.data->'resolved';
   if coalesce((res->>'abstract')::boolean, false) then
-    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s абстрактный', p_class));
+    perform @SCHEMA@.lt_fail('sql-write.class_abstract', jsonb_build_object('cls', p_class));
   end if;
   if res ? 'derivedBy' or (@SCHEMA@.class_row(o.class, o.tenant)).data->'resolved' ? 'derivedBy' then
-    perform @SCHEMA@.lt_fail('derived_class', 'строки производного класса пишет только его проектор');
+    perform @SCHEMA@.lt_fail('sql-write.derived_reclass');
   end if;
   d := coalesce(p_data, o.data);
   -- агрегатные поля нового класса считает база (план 1.1, §2.4): в данных их не передают; прежнее число остаётся
   -- до пересчёта, иначе 0
   if res ? 'aggregate' then
     if p_data ?| @SCHEMA@.agg_fields(res) then
-      perform @SCHEMA@.lt_fail('aggregate_field', format('агрегатные поля класса %s считает база — в данных reclass их не передают', p_class));
+      perform @SCHEMA@.lt_fail('sql-write.aggregate_given_reclass', jsonb_build_object('cls', p_class));
     end if;
     d := @SCHEMA@.agg_zero(res, d);
   end if;
@@ -1894,17 +1904,17 @@ begin
     perform @SCHEMA@.lt_fail('sql-write.invalid_data', jsonb_build_object('cls', p_class), jsonb_build_object('issues', bad));
   end if;
   select * into lk from @SCHEMA@.check_links(res, o.links, o.tenant, true, rd);
-  if lk.code is not null then
-    perform @SCHEMA@.lt_fail(lk.code, lk.msg);
+  if lk.key is not null then
+    perform @SCHEMA@.lt_fail(lk.key, lk.params);
   end if;
   inc := @SCHEMA@.incoming_conflicts(o.id, p_class, o.tenant);
   if inc <> '[]'::jsonb then
-    perform @SCHEMA@.lt_fail('reclass_denied', format('роли ссылающихся строк не принимают класс %s', p_class),
+    perform @SCHEMA@.lt_fail('sql-write.reclass_refs', jsonb_build_object('cls', p_class),
       @SCHEMA@.visible_detail(inc, c.tenant));
   end if;
   nid := coalesce(@SCHEMA@.key_id(res, p_class, o.tenant, d, lk.links), o.id);
   if not @SCHEMA@.acl_row_ok(wplan, p_class, nid, o.owner, o.tenant, o.tags, d, lk.links) then
-    perform @SCHEMA@.lt_fail('acl_denied', format('нет права WRITE на класс %s', p_class));
+    perform @SCHEMA@.lt_fail('sql-write.class_write_denied', jsonb_build_object('cls', p_class));
   end if;
   if nid <> o.id then
     -- перевод ссылок пишет ссылающиеся строки: на них тоже нужно право WRITE (глубже первого уровня — move_row);
@@ -1913,8 +1923,10 @@ begin
            count(*) into denied, n_denied from @SCHEMA@.entity x
     where x.ends @> array[o.id] and not @SCHEMA@.acl_row_ok(wplan, x.class, x.id, x.owner, x.tenant, x.tags, x.data, x.links);
     if n_denied > 0 then
-      perform @SCHEMA@.lt_fail('acl_denied', case when denied is not null then format('нет права WRITE на ссылающиеся строки класса %s', denied)
-                                                   else 'нет права WRITE на ссылающиеся строки' end);
+      if denied is not null then
+        perform @SCHEMA@.lt_fail('sql-write.refs_class_write_denied', jsonb_build_object('cls', denied));
+      end if;
+      perform @SCHEMA@.lt_fail('sql-write.refs_write_denied');
     end if;
   end if;
   if nid = o.id then
@@ -1972,7 +1984,9 @@ begin
         end if;
         res := jsonb_set(res, array[role], cur);
       else
-        raise exception using errcode = 'LT003', message = 'letopis: invalid_data: links_patch: неизвестная операция ' || coalesce(o->>'op', 'null');
+        raise exception using errcode = 'LT003', message = 'letopis: invalid_data: '
+            || @SCHEMA@.lt_text('sql-write.links_patch_op', jsonb_build_object('op', coalesce(o->>'op', 'null'))),
+          detail = jsonb_build_object('key', 'sql-write.links_patch_op', 'params', jsonb_build_object('op', coalesce(o->>'op', 'null')))::text;
     end case;
   end loop;
   return res;
@@ -2013,39 +2027,44 @@ declare
   cur jsonb := data;
   v jsonb;
   i int;
-  fail text;
+  fail text;  -- ключ каталога отказа (sql-write.inc_*)
+  p jsonb := '{}'::jsonb;
 begin
   if path is null or cardinality(path) = 0 or delta is null then
-    fail := 'inc: нужны путь и величина';
+    fail := 'sql-write.inc_args';
   else
     for i in 1 .. cardinality(path) - 1 loop
       if jsonb_typeof(cur) is distinct from 'object' or not cur ? path[i] then
-        fail := format('inc: путь %s идёт через отсутствующий объект', array_to_string(path, '.'));
+        fail := 'sql-write.inc_path_missing';
         exit;
       end if;
       cur := cur->path[i];
     end loop;
     if fail is null and jsonb_typeof(cur) is distinct from 'object' then
-      fail := format('inc: путь %s идёт не через объект', array_to_string(path, '.'));
+      fail := 'sql-write.inc_path_not_object';
     end if;
     if fail is null then
       v := cur->path[cardinality(path)];
       if v is null then
         if start is null then
-          fail := format('inc: поля %s нет — задайте start', array_to_string(path, '.'));
+          fail := 'sql-write.inc_no_field';
         else
           return jsonb_set(data, path, to_jsonb(start + delta), true);
         end if;
       elsif jsonb_typeof(v) <> 'number' then
-        fail := format('inc: в поле %s не число', array_to_string(path, '.'));
+        fail := 'sql-write.inc_not_number';
       else
         return jsonb_set(data, path, to_jsonb((v #>> '{}')::numeric + delta));
       end if;
     end if;
   end if;
-  raise exception using errcode = 'LT003', message = 'letopis: invalid_data: ' || fail,
+  -- путь — параметр всех текстов, кроме inc_args; нарушение в detail.issues — тот же русский текст
+  if fail <> 'sql-write.inc_args' then
+    p := jsonb_build_object('path', array_to_string(path, '.'));
+  end if;
+  raise exception using errcode = 'LT003', message = 'letopis: invalid_data: ' || @SCHEMA@.lt_text(fail, p),
     detail = jsonb_build_object('issues', jsonb_build_array(jsonb_build_object(
-      'path', to_jsonb(coalesce(path, '{}')), 'keyword', 'inc', 'message', fail)))::text;
+      'path', to_jsonb(coalesce(path, '{}')), 'keyword', 'inc', 'message', @SCHEMA@.lt_text(fail, p))), 'key', fail, 'params', p)::text;
 end $$;
 
 do $$

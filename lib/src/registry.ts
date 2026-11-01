@@ -3,7 +3,7 @@
  * (собственные классы арендатора и системные), поиск по имени и алиасу, предки и потомки,
  * типы листьев для фильтров и валидатор на TypeScript, скомпилированный из того же описания.
  */
-import { LetopisError } from './errors.js';
+import { lerr } from './errors.js';
 import type { JsonSchema } from './jsonschema.js';
 import { compileValidator, type Validator } from './validate.js';
 
@@ -116,7 +116,7 @@ export class Registry {
 
   resolve(name: string): ClassInfo {
     const c = this.find(name);
-    if (!c) throw new LetopisError('invalid_class', `класс ${name} не найден`);
+    if (!c) throw lerr('model.class_not_found', { name });
     return c;
   }
 

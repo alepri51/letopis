@@ -2176,6 +2176,11 @@ metadata, plus the multi-field conditions `anyOf` and `oneOf` with inheritance a
 
 ### Agents and MCP
 
+Language. `createMcpServer(db, { lang: 'en' })` and `letopis mcp --lang en` return tool and parameter descriptions,
+the server instructions and error texts in English; the default is `lang: 'ru'`. A refused tool call (`isError`)
+carries `structuredContent.error` with `code`, `message`, `hint` (what to do, in the server language) and `similar`
+(similar class, role, parameter or operator names when a name is not found); `detail` and `sqlstate` are as before.
+
 An agent — Claude, Cursor or your own — works with the data through MCP tools: it learns the model, reads with
 chains, looks at the history and, if allowed, writes. The MCP server acts on behalf of one user and only with that
 user's rights: every call is a chain under the user's session, and the database checks rights and tenants. The agent

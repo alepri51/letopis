@@ -11,7 +11,7 @@
  * после deny той же роли и цели заменяет запрет разрешением. Ресурсы обёртки живут в арендаторе: ссылку правила
  * арендатора на ресурс System база не пропустит (цель должна быть видна).
  */
-import { LetopisError, removed, wrapLang, type LangRun } from './errors.js';
+import { lerr, removed, wrapLang, type LangRun } from './errors.js';
 import { internalsOf } from './internal.js';
 import type { Executor } from './tx.js';
 import { v5Id } from './uuid.js';
@@ -132,11 +132,14 @@ function canon(v: unknown): string {
   return JSON.stringify(v);
 }
 
-/** Имя роли — по тому же правилу, что роли createTenant: маска группы делит роли по запятой и берёт их в скобки. */
-function roleName(v: unknown, bad: (why: string) => LetopisError): string {
-  if (typeof v !== 'string') throw bad(`role — строка, а не ${v === null ? 'null' : typeof v}`);
+/**
+ * Имя роли — по тому же правилу, что роли createTenant: маска группы делит роли по запятой и берёт их в скобки. what —
+ * метод db.acl (grant, deny, revoke, roles): им начинается текст ошибки, как и у classItem, apiItem и parse.
+ */
+function roleName(v: unknown, what: string): string {
+  if (typeof v !== 'string') throw lerr('access.role_not_string', { what, type: v === null ? 'null' : typeof v });
   if (!v || v !== v.trim() || /[,{}]/.test(v) || v.startsWith('!')) {
-    throw bad(`роль ${JSON.stringify(v)} — непустая строка без запятых и фигурных скобок, без «!» в начале и пробелов по краям`);
+    throw lerr('access.bad_role_name', { what, role: JSON.stringify(v) });
   }
   return v;
 }
@@ -147,17 +150,17 @@ function groupOf(role: string): Res {
   return { alias: `role:${role}:ACCOUNT`, category: 'ACCOUNT', pattern: { roles: `{${role}}` } };
 }
 
-function classItem(op: AclOp, t: unknown, bad: (why: string) => LetopisError): Item {
+function classItem(op: AclOp, t: unknown, what: string): Item {
   let cls: unknown = t;
   let cond: Record<string, unknown> = {};
   if (t && typeof t === 'object' && !Array.isArray(t)) {
     ({ class: cls, ...cond } = t as Record<string, unknown>);
     for (const k of Object.keys(cond)) {
-      if (!COLUMNS.includes(k)) throw bad(`условие на колонку ${k} — условие ставят на ${COLUMNS.join(', ')}`);
+      if (!COLUMNS.includes(k)) throw lerr('access.bad_condition_column', { what, column: k, columns: COLUMNS.join(', ') });
     }
   }
   if (typeof cls !== 'string' || (cls !== '*' && !NAME.test(cls))) {
-    throw bad(`цель ${JSON.stringify(t)} — имя класса, '*' (все классы) или { class, …условие на строки }`);
+    throw lerr('access.bad_rule_target', { what, target: JSON.stringify(t) });
   }
   const condition = Object.keys(cond).length ? cond : undefined;
   return {
@@ -168,33 +171,32 @@ function classItem(op: AclOp, t: unknown, bad: (why: string) => LetopisError): I
   };
 }
 
-function apiItem(ep: unknown, bad: (why: string) => LetopisError): Item {
+function apiItem(ep: unknown, what: string): Item {
   if (typeof ep !== 'string' || !/^[\p{L}\p{N}_.*{},-]+$/u.test(ep)) {
-    throw bad(`api ${JSON.stringify(ep)} — маска эндпоинта: сегменты через «.», {a,b} — любой из, * — хвост`);
+    throw lerr('access.bad_endpoint_mask', { what, endpoint: JSON.stringify(ep) });
   }
   return { op: 'API', category: 'API', target: ep, alias: `api:${ep}:API`, pattern: { endpoint: ep } };
 }
 
 function parse(spec: unknown, what: string, withWeight: boolean): { role: string; weight: number; items: Item[] } {
-  const bad = (why: string) => new LetopisError('invalid_data', `db.acl.${what}: ${why}`);
-  if (!spec || typeof spec !== 'object' || Array.isArray(spec)) throw bad('нужен объект { role, read | write | delete | api }');
+  if (!spec || typeof spec !== 'object' || Array.isArray(spec)) throw lerr('access.rule_spec_not_object', { what });
   const o = spec as Record<string, unknown>;
   const keys = ['role', 'read', 'write', 'delete', 'api', ...(withWeight ? ['weight'] : [])];
-  for (const k of Object.keys(o)) if (!keys.includes(k)) throw bad(`поле ${k} — допустимы ${keys.join(', ')}`);
-  const role = roleName(o.role, bad);
+  for (const k of Object.keys(o)) if (!keys.includes(k)) throw lerr('access.unknown_rule_field', { what, field: k, fields: keys.join(', ') });
+  const role = roleName(o.role, what);
   let weight = 50;
   if (o.weight !== undefined) {
     if (typeof o.weight !== 'number' || !Number.isInteger(o.weight) || o.weight < 1 || o.weight > 999) {
-      throw bad('weight — целое от 1 до 999: вес правила арендатора (от 1000 — административный слой System)');
+      throw lerr('access.bad_rule_weight', { what });
     }
     weight = o.weight;
   }
   const items: Item[] = [];
   for (const [key, op] of Object.entries(OPS)) {
-    if (o[key] !== undefined) for (const t of many(o[key])) items.push(classItem(op, t, bad));
+    if (o[key] !== undefined) for (const t of many(o[key])) items.push(classItem(op, t, what));
   }
-  if (o.api !== undefined) for (const ep of many(o.api)) items.push(apiItem(ep, bad));
-  if (!items.length) throw bad('нужна хотя бы одна операция: read, write, delete или api');
+  if (o.api !== undefined) for (const ep of many(o.api)) items.push(apiItem(ep, what));
+  if (!items.length) throw lerr('access.no_rule_operations', { what });
   return { role, weight, items };
 }
 
@@ -217,7 +219,7 @@ type Facade = any;
 export function makeAcl(S: string, exec: Executor, db?: () => unknown, lang?: LangRun): AclApi {
   const facade = (): Facade => {
     const d = db?.();
-    if (!d) throw new LetopisError('invalid_query', 'db.acl: запись правил — от фасада подключения');
+    if (!d) throw lerr('access.no_facade');
     return d;
   };
   async function inTx<T>(what: string, fn: (tr: Facade) => Promise<T>): Promise<T> {
@@ -280,12 +282,11 @@ export function makeAcl(S: string, exec: Executor, db?: () => unknown, lang?: La
       });
     },
     async roles(account, roles) {
-      const bad = (why: string) => new LetopisError('invalid_data', `db.acl.roles: ${why}`);
       const acc = typeof account === 'object' && account !== null ? account.id : account;
-      if (typeof acc !== 'string' || !acc) throw bad('аккаунт — id или строка с полем id');
+      if (typeof acc !== 'string' || !acc) throw lerr('access.bad_account');
       const d = facade();
       const tenant = d.tenant as string | undefined;
-      if (!tenant) throw new LetopisError('no_session', 'db.acl.roles: нет арендатора сессии');
+      if (!tenant) throw lerr('access.no_session_tenant');
       if (roles === undefined) {
         const [m] = await d.member({ User: acc, Tenant: tenant }).rows();
         return m ? [...((m.data.roles as string[] | undefined) ?? [])] : null;
@@ -294,9 +295,9 @@ export function makeAcl(S: string, exec: Executor, db?: () => unknown, lang?: La
         await inTx('roles', (tr) => tr.member({ User: acc, Tenant: tenant }).delete({ confirm: true }).rows());
         return null;
       }
-      if (!Array.isArray(roles)) throw bad('роли — массив строк или null (снять членство)');
-      const list = roles.map((r) => roleName(r, bad));
-      if (new Set(list).size !== list.length) throw bad('роли повторяются');
+      if (!Array.isArray(roles)) throw lerr('access.roles_not_array');
+      const list = roles.map((r) => roleName(r, 'roles'));
+      if (new Set(list).size !== list.length) throw lerr('access.duplicate_roles');
       await inTx('roles', (tr) => tr.member().upsert({ roles: list }).User.set(acc).Tenant.set(tenant).rows());
       return list;
     },

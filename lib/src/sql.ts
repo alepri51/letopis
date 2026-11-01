@@ -17,7 +17,7 @@
  * Значения всегда уходят параметрами, поэтому текст запроса зависит только от формы цепочки: его
  * кэширует план (chain.ts), а postgres.js готовит оператор один раз на соединение.
  */
-import { LetopisError, lerr, lwarn, similar } from './errors.js';
+import { lerr, lmsg, lwarn, similar, type MsgKey, type Params as MsgParams } from './errors.js';
 import { isOp } from './ops.js';
 import type { ClassInfo, LeafType, Registry } from './registry.js';
 import { OP, type ChainMods, type Cursor, type Filter, type Op, type Path, type Row } from './types.js';
@@ -70,8 +70,9 @@ export interface BuiltQuery {
   aggLeaf?: LeafType;
 }
 
-const fail = (msg: string): never => {
-  throw new LetopisError('invalid_query', msg);
+/** Отказ построителя по ключу каталога — там, где нужно выражение: `x ?? refuse(ключ)`; в операторах — throw lerr(…). */
+const refuse = (key: MsgKey, params?: MsgParams): never => {
+  throw lerr(key, params);
 };
 
 /**
@@ -155,7 +156,7 @@ export function resolveHop(reg: Registry, prev: Step, next: Step): Hop {
   for (const dir of preferRev ? (['reverse', 'forward'] as const) : (['forward', 'reverse'] as const)) {
     if ((dir === 'forward' ? fwd : rev).length) return { dir, roles: null };
   }
-  throw new LetopisError('no_path', `нет перехода ${prev.name} → ${next.name}: ни один класс не ссылается на другой`);
+  throw lerr('query.no_path', { from: prev.name, to: next.name });
 }
 
 // ---------------------------------------------------------------------------
@@ -263,7 +264,7 @@ function compileOp(path: string[], leaf: LeafType, o: Op, p: Params): Frag {
       return compileOp(path, leaf, { [OP]: 'ne', args: [args[0]] } as Op, p);
     }
     default:
-      return fail(`неизвестный оператор ${String(o[OP])}`);
+      throw lerr('query.unknown_op', { op: String(o[OP]) });
   }
 }
 
@@ -288,7 +289,7 @@ function compileTags(v: unknown, p: Params): Frag {
       }
     }
   }
-  return fail('tags() принимает строку, список или has/hasAny/hasAll');
+  throw lerr('query.tags_arg');
 }
 
 interface CompiledFilter {
@@ -315,7 +316,7 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
 
   // or(…): дизъюнкция под-фильтров — только перепроверка
   if (isOp(filter)) {
-    if (filter[OP] !== 'or') fail(`оператор ${String(filter[OP])} на уровне фильтра шага — допустим только or(…)`);
+    if (filter[OP] !== 'or') throw lerr('query.step_op', { op: String(filter[OP]) });
     const parts = (filter.args[0] as Filter[]).map((f) => {
       const sub = compileFilter(reg, classes, f, p);
       const frags = [...asFrags(sub, p)];
@@ -329,7 +330,7 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
     return out;
   }
   if (Array.isArray(filter)) {
-    out.ids = filter.map((x) => idOfValue(x) ?? fail('список id: ожидались строки'));
+    out.ids = filter.map((x) => idOfValue(x) ?? refuse('query.id_list'));
     return out;
   }
 
@@ -362,8 +363,8 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
     if (value === undefined) continue;
     if (key === 'id') {
       if (typeof value === 'string') out.ids = [value];
-      else if (Array.isArray(value)) out.ids = value.map((x) => idOfValue(x) ?? fail('filter.id: ожидались строки'));
-      else fail('filter.id принимает строку или список строк');
+      else if (Array.isArray(value)) out.ids = value.map((x) => idOfValue(x) ?? refuse('query.filter_id_list'));
+      else throw lerr('query.filter_id');
       continue;
     }
     if (isRole(key)) {
@@ -372,7 +373,7 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
         out.frags.push((a) => `coalesce(${a}.links->${role}, 'null'::jsonb) in ('null'::jsonb, '[]'::jsonb)`);
         continue;
       }
-      const id = idOfValue(value) ?? fail(`конец ${key}: ожидался id, строка ответа или null`);
+      const id = idOfValue(value) ?? refuse('query.end_value', { role: key });
       out.ends.push(id);
       const ph = p.push(id);
       out.frags.push((a) => `${SCHEMA_MARK}.role_has(${a}.links, array[${role}], ${ph}::uuid)`);
@@ -493,9 +494,11 @@ function shown(v: unknown): string {
   return s.length > 60 ? `${s.slice(0, 59)}…` : s;
 }
 
-const CURSOR_EXPECT: Record<SortSpec['type'], string> = {
-  numeric: 'число', int: 'целое число', boolean: 'true/false', text: 'строка', uuid: 'uuid строкой',
-  timestamptz: 'время строкой вида 2026-10-07T10:00:00Z', date: 'дата строкой вида 2026-10-07', jsonb: 'строка, число, true/false',
+/** Какое значение курсора ждёт поле sort() по своему типу — запись каталога (параметр expect ошибки курсора). */
+const CURSOR_EXPECT: Record<SortSpec['type'], MsgKey> = {
+  numeric: 'query.cursor_expect_numeric', int: 'query.cursor_expect_int', boolean: 'query.cursor_expect_boolean',
+  text: 'query.cursor_expect_text', uuid: 'query.cursor_expect_uuid', timestamptz: 'query.cursor_expect_timestamptz',
+  date: 'query.cursor_expect_date', jsonb: 'query.cursor_expect_jsonb',
 };
 
 /**
@@ -505,14 +508,14 @@ const CURSOR_EXPECT: Record<SortSpec['type'], string> = {
  * Курсор того же типа с другого поля проверка не отличит.
  */
 function cursorParams(c: unknown, sort: SortSpec): { v: unknown; id: string } {
-  const how = `cursorOf(строка, '${sort.field}')`;
-  if (typeof c !== 'object' || c === null || (c as Partial<Cursor>).v === undefined) return fail(`after(cursor): курсор — объект { v, id } из ${how}`);
+  if (typeof c !== 'object' || c === null || (c as Partial<Cursor>).v === undefined) throw lerr('query.cursor_shape', { field: sort.field });
   const { v, id } = c as Cursor;
-  if (typeof id !== 'string' || !UUID_RE.test(id)) return fail(`after(cursor): id курсора — uuid строки, а не ${shown(id)}`);
+  if (typeof id !== 'string' || !UUID_RE.test(id)) throw lerr('query.cursor_id', { id: shown(id) });
   const value = v === null && sort.nullable ? null : cursorValue(v, sort.type);
   if (value === undefined) {
-    return fail(`after(cursor): значение курсора ${shown(v)} не подходит к sort('${sort.field}') — ожидалось: ${CURSOR_EXPECT[sort.type]}`
-      + `${sort.nullable ? ' или null' : ''}; курсор снят с другого поля? Нужен ${how}`);
+    // у поля данных подходит и курсор null — своя запись, а не склейка « или null»
+    throw lerr(sort.nullable ? 'query.cursor_value_nullable' : 'query.cursor_value',
+      { value: shown(v), field: sort.field, expect: lmsg(CURSOR_EXPECT[sort.type]) });
   }
   return { v: value, id };
 }
@@ -521,7 +524,7 @@ function cursorParams(c: unknown, sort: SortSpec): { v: unknown; id: string } {
 function cursorRev(c: Cursor): number | undefined {
   const rev = (c as { rev?: unknown }).rev;
   if (rev === undefined) return undefined;
-  if (!Number.isInteger(rev) || (rev as number) < 1) return fail(`after(cursor): rev курсора — номер версии (целое ≥ 1), а не ${shown(rev)}`);
+  if (!Number.isInteger(rev) || (rev as number) < 1) throw lerr('query.cursor_rev', { rev: shown(rev) });
   return rev as number;
 }
 
@@ -531,7 +534,7 @@ function cursorPath(c: Cursor, keys: string[]): string[] | undefined {
   if (path === undefined) return undefined;
   return keys.map((k) => {
     const id = typeof path === 'object' && path !== null ? (path as Record<string, unknown>)[k] : undefined;
-    if (typeof id !== 'string' || !UUID_RE.test(id)) return fail(`after(cursor): в курсоре пути нет id узла ${k} — нужен cursorOf(путь, поле) из paths() этой же цепочки`);
+    if (typeof id !== 'string' || !UUID_RE.test(id)) throw lerr('query.cursor_path', { key: k });
     return id;
   });
 }
@@ -558,7 +561,7 @@ export function cursorOf(row: Row | Path, field: string): Cursor {
     for (const k of f.slice(5).split('.')) v = (v as Record<string, unknown> | undefined)?.[k];
     return { v: (v ?? null) as Cursor['v'], id: row.id, ...rev };
   }
-  return fail(`cursorOf: поле 'at', 'rev', 'id' или 'data.<путь>', а не '${field}'`);
+  throw lerr('query.cursor_of_field', { field });
 }
 
 // ---------------------------------------------------------------------------
@@ -587,7 +590,7 @@ export interface BuildOptions {
 
 export function buildRead(reg: Registry, schema: string, steps: Step[], mods: ChainMods, mode: ReadMode, agg?: AggSpec,
   opts: BuildOptions = {}): BuiltQuery {
-  if (!steps.length) fail('пустая цепочка');
+  if (!steps.length) throw lerr('query.empty_chain');
   const S = `"${schema.replace(/"/g, '""')}"`;
   const p = new Params();
   const cur = mods.asOf === undefined;
@@ -599,7 +602,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
   steps.forEach((s, i) => {
     if (s.pivotKey !== undefined) {
       const at = byNodeKey.get(s.pivotKey);
-      if (at === undefined) fail(`возврат к узлу ${s.name}: узла нет в этом пути`);
+      if (at === undefined) throw lerr('query.pivot_missing', { name: s.name });
       real[i] = at!;
     } else {
       real[i] = i;
@@ -683,7 +686,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
     const parts: string[] = [];
 
     if (i === 0) {
-      if (step.deepMax !== undefined) fail('deep() — на шаге перехода к тому же классу, а не на первом шаге');
+      if (step.deepMax !== undefined) throw lerr('query.deep_first_step');
       if (cur) {
         // условие id уже в conds — первичный ключ; вложение — поиск по индексу GIN
         parts.push(!cf.ids && (cf.eq || cf.ends.length) ? entityByIds(`select f.id from ${findIds(null, 'null', false)} f`) : entityPart(undefined));
@@ -704,9 +707,9 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
 
     if (step.deepMax !== undefined) {
       if (hop.dir !== 'reverse' || !stepClasses(reg, steps[a]).some((c) => names.includes(c))) {
-        fail(`deep() — только на переходе к тому же классу (дети любой глубины): ${steps[a].name} → ${step.name}`);
+        throw lerr('query.deep_hop', { from: steps[a].name, to: step.name });
       }
-      if (dead) fail('deep() и withDeleted() не сочетаются');
+      if (dead) throw lerr('query.deep_with_deleted');
       const maxPh = `${p.push(step.deepMax)}::int`;
       let deepSrc = `${S}.find_deep(${clsPh}, ${rolesPh}, ${srcArr}, ${maxPh}, ${atPh})`;
       if (opts.direct) {
@@ -795,7 +798,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
    */
   const after = (a: string, ties: (c: Cursor) => { col: string; val: unknown; cast: string }[] = () => []) => {
     if (!mods.after) return undefined;
-    if (!sort) fail('after(cursor) требует sort(поле)');
+    if (!sort) throw lerr('query.after_without_sort');
     const c = cursorParams(mods.after, sort!);
     const t = ties(mods.after);
     const lt = mods.desc ? '<' : '>';
@@ -897,7 +900,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
       break;
     }
     case 'agg': {
-      if (!agg || !agg.field.startsWith('data.')) fail("агрегат по полю 'data.<путь>'");
+      if (!agg || !agg.field.startsWith('data.')) throw lerr('query.agg_field');
       const path = agg!.field.slice(5).split('.');
       warnField(rowsNode(lastNode), path[0], `${agg!.fn}('${agg!.field}')`, false);
       const acc = accessor(path)('z');

@@ -12,7 +12,7 @@
  * исполняет весь план одной транзакцией (write.ts): продолжение идёт от результата глагола.
  * Этап 6: restore, purge, rekey; versions({ follow }); кэш результатов .cache() (cache.ts).
  */
-import { LetopisError, lerr, removed, similar, wrapLang, type LangRun } from './errors.js';
+import { lerr, lwarn, removed, similar, wrapLang, type LangRun, type LetopisError } from './errors.js';
 import { sessionTag, type ResultCache } from './cache.js';
 import type { ClassInfo, Registry } from './registry.js';
 import {
@@ -273,7 +273,7 @@ function warnNoHistory(steps: Step[], method: 'versions' | 'asOf' | 'diff' | 'bl
   const key = `${cls.name}|${method}`;
   if (noHistoryWarned.has(key)) return;
   noHistoryWarned.add(key);
-  console.warn(`letopis: .${method}() у класса ${cls.name} без журнала (history: false) — истории нет`);
+  lwarn('api.no_history', { method, cls: cls.name });
 }
 
 function report(ctx: ChainCtx, mode: QueryEvent['mode'], steps: Step[], t0: number, rows: number): void {
@@ -282,7 +282,7 @@ function report(ctx: ChainCtx, mode: QueryEvent['mode'], steps: Step[], t0: numb
   const slow = ctx.slowMs !== undefined && ms > ctx.slowMs;
   const classes = steps.map((s) => s.cls.name);
   if (ctx.onQuery) ctx.onQuery({ mode, classes, ms, rows, slow });
-  else if (slow) console.warn(`letopis: медленный запрос ${ms.toFixed(0)} мс — ${mode} ${classes.join('→')}`);
+  else if (slow) lwarn('api.slow_query', { ms: ms.toFixed(0), mode, classes: classes.join('→') });
 }
 
 /** Классы, которые читает цепочка (семейства шагов): по ним сбрасывается её ответ в кэше. */
@@ -330,7 +330,7 @@ async function exec<T>(ctx: ChainCtx, q: BuiltQuery, mode: QueryEvent['mode'], s
 
 async function read<T>(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMode, agg?: AggSpec): Promise<{ q: BuiltQuery | null; res: T[] }> {
   const hasOps = steps.some((s) => s.op);
-  if (ctx.batch && hasOps) throw new LetopisError('invalid_query', 'план стоит в очереди батча — его исполнит batch.run()');
+  if (ctx.batch && hasOps) throw lerr('api.batch_queued');
   if (mods.forUpdate) return lockedRead(ctx, steps, mods, mode) as Promise<{ q: BuiltQuery | null; res: T[] }>;
   if (hasOps) return plan(ctx, steps, mods, mode, agg) as Promise<{ q: BuiltQuery | null; res: T[] }>;
   const { cache: _c, ...plain } = mods;
@@ -346,9 +346,7 @@ function modName(mods: ChainMods): string | undefined {
 }
 
 function afterVerbError(name: string, verb: string): LetopisError {
-  return new LetopisError('invalid_query',
-    `${name}() после ${verb}() ни на что не действует: глагол проходит по всем целям шага, а ответ — его строки. ` +
-    `Цели сужают limit(), offset() и sort() до глагола: db.Класс(…).limit(n).${verb}(…)`);
+  return lerr('api.mod_after_verb', { name, verb });
 }
 
 /**
@@ -396,9 +394,9 @@ async function plan(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMod
  * заблокированная — acl_denied.
  */
 async function lockedRead(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMode): Promise<{ q: BuiltQuery | null; res: unknown[] }> {
-  if (!ctx.exec.explicit) throw new LetopisError('tx_required', 'forUpdate() — только внутри db.begin(): вне явной транзакции блокировка снялась бы сразу');
+  if (!ctx.exec.explicit) throw lerr('api.for_update_outside_tx');
   if ((mode !== 'rows' && mode !== 'ids') || mods.asOf !== undefined || mods.withDeleted || steps.some((s) => s.deepMax !== undefined || s.op)) {
-    throw new LetopisError('lock_unsupported', 'forUpdate() — с терминалами rows, first, ids, без агрегатов, asOf, versions, withDeleted, deep и глаголов');
+    throw lerr('api.for_update_unsupported');
   }
   const S = `"${ctx.schema.replace(/"/g, '""')}"`;
   const { forUpdate: _f, ...plain } = mods;
@@ -414,7 +412,7 @@ async function lockedRead(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: R
     const fresh = ((await q.unsafe(rowsQ.text, rowsQ.params as never[], { prepare: true })) as unknown as { row: Record<string, unknown> }[])
       .filter((r) => want.has(r.row.id as string));
     const denied = fresh.filter((r) => !locked.has(r.row.id as string)).map((r) => r.row.id as string);
-    if (denied.length) throw new LetopisError('acl_denied', `строки видны, но заблокировать их нельзя: ${denied.join(', ')}`, { ids: denied });
+    if (denied.length) throw lerr('api.lock_denied', { ids: denied.join(', ') }, { detail: { ids: denied } });
     return fresh;
   });
   report(ctx, mode, steps, t0, res.length);
@@ -431,13 +429,13 @@ function versionRef(v: unknown, what: string, moments = true): number | string {
   if (typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 2147483647) return v;
   if (moments && v instanceof Date && !Number.isNaN(+v)) return v.toISOString();
   if (moments && typeof v === 'string' && !Number.isNaN(Date.parse(v))) return v;
-  throw new LetopisError('invalid_query', `${what}: номер версии (целое ≥ 1)${moments ? ' или момент (ISO-строка, Date)' : ''}`);
+  throw lerr(moments ? 'api.version_or_moment' : 'api.version_number', { what });
 }
 /** blame({ at }): момент (ISO-строка, Date). */
 function momentOf(v: unknown, what: string): string {
   if (v instanceof Date && !Number.isNaN(+v)) return v.toISOString();
   if (typeof v === 'string' && !Number.isNaN(Date.parse(v))) return v;
-  throw new LetopisError('invalid_query', `${what}: момент — ISO-строка или Date`);
+  throw lerr('api.moment', { what });
 }
 
 /** Строка ответа: из чтения — to_jsonb узла, из плана — готовая строка записи. */
@@ -454,7 +452,7 @@ function slotValue(v: unknown): SlotValue {
   if (v === null || typeof v === 'string') return v as SlotValue;
   if (Array.isArray(v)) return v.map((x) => (typeof x === 'string' ? x : (x as { id: string }).id));
   if (typeof v === 'object' && typeof (v as { id?: unknown }).id === 'string') return { id: (v as { id: string }).id };
-  throw new LetopisError('invalid_query', 'значение слота — id, список id, строка ответа или цепочка');
+  throw lerr('api.slot_value');
 }
 
 function classProp(ctx: ChainCtx, name: string, found: { cls: ClassInfo; role?: string }, ownerSteps: Step[] | undefined,
@@ -476,14 +474,14 @@ function classProp(ctx: ChainCtx, name: string, found: { cls: ClassInfo; role?: 
     const last = ownerSteps?.[ownerSteps.length - 1];
     const kind = last?.op?.kind;
     if (!last || (kind !== 'create' && kind !== 'update' && kind !== 'upsert')) {
-      throw new LetopisError('invalid_query', `слот .${name}.${op}() — после create(), update() или upsert(): db.Класс(…).update(…).${name}.${op}(…)`);
+      throw lerr('api.slot_without_write', { name, op });
     }
     const role = slotRole(ctx.reg, last.cls, name);
     const end = last.cls.ends[role];
-    if ((op === 'add' || op === 'remove') && !end.many) throw new LetopisError('invalid_query', `слот .${name}.${op}(): конец ${role} одиночный — set() или unset()`);
-    if (op === 'unset' && (end.required || (end.min ?? 0) > 0)) throw new LetopisError('invalid_query', `слот .${name}.unset(): конец ${role} обязателен`);
+    if ((op === 'add' || op === 'remove') && !end.many) throw lerr('api.slot_single', { name, op, role });
+    if (op === 'unset' && (end.required || (end.min ?? 0) > 0)) throw lerr('api.slot_required', { name, role });
     if ((op === 'set' || op === 'unset') && last.slots?.some((x) => x.role === role && (x.op === 'set' || x.op === 'unset'))) {
-      throw new LetopisError('invalid_query', `слот ${role} задан дважды в одной записи`);
+      throw lerr('api.slot_twice', { role });
     }
     const value = op === 'unset' ? null : slotValue(v);
     const next = ownerSteps!.slice();
@@ -514,7 +512,7 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
   }
   const withLast = (patch: Partial<Step>): Chain => {
     const lastOp = steps[steps.length - 1]?.op;
-    if (lastOp) throw new LetopisError('invalid_query', `модификатор шага после ${lastOp.kind}() — сначала шаг класса`);
+    if (lastOp) throw lerr('api.step_mod_after_verb', { verb: lastOp.kind });
     const next = steps.slice();
     next[next.length - 1] = { ...steps[steps.length - 1], ...patch };
     return makeChain(ctx, next, mods, nodes);
@@ -533,7 +531,7 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
   /** Глагол — звено плана на последнем шаге (глагол уже есть — новый шаг «те же сущности»); модификаторы — его целям. */
   const withOp = (op: PlanOp): Chain => {
     const last = steps[steps.length - 1];
-    if (!last) throw new LetopisError('invalid_query', `${op.kind}() — нужен шаг класса: db.Класс(…).${op.kind}(…)`);
+    if (!last) throw lerr('api.verb_without_step', { verb: op.kind });
     // батч: причина db.batch(имя, { reason }) — при постановке в очередь, а не при run(): очередь общая по имени, и
     // run() может позвать фасад без причины или с другой (ревью №1 точки А плана 1.1)
     if (ctx.batch && op.reason === undefined && ctx.reason !== undefined) op = { ...op, reason: ctx.reason };
@@ -547,7 +545,7 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
   const entityStep = (x: unknown): Chain => {
     const plan = peekPlan(x);
     const prev = steps.length ? nodeOf(steps, steps[steps.length - 1]) : undefined;
-    if (plan?.steps.some((s) => s.op)) throw new LetopisError('invalid_query', 'entity() принимает читающий паттерн — цепочку с глаголами вклеить нельзя');
+    if (plan?.steps.some((s) => s.op)) throw lerr('api.entity_with_verbs');
     if (plan) {
       const known = nodes.get(x as object);
       if (known !== undefined) {
@@ -567,7 +565,7 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
       if (prev) resolveHop(ctx.reg, prev, next);
       return makeChain(ctx, [...steps, next], mods, nodes);
     }
-    throw new LetopisError('invalid_query', 'entity() принимает ленивую цепочку или строку ответа');
+    throw lerr('api.entity_arg');
   };
 
   const agg = (fn: AggSpec['fn']) => async (field: string) => {
@@ -699,7 +697,7 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
         return (cls: string, data?: Record<string, unknown>, opts?: { reason?: string }) =>
           withOp({ kind: 'reclass', cls, ...(data !== undefined ? { data } : {}), ...reasonOf(opts) });
       case 'set': case 'unset': case 'add': case 'remove':
-        throw new LetopisError('invalid_query', `${prop}() — метод слота: db.Класс(…).update(…).Роль.${prop}(…)`);
+        throw lerr('api.slot_method', { method: prop });
       case 'forUpdate':
         return () => withMods({ forUpdate: true });
       case 'restore':
@@ -710,7 +708,7 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
         return (patch: Record<string, unknown>, opts?: { reason?: string }) => withOp({ kind: 'rekey', data: patch ?? {}, ...reasonOf(opts) });
       case 'cache':
         return (opts?: { ttl?: number }) => {
-          if (opts?.ttl !== undefined && !(opts.ttl > 0)) throw new LetopisError('invalid_query', 'cache({ ttl }): срок — положительное число секунд');
+          if (opts?.ttl !== undefined && !(opts.ttl > 0)) throw lerr('api.cache_ttl');
           return withMods({ cache: opts ?? {} });
         };
     }

@@ -23,7 +23,7 @@
  * записи. Неотправленное (ошибка отправки) остаётся в очереди до следующего интервала.
  */
 import type postgres from 'postgres';
-import { LetopisError, fromDbError } from './errors.js';
+import { fromDbError, lerr, type LetopisError } from './errors.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 export type Tx = postgres.TransactionSql<Record<string, unknown>>;
@@ -69,8 +69,7 @@ export function release(conn: { release(): void }, err: unknown): void {
 }
 
 const commitUnknown = (cause: unknown): LetopisError =>
-  Object.assign(new LetopisError('commit_unknown', 'связь оборвалась во время commit: транзакция могла зафиксироваться — '
-    + 'проверьте исход повтором той же операции с тем же ключом'), { cause });
+  lerr('write.commit_unknown', undefined, { cause });
 
 /** Взаимная блокировка в явной транзакции: повторить нужно весь блок (подсказка, как hintTxRetry 0.21). */
 function hintTxRetry(e: unknown): unknown {
@@ -303,7 +302,7 @@ export class ExplicitTx implements Executor {
   }
 
   async run<T>(fn: (tx: Tx) => Promise<T>, opts?: { read?: boolean; raw?: boolean }): Promise<T> {
-    if (this.done) throw new LetopisError('tx_required', 'транзакция db.begin() уже завершена');
+    if (this.done) throw lerr('write.tx_done');
     if (this.broken) throw this.broken;
     if (opts?.raw) this.raw = true;
     try {
@@ -317,7 +316,7 @@ export class ExplicitTx implements Executor {
 
   /** Advisory-блокировка до конца транзакции (отдельное от блокировок семейств пространство ключей). */
   async lock(...keys: (string | number)[]): Promise<void> {
-    if (this.done) throw new LetopisError('tx_required', 'lock(): транзакция db.begin() уже завершена');
+    if (this.done) throw lerr('write.lock_tx_done');
     await this.run((q) => q.unsafe('select pg_advisory_xact_lock(hashtextextended($1, 0))', [keys.join('|')]));
   }
 
@@ -347,7 +346,7 @@ export class ExplicitTx implements Executor {
       })) as readonly [readonly Record<string, unknown>[], unknown];
       changed = (rows[0]?.changed as string | null) ?? null;
       if ((res as unknown as { command?: string }).command === 'ROLLBACK') {
-        this.failure = new LetopisError('tx_rolled_back', 'commit: PostgreSQL откатил транзакцию (в ней была ошибка)');
+        this.failure = lerr('write.tx_rolled_back');
         throw this.failure;
       }
     } catch (e) {

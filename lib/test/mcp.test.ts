@@ -720,3 +720,45 @@ test('решение точки Б (ревью безопасности №2, О
   assert.match(r.stderr, /user_session_required: createMcpServer: сессия в арендаторе System/);
   assert.equal(r.stdout, '', 'в stdout — только протокол');
 });
+
+test('план 2.0, 7.9 №5: createMcpServer({ lang: \'en\' }) — описания инструментов и параметров на английском', async () => {
+  const CYRILLIC = /[а-яё]/i;
+  /** Описания параметров входной схемы — рекурсивно: properties, items и вложенные объекты. */
+  const described = (v: unknown, out: string[] = []): string[] => {
+    if (Array.isArray(v)) for (const x of v) described(x, out);
+    else if (v && typeof v === 'object') {
+      for (const [k, x] of Object.entries(v)) {
+        if (k === 'description' && typeof x === 'string') out.push(x);
+        else described(x, out);
+      }
+    }
+    return out;
+  };
+  for (const lang of ['en', undefined] as const) {
+    // с write — все четыре инструмента и условные фразы (запись, классы прав)
+    const cn = await open(db, { write: true, ...(lang ? { lang } : {}) });
+    try {
+      const { tools } = await cn.client.listTools();
+      assert.deepEqual(tools.map((x) => x.name).sort(), ['letopis_history', 'letopis_model', 'letopis_query', 'letopis_write']);
+      const instructions = cn.client.getInstructions() ?? '';
+      assert.ok(instructions.length > 0);
+      const texts: [string, string][] = [['instructions', instructions]];
+      for (const tool of tools) {
+        const params = described(tool.inputSchema);
+        assert.ok(params.length > 0, `${tool.name}: у параметров есть описания`);
+        texts.push([tool.name, tool.description ?? ''], ...(tool.title ? [[`${tool.name}.title`, tool.title] as [string, string]] : []),
+          ...params.map((p) => [`${tool.name} (параметр)`, p] as [string, string]));
+      }
+      for (const [where, s] of texts) {
+        assert.ok(s.trim(), `${where}: текст есть`);
+        if (lang === 'en') assert.doesNotMatch(s, CYRILLIC, `${where} — на английском: ${s}`);
+        else assert.match(s, CYRILLIC, `${where} — по-русски: ${s}`);
+      }
+      const desc = tools.find((x) => x.name === 'letopis_write')!.description ?? '';
+      if (lang === 'en') assert.match(desc, /rights classes \(rule, Resource, member, Account, Class and their descendants\)/);
+      else assert.match(desc, /Классы прав \(rule, Resource, member, Account, Class и их потомки\) этот сервер не пишет/);
+    } finally {
+      await cn.close();
+    }
+  }
+});

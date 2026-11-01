@@ -11,7 +11,7 @@
  */
 import { createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
-import { LetopisError, lerr, removed, wrapLang, type LangRun } from './errors.js';
+import { lerr, removed, wrapLang, type LangRun } from './errors.js';
 import type { Executor } from './tx.js';
 
 const scryptAsync = promisify(scrypt) as (password: string, salt: Buffer, keylen: number,
@@ -37,7 +37,7 @@ export async function verifyHash(password: string, stored: string): Promise<bool
   // пароль» (false). Текст Node.js в сообщение не идёт: он зависит от сборки OpenSSL
   const got = await scryptAsync(password, Buffer.from(saltB64, 'base64'), want.length,
     { N: Number(N), r: Number(r), p: Number(p), maxmem: SCRYPT.maxmem }).catch(() => {
-    throw new LetopisError('invalid_data', `хэш пароля: параметры scrypt N=${N}, r=${r}, p=${p} недопустимы или требуют больше 64 МБ памяти`);
+    throw lerr('access.bad_scrypt_params', { N, r, p });
   });
   return got.length === want.length && timingSafeEqual(got, want);
 }
@@ -70,7 +70,7 @@ export function base32Decode(s: string): Buffer {
   const out: number[] = [];
   for (const ch of s.replace(/=+$/, '').toUpperCase()) {
     const idx = B32.indexOf(ch);
-    if (idx < 0) throw new LetopisError('invalid_data', 'секрет TOTP — не base32');
+    if (idx < 0) throw lerr('access.bad_totp_secret');
     value = (value << 5) | idx;
     bits += 5;
     if (bits >= 8) {

@@ -8,7 +8,7 @@
  * Этап 6: история (restore, purge, rekey, trimHistory), verify, maintain, reset, watch, кэш результатов.
  */
 import postgres from 'postgres';
-import { LetopisError, checkLang, checkOptions, fromDbError, langMethods, langRun, lerr, removed, wrapLang, type Lang, type LangRun } from './errors.js';
+import { LetopisError, checkLang, checkOptions, fromDbError, langMethods, langRun, lerr, lwarn, removed, wrapLang, type Lang, type LangRun } from './errors.js';
 import { Registry } from './registry.js';
 import { AclPasses, ExplicitTx, Notifier, poolExecutor, runTx, type Executor, type Tx, type TxContext } from './tx.js';
 import { checkReason } from './write.js';
@@ -332,7 +332,7 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
   // (актор, арендатор, владелец, транзакция), значит, в ней только планы, поставленные этим же фасадом
   const batches = new Map<string, BatchEntry[]>();
   const noTx = (what: string): never => {
-    throw new LetopisError('tx_required', `${what} — только внутри db.begin()`);
+    throw lerr('api.tx_only', { what });
   };
   const auth = makeAuth(sh.S, exec, async () => {
     sh.passes.clear();
@@ -360,7 +360,7 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
     transaction: (fn) => exec.run(fn),
     idOf: (cls, key) => {
       const tenant = scope.tenant();
-      if (!tenant) throw new LetopisError('no_session', 'idOf: нет арендатора сессии');
+      if (!tenant) throw lerr('api.id_of_no_tenant');
       const c = scope.registry().resolve(cls);
       return idOfClass({ name: c.name, key: c.key, ends: Object.keys(c.ends) }, key, { tenant });
     },
@@ -406,7 +406,7 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
     },
     entity: (x) => startEntity(chainCtx, x),
     as: async (account, o) => {
-      if (tx) throw new LetopisError('invalid_query', 'db.as() — от корня подключения, а не внутри db.begin()');
+      if (tx) throw lerr('api.as_in_tx');
       const id = account === null ? undefined : typeof account === 'object' ? account.id : account;
       const nextOwner = o?.owner ?? owner;
       if (id === undefined && o?.tenant === undefined) {
@@ -415,27 +415,27 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
       // имперсонация и арендатор проверяются базой сразу: ошибка — здесь, а не на первой цепочке
       const scoped: TxContext = { ...txc, account: id ?? txc.account, tenant: o?.tenant ?? (id === undefined ? txc.tenant : undefined) };
       let [r] = await runTx(scoped, (q) => q.unsafe(`select account, tenant from ${sh.S}.ctx()`), { read: true });
-      if (!r?.account) throw new LetopisError('no_session', 'db.as(): нет действующей сессии');
+      if (!r?.account) throw lerr('api.as_no_session');
       // контекст сессии между запросами ушёл из арендатора (сменился или кончился): реестр не загружен и не
       // кэширован (хвост ревью безопасности №3) — контекст читается заново, не больше трёх раз
       for (let attempt = 1; ; attempt++) {
         const tenant = r.tenant as string;
         const registry = await sh.registryFor(tenant, scoped);
         if (registry) return makeDb(sh, { txc: scoped, tenant: () => tenant, registry: () => sh.registryOf(tenant, registry, scoped), root: false }, poolExecutor(scoped), nextOwner);
-        if (attempt === 3) throw new LetopisError('no_session', 'db.as(): контекст сессии меняется — реестр арендатора не загружен');
+        if (attempt === 3) throw lerr('api.as_context_changing');
         [r] = await runTx(scoped, (q) => q.unsafe(`select account, tenant from ${sh.S}.ctx()`), { read: true });
-        if (!r?.account) throw new LetopisError('no_session', 'db.as(): нет действующей сессии');
+        if (!r?.account) throw lerr('api.as_no_session');
       }
     },
     begin: async (o) => {
-      if (tx) throw new LetopisError('invalid_query', 'вложенных транзакций нет: db.begin() внутри db.begin()');
+      if (tx) throw lerr('api.nested_begin');
       // причина блока ставится в начале транзакции (setupSql) и действует на все её операции
       const btx: TxContext = o?.reason !== undefined ? { ...txc, reason: checkReason(o.reason, 'db.begin()') } : txc;
       const t = await ExplicitTx.open(btx);
       return makeDb(sh, btx === txc ? scope : { ...scope, txc: btx }, t, owner, t) as DbTx;
     },
     load: async (input, o) => {
-      if (tx) throw new LetopisError('invalid_query', 'load() — своей транзакцией, не внутри db.begin()');
+      if (tx) throw lerr('api.load_in_tx');
       if (viaAdmin) {
         await adminReady();
         return load({ sql: viaAdmin, schema: sh.schema, tenant: scope.tenant(), admin: true, ownerRole: sh.ownerRole }, input, o);
@@ -443,8 +443,8 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
       return load({ sql: sh.sql, schema: sh.schema, tenant: scope.tenant(), admin: sh.admin, ownerRole: sh.ownerRole }, input, o);
     },
     projector: (name, o) => {
-      if (tx) throw new LetopisError('invalid_query', 'projector() — от корня подключения, а не внутри db.begin()');
-      if (!sh.admin && !viaAdmin) throw new LetopisError('admin_required', 'проектору нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы, или connect({ admin }))');
+      if (tx) throw lerr('api.projector_in_tx');
+      if (!sh.admin && !viaAdmin) throw lerr('api.projector_admin');
       // run(), rebuild() и status() зовут позже, вне projector(): на языке подключения
       return langMethods(L, new Projector({
         sql: viaAdmin ?? sh.sql, schema: sh.schema, S: sh.S, ownerRole: sh.ownerRole,
@@ -453,12 +453,12 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
       }, name, o), ['run', 'rebuild', 'status']);
     },
     rebuildAggregates: async (cls) => {
-      if (tx) throw new LetopisError('invalid_query', 'rebuildAggregates() — своей транзакцией, не внутри db.begin()');
+      if (tx) throw lerr('api.rebuild_in_tx');
       if (viaAdmin) {
         await adminReady();
         return runRebuildAggregates({ sql: viaAdmin, S: sh.S, ownerRole: sh.ownerRole }, cls);
       }
-      if (!sh.admin) throw new LetopisError('admin_required', 'ремонту агрегатов нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы, или connect({ admin }))');
+      if (!sh.admin) throw lerr('api.rebuild_admin');
       return runRebuildAggregates({ sql: sh.sql, S: sh.S, ownerRole: sh.ownerRole }, cls);
     },
     batch: (name, o) => {
@@ -521,13 +521,13 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
 
 async function open(opts: ConnectOptions, L: LangRun | undefined): Promise<Db> {
   if (!SCHEMA_NAME.test(opts.schema)) throw lerr('api.connect_schema', { schema: opts.schema });
-  if (!opts.sql && !opts.dsn) throw new LetopisError('invalid_data', 'connect: нужен dsn или sql');
+  if (!opts.sql && !opts.dsn) throw lerr('api.connect_no_dsn');
   for (const k of Object.keys(opts)) if (k in REMOVED_OPTIONS) throw removed(`опция connect({ ${k} })`, REMOVED_OPTIONS[k]);
   checkOptions('connect', opts, CONNECT_OPTIONS);
   // интервал обслуживания — до пула и таймеров: неверный не оставляет за собой открытых соединений
   const maintainEvery = opts.maintain === undefined ? undefined : parseInterval(opts.maintain);
   if (opts.admin !== undefined && typeof opts.admin !== 'string' && typeof opts.admin !== 'function') {
-    throw new LetopisError('invalid_data', 'connect: admin — строка подключения администратора или пул postgres.js');
+    throw lerr('api.connect_admin_type');
   }
   const own = !opts.sql;
   // timestamptz — строкой: Date в JS режет микросекунды, а на них держатся asOf и курсоры по времени
@@ -545,7 +545,7 @@ async function open(opts: ConnectOptions, L: LangRun | undefined): Promise<Db> {
   const adminReady = adminSql ? () => (adminChecked ??= (async () => {
     const [a] = await adminSql`select r.rolsuper, pg_has_role(current_user, ${owner}, 'SET') as can_set from pg_roles r where r.rolname = current_user`;
     if (!a?.rolsuper && !a?.can_set) {
-      throw new LetopisError('admin_required', `connect({ admin }): роль администраторской строки подключения не может стать владельцем схемы — нужен суперпользователь или роль с SET на ${owner}`);
+      throw lerr('api.connect_admin_role', { owner });
     }
   })().catch((e: unknown) => {
     adminChecked = undefined;
@@ -555,15 +555,15 @@ async function open(opts: ConnectOptions, L: LangRun | undefined): Promise<Db> {
     // роль, которая обходит RLS, видела бы данные всех арендаторов (§2.9)
     // роли владельца нет (опечатка в owner) — понятная ошибка, а не сырая 42704 PostgreSQL (план 2.0, 7.5 №3)
     const [known] = await sql`select exists (select 1 from pg_roles where rolname = ${owner}) as ok`;
-    if (!known.ok) throw new LetopisError('invalid_data', `connect: роли владельца ${owner} в базе нет — проверьте опцию owner (по умолчанию letopis_owner)`);
+    if (!known.ok) throw lerr('api.connect_no_owner', { owner });
     const [role] = await sql`select r.rolsuper, r.rolbypassrls,
         pg_has_role(current_user, ${owner}, 'USAGE') as inherits, pg_has_role(current_user, ${owner}, 'SET') as can_set
       from pg_roles r where r.rolname = current_user`;
     const bypass = role.rolsuper || role.rolbypassrls || role.inherits || role.can_set;
     if (bypass && !opts.allowBypassRls) {
-      throw new LetopisError('bypass_rls', 'роль подключения обходит RLS (суперпользователь, BYPASSRLS или член роли-владельца); администраторское подключение — только с опцией allowBypassRls');
+      throw lerr('api.connect_bypass_rls');
     }
-    if (bypass) console.warn('letopis: администраторское подключение — RLS не действует, данные всех арендаторов видны');
+    if (bypass) lwarn('api.admin_connection');
     let token = opts.token ?? null;
     const apiKey = opts.apiKey ?? opts.service;
     if (!token && apiKey) {
@@ -575,11 +575,11 @@ async function open(opts: ConnectOptions, L: LangRun | undefined): Promise<Db> {
     // ревизия движка: библиотека новее схемы — накат отстал (этап 6, п. 10)
     const [rv] = await sql`select obj_description(n.oid, 'pg_namespace') as c from pg_namespace n where n.nspname = ${opts.schema}`;
     const rev = Number(/ddl_revision=(\d+)/.exec(String(rv?.c ?? ''))?.[1] ?? 0);
-    if (!rv) throw new LetopisError('invalid_data', `connect: схемы ${opts.schema} нет — установите её: up({ schema })`);
-    if (rev < DDL_REVISION) console.warn(`letopis: движок схемы ${opts.schema} ревизии ${rev}, библиотека ждёт ${DDL_REVISION} — обновите: up({ schema: '${opts.schema}', upgrade: true })`);
+    if (!rv) throw lerr('api.connect_no_schema', { schema: opts.schema });
+    if (rev < DDL_REVISION) lwarn('api.schema_older', { schema: opts.schema, rev, want: DDL_REVISION });
     // схему обновил более новый пакет (во время раскатки старые экземпляры ещё работают): подключаемся, но предупреждаем —
     // этот пакет может не знать функций и колонок новой ревизии; up() такую схему не трогает и отказывает
-    else if (rev > DDL_REVISION) console.warn(`letopis: движок схемы ${opts.schema} ревизии ${rev} новее библиотеки (она знает ${DDL_REVISION}) — обновите пакет letopis`);
+    else if (rev > DDL_REVISION) lwarn('api.schema_newer', { schema: opts.schema, rev, known: DDL_REVISION });
     else {
       // ревизия та же, а функции схемы ставила другая версия движка — штамп в комментарии схемы (99-revision.sql)
       const drift = await stampDrift(opts.schema, String(rv.c ?? ''));

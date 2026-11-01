@@ -21,7 +21,7 @@
  */
 import postgres from 'postgres';
 import { connect, type Db } from './index.js';
-import { LetopisError } from './errors.js';
+import { lerr, lmsg, type LetopisError, type MsgKey } from './errors.js';
 import { normalizeSchema, type JsonSchema } from './jsonschema.js';
 import { RESERVED_CLASS_NAMES } from './types.js';
 import { base32Decode } from './auth.js';
@@ -362,7 +362,7 @@ function buildClasses(rows: SchemaRow[], observed: Map<string, Set<string>>, opt
   const abstract = (id: string) => byId.get(id)?.meta?.abstract === true;
   const family = (old: string): string[] => rows.filter((r) => (r.ancestors ?? [r.id]).includes(old) && !abstract(r.id)).map((r) => r.id);
   const keyless = new Set(opts.keyless ?? []);
-  for (const k of keyless) if (!byId.has(k)) throw new LetopisError('invalid_data', `import: --keyless ${k} — такого класса в 0.21 нет`);
+  for (const k of keyless) if (!byId.has(k)) throw lerr('boot.import_keyless_unknown', { cls: k });
 
   const classes = new Map<string, Cls>();
   for (const r of rows) {
@@ -532,11 +532,36 @@ interface Obj {
 
 const quote = (s: string) => `"${s.replace(/"/g, '""')}"`;
 
+/** Отказ до записи — по коду первой строки записи без и с «и ещё N»: код ошибки lerr берёт из записи. */
+const STOPPED = {
+  invalid_class: ['boot.import_stopped_invalid_class', 'boot.import_stopped_invalid_class_more'],
+  target_not_found: ['boot.import_stopped_target_not_found', 'boot.import_stopped_target_not_found_more'],
+  duplicate: ['boot.import_stopped_duplicate', 'boot.import_stopped_duplicate_more'],
+  invalid_data: ['boot.import_stopped_invalid_data', 'boot.import_stopped_invalid_data_more'],
+} as const satisfies Record<string, readonly [MsgKey, MsgKey]>;
+
+/**
+ * Ошибка загрузчика со строками (detail.rows) — по записи на каждый код нарушения загрузчика (load.ts, Issues): код
+ * ошибки импорта — её код. Новый код нарушения загрузчика — сюда и запись в разделе boot.
+ */
+const LOAD_FAILED: Readonly<Record<string, MsgKey>> = {
+  acl_denied: 'boot.import_load_acl_denied',
+  class_not_loadable: 'boot.import_load_class_not_loadable',
+  deleted: 'boot.import_load_deleted',
+  derived_class: 'boot.import_load_derived_class',
+  duplicate: 'boot.import_load_duplicate',
+  exists: 'boot.import_load_exists',
+  invalid_class: 'boot.import_load_invalid_class',
+  invalid_data: 'boot.import_load_invalid_data',
+  target_not_found: 'boot.import_load_target_not_found',
+  tenant_denied: 'boot.import_load_tenant_denied',
+};
+
 export async function import021(opts: ImportOptions): Promise<ImportReport> {
   const t0 = performance.now();
   const log = opts.quiet ? () => {} : (m: string) => console.log(`letopis.import: ${m}`);
   if (opts.initial && (opts.update || opts.commitEvery)) {
-    throw new LetopisError('invalid_data', 'import --initial несовместим с --update и --commit-every: первая заливка — одна транзакция в пустую схему');
+    throw lerr('boot.import_initial_conflict');
   }
   const partition = opts.partition ?? 'entity';
   const owner = opts.owner ?? 'letopis_owner';
@@ -549,7 +574,7 @@ export async function import021(opts: ImportOptions): Promise<ImportReport> {
     // --- чтение 0.21 ---
     const schemaRows = await src.unsafe(`select id, alias, category, ancestor, attributes, links, meta, "order", ancestors
       from ${F}."Schema" where partition = $1 order by cardinality(ancestors), id`, [partition]) as unknown as SchemaRow[];
-    if (!schemaRows.length) throw new LetopisError('invalid_data', `import: в ${opts.fromSchema} нет классов партиции ${partition}`);
+    if (!schemaRows.length) throw lerr('boot.import_no_classes', { schema: opts.fromSchema, partition });
     const accounts = await src.unsafe(`select id::text as id, categories::text[] as categories, data, enabled from ${F}."Account" order by id`);
     const objs = new Map<string, Obj>();
     const observed = new Map<string, Set<string>>();
@@ -575,12 +600,12 @@ export async function import021(opts: ImportOptions): Promise<ImportReport> {
     systemOld.add(SYSTEM_ID);
     const accId = (old: string): string => (systemOld.has(old) ? SYSTEM_ID : v5Id(SYSTEM_ID, 'Account', [old]));
     const needTenant = [...objs.values()].some((o) => systemOld.has(o.account));
-    if (needTenant && !opts.tenant) throw new LetopisError('invalid_data', 'import: данные лежат у аккаунта System — укажите арендатора для них (--tenant <имя>)');
+    if (needTenant && !opts.tenant) throw lerr('boot.import_tenant_required');
     const sysTenant = opts.tenant ? v5Id(SYSTEM_ID, 'Account', [`tenant:${opts.tenant}`]) : null;
     const tenantOf = (oldAccount: string): string => (systemOld.has(oldAccount) ? sysTenant! : accId(oldAccount));
 
     // --- id 1.0, проверки до записи ---
-    const fatal: ImportIssue[] = [];
+    const fatal: (ImportIssue & { code: keyof typeof STOPPED })[] = [];
     const idMemo = new Map<string, string>();
     const keyVals = (o: Obj, v: Ver, parts: KeyPart[], stack: string[]): string[] | null => {
       const out: string[] = [];
@@ -622,18 +647,18 @@ export async function import021(opts: ImportOptions): Promise<ImportReport> {
     const owners = new Map<string, string>();
     for (const o of objs.values()) {
       if (!b.classes.has(o.cls)) {
-        fatal.push({ code: 'invalid_class', message: `класс ${o.cls} не найден или опущен`, class: o.cls, id: o.id });
+        fatal.push({ code: 'invalid_class', message: lmsg('boot.import_class_missing', { cls: o.cls }), class: o.cls, id: o.id });
         continue;
       }
       const id = newId(o.cls, o.id);
       if (!id) {
-        fatal.push({ code: 'target_not_found', message: 'ключ объекта ссылается на отсутствующий объект или значение ключа — не строка', class: o.cls, id: o.id });
+        fatal.push({ code: 'target_not_found', message: lmsg('boot.import_key_unresolved'), class: o.cls, id: o.id });
         continue;
       }
       const prev = owners.get(id);
       if (prev) {
         const [pc, pid] = prev.split('\u0000');
-        fatal.push({ code: 'duplicate', message: `тот же id 1.0 (${id}), что у ${pc} ${pid}: данные 0.21 нарушают ключ класса — импортируйте класс без ключа (--keyless ${b.classes.get(o.cls)!.old})`, class: o.cls, id: o.id });
+        fatal.push({ code: 'duplicate', message: lmsg('boot.import_same_id', { id, cls: pc, old: pid, keyless: b.classes.get(o.cls)!.old }), class: o.cls, id: o.id });
       } else {
         owners.set(id, `${o.cls}\u0000${o.id}`);
       }
@@ -641,12 +666,15 @@ export async function import021(opts: ImportOptions): Promise<ImportReport> {
       if (parts.length) {
         const last = JSON.stringify(keyVals(o, o.versions[o.versions.length - 1], parts, []));
         const changed = o.versions.findIndex((v) => JSON.stringify(keyVals(o, v, parts, [])) !== last);
-        if (changed >= 0) fatal.push({ code: 'invalid_data', message: 'значение ключа менялось между версиями — в 1.0 ключ неизменен (--keyless)', class: o.cls, id: o.id, rev: changed + 1 });
+        if (changed >= 0) fatal.push({ code: 'invalid_data', message: lmsg('boot.import_key_changed'), class: o.cls, id: o.id, rev: changed + 1 });
       }
     }
     if (fatal.length) {
-      throw new LetopisError(fatal[0].code, `import: остановлен до записи — ${fatal[0].class} ${fatal[0].id}: ${fatal[0].message}${fatal.length > 1 ? ` (и ещё ${fatal.length - 1})` : ''}`,
-        { rows: fatal.slice(0, 100), notes: b.notes });
+      const f = fatal[0];
+      const [one, many] = STOPPED[f.code];
+      const p = { cls: f.class, id: f.id, message: f.message };
+      const extra = { detail: { rows: fatal.slice(0, 100), notes: b.notes } };
+      throw fatal.length > 1 ? lerr(many, { ...p, more: fatal.length - 1 }, extra) : lerr(one, p, extra);
     }
 
     db = await connect({ dsn: opts.dsn, schema: opts.schema, allowBypassRls: true, listen: false, max: 2, owner, cache: false });
@@ -850,7 +878,8 @@ export async function import021(opts: ImportOptions): Promise<ImportReport> {
         const detail = err.detail as { rows?: LoadIssue[] } | undefined;
         if (detail?.rows) {
           const mapped = detail.rows.map((x) => ({ ...origin[x.line - 1], code: x.code, message: x.message }));
-          throw new LetopisError(err.code ?? 'invalid_data', `import: арендатор ${tenant}: ${err.message}`, { ...detail, rows: mapped, notes: b.notes });
+          throw lerr(LOAD_FAILED[err.code] ?? 'boot.import_load_invalid_data', { tenant, message: err.message },
+            { detail: { ...detail, rows: mapped, notes: b.notes } });
         }
         throw e;
       }

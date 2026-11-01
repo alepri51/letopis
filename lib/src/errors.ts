@@ -189,9 +189,11 @@ export const REMOVED_IN = '1.0.0';
 
 /** Охранник снесённого API (план, этап 3, п. 11): понятная ошибка с версией и заменой. */
 export function removed(name: string, replacement: string): LetopisError {
-  // «опция …» — женского рода; методы и свойства — мужского
-  const verb = name.startsWith('опция ') ? 'снята' : / и /.test(name) ? 'сняты' : 'снят';
-  return new LetopisError('removed', `${name} ${verb} в ${REMOVED_IN} — ${replacement}`);
+  // «опция …» — женского рода, несколько имён через «и» — множественное число, методы и свойства — мужского: у каждой
+  // формы своя запись каталога
+  const params = { version: REMOVED_IN, replacement };
+  if (name.startsWith('опция ')) return lerr('api.removed_option', { name: name.slice('опция '.length), ...params });
+  return lerr(/ и /.test(name) ? 'api.removed_many' : 'api.removed', { name, ...params });
 }
 
 /** Данные не проходят описание класса (`invalid_data`); текст — по ключу (по умолчанию api.validation_failed). */
@@ -228,7 +230,7 @@ export function fromDbError(e: unknown): unknown {
   // которому существующую строку менять нельзя («USING expression»), остаётся 42501 (§2.5). Признак —
   // функция сервера, а не текст: текст зависит от языка сервера
   if (err.code === '42501' && err.routine === 'ExecWithCheckOptions' && !/USING/.test(err.message ?? '')) {
-    return Object.assign(new LetopisError('acl_denied', 'новые значения строки запрещают правила доступа'), { cause: e });
+    return lerr('api.row_check_denied', undefined, { cause: e });
   }
   const name = err.code ? LT_NAMES[err.code] : undefined;
   if (!name) return e;
@@ -243,7 +245,8 @@ export function fromDbError(e: unknown): unknown {
   if (isObj(detail) && typeof detail.key === 'string') {
     const { key, params, ...rest } = detail;
     msg = { key: key as string, params: isObj(params) ? params : {} };
-    detail = rest;
+    // прежних полей нет — detail null, как до каталога (снимки примеров и приложения ждут null, а не {})
+    detail = Object.keys(rest).length ? rest : null;
   }
   const dbText = (err.message ?? '').replace(/^letopis: [a-z_]+: /, '');
   // русский текст база уже собрала из того же шаблона — он остаётся как есть; другой язык — из каталога. Ключа нет в

@@ -4,7 +4,7 @@
  * сами сверяют права (letopis.* — системный администратор или администраторское подключение).
  */
 import type postgres from 'postgres';
-import { LetopisError, fromDbError } from './errors.js';
+import { fromDbError, lerr, lmsg, lwarn } from './errors.js';
 import type { AggregateInfo, Registry } from './registry.js';
 import { runTx, type Executor, type TxContext } from './tx.js';
 import { CHAIN_METHODS, DB_METHODS } from './types.js';
@@ -140,7 +140,7 @@ export async function verify(a: AdminCtx, opts: { data?: boolean } = {}): Promis
  * вызов останавливается (продолжит тот процесс), отчёт — о сделанном, more: true.
  */
 export async function maintain(a: AdminCtx, opts: MaintainOptions & { [MAINTAIN_STOP]?: () => boolean } = {}): Promise<MaintainReport> {
-  if (a.exec.explicit) throw new LetopisError('invalid_query', 'maintain() — пачками в своих транзакциях, не внутри db.begin()');
+  if (a.exec.explicit) throw lerr('time.maintain_in_tx');
   const now = opts.now === undefined ? null : opts.now instanceof Date ? opts.now.toISOString() : opts.now;
   const report: MaintainReport = { skipped: false, sessions: 0, codes: 0, thinned: 0, batches: 0, more: false, queue: 0 };
   const max = opts.batches ?? 100;
@@ -178,7 +178,7 @@ export async function maintain(a: AdminCtx, opts: MaintainOptions & { [MAINTAIN_
 
 /** Предупреждение о заполненной очереди сигналов (§2.12): больше половины — зависший слушатель. */
 export function queueWarning(queue: number): string | null {
-  return queue > 0.5 ? `letopis: очередь сигналов PostgreSQL заполнена на ${(queue * 100).toFixed(0)} % — проверьте зависших слушателей` : null;
+  return queue > 0.5 ? `letopis: ${lmsg('time.signal_queue', { pct: (queue * 100).toFixed(0) })}` : null;
 }
 
 /** Самый длинный интервал таймера Node.js — 2³¹−1 мс (около 24,8 суток): дольше таймер не ждёт и срабатывает сразу. */
@@ -198,7 +198,7 @@ export function parseInterval(v: unknown): number {
   }
   if (!Number.isFinite(ms) || ms < 1 || ms > MAX_TIMER_MS) {
     const shown = typeof v === 'string' ? `'${v}'` : typeof v === 'number' || typeof v === 'boolean' || v == null ? String(v) : typeof v;
-    throw new LetopisError('invalid_data', `интервал ${shown}: число мс или строка '30s', '15m', '1h', '1d' — от 1 мс до 2³¹−1 мс (около 24 суток)`);
+    throw lerr('time.bad_interval', { value: shown });
   }
   return ms;
 }
@@ -214,7 +214,7 @@ export function scheduleMaintain(run: (stopped: () => boolean) => Promise<unknow
   const timer = setInterval(() => {
     if (current || stopped) return;
     current = run(() => stopped)
-      .then(() => {}, (e) => console.warn(`letopis: maintain по расписанию: ${(e as Error).message}`))
+      .then(() => {}, (e) => lwarn('time.maintain_failed', { message: (e as Error).message }))
       .finally(() => (current = null));
   }, ms);
   timer.unref?.();
@@ -231,7 +231,7 @@ export function scheduleMaintain(run: (stopped: () => boolean) => Promise<unknow
  */
 export async function reset(a: AdminCtx, opts: ResetOptions): Promise<ResetResult> {
   if (opts.level === 'tenant') {
-    if (a.exec.explicit) throw new LetopisError('invalid_query', "reset({ level: 'tenant' }) — пачками в своих транзакциях, не внутри db.begin()");
+    if (a.exec.explicit) throw lerr('time.reset_in_tx');
     let rows = 0;
     let versions = 0;
     for (;;) {
@@ -278,7 +278,7 @@ export async function rekeyClass(a: AdminCtx, cls: string, key: string[]): Promi
  * загрузчик; подключение проверил вызывающий (admin_required).
  */
 export async function rebuildAggregates(env: { sql: Sql; S: string; ownerRole: string }, cls: string): Promise<number> {
-  if (typeof cls !== 'string' || !cls) throw new LetopisError('invalid_data', 'rebuildAggregates(класс): имя класса');
+  if (typeof cls !== 'string' || !cls) throw lerr('time.rebuild_class');
   const role = `"${env.ownerRole.replace(/"/g, '""')}"`;
   return (env.sql.begin(async (q) => {
     await q.unsafe(`set local role ${role}`);

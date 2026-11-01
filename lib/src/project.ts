@@ -23,7 +23,7 @@
  * этого арендатора, чья транзакция в нём видна.
  */
 import type postgres from 'postgres';
-import { LetopisError, checkOptions, fromDbError } from './errors.js';
+import { LetopisError, checkOptions, fromDbError, lerr, lmsg } from './errors.js';
 import { release, rollbackAfter } from './tx.js';
 import { toRow } from './sql.js';
 import { wakes } from './watch.js';
@@ -298,11 +298,6 @@ function change(row: Row, cursor: string, rebuild = false): ProjectorChange {
  * значениями (22…) и пределами размера (54…). Сбой окружения (блокировки, отмена запроса, связь) — не причина
  * выводить арендатора: пачка откатывается целиком, повтор начнётся с того же курсора.
  */
-/** «1 прохода», «2 проходов», «21 прохода» — число проходов в родительном падеже («в течение …»). */
-function passesGen(n: number): string {
-  return `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'прохода' : 'проходов'}`;
-}
-
 /** Ожидание чужой блокировки строки дольше lock_timeout (55P03): сбой окружения, проход повторяется. */
 function lockWait(e: unknown): boolean {
   return (e as { code?: unknown } | null)?.code === '55P03';
@@ -344,10 +339,10 @@ class Out implements ProjectorOut {
 
   private check(cls: string, tenant: string | undefined): string {
     if (tenant === this.tenant && !this.p.intoOf(tenant, cls)) {
-      throw new LetopisError('derived_class', `проектор ${this.p.name}: класс ${cls} не входит в into`);
+      throw lerr('derived.not_into', { name: this.p.name, cls });
     }
     if (typeof tenant !== 'string' || tenant !== this.tenant) {
-      throw new LetopisError('tenant_denied', `проектор ${this.p.name}: арендатор ${String(tenant)} — не арендатор изменений`);
+      throw lerr('derived.foreign_tenant', { name: this.p.name, tenant: String(tenant) });
     }
     return tenant;
   }
@@ -355,7 +350,7 @@ class Out implements ProjectorOut {
   private rowOf(keyOrId: string | ProjectorRow): ProjectorRow {
     if (typeof keyOrId === 'string') return { $id: keyOrId };
     if (!keyOrId || typeof keyOrId !== 'object') {
-      throw this.fault(new LetopisError('invalid_data', `проектор ${this.p.name}: нужен ключ строки или id (арендатор ${this.tenant})`));
+      throw this.fault(lerr('derived.row_required', { name: this.p.name, tenant: this.tenant }));
     }
     return keyOrId;
   }
@@ -381,7 +376,7 @@ class Out implements ProjectorOut {
     const tenant = this.check(cls, opts?.tenant);
     for (const [k, v] of Object.entries(deltas ?? {})) {
       if (typeof v !== 'number' || !Number.isFinite(v)) {
-        throw this.fault(new LetopisError('invalid_data', `проектор ${this.p.name}: приращение поля ${k} — не число (арендатор ${tenant})`));
+        throw this.fault(lerr('derived.delta_not_number', { name: this.p.name, field: k, tenant }));
       }
     }
     const r = this.rowOf(row);
@@ -405,7 +400,7 @@ class Out implements ProjectorOut {
     const row = this.rowOf(keyOrId);
     const key = this.p.keyOf(tenant, cls);
     if (key.length && Object.keys(row).every((n) => n === '$id')) {
-      throw new LetopisError('invalid_data', `проектор ${this.p.name}: у класса ${cls} есть ключ (${key.join(', ')}) — строку называют полями ключа, например { ${key.map((k) => `${k}: …`).join(', ')} }, а не id`);
+      throw lerr('derived.key_not_id', { name: this.p.name, cls, key: key.join(', '), example: key.map((k) => `${k}: …`).join(', ') });
     }
     return row;
   }
@@ -485,28 +480,28 @@ export class Projector {
 
   constructor(readonly env: ProjectorEnv, name: string, private def: ProjectorOptions) {
     if (typeof name !== 'string' || !NAME.test(name)) {
-      throw new LetopisError('invalid_data', `проектор: имя ${String(name)} — строчные латинские буквы, цифры и _.:- (до 64), оно же derivedBy классов`);
+      throw lerr('derived.bad_name', { name: String(name) });
     }
     const names = (x: unknown) => Array.isArray(x) && x.length > 0 && x.every((n) => typeof n === 'string' && n.length > 0);
-    if (!def || !names(def.from) || !names(def.into)) throw new LetopisError('invalid_data', `проектор ${name}: from и into — непустые списки классов`);
-    if (!Number.isInteger(def.version) || def.version < 1) throw new LetopisError('invalid_data', `проектор ${name}: version — целое число от 1`);
-    if (typeof def.handle !== 'function') throw new LetopisError('invalid_data', `проектор ${name}: нужна функция handle(changes, out)`);
+    if (!def || !names(def.from) || !names(def.into)) throw lerr('derived.bad_from_into', { name });
+    if (!Number.isInteger(def.version) || def.version < 1) throw lerr('derived.bad_version', { name });
+    if (typeof def.handle !== 'function') throw lerr('derived.handle_required', { name });
     checkOptions('projector', def, PROJECTOR_OPTIONS);
     if (def.onExpired !== undefined && def.onExpired !== 'rebuild' && def.onExpired !== 'error') {
-      throw new LetopisError('invalid_data', `проектор ${name}: onExpired — 'rebuild' или 'error'`);
+      throw lerr('derived.bad_on_expired', { name });
     }
     if (def.tenants !== undefined && !(Array.isArray(def.tenants) && def.tenants.length > 0 && def.tenants.every((x) => typeof x === 'string' && UUID.test(x)))) {
-      throw new LetopisError('invalid_data', `проектор ${name}: tenants — непустой список id арендаторов`);
+      throw lerr('derived.bad_tenants', { name });
     }
     this.name = name;
     this.only = def.tenants ? new Set(def.tenants.map((x) => x.toLowerCase())) : null;
     this.batch = def.batch ?? 500;
     this.pollMs = def.pollMs ?? 1000;
     this.lockMs = def.lockTimeout ?? 5000;
-    if (!Number.isInteger(this.lockMs) || this.lockMs < 0) throw new LetopisError('invalid_data', `проектор ${name}: lockTimeout — целое число мс, 0 и больше`);
+    if (!Number.isInteger(this.lockMs) || this.lockMs < 0) throw lerr('derived.bad_lock_timeout', { name });
     this.lockRetries = def.lockRetries ?? 0;
-    if (!Number.isInteger(this.lockRetries) || this.lockRetries < 0) throw new LetopisError('invalid_data', `проектор ${name}: lockRetries — целое число, 0 и больше`);
-    if (!Number.isInteger(this.batch) || this.batch < 1 || this.batch > 10_000) throw new LetopisError('invalid_data', `проектор ${name}: batch — от 1 до 10 000`);
+    if (!Number.isInteger(this.lockRetries) || this.lockRetries < 0) throw lerr('derived.bad_lock_retries', { name });
+    if (!Number.isInteger(this.batch) || this.batch < 1 || this.batch > 10_000) throw lerr('derived.bad_batch', { name });
     if (env.onSignal) {
       this.off = env.onSignal((s) => {
         if (s.kind === 'class' && s.cls === 'Class') this.stale = true;
@@ -522,10 +517,10 @@ export class Projector {
    * перестраивает onExpired: 'rebuild' (решение точки Б: горизонт подписок кластера стоит не дольше пачки).
    */
   async run(opts: { once?: boolean } = {}): Promise<ProjectorReport> {
-    if (this.running) throw new LetopisError('invalid_query', `проектор ${this.name} уже запущен в этом процессе`);
+    if (this.running) throw lerr('derived.already_running', { name: this.name });
     if (this.env.ready) {
       await this.env.ready();
-      if (this.running) throw new LetopisError('invalid_query', `проектор ${this.name} уже запущен в этом процессе`);
+      if (this.running) throw lerr('derived.already_running', { name: this.name });
     }
     this.running = true;
     this.stopped = false;
@@ -585,7 +580,7 @@ export class Projector {
   async rebuild(opts: { chunked?: boolean; tenant?: string } = {}): Promise<ProjectorReport> {
     const rep = emptyReport();
     if (opts.tenant !== undefined) {
-      if (typeof opts.tenant !== 'string' || !UUID.test(opts.tenant)) throw new LetopisError('invalid_data', `проектор ${this.name}: rebuild({ tenant }) — id арендатора`);
+      if (typeof opts.tenant !== 'string' || !UUID.test(opts.tenant)) throw lerr('derived.bad_rebuild_tenant', { name: this.name });
       const tenant = opts.tenant.toLowerCase();
       if (!opts.chunked) {
         await this.rebuildTenant(rep, tenant);
@@ -699,7 +694,7 @@ export class Projector {
     // источники — для purge базы: надгробие, которое проектор ещё не прочёл, она не сотрёт (ревью безопасности №3, №5)
     const [r] = await q.unsafe(`select ${this.env.S}.projector_advance($1, $2, $3::text::jsonb) as ok`,
       [this.name, expected ?? null, JSON.stringify({ ...meta, from: this.def.from })]);
-    if (!r?.ok) throw new LetopisError('invalid_query', `проектор ${this.name}: чекпоинт изменился во время пачки`);
+    if (!r?.ok) throw lerr('derived.checkpoint_changed', { name: this.name });
   }
 
   private async now(q: Conn): Promise<string> {
@@ -714,11 +709,11 @@ export class Projector {
   }
 
   private blindError(tenant: string): LetopisError {
-    return new LetopisError('invalid_class', `проектор ${this.name}: у арендатора ${tenant} источники ${(this.blind.get(tenant) ?? []).join(', ')} не ведут журнал (history: false) — проектор не увидит их изменений`);
+    return lerr('derived.sources_without_journal', { name: this.name, tenant, classes: (this.blind.get(tenant) ?? []).join(', ') });
   }
 
   private versionError(meta: Meta): LetopisError {
-    return new LetopisError('rebuild_required', `проектор ${this.name}: проекция построена версией ${String(meta.version)}, а проектор — версии ${this.def.version}: нужна перестройка rebuild()`);
+    return lerr('derived.version_mismatch', { name: this.name, built: String(meta.version), version: this.def.version });
   }
 
   /**
@@ -732,7 +727,7 @@ export class Projector {
     const S = this.env.S;
     const rev = await schemaRevision(q as unknown as postgres.Sql, this.env.schema);
     if (rev !== DDL_REVISION) {
-      throw new LetopisError('invalid_data', `проектор ${this.name}: движок схемы ревизии ${String(rev)}, библиотека — ${DDL_REVISION}: обновите схему up({ upgrade: true })`);
+      throw lerr('derived.schema_revision', { name: this.name, rev: String(rev), revision: DDL_REVISION });
     }
     const wanted = [...new Set(this.def.into)];
     const tenants = (await q.unsafe(`select x.tenant::text as t from ${S}.entity x
@@ -740,7 +735,7 @@ export class Projector {
       group by x.tenant having count(distinct x.data->>'name') = $3`, [wanted, this.name, wanted.length]))
       .map((r) => r.t as string).filter((x) => !this.only || this.only.has(x));
     if (!tenants.length) {
-      throw new LetopisError('derived_class', `проектор ${this.name}: ни у одного арендатора${this.only ? ' из списка tenants' : ''} классы ${wanted.join(', ')} не помечены derivedBy: '${this.name}'`);
+      throw lerr(this.only ? 'derived.no_participants_listed' : 'derived.no_participants', { name: this.name, classes: wanted.join(', ') });
     }
     // области — по арендатору: у каждого свои семейства from и into (имена классов у арендаторов свои)
     const scopes = new Map<string, Scope>(tenants.map((x) => [x, { from: new Set(), into: new Set(), keys: new Map() }]));
@@ -758,7 +753,7 @@ export class Projector {
       } else if (r.is_from) sc.from.add(r.n as string);
     }
     const from = [...new Set([...scopes.values()].flatMap((s) => [...s.from]))];
-    if (!from.length) throw new LetopisError('invalid_class', `проектор ${this.name}: классов ${this.def.from.join(', ')} нет у арендаторов проектора`);
+    if (!from.length) throw lerr('derived.no_sources', { name: this.name, classes: this.def.from.join(', ') });
     // ярус all политики хранения и журнал источников — по арендатору (ревью безопасности №2): это описание его классов,
     // и короткий ярус или выключенный журнал одного арендатора не касается остальных
     const lim = new Map<string, number>();
@@ -817,11 +812,11 @@ export class Projector {
         const live = this.tenants.filter((x) => !failed[x]);
         const old = live.filter((x) => (this.lim.get(x) ?? Infinity) < ageOf(x));
         if (old.length && old.length === live.length) {
-          throw new LetopisError('cursor_expired', `проектор ${this.name}: курсор старше яруса all политики хранения источников — изменения могли проредиться, нужна перестройка rebuild()`);
+          throw lerr('derived.cursor_expired', { name: this.name });
         }
         for (const x of old) {
           failed[x] = { cursor: meta.cursor, code: 'cursor_expired',
-            message: `проектор ${this.name}: курсор старше яруса all политики хранения источников арендатора ${x} — его изменения могли проредиться, нужна перестройка rebuild({ tenant })` };
+            message: lmsg('derived.tenant_cursor_expired', { name: this.name, tenant: x }) };
         }
       }
       let pos: Pos = cur;
@@ -987,7 +982,9 @@ export class Projector {
           failed[tenant] = {
             cursor: list[0].cursor || start,
             code: '55P03',
-            message: `проектор ${this.name}: строку арендатора ${tenant} держит чужая транзакция — в течение ${passesGen(hits)} подряд дольше lockTimeout`,
+            // форма числа — по правилу русского языка: 1, 21, 31 … — «прохода», иначе «проходов» (две записи каталога)
+            message: lmsg(hits % 10 === 1 && hits % 100 !== 11 ? 'derived.tenant_locked_one' : 'derived.tenant_locked_many',
+              { name: this.name, tenant, passes: hits }),
           };
           continue;
         }
@@ -1070,7 +1067,7 @@ export class Projector {
   }
 
   private busy(): LetopisError {
-    return new LetopisError('projector_busy', `проектор ${this.name} работает в другом процессе`);
+    return lerr('derived.busy', { name: this.name });
   }
 
   /** Производные строки арендаторов tenants — только семейства into каждого из них (derived_clear по парам). */
@@ -1204,12 +1201,12 @@ export class Projector {
       await this.resolve(q);
       const meta = await this.state(q);
       if (!meta.cursor || meta.state === 'rebuilding') {
-        throw new LetopisError('rebuild_required', `проектор ${this.name}: проекции ещё нет или идёт перестройка пачками — сначала run() или rebuild()`);
+        throw lerr('derived.no_projection', { name: this.name });
       }
       if (meta.version !== this.def.version) throw this.versionError(meta);
       const sc = this.scopes.get(tenant);
       if (!sc) {
-        throw new LetopisError('tenant_denied', `проектор ${this.name}: арендатор ${tenant} не участник — у него не все классы ${this.def.into.join(', ')} помечены derivedBy: '${this.name}'${this.only ? ' или его нет в списке tenants' : ''}`);
+        throw lerr(this.only ? 'derived.not_participant_listed' : 'derived.not_participant', { name: this.name, tenant, classes: this.def.into.join(', ') });
       }
       if (this.blind.has(tenant)) throw this.blindError(tenant);
       await this.clear(q, [tenant]);
@@ -1247,12 +1244,12 @@ export class Projector {
   /** Предусловия перестройки одного арендатора (как у rebuild({ tenant })). */
   private tenantAdmit(meta: Meta, tenant: string): Scope {
     if (!meta.cursor || meta.state === 'rebuilding') {
-      throw new LetopisError('rebuild_required', `проектор ${this.name}: проекции ещё нет или идёт перестройка пачками — сначала run() или rebuild()`);
+      throw lerr('derived.no_projection', { name: this.name });
     }
     if (meta.version !== this.def.version) throw this.versionError(meta);
     const sc = this.scopes.get(tenant);
     if (!sc) {
-      throw new LetopisError('tenant_denied', `проектор ${this.name}: арендатор ${tenant} не участник — у него не все классы ${this.def.into.join(', ')} помечены derivedBy: '${this.name}'${this.only ? ' или его нет в списке tenants' : ''}`);
+      throw lerr(this.only ? 'derived.not_participant_listed' : 'derived.not_participant', { name: this.name, tenant, classes: this.def.into.join(', ') });
     }
     if (this.blind.has(tenant)) throw this.blindError(tenant);
     return sc;
@@ -1278,7 +1275,7 @@ export class Projector {
           if (!this.scopes.has(tenant) || this.blind.has(tenant)) {
             const failed: Failed = { ...(meta.failed ?? {}) };
             failed[tenant] = this.scopes.has(tenant) ? this.blindFailure(tenant, meta.cursor)
-              : { cursor: meta.cursor, code: 'tenant_denied', message: `проектор ${this.name}: арендатор ${tenant} больше не участник` };
+              : { cursor: meta.cursor, code: 'tenant_denied', message: lmsg('derived.left_before_rebuild', { name: this.name, tenant }) };
             await this.advance(q, meta.cursor, withFailed(meta, failed));
             return 'skip';
           }
@@ -1325,7 +1322,7 @@ export class Projector {
       const sc = this.scopes.get(tenant);
       const failed: Failed = { ...(meta.failed ?? {}) };
       if (!sc || this.blind.has(tenant)) {
-        failed[tenant] = sc ? this.blindFailure(tenant, meta.cursor!) : { cursor: meta.cursor!, code: 'tenant_denied', message: `арендатор ${tenant} больше не участник проектора ${this.name}` };
+        failed[tenant] = sc ? this.blindFailure(tenant, meta.cursor!) : { cursor: meta.cursor!, code: 'tenant_denied', message: lmsg('derived.left_during_rebuild', { name: this.name, tenant }) };
       } else {
         const rows = await q.unsafe(`with s as (select pg_current_snapshot()::text as snap)
           select s.snap, case when e.id is null then null else ${rowJson('e')} end as row

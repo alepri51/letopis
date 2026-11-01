@@ -6,6 +6,7 @@ synced: f20b1cf
 # M-MCP — инструменты MCP: `letopis/mcp` и `letopis mcp`
 
 **Инварианты и грабли**
+- Язык (план 2.0, 7.9 №5): описания инструментов, параметров и `instructions` — парами `{ ru, en }` в `mcp.ts` по `createMcpServer({ lang })` / `letopis mcp --lang`; тексты ошибок — ключи раздела `lib/src/messages/mcp.ts`. `failure()` отдаёт `code`, `message`, `hint`, `similar` (из `params.similar`, а не `detail`), `detail`, `sqlstate`; SDK без пакета — `lmsg('mcp.sdk_missing')` в `loadSdk`.
 - Права — только базы: инструменты зовут цепочки фасада, переданного в `createMcpServer`; слой их лишь сужает (перечень — шапка файла). Отказ классам прав (и `update`, и `delete`: снятое правило тоже меняет права) и сессии в арендаторе System — решение владельца 27.10.2026 по ревью безопасности №2, О5 (`docs/checkpoint-1.2.md`). Признака сисадмина в сессии нет — проверяется рабочий арендатор из `ctx()`. `upsert` без `rev` — сознательно (О6).
 - Обход RLS — флаг всего подключения (`Shared.allTenants`), а не фасада: `as()` поверх подключения с `allowBypassRls` — тоже `bypass_rls`. Опции «разрешить» нет.
 - `createMcpServer` зовут на каждое соединение stdio и каждый запрос HTTP (`createMcpHandler`), `cli.ts` — ещё раз до протокола. Он должен оставаться дешёвым (один запрос `ctx()`), а общее между экземплярами — только на уровне модуля (`STATE_KEY`, `sdkLoad`).

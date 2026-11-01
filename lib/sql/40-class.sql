@@ -146,10 +146,10 @@ begin
   while cur->>'parent' is not null loop
     cur := (@SCHEMA@.class_row(cur->>'parent', p_tenant)).data;
     if cur is null then
-      perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('предок %s не найден', chain[cardinality(chain)]->>'parent'));
+      perform @SCHEMA@.lt_fail('sql-core.parent_not_found', jsonb_build_object('parent', chain[cardinality(chain)]->>'parent'));
     end if;
     if cur->>'name' = any (names) then
-      perform @SCHEMA@.lt_raise('LT010', 'invalid_class', 'цикл в наследовании через ' || (cur->>'name'));
+      perform @SCHEMA@.lt_fail('sql-core.inheritance_cycle', jsonb_build_object('cls', cur->>'name'));
     end if;
     names := names || (cur->>'name');
     chain := chain || cur;
@@ -170,8 +170,8 @@ begin
     -- производный класс (план 1.1, §2.4): проектор задаёт предок, потомок его не меняет
     if v ? 'derivedBy' then
       if der is not null and der <> v->>'derivedBy' then
-        perform @SCHEMA@.lt_raise('LT010', 'invalid_class',
-          format('derivedBy класса %s (%s) не совпадает с предком (%s)', v->>'name', v->>'derivedBy', der));
+        perform @SCHEMA@.lt_fail('sql-core.derived_by_mismatch',
+          jsonb_build_object('cls', v->>'name', 'derivedBy', v->>'derivedBy', 'inherited', der));
       end if;
       der := v->>'derivedBy';
     end if;
@@ -219,10 +219,10 @@ begin
   select * into ms from @SCHEMA@.class_meta_validator();
   bad := @SCHEMA@.validate_data(ms.rules, ms.validator, ms.vars, data);
   if bad <> '[]'::jsonb then
-    perform @SCHEMA@.lt_raise('LT003', 'invalid_data', 'описание класса не проходит метасхему', jsonb_build_object('issues', bad));
+    perform @SCHEMA@.lt_fail('sql-core.class_metaschema', '{}'::jsonb, jsonb_build_object('issues', bad));
   end if;
   if octet_length(coalesce(data->'meta', '{}')::text) > 65536 then
-    perform @SCHEMA@.lt_raise('LT010', 'invalid_class', 'meta класса больше 64 КБ');
+    perform @SCHEMA@.lt_fail('sql-core.meta_too_large');
   end if;
   res := @SCHEMA@.class_resolve(data, p_tenant);
   -- ключ: только обязательные строковые поля и обязательные одиночные концы
@@ -230,28 +230,28 @@ begin
     fld := res->'schema'->'properties'->k;
     if fld is not null then
       if not (res->'schema'->'required' ? k) or coalesce(fld->>'type', '') <> 'string' then
-        perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('поле ключа %s должно быть обязательной строкой', k));
+        perform @SCHEMA@.lt_fail('sql-core.key_field_type', jsonb_build_object('field', k));
       end if;
     elsif res->'ends' ? k then
       if coalesce((res->'ends'->k->>'many')::boolean, false) or not coalesce((res->'ends'->k->>'required')::boolean, false) then
-        perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('конец ключа %s должен быть обязательным и одиночным', k));
+        perform @SCHEMA@.lt_fail('sql-core.key_end_type', jsonb_build_object('end', k));
       end if;
     else
-      perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('ключ ссылается на неизвестное поле или конец %s', k));
+      perform @SCHEMA@.lt_fail('sql-core.key_unknown_name', jsonb_build_object('name', k));
     end if;
   end loop;
   -- unset — только для необязательного одиночного конца и множественного без min
   for e in select key, value from jsonb_each(res->'ends') loop
     if e.value->>'onDelete' = 'unset' and (coalesce((e.value->>'required')::boolean, false) or coalesce((e.value->>'min')::int, 0) > 0) then
-      perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('onDelete unset недопустим для обязательного конца %s', e.key));
+      perform @SCHEMA@.lt_fail('sql-core.unset_required_end', jsonb_build_object('end', e.key));
     end if;
   end loop;
   -- политика хранения: для системных классов запрещена (§2.11)
   if coalesce((data->>'system')::boolean, false) and jsonb_typeof(res->'history') <> 'boolean' then
-    perform @SCHEMA@.lt_raise('LT010', 'invalid_class', 'системным классам политика хранения не задаётся');
+    perform @SCHEMA@.lt_fail('sql-core.system_history_policy');
   end if;
   if coalesce((data->>'system')::boolean, false) and res->'history' = 'false'::jsonb then
-    perform @SCHEMA@.lt_raise('LT010', 'invalid_class', 'history: false для системных классов запрещён');
+    perform @SCHEMA@.lt_fail('sql-core.system_history_off');
   end if;
   -- политика хранения (§2.11): сроки ярусов по возрастанию, all не меньше суток, 'forever' — только последний
   if jsonb_typeof(res->'history') = 'object' then
@@ -262,33 +262,32 @@ begin
       k := res->'history'->>tiers[i];
       if k = 'forever' then
         if i <> cardinality(tiers) then
-          perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('history: forever допустим только у последнего яруса, а стоит у %s', tiers[i]));
+          perform @SCHEMA@.lt_fail('sql-core.history_forever_not_last', jsonb_build_object('tier', tiers[i]));
         end if;
       elsif not pg_input_is_valid(k, 'interval') then
-        perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('history: срок яруса %s не разбирается: %s', tiers[i], k));
+        perform @SCHEMA@.lt_fail('sql-core.history_tier_unparsable', jsonb_build_object('tier', tiers[i], 'value', k));
       elsif k::interval <= prev then
-        perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('history: сроки ярусов должны возрастать (%s)', tiers[i]));
+        perform @SCHEMA@.lt_fail('sql-core.history_tiers_order', jsonb_build_object('tier', tiers[i]));
       else
         prev := k::interval;
       end if;
     end loop;
     if (res->'history'->>'all') <> 'forever' and (res->'history'->>'all')::interval < interval '1 day' then
-      perform @SCHEMA@.lt_raise('LT010', 'invalid_class', 'history: ярус all не меньше суток');
+      perform @SCHEMA@.lt_fail('sql-core.history_all_min_day');
     end if;
     if res->'history' ? 'tz' and not exists (select 1 from pg_timezone_names where name = res->'history'->>'tz') then
-      perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('history: неизвестный часовой пояс %s', res->'history'->>'tz'));
+      perform @SCHEMA@.lt_fail('sql-core.history_unknown_tz', jsonb_build_object('tz', res->'history'->>'tz'));
     end if;
   end if;
   -- производный класс (план 1.1, §2.4): системным не бывает; его строки проектор удаляет и строит заново,
   -- поэтому они не мешают удалять строки, на которые ссылаются (onDelete только cascade или unset)
   if res ? 'derivedBy' then
     if coalesce((data->>'system')::boolean, false) then
-      perform @SCHEMA@.lt_raise('LT010', 'invalid_class', 'системный класс не бывает производным');
+      perform @SCHEMA@.lt_fail('sql-core.system_derived');
     end if;
     for e in select key, value from jsonb_each(res->'ends') loop
       if coalesce(e.value->>'onDelete', 'restrict') not in ('cascade', 'unset') then
-        perform @SCHEMA@.lt_raise('LT010', 'invalid_class',
-          format('конец %s производного класса — onDelete cascade или unset: производная строка не мешает удалять цель', e.key));
+        perform @SCHEMA@.lt_fail('sql-core.derived_end_on_delete', jsonb_build_object('end', e.key));
       end if;
     end loop;
   end if;

@@ -45,7 +45,11 @@ const dropPaths = (d: string) => patch(d, 'src/types.ts', (s) => s.replace(/(exp
 const addMethod = (d: string) => patch(d, 'src/types.ts', (s) => s.replace(/(export const CHAIN_METHODS\s*=\s*\[)/, "$1'zzzNew', "));
 const bumpRevision = (d: string) => patch(d, 'src/types.ts', (s) => s.replace(/DDL_REVISION\s*=\s*(\d+)/, (_m, v: string) => `DDL_REVISION = ${Number(v) + 1}`));
 const changeText = (d: string) => patch(d, 'sql/15-errors.sql', (s) => s.replace('отказ по правилам доступа', 'запрещено правилами доступа'));
-const dropCode = (d: string) => patch(d, 'src/chain.ts', (s) => s.replace("new LetopisError('lock_unsupported'", "new LetopisError('invalid_query'"));
+// код ошибки живёт в каталоге сообщений (план 2.0, этап 3, п. 3): исчезает — из записи раздела и из codes.ts
+const dropCode = (d: string) => {
+  patch(d, 'src/messages/api.ts', (s) => s.replace("code: 'lock_unsupported'", "code: 'invalid_query'"));
+  patch(d, 'src/messages/codes.ts', (s) => s.replace("code: 'lock_unsupported'", "code: 'invalid_query'"));
+};
 
 test.after(() => rmSync(work, { recursive: true, force: true }));
 

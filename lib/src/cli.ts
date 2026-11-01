@@ -26,7 +26,7 @@ import { connect, describeText } from './index.js';
 import { syncModels, generateTypes } from './sync.js';
 import { import021 } from './import.js';
 import type { AnyModel } from './model.js';
-import { LetopisError, checkLang, currentLang, langRun, type Lang } from './errors.js';
+import { checkLang, currentLang, langRun, lerr, type Lang } from './errors.js';
 
 const USAGE = `у любой команды: --lang ru|en — язык сообщений об ошибках (по умолчанию ru)
 letopis sync <модуль> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--apply]
@@ -121,7 +121,7 @@ export async function main(argv: string[]): Promise<number> {
     if (cmd === 'load') {
       const files = positionals.slice(1);
       if (!files.length) { console.log(USAGE); return 2; }
-      if (values.trust) throw new LetopisError('removed', '--trust снят в 1.0.0 — запрос по целям вне загрузки стоит 0,1–1,3 % её времени');
+      if (values.trust) throw lerr('model.cli_trust_removed');
       // несколько файлов — одна загрузка и одна транзакция; в файле — объект на строку
       const rows: Record<string, unknown>[] = [];
       for (const f of files) {
@@ -182,11 +182,11 @@ export async function main(argv: string[]): Promise<number> {
  */
 async function mcp(v: { dsn?: string; schema?: string; token?: string; 'api-key'?: string; write?: boolean; lang?: Lang }): Promise<number> {
   if (v['api-key'] !== undefined) {
-    console.error('letopis: user_session_required: letopis mcp принимает только токен сессии пользователя (--token или LETOPIS_TOKEN): ключ сервиса даёт все права auth.* и не должен лежать на машине агента');
+    console.error(lerr('model.mcp_api_key_refused').message);
     return 2;
   }
   if (!v.token) {
-    console.error('letopis: user_session_required: letopis mcp — нужен токен сессии пользователя: --token или LETOPIS_TOKEN');
+    console.error(lerr('model.mcp_token_required').message);
     return 2;
   }
   const { createMcpServer } = await import('./mcp.js');

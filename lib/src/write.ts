@@ -17,7 +17,7 @@
  * строка видна, но править нельзя — acl_denied; строки уже нет — target_not_found; номер версии
  * разошёлся со { rev } — conflict.
  */
-import { LetopisError, ValidationError } from './errors.js';
+import { lerr, ValidationError, type LetopisError } from './errors.js';
 import { isOp } from './ops.js';
 import { aggregateFields, type ClassInfo, type Registry } from './registry.js';
 import { accepts, buildRead, nextNodeKey, resolveHop, stepClasses, toRow, type AggSpec, type BuiltQuery, type ReadMode, type Step } from './sql.js';
@@ -71,7 +71,7 @@ export type PlanOp = (
 /** Причина изменения: строка до 1000 символов без NUL (её не принимает set_config). */
 export function checkReason(v: unknown, where: string): string {
   if (typeof v !== 'string' || v.length > 1000 || v.includes('\0')) {
-    throw new LetopisError('invalid_query', `${where}: reason — строка до 1000 символов`);
+    throw lerr('write.bad_reason', { where });
   }
   return v;
 }
@@ -89,9 +89,7 @@ export interface Slot {
 /** Строка ответа записи (результат upsert — $upsert, превью удаления — $action — поля Row). */
 export type WriteRow = Row;
 
-const fail = (code: string, msg: string, detail?: unknown): never => {
-  throw new LetopisError(code, msg, detail);
-};
+
 const asList = (v: string | string[]): string[] => (Array.isArray(v) ? v : [v]);
 const isPlain = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v) && !(v instanceof Date) && !isInc(v) && !isOp(v);
@@ -110,8 +108,8 @@ export interface IncSpec {
 export function splitPatch(patch: Record<string, unknown>): { rest: Record<string, unknown>; incs: IncSpec[] } {
   const incs: IncSpec[] = [];
   const noMarkers = (v: unknown, path: string[]): void => {
-    if (isInc(v)) fail('invalid_data', `inc() внутри массива (${path.join('.')}) не поддерживается`);
-    if (isOp(v)) fail('invalid_data', `оператор фильтра в данных (${path.join('.')}) — данные записываются значениями`);
+    if (isInc(v)) throw lerr('write.inc_in_array', { path: path.join('.') });
+    if (isOp(v)) throw lerr('write.op_in_data', { path: path.join('.') });
     if (Array.isArray(v)) v.forEach((x, i) => noMarkers(x, [...path, String(i)]));
     else if (isPlain(v)) for (const [k, x] of Object.entries(v)) noMarkers(x, [...path, k]);
   };
@@ -121,11 +119,11 @@ export function splitPatch(patch: Record<string, unknown>): { rest: Record<strin
       if (v === undefined) continue;
       const p = [...path, k];
       if (isInc(v)) {
-        if (!Number.isFinite(v.by)) fail('invalid_data', `inc(${v.by}) по пути ${p.join('.')}: величина — конечное число`);
-        if (v.start !== undefined && !Number.isFinite(v.start)) fail('invalid_data', `inc: start по пути ${p.join('.')} — конечное число`);
+        if (!Number.isFinite(v.by)) throw lerr('write.inc_by_not_finite', { by: v.by, path: p.join('.') });
+        if (v.start !== undefined && !Number.isFinite(v.start)) throw lerr('write.inc_start_not_finite', { path: p.join('.') });
         incs.push({ path: p, by: v.by, ...(v.start !== undefined ? { start: v.start } : {}) });
       } else if (isOp(v)) {
-        fail('invalid_data', `оператор фильтра в патче (${p.join('.')}) — update записывает значения`);
+        throw lerr('write.op_in_patch', { path: p.join('.') });
       } else if (Array.isArray(v)) {
         noMarkers(v, p);
         out[k] = v;
@@ -149,10 +147,10 @@ export function splitPatch(patch: Record<string, unknown>): { rest: Record<strin
 
 /** Данные create/upsert: объект без маркеров; ранняя проверка валидатором на TypeScript (full — объект целиком). */
 function checkFullData(cls: ClassInfo, data: unknown, verb: string, full = true): void {
-  if (!isPlain(data)) fail('invalid_data', `${verb}(): данные — объект`);
+  if (!isPlain(data)) throw lerr('write.data_not_object', { verb });
   const scan = (v: unknown, path: string[]): void => {
-    if (isInc(v)) fail('invalid_data', `inc() работает только в update(): ${verb}() по пути ${path.join('.')}`);
-    if (isOp(v)) fail('invalid_data', `оператор фильтра в данных ${verb}() (${path.join('.')}) — данные записываются значениями`);
+    if (isInc(v)) throw lerr('write.inc_outside_update', { verb, path: path.join('.') });
+    if (isOp(v)) throw lerr('write.op_in_verb_data', { verb, path: path.join('.') });
     if (Array.isArray(v)) v.forEach((x, i) => scan(x, [...path, String(i)]));
     else if (isPlain(v)) for (const [k, x] of Object.entries(v)) scan(x, [...path, k]);
   };
@@ -162,7 +160,7 @@ function checkFullData(cls: ClassInfo, data: unknown, verb: string, full = true)
   const obj = data as Record<string, unknown>;
   const agg = aggregateFields(cls);
   const given = agg.filter((f) => f in obj);
-  if (given.length) fail('aggregate_field', `поля ${given.join(', ')} класса ${cls.name} считает база (aggregate) — их не передают`);
+  if (given.length) throw lerr('write.aggregate_given', { fields: given.join(', '), cls: cls.name });
   // описания системных классов проверяет только база (метасхема Class, class_admit)
   if (!full || cls.name === 'Class' || cls.abstract) return;
   const issues = cls.validator()(applyDefaults(cls.schema, agg.length ? { ...obj, ...Object.fromEntries(agg.map((f) => [f, 0])) } : obj));
@@ -172,7 +170,7 @@ function checkFullData(cls: ClassInfo, data: unknown, verb: string, full = true)
 /** Патч update не трогает агрегатные поля класса шага (план 1.1, §2.4): их считает база. */
 function checkAggregatePatch(cls: ClassInfo, patch: Record<string, unknown>): void {
   const given = aggregateFields(cls).filter((f) => f in patch);
-  if (given.length) fail('aggregate_field', `поля ${given.join(', ')} класса ${cls.name} считает база (aggregate) — update их не меняет`);
+  if (given.length) throw lerr('write.aggregate_patched', { fields: given.join(', '), cls: cls.name });
 }
 
 /** Всё, что проверяется без базы, — до отправки первого оператора (§2.5). */
@@ -188,36 +186,36 @@ export function precheckPlan(reg: Registry, steps: Step[]): void {
     const verb = op.kind;
     if (op.reason !== undefined) checkReason(op.reason, `${verb}()`);
     const m = s.opMods ?? {};
-    if (m.asOf !== undefined) fail('invalid_query', `${verb}(): asOf описывает прошлое — записывать в него нельзя`);
+    if (m.asOf !== undefined) throw lerr('write.as_of_write', { verb });
     // restore и purge сами ищут удалённые объекты шага
-    if (m.withDeleted && verb !== 'restore' && verb !== 'purge') fail('invalid_query', `${verb}(): withDeleted описывает удалённые — записывать в них нельзя`);
+    if (m.withDeleted && verb !== 'restore' && verb !== 'purge') throw lerr('write.with_deleted_write', { verb });
     switch (op.kind) {
       case 'create':
       case 'upsert':
-        if (s.self) fail('invalid_query', `${verb}() сразу после ${prevOp?.kind}() — между глаголами нужен шаг`);
-        if (s.pivotKey !== undefined) fail('invalid_query', `${verb}() на возврате к узлу — он ведёт к существующей сущности, используйте update()`);
+        if (s.self) throw lerr('write.verb_after_verb', { verb, prev: prevOp?.kind });
+        if (s.pivotKey !== undefined) throw lerr('write.create_on_pivot', { verb });
         if (s.filter !== undefined && typeof s.filter !== 'string') {
-          fail('invalid_query', `${verb}() не ищет: ${s.name}(id).${verb}(…) задаёт id, поиск — это update()`);
+          throw lerr('write.create_with_filter', { verb, step: s.name });
         }
-        if (op.kind === 'upsert' && !s.cls.key.length) fail('no_key', `upsert(): у класса ${s.cls.name} нет ключа — сравнивать не с чем, используйте create()`);
+        if (op.kind === 'upsert' && !s.cls.key.length) throw lerr('write.upsert_no_key', { cls: s.cls.name });
         checkFullData(s.cls, op.data, verb);
         if (s.tagsFilter !== undefined && typeof s.tagsFilter !== 'string' && !Array.isArray(s.tagsFilter)) {
-          fail('invalid_query', `.tags() перед ${verb}() — строка или список`);
+          throw lerr('write.bad_tags', { verb });
         }
         break;
       case 'update':
-        if (!isPlain(op.data)) fail('invalid_data', 'update(): патч — объект');
+        if (!isPlain(op.data)) throw lerr('write.patch_not_object');
         splitPatch(op.data);
         checkAggregatePatch(s.cls, op.data);
-        if (op.rev !== undefined && (!Number.isInteger(op.rev) || op.rev < 1)) fail('invalid_query', 'update(patch, { rev }): rev — номер версии строки');
+        if (op.rev !== undefined && (!Number.isInteger(op.rev) || op.rev < 1)) throw lerr('write.bad_rev');
         break;
       case 'anonymize': {
-        if (!Array.isArray(op.fields) || !op.fields.length) fail('invalid_query', 'anonymize(поля): нужен список полей');
+        if (!Array.isArray(op.fields) || !op.fields.length) throw lerr('write.anonymize_no_fields');
         for (const f of op.fields) {
       // поля нет в классе — так и сказано, а не «поле jsonb» (план 2.0, 7.5 №3)
-      if (!(f in ((s.cls.schema.properties ?? {}) as Record<string, unknown>))) fail('invalid_query', `anonymize(): поля ${f} нет в классе ${s.cls.name}`);
+      if (!(f in ((s.cls.schema.properties ?? {}) as Record<string, unknown>))) throw lerr('write.anonymize_unknown_field', { field: f, cls: s.cls.name });
           const t = reg.leafType(s.cls.name, [f]);
-          if (t !== 'text') fail('invalid_query', `anonymize() затирает только строковые поля; ${f} — ${t}`);
+          if (t !== 'text') throw lerr('write.anonymize_not_text', { field: f, type: t });
         }
         break;
       }
@@ -230,12 +228,12 @@ export function precheckPlan(reg: Registry, steps: Step[]): void {
       case 'purge':
         break;
       case 'rekey':
-        if (!s.cls.key.length) fail('no_key', `rekey(): у класса ${s.cls.name} нет ключа — id выдаёт база, менять нечего`);
+        if (!s.cls.key.length) throw lerr('write.rekey_no_key', { cls: s.cls.name });
         checkFullData(s.cls, op.data, 'rekey', false);
         break;
     }
     for (const sl of s.slots ?? []) {
-      if (op.kind !== 'create' && op.kind !== 'update' && op.kind !== 'upsert') fail('invalid_query', `слот .${sl.role} после ${verb}() — слоты у create(), update() и upsert()`);
+      if (op.kind !== 'create' && op.kind !== 'update' && op.kind !== 'upsert') throw lerr('write.slot_bad_verb', { role: sl.role, verb });
     }
     prevOp = op;
   }
@@ -305,16 +303,17 @@ function rolesAccepting(reg: Registry, owner: ClassInfo, cls: string): string[] 
 export function slotRole(reg: Registry, owner: ClassInfo, name: string): string {
   if (owner.ends[name]) return name;
   const c = reg.find(name);
-  if (!c) fail('invalid_class', `класс или роль ${name} не найдены`);
+  if (!c) throw lerr('write.slot_unknown', { name });
   const roles = rolesAccepting(reg, owner, c!.name);
   if (roles.length === 1) return roles[0];
-  if (!roles.length) fail('invalid_query', `${name} — не конец класса ${owner.name} (концы: ${Object.keys(owner.ends).join(', ') || '—'})`);
-  return fail('invalid_query', `слот ${name} у класса ${owner.name} неоднозначен: роли ${roles.join(', ')} — назовите роль`);
+  if (!roles.length) throw lerr('write.slot_not_end', { name, cls: owner.name, ends: Object.keys(owner.ends).join(', ') || '—' });
+  throw lerr('write.slot_ambiguous', { name, cls: owner.name, roles: roles.join(', ') });
 }
 
 /** Неоднозначная роль конца из пути. */
-const ambiguous = (step: Step, target: ClassInfo, roles: string[]): never =>
-  fail('invalid_query', `конец класса ${target.name} для шага ${step.name} неоднозначен: роли ${roles.join(', ')} — назовите шаг ролью или задайте слот`);
+const ambiguous = (step: Step, target: ClassInfo, roles: string[]): never => {
+  throw lerr('write.end_ambiguous', { cls: target.name, step: step.name, roles: roles.join(', ') });
+};
 
 /**
  * Роль из нескольких кандидатов: роли, заданные слотами, не участвуют; из оставшихся — роль с именем
@@ -362,7 +361,7 @@ async function pathEnds(w: WriteCtx, steps: Step[], taken: Set<string>): Promise
       id = s.filter;
     } else {
       const rows = await readRows(w, steps.slice(0, k + 1).map(bare), { limit: 2 });
-      if (rows.length !== 1) fail('invalid_query', `шаг ${s.name} должен дать ровно одну сущность для конца ${tcls.name} (найдено ${rows.length})`);
+      if (rows.length !== 1) throw lerr('write.end_not_single', { step: s.name, cls: tcls.name, count: rows.length });
       id = rows[0].id;
       if (!roles) {
         roles = pickRole(s, tcls, rolesAccepting(w.reg, tcls, rows[0].class), taken, rows[0].class);
@@ -408,7 +407,7 @@ async function resolveSlots(w: WriteCtx, cls: ClassInfo, slots: Slot[] | undefin
     const end = cls.ends[sl.role];
     const ids = sl.op === 'unset' ? [] : await slotIds(w, sl.value);
     if (sl.op === 'set' && sl.value !== null && !end.many && ids.length !== 1) {
-      fail('invalid_query', `слот .${sl.role}.set(): конец одиночный, а значение дало ${ids.length} сущностей`);
+      throw lerr('write.slot_single_many', { role: sl.role, count: ids.length });
     }
     out.push({ role: sl.role, op: sl.op, value: sl.op === 'unset' || sl.value === null ? null : end.many ? ids : ids[0] });
   }
@@ -446,7 +445,8 @@ function existsError(w: WriteCtx, cls: ClassInfo, data: Record<string, unknown>,
       id = undefined;
     }
   }
-  return Object.assign(new LetopisError('exists', `объект класса ${cls.name} уже существует${id ? ` (id ${id})` : ''}`, { id: id ?? null }), { cause });
+  const detail = { id: id ?? null };
+  return id ? lerr('write.exists_id', { cls: cls.name, id }, { detail, cause }) : lerr('write.exists', { cls: cls.name }, { detail, cause });
 }
 
 const isPkConflict = (e: unknown): boolean => {
@@ -491,11 +491,17 @@ async function createOp(w: WriteCtx, steps: Step[], opStep: Step, upsert: boolea
 async function explainMissing(w: WriteCtx, missing: string[], rev?: number): Promise<never> {
   const S = quoteId(w.schema);
   const seen = await query<{ id: string; rev: number }>(w, `select id, rev from ${S}.entity where id = any ($1::uuid[])`, [missing]);
-  if (!seen.length) return fail('target_not_found', missing.length === 1 ? `цель ${missing[0]} не найдена` : `цели не найдены: ${missing.join(', ')}`, { ids: missing });
-  if (rev !== undefined && seen.some((r) => r.rev !== rev)) {
-    return fail('conflict', `строку ${seen[0].id} успели изменить: версия ${seen[0].rev}, а не ${rev} — перечитайте и повторите`, { id: seen[0].id, rev: seen[0].rev, expected: rev });
+  if (!seen.length) {
+    throw missing.length === 1
+      ? lerr('write.target_missing', { id: missing[0] }, { detail: { ids: missing } })
+      : lerr('write.targets_missing', { ids: missing.join(', ') }, { detail: { ids: missing } });
   }
-  return fail('acl_denied', `строки видны, но изменить их нельзя: ${seen.map((r) => r.id).join(', ')}`, { ids: seen.map((r) => r.id) });
+  if (rev !== undefined && seen.some((r) => r.rev !== rev)) {
+    const detail = { id: seen[0].id, rev: seen[0].rev, expected: rev };
+    throw lerr('write.rev_conflict', detail, { detail });
+  }
+  const ids = seen.map((r) => r.id);
+  throw lerr('write.rows_denied', { ids: ids.join(', ') }, { detail: { ids } });
 }
 
 /**
@@ -525,8 +531,8 @@ async function updateOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<Write
   const { id: dataId, ...data } = op.data;
   const ids = await targetIds(w, steps, opStep, useDataId ? (dataId as string) : undefined);
   if (op.rev !== undefined) {
-    if (ids.length > 1) fail('rev_ambiguous', `update(patch, { rev }): у шага ${opStep.name} ${ids.length} целей — проверить версию { rev } можно только у одной цели`);
-    if (!ids.length) fail('target_not_found', `update(patch, { rev }): у шага ${opStep.name} нет цели`);
+    if (ids.length > 1) throw lerr('write.rev_many_targets', { step: opStep.name, count: ids.length });
+    if (!ids.length) throw lerr('write.rev_no_target', { step: opStep.name });
   }
   if (!ids.length) return [];
   const { rest, incs } = splitPatch(useDataId ? data : op.data);
@@ -624,7 +630,7 @@ async function reclassOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<Writ
 async function deletedTargets(w: WriteCtx, steps: Step[], opStep: Step, verb: string): Promise<Row[]> {
   const rows = await readRows(w, steps.map(bare), { ...(opStep.opMods ?? {}), withDeleted: true });
   const dead = rows.filter((r) => r.$deleted);
-  if (!dead.length && rows.length) fail('not_deleted', `объект не удалён: ${verb}() — только для удалённых${verb === 'purge' ? ', сначала delete()' : ''}`, { ids: rows.map((r) => r.id) });
+  if (!dead.length && rows.length) throw lerr(verb === 'purge' ? 'write.not_deleted_purge' : 'write.not_deleted', { verb }, { detail: { ids: rows.map((r) => r.id) } });
   // без явного порядка — по id: restore и purge пишут журнал по очереди целей
   return opStep.opMods?.order ? dead : [...dead].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
@@ -675,7 +681,7 @@ async function rekeyOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteR
       const [{ id: nid }] = await query<{ id: string }>(w, `select ${S}.rekey($1::uuid, $2::jsonb, $3::jsonb) as id`, [id, data, links]);
       moved.push(nid);
     } catch (e) {
-      if (isPkConflict(e)) throw Object.assign(new LetopisError('exists', `rekey(): объект класса ${opStep.cls.name} с таким ключом уже существует`, { id }), { cause: e });
+      if (isPkConflict(e)) throw lerr('write.rekey_exists', { cls: opStep.cls.name }, { detail: { id }, cause: e });
       throw e;
     }
   }

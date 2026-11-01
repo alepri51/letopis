@@ -11,7 +11,7 @@
  * Поля, концы и ключ наследуются по правилу 0.21 «потомок заменяет поле целиком» (`extends`).
  */
 import { z } from 'zod';
-import { LetopisError } from './errors.js';
+import { lerr } from './errors.js';
 import { normalizeSchema, type JsonSchema } from './jsonschema.js';
 
 export type OnDelete = 'restrict' | 'cascade' | 'unset';
@@ -43,7 +43,7 @@ export class End<Many extends boolean = boolean, Required extends boolean = bool
   readonly metaData?: Record<string, unknown>;
 
   constructor(targets: readonly Target[], opts: { many: Many; required: Required; min?: number; max?: number; onDelete?: OnDelete; meta?: Record<string, unknown> }) {
-    if (!targets.length) throw new LetopisError('invalid_class', 'у конца должен быть хотя бы один класс цели');
+    if (!targets.length) throw lerr('model.end_no_targets');
     this.targets = targets;
     this.many = opts.many;
     this.required = opts.required;
@@ -207,7 +207,7 @@ function collectLost(schema: z.ZodType, path: string, out: LostRule[]): void {
 }
 
 function makeModel<N extends string>(kind: 'hub' | 'link', name: N, defArg: unknown, optsArg?: unknown): AnyModel {
-  if (!NAME.test(name)) throw new LetopisError('invalid_class', `имя класса ${name} недопустимо`);
+  if (!NAME.test(name)) throw lerr('model.class_name_invalid', { name });
   // короткая форма: hub(name, { поле: z…, … }, { key, meta, … })
   let def: ClassDef<z.ZodRawShape, EndsInput, AnyModel | undefined>;
   // { fields: z.object(…) } без других ключей описания — полная форма, а не класс с единственным полем fields (план 2.0,
@@ -223,11 +223,11 @@ function makeModel<N extends string>(kind: 'hub' | 'link', name: N, defArg: unkn
   const fields = def.fields;
   const ownShape: z.ZodRawShape = !fields ? {} : fields instanceof z.ZodObject ? fields.shape : (fields as z.ZodRawShape);
   for (const k of Object.keys(ownShape)) {
-    if (k.startsWith('$')) throw new LetopisError('invalid_class', `${name}: имя поля ${k} начинается с $ — так загрузчик помечает служебные ключи`);
+    if (k.startsWith('$')) throw lerr('model.field_name_dollar', { cls: name, field: k });
   }
   const ownEnds: Record<string, End> = {};
   for (const [role, v] of Object.entries(def.ends ?? {})) {
-    if (!NAME.test(role)) throw new LetopisError('invalid_class', `${name}: имя конца ${role} недопустимо`);
+    if (!NAME.test(role)) throw lerr('model.end_name_invalid', { cls: name, role });
     let end = v instanceof End ? v : one(v as AnyModel);
     const rule = def.onDelete?.[role];
     if (rule) end = end.onDelete(rule);
@@ -244,22 +244,22 @@ function makeModel<N extends string>(kind: 'hub' | 'link', name: N, defArg: unkn
       let zd = (f as any)._zod.def;
       // умолчание допустимо (база подставит его до проверки), необязательность — нет
       if (zd.type === 'default') zd = zd.innerType._zod.def;
-      if (zd.type !== 'string') throw new LetopisError('invalid_class', `${name}: поле ключа ${k} должно быть обязательной строкой`);
+      if (zd.type !== 'string') throw lerr('model.key_field_type', { cls: name, field: k });
     } else if (ends[k]) {
-      if (ends[k].many || !ends[k].required) throw new LetopisError('invalid_class', `${name}: конец ключа ${k} должен быть обязательным и одиночным`);
+      if (ends[k].many || !ends[k].required) throw lerr('model.key_end_type', { cls: name, end: k });
     } else {
-      throw new LetopisError('invalid_class', `${name}: ключ ссылается на неизвестное поле или конец ${k}`);
+      throw lerr('model.key_unknown_name', { cls: name, name: k });
     }
   }
   for (const [role, e] of Object.entries(ends)) {
     if (e.onDeleteRule === 'unset' && (e.required || (e.min ?? 0) > 0)) {
-      throw new LetopisError('invalid_class', `${name}: onDelete unset недопустим для обязательного конца ${role}`);
+      throw lerr('model.unset_required_end', { cls: name, end: role });
     }
   }
   // агрегаты (план 1.1, §2.4): остальное — роль, поле суммы, цикл — сверяет база по описаниям источников
   for (const [field, a] of Object.entries(def.aggregate ?? {})) {
-    if (!(field in shape)) throw new LetopisError('invalid_class', `${name}: агрегатного поля ${field} нет среди полей класса`);
-    if ((a.sum === undefined) === (a.count === undefined)) throw new LetopisError('invalid_class', `${name}: агрегат ${field} — ровно одно из sum и count: true`);
+    if (!(field in shape)) throw lerr('model.aggregate_field_missing', { cls: name, field });
+    if ((a.sum === undefined) === (a.count === undefined)) throw lerr('model.aggregate_kind', { cls: name, field });
   }
   // строгий верхний уровень — как в базе (resolved.schema: additionalProperties false)
   const schema = z.strictObject(shape);

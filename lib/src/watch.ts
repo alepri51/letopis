@@ -17,7 +17,7 @@
  * события, а догнавшей журнал подписки — время опроса (не позже самой старой ещё не отданной записи): подписка без
  * событий не стареет. Курсор события хранит время события.
  */
-import { LetopisError } from './errors.js';
+import { lerr } from './errors.js';
 import { toRow } from './sql.js';
 import type { Executor } from './tx.js';
 import type { Row } from './types.js';
@@ -67,7 +67,7 @@ function decode(c: string): Pos {
   const [head, snap] = c.split('~');
   const m = /^(\d+):(\d+)(?::(.+))?$/.exec(head);
   if (!m || (snap !== undefined && !/^\d+:\d+:[\d,]*$/.test(snap))) {
-    throw new LetopisError('invalid_query', `watch: курсор ${c} — ожидается курсор события`);
+    throw lerr('time.watch_cursor', { cursor: c });
   }
   return { tx: m[1], seq: m[2], at: m[3] ?? null, ...(snap ? { snap } : {}) };
 }

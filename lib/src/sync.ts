@@ -7,7 +7,7 @@
  * generateTypes: объявления TypeScript для классов из реестра — в том числе созданных данными.
  */
 import type { Db } from './index.js';
-import { LetopisError } from './errors.js';
+import { lerr } from './errors.js';
 import { internalsOf } from './internal.js';
 import type { Tx } from './tx.js';
 import type { AnyModel, LostRule } from './model.js';
@@ -46,8 +46,7 @@ export async function syncModels(db: Db, models: readonly AnyModel[], opts: { ap
     if (ordered.includes(m)) return;
     const at = path.indexOf(m);
     if (at >= 0) {
-      throw new LetopisError('invalid_class', `syncModels: модели зависят друг от друга по кругу: ${[...path.slice(at), m].map((x) => x.name).join(' → ')} — `
-        + 'родителя и источник агрегата база ждёт раньше класса');
+      throw lerr('model.models_cycle', { cycle: [...path.slice(at), m].map((x) => x.name).join(' → ') });
     }
     path.push(m);
     if (m.parent && models.includes(m.parent)) visit(m.parent);
@@ -132,7 +131,7 @@ export function generateTypes(registry: Registry, opts: { includeSystem?: boolea
   for (const c of registry.all().sort((a, b) => a.name.localeCompare(b.name))) {
     if (!opts.includeSystem && c.tenant === '2eba6d0a-1edd-4bb6-a85a-a703dab49035') continue;
     // идентификатор TypeScript — буквы Unicode, цифры, _ и $: кириллические имена классов допустимы (план 2.0, 7.5 №1)
-    if (!/^[\p{L}_$][\p{L}\p{N}_$]*$/u.test(c.name)) throw new LetopisError('invalid_class', `types: имя класса ${c.name} не годится для идентификатора TypeScript`);
+    if (!/^[\p{L}_$][\p{L}\p{N}_$]*$/u.test(c.name)) throw lerr('model.types_class_name', { name: c.name });
     // additionalProperties: false верхнего уровня в тип не переносится — лишние ключи и так ошибка типов
     const { additionalProperties: _closed, ...open } = c.schema;
     void _closed;

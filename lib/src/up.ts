@@ -19,7 +19,7 @@ import postgres from 'postgres';
 import { DDL_REVISION, RESERVED_CLASS_NAMES } from './types.js';
 import { startPglite, type PgliteOptions, type PgliteServer } from './pglite.js';
 import { hashPassword } from './auth.js';
-import { LetopisError, checkOptions } from './errors.js';
+import { checkOptions, lerr, type MsgKey, type Params } from './errors.js';
 import { sqlCatalog } from './messages/index.js';
 import { v5Id } from './uuid.js';
 import { SIGNAL_MODES, type SignalMode } from './signals.js';
@@ -178,7 +178,7 @@ export async function stampDrift(schema: string, comment: string): Promise<strin
 
 export function substitute(text: string, vars: Record<string, string>): string {
   return text.replace(/@([A-Z_]+)@/g, (m, k: string) => {
-    if (!(k in vars)) throw new Error(`letopis.up: неизвестный маркер ${m} в SQL`);
+    if (!(k in vars)) throw lerr('boot.unknown_marker', { marker: m });
     return vars[k];
   });
 }
@@ -186,10 +186,10 @@ export function substitute(text: string, vars: Record<string, string>): string {
 export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<InstallResult & { found: number | null }> {
   const owner = opts.owner ?? 'letopis_owner';
   const app = opts.app ?? 'letopis_app';
-  if (!SCHEMA_NAME.test(opts.schema)) throw new Error(`letopis.up: bad schema name "${opts.schema}" (нужно v<N>.<имя>)`);
-  for (const r of [owner, app]) if (!ROLE_NAME.test(r)) throw new Error(`letopis.up: bad role name "${r}"`);
+  if (!SCHEMA_NAME.test(opts.schema)) throw lerr('boot.install_schema_name', { schema: opts.schema });
+  for (const r of [owner, app]) if (!ROLE_NAME.test(r)) throw lerr('boot.role_name', { role: r });
   if (opts.signals !== undefined && !SIGNAL_MODES.includes(opts.signals)) {
-    throw new Error(`letopis.up: signals — ${SIGNAL_MODES.join(', ')}, а не ${String(opts.signals)}`);
+    throw lerr('boot.signals_mode', { modes: SIGNAL_MODES.join(', '), signals: String(opts.signals) });
   }
 
   const [{ v }] = await sql<{ v: string }[]>`select current_setting('server_version_num') as v`;
@@ -223,7 +223,7 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
         // роль владельца создал кто-то другой, а у установщика нет на неё ADMIN — понятная ошибка вместо сырой 42501
         // (план 2.0, 7.5 №3)
         if (e.code === '42501') {
-          throw Object.assign(new Error(`letopis.up: роль ${owner} уже есть, а у установщика нет на неё ADMIN OPTION — установку ведёт роль, создавшая ${owner}, или роль с этим правом (grant ${owner} to <установщик> with admin option)`), { cause: e });
+          throw lerr('boot.owner_no_admin', { owner }, { cause: e });
         }
         if (e.code !== '0LP01' && e.code !== '23505') throw e; // уже выдано циклом — нет; 23505 — выдал up() другой базы
       });
@@ -311,7 +311,7 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
     for (const seed of opts.seeds ?? []) {
       // имя сида пакета или путь к своему файлу
       const own = seed.endsWith('.sql') || /[\\/]/.test(seed);
-      if (!own && !/^[a-z0-9-]+$/.test(seed)) throw new Error(`letopis.up: bad seed name "${seed}"`);
+      if (!own && !/^[a-z0-9-]+$/.test(seed)) throw lerr('boot.seed_name', { seed });
       const f = own ? resolve(seed) : join(SQL_DIR, `seed.${seed}.sql`);
       try {
         await tx.unsafe(substitute(await readFile(f, 'utf8'), vars));
@@ -333,7 +333,7 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
       const S = quoteIdent(opts.schema);
       if (opts.serviceKey) {
         // свой ключ: регистрируется, если его ещё нет (ключ хранится как sha256)
-        if (!/^lts_[0-9a-f]{32,128}$/.test(opts.serviceKey)) throw new Error('letopis.up: serviceKey — lts_ и не меньше 32 шестнадцатеричных знаков');
+        if (!/^lts_[0-9a-f]{32,128}$/.test(opts.serviceKey)) throw lerr('boot.service_key_format');
         const hash = createHash('sha256').update(opts.serviceKey, 'utf8').digest();
         const [{ n }] = await tx.unsafe(`select count(*)::int as n from ${S}.secret where kind = 'APIKEY' and material = $1 and deleted_at is null`, [hash]);
         if (n === 0) {
@@ -512,7 +512,7 @@ export async function up(opts: UpOptions): Promise<UpResult> {
   checkOptions('up', opts, UP_OPTIONS);
   const log = opts.quiet ? () => {} : (m: string) => console.log(`letopis.up: ${m}`);
   const schema = opts.schema.includes('.') ? opts.schema : `${SCHEMA_VERSION}.${opts.schema}`;
-  if (!SCHEMA_NAME.test(schema)) throw new Error(`letopis.up: bad schema name "${opts.schema}" (нужно <имя> или v<N>.<имя>)`);
+  if (!SCHEMA_NAME.test(schema)) throw lerr('boot.up_schema_name', { schema: opts.schema });
   // опции арендатора и роли приложения — до подключения и наката: с неверными up() ничего не начинает
   if (opts.tenant) checkTenant(opts.tenant);
   if (opts.login !== undefined) checkLogin(opts.login);
@@ -521,7 +521,7 @@ export async function up(opts: UpOptions): Promise<UpResult> {
   const lite = opts.pglite ? await startPglite(opts.pglite === true ? {} : opts.pglite) : undefined;
   if (lite) sql = postgres(lite.dsn, { max: 1, onnotice: () => {} });
   if (!sql) {
-    if (!opts.dsn) throw new Error('letopis.up: нужен dsn или sql');
+    if (!opts.dsn) throw lerr('boot.no_connection');
     const deadline = Date.now() + (opts.waitTimeoutMs ?? 60_000);
     for (;;) {
       const ping = await pgPing(opts.dsn);
@@ -577,13 +577,12 @@ export async function up(opts: UpOptions): Promise<UpResult> {
 
 /** Проверка up({ login }) до подключения: имя роли и пароль. */
 function checkLogin(login: unknown): void {
-  const bad = (why: string) => new LetopisError('invalid_data', `up({ login }): ${why}`);
-  if (!login || typeof login !== 'object') throw bad('нужен объект { user, password }');
+  if (!login || typeof login !== 'object') throw lerr('boot.login_not_object');
   const { user, password } = login as Record<string, unknown>;
   if (typeof user !== 'string' || !user.trim() || Buffer.byteLength(user, 'utf8') > 63 || user.startsWith('pg_') || user.includes('\0')) {
-    throw bad(`user ${JSON.stringify(user)} — имя роли: непустое, до 63 байт, не pg_…`);
+    throw lerr('boot.login_user', { user: JSON.stringify(user) });
   }
-  if (typeof password !== 'string' || !password || password.includes('\0')) throw bad('password — непустая строка');
+  if (typeof password !== 'string' || !password || password.includes('\0')) throw lerr('boot.login_password');
 }
 
 /**
@@ -598,9 +597,7 @@ async function ensureLogin(sql: postgres.Sql, login: LoginOptions, owner: string
         or pg_has_role(r.oid, ${owner}, 'USAGE') or pg_has_role(r.oid, ${owner}, 'SET') as privileged
       from pg_roles r where r.rolname = ${login.user}`;
     if (r?.privileged || login.user === owner || login.user === app) {
-      throw new LetopisError('invalid_data', `up({ login }): роль ${login.user} — привилегированная (суперпользователь, CREATEROLE, `
-        + 'CREATEDB, REPLICATION, BYPASSRLS, роль-владелец или её член) или сама роль приложения: роль приложения — обычная роль '
-        + 'входа, привилегированную up() не трогает');
+      throw lerr('boot.login_privileged', { user: login.user });
     }
     const verb = r ? 'alter role %I login password %L' : 'create role %I login password %L';
     const [{ q }] = await tx`select format(${verb}::text, ${login.user}::text, ${login.password}::text) as q`;
@@ -670,24 +667,21 @@ const SERVICE_KINDS = ['SESSION', 'APIKEY', 'KEYSECRET', 'OTP', 'TOTP', 'KEY', '
  * (синтаксис маски).
  */
 function checkTenant(opts: TenantOptions): string[] {
-  if (!opts.name) throw new Error('letopis.createTenant: имя арендатора обязательно');
+  if (!opts.name) throw lerr('boot.tenant_name_required');
   // вид пароля — по правилу функций кредов (auth_kind_ok в 80-auth.sql): пароль пишет функция владельца мимо них, а с
   // видом в другом регистре или служебным (SESSION, TOTP…) по нему не войти, и служебные строки он подменял бы
   const kind: unknown = opts.user?.kind;
   if (kind != null && (typeof kind !== 'string' || !/^[A-Z][A-Z0-9_]{1,31}$/.test(kind) || SERVICE_KINDS.includes(kind))) {
-    throw new LetopisError('invalid_data', `createTenant: user.kind ${JSON.stringify(kind)} — вид пароля: заглавная латинская буква, затем заглавные буквы, цифры или «_», всего от 2 до 32 знаков; служебные виды ${SERVICE_KINDS.join(', ')} заняты (по умолчанию — PASSWORD)`);
+    throw lerr('boot.tenant_kind', { kind: JSON.stringify(kind), kinds: SERVICE_KINDS.join(', ') });
   }
   if (opts.user?.roles === undefined) return ['owner'];
   const roles: unknown = opts.user.roles;
-  const bad = (why: string) => new LetopisError('invalid_data', `createTenant: user.roles — ${why}`);
-  if (!Array.isArray(roles) || roles.length === 0) throw bad("непустой список ролей, например ['staff']");
+  if (!Array.isArray(roles) || roles.length === 0) throw lerr('boot.tenant_roles_empty');
   for (const r of roles) {
-    if (typeof r !== 'string') throw bad(`роль — строка, а не ${r === null ? 'null' : typeof r}`);
-    if (!r || r !== r.trim() || /[,{}]/.test(r) || r.startsWith('!')) {
-      throw bad(`роль ${JSON.stringify(r)}: нужно имя роли, а не маска группы — не пустое, без пробелов по краям, запятых, фигурных скобок и «!» в начале`);
-    }
+    if (typeof r !== 'string') throw lerr('boot.tenant_role_type', { type: r === null ? 'null' : typeof r });
+    if (!r || r !== r.trim() || /[,{}]/.test(r) || r.startsWith('!')) throw lerr('boot.tenant_role_mask', { role: JSON.stringify(r) });
   }
-  if (new Set(roles).size !== roles.length) throw bad('роли повторяются');
+  if (new Set(roles).size !== roles.length) throw lerr('boot.tenant_roles_repeat');
   return roles;
 }
 
@@ -709,16 +703,14 @@ export async function createTenant(sql: postgres.Sql, schema: string, opts: Tena
     // раз, остальные находят его по имени (без неё оба вставили бы ту же строку и один упал бы на ключе)
     await lockSchema(tx, schema);
     await tx.unsafe(`set local role ${quoteIdent(owner)}`);
-    /** Строка есть — true, не было — false; строки нет, а журнал id есть, — удалена: отказ gone (что и как вернуть). */
-    const exists = async (id: string, cls: 'Account' | 'member', gone: string) => {
+    /** Строка есть — true, не было — false; строки нет, а журнал id есть, — удалена: отказ по ключу gone (что и как вернуть). */
+    const exists = async (id: string, cls: 'Account' | 'member', gone: MsgKey, params: Params) => {
       const [r] = await tx.unsafe(`select exists (select 1 from ${S}.entity where id = $1::uuid) as live,
           exists (select 1 from ${S}.log where id = $1::uuid) as was`, [id]);
-      if (!r.live && r.was) throw new LetopisError('invalid_data', `createTenant: ${gone}`, { id, class: cls });
+      if (!r.live && r.was) throw lerr(gone, { ...params, id }, { detail: { id, class: cls } });
       return r.live as boolean;
     };
-    const why = 'а его история осталась в журнале — повтор удалённое не воскрешает';
-    const created = !(await exists(tenant, 'Account', `арендатор «${opts.name}» (${tenant}) удалён, ${why}: `
-      + 'верните его db.Account(id).restore() от имени системного администратора или выберите другое имя'));
+    const created = !(await exists(tenant, 'Account', 'boot.tenant_deleted', { name: opts.name }));
     if (created) {
       await tx.unsafe(`select ${S}.sys_create($1::uuid, 'Account', $2::uuid, '{}', $3::jsonb)`,
         [tenant, SYSTEM_ID, { name: opts.name, categories: [], enabled: true } as never]);
@@ -726,15 +718,13 @@ export async function createTenant(sql: postgres.Sql, schema: string, opts: Tena
     }
     let token: string | null = null;
     if (u && user) {
-      if (!(await exists(user, 'Account', `аккаунт пользователя ${u.login} (${user}) удалён, ${why}: `
-        + 'верните его db.Account(id).restore() от имени системного администратора или выберите другой логин'))) {
+      if (!(await exists(user, 'Account', 'boot.tenant_user_deleted', { login: u.login }))) {
         await tx.unsafe(`select ${S}.sys_create($1::uuid, 'Account', $2::uuid, '{}', $3::jsonb)`,
           [user, SYSTEM_ID, { name: u.name, categories: ['User'], enabled: true } as never]);
       }
       const member = (await tx.unsafe(`select ${S}.v5_id($1::uuid, 'member', array[$2::text, $1::text]) as id`, [tenant, user]))[0].id as string;
       // существующее членство не трогаем: повтор с другими ролями их не меняет (их правят правкой member)
-      if (!(await exists(member, 'member', `членство ${u.login} в арендаторе «${opts.name}» (${member}) удалено, ${why}: `
-        + 'верните его db.member(id).restore() в этом арендаторе или выберите другой логин'))) {
+      if (!(await exists(member, 'member', 'boot.tenant_member_deleted', { login: u.login, name: opts.name }))) {
         await tx.unsafe(`select ${S}.sys_create($1::uuid, 'member', $2::uuid, $3::jsonb, $4::jsonb)`,
           [member, tenant, { User: user, Tenant: tenant } as never, { roles } as never]);
       }

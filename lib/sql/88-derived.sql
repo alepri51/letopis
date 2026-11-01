@@ -113,8 +113,6 @@ declare
   k record;
   tg text[];
   own uuid;
-  -- где ошибка: проектор, арендатор и (когда известен) id строки
-  w text;
   v_agent text := 'letopis projector ' || p_name;
   v_reason text := nullif(current_setting('letopis.reason', true), '');
   n_created int := 0;
@@ -127,48 +125,46 @@ begin
     cname := o->>'class';
     rw := coalesce(o->'row', '{}'::jsonb);
     if op is null or op not in ('upsert', 'inc', 'delete') then
-      perform @SCHEMA@.lt_fail('invalid_data', format('проектор %s: неизвестная операция %s', p_name, coalesce(op, 'null')));
+      perform @SCHEMA@.lt_fail('sql-time.projector_unknown_op', jsonb_build_object('projector', p_name, 'op', coalesce(op, 'null')));
     end if;
     if jsonb_typeof(rw) <> 'object' then
-      perform @SCHEMA@.lt_fail('invalid_data', format('проектор %s: строка — не объект', p_name));
+      perform @SCHEMA@.lt_fail('sql-time.projector_row_not_object', jsonb_build_object('projector', p_name));
     end if;
     if not pg_input_is_valid(o->>'tenant', 'uuid') then
-      perform @SCHEMA@.lt_fail('invalid_data', format('проектор %s: арендатор строки — не uuid', p_name));
+      perform @SCHEMA@.lt_fail('sql-time.projector_tenant_not_uuid', jsonb_build_object('projector', p_name));
     end if;
     tid := (o->>'tenant')::uuid;
-    w := format(' (проектор %s, арендатор %s)', p_name, tid);
     cls := @SCHEMA@.class_row(cname, tid);
     if cls.id is null then
-      perform @SCHEMA@.lt_fail('invalid_class', format('класс %s не найден', cname) || w);
+      perform @SCHEMA@.lt_fail('sql-time.projector_class_not_found', jsonb_build_object('cls', cname, 'projector', p_name, 'tenant', tid));
     end if;
     -- как у писателей приложения: разделяемая блокировка семейства, описание — свежее под ней
     perform @SCHEMA@.family_lock(cls, false);
     cls := @SCHEMA@.class_row(cname, tid);
     if cls.id is null then
-      perform @SCHEMA@.lt_fail('invalid_class', format('класс %s удалён', cname) || w);
+      perform @SCHEMA@.lt_fail('sql-time.projector_class_deleted', jsonb_build_object('cls', cname, 'projector', p_name, 'tenant', tid));
     end if;
     res := cls.data->'resolved';
     if res->>'derivedBy' is distinct from p_name then
-      perform @SCHEMA@.lt_fail('derived_class', format('класс %s не производный проектора %s', cname, p_name) || w);
+      perform @SCHEMA@.lt_fail('sql-time.projector_not_derived', jsonb_build_object('cls', cname, 'projector', p_name, 'tenant', tid));
     end if;
     if coalesce((res->>'abstract')::boolean, false) then
-      perform @SCHEMA@.lt_fail('invalid_class', format('класс %s абстрактный', cname) || w);
+      perform @SCHEMA@.lt_fail('sql-time.projector_class_abstract', jsonb_build_object('cls', cname, 'projector', p_name, 'tenant', tid));
     end if;
     select * into sp from @SCHEMA@.derived_split(res, rw);
     -- id: v5 от ключа; у класса без ключа — $id строки
     kid := @SCHEMA@.key_id(res, cname, tid, sp.data, sp.links);
     if kid is null then
       if not pg_input_is_valid(rw->>'$id', 'uuid') then
-        perform @SCHEMA@.lt_fail('invalid_data', format('класс %s без ключа: проектору нужен $id строки', cname) || w);
+        perform @SCHEMA@.lt_fail('sql-time.projector_no_id', jsonb_build_object('cls', cname, 'projector', p_name, 'tenant', tid));
       end if;
       kid := (rw->>'$id')::uuid;
     elsif rw ? '$id' and (not pg_input_is_valid(rw->>'$id', 'uuid') or (rw->>'$id')::uuid <> kid) then
-      perform @SCHEMA@.lt_fail('id_mismatch', format('$id не равен v5 от ключа класса %s', cname) || w, jsonb_build_object('expected', kid));
+      perform @SCHEMA@.lt_fail('sql-time.projector_id_mismatch', jsonb_build_object('cls', cname, 'projector', p_name, 'tenant', tid), jsonb_build_object('expected', kid));
     end if;
-    w := format(' (проектор %s, арендатор %s, строка %s)', p_name, tid, kid);
     select x.* into cur from @SCHEMA@.entity x where x.id = kid for update;
     if cur.id is not null and (cur.class <> cname or cur.tenant <> tid) then
-      perform @SCHEMA@.lt_fail('id_mismatch', 'id занят строкой другого класса или арендатора' || w);
+      perform @SCHEMA@.lt_fail('sql-time.projector_id_taken', jsonb_build_object('projector', p_name, 'tenant', tid, 'id', kid));
     end if;
     if op = 'delete' then
       if cur.id is not null then
@@ -182,7 +178,7 @@ begin
       d := @SCHEMA@.merge(coalesce(cur.data, '{}'::jsonb), sp.data);
       for k in select key, value from jsonb_each(coalesce(o->'deltas', '{}'::jsonb)) loop
         if jsonb_typeof(k.value) <> 'number' then
-          perform @SCHEMA@.lt_fail('invalid_data', format('приращение поля %s — не число', k.key) || w);
+          perform @SCHEMA@.lt_fail('sql-time.projector_inc_not_number', jsonb_build_object('field', k.key, 'projector', p_name, 'tenant', tid, 'id', kid));
         end if;
         d := @SCHEMA@.inc(d, array[k.key], (k.value #>> '{}')::numeric, 0);
       end loop;
@@ -192,29 +188,31 @@ begin
     d := @SCHEMA@.apply_defaults(res->'schema', d);
     bad := @SCHEMA@.validate_data(res->'rules', cls.validator, res->'vars', d);
     if bad <> '[]'::jsonb then
-      perform @SCHEMA@.lt_fail('invalid_data', format('данные не проходят описание класса %s', cname) || w,
-        jsonb_build_object('issues', bad, 'tenant', tid, 'id', kid));
+      perform @SCHEMA@.lt_fail('sql-time.projector_invalid_data',
+        jsonb_build_object('cls', cname, 'projector', p_name, 'tenant', tid, 'id', kid), jsonb_build_object('issues', bad, 'tenant', tid, 'id', kid));
     end if;
     -- концы: у inc без концов в строке — прежние
     select * into lk from @SCHEMA@.check_links(res,
       case when op = 'inc' and sp.links = '{}'::jsonb then coalesce(cur.links, '{}'::jsonb) else sp.links end,
       tid, true, null);
-    if lk.code is not null then
-      perform @SCHEMA@.lt_fail(lk.code, lk.msg || w);
+    if lk.key is not null then
+      -- отказ концов (check_links) — тот же текст с хвостом проектора: запись sql-time.projector_<ключ sql-write без раздела>
+      perform @SCHEMA@.lt_fail(replace(lk.key, 'sql-write.', 'sql-time.projector_'),
+        lk.params || jsonb_build_object('projector', p_name, 'tenant', tid, 'id', kid));
     end if;
     if rw ? '$tags' and jsonb_typeof(rw->'$tags') <> 'array' then
-      perform @SCHEMA@.lt_fail('invalid_data', '$tags — список строк' || w);
+      perform @SCHEMA@.lt_fail('sql-time.projector_tags', jsonb_build_object('projector', p_name, 'tenant', tid, 'id', kid));
     end if;
     tg := case when rw ? '$tags' then array(select jsonb_array_elements_text(rw->'$tags')) else coalesce(cur.tags, '{}') end;
     if cur.id is null then
       own := tid;
       if rw->>'$owner' is not null then
         if not pg_input_is_valid(rw->>'$owner', 'uuid') then
-          perform @SCHEMA@.lt_fail('invalid_data', '$owner — не uuid' || w);
+          perform @SCHEMA@.lt_fail('sql-time.projector_owner_uuid', jsonb_build_object('projector', p_name, 'tenant', tid, 'id', kid));
         end if;
         own := (rw->>'$owner')::uuid;
         if own <> tid and not exists (select 1 from @SCHEMA@.entity a where a.id = own and a.class = 'Account' and a.tenant = '@SYSTEM@'::uuid) then
-          perform @SCHEMA@.lt_fail('target_not_found', 'владелец строки не найден' || w);
+          perform @SCHEMA@.lt_fail('sql-time.projector_owner_not_found', jsonb_build_object('projector', p_name, 'tenant', tid, 'id', kid));
         end if;
       end if;
       -- воскрешение: номер версии и цепочка хэшей продолжаются от последней записи журнала (как trg_entity_bi)
@@ -373,7 +371,7 @@ begin
     if not (d ? f) then
       d := d || jsonb_build_object(f, coalesce(p_old->f, '0'::jsonb));
     elsif d->f is distinct from p_old->f then
-      perform @SCHEMA@.lt_fail('aggregate_field', format('поле %s класса %s считает база (aggregate) — его не меняют', f, p_res->>'name'));
+      perform @SCHEMA@.lt_fail('sql-time.agg_field_readonly', jsonb_build_object('field', f, 'cls', p_res->>'name'));
     end if;
   end loop;
   return d;
@@ -401,34 +399,33 @@ language plpgsql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 declare
-  w text := format('агрегат %s.%s', p_tgt->>'name', p_field);
   e jsonb := p_src->'ends'->(p_def->>'via');
   fld jsonb;
 begin
   if (p_src->>'name') = any (array['Class', 'Account', 'member', 'Resource', 'rule']) then
-    perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('%s: системный класс %s не бывает источником агрегата', w, p_src->>'name'));
+    perform @SCHEMA@.lt_raise('LT010', 'sql-time.agg_source_system', jsonb_build_object('cls', p_tgt->>'name', 'field', p_field, 'src', p_src->>'name'));
   end if;
   if p_src ? 'derivedBy' then
-    perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('%s: производный класс %s не бывает источником агрегата', w, p_src->>'name'));
+    perform @SCHEMA@.lt_raise('LT010', 'sql-time.agg_source_derived', jsonb_build_object('cls', p_tgt->>'name', 'field', p_field, 'src', p_src->>'name'));
   end if;
   if e is null then
-    perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('%s: у источника %s нет конца %s', w, p_src->>'name', p_def->>'via'));
+    perform @SCHEMA@.lt_raise('LT010', 'sql-time.agg_source_no_end', jsonb_build_object('cls', p_tgt->>'name', 'field', p_field, 'src', p_src->>'name', 'via', p_def->>'via'));
   end if;
   if coalesce((e->>'many')::boolean, false) then
-    perform @SCHEMA@.lt_raise('LT010', 'invalid_class',
-      format('%s: конец %s источника %s множественный — агрегат считается через одиночный конец', w, p_def->>'via', p_src->>'name'));
+    perform @SCHEMA@.lt_raise('LT010', 'sql-time.agg_source_end_many',
+      jsonb_build_object('cls', p_tgt->>'name', 'field', p_field, 'via', p_def->>'via', 'src', p_src->>'name'));
   end if;
   if not coalesce(@SCHEMA@.class_set(e->'class') ?| array(select jsonb_array_elements_text(p_tgt->'ancestors')), false) then
-    perform @SCHEMA@.lt_raise('LT010', 'invalid_class',
-      format('%s: конец %s источника %s не принимает класс %s', w, p_def->>'via', p_src->>'name', p_tgt->>'name'));
+    perform @SCHEMA@.lt_raise('LT010', 'sql-time.agg_source_end_class',
+      jsonb_build_object('cls', p_tgt->>'name', 'field', p_field, 'via', p_def->>'via', 'src', p_src->>'name'));
   end if;
   if p_def ? 'sum' then
     fld := p_src->'schema'->'properties'->(p_def->>'sum');
     if fld is null or coalesce(fld->>'type', '') not in ('integer', 'number') then
-      perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('%s: поле суммы %s источника %s — число (integer или number)', w, p_def->>'sum', p_src->>'name'));
+      perform @SCHEMA@.lt_raise('LT010', 'sql-time.agg_sum_not_number', jsonb_build_object('cls', p_tgt->>'name', 'field', p_field, 'sum', p_def->>'sum', 'src', p_src->>'name'));
     end if;
     if fld->>'type' = 'number' and p_tgt->'schema'->'properties'->p_field->>'type' = 'integer' then
-      perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('%s: сумма поля number %s.%s в поле integer не помещается', w, p_src->>'name', p_def->>'sum'));
+      perform @SCHEMA@.lt_raise('LT010', 'sql-time.agg_sum_number_to_integer', jsonb_build_object('cls', p_tgt->>'name', 'field', p_field, 'src', p_src->>'name', 'sum', p_def->>'sum'));
     end if;
   end if;
 end $$;
@@ -480,25 +477,25 @@ declare
   cyc text;
 begin
   if coalesce((p_data->>'system')::boolean, false) then
-    perform @SCHEMA@.lt_raise('LT010', 'invalid_class', 'системный класс не бывает целью агрегата');
+    perform @SCHEMA@.lt_raise('LT010', 'sql-time.agg_target_system', '{}'::jsonb);
   end if;
   if p_res ? 'derivedBy' then
-    perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('производный класс %s не бывает целью агрегата: его строки строит проектор', nm));
+    perform @SCHEMA@.lt_raise('LT010', 'sql-time.agg_target_derived', jsonb_build_object('cls', nm));
   end if;
   for f in select key, value from jsonb_each(p_res->'aggregate') order by key loop
     d := f.value - 'match';
     if (d ? 'sum') = (d ? 'count') then
-      perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('агрегат %s.%s: нужно ровно одно из sum (поле источника) и count: true', nm, f.key));
+      perform @SCHEMA@.lt_raise('LT010', 'sql-time.agg_sum_or_count', jsonb_build_object('cls', nm, 'field', f.key));
     end if;
     fld := p_res->'schema'->'properties'->f.key;
     if fld is null then
-      perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('агрегатного поля %s нет среди полей класса %s', f.key, nm));
+      perform @SCHEMA@.lt_raise('LT010', 'sql-time.agg_field_missing', jsonb_build_object('field', f.key, 'cls', nm));
     end if;
     if coalesce(fld->>'type', '') not in ('integer', 'number') then
-      perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('агрегатное поле %s.%s — число (integer или number)', nm, f.key));
+      perform @SCHEMA@.lt_raise('LT010', 'sql-time.agg_field_not_number', jsonb_build_object('cls', nm, 'field', f.key));
     end if;
     if coalesce(p_res->'key' ? f.key, false) then
-      perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('агрегатное поле %s.%s в ключ не входит', nm, f.key));
+      perform @SCHEMA@.lt_raise('LT010', 'sql-time.agg_field_in_key', jsonb_build_object('cls', nm, 'field', f.key));
     end if;
     for s in select x.data->'resolved' as res from @SCHEMA@.entity x
              where x.class = 'Class' and x.data->>'name' <> nm
@@ -516,7 +513,7 @@ begin
   p_res := p_res || jsonb_build_object('aggregate', outv);
   cyc := @SCHEMA@.agg_cycle(p_tenant, p_res);
   if cyc is not null then
-    perform @SCHEMA@.lt_raise('LT010', 'invalid_class', format('цикл агрегатов: %s', cyc));
+    perform @SCHEMA@.lt_raise('LT010', 'sql-time.agg_cycle', jsonb_build_object('cycle', cyc));
   end if;
   return p_res;
 end $$;
@@ -581,8 +578,8 @@ begin
   end if;
   chk := @SCHEMA@.acl_check_data(p_class, 'READ');
   if not coalesce((chk->>'allow')::boolean, false) or chk ? 'filter' then
-    perform @SCHEMA@.lt_fail('acl_denied', format('класс %s становится источником агрегата %s.%s: нужно право READ на все его строки',
-      p_class, p_mark->>'class', p_mark->>'field'));
+    perform @SCHEMA@.lt_fail('sql-time.agg_source_read',
+      jsonb_build_object('cls', p_class, 'agg', p_mark->>'class', 'field', p_mark->>'field'));
   end if;
 end $$;
 
@@ -656,8 +653,8 @@ begin
     who := @SCHEMA@.agg_author(tc, mk->>'field');
     continue when who is null or who = '@SYSTEM@'::uuid;
     if not @SCHEMA@.agg_author_reads(who, tc.tenant, p_class) then
-      perform @SCHEMA@.lt_fail('acl_denied', format('класс %s становится источником агрегата %s.%s, а описавший агрегат не читает все его строки (право READ без условий): агрегат описывает заново тот, кто их читает',
-        p_class, mk->>'class', mk->>'field'));
+      perform @SCHEMA@.lt_fail('sql-time.agg_author_read',
+        jsonb_build_object('cls', p_class, 'agg', mk->>'class', 'field', mk->>'field'));
     end if;
   end loop;
 end $$;
@@ -751,7 +748,7 @@ declare
 begin
   bad := @SCHEMA@.validate_data(cls.data->'resolved'->'rules', cls.validator, cls.data->'resolved'->'vars', p_data);
   if bad <> '[]'::jsonb then
-    perform @SCHEMA@.lt_fail('invalid_data', format('данные не проходят описание класса %s (агрегатное поле)', p_class), jsonb_build_object('issues', bad));
+    perform @SCHEMA@.lt_fail('sql-time.agg_invalid_data', jsonb_build_object('cls', p_class), jsonb_build_object('issues', bad));
   end if;
 end $$;
 
@@ -1037,7 +1034,7 @@ begin
     names := names || (cr.data->>'name');
   end loop;
   if cardinality(names) = 0 then
-    perform @SCHEMA@.lt_fail('invalid_class', format('у класса %s и его потомков нет агрегатов (aggregate) — пересчитывать нечего', p_class));
+    perform @SCHEMA@.lt_fail('sql-time.aggregates_none', jsonb_build_object('cls', p_class));
   end if;
   return @SCHEMA@.agg_refresh(array(select distinct x from unnest(names) x), '@SYSTEM@'::uuid, true);
 end $$;
@@ -1110,7 +1107,7 @@ begin
     exit when not more;
     pass := pass + 1;
     if pass > 32 then
-      perform @SCHEMA@.lt_fail('invalid_class', 'первая заливка: агрегаты не сошлись за 32 прохода');
+      perform @SCHEMA@.lt_fail('sql-time.agg_fill_diverged');
     end if;
   end loop;
   select x.id, x.class, v.bad into bad
@@ -1121,8 +1118,8 @@ begin
     and v.bad <> '[]'::jsonb
   limit 1;
   if bad.id is not null then
-    perform @SCHEMA@.lt_fail('invalid_data', format('данные не проходят описание класса %s (агрегатное поле строки %s после первой заливки)', bad.class, bad.id),
-      jsonb_build_object('issues', bad.bad, 'id', bad.id));
+    perform @SCHEMA@.lt_fail('sql-time.agg_fill_invalid',
+      jsonb_build_object('cls', bad.class, 'id', bad.id), jsonb_build_object('issues', bad.bad, 'id', bad.id));
   end if;
   return n;
 end $$;

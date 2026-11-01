@@ -8,7 +8,7 @@
  * нарушение, сколько бы узлов его ни нарушили; дополнительные проверки (длина строки, uniqueItems,
  * смысл даты, перечисления объектов, число ключей) — по нарушению на каждый узел.
  */
-import { LetopisError, type Issue } from './errors.js';
+import { lerr, lmsg, type Issue, type MsgKey, type Params } from './errors.js';
 import { SUPPORTED, translatePattern, type JsonSchema } from './jsonschema.js';
 
 type J = unknown;
@@ -104,29 +104,30 @@ const items = (sel: Select): Select => (root) => sel(root).flatMap((n) => (Array
 const others = (sel: Select, known: string[]): Select => (root) => sel(root).flatMap((n) => (isObj(n) ? Object.keys(n).filter((k) => !known.includes(k)).map((k) => n[k]) : []));
 const keys = (sel: Select): Select => (root) => sel(root).flatMap((n) => (isObj(n) ? Object.keys(n) : []));
 
-function fail(path: Path, msg: string): never {
-  throw new LetopisError('invalid_class', `${msg} (узел ${JSON.stringify(path)})`);
+/** Описание не компилируется (`invalid_class`): ключ каталога и параметры; путь узла — параметр node. */
+function fail(path: Path, key: MsgKey, params?: Params): never {
+  throw lerr(key, { ...params, node: JSON.stringify(path) });
 }
 
 /** Компиляция узла схемы в правила — порядок и состав как в jp_compile. */
 function compileNode(s: J, sel: Select, path: Path, inAny: boolean, out: Rule[]): void {
   if (s === undefined || s === true || (isObj(s) && Object.keys(s).length === 0)) return;
-  if (!isObj(s)) fail(path, `описание узла ${JSON.stringify(path)} — не объект`);
+  if (!isObj(s)) fail(path, 'model.validator_node_not_object');
   const sch = s as JsonSchema;
   for (const k of Object.keys(sch)) {
-    if (!SUPPORTED.has(k) && !k.startsWith('x-')) fail(path, `ключевое слово ${k} не поддерживается`);
+    if (!SUPPORTED.has(k) && !k.startsWith('x-')) fail(path, 'model.validator_keyword_unsupported', { keyword: k });
   }
   if (sch.type !== undefined) {
     const types = Array.isArray(sch.type) ? (sch.type as string[]) : [sch.type as string];
-    const tests = types.map((t) => TYPE_TEST[t] ?? fail(path, `неизвестный тип в узле ${JSON.stringify(path)}`));
+    const tests = types.map((t) => TYPE_TEST[t] ?? fail(path, 'model.validator_unknown_type'));
     out.push({ path, keyword: 'type', select: sel, test: (v) => tests.some((f) => f(v)) });
   }
   if (sch.enum !== undefined || sch.const !== undefined) {
     const keyword = sch.enum !== undefined ? 'enum' : 'const';
     const values = (sch.enum ?? [sch.const]) as J[];
     if (values.some((v) => typeof v === 'object' && v !== null)) {
-      if (inAny) fail(path, 'перечисление объектов внутри anyOf не поддерживается');
-      out.push({ path, keyword, select: sel, test: () => true, extra: (v) => (values.some((x) => jsonEqual(x, v)) ? null : 'значение не из перечисления') });
+      if (inAny) fail(path, 'model.validator_enum_objects_in_any_of');
+      out.push({ path, keyword, select: sel, test: () => true, extra: (v) => (values.some((x) => jsonEqual(x, v)) ? null : lmsg('model.issue_enum')) });
     } else {
       out.push({ path, keyword, select: sel, test: (v) => values.some((x) => typeOf(x) === typeOf(v) && jsonEqual(x, v)) });
     }
@@ -145,44 +146,44 @@ function compileNode(s: J, sel: Select, path: Path, inAny: boolean, out: Rule[])
     } catch {
       // шаблон, неверный уже для JavaScript (незакрытая скобка и т. п.): translatePattern его пропускает, RegExp — нет.
       // Текст V8 в сообщение не идёт: он зависит от версии движка
-      fail(path, `pattern ${JSON.stringify(sch.pattern)} — неверное регулярное выражение`);
+      fail(path, 'model.validator_bad_pattern', { pattern: JSON.stringify(sch.pattern) });
     }
     out.push({ path, keyword: 'pattern', select: sel, test: (v) => typeof v !== 'string' || re.test(v) });
   }
   if (sch.format !== undefined) {
     const f = sch.format as string;
-    const re = FORMAT_RE[f] ?? fail(path, `format ${f} не поддерживается`);
+    const re = FORMAT_RE[f] ?? fail(path, 'model.validator_format_unsupported', { format: f });
     out.push({ path, keyword: 'format', select: sel, test: (v) => typeof v !== 'string' || re.test(v) });
     if (f === 'date' || f === 'date-time') {
-      if (inAny) fail(path, `format ${f} внутри anyOf не поддерживается`);
+      if (inAny) fail(path, 'model.validator_format_in_any_of', { format: f });
       out.push({ path, keyword: 'format', select: sel, test: () => true,
-        extra: (v) => (typeof v !== 'string' || !re.test(v) || validDate(v, f === 'date-time') ? null : 'такой даты не бывает') });
+        extra: (v) => (typeof v !== 'string' || !re.test(v) || validDate(v, f === 'date-time') ? null : lmsg('model.issue_date')) });
     }
   }
   if (sch.minLength !== undefined || sch.maxLength !== undefined) {
-    if (inAny) fail(path, 'длина строки внутри anyOf не поддерживается');
+    if (inAny) fail(path, 'model.validator_string_length_in_any_of');
     const min = (sch.minLength as number | undefined) ?? 0;
     const max = (sch.maxLength as number | undefined) ?? Infinity;
     out.push({ path, keyword: sch.minLength !== undefined ? 'minLength' : 'maxLength', select: sel, test: () => true,
-      extra: (v) => { if (typeof v !== 'string') return null; const n = [...v].length; return n < min || n > max ? 'длина строки вне границ' : null; } });
+      extra: (v) => { if (typeof v !== 'string') return null; const n = [...v].length; return n < min || n > max ? lmsg('model.issue_string_length') : null; } });
   }
   if (sch.minItems !== undefined) out.push({ path, keyword: 'minItems', select: sel, test: (v) => !Array.isArray(v) || v.length >= (sch.minItems as number) });
   if (sch.maxItems !== undefined) out.push({ path, keyword: 'maxItems', select: sel, test: (v) => !Array.isArray(v) || v.length <= (sch.maxItems as number) });
   if (sch.uniqueItems === true) {
-    if (inAny) fail(path, 'uniqueItems внутри anyOf не поддерживается');
+    if (inAny) fail(path, 'model.validator_unique_items_in_any_of');
     out.push({ path, keyword: 'uniqueItems', select: sel, test: () => true,
-      extra: (v) => (Array.isArray(v) && v.some((x, i) => v.findIndex((y) => jsonEqual(x, y)) !== i) ? 'элементы повторяются' : null) });
+      extra: (v) => (Array.isArray(v) && v.some((x, i) => v.findIndex((y) => jsonEqual(x, y)) !== i) ? lmsg('model.issue_unique_items') : null) });
   }
   if (sch.items !== undefined) compileNode(sch.items, items(sel), [...path, '*'], inAny, out);
   if (Array.isArray(sch.required)) {
     for (const k of sch.required as string[]) out.push({ path: [...path, k], keyword: 'required', select: sel, test: (v) => !isObj(v) || Object.prototype.hasOwnProperty.call(v, k) });
   }
   if (sch.minProperties !== undefined || sch.maxProperties !== undefined) {
-    if (inAny) fail(path, 'minProperties внутри anyOf не поддерживается');
+    if (inAny) fail(path, 'model.validator_min_properties_in_any_of');
     const min = (sch.minProperties as number | undefined) ?? 0;
     const max = (sch.maxProperties as number | undefined) ?? Infinity;
     out.push({ path, keyword: sch.minProperties !== undefined ? 'minProperties' : 'maxProperties', select: sel, test: () => true,
-      extra: (v) => { if (!isObj(v)) return null; const n = Object.keys(v).length; return n < min || n > max ? 'число ключей вне границ' : null; } });
+      extra: (v) => { if (!isObj(v)) return null; const n = Object.keys(v).length; return n < min || n > max ? lmsg('model.issue_property_count') : null; } });
   }
   const known = isObj(sch.properties) ? Object.keys(sch.properties) : [];
   if (isObj(sch.properties)) {
@@ -231,7 +232,7 @@ export function compileValidator(schema: JsonSchema): Validator {
           if (msg) issues.push({ path: r.path, keyword: r.keyword, message: msg });
         }
       } else if (!nodes.every((n) => r.test(n))) {
-        issues.push({ path: r.path, keyword: r.keyword, message: `нарушено правило ${r.keyword}` });
+        issues.push({ path: r.path, keyword: r.keyword, message: lmsg('model.issue_rule', { keyword: r.keyword }) });
       }
     }
     return issues;

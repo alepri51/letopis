@@ -521,80 +521,12 @@
       "message": "letopis: use_reclass: класс с ключом меняется функцией reclass()"
     },
     {
-      "module": "20-context",
-      "message": "letopis: no_session: неверный ключ"
-    },
-    {
-      "module": "30-validate",
-      "message": "letopis: invalid_class: format %s внутри anyOf не поддерживается (узел %s)"
-    },
-    {
-      "module": "30-validate",
-      "message": "letopis: invalid_class: format %s не поддерживается (узел %s)"
-    },
-    {
-      "module": "30-validate",
-      "message": "letopis: invalid_class: minProperties внутри anyOf не поддерживается (узел %s)"
-    },
-    {
-      "module": "30-validate",
-      "message": "letopis: invalid_class: uniqueItems внутри anyOf не поддерживается (узел %s)"
-    },
-    {
-      "module": "30-validate",
-      "message": "letopis: invalid_class: длина строки внутри anyOf не поддерживается (узел %s)"
-    },
-    {
-      "module": "30-validate",
-      "message": "letopis: invalid_class: ключевое слово %s не поддерживается (узел %s)"
-    },
-    {
-      "module": "30-validate",
-      "message": "letopis: invalid_class: неизвестный тип в узле %s"
-    },
-    {
-      "module": "30-validate",
-      "message": "letopis: invalid_class: описание узла %s — не объект"
-    },
-    {
-      "module": "30-validate",
-      "message": "letopis: invalid_class: перечисление объектов внутри anyOf не поддерживается (узел %s)"
-    },
-    {
-      "module": "30-validate",
-      "message": "letopis: invalid_class: шаблон "
-    },
-    {
       "module": "60-write",
       "message": "letopis: invalid_data: "
     },
     {
-      "module": "60-write",
-      "message": "letopis: invalid_data: links_patch: неизвестная операция "
-    },
-    {
       "module": "90-time",
-      "message": "letopis: cursor_expired: курсор подписки старше яруса all — события могли проредиться, перечитайте текущее состояние"
-    },
-    {
-      "module": "admin",
-      "message": "letopis: maintain по расписанию: <…>"
-    },
-    {
-      "module": "admin",
-      "message": "letopis: очередь сигналов PostgreSQL заполнена на <…> % — проверьте зависших слушателей"
-    },
-    {
-      "module": "chain",
-      "message": "letopis: .<…>() у класса <…> без журнала (history: false) — истории нет"
-    },
-    {
-      "module": "cli",
-      "message": "letopis: user_session_required: letopis mcp принимает только токен сессии пользователя (--token или LETOPIS_TOKEN): ключ сервиса даёт все права auth.* и не должен лежать на машине агента"
-    },
-    {
-      "module": "cli",
-      "message": "letopis: user_session_required: letopis mcp — нужен токен сессии пользователя: --token или LETOPIS_TOKEN"
+      "message": "letopis: cursor_expired: "
     },
     {
       "module": "errors",
@@ -607,18 +539,6 @@
     {
       "module": "import",
       "message": "letopis.import: <…>"
-    },
-    {
-      "module": "index",
-      "message": "letopis: администраторское подключение — RLS не действует, данные всех арендаторов видны"
-    },
-    {
-      "module": "index",
-      "message": "letopis: движок схемы <…> ревизии <…> новее библиотеки (она знает <…>) — обновите пакет letopis"
-    },
-    {
-      "module": "mcp",
-      "message": "letopis.mcp: нужен пакет @modelcontextprotocol/server — npm i @modelcontextprotocol/server"
     },
     {
       "module": "messages/index",
@@ -658,10 +578,6 @@
     },
     {
       "module": "up",
-      "message": "letopis.up: serviceKey — lts_ и не меньше 32 шестнадцатеричных знаков"
-    },
-    {
-      "module": "up",
       "message": "letopis.up: база <…> не готова за <…> с"
     },
     {
@@ -670,23 +586,11 @@
     },
     {
       "module": "up",
-      "message": "letopis.up: неизвестный маркер <…> в SQL"
-    },
-    {
-      "module": "up",
       "message": "letopis.up: нужен PostgreSQL 18 или новее, а сервер — <…>"
     },
     {
       "module": "up",
       "message": "letopis.up: нужен PostgreSQL 18 или новее, а сервер — <…> (<…>)"
-    },
-    {
-      "module": "up",
-      "message": "letopis.up: нужен dsn или sql"
-    },
-    {
-      "module": "up",
-      "message": "letopis.up: роль <…> уже есть, а у установщика нет на неё ADMIN OPTION — установку ведёт роль, создавшая <…>, или роль с этим правом (grant <…> to <установщик> with admin option)"
     },
     {
       "module": "up",

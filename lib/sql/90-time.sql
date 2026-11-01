@@ -144,7 +144,7 @@ set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 begin
   if not @SCHEMA@.letopis_allowed('letopis.signals') then
-    perform @SCHEMA@.lt_fail('acl_denied', 'нет права letopis.signals');
+    perform @SCHEMA@.lt_fail('sql-time.signals_denied');
   end if;
   return (select encode(@PGCRYPTO@.hmac(convert_to('letopis:signals', 'UTF8'), s.material, 'sha256'), 'hex')
           from @SCHEMA@.secret s where s.id = '@SYSTEM@'::uuid and s.kind = 'KEY');
@@ -174,7 +174,7 @@ begin
   select x.* into l from @SCHEMA@.log x where x.id = p_id and x.tenant = p_tenant order by x.rev desc limit 1 for update;
   if l.id is null or l.tenant <> p_tenant or l.op in ('purge', 'reset')
      or not @SCHEMA@.row_visible(l.tenant, l.class, l.id, l.owner, l.tags, l.data, l.links, p_tenant, (p_acl->>'account')::uuid, p_acl->'plan') then
-    perform @SCHEMA@.lt_fail('target_not_found', 'цель не найдена');
+    perform @SCHEMA@.lt_fail('sql-time.target_not_found');
   end if;
   return l;
 end $$;
@@ -202,44 +202,44 @@ declare
 begin
   select * into c from @SCHEMA@.ctx();
   if c.account is null then
-    perform @SCHEMA@.lt_fail('no_session', 'нет действующей сессии');
+    perform @SCHEMA@.lt_fail('sql-time.no_session');
   end if;
   rd := @SCHEMA@.acl_actor('READ');
   l := @SCHEMA@.last_version_visible(p_id, c.tenant, rd);
   if l.op <> 'delete' or exists (select 1 from @SCHEMA@.entity e where e.id = p_id) then
-    perform @SCHEMA@.lt_fail('not_deleted', 'объект не удалён: restore — только для удалённых');
+    perform @SCHEMA@.lt_fail('sql-time.restore_not_deleted');
   end if;
   if l.class = 'Class' then
-    perform @SCHEMA@.lt_fail('invalid_class', 'описание класса восстанавливается созданием строки Class');
+    perform @SCHEMA@.lt_fail('sql-time.restore_class_row');
   end if;
   cls := @SCHEMA@.class_row(l.class, l.tenant);
   if cls.id is null then
-    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s не найден', l.class));
+    perform @SCHEMA@.lt_fail('sql-time.class_not_found', jsonb_build_object('cls', l.class));
   end if;
   perform @SCHEMA@.family_lock(cls, false);
   cls := @SCHEMA@.class_row(l.class, l.tenant);
   if cls.id is null then
-    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s удалён', l.class));
+    perform @SCHEMA@.lt_fail('sql-time.class_deleted', jsonb_build_object('cls', l.class));
   end if;
   res := cls.data->'resolved';
   if coalesce((res->>'abstract')::boolean, false) then
-    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s абстрактный', l.class));
+    perform @SCHEMA@.lt_fail('sql-time.class_abstract', jsonb_build_object('cls', l.class));
   end if;
   if res ? 'derivedBy' then
-    perform @SCHEMA@.lt_fail('derived_class', format('класс %s производный: его строки пишет проектор %s', l.class, res->>'derivedBy'));
+    perform @SCHEMA@.lt_fail('sql-time.class_derived', jsonb_build_object('cls', l.class, 'projector', res->>'derivedBy'));
   end if;
   d := @SCHEMA@.apply_defaults(res->'schema', l.data);
   bad := @SCHEMA@.validate_data(res->'rules', cls.validator, res->'vars', d);
   if bad <> '[]'::jsonb then
-    perform @SCHEMA@.lt_fail('invalid_data', format('данные не проходят описание класса %s', l.class), jsonb_build_object('issues', bad));
+    perform @SCHEMA@.lt_fail('sql-time.invalid_data', jsonb_build_object('cls', l.class), jsonb_build_object('issues', bad));
   end if;
   select * into lk from @SCHEMA@.check_links(res, l.links, l.tenant, true, rd);
-  if lk.code is not null then
-    perform @SCHEMA@.lt_fail(lk.code, lk.msg);
+  if lk.key is not null then
+    perform @SCHEMA@.lt_fail(lk.key, lk.params);
   end if;
   kid := @SCHEMA@.key_id(res, l.class, l.tenant, d, lk.links);
   if kid is not null and kid <> p_id then
-    perform @SCHEMA@.lt_fail('id_mismatch', format('ключ класса %s изменился: id объекта не равен v5 от ключа', l.class), jsonb_build_object('expected', kid));
+    perform @SCHEMA@.lt_fail('sql-time.restore_key_changed', jsonb_build_object('cls', l.class), jsonb_build_object('expected', kid));
   end if;
   -- владелец — существующий аккаунт или арендатор
   own := l.owner;
@@ -247,7 +247,7 @@ begin
     own := l.tenant;
   end if;
   if not @SCHEMA@.acl_row_ok(@SCHEMA@.acl_plan('WRITE'), l.class, p_id, own, l.tenant, l.tags, d, lk.links) then
-    perform @SCHEMA@.lt_fail('acl_denied', format('нет права WRITE на строку класса %s', l.class));
+    perform @SCHEMA@.lt_fail('sql-time.no_write_row', jsonb_build_object('cls', l.class));
   end if;
   ts := greatest(@SCHEMA@.now_ts(), l.at + interval '1 microsecond');
   insert into @SCHEMA@.entity (id, rev, class, cv, tenant, owner, links, data, tags, at, created_at, author, agent, op, reason, moved, prev_hash, validator)
@@ -312,22 +312,22 @@ declare
 begin
   select * into c from @SCHEMA@.ctx();
   if c.account is null then
-    perform @SCHEMA@.lt_fail('no_session', 'нет действующей сессии');
+    perform @SCHEMA@.lt_fail('sql-time.no_session');
   end if;
   l := @SCHEMA@.last_version_visible(p_id, c.tenant, @SCHEMA@.acl_actor('READ'));
   if l.op <> 'delete' or exists (select 1 from @SCHEMA@.entity e where e.id = p_id) then
-    perform @SCHEMA@.lt_fail('not_deleted', 'объект не удалён: purge — только для удалённых, сначала delete()');
+    perform @SCHEMA@.lt_fail('sql-time.purge_not_deleted');
   end if;
   if l.class in ('Class', 'Account', 'member', 'Resource', 'rule') then
-    perform @SCHEMA@.lt_fail('invalid_class', 'история системных классов — аудит прав и схемы: purge недоступен');
+    perform @SCHEMA@.lt_fail('sql-time.purge_system');
   end if;
   if not @SCHEMA@.acl_row_ok(@SCHEMA@.acl_plan('DELETE'), l.class, l.id, l.owner, l.tenant, l.tags, l.data, l.links) then
-    perform @SCHEMA@.lt_fail('acl_denied', format('нет права DELETE на класс %s', l.class));
+    perform @SCHEMA@.lt_fail('sql-time.no_delete_class', jsonb_build_object('cls', l.class));
   end if;
   -- проектор источника, который ещё не прочёл какую-то версию строки (в том числе надгробие этой транзакции), об
   -- удалении не узнал бы — вклад строки остался бы в итогах навсегда (ревью безопасности №3, №5)
   if @SCHEMA@.projector_unread(l.tenant, p_id, null) then
-    perform @SCHEMA@.lt_fail('projector_pending', 'проектор источника ещё не прочёл удаление: purge — после его run()');
+    perform @SCHEMA@.lt_fail('sql-time.purge_projector_pending');
   end if;
   select count(*)::int into n from @SCHEMA@.log x where x.id = p_id;
   if not coalesce(p_confirm, false) then
@@ -340,7 +340,7 @@ begin
           nullif(current_setting('letopis.reason', true), ''), null, null);
   -- воскрешение, зафиксированное, пока purge ждал блокировку, — отказ (снимок нового оператора его видит)
   if exists (select 1 from @SCHEMA@.entity e where e.id = p_id) then
-    perform @SCHEMA@.lt_fail('not_deleted', 'объект восстановлен во время purge');
+    perform @SCHEMA@.lt_fail('sql-time.purge_restored');
   end if;
   perform @SCHEMA@.signal(array[l.class], array[l.tenant]);
   return jsonb_build_object('id', p_id, 'class', l.class, 'versions', n, 'purged', true);
@@ -371,10 +371,10 @@ declare
 begin
   select * into c from @SCHEMA@.ctx();
   if c.account is null then
-    perform @SCHEMA@.lt_fail('no_session', 'нет действующей сессии');
+    perform @SCHEMA@.lt_fail('sql-time.no_session');
   end if;
   if p_before is null or (p_ids is null and p_classes is null) then
-    perform @SCHEMA@.lt_fail('invalid_data', 'обрезка истории: нужны цели и момент');
+    perform @SCHEMA@.lt_fail('sql-time.trim_args');
   end if;
   rd := @SCHEMA@.acl_actor('READ');
   dplan := @SCHEMA@.acl_plan('DELETE');
@@ -385,7 +385,7 @@ begin
              order by u.x loop
       if r.id is null or r.tenant <> c.tenant or r.op in ('purge', 'reset')
          or not @SCHEMA@.row_visible(r.tenant, r.class, r.id, r.owner, r.tags, r.data, r.links, c.tenant, c.account, rd->'plan') then
-        perform @SCHEMA@.lt_fail('target_not_found', 'цель не найдена');
+        perform @SCHEMA@.lt_fail('sql-time.target_not_found');
       end if;
     end loop;
   end if;
@@ -398,10 +398,10 @@ begin
     continue when r.op in ('purge', 'reset')
       or not @SCHEMA@.row_visible(r.tenant, r.class, r.id, r.owner, r.tags, r.data, r.links, c.tenant, c.account, rd->'plan');
     if r.class in ('Class', 'Account', 'member', 'Resource', 'rule') then
-      perform @SCHEMA@.lt_fail('invalid_class', 'история системных классов — аудит прав и схемы: обрезка недоступна');
+      perform @SCHEMA@.lt_fail('sql-time.trim_system');
     end if;
     if not @SCHEMA@.acl_row_ok(dplan, r.class, r.id, r.owner, r.tenant, r.tags, r.data, r.links) then
-      perform @SCHEMA@.lt_fail('acl_denied', format('нет права DELETE на класс %s', r.class));
+      perform @SCHEMA@.lt_fail('sql-time.no_delete_class', jsonb_build_object('cls', r.class));
     end if;
     -- версии id под блокировкой: параллельная обрезка и прореживание ждут
     perform 1 from @SCHEMA@.log x where x.id = r.id order by x.rev for update;
@@ -415,7 +415,7 @@ begin
     -- №3); каждая версия до первой оставшейся — у более поздней версии бывает меньший xid
     select x.rev into nxt from @SCHEMA@.log x where x.id = r.id and x.rev > j order by x.rev limit 1;
     if @SCHEMA@.projector_unread(r.tenant, r.id, nxt.rev) then
-      perform @SCHEMA@.lt_fail('projector_pending', 'проектор источника ещё не прочёл версии: trimHistory — после его run()');
+      perform @SCHEMA@.lt_fail('sql-time.trim_projector_pending');
     end if;
     select x.hash into h from @SCHEMA@.log x where x.id = r.id and x.rev = j;
     with d as (delete from @SCHEMA@.log x where x.id = r.id and x.rev <= j returning 1)
@@ -457,51 +457,51 @@ declare
 begin
   select * into c from @SCHEMA@.ctx();
   if c.account is null then
-    perform @SCHEMA@.lt_fail('no_session', 'нет действующей сессии');
+    perform @SCHEMA@.lt_fail('sql-time.no_session');
   end if;
   if current_setting('transaction_isolation') <> 'read committed' then
-    perform @SCHEMA@.lt_fail('isolation_level', 'смена ключа разрешена только в read committed');
+    perform @SCHEMA@.lt_fail('sql-time.rekey_isolation');
   end if;
   rd := @SCHEMA@.acl_actor('READ');
   wplan := @SCHEMA@.acl_plan('WRITE');
   select x.* into o from @SCHEMA@.entity x where x.id = p_id and x.tenant = c.tenant for update;
   if o.id is null or not @SCHEMA@.row_visible(o.tenant, o.class, o.id, o.owner, o.tags, o.data, o.links, c.tenant, c.account, rd->'plan') then
-    perform @SCHEMA@.lt_fail('target_not_found', 'цель не найдена');
+    perform @SCHEMA@.lt_fail('sql-time.target_not_found');
   end if;
   if not @SCHEMA@.acl_row_ok(wplan, o.class, o.id, o.owner, o.tenant, o.tags, o.data, o.links) then
-    perform @SCHEMA@.lt_fail('acl_denied', format('нет права WRITE на строку класса %s', o.class));
+    perform @SCHEMA@.lt_fail('sql-time.no_write_row', jsonb_build_object('cls', o.class));
   end if;
   if o.class in ('Class', 'Account', 'member', 'Resource', 'rule') then
-    perform @SCHEMA@.lt_fail('invalid_class', 'ключ системной строки не меняется');
+    perform @SCHEMA@.lt_fail('sql-time.rekey_system_row');
   end if;
   cls := @SCHEMA@.class_row(o.class, o.tenant);
   perform @SCHEMA@.family_lock(cls, false);
   cls := @SCHEMA@.class_row(o.class, o.tenant);
   if cls.id is null then
-    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s удалён', o.class));
+    perform @SCHEMA@.lt_fail('sql-time.class_deleted', jsonb_build_object('cls', o.class));
   end if;
   res := cls.data->'resolved';
   if res ? 'derivedBy' then
-    perform @SCHEMA@.lt_fail('derived_class', format('класс %s производный: его строки пишет проектор %s', o.class, res->>'derivedBy'));
+    perform @SCHEMA@.lt_fail('sql-time.class_derived', jsonb_build_object('cls', o.class, 'projector', res->>'derivedBy'));
   end if;
   if jsonb_array_length(coalesce(res->'key', '[]'::jsonb)) = 0 then
-    perform @SCHEMA@.lt_fail('invalid_class', format('у класса %s нет ключа: id выдаёт база, менять нечего', o.class));
+    perform @SCHEMA@.lt_fail('sql-time.rekey_no_key', jsonb_build_object('cls', o.class));
   end if;
   if res ? 'aggregate' and coalesce(p_data, '{}'::jsonb) ?| @SCHEMA@.agg_fields(res) then
-    perform @SCHEMA@.lt_fail('aggregate_field', format('агрегатные поля класса %s считает база — в rekey их не передают', o.class));
+    perform @SCHEMA@.lt_fail('sql-time.rekey_aggregate', jsonb_build_object('cls', o.class));
   end if;
   d := @SCHEMA@.apply_defaults(res->'schema', @SCHEMA@.merge(o.data, coalesce(p_data, '{}'::jsonb)));
   bad := @SCHEMA@.validate_data(res->'rules', cls.validator, res->'vars', d);
   if bad <> '[]'::jsonb then
-    perform @SCHEMA@.lt_fail('invalid_data', format('данные не проходят описание класса %s', o.class), jsonb_build_object('issues', bad));
+    perform @SCHEMA@.lt_fail('sql-time.invalid_data', jsonb_build_object('cls', o.class), jsonb_build_object('issues', bad));
   end if;
   select * into lk from @SCHEMA@.check_links(res, o.links || coalesce(p_links, '{}'::jsonb), o.tenant, true, rd);
-  if lk.code is not null then
-    perform @SCHEMA@.lt_fail(lk.code, lk.msg);
+  if lk.key is not null then
+    perform @SCHEMA@.lt_fail(lk.key, lk.params);
   end if;
   nid := @SCHEMA@.key_id(res, o.class, o.tenant, d, lk.links);
   if not @SCHEMA@.acl_row_ok(wplan, o.class, nid, o.owner, o.tenant, o.tags, d, lk.links) then
-    perform @SCHEMA@.lt_fail('acl_denied', format('нет права WRITE на класс %s', o.class));
+    perform @SCHEMA@.lt_fail('sql-time.no_write_class', jsonb_build_object('cls', o.class));
   end if;
   if nid = o.id then
     if d is distinct from o.data or lk.links is distinct from o.links then
@@ -515,8 +515,10 @@ begin
          count(*) into denied, n_denied from @SCHEMA@.entity x
   where x.ends @> array[o.id] and not @SCHEMA@.acl_row_ok(wplan, x.class, x.id, x.owner, x.tenant, x.tags, x.data, x.links);
   if n_denied > 0 then
-    perform @SCHEMA@.lt_fail('acl_denied', case when denied is not null then format('нет права WRITE на ссылающиеся строки класса %s', denied)
-                                                 else 'нет права WRITE на ссылающиеся строки' end);
+    if denied is not null then
+      perform @SCHEMA@.lt_fail('sql-time.refs_denied_class', jsonb_build_object('cls', denied));
+    end if;
+    perform @SCHEMA@.lt_fail('sql-time.refs_denied');
   end if;
   perform @SCHEMA@.move_row(o, nid, o.class, d, lk.links, 'rekey', wplan);
   return nid;
@@ -546,23 +548,23 @@ declare
 begin
   select * into c from @SCHEMA@.ctx();
   if c.account is null then
-    perform @SCHEMA@.lt_fail('no_session', 'нет действующей сессии');
+    perform @SCHEMA@.lt_fail('sql-time.no_session');
   end if;
   if current_setting('transaction_isolation') <> 'read committed' then
-    perform @SCHEMA@.lt_fail('isolation_level', 'смена ключа разрешена только в read committed');
+    perform @SCHEMA@.lt_fail('sql-time.rekey_isolation');
   end if;
   wplan := @SCHEMA@.acl_plan('WRITE');
   cr := @SCHEMA@.class_row(p_class, c.tenant);
   if cr.id is null or cr.tenant <> c.tenant then
-    perform @SCHEMA@.lt_fail('invalid_class', format('класс %s не найден среди классов арендатора', p_class));
+    perform @SCHEMA@.lt_fail('sql-time.rekey_class_not_found', jsonb_build_object('cls', p_class));
   end if;
   if coalesce((cr.data->>'system')::boolean, false) then
-    perform @SCHEMA@.lt_fail('invalid_class', 'ключ системного класса не меняется');
+    perform @SCHEMA@.lt_fail('sql-time.rekey_system_class');
   end if;
   -- строки производного класса (и его потомков) переносит только владелец: ключ меняют в описании, а строки
   -- строит заново проектор (rebuild)
   if cr.data->'resolved' ? 'derivedBy' then
-    perform @SCHEMA@.lt_fail('derived_class', format('класс %s производный: его строки пишет проектор %s', p_class, cr.data->'resolved'->>'derivedBy'));
+    perform @SCHEMA@.lt_fail('sql-time.class_derived', jsonb_build_object('cls', p_class, 'projector', cr.data->'resolved'->>'derivedBy'));
   end if;
   -- и потомки: производный потомок непроизводного предка наследует его ключ, а его строки переносит только проектор
   -- (доработки после точки Б)
@@ -571,14 +573,14 @@ begin
     and x.data->'resolved'->'ancestors' ? p_class and x.data->'resolved' ? 'derivedBy'
   order by x.data->>'name' limit 1;
   if dname is not null then
-    perform @SCHEMA@.lt_fail('derived_class', format('у класса %s производный потомок %s: его строки пишет проектор', p_class, dname));
+    perform @SCHEMA@.lt_fail('sql-time.rekey_derived_child', jsonb_build_object('cls', p_class, 'child', dname));
   end if;
   if not @SCHEMA@.acl_row_ok(wplan, 'Class', cr.id, cr.owner, cr.tenant, cr.tags, cr.data, cr.links) then
-    perform @SCHEMA@.lt_fail('acl_denied', 'нет права WRITE на класс Class');
+    perform @SCHEMA@.lt_fail('sql-time.rekey_class_denied');
   end if;
   -- смена ключа проверяет все строки семейства и отвечает числом нарушающих — как ужесточение, только с правом READ без
   -- условий на все строки класса и потомков (доработки после точки Б)
-  perform @SCHEMA@.class_rows_admit(p_class, cr.tenant, array['READ'], format('смена ключа класса %s', p_class));
+  perform @SCHEMA@.class_rows_admit(p_class, cr.tenant, array['READ'], 'rekey');
   perform @SCHEMA@.family_lock(cr, true);
   select x.* into cr from @SCHEMA@.entity x where x.id = cr.id for update;
   select p.data, p.validator into prep from @SCHEMA@.class_prepare(cr.data || jsonb_build_object('key', p_key), cr.tenant) p;
@@ -600,7 +602,7 @@ begin
     select x.* into r from @SCHEMA@.entity x where x.id = r.id for update;
     continue when r.id is null;
     if not @SCHEMA@.acl_row_ok(wplan, r.class, r.id, r.owner, r.tenant, r.tags, r.data, r.links) then
-      perform @SCHEMA@.lt_fail('acl_denied', format('нет права WRITE на строку класса %s', r.class));
+      perform @SCHEMA@.lt_fail('sql-time.no_write_row', jsonb_build_object('cls', r.class));
     end if;
     res := (@SCHEMA@.class_row(r.class, r.tenant)).data->'resolved';
     nid := coalesce(@SCHEMA@.key_id(res, r.class, r.tenant, r.data, r.links), r.id);
@@ -611,8 +613,8 @@ begin
   end loop;
   conflicts := @SCHEMA@.family_conflicts(classes, cr.tenant, false);
   if conflicts <> '[]'::jsonb then
-    perform @SCHEMA@.lt_fail('tightening_conflict', format('новому ключу класса %s не соответствуют строки', p_class),
-      @SCHEMA@.visible_detail(conflicts, c.tenant));
+    perform @SCHEMA@.lt_fail('sql-time.rekey_conflict',
+      jsonb_build_object('cls', p_class), @SCHEMA@.visible_detail(conflicts, c.tenant));
   end if;
   perform @SCHEMA@.acl_bump();
   return n;
@@ -644,10 +646,10 @@ declare
 begin
   select * into c from @SCHEMA@.ctx();
   if c.account is null then
-    perform @SCHEMA@.lt_fail('no_session', 'нет действующей сессии');
+    perform @SCHEMA@.lt_fail('sql-time.no_session');
   end if;
   if p_account = c.account then
-    perform @SCHEMA@.lt_fail('acl_denied', 'удалить себя нельзя');
+    perform @SCHEMA@.lt_fail('sql-time.purge_self');
   end if;
   -- право — до поиска и блокировки цели: без права ответ один (acl_denied), есть ли такой аккаунт,
   -- не видно, и чужую строку Account вызов не блокирует (итоговое ревью безопасности)
@@ -655,11 +657,11 @@ begin
       select 1 from @SCHEMA@.entity x
       where x.id = @SCHEMA@.v5_id(p_account, 'member', array[c.account::text, p_account::text]) and x.class = 'member'
         and x.tenant = p_account and coalesce(x.data->'roles' ? 'owner', false))) then
-    perform @SCHEMA@.lt_fail('acl_denied', 'удалить аккаунт может системный администратор или владелец его арендатора');
+    perform @SCHEMA@.lt_fail('sql-time.account_purge_denied');
   end if;
   select x.* into a from @SCHEMA@.entity x where x.id = p_account and x.class = 'Account' and x.tenant = '@SYSTEM@'::uuid for update;
   if a.id is null or p_account = '@SYSTEM@'::uuid then
-    perform @SCHEMA@.lt_fail('target_not_found', 'аккаунт не найден');
+    perform @SCHEMA@.lt_fail('sql-time.account_not_found');
   end if;
   -- владелец стирает арендатора, в котором работает: его членство уйдёт вместе с данными, а надгробия и
   -- передача владения ниже перечитывают ctx() — остаток операции идёт в личном арендаторе вызывающего,
@@ -696,7 +698,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('id', x.id, 'class', x.class, 'tenant', x.tenant)), '[]'::jsonb) into blockers
   from (select x.id, x.class, x.tenant from @SCHEMA@.entity x where x.ends @> array[p_account] order by x.id limit 1000) x;
   if blockers <> '[]'::jsonb then
-    perform @SCHEMA@.lt_fail('delete_restricted', 'на аккаунт ссылаются другие строки', @SCHEMA@.visible_detail(blockers, c.tenant));
+    perform @SCHEMA@.lt_fail('sql-time.account_referenced', '{}'::jsonb, @SCHEMA@.visible_detail(blockers, c.tenant));
   end if;
   -- сессии аккаунта гасит с сигналом триггер до удаления (trg_entity_bd_account, срабатывает и для владельца), а его
   -- строки secret — сессии и креды — стирает каскад внешнего ключа secret.account (ревизия 7)
@@ -740,14 +742,14 @@ declare
   held boolean;
 begin
   if not @ALLOW_RESET@ then
-    perform @SCHEMA@.lt_fail('reset_disabled', 'reset выключен в этой установке (up({ allowReset }))');
+    perform @SCHEMA@.lt_fail('sql-time.reset_disabled');
   end if;
   select * into c from @SCHEMA@.ctx();
   if not @SCHEMA@.letopis_allowed('letopis.reset') then
-    perform @SCHEMA@.lt_fail('acl_denied', 'нет права letopis.reset');
+    perform @SCHEMA@.lt_fail('sql-time.reset_denied');
   end if;
   if p_confirm is distinct from '@SCHEMA_NAME@' then
-    perform @SCHEMA@.lt_fail('confirm_mismatch', 'подтверждение сброса — имя схемы установки');
+    perform @SCHEMA@.lt_fail('sql-time.reset_confirm');
   end if;
   case p_level
     when 'sessions' then
@@ -759,10 +761,10 @@ begin
     when 'tenant' then
       t := coalesce(p_tenant, c.tenant);
       if t is null or t = '@SYSTEM@'::uuid then
-        perform @SCHEMA@.lt_fail('tenant_denied', 'System сбрасывается только целиком (level all)');
+        perform @SCHEMA@.lt_fail('sql-time.reset_system');
       end if;
       if not exists (select 1 from @SCHEMA@.entity a where a.id = t and a.class = 'Account' and a.tenant = '@SYSTEM@'::uuid) then
-        perform @SCHEMA@.lt_fail('target_not_found', 'арендатор не найден');
+        perform @SCHEMA@.lt_fail('sql-time.tenant_not_found');
       end if;
       -- строки арендатора стираются пачками в любом порядке: агрегаты его целей (план 1.1, §2.4) не пересчитываются —
       -- цели уходят вместе с источниками, а промежуточный итог пачки мог бы выйти за правило класса
@@ -792,7 +794,7 @@ begin
       perform @SCHEMA@.signal_raw(array['*', 'session:*']);
       return jsonb_build_object('level', p_level, 'serviceKey', key);
     else
-      perform @SCHEMA@.lt_fail('invalid_data', format('уровень сброса %s: sessions, tenant или all', p_level));
+      perform @SCHEMA@.lt_fail('sql-time.reset_level', jsonb_build_object('level', p_level));
   end case;
   return null;
 end $$;
@@ -927,7 +929,7 @@ declare
   fam text := '@SCHEMA_NAME@:family:';
 begin
   if not @SCHEMA@.letopis_allowed('letopis.maintain') then
-    perform @SCHEMA@.lt_fail('acl_denied', 'нет права letopis.maintain');
+    perform @SCHEMA@.lt_fail('sql-time.maintain_denied');
   end if;
   -- один исполнитель: строка-замок до конца транзакции пачки (lock_try) — посторонняя роль её не займёт (ревью
   -- безопасности №3, №2); занята — null, обслуживание продолжит держатель
@@ -936,7 +938,7 @@ begin
   end if;
   if p_now is not null then
     if not @ALLOW_RESET@ then
-      perform @SCHEMA@.lt_fail('reset_disabled', 'maintain(now) — только в установке с allow_reset');
+      perform @SCHEMA@.lt_fail('sql-time.maintain_now');
     end if;
     ts := p_now;
   end if;
@@ -1001,7 +1003,7 @@ declare
   ts timestamptz := clock_timestamp();
 begin
   if not @SCHEMA@.letopis_allowed('letopis.verify') then
-    perform @SCHEMA@.lt_fail('acl_denied', 'verify доступен только системному администратору');
+    perform @SCHEMA@.lt_fail('sql-time.verify_denied');
   end if;
   with pol as (
     -- классы с политикой хранения сейчас или в истории строки Class; ярус all — действующий или сутки
@@ -1149,7 +1151,8 @@ begin
                               where y.class = 'Class' and y.tenant = t and y.data->>'name' = x.data->>'name'));
     if lim is not null and p_at < clock_timestamp() - lim then
       raise exception using errcode = 'LT016',
-        message = 'letopis: cursor_expired: курсор подписки старше яруса all — события могли проредиться, перечитайте текущее состояние';
+        message = 'letopis: cursor_expired: ' || @SCHEMA@.lt_text('sql-time.cursor_expired'),
+        detail = jsonb_build_object('key', 'sql-time.cursor_expired', 'params', '{}'::jsonb)::text;
     end if;
   end if;
   -- колонки — явно: changed приложению не выдана (ревью №1 точки А плана 1.1), в ответе подписки она null
