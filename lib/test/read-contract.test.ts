@@ -6,7 +6,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { engine, type Engine, type Tenant } from './_engine.js';
 import { appDsn } from './_harness.js';
-import { connect, type Db } from '../src/index.js';
+import { connect, gt, type Db } from '../src/index.js';
 
 let e: Engine;
 let t: Tenant;
@@ -22,6 +22,7 @@ before(async () => {
     { name: 'Shop', kind: 'hub', fields: NAME },
     { name: 'Item', kind: 'hub', fields: NAME, ends: { Shop: { class: 'Shop' } } },
     { name: 'Item2', kind: 'hub', fields: NAME, ends: { Shop: { class: 'Shop' } } },
+    { name: 'Odd', kind: 'hub', fields: { properties: { 'a@S@b': { type: 'integer' } } } },
   ]) await e.defineClass(t, c);
   db = await connect({ dsn: appDsn(), schema: e.schema, token: t.token, max: 3 });
 });
@@ -45,4 +46,9 @@ test('план 2.0, 7.1 №1: asOf по классу и по концам пок
   const at2 = moved.at as string;
   assert.equal((await db.Shop(s.id).Item().asOf(at2).ids()).includes(i.id), false, 'по концам: после reclass его нет среди Item');
   assert.equal((await db.Shop(s.id).Item2().asOf(at2).ids()).includes(i.id), true, 'по концам: он среди Item2');
+});
+
+test('план 2.0, 7.1 №5: имя поля с @S@ в фильтре не портится', async () => {
+  await db.Odd().create({ 'a@S@b': 5 }).rows();
+  assert.equal((await db.Odd({ 'a@S@b': gt(0) }).rows()).length, 1);
 });

@@ -361,7 +361,7 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
       const id = idOfValue(value) ?? fail(`конец ${key}: ожидался id, строка ответа или null`);
       out.ends.push(id);
       const ph = p.push(id);
-      out.frags.push((a) => `@S@.role_has(${a}.links, array[${role}], ${ph}::uuid)`);
+      out.frags.push((a) => `${SCHEMA_MARK}.role_has(${a}.links, array[${role}], ${ph}::uuid)`);
       continue;
     }
     if (isOp(value)) {
@@ -519,6 +519,12 @@ export function cursorOf(row: Row, field: string): Cursor {
 // ---------------------------------------------------------------------------
 // Построение запроса
 // ---------------------------------------------------------------------------
+
+/**
+ * Метка схемы во фрагментах, собранных до имени схемы: символ NUL не бывает в тексте PostgreSQL, поэтому замена не
+ * заденет литералы — имя поля вида a@S@b прежде портилось (план 2.0, 7.1 №5).
+ */
+const SCHEMA_MARK = '\u0000S\u0000';
 
 const COLS = ['id', 'rev', 'class', 'tenant', 'owner', 'links', 'data', 'tags', 'at', 'author', 'agent', 'op', 'reason', 'moved'];
 /** Колонки журнала, выданные приложению: все, кроме changed (ревью №1 точки А плана 1.1, 10-core.sql). */
@@ -819,7 +825,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
       break;
     }
   }
-  return { text: text!.replaceAll('@S@', S), params: p.list, keys: keyed.map((k) => k.key), aggLeaf };
+  return { text: text!.replaceAll(SCHEMA_MARK, S), params: p.list, keys: keyed.map((k) => k.key), aggLeaf };
 }
 
 /** Строка из to_jsonb(узла): служебные поля в $deleted / $depth, пустые необязательные — без ключа. */
