@@ -340,20 +340,14 @@ const FORMAT_SAMPLES: Record<string, string[]> = {
 /** Строка: образец формата или имя поля — с учётом minLength, maxLength и pattern. */
 function stringSample(s: JsonSchema, name: string): string {
   // описание класса задаёт арендатор, а describe() доступен и агенту через MCP: длина образца ограничена (minLength в
-  // миллиард не выделит гигабайтную строку), а свой pattern проверяется только на коротком образце и только короткий —
-  // шаблон с катастрофическим перебором не повесит процесс (ревью безопасности коммита 2e5e6bc)
+  // миллиард не выделит гигабайтную строку), а свой pattern здесь не исполняется вовсе — шаблон с катастрофическим
+  // перебором повесил бы процесс и на коротком образце (ревью безопасности коммитов 2e5e6bc, 1e80cf1). Поле с pattern
+  // без examples может получить образец, который проверку не пройдёт, — это оговорено в README
   const SAMPLE = 16;
   const min = typeof s.minLength === 'number' ? Math.min(Math.max(0, s.minLength), SAMPLE) : 0;
   const max = typeof s.maxLength === 'number' ? Math.max(0, s.maxLength) : Infinity;
   const fit = (x: string): string => (x.length < min ? x.padEnd(min, 'x') : x).slice(0, Math.min(max, SAMPLE * 4));
-  const pool = (FORMAT_SAMPLES[s.format as string] ?? [name || 'x', 'text', 'a', 'A', '1', 'abc', 'ABC', '123']).map(fit);
-  let re: RegExp | null = null;
-  try {
-    re = typeof s.pattern === 'string' && s.pattern.length <= 256 ? new RegExp(s.pattern) : null;
-  } catch {
-    re = null;
-  }
-  return pool.find((x) => !re || (x.length <= SAMPLE && re.test(x))) ?? pool[0];
+  return fit((FORMAT_SAMPLES[s.format as string] ?? [name || 'x'])[0]);
 }
 
 /** Число: 1 в пределах minimum, maximum (и исключающих) и кратное multipleOf; integer — целое. */
