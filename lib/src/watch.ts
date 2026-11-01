@@ -122,7 +122,11 @@ export class Subscription implements AsyncIterable<WatchEvent> {
   private dirty = true;
   /** Пришёл сигнал: пустой ответ — ещё не горизонт, нужны короткие повторы. Таймер их не запускает (план 2.0, 7.4 №1). */
   private burst = false;
-  /** from: 'start' — пока подписка не догнала журнал, у курсора нет времени: весь журнал, без cursor_expired на старых событиях (план 2.0, 7.4 №3). */
+  /**
+   * from: 'start' — пока подписка не догнала журнал, свои чтения она шлёт без времени курсора: весь журнал, без
+   * cursor_expired на старых событиях (план 2.0, 7.4 №3). Курсоры событий и sub.cursor время хранят: продолжение с них
+   * после прореживания — cursor_expired, как обещано.
+   */
   private catchingUp = false;
   private off: (() => void) | null = null;
   private timer: NodeJS.Timeout | null = null;
@@ -217,7 +221,7 @@ export class Subscription implements AsyncIterable<WatchEvent> {
          and l.tx >= pg_snapshot_xmin(pg_current_snapshot()) and ($4::text[] is null or l.class = any ($4::text[]))
          and ($6::text::pg_snapshot is null or not pg_visible_in_snapshot(l.tx, $6::text::pg_snapshot))
        having (select count(*) from r) < $5`,
-      [p.tx, p.seq, p.at, this.ctx.classesOf?.() ?? this.ctx.classes, this.batch, p.snap ?? null] as never[]) as unknown as Promise<(R & { src: number })[]>, { read: true });
+      [p.tx, p.seq, this.catchingUp ? null : p.at, this.ctx.classesOf?.() ?? this.ctx.classes, this.batch, p.snap ?? null] as never[]) as unknown as Promise<(R & { src: number })[]>, { read: true });
     const before = (a: R, b: R) => BigInt(a.tx) < BigInt(b.tx) || (a.tx === b.tx && BigInt(a.seq) < BigInt(b.seq));
     const order = (a: R, b: R) => (before(a, b) ? -1 : before(b, a) ? 1 : 0);
     const read = both.filter((r) => r.src === 0).sort(order);
@@ -238,7 +242,7 @@ export class Subscription implements AsyncIterable<WatchEvent> {
     for (const r of rows) {
       const row = toRow(r.row);
       const snap = keepSnap(p.snap, r.tx);
-      this.pos = { tx: r.tx, seq: r.seq, at: this.catchingUp ? null : row.at, ...(snap ? { snap } : {}) };
+      this.pos = { tx: r.tx, seq: r.seq, at: row.at, ...(snap ? { snap } : {}) };
       this.buf.push({ cursor: encode(this.pos), row, id: row.id, class: row.class, op: row.op, rev: row.rev, at: row.at });
     }
     // догнала журнал — время курсора подписки (sub.cursor) обновляется и на пустых опросах: прореживать после него нечего,

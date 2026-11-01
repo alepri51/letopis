@@ -1,11 +1,12 @@
 /**
  * write-contract — обещания README о записи, которые нашло ревью плана 2.0 (тест-план §7.2): повтор ключа в батче,
- * порядок строк ответа reclass, restore и rekey, цепочка с глаголом в значении слота, ответ из кэша.
+ * порядок строк ответа reclass, restore и rekey, цепочка с глаголом в значении слота, правка загрузчиком строки другого
+ * класса, ответ из кэша.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { engine, type Engine, type Tenant } from './_engine.js';
-import { appDsn } from './_harness.js';
+import { ADMIN_DSN, appDsn } from './_harness.js';
 import { connect, type Db } from '../src/index.js';
 
 let e: Engine;
@@ -68,6 +69,27 @@ test('план 2.0, 7.2 №3: цепочка с глаголом и читающ
   assert.equal(rows.length, 1);
   assert.deepEqual(rows[0].links.Cat ?? [], [], 'у новой категории нет родителя — добавлять нечего');
   await assert.rejects(async () => db.Prod(p.id).update({ n: 3 }).Cat.add(db.Cat().create({ name: 'X' }).limit(1)).rows(), code('invalid_query'));
+});
+
+test('план 2.0, 7.2 №4: load({ existing: update }) не пишет в строку другого класса — exists с классом объекта', async () => {
+  const adm = await connect({ dsn: ADMIN_DSN, schema: e.schema, token: t.token, allowBypassRls: true, max: 2, listen: false });
+  try {
+    await adm.load([{ $class: 'Ord', $ext: 'E-7.2.4', n: 1, name: 'импорт 7.2.4' }]);
+    const [o] = await db.Ord({ name: 'импорт 7.2.4' }).rows();
+    await db.Ord(o.id).reclass('Ord2').rows(); // класс без ключа: id тот же
+    // повторный импорт той же строки: id по $ext тот же, а объект уже в Ord2
+    const err = await adm.load([{ $class: 'Ord', $ext: 'E-7.2.4', n: 2, name: 'повтор импорта' }], { existing: 'update' })
+      .then(() => assert.fail('загрузка прошла'), (x: unknown) => x as { detail?: { rows?: { line: number; code: string; message: string }[] } });
+    const rows = err.detail?.rows ?? [];
+    assert.deepEqual(rows.map((r) => [r.line, r.code]), [[1, 'exists']], JSON.stringify(rows));
+    assert.match(rows[0].message, /в классе Ord2/);
+    const cur = await db.Ord2(o.id).first();
+    assert.deepEqual([cur?.class, cur?.rev, cur?.data.n, cur?.data.name], ['Ord2', 2, 1, 'импорт 7.2.4'], 'строка Ord2 не тронута');
+    const same = await adm.load([{ $class: 'Ord2', $ext: 'E-7.2.4b', n: 5, name: 'свой класс' }], { existing: 'update' });
+    assert.equal(same.loaded, 1, 'строка своего класса загружается как прежде');
+  } finally {
+    await adm.close();
+  }
 });
 
 test('план 2.0, 7.2 №5: правка полученного ответа не портит следующий ответ из кэша', async () => {

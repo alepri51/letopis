@@ -665,13 +665,14 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       const classesTouched = new Set<string>();
       // существующие объекты — только в режимах skip и update, одним запросом на пачку и до проверок:
       // пропущенный объект для ссылок на него — вне загрузки (его сверит запрос в конце)
-      const live = new Set<string>();
+      // живые строки пачки: id → класс (existing: 'update' правит только объект того же класса)
+      const live = new Map<string, string>();
       const past = new Map<string, { rev: number; hash: Buffer; at: string }>();
       if (existing !== 'error' && !opts.withHistory) {
         for (let b = 0; b < portion.length; b += batch) {
           const ids = portion.slice(b, b + batch).map((i) => p1[i]!.id);
           const lock = existing === 'update' ? ' order by e.id for no key update' : '';
-          for (const r of await conn.unsafe(`select e.id from ${S}.entity e where e.id = any ($1::uuid[])${lock}`, [ids])) live.add(r.id as string);
+          for (const r of await conn.unsafe(`select e.id, e.class from ${S}.entity e where e.id = any ($1::uuid[])${lock}`, [ids])) live.set(r.id as string, r.class as string);
           for (const r of await conn.unsafe(`select distinct on (l.id) l.id, l.rev, l.hash, l.at::text as at from ${S}.log l
               where l.id = any ($1::uuid[]) order by l.id, l.rev desc`, [ids])) past.set(r.id as string, r as never);
         }
@@ -871,7 +872,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
   /** Пачка — подготовка и запись по очереди. */
   async function writeBatch(conn: Sql, reg: Registry, part: number[], inLoad: Map<string, { cls: string; alive: boolean }>,
     external: Map<string, { line: number; role: string; allowed: string[] }>, ts: string, xid: string, touched: Set<string>, written: string[],
-    live: Set<string>, past: Map<string, { rev: number; hash: Buffer; at: string }>): Promise<void> {
+    live: Map<string, string>, past: Map<string, { rev: number; hash: Buffer; at: string }>): Promise<void> {
     const p = await prepareBatch(reg, part, inLoad, external, ts, xid, touched, written, live, past, 0);
     if (p) await flushBatch(conn, p, ts, touched, written);
   }
@@ -884,7 +885,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
    */
   async function pipeline(conn: Sql, reg: Registry, portion: number[], inLoad: Map<string, { cls: string; alive: boolean }>,
     external: Map<string, { line: number; role: string; allowed: string[] }>, ts: string, xid: string, touched: Set<string>, written: string[],
-    live: Set<string>, past: Map<string, { rev: number; hash: Buffer; at: string }>): Promise<void> {
+    live: Map<string, string>, past: Map<string, { rev: number; hash: Buffer; at: string }>): Promise<void> {
     let flushing: Promise<void> | null = null;
     try {
       for (let b = 0; b < portion.length; b += batch) {
@@ -911,7 +912,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
    */
   async function prepareBatch(reg: Registry, part: number[], inLoad: Map<string, { cls: string; alive: boolean }>,
     external: Map<string, { line: number; role: string; allowed: string[] }>, ts: string, xid: string, touched: Set<string>, written: string[],
-    live: Set<string>, past: Map<string, { rev: number; hash: Buffer; at: string }>, yieldEvery: number): Promise<Prepared | null> {
+    live: Map<string, string>, past: Map<string, { rev: number; hash: Buffer; at: string }>, yieldEvery: number): Promise<Prepared | null> {
     const ent: string[] = [];
     const log: string[] = [];
     const updates: Prepared['updates'] = [];
@@ -927,6 +928,13 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       const sh = check(reg, i, inLoad, external, true);
       if (!sh || issues.any) continue;
       if (live.has(id)) {
+        // строка с тем же id, но другого класса (класс без ключа после reclass, повторный импорт по $ext): правка
+        // прошла бы мимо триггеров с данными, проверенными по чужой схеме, — exists (план 2.0, 7.2 №4)
+        const was = live.get(id)!;
+        if (was !== cls.name) {
+          issues.add({ line: i + 1, code: 'exists', message: `объект с этим id уже есть в классе ${was}: строка класса ${cls.name} его не правит`, id, class: cls.name });
+          continue;
+        }
         updates.push({ id, data: sh.data, links: sh.links, tags: sh.tags ?? null, line: i + 1 });
         continue;
       }

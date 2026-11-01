@@ -297,12 +297,24 @@ test('план 2.0, 7.4 №3: watch({ from: start }) отдаёт весь жу�
   await db.refresh();
   await history('Old3', 'O1', [NOW - 10 * DAY, NOW - 9 * DAY, NOW - 8 * DAY]);
   const sub = db.watch({ from: 'start', classes: ['Old3'], batch: 2 });
+  let first = '';
   try {
     const got: number[] = [];
-    for (let i = 0; i < 3; i++) got.push((await sub.next()).value.rev as number);
+    for (let i = 0; i < 3; i++) {
+      const ev = (await sub.next()).value;
+      first ||= ev.cursor;
+      got.push(ev.rev as number);
+    }
     assert.deepEqual(got, [1, 2, 3]);
   } finally {
     sub.close();
+  }
+  // курсор события хранит его время: продолжение с него старше яруса all — cursor_expired, как обещает README
+  const again = db.watch({ from: first, classes: ['Old3'] });
+  try {
+    await assert.rejects(again.next(), (err: { code?: string }) => err.code === 'cursor_expired');
+  } finally {
+    again.close();
   }
 });
 

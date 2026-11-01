@@ -1303,7 +1303,7 @@ const changed = await adm.load({ Shop: [{ name: 'Cornflower', city: 'Samara' }] 
 | Option | Values |
 |---|---|
 | `duplicates`: a repeated id within the load | `'error'` (default): cancel; `'first'` or `'last'`: keep the first or the last row |
-| `existing`: the object already exists in the database | `'error'` (default): cancel; `'skip'`: skip, do not resurrect deleted objects; `'update'`: a new version if the content differs (unchanged objects are counted in `skipped`), deleted objects are created again |
+| `existing`: the object already exists in the database | `'error'` (default): cancel; `'skip'`: skip, do not resurrect deleted objects; `'update'`: a new version if the content differs (unchanged objects are counted in `skipped`), deleted objects are created again; an object of another class with the same id (a class without a key after `reclass`) is `exists` |
 
 ### Portions, history and verification
 
@@ -1648,6 +1648,12 @@ Without `sort()`, versions go by id and version number (with `follow`, by time).
 too, and `limit()` limits them in the query itself: `db.Product(kettle).sort('at', 'desc').limit(5).versions()` gives
 the five latest versions, newest first.
 
+`follow: true` gives the history of the object across all its ids: before a move, the versions of the former id;
+after it, of the new one. An object created later on the former id (the same key after `rekey`) is a different one,
+and its versions are not in this history; its own history with `follow` starts at its creation. `diff({ follow: true
+})` and `blame()` work the same way. Without `follow`, `versions()` gives every version of the id, whoever it
+belonged to.
+
 ### Point-in-time read
 
 <!-- run: guide -->
@@ -1750,7 +1756,8 @@ none.
   single-valued end, every id of a multi-valued end (`['links', role, id]`), every tag (`['tags', tag]`), `owner` and
   `class`. `rev`, `at`, `author`, `agent`, `op` and `reason` come from the version that changed the leaf last. Empty
   `agent` and `reason` are omitted; `id` is present only if it is a version of the former id (the history went
-  through `reclass` or `rekey`).
+  through `reclass` or `rekey`). `blame()` does not look at versions of another object on the same id — one that
+  lived there before a move or was created after it.
 - `exact: false` means there are gaps between the current version and the found one (the history is thinned,
   trimmed or partly invisible): a missing version may have changed the leaf too. `complete: true` means the whole
   history was scanned without gaps; by default at most the 1000 latest versions are scanned.
@@ -2889,8 +2896,8 @@ test for a fix is named after its test-plan item ("plan 2.0, 7.3 No. 1") and fai
 # security-final — the final security review (stage 8, §7.10 No. 8.4): a family lock by the tenant of the root, account_purge without permission and restore/purge of a foreign id give neither a leak nor a lock; the functions of stage 6, log_refs_at, journal-based find_* reads and watch_read stay within their own tenant; NOTIFY carries only names or mode tokens; the cache key distinguishes the token, the actor and the tenant (stage 8)
 # semver — version rules: check:semver requires at least the matching version step — a major for a removed method or error code, a minor for a new method and a new engine revision, a patch for texts only (plan 2.0, 7.8 No. 1)
 # prerelease — the pre-release check: steps run strictly in order, the first red one stops the run and the following ones do not start (plan 2.0, 7.8 No. 3)
-# write-contract — README promises about writes (plan 2.0, 7.2): a repeated key in a batch gives exists and a rollback, the row order of reclass, restore and rekey responses, a chain with a verb as a slot value, a cached answer is not spoiled by editing an earlier answer
+# write-contract — README promises about writes (plan 2.0, 7.2): a repeated key in a batch gives exists and a rollback, the row order of reclass, restore and rekey responses, a chain with a verb as a slot value, the loader with existing: update does not edit a row of another class, a cached answer is not spoiled by editing an earlier answer
 # watch-contract — README promises about subscriptions and connections (plan 2.0, 7.4): an idle subscription polls the journal once per pollMs, close() of the connection closes live subscriptions, a reclass without a key resets the cache of the old class
 # model-contract — README promises about models, types, the CLI and errors (plan 2.0, 7.5): letopis types gives valid TypeScript for Cyrillic names, a class without fields and anyOf, the full form of hub() with z.object, clear errors instead of raw ones, CLI exit codes
-# read-contract — README promises about reads and history (plan 2.0, 7.1): an asOf slice by class and by ends after a class change without an id change, the after() cursor in versions() and paths(), a field name with @S@
+# read-contract — README promises about reads and history (plan 2.0, 7.1): an asOf slice by class and by ends after a class change without an id change, versions, diff and blame with follow after rekey, the after() cursor in versions() and paths(), a field name with @S@
 ```

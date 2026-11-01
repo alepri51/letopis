@@ -802,11 +802,27 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
   const pathKeys = [...others, ...keyed.filter((k) => k.node === lastNode)].map((k) => k.key);
   const limitOffset = () =>
     (mods.limit !== undefined ? ` limit ${p.push(mods.limit)}::bigint` : '') + (mods.offset !== undefined ? ` offset ${p.push(mods.offset)}::bigint` : '');
-  // versions({ follow: true }): id, связанные колонкой moved (reclass, rekey), в обе стороны
+  // versions({ follow: true }): отрезки истории объектов шага по переносам id (reclass, rekey) в обе стороны — версии
+  // id с номерами (lo, hi]. Надгробие переноса кончает отрезок, первая версия на новом id начинает: объект, заведённый
+  // на прежнем id после переноса, в историю не попадает (план 2.0, 7.1 №2). Тот же обход — history_segments в
+  // lib/sql/75-history.sql (diff и blame); здесь он в самом запросе, чтобы работал и на схеме до up() этой версии.
   if (mode === 'versions' && mods.follow) {
-    ctes.push(`f(id) as (select z.id from ${ents} z union select x.id from f cross join lateral (`
-      + `select l.moved as id from ${S}.log l where l.id = f.id and l.moved is not null `
-      + `union select l.id from ${S}.log l where l.moved = f.id) x)`);
+    // границы отрезка с версией r: строки переноса id — через парную строку по индексу log_moved (moved друг на друга),
+    // без прохода по версиям id
+    const bounds = (i: string, r: string) =>
+      `cross join lateral (select greatest(coalesce(max(x.rev) filter (where x.op = 'delete' and x.rev < ${r}), 0), `
+      + `coalesce(max(x.rev - 1) filter (where x.op <> 'delete' and x.rev <= ${r}), 0)) as lo, `
+      + `least(min(x.rev) filter (where x.op = 'delete' and x.rev >= ${r}), min(x.rev - 1) filter (where x.op <> 'delete' and x.rev > ${r})) as hi `
+      + `from ${S}.log m join ${S}.log x on x.moved = m.id and x.id = ${i} where m.moved = ${i}) b`;
+    ctes.push(`f(id, lo, hi, n) as (select z.id, b.lo, b.hi, 0 from ${ents} z ${bounds('z.id', 'z.rev')} `
+      + `union select g.id, b.lo, b.hi, g.n from f cross join lateral (`
+      + `select a.moved as id, (select t.rev from ${S}.log t where t.id = a.moved and t.op = 'delete' and t.moved = f.id `
+      + `order by abs(t.seq - a.seq) limit 1) as r, f.n - 1 as n from ${S}.log a `
+      + `where f.n <= 0 and a.id = f.id and a.rev = f.lo + 1 and a.moved is not null and a.op <> 'delete' `
+      + `union all select t.moved, (select a.rev from ${S}.log a where a.id = t.moved and a.op <> 'delete' and a.moved = f.id `
+      + `order by abs(a.seq - t.seq) limit 1), f.n + 1 from ${S}.log t `
+      + `where f.n >= 0 and t.id = f.id and t.rev = f.hi and t.op = 'delete' and t.moved is not null) g ${bounds('g.id', 'g.r')} `
+      + `where g.r is not null and abs(g.n) <= 1000)`);
   }
   const withClause = `with ${mode === 'versions' && mods.follow ? 'recursive ' : ''}${ctes.join(',\n')}\n`;
 
@@ -844,8 +860,9 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
         return rev === undefined ? [] : [{ col: 'v.rev', val: rev, cast: '::int' }];
       })]);
       text = mods.follow
-        ? `${withClause}select to_jsonb(v) as row from (select ${colsOf('l')}, null::int as depth from ${S}.log l `
-          + `where l.id in (select f.id from f)) v${cond} order by ${order}${limitOffset()}`
+        ? `${withClause}select to_jsonb(v) as row from (select ${colsOf('l')}, null::int as depth from (select distinct f.id, f.lo, f.hi from f) s `
+          + `cross join lateral (select ${colsOf('l')} from ${S}.log l where l.id = s.id and l.rev > s.lo and l.rev <= coalesce(s.hi, 2147483647)) l) v`
+          + `${cond} order by ${order}${limitOffset()}`
         : `${withClause}select to_jsonb(v) as row from (select ${colsOf('l')}, null::int as depth from ${S}.log l `
           + `where l.id in (select z.id from ${ents} z)) v${cond} order by ${order}${limitOffset()}`;
       break;
