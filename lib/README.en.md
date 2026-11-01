@@ -2839,8 +2839,9 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 
 CI runs no tests: before a push and a release, everything that checks behavior runs as one command,
 `cd lib && npm run prerelease` — typecheck, the documentation check, all tests, the site examples against snapshots, the
-sandbox, the service scenarios and the package check with a live run, in order; the first red step stops the run. A
-test for a fix is named after its test-plan item ("plan 2.0, 7.3 No. 1") and fails without the fix.
+sandbox, the service scenarios, a quick soak run (15 minutes of mixed load) and the package check with a live run, in
+order; the first red step stops the run. The same load for a day: `cd lib && npm run soak` (duration — `SOAK_HOURS`,
+24 hours by default). A test for a fix is named after its test-plan item ("plan 2.0, 7.3 No. 1") and fails without the fix.
 
 ```
 # connect — connecting under a session, refusing roles that bypass RLS, the registry, the deferred signal, error translation (stage 2)
