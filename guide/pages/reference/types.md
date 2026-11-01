@@ -691,8 +691,7 @@ interface DbCore {
    * `auth.impersonate`.
    */
   as(account: string | { id: string } | null, opts?: { owner?: string; tenant?: string }): Promise<Db>;
-  /** Явная транзакция `read committed`: те же цепочки, `commit()`, `rollback()`, `lock()`, `forUpdate()`. */
-  /** Явная транзакция; `reason` — причина изменения для всех операций блока. */
+  /** Явная транзакция `read committed`: те же цепочки, `commit()`, `rollback()`, `lock()`, `forUpdate()`; `reason` — причина изменения для всех операций блока. */
   begin(opts?: { reason?: string }): Promise<DbTx>;
   /**
    * Массовая загрузка строк любых классов одной транзакцией (или порциями `commitEvery`) — быстрее записи цепочками.
