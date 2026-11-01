@@ -611,7 +611,8 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
         return `(select v.id, v.rev from ${S}.entity v where v.class = any (${clsPh})${dataCond('v')}${endsCond('v.ends')}`
           + `${ids ? ` and v.id = any (${ids})` : ''})`;
       }
-      return `(select v.id, v.rev from ${versionsAt(at, ids ? `l.id = any (${ids})` : `l.class = any (${clsPh})`)} v `
+      // по классу: id-кандидаты классов шага, последняя версия — любого класса (как find_ids, план 2.0, 7.1 №1)
+      return `(select v.id, v.rev from ${versionsAt(at, ids ? `l.id = any (${ids})` : `l.id in (select c.id from ${S}.log c where c.class = any (${clsPh}))`)} v `
         + `where v.class = any (${clsPh}) and (v.op = 'delete') = ${isDead} and v.op not in ('purge', 'trim', 'reset')${dataCond('v')}${endsCond(`${S}.link_ids(v.links)`)})`;
     };
     const entityPart = (src: string | undefined, depth = 'null::int', from = `${S}.entity x`) =>

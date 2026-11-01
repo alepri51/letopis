@@ -389,9 +389,12 @@ begin
       end if;
     end loop;
   end if;
+  -- по классам: последняя версия id — любого класса, класс проверяется у неё (план 2.0, 7.1 №1)
   for r in select distinct on (l.id) l.* from @SCHEMA@.log l
-           where l.tenant = c.tenant and (case when p_ids is not null then l.id = any (p_ids) else l.class = any (p_classes) end)
+           where l.tenant = c.tenant and (case when p_ids is not null then l.id = any (p_ids)
+                                               else l.id in (select x.id from @SCHEMA@.log x where x.tenant = c.tenant and x.class = any (p_classes)) end)
            order by l.id, l.rev desc loop
+    continue when p_ids is null and not (r.class = any (p_classes));
     continue when r.op in ('purge', 'reset')
       or not @SCHEMA@.row_visible(r.tenant, r.class, r.id, r.owner, r.tags, r.data, r.links, c.tenant, c.account, rd->'plan');
     if r.class in ('Class', 'Account', 'member', 'Resource', 'rule') then
