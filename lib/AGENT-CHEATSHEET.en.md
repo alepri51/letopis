@@ -194,6 +194,9 @@ await db.Wallet(or({ number: 'W-1' }, { number: 'W-200' })).ids()
   `{ Shop: id }`, `{ Shop: null }`. Fields are in `row.data`, not at the root of the row.
 - A step is a class name, an alias or an end role; a step by a parent class also returns descendants (`.exact()` —
   only its own class); `.deep(max)` — a tree (`$depth`); `.tags()`, `.owner()`, `.alias(name)`, `db.entity(row)`.
+- `after(cursorOf(row, field))` requires `sort()` by the same field; it pages `rows()`, `versions()` and `paths()` (the
+  cursor of a path is `cursorOf(path, field)`, the keys of a path follow the order of the steps). `count()`,
+  aggregates, `diff()`, `blame()` ignore the cursor.
 
 ### 6. Deletion with a preview
 

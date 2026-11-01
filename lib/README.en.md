@@ -936,14 +936,20 @@ const page2 = await db.Product().sort('data.price', 'desc')
 
 `sort(field, 'asc' | 'desc')` sorts by `'at'`, `'rev'`, `'id'` or `'data.<path>'`. `after(cursorOf(row, field))` is
 pagination "after this row"; it requires `sort()`. Such pagination withstands inserts and deletes between pages, but a
-row whose sort field has changed may drop out or repeat. A cursor is an object `{ v, id }` (the field value and the row
-id): it survives JSON, so you can hand it to a client. The field in `cursorOf` must match the `sort` field. The cursor
+row whose sort field has changed may drop out or repeat. A cursor is an object `{ v, id, rev }` (the field value, the
+row id and its version number): it survives JSON, so you can hand it to a client. The field in `cursorOf` must match the `sort` field. The cursor
 value is checked against the type of the `sort` field before the query, and a wrong one is `invalid_query`: a numeric
 field needs a finite number, `rev` an integer, a boolean field `true` or `false`, a text field a string, uuid fields
 and `id` a uuid, time fields and `at` an ISO string with a time zone, a date field `YYYY-MM-DD`, a field without a
 description a string, a number or `true`/`false`. `null` fits only data fields, and the cursor's `id` is always a uuid.
 The check cannot tell apart a cursor of the same type taken from another field. `limit` and `offset` are available
 too.
+
+`after()` also pages `versions()`: the cursor of a version carries its `rev`, so versions of one object with an equal
+sort field are not lost. In `paths()` the cursor comes from `cursorOf(path, field)`: the field and the id are those of
+the last node of the path, and `path` holds the ids of all nodes, so paths to the same node are not lost. A cursor
+`cursorOf(path.Node, field)` taken from a single node skips the other paths to that node. `count()`, aggregates,
+`diff()` and `blame()` ignore the cursor.
 
 A data field may be `null` or missing. `sort` places such rows the way `order by` in PostgreSQL does: last when
 ascending, first when descending, and `after()` treats `null` as a value after all others (ascending) or before them
@@ -983,7 +989,8 @@ const orderPaths = await db.Order(order).line().Product().paths()   // [{ Order:
 ```
 
 `paths()` returns the nodes of every variant of the path; the key of a node is the step name or the name from
-`.alias(name)`. Repeating a link in the chain returns to its node: this way you can go from one link in several
+`.alias(name)`. The keys follow the order of the steps; if the chain ends by returning to an earlier node, that node
+comes last. Repeating a link in the chain returns to its node: this way you can go from one link in several
 directions. `db.entity(row | chain)` inserts a ready node into the path.
 
 ## 7. Deleting and restoring
@@ -2885,5 +2892,5 @@ test for a fix is named after its test-plan item ("plan 2.0, 7.3 No. 1") and fai
 # write-contract — README promises about writes (plan 2.0, 7.2): a repeated key in a batch gives exists and a rollback, the row order of reclass, restore and rekey responses, a chain with a verb as a slot value, a cached answer is not spoiled by editing an earlier answer
 # watch-contract — README promises about subscriptions and connections (plan 2.0, 7.4): an idle subscription polls the journal once per pollMs, close() of the connection closes live subscriptions, a reclass without a key resets the cache of the old class
 # model-contract — README promises about models, types, the CLI and errors (plan 2.0, 7.5): letopis types gives valid TypeScript for Cyrillic names, a class without fields and anyOf, the full form of hub() with z.object, clear errors instead of raw ones, CLI exit codes
-# read-contract — README promises about reads and history (plan 2.0, 7.1): an asOf slice by class and by ends after a class change without an id change, a field name with @S@
+# read-contract — README promises about reads and history (plan 2.0, 7.1): an asOf slice by class and by ends after a class change without an id change, the after() cursor in versions() and paths(), a field name with @S@
 ```

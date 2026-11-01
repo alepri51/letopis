@@ -547,7 +547,9 @@ async function query(db: Db, a: Args, o: Limits): Promise<CallToolResult> {
   const got = await chain.limit(want + 1).rows();
   const page = got.slice(0, fit(got.slice(0, want), o));
   const more = got.length > page.length;
-  const next = more && page.length ? encodeCursor({ f: field, d: dir, ...cursorOf(page[page.length - 1], field) }) : undefined;
+  const last = more && page.length ? cursorOf(page[page.length - 1], field) : undefined;
+  // курсор MCP — { f, d, v, id }: списки rows и ids листаются без rev (он разводит только версии)
+  const next = last ? encodeCursor({ f: field, d: dir, v: last.v, id: last.id }) : undefined;
   const body = terminal === 'ids' ? { ids: page.map((r) => r.id) } : { rows: page };
   return ok({ ...body, count: page.length, more, ...(next ? { cursor: next } : {}) });
 }
