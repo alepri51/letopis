@@ -584,10 +584,6 @@
     },
     {
       "module": "cli",
-      "message": "letopis: removed: --trust снят в 1.0.0 — запрос по целям вне загрузки стоит 0,1–1,3 % её времени"
-    },
-    {
-      "module": "cli",
       "message": "letopis: user_session_required: letopis mcp принимает только токен сессии пользователя (--token или LETOPIS_TOKEN): ключ сервиса даёт все права auth.* и не должен лежать на машине агента"
     },
     {
@@ -669,6 +665,10 @@
     {
       "module": "up",
       "message": "letopis.up: нужен dsn или sql"
+    },
+    {
+      "module": "up",
+      "message": "letopis.up: роль <…> уже есть, а у установщика нет на неё ADMIN OPTION — установку ведёт роль, создавшая <…>, или роль с этим правом (grant <…> to <установщик> with admin option)"
     },
     {
       "module": "up",

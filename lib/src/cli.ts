@@ -25,6 +25,7 @@ import { connect, describeText } from './index.js';
 import { syncModels, generateTypes } from './sync.js';
 import { import021 } from './import.js';
 import type { AnyModel } from './model.js';
+import { LetopisError } from './errors.js';
 
 const USAGE = `letopis sync <модуль> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--apply]
 letopis types --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--out <файл>]
@@ -37,6 +38,9 @@ letopis import --from <строка 0.21> --from-schema <v1.имя> --dsn <ст�
   [--rename <Старое>=<Новое>]… [--update] [--commit-every <N>] [--partition <имя>] [--initial]
 letopis mcp --dsn <строка> --schema <v2.имя> --token <токен пользователя> [--write]
   (или LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; ключ сервиса --api-key не принимается)`;
+
+/** Команды CLI: остальное — USAGE с кодом 2 ещё до подключения. */
+const COMMANDS = new Set(['sync', 'types', 'load', 'verify', 'maintain', 'describe', 'import', 'mcp']);
 
 const isModel = (v: unknown): v is AnyModel => typeof v === 'object' && v !== null && typeof (v as AnyModel).describe === 'function' && typeof (v as AnyModel).name === 'string';
 
@@ -62,7 +66,12 @@ export async function main(argv: string[]): Promise<number> {
     values.schema ??= process.env.LETOPIS_SCHEMA || undefined;
     values.token ??= process.env.LETOPIS_TOKEN || undefined;
   }
-  if (values.help || !cmd || !values.dsn || !values.schema) {
+  // --help — всегда код 0; неизвестная команда — USAGE до подключения к базе (план 2.0, 7.5 №4)
+  if (values.help) {
+    console.log(USAGE);
+    return 0;
+  }
+  if (!cmd || !COMMANDS.has(cmd) || !values.dsn || !values.schema) {
     console.log(USAGE);
     return cmd ? 2 : 0;
   }
@@ -105,7 +114,7 @@ export async function main(argv: string[]): Promise<number> {
     if (cmd === 'load') {
       const files = positionals.slice(1);
       if (!files.length) { console.log(USAGE); return 2; }
-      if (values.trust) throw new Error('letopis: removed: --trust снят в 1.0.0 — запрос по целям вне загрузки стоит 0,1–1,3 % её времени');
+      if (values.trust) throw new LetopisError('removed', '--trust снят в 1.0.0 — запрос по целям вне загрузки стоит 0,1–1,3 % её времени');
       // несколько файлов — одна загрузка и одна транзакция; в файле — объект на строку
       const rows: Record<string, unknown>[] = [];
       for (const f of files) {

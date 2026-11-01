@@ -214,6 +214,8 @@ export function precheckPlan(reg: Registry, steps: Step[]): void {
       case 'anonymize': {
         if (!Array.isArray(op.fields) || !op.fields.length) fail('invalid_query', 'anonymize(поля): нужен список полей');
         for (const f of op.fields) {
+      // поля нет в классе — так и сказано, а не «поле jsonb» (план 2.0, 7.5 №3)
+      if (!(f in ((s.cls.schema.properties ?? {}) as Record<string, unknown>))) fail('invalid_query', `anonymize(): поля ${f} нет в классе ${s.cls.name}`);
           const t = reg.leafType(s.cls.name, [f]);
           if (t !== 'text') fail('invalid_query', `anonymize() затирает только строковые поля; ${f} — ${t}`);
         }

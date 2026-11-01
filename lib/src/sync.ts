@@ -89,7 +89,11 @@ export function schemaToTs(s: JsonSchema | undefined, indent = ''): string {
   if (!s || Object.keys(s).length === 0) return 'unknown';
   if (s.const !== undefined) return JSON.stringify(s.const);
   if (Array.isArray(s.enum)) return s.enum.map((v) => JSON.stringify(v)).join(' | ');
-  if (Array.isArray(s.anyOf) || Array.isArray(s.oneOf)) return ((s.anyOf ?? s.oneOf) as JsonSchema[]).map((b) => schemaToTs(b, indent)).join(' | ');
+  const branches = (s.anyOf ?? s.oneOf) as JsonSchema[] | undefined;
+  // ветки из одних required у объекта с полями — условие, а не форма: тип — сам объект (план 2.0, 7.5 №1)
+  const onlyRequired = Array.isArray(branches) && s.properties !== undefined
+    && branches.every((b) => Object.keys(b).every((k) => k === 'required'));
+  if (Array.isArray(branches) && !onlyRequired) return branches.map((b) => schemaToTs(b, indent)).join(' | ');
   const types = Array.isArray(s.type) ? (s.type as string[]) : [s.type as string | undefined];
   return types.map((t) => {
     switch (t) {
@@ -121,11 +125,14 @@ export function generateTypes(registry: Registry, opts: { includeSystem?: boolea
   const out = ['// Сгенерировано letopis types — не править руками.', ''];
   for (const c of registry.all().sort((a, b) => a.name.localeCompare(b.name))) {
     if (!opts.includeSystem && c.tenant === '2eba6d0a-1edd-4bb6-a85a-a703dab49035') continue;
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(c.name)) throw new LetopisError('invalid_class', `types: имя класса ${c.name} не годится для идентификатора TypeScript`);
+    // идентификатор TypeScript — буквы Unicode, цифры, _ и $: кириллические имена классов допустимы (план 2.0, 7.5 №1)
+    if (!/^[\p{L}_$][\p{L}\p{N}_$]*$/u.test(c.name)) throw new LetopisError('invalid_class', `types: имя класса ${c.name} не годится для идентификатора TypeScript`);
     // additionalProperties: false верхнего уровня в тип не переносится — лишние ключи и так ошибка типов
     const { additionalProperties: _closed, ...open } = c.schema;
     void _closed;
-    out.push(`export interface ${c.name}Data ${schemaToTs(open)}`);
+    // объектный литерал — интерфейс; класс без полей, union и открытая схема — псевдоним типа (иначе неверный TypeScript)
+    const data = schemaToTs(open);
+    out.push(/^\{[\s\S]*\}$/.test(data) && !/\}\s*&/.test(data) ? `export interface ${c.name}Data ${data}` : `export type ${c.name}Data = ${data};`);
     const ends = Object.entries(c.ends).map(([role, e]) => `  ${JSON.stringify(role)}${e.required || (e.min ?? 0) > 0 ? '' : '?'}: ${e.many ? 'string[]' : 'string'};`);
     out.push(`export interface ${c.name}Links {${ends.length ? `\n${ends.join('\n')}\n` : ''}}`, '');
   }

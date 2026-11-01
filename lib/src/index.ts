@@ -453,6 +453,9 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
   const owner = opts.owner ?? 'letopis_owner';
   try {
     // роль, которая обходит RLS, видела бы данные всех арендаторов (§2.9)
+    // роли владельца нет (опечатка в owner) — понятная ошибка, а не сырая 42704 PostgreSQL (план 2.0, 7.5 №3)
+    const [known] = await sql`select exists (select 1 from pg_roles where rolname = ${owner}) as ok`;
+    if (!known.ok) throw new LetopisError('invalid_data', `connect: роли владельца ${owner} в базе нет — проверьте опцию owner (по умолчанию letopis_owner)`);
     const [role] = await sql`select r.rolsuper, r.rolbypassrls,
         pg_has_role(current_user, ${owner}, 'USAGE') as inherits, pg_has_role(current_user, ${owner}, 'SET') as can_set
       from pg_roles r where r.rolname = current_user`;

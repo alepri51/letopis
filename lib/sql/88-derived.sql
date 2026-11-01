@@ -25,7 +25,8 @@ begin
   for update;
   if not found then
     update @SCHEMA@.secret s set deleted_at = clock_timestamp()
-    where s.kind = 'PROJECTOR' and casefold(s.ident) = casefold(p_name) and s.account <> '@SYSTEM@'::uuid and s.deleted_at is null;
+    where s.kind = 'PROJECTOR' and casefold(s.ident) collate pg_unicode_fast = casefold(p_name) collate pg_unicode_fast
+      and s.account <> '@SYSTEM@'::uuid and s.deleted_at is null;
     insert into @SCHEMA@.secret (account, kind, ident, meta) values ('@SYSTEM@'::uuid, 'PROJECTOR', p_name, '{}'::jsonb);
     return '{}'::jsonb;
   end if;
