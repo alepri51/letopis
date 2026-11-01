@@ -70,7 +70,8 @@
     "api:contract": "node scripts/gen-api-contract.mjs",
     "prepublishOnly": "npm run typecheck && npm run check:docs && npm run build",
     "check:semver": "node scripts/check-semver.mjs",
-    "prerelease": "node scripts/prerelease.mjs"
+    "prerelease": "node scripts/prerelease.mjs",
+    "soak": "tsx bench/soak.mjs"
   },
   "dependencies": {
     "postgres": "^3.4.9"
