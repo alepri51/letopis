@@ -1512,8 +1512,9 @@ A service acts on behalf of a user through `svc.as(account, { tenant, owner })`.
 `auth.impersonate` permission (by System rules), that the user exists and is enabled, and that the tenant is available
 to the user, either their own or through membership. You cannot act on behalf of System, services, system
 administrators or disabled accounts. The user's visibility under the access rules is not checked. In the journal,
-`author` is the user and `agent` is the service. A user's connection by their own token switches between tenants like
-this:
+`author` is the user and `agent` is the service. The class registry of `db.as()` is one per tenant, and a connection
+keeps at most 1000 of them: a long unused one is evicted, and a facade whose registry was evicted keeps working — the
+registry is re-read. A user's connection by their own token switches between tenants like this:
 
 <!-- run: guide -->
 ```ts
@@ -2901,7 +2902,7 @@ test for a fix is named after its test-plan item ("plan 2.0, 7.3 No. 1") and fai
 # semver — version rules: check:semver requires at least the matching version step — a major for a removed method or error code, a minor for a new method and a new engine revision, a patch for texts only (plan 2.0, 7.8 No. 1)
 # prerelease — the pre-release check: steps run strictly in order, the first red one stops the run and the following ones do not start (plan 2.0, 7.8 No. 3)
 # write-contract — README promises about writes (plan 2.0, 7.2): a repeated key in a batch gives exists and a rollback, the row order of reclass, restore and rekey responses, a chain with a verb as a slot value, the loader with existing: update does not edit a row of another class, a cached answer is not spoiled by editing an earlier answer
-# watch-contract — README promises about subscriptions and connections (plan 2.0, 7.4): an idle subscription polls the journal once per pollMs, close() of the connection closes live subscriptions, a reclass without a key resets the cache of the old class, a new projector participant gets an initial rebuild, a projector without LISTEN re-reads its participants
+# watch-contract — README promises about subscriptions and connections (plan 2.0, 7.4): an idle subscription polls the journal once per pollMs, close() of the connection closes live subscriptions, a reclass without a key resets the cache of the old class, a new projector participant gets an initial rebuild, a projector without LISTEN re-reads its participants, at most a limit of db.as() registries
 # model-contract — README promises about models, types, the CLI and errors (plan 2.0, 7.5): letopis types gives valid TypeScript for Cyrillic names, a class without fields and anyOf, the full form of hub() with z.object, clear errors instead of raw ones, CLI exit codes
 # read-contract — README promises about reads and history (plan 2.0, 7.1): an asOf slice by class and by ends after a class change without an id change, versions, diff and blame with follow after rekey, the after() cursor in versions() and paths(), a field name with @S@
 ```

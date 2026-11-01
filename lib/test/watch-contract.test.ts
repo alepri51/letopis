@@ -1,12 +1,14 @@
 /**
  * watch-contract — обещания README о подписке, сигналах и подключении, которые нашло ревью плана 2.0 (тест-план §7.4):
  * опрос молчащей подписки, закрытие подписок вместе с подключением, сигнал прежнего класса при reclass, новый участник
- * проектора и проектор без LISTEN.
+ * проектора, проектор без LISTEN, предел реестров db.as().
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import postgres from 'postgres';
 import { engine, type Engine, type Tenant } from './_engine.js';
+import { account, member } from './_access.js';
+import { limits } from '../src/internal.js';
 import { ADMIN_DSN, appDsn } from './_harness.js';
 import { connect, type Db, type ProjectorChange, type ProjectorOut, type ProjectorOptions } from '../src/index.js';
 
@@ -155,5 +157,37 @@ test('план 2.0, 7.4 №6: проектор без LISTEN перечитыв�
   } finally {
     await adm.close();
     await c.close();
+  }
+});
+
+test('план 2.0, 7.4 №8: реестров db.as() не больше предела — сигнал классов их не копит, вытесненный фасад работает и обновляется', async () => {
+  const prev = limits.asRegistries;
+  limits.asRegistries = 2;
+  let loads = 0;
+  const pool = postgres(appDsn(), { max: 2, onnotice: () => {},
+    debug: (_c: number, q: string) => { if (/class = 'Class' and tenant in/.test(q)) loads++; } });
+  const svc = await connect({ sql: pool, schema: e.schema, apiKey: e.serviceKey, listen: false });
+  try {
+    const ts = [await e.tenant('lru-a'), await e.tenant('lru-b'), await e.tenant('lru-c')];
+    const u = await account(e, 'Реестры');
+    for (const x of ts) {
+      await e.defineClass(x, { name: 'Memo8', kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
+      await member(e, u.id, x.id);
+    }
+    const [a] = [await svc.as(u.id, { tenant: ts[0].id }), await svc.as(u.id, { tenant: ts[1].id }), await svc.as(u.id, { tenant: ts[2].id })];
+    loads = 0;
+    await svc.refresh();
+    assert.equal(loads, 1 + 2, 'перечитаны корень и два реестра в пределе, а не все три');
+    // вытесненный фасад работает: реестр возвращается в карту
+    await a.Memo8().create({ n: 1 }).rows();
+    assert.equal(await a.Memo8().count(), 1);
+    // и снова обновляется: новый класс его арендатора виден после refresh()
+    await e.defineClass(ts[0], { name: 'Memo8b', kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
+    await svc.refresh();
+    assert.ok(a.registry.find('Memo8b'), 'реестр вернувшегося фасада перечитан');
+  } finally {
+    limits.asRegistries = prev;
+    await svc.close();
+    await pool.end();
   }
 });

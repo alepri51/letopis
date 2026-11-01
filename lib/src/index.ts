@@ -12,7 +12,7 @@ import { LetopisError, fromDbError, removed } from './errors.js';
 import { Registry } from './registry.js';
 import { AclPasses, ExplicitTx, Notifier, poolExecutor, runTx, type Executor, type Tx, type TxContext } from './tx.js';
 import { checkReason } from './write.js';
-import { registerDb } from './internal.js';
+import { limits, registerDb } from './internal.js';
 import { makeAuth, type AuthApi } from './auth.js';
 import { makeAcl, type AclApi } from './acl.js';
 import { idOf as idOfClass } from './uuid.js';
@@ -264,6 +264,8 @@ interface Shared {
   /** Реестр классов арендатора (System + арендатор), загруженный контекстом txc. */
   /** Реестр арендатора для db.as(); null — контекст уже не в этом арендаторе (реестр не загружен и не кэширован). */
   registryFor: (tenant: string, txc: TxContext) => Promise<Registry | null>;
+  /** Реестр фасада db.as() при каждом обращении: вытесненный возвращается в карту и перечитывается (план 2.0, 7.4 №8). */
+  registryOf: (tenant: string, registry: Registry, txc: TxContext) => Registry;
   refresh: () => Promise<void>;
   onQuery?: (e: QueryEvent) => void;
   slowMs?: number;
@@ -378,7 +380,7 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
       for (let attempt = 1; ; attempt++) {
         const tenant = r.tenant as string;
         const registry = await sh.registryFor(tenant, scoped);
-        if (registry) return makeDb(sh, { txc: scoped, tenant: () => tenant, registry: () => registry, root: false }, poolExecutor(scoped), nextOwner);
+        if (registry) return makeDb(sh, { txc: scoped, tenant: () => tenant, registry: () => sh.registryOf(tenant, registry, scoped), root: false }, poolExecutor(scoped), nextOwner);
         if (attempt === 3) throw new LetopisError('no_session', 'db.as(): контекст сессии меняется — реестр арендатора не загружен');
         [r] = await runTx(scoped, (q) => q.unsafe(`select account, tenant from ${sh.S}.ctx()`), { read: true });
         if (!r?.account) throw new LetopisError('no_session', 'db.as(): нет действующей сессии');
@@ -526,8 +528,17 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
       if (String(t?.t ?? '').toLowerCase() !== tenant.toLowerCase()) return null;
       return q.unsafe(`select tenant, rev, data from ${S}.entity where class = 'Class' and tenant in (${S}.ctx_tenant(), '${SYSTEM_ID}')`);
     }, { read: true });
-    // реестры db.as() — общие на арендатора; txc — контекст последнего успешного as() этого арендатора
+    // реестры db.as() — общие на арендатора; txc — контекст последнего успешного as() этого арендатора. Порядок карты —
+    // давность обращения: сверх limits.asRegistries вытесняется самый давний (план 2.0, 7.4 №8 — иначе процесс,
+    // который ходит от имени многих арендаторов, копил бы реестры и перечитывал их все на каждый сигнал классов)
     const others = new Map<string, { registry: Registry; txc: TxContext }>();
+    let latest: string | null = null;
+    const keep = (tenant: string, entry: { registry: Registry; txc: TxContext }) => {
+      latest = tenant;
+      others.delete(tenant);
+      others.set(tenant, entry);
+      while (others.size > Math.max(1, limits.asRegistries)) others.delete(others.keys().next().value as string);
+    };
     const loading = new Map<string, Promise<Registry | null>>();
     // токены классов (режим opaque) — по именам всех реестров подключения
     const tokens = () => sig.setClasses([root.registry, ...[...others.values()].map((o) => o.registry)].flatMap((r) => r.all().map((c) => c.name)));
@@ -551,7 +562,7 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
     const registryFor = async (tenant: string, txc: TxContext): Promise<Registry | null> => {
       const known = others.get(tenant);
       if (known) {
-        known.txc = txc;
+        keep(tenant, { registry: known.registry, txc });
         return known.registry;
       }
       // одновременные as() нового арендатора получают один реестр
@@ -562,13 +573,25 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
           if (!rows) return null;
           const registry = new Registry();
           registry.load(rows as never);
-          others.set(tenant, { registry, txc });
+          keep(tenant, { registry, txc });
           tokens();
           return registry;
         })().finally(() => loading.delete(tenant));
         loading.set(tenant, pending);
       }
       return pending;
+    };
+    // фасад db.as() берёт реестр через карту: свежий реестр арендатора, если его перечитал другой as(); вытесненный —
+    // обратно в карту (его снова обновляют сигналы) и перечитать фоном: пока он был вне карты, сигналы его не трогали
+    const registryOf = (tenant: string, registry: Registry, txc: TxContext): Registry => {
+      const cur = others.get(tenant);
+      if (cur) {
+        if (latest !== tenant) keep(tenant, cur);
+        return cur.registry;
+      }
+      keep(tenant, { registry, txc });
+      void loadClasses(txc, tenant).then((rows) => { if (rows) registry.load(rows as never); }).catch(() => {}).finally(tokens);
+      return registry;
     };
     // ключ сигналов (режимы tenant и opaque) — сессии с правом letopis.signals; без права процесс
     // работает без ключа: арендатора (а в opaque — и класса) в сигнале не различает
@@ -666,7 +689,7 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
     let stopMaintain: (() => Promise<void>) | null = null;
     const subs = new Set<Subscription>();
     const shared: Shared = {
-      sql, schema: opts.schema, S, notifier, passes, root, registryFor, refresh, onQuery: opts.onQuery, slowMs: opts.slowMs,
+      sql, schema: opts.schema, S, notifier, passes, root, registryFor, registryOf, refresh, onQuery: opts.onQuery, slowMs: opts.slowMs,
       admin: Boolean(bypass && (role.rolsuper || role.can_set)),
       ownerRole: owner,
       cache,

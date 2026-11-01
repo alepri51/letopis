@@ -14,6 +14,12 @@ export interface DbInternals {
 
 const facades = new WeakMap<object, DbInternals>();
 
+/**
+ * Пределы подключения, которых нет в опциях: реестров классов db.as() — не больше asRegistries арендаторов (план 2.0,
+ * 7.4 №8). Тест меняет предел, чтобы проверить вытеснение без тысячи арендаторов.
+ */
+export const limits = { asRegistries: 1000 };
+
 /** Запомнить фасад (зовёт makeDb для каждого фасада, который отдаёт наружу). */
 export function registerDb(db: object, info: DbInternals): void {
   facades.set(db, info);
