@@ -55,6 +55,7 @@
     "AGENT-CHEATSHEET.md",
     "AGENT-CHEATSHEET.en.md",
     "llms.txt",
+    "llms-full.txt",
     "CHANGELOG.md",
     "MIGRATION.md",
     "LICENSE"
@@ -68,6 +69,7 @@
     "seed:booking": "tsx scripts/gen-seed-booking.mjs",
     "test:import-salon": "tsx bench/import-salon.mjs",
     "api:contract": "node scripts/gen-api-contract.mjs",
+    "llms:full": "tsx scripts/gen-llms-full.mjs",
     "prepublishOnly": "npm run typecheck && npm run check:docs && npm run build",
     "check:semver": "node scripts/check-semver.mjs",
     "prerelease": "node scripts/prerelease.mjs",

@@ -18,7 +18,7 @@ synced: f20b1cf
 
 **Что ещё менять вместе**
 - Новый инструмент: `registerTool` через `guard`; имя `[A-Za-z0-9_]`; корень схемы `type: object` без `anyOf`/`oneOf`; аннотации; `checkKeys` = свойства схемы; `instructions`. Списки инструментов и `readOnlyHint` сверяют `mcp` №6, №11, stdio и `docs` (сценарий `mcp`); README «Агенты и MCP» и шпаргалка §14 — обе версии.
-- Оператор фильтра, терминал (`OPS`, `TERMINALS`, `PAGED`): текст `describeQuery` пишется руками; README — операторы и таблица `structuredContent.data` (обе версии).
+- Оператор фильтра — запись реестра `OPERATORS` (`lib/src/ops.ts`, план 2.0, 7.9 №8): `OPS`, `OP_NAMES` и список операторов в `describeQuery` строятся из него, значение ключа проверяет `OP_ARGS` по виду `OpArg` (новый вид — новая ветка `OP_ARGS`); README — таблица из реестра (`npm run llms:full`), случай — тест `llms` №8. Терминал (`TERMINALS`, `PAGED`): текст `describeQuery` пишется руками; README — таблица `structuredContent.data` (обе версии).
 - Новая опция `McpOptions`: `limitsOf`, README «Экспорты пакета» и абзац HTTP. Флаг `letopis mcp` — `cli.ts` (M-MODEL); `allowAclWrite`/`allowSystemAdmin` в CLI нет по решению владельца.
 - Код отказа — README «Ошибки»; тест-кейс — строка `# mcp — …` в «Тесты» (обе версии; check-docs сверяет только имена файлов).
 - Контракт API (`npm run api:contract`) — только экспорты `letopis/mcp` и текст `letopis.mcp:` в `loadSdk`: тексты отказов без префикса `letopis:` в него не входят.

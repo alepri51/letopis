@@ -1177,8 +1177,8 @@ interface McpOptions {
    */
   allowSystemAdmin?: boolean;
   /**
-   * Язык сообщений об ошибках: `'ru'` (по умолчанию) или `'en'`. Ошибки letopis в вызовах
-   * инструментов и в самом `createMcpServer` — на этом языке, с подсказкой `hint`.
+   * Язык: `'ru'` (по умолчанию) или `'en'`. На нём — описания инструментов, их параметров и
+   * instructions, а ошибки letopis в вызовах инструментов и в самом `createMcpServer` — с подсказкой `hint`.
    */
   lang?: Lang;
 }

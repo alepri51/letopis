@@ -915,15 +915,30 @@ const ofShop = await db.Product({ Shop: shop.id }).rows()
 const roots = await db.Category({ Parent: null }).rows()       // root categories
 ```
 
-| Operator | Condition |
-|---|---|
-| `ne(v)`, `gt(v)`, `gte(v)`, `lt(v)`, `lte(v)` | ≠ (taking `null` into account), >, ≥, <, ≤ |
-| `between(a, b)`, `inList([…])` | a ≤ x ≤ b; a value from the list |
-| `like(s)`, `ilike(s)`, `starts(s)`, `ends(s)` | a pattern with `%` and `_`; case-insensitive; starts with; ends with |
-| `has(v)`, `hasAny([…])`, `hasAll([…])` | an array field contains the value; at least one; all (`hasAll([])` matches every row, `hasAny([])` matches none) |
-| `exists(true \| false)`, `isNull()` | the field is present or not; the field is `null` or missing |
-| `not(v)` | negation of an operator; for a scalar, "not equal" |
-| `or(f1, f2, …)` | any of the step filters |
+Operators and their keys in the JSON filter of MCP (the `letopis_query` tool, [section 13](#agents-and-mcp)):
+
+<!-- ops -->
+| TypeScript | MCP | Meaning |
+|---|---|---|
+| `ne(v)` | `{ "$ne": v }` | Not equal. Rows without the field or with `null` match too; `ne(null)` matches rows where the field has a value |
+| `gt(v)` | `{ "$gt": v }` | Greater than. Compared by the field type from the class description (numbers as numbers, dates as dates), a field without a description as text; rows without the field do not match |
+| `gte(v)` | `{ "$gte": v }` | Greater than or equal; compared as in `gt` |
+| `lt(v)` | `{ "$lt": v }` | Less than; compared as in `gt` |
+| `lte(v)` | `{ "$lte": v }` | Less than or equal; compared as in `gt` |
+| `between(a, b)` | `{ "$between": [a, b] }` | From `a` to `b` inclusive; compared as in `gt`. If `a` is greater than `b`, nothing matches |
+| `inList([v, …])` | `{ "$in": [v, …] }` | One of the listed values. An empty list matches nothing; `null` in the list does not match rows without a value — use `isNull` for them |
+| `like(s)` | `{ "$like": "s" }` | Case-sensitive text pattern: `%` is any characters, including none, `_` is exactly one; a literal `%` or `_` is escaped with a backslash |
+| `ilike(s)` | `{ "$ilike": "s" }` | As `like`, but case-insensitive |
+| `starts(s)` | `{ "$starts": "s" }` | Text starts with `s`, case-sensitive. It is `like(s + '%')`: `%` and `_` inside `s` are not escaped and work as pattern characters |
+| `ends(s)` | `{ "$ends": "s" }` | Text ends with `s`, case-sensitive. It is `like('%' + s)`: `%` and `_` inside `s` are not escaped and work as pattern characters |
+| `has(v)` | `{ "$has": v }` | The array field contains the element `v`. The type matters: `has(5)` finds the number 5 but not the string `'5'` |
+| `hasAny([v, …])` | `{ "$hasAny": [v, …] }` | The array field contains at least one listed element. Only string elements are found; an empty list matches nothing |
+| `hasAll([v, …])` | `{ "$hasAll": [v, …] }` | The array field contains all listed elements, in any order. The type matters as in `has`; an empty list matches every row, even without the field |
+| `exists(b = true)` | `{ "$exists": b }` | The field is present in the data (`true`, the default) or absent (`false`); the value does not matter — a field holding `null` is present |
+| `isNull()` | `{ "$isNull": true }` | The field holds `null` or is absent; `exists` tells the two apart |
+| `not(x)` | `{ "$not": x }` | Negation: `x` is an operator (`not(gte(1000))` — less than 1000 or no field) or a plain value, which means "not equal", as `ne` |
+| `or(f1, f2, …)` | `{ "$or": [f1, f2, …] }` | At least one of the filters. It replaces the whole step filter, not a field value; conditions inside one filter are joined with AND |
+<!-- /ops -->
 
 Tags and the row owner are filtered with the `.tags(…)` and `.owner(…)` modifiers.
 
@@ -2200,8 +2215,8 @@ A `letopis_query` request is the same chain as `db.Product({ price: lt(1000) }).
 ```
 
 A filter value means equality, a nested object addresses the fields of nested objects, `{ "Role": id }` is an end.
-Operators: `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$between`, `$in`, `$like`, `$ilike`, `$starts`, `$ends`, `$has`,
-`$hasAny`, `$hasAll`, `$exists`, `$isNull`, `$not`; OR is `{ "$or": [filter, …] }`. An unknown class, role, parameter
+Operators are the keys of the MCP column in the table of [Filters](#filters): `{ "price": { "$gt": 5 } }`; OR is
+`{ "$or": [filter, …] }` instead of the whole filter. An unknown class, role, parameter
 or operator gives an `isError` answer with a hint of similar names. There are at most 16 `steps` and at most 64
 conditions in the `$or` of one filter; otherwise `invalid_query`. These limits do not bound the time of a query: set
 `statement_timeout` for the database role the MCP server connects as (`alter role … set statement_timeout = '5s'`).
@@ -2976,4 +2991,5 @@ order; the first red step stops the run. The same load for a day: `cd lib && npm
 # model-contract — README promises about models, types, the CLI and errors (plan 2.0, 7.5): letopis types gives valid TypeScript for Cyrillic names, a class without fields and anyOf, the full form of hub() with z.object, clear errors instead of raw ones, CLI exit codes
 # read-contract — README promises about reads and history (plan 2.0, 7.1): an asOf slice by class and by ends after a class change without an id change, versions, diff and blame with follow after rekey, the after() cursor in versions() and paths(), a field name with @S@
 # messages — the message catalog (plan 2.0, 7.9 №5, №6): with lang: 'en' every code has an English text and hint, errors of translated places and of the database come in the language of the connection, raw SQL gets Russian, with ru everything is as before, docs leads to the anchor of the code; similar names for an unknown class, role, field and option
+# llms — documents for an agent (plan 2.0, 7.9 №7, №8): llms-full.txt has every error code with its meaning and what to do, every nuance, the reserved names and the operators; the operator registry matches the package factories, the letopis_query keys (the same answer as the chain) and the tables of the README and the cheatsheet, both versions
 ```

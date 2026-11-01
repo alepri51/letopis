@@ -17,6 +17,7 @@ import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import docs, { type ApiDoc, type ParamDoc } from '../coverage/api-docs.ts';
+import { operatorTable } from '../../lib/src/ops.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const LIB = join(ROOT, '..', 'lib');
@@ -471,6 +472,9 @@ for (const file of walk(join(ROOT, 'examples'), '.ts')) {
 interface Section { title: string; intro?: string; ids: string[] }
 /** note — заметка после вступления: пункт covers без своего метода (якорь — как у пункта) и текст. */
 interface Page { file: string; title: string; intro: string; sections: Section[]; notes?: { id: string; title: string; text: string }[] }
+/** Таблица операторов — из реестра OPERATORS (lib/src/ops.ts; план 2.0, этап 3, п. 5), как в README и шпаргалке. */
+const OPS_INTRO = 'Оператор ставится значением поля в фильтре шага, простое значение — равенство. Колонка MCP — ключи JSON-фильтра инструмента `letopis_query`; `$or` ставится вместо всего фильтра.\n\n' + operatorTable('ru');
+
 const PAGES: Page[] = [
   {
     file: 'chain', title: 'Цепочка',
@@ -558,7 +562,7 @@ const PAGES: Page[] = [
     file: 'utils', title: 'Служебные экспорты',
     intro: 'Функции и константы пакета `letopis`, которые не относятся к подключению: операторы фильтров, id, ошибки, проверка данных, пароли.',
     sections: [
-      { title: 'Операторы фильтров', ids: ['export.ne', 'export.gt', 'export.gte', 'export.lt', 'export.lte', 'export.between', 'export.inList', 'export.like', 'export.ilike', 'export.starts', 'export.ends', 'export.has', 'export.hasAny', 'export.hasAll', 'export.exists', 'export.isNull', 'export.not', 'export.or', 'export.isOp'] },
+      { title: 'Операторы фильтров', intro: OPS_INTRO, ids: ['export.ne', 'export.gt', 'export.gte', 'export.lt', 'export.lte', 'export.between', 'export.inList', 'export.like', 'export.ilike', 'export.starts', 'export.ends', 'export.has', 'export.hasAny', 'export.hasAll', 'export.exists', 'export.isNull', 'export.not', 'export.or', 'export.isOp'] },
       { title: 'Приращение и курсор', ids: ['export.inc', 'export.isInc', 'export.cursorOf'] },
       { title: 'id объектов', ids: ['export.idOf', 'export.uuidv5', 'export.v5Name', 'export.v5Id'] },
       { title: 'Ошибки', ids: ['export.LetopisError', 'export.ValidationError', 'export.fromDbError'] },

@@ -29,7 +29,7 @@ import { lookupStep, type Chain, type StepFn } from './chain.js';
 import { LetopisError, checkLang, checkOptions, langRun, lerr, lmsg, similar, type Lang, type LangRun } from './errors.js';
 import { internalsOf } from './internal.js';
 import type { Text } from './messages/types.js';
-import { between, ends, exists, gt, gte, has, hasAll, hasAny, ilike, inList, isNull, like, lt, lte, ne, not, or, starts } from './ops.js';
+import { OPERATORS, opHint, or, type OpArg } from './ops.js';
 import type { Registry } from './registry.js';
 import { cursorOf } from './sql.js';
 import { ACL_CLASS_NAMES, RESERVED_CLASS_NAMES, type Cursor, type FieldFilter, type Filter, type Op, type Row, type Scalar } from './types.js';
@@ -154,6 +154,9 @@ const DESCRIBE_MODEL: Text = {
   en: 'The data model available to the user: classes, fields (JSON Schema), anyOf and oneOf conditions, ends (links), keys, aliases, inheritance, metadata. With class — one class in detail. Read-only.',
 };
 
+/** Операторы поля для описания letopis_query — из реестра (`$between [a, b]`, `$in [..]`, …); `$or` описан отдельно. */
+const FIELD_OPS = OPERATORS.filter((o) => o.arg !== 'filters').map(opHint).join(', ');
+
 const describeQuery = (o: Limits, t: Tr): string => [
   t({
     ru: 'Чтение JSON-цепочкой, без SQL. Старт: class (класс, алиас или роль) и filter, id или ids.',
@@ -168,8 +171,8 @@ const describeQuery = (o: Limits, t: Tr): string => [
     en: 'Filter: { field: value } is equality; nested fields go in a nested object; an end is { Role: id };',
   }),
   t({
-    ru: 'операторы — { поле: { $gt: 5 } }: $ne, $gt, $gte, $lt, $lte, $between [a, b], $in [..], $like, $ilike, $starts, $ends (% и _ в значении $starts и $ends — шаблон LIKE, не экранируются), $has, $hasAny [..], $hasAll [..], $exists true|false, $isNull true, $not; ИЛИ — { $or: [фильтр, …] }.',
-    en: 'operators are { field: { $gt: 5 } }: $ne, $gt, $gte, $lt, $lte, $between [a, b], $in [..], $like, $ilike, $starts, $ends (% and _ in the value of $starts and $ends are LIKE wildcards and are not escaped), $has, $hasAny [..], $hasAll [..], $exists true|false, $isNull true, $not; OR is { $or: [filter, …] }.',
+    ru: `операторы — { поле: { $gt: 5 } }: ${FIELD_OPS}; % и _ в значении $starts и $ends — шаблон LIKE, не экранируются; ИЛИ — { $or: [фильтр, …] }.`,
+    en: `operators are { field: { $gt: 5 } }: ${FIELD_OPS}; % and _ in the value of $starts and $ends are LIKE wildcards and are not escaped; OR is { $or: [filter, …] }.`,
   }),
   t({
     ru: 'Модификаторы: asOf (момент ISO — срез на дату), withDeleted, sort { field: "at" | "rev" | "id" | "data.<путь>", dir }, limit, cursor (из прошлого ответа).',
@@ -396,37 +399,38 @@ function uuid(v: unknown, where: string): string {
   return v;
 }
 
-/** Операторы фильтра JSON → фабрики ops.ts (из JSON узел-оператор не получить: его метка — символ). */
-const OPS: Record<string, (v: unknown, where: string, depth: number) => Op> = {
-  $ne: (v, w) => ne(scalar(v, w)),
-  $gt: (v, w) => gt(scalar(v, w)),
-  $gte: (v, w) => gte(scalar(v, w)),
-  $lt: (v, w) => lt(scalar(v, w)),
-  $lte: (v, w) => lte(scalar(v, w)),
-  $between: (v, w) => {
+/** Аргументы фабрики из значения ключа MCP — по виду значения из реестра операторов (`OpArg`). */
+const OP_ARGS: Record<Exclude<OpArg, 'filters'>, (v: unknown, where: string, depth: number) => unknown[]> = {
+  value: (v, w) => [scalar(v, w)],
+  list: (v, w) => [scalars(v, w)],
+  range: (v, w) => {
     const p = scalars(v, w);
     if (p.length !== 2) throw lerr('mcp.not_range', { where: w });
-    return between(p[0], p[1]);
+    return p;
   },
-  $in: (v, w) => inList(scalars(v, w)),
-  $like: (v, w) => like(text(v, w)),
-  $ilike: (v, w) => ilike(text(v, w)),
-  $starts: (v, w) => starts(text(v, w)),
-  $ends: (v, w) => ends(text(v, w)),
-  $has: (v, w) => has(scalar(v, w)),
-  $hasAny: (v, w) => hasAny(scalars(v, w)),
-  $hasAll: (v, w) => hasAll(scalars(v, w)),
-  $exists: (v, w) => {
+  text: (v, w) => [text(v, w)],
+  flag: (v, w) => {
     if (typeof v !== 'boolean') throw lerr('mcp.not_boolean', { where: w });
-    return exists(v);
+    return [v];
   },
-  $isNull: (v, w) => {
+  true: (v, w) => {
     if (v !== true) throw lerr('mcp.not_true', { where: w });
-    return isNull();
+    return [];
   },
-  $not: (v, w, depth) => not(isObj(v) ? fieldOp(v, w, depth + 1) : scalar(v, w)),
+  negation: (v, w, depth) => [isObj(v) ? fieldOp(v, w, depth + 1) : scalar(v, w)],
 };
-const OP_NAMES = [...Object.keys(OPS), '$or'];
+/**
+ * Операторы фильтра JSON → фабрики ops.ts по реестру OPERATORS (план 2.0, 7.9 №8; из JSON узел-оператор не получить:
+ * его метка — символ). `$or` — не оператор поля: его разбирает filterOf.
+ */
+const OPS: Record<string, (v: unknown, where: string, depth: number) => Op> = Object.fromEntries(
+  OPERATORS.filter((o) => o.arg !== 'filters').map((o) => {
+    const make = o.make as (...args: unknown[]) => Op;
+    const args = OP_ARGS[o.arg as Exclude<OpArg, 'filters'>];
+    return [o.mcp, (v: unknown, w: string, depth: number) => make(...args(v, w, depth))];
+  }),
+);
+const OP_NAMES = OPERATORS.map((o) => o.mcp);
 const MAX_DEPTH = 16;
 
 function fieldOp(v: Args, where: string, depth: number): Op {

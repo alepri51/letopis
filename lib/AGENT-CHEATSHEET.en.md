@@ -194,13 +194,37 @@ await db.Note().withDeleted().rows()                           // including dele
 await db.Wallet(or({ number: 'W-1' }, { number: 'W-200' })).ids()
 ```
 - Step filter: an id, a list of ids, a result row, an object of fields nested to any depth, `or(…)`, the operators
-  `ne gt gte lt lte between inList like ilike starts ends has hasAny hasAll exists isNull not`, end roles
-  `{ Shop: id }`, `{ Shop: null }`. Fields are in `row.data`, not at the root of the row.
+  (the table below), end roles `{ Shop: id }`, `{ Shop: null }`. Fields are in `row.data`, not at the root of the row.
 - A step is a class name, an alias or an end role; a step by a parent class also returns descendants (`.exact()` —
   only its own class); `.deep(max)` — a tree (`$depth`); `.tags()`, `.owner()`, `.alias(name)`, `db.entity(row)`.
 - `after(cursorOf(row, field))` requires `sort()` by the same field; it pages `rows()`, `versions()` and `paths()` (the
   cursor of a path is `cursorOf(path, field)`, the keys of a path follow the order of the steps). `count()`,
   aggregates, `diff()`, `blame()` ignore the cursor.
+
+Filter operators and their keys in the JSON filter of MCP (the `letopis_query` tool, item 14):
+
+<!-- ops -->
+| TypeScript | MCP | Meaning |
+|---|---|---|
+| `ne(v)` | `{ "$ne": v }` | Not equal. Rows without the field or with `null` match too; `ne(null)` matches rows where the field has a value |
+| `gt(v)` | `{ "$gt": v }` | Greater than. Compared by the field type from the class description (numbers as numbers, dates as dates), a field without a description as text; rows without the field do not match |
+| `gte(v)` | `{ "$gte": v }` | Greater than or equal; compared as in `gt` |
+| `lt(v)` | `{ "$lt": v }` | Less than; compared as in `gt` |
+| `lte(v)` | `{ "$lte": v }` | Less than or equal; compared as in `gt` |
+| `between(a, b)` | `{ "$between": [a, b] }` | From `a` to `b` inclusive; compared as in `gt`. If `a` is greater than `b`, nothing matches |
+| `inList([v, …])` | `{ "$in": [v, …] }` | One of the listed values. An empty list matches nothing; `null` in the list does not match rows without a value — use `isNull` for them |
+| `like(s)` | `{ "$like": "s" }` | Case-sensitive text pattern: `%` is any characters, including none, `_` is exactly one; a literal `%` or `_` is escaped with a backslash |
+| `ilike(s)` | `{ "$ilike": "s" }` | As `like`, but case-insensitive |
+| `starts(s)` | `{ "$starts": "s" }` | Text starts with `s`, case-sensitive. It is `like(s + '%')`: `%` and `_` inside `s` are not escaped and work as pattern characters |
+| `ends(s)` | `{ "$ends": "s" }` | Text ends with `s`, case-sensitive. It is `like('%' + s)`: `%` and `_` inside `s` are not escaped and work as pattern characters |
+| `has(v)` | `{ "$has": v }` | The array field contains the element `v`. The type matters: `has(5)` finds the number 5 but not the string `'5'` |
+| `hasAny([v, …])` | `{ "$hasAny": [v, …] }` | The array field contains at least one listed element. Only string elements are found; an empty list matches nothing |
+| `hasAll([v, …])` | `{ "$hasAll": [v, …] }` | The array field contains all listed elements, in any order. The type matters as in `has`; an empty list matches every row, even without the field |
+| `exists(b = true)` | `{ "$exists": b }` | The field is present in the data (`true`, the default) or absent (`false`); the value does not matter — a field holding `null` is present |
+| `isNull()` | `{ "$isNull": true }` | The field holds `null` or is absent; `exists` tells the two apart |
+| `not(x)` | `{ "$not": x }` | Negation: `x` is an operator (`not(gte(1000))` — less than 1000 or no field) or a plain value, which means "not equal", as `ne` |
+| `or(f1, f2, …)` | `{ "$or": [f1, f2, …] }` | At least one of the filters. It replaces the whole step filter, not a field value; conditions inside one filter are joined with AND |
+<!-- /ops -->
 
 ### 6. Deletion with a preview
 

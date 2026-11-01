@@ -22,6 +22,7 @@ Key facts for writing code with letopis 1.4:
 ## Docs
 
 - [Agent cheatsheet](AGENT-CHEATSHEET.en.md): one page for an AI agent writing code with letopis — working cycle and pitfalls
+- [Full reference](llms-full.txt): one English file — the cheatsheet, the chain grammar, error codes with what to do, nuances, reserved names and the filter operators (TypeScript and MCP)
 - [Guide](README.en.md): task-based guide, API reference, errors, limitations
 - [Шпаргалка для агента](AGENT-CHEATSHEET.md): the cheatsheet in Russian (original)
 - [Руководство](README.md): the guide in Russian (original)
