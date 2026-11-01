@@ -131,14 +131,10 @@ class HttpError extends Error { constructor(status, message, code) { super(messa
 
 export async function createApp() {
   const admin = postgres(ENV.admin, { max: 2, onnotice: () => {} });
-  const r = await up({ dsn: ENV.admin, schema: ENV.schema, upgrade: true, fresh: ENV.fresh, serviceKey: ENV.serviceKey, signals: ENV.signals, quiet: true });
+  // роль приложения заводит up({ login }): имя и пароль квотирует база, повтор обновляет пароль (план 2.0, 7.6 №7, 7.9 №4)
   const appUrl = new URL(ENV.app);
-  // роль приложения — имя и пароль квотируются, а не склеиваются в SQL: пароль с ' не ломает запуск (план 2.0, 7.6 №7)
-  const appUser = decodeURIComponent(appUrl.username);
-  const ident = (v) => `"${v.replace(/"/g, '""')}"`;
-  const [{ known }] = await admin`select exists (select 1 from pg_roles where rolname = ${appUser}) as known`;
-  if (!known) await admin.unsafe(`create role ${ident(appUser)} login password '${decodeURIComponent(appUrl.password).replace(/'/g, "''")}'`);
-  await admin.unsafe(`grant letopis_app to ${ident(appUser)}`);
+  const r = await up({ dsn: ENV.admin, schema: ENV.schema, upgrade: true, fresh: ENV.fresh, serviceKey: ENV.serviceKey, signals: ENV.signals, quiet: true,
+    login: { user: decodeURIComponent(appUrl.username), password: decodeURIComponent(appUrl.password) } });
   // один пул на всех: подключения пользователей (connect({ sql, token })) делят его соединения
   const pool = postgres(ENV.app, { max: 10, onnotice: () => {} });
   // журнал «под капотом»: запросы к базе, записанные версии и сигналы текущего действия
