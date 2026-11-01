@@ -82,6 +82,7 @@
     "@electric-sql/pglite": "^0.5.8",
     "@electric-sql/pglite-socket": "^0.2.11",
     "@modelcontextprotocol/server": "^2.4.0",
+    "typescript": ">=5",
     "zod": "^4"
   },
   "peerDependenciesMeta": {
@@ -95,6 +96,9 @@
       "optional": true
     },
     "@modelcontextprotocol/server": {
+      "optional": true
+    },
+    "typescript": {
       "optional": true
     }
   },

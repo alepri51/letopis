@@ -1,6 +1,6 @@
 ---
 paths:
-  - 'lib/src/{model,jsonschema,validate,registry,sync,cli,uuid}.ts'
+  - 'lib/src/{model,jsonschema,validate,registry,sync,cli,check,uuid}.ts'
 synced: f20b1cf
 ---
 # M-MODEL — модели на Zod, нормализатор, валидатор, реестр, CLI
@@ -14,15 +14,17 @@ synced: f20b1cf
 - Лишние ключи: верхний уровень `model.schema` — `z.strictObject`, вложенные `z.object` их пропускают — так же, как база.
 - `Model<N, D, L, A>`: `A` — литерал алиаса для шагов `TypedDb`; список моделей объявлять `as const satisfies readonly AnyModel[]` (как `BOOKING`), иначе типы цепочек схлопываются до `string`.
 - Статические импорты `cli.ts` и всего, что он тянет (`import type` не в счёт), не доходят до `mcp.ts` и `@modelcontextprotocol/*`: SDK — необязательная peer-зависимость, без него работают все команды, кроме `mcp` (тест `mcp` №12).
+- `letopis check` (план 2.0, 7.9 №10; `lib/src/check.ts`) — без базы и без исполнения: программа TypeScript только из переданных файлов (`noLib`, `noResolve`, свой CompilerHost), её checker лишь связывает имя с объявлением. `typescript` — необязательная peer-зависимость: её грузит динамическим импортом только `check.ts`, а `check.js` — динамический импорт `cli.ts`; остальные команды работают без `typescript`. Корень цепочки — `connect()` из `letopis`, `.as()`, `.begin()` (транзакция: `forUpdate()` разрешён), `.batch()`, тип `Db`, `TypedDb`, `DbTx`, `Batch` (импорт из `letopis` или локальный `type`) и имя `db`; константа с цепочкой продолжается там, где её используют, одна ошибка на правило и место (`seen`). Члены — как у Proxy: `DB_METHODS`, `CHAIN_METHODS`, у батча `run`, `discard`, `size`. `upsert-no-key` и `unknown-name` — только с `--models` (модели — `loadModels`, как у `sync`); системные классы — `SYSTEM_CLASSES`. `sync --check` — код 1, если сухой прогон нашёл `created` или `updated`; вместе с `--apply` — USAGE с кодом 2 до `connect()`.
 
 **Что ещё менять вместе**
 - Новое свойство описания класса: `ClassDef`, `ClassDescription`, `describe()`; `ClassInfo` и `Registry.load`; `class_metaschema()` и `class_resolve()` в `lib/sql/40-class.sql` (M-ENGINE). Образцы — `d53dc8e` (`derivedBy`), `92be5d2` (`aggregate`).
 - Свойство ссылается на класс, который база ждёт раньше (как `parent`, `aggregate.of`), → добавить его в обход `visit` в `syncModels`: иначе sync пишет классы в порядке списка и база отклоняет ссылку вперёд; круг — отказ `invalid_class` до транзакции (образцы `5290be1`, `dbd1973`).
 - Новое ключевое слово JSON Schema: `SUPPORTED` и `normalizeSchema`, `compileValidator`, `jp_compile` и `compile_validator` в `lib/sql/30-validate.sql` (M-VALIDATE), случай в `validator-parity`.
 - Меняется вывод `describe()` или `normalizeSchema` для существующих моделей → `npm run seed:booking` (M-SEEDS): тест `demo` сверяет `lib/sql/seed.booking.sql` с моделями.
+- Новый глагол, модификатор или терминал цепочки (`CHAIN_METHODS`, M-API) → наборы `VERBS`, `MODS`, `STEP_MODS`, `TERMINALS` в `lib/src/check.ts`; новый системный класс или его ключ в `lib/sql/95-seed.system.sql` (M-SEEDS) → `SYSTEM_CLASSES` там же; новое правило `letopis check` → `CheckRule`, запись `model.check_*` в `lib/src/messages/model.ts`, раздел «Командная строка» README (обе версии) и случаи в тесте `check`.
 
 **Проверка**
-- `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `model`, `validator-parity`, `demo`, `v5`; `sync` («класс-источник агрегата раньше цели», «модели по кругу»); `mcp` (№10, №12, «letopis mcp по stdio»); `load` («CLI через симлинк»). Команда из node_modules/.bin — `npm run check:package` (`npm exec --no -- letopis --help`).
+- `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `model`, `validator-parity`, `demo`, `v5`; `sync` («класс-источник агрегата раньше цели», «модели по кругу»); `check` (правила `letopis check`, `sync --check`, 7.9 №10); `mcp` (№10, №12, «letopis mcp по stdio»); `load` («CLI через симлинк»). Команда из node_modules/.bin — `npm run check:package` (`npm exec --no -- letopis --help`).
 
 **Точки входа**
 - `lib/src/model.ts:makeModel` — описание класса и ранние проверки
@@ -31,6 +33,7 @@ synced: f20b1cf
 - `lib/src/registry.ts:Registry` — классы из `resolved`
 - `lib/src/sync.ts:syncModels` — `letopis sync`, порядок записи классов
 - `lib/src/cli.ts:main` — команды CLI
+- `lib/src/check.ts:checkFiles` — `letopis check`: правила и корень цепочки
 
 **Не здесь**
 - инструменты MCP (`createMcpServer`) → M-MCP; смысл агрегатов и проекторов → M-DERIVED; модели демо-домена → M-SEEDS.

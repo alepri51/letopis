@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 /**
  * CLI letopis (план, этап 2, п. 7; этап 4, п. 11; этап 6, п. 4, 8, 12): `letopis sync`, `types`, `load`,
- * `verify`, `maintain`, `describe`; этап 7 — `import` (из 0.21).
+ * `verify`, `maintain`, `describe`; этап 7 — `import` (из 0.21); план 2.0, этап 3, п. 8 — `check`, `sync --check`.
  *
- *   letopis sync <модуль моделей> --dsn … --schema v2.x (--token … | --api-key …) [--apply]
+ *   letopis sync <модуль моделей> --dsn … --schema v2.x (--token … | --api-key …) [--apply | --check]
+ *     --check — сухой прогон с кодом 1, если он нашёл изменения (создать или изменить); вместе с --apply — USAGE, код 2
+ *   letopis check <файлы…> [--models <модуль моделей>] [--json]   — проверки до запуска без базы (check.ts), код 1 при
+ *     ошибках; нужен пакет typescript — его грузит только эта команда
  *   letopis types --dsn … --schema v2.x (--token … | --api-key …) [--out types.d.ts]
  *   letopis load <файлы NDJSON…> --dsn … --schema v2.x (--token … | --api-key …) [--class C]
  *     [--duplicates error|first|last] [--existing error|skip|update] [--commit-every N] [--verify] [--initial]
@@ -29,7 +32,7 @@ import type { AnyModel } from './model.js';
 import { checkLang, currentLang, langRun, lerr, type Lang } from './errors.js';
 
 const USAGE = `у любой команды: --lang ru|en — язык сообщений об ошибках (по умолчанию ru)
-letopis sync <модуль> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--apply]
+letopis sync <модуль> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--apply | --check]
 letopis types --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--out <файл>]
 letopis load <файлы…> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--class <Класс>]
   [--duplicates error|first|last] [--existing error|skip|update] [--commit-every <N>] [--verify] [--initial]
@@ -39,12 +42,35 @@ letopis describe --dsn <строка> --schema <v2.имя> (--token <токен>
 letopis import --from <строка 0.21> --from-schema <v1.имя> --dsn <строка> --schema <v2.имя> [--tenant <имя>] [--keyless <Класс>]…
   [--rename <Старое>=<Новое>]… [--update] [--commit-every <N>] [--partition <имя>] [--initial]
 letopis mcp --dsn <строка> --schema <v2.имя> --token <токен пользователя> [--write]
-  (или LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; ключ сервиса --api-key не принимается)`;
+  (или LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; ключ сервиса --api-key не принимается)
+letopis check <файлы…> [--models <модуль>] [--json]
+  (без базы; нужен пакет typescript)`;
 
 /** Команды CLI: остальное — USAGE с кодом 2 ещё до подключения. */
-const COMMANDS = new Set(['sync', 'types', 'load', 'verify', 'maintain', 'describe', 'import', 'mcp']);
+const COMMANDS = new Set(['sync', 'types', 'load', 'verify', 'maintain', 'describe', 'import', 'mcp', 'check']);
 
 const isModel = (v: unknown): v is AnyModel => typeof v === 'object' && v !== null && typeof (v as AnyModel).describe === 'function' && typeof (v as AnyModel).name === 'string';
+
+/** Модели из модуля (letopis sync, letopis check --models): экспорты-модели и массивы моделей, без повторов. */
+async function loadModels(path: string): Promise<AnyModel[]> {
+  const mod = await import(pathToFileURL(resolve(path)).href) as Record<string, unknown>;
+  return [...new Set(Object.values(mod).flatMap((v) => (Array.isArray(v) ? v : [v])).filter(isModel))];
+}
+
+/**
+ * letopis check (план 2.0, этап 3, п. 8): проверки до запуска — без базы и без запуска кода. Модуль check.js и пакет
+ * typescript грузятся только здесь: остальные команды работают без typescript. Есть ошибки — код 1, нет файлов — USAGE.
+ */
+async function check(files: string[], v: { models?: string; json?: boolean }): Promise<number> {
+  if (!files.length) {
+    console.log(USAGE);
+    return 2;
+  }
+  const { checkFiles, formatReport } = await import('./check.js');
+  const r = await checkFiles(files, v.models ? { models: await loadModels(v.models) } : {});
+  console.log(v.json ? JSON.stringify(r, null, 2) : formatReport(r));
+  return r.ok ? 0 : 1;
+}
 
 export async function main(argv: string[]): Promise<number> {
   const { values, positionals } = parseArgs({
@@ -59,6 +85,7 @@ export async function main(argv: string[]): Promise<number> {
       from: { type: 'string' }, 'from-schema': { type: 'string' }, tenant: { type: 'string' }, partition: { type: 'string' },
       keyless: { type: 'string', multiple: true }, rename: { type: 'string', multiple: true }, update: { type: 'boolean' },
       initial: { type: 'boolean' }, write: { type: 'boolean' }, lang: { type: 'string' },
+      check: { type: 'boolean' }, models: { type: 'string' }, json: { type: 'boolean' },
     },
   });
   // --lang ru|en (план 2.0, этап 3, п. 3): команда целиком — на этом языке, у mcp — ещё и каждый вызов инструмента
@@ -77,7 +104,10 @@ export async function main(argv: string[]): Promise<number> {
     console.log(USAGE);
     return 0;
   }
-  if (!cmd || !COMMANDS.has(cmd) || !values.dsn || !values.schema) {
+  // проверки до запуска — без базы (план 2.0, этап 3, п. 8)
+  if (cmd === 'check') return check(positionals.slice(1), values);
+  // --check — сухой прогон: вместе с --apply смысла нет
+  if (!cmd || !COMMANDS.has(cmd) || !values.dsn || !values.schema || (cmd === 'sync' && values.check && values.apply)) {
     console.log(USAGE);
     return cmd ? 2 : 0;
   }
@@ -108,15 +138,14 @@ export async function main(argv: string[]): Promise<number> {
   try {
     if (cmd === 'sync') {
       if (!arg) { console.log(USAGE); return 2; }
-      const mod = await import(pathToFileURL(resolve(arg)).href);
-      const models = [...new Set(Object.values(mod).flatMap((v) => (Array.isArray(v) ? v : [v])).filter(isModel))];
-      const r = await syncModels(db, models, { apply: values.apply });
+      const r = await syncModels(db, await loadModels(arg), { apply: values.apply });
       console.log(`${r.applied ? 'применено' : 'сухой прогон'}: создать ${r.created.length}, изменить ${r.updated.length}, без изменений ${r.unchanged.length}, системных ${r.skipped.length}`);
       for (const [k, list] of [['создать', r.created], ['изменить', r.updated], ['системные (меняет установка)', r.skipped]] as const) {
         if (list.length) console.log(`  ${k}: ${list.join(', ')}`);
       }
       for (const l of r.lost) console.log(`  правило ${l.kind} в ${l.path} проверяется только в библиотеке — в базе его нет`);
-      return 0;
+      // --check (план 2.0, этап 3, п. 8): модели расходятся с базой — код 1, например для шага CI перед --apply
+      return values.check && (r.created.length || r.updated.length) ? 1 : 0;
     }
     if (cmd === 'load') {
       const files = positionals.slice(1);

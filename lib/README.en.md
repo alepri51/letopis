@@ -2372,7 +2372,7 @@ application.
 ### Command line
 
 ```sh
-letopis sync <module> --dsn <dsn> --schema <v2.name> (--token <token> | --api-key <key>) [--apply]
+letopis sync <module> --dsn <dsn> --schema <v2.name> (--token <token> | --api-key <key>) [--apply | --check]
 letopis types --dsn <dsn> --schema <v2.name> (--token <token> | --api-key <key>) [--out <file>]
 letopis load <files…> --dsn <dsn> --schema <v2.name> (--token <token> | --api-key <key>) [--class <Class>]
   [--duplicates error|first|last] [--existing error|skip|update] [--commit-every <N>] [--verify] [--initial]
@@ -2383,11 +2383,39 @@ letopis import --from <0.21 dsn> --from-schema <v1.name> --dsn <dsn> --schema <v
   [--rename <Old>=<New>]… [--update] [--commit-every <N>] [--partition <name>] [--initial]
 letopis mcp --dsn <dsn> --schema <v2.name> --token <user token> [--write]
   (or LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; the service key --api-key is not accepted)
+letopis check <files…> [--models <module>] [--json]
+  (no database; needs the typescript package)
 ```
 
 `letopis types` and `letopis describe` build their output from the session's classes, so without a valid session (the
 token expired, was revoked, is wrong or not given, or the API key is wrong) they exit with code 1 and the `no_session`
 error and leave the `--out` file untouched.
+
+`letopis sync --check` is the same dry run, but it exits with code 1 if the models differ from the database (there is
+something to create or change): a CI step before `--apply`. Together with `--apply` it prints the usage and exits with
+code 2.
+
+`letopis check` checks the code before it runs, without a database and without executing it: the TypeScript Compiler
+API parses `.ts` and `.js` files. It needs the `typescript` package, an optional peer dependency that only this command
+loads. The root of a chain is a connection: the value of `connect()` from `letopis`, `db.as()`, `db.begin()` (a
+transaction) and `db.batch()` (a batch), a name of type `Db`, `TypedDb`, `DbTx` or `Batch`, and any name `db`; a
+constant holding a chain is checked where it is used. The rules (the `rule` field):
+
+- `reserved-name` — a class name, alias or role in `hub()` and `link()` is one of the
+  [reserved names](#reserved-names);
+- `no-filter` — `update()` or `delete({ confirm: true })` while no step has a filter, an id, `limit()`, `tags()` or
+  `owner()`: the change goes over all rows;
+- `delete-preview` — `delete()` without `{ confirm: true }` whose result is not used: it is a preview, nothing is
+  deleted;
+- `mod-after-verb` — a selection modifier after a verb before `rows()`, `first()`, `ids()`, `count()`, `paths()` (in a
+  batch, at the end of the chain) and a step modifier right after a verb;
+- `for-update-outside-tx` — `forUpdate()` in a chain that starts from the connection rather than from `db.begin()`;
+- with `--models <module>` (models as in `letopis sync`): `upsert-no-key` — `upsert()` on a class without a key, and
+  `unknown-name` — a step or slot that is not among the classes, aliases and roles of the models and the system
+  classes, with similar names.
+
+The output is a line per error, `file:line:column rule: text`, and a summary; with `--json` it is
+`{ ok, files, models, problems }`; if there are errors, the exit code is 1.
 
 ### Monitoring
 
@@ -2975,6 +3003,7 @@ order; the first red step stops the run. The same load for a day: `cd lib && npm
 # scenario-real-life — the "real life" of a salon: 16 scenes from 0.21 (real-life) — a booking service on top of chains, races of double booking, rescheduling and cancellation, walk-in, refusals, reports and daily invariants (stage 4)
 # system-classes — system classes instead of the 0.21 facades: the System seed, accounts, credentials, resources and rules, transactions (stage 5)
 # sync — letopis sync (dry run, apply, tightening, lost refine) and letopis types (stage 2)
+# check — checks before running (plan 2.0, 7.9 No. 10): every rule of letopis check has a positive and a negative case — reserved names in hub() and link(), update() and delete({ confirm: true }) without a filter, delete() without confirm whose result is not used, upsert() on a class without a key, a modifier after a verb, forUpdate() outside db.begin(), unknown classes and roles with similar names; text, --json, --models, --lang and exit codes; the exit codes of letopis sync --check
 # tx — explicit db.begin() transactions: a broken transaction, lock(), 40P01; forUpdate(); the batch and its merging, a batch queue per facade; db.as(…, { owner }) (stage 4)
 # v5 — v5 identifiers on the SQL side versus the vectors of an independent implementation (stage 1)
 # zod-output — a snapshot of the z.toJSONSchema() output by field kind of the demo domain versus a reference (stage 0)
