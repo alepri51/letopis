@@ -243,10 +243,11 @@ export function fromDbError(e: unknown): unknown {
   // ключ каталога (план 2.0, этап 3, п. 3): в detail остаются прежние поля, а ключ и параметры — в key и params
   let msg: { key: string; params: Params } | undefined;
   if (isObj(detail) && typeof detail.key === 'string') {
-    const { key, params, ...rest } = detail;
+    const { key, params, nodetail, ...rest } = detail;
     msg = { key: key as string, params: isObj(params) ? params : {} };
-    // прежних полей нет — detail null, как до каталога (снимки примеров и приложения ждут null, а не {})
-    detail = Object.keys(rest).length ? rest : null;
+    // detail — как до каталога: прежние поля, {} в том числе (lt_fail без detail давала {}); признак nodetail — DETAIL у
+    // места не было (raise без detail), и detail нет. Сам признак наружу не идёт
+    detail = nodetail === true ? undefined : rest;
   }
   const dbText = (err.message ?? '').replace(/^letopis: [a-z_]+: /, '');
   // русский текст база уже собрала из того же шаблона — он остаётся как есть; другой язык — из каталога. Ключа нет в

@@ -246,8 +246,14 @@
         },
         "text": [
           "## Draft",
+          "- создать: `db.Draft().create({ text: 'text' }).rows()`",
+          "- найти: `db.Draft({ text: 'text' }).rows()`",
           "## Ping",
-          "## Product — Товар"
+          "- создать: `db.Ping().create({ source: 'source' }).rows()`",
+          "- найти: `db.Ping({ source: 'source' }).rows()`",
+          "## Product — Товар",
+          "- создать: `db.Product().create({ title: 'title' }).rows()`",
+          "- найти: `db.Product({ title: 'title' }).rows()`"
         ]
       },
       "error": null,

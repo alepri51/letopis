@@ -137,7 +137,8 @@ begin
     and coalesce((s.meta->>'enabled')::boolean, true)
     and coalesce((a.data->>'enabled')::boolean, true);
   if k.account is null then
-    perform @SCHEMA@.lt_fail('sql-core.bad_api_key');
+    -- DETAIL не было и до каталога (raise без detail): p_detail => 'null' (15-errors.sql)
+    perform @SCHEMA@.lt_fail('sql-core.bad_api_key', p_detail => 'null');
   end if;
   return @SCHEMA@.new_session(k.account, interval '7 days', jsonb_build_object('methods', jsonb_build_array('APIKEY'), 'cred', k.id));
 end $$;

@@ -1170,7 +1170,7 @@ begin
     if lim is not null and p_at < clock_timestamp() - lim then
       raise exception using errcode = 'LT016',
         message = 'letopis: cursor_expired: ' || @SCHEMA@.lt_text('sql-time.cursor_expired'),
-        detail = jsonb_build_object('key', 'sql-time.cursor_expired', 'params', '{}'::jsonb)::text;
+        detail = jsonb_build_object('key', 'sql-time.cursor_expired', 'params', '{}'::jsonb, 'nodetail', true)::text;
     end if;
   end if;
   -- колонки — явно: changed приложению не выдана (ревью №1 точки А плана 1.1), в ответе подписки она null

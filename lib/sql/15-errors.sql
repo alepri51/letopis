@@ -82,6 +82,8 @@ end $$;
 -- Ошибка по ключу каталога сообщений: имя (и SQLSTATE) — из каталога, текст — русский шаблон с параметрами (его видит
 -- сырой SQL), в DETAIL — поля p_detail и ещё key, params: по ним библиотека собирает текст на языке подключения.
 -- Без параметров — один аргумент: литерал без типа вторым аргументом выбрал бы lt_fail(имя, текст).
+-- p_detail — прежний DETAIL места: не передан — {} (так всегда делала lt_raise); JSON null (p_detail => 'null') — DETAIL
+-- не было (место бросало raise без detail): в DETAIL признак nodetail, и у ошибки библиотеки detail нет, как раньше.
 create or replace function @SCHEMA@.lt_fail(p_key text, p_params jsonb default '{}'::jsonb, p_detail jsonb default null)
 returns void
 language plpgsql
@@ -91,7 +93,8 @@ declare
 begin
   select m.name into n from @SCHEMA@.message_catalog() m where m.key = p_key;
   perform @SCHEMA@.lt_fail(coalesce(n, p_key), @SCHEMA@.lt_text(p_key, p_params),
-    coalesce(p_detail, '{}'::jsonb) || jsonb_build_object('key', p_key, 'params', coalesce(p_params, '{}'::jsonb)));
+    case when jsonb_typeof(p_detail) = 'null' then '{"nodetail": true}'::jsonb else coalesce(p_detail, '{}'::jsonb) end
+      || jsonb_build_object('key', p_key, 'params', coalesce(p_params, '{}'::jsonb)));
 end $$;
 
 -- То же со своим SQLSTATE не из каталога (например, 40001 — повторяемый конфликт).
@@ -104,7 +107,8 @@ declare
 begin
   select m.name into n from @SCHEMA@.message_catalog() m where m.key = p_key;
   perform @SCHEMA@.lt_raise(p_code, coalesce(n, p_key), @SCHEMA@.lt_text(p_key, p_params),
-    coalesce(p_detail, '{}'::jsonb) || jsonb_build_object('key', p_key, 'params', coalesce(p_params, '{}'::jsonb)));
+    case when jsonb_typeof(p_detail) = 'null' then '{"nodetail": true}'::jsonb else coalesce(p_detail, '{}'::jsonb) end
+      || jsonb_build_object('key', p_key, 'params', coalesce(p_params, '{}'::jsonb)));
 end $$;
 
 do $$

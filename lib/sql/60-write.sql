@@ -1986,7 +1986,8 @@ begin
       else
         raise exception using errcode = 'LT003', message = 'letopis: invalid_data: '
             || @SCHEMA@.lt_text('sql-write.links_patch_op', jsonb_build_object('op', coalesce(o->>'op', 'null'))),
-          detail = jsonb_build_object('key', 'sql-write.links_patch_op', 'params', jsonb_build_object('op', coalesce(o->>'op', 'null')))::text;
+          detail = jsonb_build_object('key', 'sql-write.links_patch_op', 'params', jsonb_build_object('op', coalesce(o->>'op', 'null')),
+            'nodetail', true)::text;
     end case;
   end loop;
   return res;

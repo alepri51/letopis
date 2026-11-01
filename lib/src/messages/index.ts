@@ -39,10 +39,12 @@
  *      perform @SCHEMA@.lt_fail('sql-core.no_membership');
  *      perform @SCHEMA@.lt_fail('sql-write.invalid_data', jsonb_build_object('cls', NEW.class), jsonb_build_object('issues', bad));
  *    Параметры — jsonb_build_object со скалярами (список — array_to_string); без параметров — один аргумент, а не null
- *    (литерал без типа выбрал бы прежнюю lt_fail(имя, текст)). Свой SQLSTATE не из каталога — lt_raise(p_code, p_key,
+ *    (литерал без типа выбрал бы прежнюю lt_fail(имя, текст)). detail ошибки — прежний: без p_detail — {}, а место, где
+ *    был raise без detail, — p_detail => 'null' (detail нет). Свой SQLSTATE не из каталога — lt_raise(p_code, p_key,
  *    p_params, p_detail). В функциях, которые исполняет приложение (inc, links_patch: lt_fail ему не выдан), — raise
  *    как прежде (errcode — SQLSTATE кода, message — префикс «letopis: <код>: » и текст), только текст — lt_text(ключ,
- *    параметры) (она выдана приложению), а detail — jsonb_build_object('key', ключ, 'params', параметры)::text.
+ *    параметры) (она выдана приложению), а detail — jsonb_build_object('key', ключ, 'params', параметры)::text; без
+ *    своих полей — ещё 'nodetail', true (detail нет, как у raise без detail).
  *    Разделы sql-* установщик кладёт в базу при каждом up() (@MESSAGES@): новой ревизии и миграции не нужно.
  * 6. Готовый файл — убрать из PENDING_LITERALS в lib/scripts/check-docs.mjs (проверка «в LetopisError, fail и lt_fail не
  *    осталось литеральных текстов»). Затем cd lib && npm run typecheck, npm run check:docs, npm run api:contract и тесты

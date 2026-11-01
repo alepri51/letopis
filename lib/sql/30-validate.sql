@@ -41,7 +41,8 @@ return to_jsonb(s)::text;
 -- Перевод шаблона JavaScript в регулярное выражение PostgreSQL (этап 1, п. 5): разбор по символам,
 -- как translatePattern в lib/src/jsonschema.ts. \d \w \s и их отрицания — явными наборами (внутри
 -- [ ] — без скобок), экранированная обратная косая черта остаётся собой; \b, \p{…}, именованные
--- группы и обратные ссылки отклоняются.
+-- группы и обратные ссылки отклоняются. Отказы здесь и в jp_compile — lt_fail(…, p_detail => 'null'): DETAIL у них
+-- не было и до каталога (raise без detail), у ошибки библиотеки detail нет (15-errors.sql).
 create or replace function @SCHEMA@.jp_pattern(p text) returns text
 language plpgsql immutable strict
 as $$
@@ -59,7 +60,7 @@ begin
       n := substr(p, i + 1, 1);
       i := i + 2;
       if n = '' then
-        perform @SCHEMA@.lt_fail('sql-core.pattern_trailing_backslash', jsonb_build_object('pattern', p));
+        perform @SCHEMA@.lt_fail('sql-core.pattern_trailing_backslash', jsonb_build_object('pattern', p), p_detail => 'null');
       elsif n = 'd' then
         res := res || case when in_class then '0-9' else '[0-9]' end;
       elsif n = 'w' then
@@ -68,23 +69,23 @@ begin
         res := res || case when in_class then sp else '[' || sp || ']' end;
       elsif n in ('D', 'W', 'S') then
         if in_class then
-          perform @SCHEMA@.lt_fail('sql-core.pattern_escape_in_set', jsonb_build_object('pattern', p, 'escape', '\' || n));
+          perform @SCHEMA@.lt_fail('sql-core.pattern_escape_in_set', jsonb_build_object('pattern', p, 'escape', '\' || n), p_detail => 'null');
         else
           res := res || case n when 'D' then '[^0-9]' when 'W' then '[^A-Za-z0-9_]' else '[^' || sp || ']' end;
         end if;
       elsif n in ('b', 'B') then
-        perform @SCHEMA@.lt_fail('sql-core.pattern_word_boundary', jsonb_build_object('pattern', p, 'escape', '\' || n));
+        perform @SCHEMA@.lt_fail('sql-core.pattern_word_boundary', jsonb_build_object('pattern', p, 'escape', '\' || n), p_detail => 'null');
       elsif n in ('p', 'P') then
-        perform @SCHEMA@.lt_fail('sql-core.pattern_unicode_property', jsonb_build_object('pattern', p));
+        perform @SCHEMA@.lt_fail('sql-core.pattern_unicode_property', jsonb_build_object('pattern', p), p_detail => 'null');
       elsif n = 'k' or n ~ '[1-9]' then
-        perform @SCHEMA@.lt_fail('sql-core.pattern_backreference', jsonb_build_object('pattern', p));
+        perform @SCHEMA@.lt_fail('sql-core.pattern_backreference', jsonb_build_object('pattern', p), p_detail => 'null');
       else
         res := res || c || n;
       end if;
       continue;
     end if;
     if not in_class and substr(p, i, 3) = '(?<' and substr(p, i + 3, 1) not in ('=', '!') then
-      perform @SCHEMA@.lt_fail('sql-core.pattern_named_group', jsonb_build_object('pattern', p));
+      perform @SCHEMA@.lt_fail('sql-core.pattern_named_group', jsonb_build_object('pattern', p), p_detail => 'null');
     end if;
     if c = '[' and not in_class then
       in_class := true;
@@ -149,11 +150,11 @@ begin
     rules := r; return;
   end if;
   if jsonb_typeof(p_schema) <> 'object' then
-    perform @SCHEMA@.lt_fail('sql-core.schema_node_not_object', jsonb_build_object('node', p_disp::text));
+    perform @SCHEMA@.lt_fail('sql-core.schema_node_not_object', jsonb_build_object('node', p_disp::text), p_detail => 'null');
   end if;
   for k in select jsonb_object_keys(p_schema) loop
     if not (k = any (allowed) or k like 'x-%') then
-      perform @SCHEMA@.lt_fail('sql-core.keyword_unsupported', jsonb_build_object('keyword', k, 'node', p_disp::text));
+      perform @SCHEMA@.lt_fail('sql-core.keyword_unsupported', jsonb_build_object('keyword', k, 'node', p_disp::text), p_detail => 'null');
     end if;
   end loop;
 
@@ -166,7 +167,7 @@ begin
       tcond := @SCHEMA@.jp_type_cond(p_schema->>'type');
     end if;
     if tcond is null then
-      perform @SCHEMA@.lt_fail('sql-core.unknown_type', jsonb_build_object('node', p_disp::text));
+      perform @SCHEMA@.lt_fail('sql-core.unknown_type', jsonb_build_object('node', p_disp::text), p_detail => 'null');
     end if;
     r := r || jsonb_build_object('path', p_disp, 'keyword', 'type', 'path_expr', p_path, 'cond', tcond, 'vars', '{}'::jsonb);
   end if;
@@ -177,7 +178,7 @@ begin
     for v in select x from jsonb_array_elements(coalesce(p_schema->'enum', jsonb_build_array(p_schema->'const'))) x loop
       if jsonb_typeof(v) in ('object', 'array') then
         if p_in_any then
-          perform @SCHEMA@.lt_fail('sql-core.enum_objects_in_any_of', jsonb_build_object('node', p_disp::text));
+          perform @SCHEMA@.lt_fail('sql-core.enum_objects_in_any_of', jsonb_build_object('node', p_disp::text), p_detail => 'null');
         end if;
         r := r || jsonb_build_object('path', p_disp, 'keyword', case when p_schema ? 'enum' then 'enum' else 'const' end,
           'path_expr', p_path, 'cond', 'true', 'vars', '{}'::jsonb, 'extra', jsonb_build_object('kind', 'enum', 'values', coalesce(p_schema->'enum', jsonb_build_array(p_schema->'const'))));
@@ -223,11 +224,11 @@ begin
         when 'email' then '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'
         else null end) || ')');
     if t not in ('uuid', 'date', 'date-time', 'email') then
-      perform @SCHEMA@.lt_fail('sql-core.format_unsupported', jsonb_build_object('format', t, 'node', p_disp::text));
+      perform @SCHEMA@.lt_fail('sql-core.format_unsupported', jsonb_build_object('format', t, 'node', p_disp::text), p_detail => 'null');
     end if;
     if t in ('date', 'date-time') then
       if p_in_any then
-        perform @SCHEMA@.lt_fail('sql-core.format_in_any_of', jsonb_build_object('format', t, 'node', p_disp::text));
+        perform @SCHEMA@.lt_fail('sql-core.format_in_any_of', jsonb_build_object('format', t, 'node', p_disp::text), p_detail => 'null');
       end if;
       r := r || jsonb_build_object('path', p_disp, 'keyword', 'format', 'path_expr', p_path, 'cond', 'true', 'vars', '{}'::jsonb,
         'extra', jsonb_build_object('kind', 'date', 'type', case t when 'date' then 'date' else 'timestamptz' end,
@@ -237,7 +238,7 @@ begin
   end if;
   if p_schema ? 'minLength' or p_schema ? 'maxLength' then
     if p_in_any then
-      perform @SCHEMA@.lt_fail('sql-core.string_length_in_any_of', jsonb_build_object('node', p_disp::text));
+      perform @SCHEMA@.lt_fail('sql-core.string_length_in_any_of', jsonb_build_object('node', p_disp::text), p_detail => 'null');
     end if;
     r := r || jsonb_build_object('path', p_disp, 'keyword', case when p_schema ? 'minLength' then 'minLength' else 'maxLength' end,
       'path_expr', p_path, 'cond', 'true', 'vars', '{}'::jsonb,
@@ -254,7 +255,7 @@ begin
   end loop;
   if coalesce((p_schema->>'uniqueItems')::boolean, false) then
     if p_in_any then
-      perform @SCHEMA@.lt_fail('sql-core.unique_items_in_any_of', jsonb_build_object('node', p_disp::text));
+      perform @SCHEMA@.lt_fail('sql-core.unique_items_in_any_of', jsonb_build_object('node', p_disp::text), p_detail => 'null');
     end if;
     r := r || jsonb_build_object('path', p_disp, 'keyword', 'uniqueItems', 'path_expr', p_path, 'cond', 'true', 'vars', '{}'::jsonb,
       'extra', jsonb_build_object('kind', 'unique'));
@@ -273,7 +274,7 @@ begin
   end if;
   if p_schema ? 'minProperties' or p_schema ? 'maxProperties' then
     if p_in_any then
-      perform @SCHEMA@.lt_fail('sql-core.min_properties_in_any_of', jsonb_build_object('node', p_disp::text));
+      perform @SCHEMA@.lt_fail('sql-core.min_properties_in_any_of', jsonb_build_object('node', p_disp::text), p_detail => 'null');
     end if;
     r := r || jsonb_build_object('path', p_disp, 'keyword', case when p_schema ? 'minProperties' then 'minProperties' else 'maxProperties' end,
       'path_expr', p_path, 'cond', 'true', 'vars', '{}'::jsonb,
