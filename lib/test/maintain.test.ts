@@ -76,6 +76,34 @@ test('6.11 истёкшие сессии и коды убраны; действ�
   assert.equal(await secrets('OTP', t.id), 0);
 });
 
+test('план 2.0, 7.3 №4: maintain() чистит сессии и коды один раз за вызов — в первой пачке, а не в каждой', async () => {
+  await e.defineClass(t, { name: 'Thin4', kind: 'hub', key: ['code'], history: { all: '1 day' },
+    fields: { properties: { code: { type: 'string' }, n: { type: 'integer' } }, required: ['code'] } });
+  const ldr = await connect({ dsn: ADMIN_DSN, schema: e.schema, token: t.token, allowBypassRls: true, listen: false, max: 1 });
+  const a = await sysadmin(e);
+  const calls: unknown[][] = [];
+  const pool = postgres(appDsn(), { max: 2, onnotice: () => {},
+    debug: (_c: number, q: string, params: unknown[]) => { if (/\.maintain\(/.test(q)) calls.push(params); } });
+  const mdb = await connect({ sql: pool, schema: e.schema, token: a.token, listen: false });
+  try {
+    await ldr.refresh();
+    const base = Date.now() - 10 * 86_400_000;
+    await ldr.load(Array.from({ length: 6 }, (_, i) => ({ $class: 'Thin4', code: 'T4', n: i, $rev: i + 1,
+      $at: new Date(base + i * 3_600_000).toISOString() })), { withHistory: true });
+    await expired(t.id);
+    // по версии за пачку: прореживание идёт несколькими пачками
+    const r = await mdb.maintain({ now: new Date().toISOString(), limit: 1, batches: 3 });
+    assert.equal(r.batches, 3);
+    assert.ok(r.sessions >= 1 && r.codes >= 1, 'истёкшие сессии и коды убраны');
+    // параметр приходит в отладку уже сериализованным: true — 't'
+    assert.deepEqual(calls.map((p) => p[2] === true || p[2] === 't'), [true, false, false], 'очистка — только в первой пачке');
+  } finally {
+    await mdb.close();
+    await pool.end({ timeout: 5 });
+    await ldr.close();
+  }
+});
+
 test('6.11 не администратор — отказ; сервису — по отдельному правилу letopis.maintain', async () => {
   const tdb = await connect({ dsn: appDsn(), schema: e.schema, token: t.token, max: 1 });
   try {

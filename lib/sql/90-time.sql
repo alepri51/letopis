@@ -797,7 +797,9 @@ end $$;
 -- ========================= обслуживание =========================
 
 -- Одна пачка прореживания журнала (§2.11): версии, которые не нужны действующей политике хранения
--- своего класса. Не трогаются версия 1, текущая и версии особых видов (create, delete, reclass,
+-- своего класса — как его резолвит class_row: свой класс арендатора, иначе System; у арендатора со своим одноимённым
+-- классом политика класса System не действует (план 2.0, 7.3 №1: класс System, заведённый позже, дублировал строки
+-- журнала в отборе и стирал промежуточные версии). Не трогаются версия 1, текущая и версии особых видов (create, delete, reclass,
 -- rekey, restore, purge, reset, trim); история удалённого объекта, надгробие которого старше
 -- последнего яруса со сроком, стирается целиком. Пачка — до 100 объектов после курсора (meta
 -- строки ключа: участки по порядку id), не больше p_limit версий; объект, не вошедший целиком,
@@ -827,32 +829,60 @@ begin
   )
   select array_agg(q.id order by q.id) into ids from (
     select distinct l.id from @SCHEMA@.log l
-    join pol on pol.p is not null and pol.cls = l.class and (pol.ct = l.tenant or pol.ct = '@SYSTEM@'::uuid)
+    join pol on pol.p is not null and pol.cls = l.class
+      and (pol.ct = l.tenant
+           or pol.ct = '@SYSTEM@'::uuid
+              and not exists (select 1 from @SCHEMA@.entity y
+                              where y.class = 'Class' and y.tenant = l.tenant and y.data->>'name' = l.class))
     where l.at < p_now - @SCHEMA@.history_iv(pol.p->>'all') and (cur is null or l.id > cur)
     order by l.id limit 100) q;
   if ids is null then
     update @SCHEMA@.secret s set meta = s.meta - 'thin' where s.id = '@SYSTEM@'::uuid;
     return jsonb_build_object('thinned', 0, 'more', false);
   end if;
+  -- последняя запись каждого id пачки — for update: restore(), purge() и новая версия того же id берут её же (инвариант
+  -- M-TIME); отбор ниже видит то, что они успели зафиксировать, и не стирает историю объекта, который только что
+  -- восстановили (план 2.0, 7.3 №3)
+  perform 1 from @SCHEMA@.log l
+   where l.id = any (ids) and not exists (select 1 from @SCHEMA@.log z where z.id = l.id and z.rev > l.rev)
+   order by l.id
+   for update of l;
   with pol as (
     select x.data->>'name' as cls, x.tenant as ct, @SCHEMA@.history_policy(x.data->'resolved') as p
     from @SCHEMA@.entity x where x.class = 'Class'
   ), v as (
-    select l.id, l.rev, l.at, l.op, pol.p, coalesce(pol.p->>'tz', 'UTC') as tz,
+    -- все версии id, любого класса: последняя версия и следующая по времени — по всей цепочке (план 2.0, 7.3 №2: после
+    -- reclass версии прежнего класса без политики выпадали из отбора и переживали стирание истории удалённого)
+    select l.id, l.rev, l.at, l.op, l.class, l.tenant,
            max(l.rev) over (partition by l.id) as last_rev,
            first_value(l.op) over (partition by l.id order by l.rev desc) as last_op,
            first_value(l.at) over (partition by l.id order by l.rev desc) as last_at,
+           first_value(l.class) over (partition by l.id order by l.rev desc) as last_class,
            lead(l.at) over (partition by l.id order by l.rev) as next_at
     from @SCHEMA@.log l
-    join pol on pol.p is not null and pol.cls = l.class and (pol.ct = l.tenant or pol.ct = '@SYSTEM@'::uuid)
     where l.id = any (ids)
+  ), vp as (
+    -- прореживание версии — по политике её класса; стирание удалённого целиком — по политике класса надгробия
+    select v.*, pv.p, coalesce(pv.p->>'tz', 'UTC') as tz, pl.p as lp, coalesce(pl.p->>'tz', 'UTC') as ltz
+    from v
+    left join pol pv on pv.cls = v.class
+      and (pv.ct = v.tenant
+           or pv.ct = '@SYSTEM@'::uuid
+              and not exists (select 1 from @SCHEMA@.entity y
+                              where y.class = 'Class' and y.tenant = v.tenant and y.data->>'name' = v.class))
+    left join pol pl on pl.cls = v.last_class
+      and (pl.ct = v.tenant
+           or pl.ct = '@SYSTEM@'::uuid
+              and not exists (select 1 from @SCHEMA@.entity y
+                              where y.class = 'Class' and y.tenant = v.tenant and y.data->>'name' = v.last_class))
   )
-  select array_agg(v.id order by v.id, v.rev), array_agg(v.rev order by v.id, v.rev) into vid, vrev
-  from v
-  where (v.last_op = 'delete' and timezone(v.tz, v.last_at) <= timezone(v.tz, p_now) - @SCHEMA@.history_horizon(v.p))
-     or (v.rev <> 1 and v.rev <> v.last_rev
-         and v.op not in ('create', 'delete', 'reclass', 'rekey', 'restore', 'purge', 'reset', 'trim')
-         and not @SCHEMA@.history_keep(v.p, timezone(v.tz, v.at), timezone(v.tz, p_now), timezone(v.tz, v.next_at)));
+  select array_agg(vp.id order by vp.id, vp.rev), array_agg(vp.rev order by vp.id, vp.rev) into vid, vrev
+  from vp
+  where (vp.last_op = 'delete' and vp.lp is not null
+         and timezone(vp.ltz, vp.last_at) <= timezone(vp.ltz, p_now) - @SCHEMA@.history_horizon(vp.lp))
+     or (vp.p is not null and vp.rev <> 1 and vp.rev <> vp.last_rev
+         and vp.op not in ('create', 'delete', 'reclass', 'rekey', 'restore', 'purge', 'reset', 'trim')
+         and not @SCHEMA@.history_keep(vp.p, timezone(vp.tz, vp.at), timezone(vp.tz, p_now), timezone(vp.tz, vp.next_at)));
   total := coalesce(cardinality(vid), 0);
   k := least(total, p_limit);
   if k > 0 then
@@ -878,8 +908,12 @@ end $$;
 -- Обслуживание (этап 6, п. 8): истёкшие и погашенные сессии и одноразовые коды, одна пачка
 -- прореживания журнала, заполнение очереди сигналов. Вызывает системный администратор, роль с
 -- правом letopis.maintain или администраторское подключение. p_now — момент «сейчас» для
--- прореживания, только при allow_reset (тесты): иначе одним вызовом можно было бы проредить всю историю.
-create or replace function @SCHEMA@.maintain(p_now timestamptz default null, p_limit int default 10000) returns jsonb
+-- прореживания, только при allow_reset (тесты): иначе одним вызовом можно было бы проредить всю историю. p_cleanup —
+-- удалять ли истёкшие сессии и коды: библиотека передаёт true только в первой пачке вызова, иначе каждая из ≤100 пачек
+-- заново просматривала бы secret (план 2.0, 7.3 №4); прежний вызов без третьего аргумента чистит, как раньше.
+drop function if exists @SCHEMA@.maintain(timestamptz, int);
+create or replace function @SCHEMA@.maintain(p_now timestamptz default null, p_limit int default 10000,
+  p_cleanup boolean default true) returns jsonb
 language plpgsql volatile security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
@@ -902,14 +936,18 @@ begin
     end if;
     ts := p_now;
   end if;
-  with d as (delete from @SCHEMA@.secret x where x.kind = 'SESSION'
-             and (x.deleted_at is not null or x.expires_at <= clock_timestamp()) returning 1)
-  select count(*)::int into s from d;
-  -- коды всех видов, которые выпускает auth_issue_otp: OTP и OTP_<имя> (тот же шаблон вида), — использованные,
-  -- заменённые, исчерпавшие попытки (deleted_at) и истёкшие
-  with d as (delete from @SCHEMA@.secret x where x.kind ~ '^OTP(_[A-Z0-9]{1,27})?$'
-             and (x.deleted_at is not null or x.expires_at <= clock_timestamp()) returning 1)
-  select count(*)::int into o from d;
+  s := 0;
+  o := 0;
+  if coalesce(p_cleanup, true) then
+    with d as (delete from @SCHEMA@.secret x where x.kind = 'SESSION'
+               and (x.deleted_at is not null or x.expires_at <= clock_timestamp()) returning 1)
+    select count(*)::int into s from d;
+    -- коды всех видов, которые выпускает auth_issue_otp: OTP и OTP_<имя> (тот же шаблон вида), — использованные,
+    -- заменённые, исчерпавшие попытки (deleted_at) и истёкшие
+    with d as (delete from @SCHEMA@.secret x where x.kind ~ '^OTP(_[A-Z0-9]{1,27})?$'
+               and (x.deleted_at is not null or x.expires_at <= clock_timestamp()) returning 1)
+    select count(*)::int into o from d;
+  end if;
   return jsonb_build_object('sessions', s, 'codes', o, 'queue', pg_notification_queue_usage())
     || @SCHEMA@.thin_batch(ts, greatest(coalesce(p_limit, 10000), 1));
 end $$;
@@ -969,8 +1007,12 @@ begin
     select jsonb_build_object('id', id, 'rev', want_rev, 'problem', 'разрыв: нет версий ' || want_rev || '…' || (rev - 1))
       from exp
       where rev > want_rev
-        and not exists (select 1 from pol where pol.cls = exp.class and (pol.ct = exp.tenant or pol.ct = '@SYSTEM@'::uuid)
-                                            and exp.prev_at < ts - pol.all_iv)
+        and not exists (select 1 from pol where pol.cls = exp.class and exp.prev_at < ts - pol.all_iv
+                                            and (pol.ct = exp.tenant
+                                                 or pol.ct = '@SYSTEM@'::uuid
+                                                    and not exists (select 1 from @SCHEMA@.entity y
+                                                                    where y.class = 'Class' and y.tenant = exp.tenant
+                                                                      and y.data->>'name' = exp.class)))
     union all
     select jsonb_build_object('id', id, 'rev', rev, 'problem', 'номер версии меньше ожидаемого после обрезки')
       from exp where rev < want_rev
@@ -1064,11 +1106,20 @@ as $$
 declare
   horizon xid8 := pg_snapshot_xmin(pg_current_snapshot());
   lim interval;
+  t uuid := @SCHEMA@.ctx_tenant();
 begin
   if p_at is not null then
+    -- ярус all классов, которые видит подписка: арендатора сессии и System (кроме одноимённых своих); политика класса
+    -- чужого арендатора с тем же именем курсор не просрочивает (план 2.0, 7.3 №1). Без арендатора в контексте
+    -- (администраторское подключение видит всех) — все классы
     select min(@SCHEMA@.history_iv(p.p->>'all')) into lim
     from @SCHEMA@.entity x cross join lateral (select @SCHEMA@.history_policy(x.data->'resolved') as p) p
-    where x.class = 'Class' and p.p is not null and (p_classes is null or x.data->>'name' = any (p_classes));
+    where x.class = 'Class' and p.p is not null and (p_classes is null or x.data->>'name' = any (p_classes))
+      and (t is null
+           or x.tenant = t
+           or x.tenant = '@SYSTEM@'::uuid
+              and not exists (select 1 from @SCHEMA@.entity y
+                              where y.class = 'Class' and y.tenant = t and y.data->>'name' = x.data->>'name'));
     if lim is not null and p_at < clock_timestamp() - lim then
       raise exception using errcode = 'LT016',
         message = 'letopis: cursor_expired: курсор подписки старше яруса all — события могли проредиться, перечитайте текущее состояние';
@@ -1156,7 +1207,7 @@ begin
     'history_keep(jsonb, timestamp, timestamp, timestamp)', 'session_role()', 'admin_role()', 'letopis_allowed(text)', 'session_expires()', 'signal_mode()', 'signal_key()', 'class_stamp()',
     'last_version_visible(uuid, uuid, jsonb)', 'restore(uuid)', 'projector_unread(uuid, uuid, int)', 'purge(uuid, boolean)', 'trim_history(uuid[], text[], timestamptz)',
     'rekey(uuid, jsonb, jsonb)', 'rekey_class(text, jsonb)', 'account_purge(uuid)', 'reset_mark(uuid, text, uuid)',
-    'reset(text, text, uuid, int)', 'thin_batch(timestamptz, int)', 'maintain(timestamptz, int)', 'verify(boolean)',
+    'reset(text, text, uuid, int)', 'thin_batch(timestamptz, int)', 'maintain(timestamptz, int, boolean)', 'verify(boolean)',
     'watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot, boolean)', 'watch_leaving(xid8, bigint, text[], int, pg_snapshot, xid8, bigint)', 'watch_head()'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);
     execute format('revoke all on function @SCHEMA@.%s from public', f);
@@ -1165,7 +1216,7 @@ end $$;
 -- приложению: функции владельца этапа 6 (проверяют права сами), подписка (под RLS) и чистые помощники политики
 grant execute on function @SCHEMA@.restore(uuid), @SCHEMA@.purge(uuid, boolean), @SCHEMA@.trim_history(uuid[], text[], timestamptz),
   @SCHEMA@.rekey(uuid, jsonb, jsonb), @SCHEMA@.rekey_class(text, jsonb), @SCHEMA@.account_purge(uuid),
-  @SCHEMA@.reset(text, text, uuid, int), @SCHEMA@.maintain(timestamptz, int), @SCHEMA@.verify(boolean),
+  @SCHEMA@.reset(text, text, uuid, int), @SCHEMA@.maintain(timestamptz, int, boolean), @SCHEMA@.verify(boolean),
   @SCHEMA@.session_expires(), @SCHEMA@.watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot, boolean), @SCHEMA@.watch_leaving(xid8, bigint, text[], int, pg_snapshot, xid8, bigint), @SCHEMA@.watch_head(),
   @SCHEMA@.history_default(), @SCHEMA@.history_policy(jsonb), @SCHEMA@.history_iv(text),
   @SCHEMA@.signal_mode(), @SCHEMA@.signal_key(), @SCHEMA@.class_stamp() to @APP@;
