@@ -392,11 +392,30 @@ class name. While the index is being built, writes to the journal wait. On a lar
 without stopping writes: `create index concurrently log_class_tenant_at on "v2.<schema>".log (class, tenant, at)` as
 the owner role — then `up()` only drops the old one.
 
-The `upgrade` test checks upgrading 1.1.0 and 1.0.1 schemas. The old package installs the schema and the old engine
+The `upgrade` test checks upgrading 1.4.1, 1.1.0 and 1.0.1 schemas; every release checks the upgrade from the previous
+release. The old package installs the schema and the old engine
 writes the data, then the current version's `up()` runs. After it, the versions and hashes written by the old engine
-are in place, `verify({ data: true })` is clean, and the schema catalog matches a clean installation. Both schemas are
-upgraded with `up({ upgrade: true })`: 1.1.0 (revision 6) with migration `0007`, 1.0.1 (revision 5) with migrations
-`0006` and `0007`.
+are in place, `verify({ data: true })` is clean, and the schema catalog matches a clean installation. A 1.4.1 schema of the
+same revision 7 is upgraded with a plain `up()`, without migrations; 1.1.0 (revision 6) and 1.0.1 (revision 5) — with
+`up({ upgrade: true })`: with migration `0007` and with migrations `0006` and `0007`.
+
+### Versions and compatibility
+
+letopis versions follow semver. What each version step promises:
+
+- **Patch** (1.4.1 → 1.4.2) — fixes only. The engine revision stays the same: a plain `up({ schema })` re-applies the
+  fixed functions, there are no migrations; until it runs, `connect()` warns about the stamp mismatch. Working code gets
+  no new refusals, and no methods, options, exports or error codes disappear.
+- **Minor** (1.4 → 1.5) — new features: methods, options, error codes; behavior changes that do not break working code;
+  a new engine revision. `up({ schema, upgrade: true })` applies the new revision. Nothing is removed or renamed.
+- **Major** (1.x → 2.0) — removed and renamed methods, options, exports and error codes, changed signatures and types,
+  new refusals for everyone. `MIGRATION.md` describes what to change in your code.
+
+The text of an error message is not part of the API: a patch may make it more precise. Rely on `err.code`.
+
+Before every release the `check:semver` script checks the version step: it compares the API contract
+(`docs/api-contract.json`) and the engine revision with the previous release and requires at least the matching step.
+Every release checks the schema upgrade from the previous release (the `upgrade` test).
 
 ### Development without PostgreSQL: PGlite
 
@@ -2798,6 +2817,11 @@ behavior.
 This section is for those who develop letopis itself. Run: `cd lib && npm test`. The harness starts the
 `letopis-pg18` container (`postgres:18`, port 15433) by itself if the database does not respond; each test file works in its own schema `v2.t_<name>`.
 
+CI runs no tests: before a push and a release, everything that checks behavior runs as one command,
+`cd lib && npm run prerelease` — typecheck, the documentation check, all tests, the site examples against snapshots, the
+sandbox, the service scenarios and the package check with a live run, in order; the first red step stops the run. A
+test for a fix is named after its test-plan item ("plan 2.0, 7.3 No. 1") and fails without the fix.
+
 ```
 # connect — connecting under a session, refusing roles that bypass RLS, the registry, the deferred signal, error translation (stage 2)
 # context — sessions, service sign-in by key, the RLS policies of stage 1 (stage 1)
@@ -2846,7 +2870,7 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # cache — result cache: hits, own and others' writes, the key with the user, permissions, revoked sessions, listener drop, ttl, class marking, without LISTEN, a race, db.sql, the limit of signal counters (stage 6; plan 1.1, checkpoint A)
 # maintain — maintenance: expired sessions and codes, permissions, one process under a lock, schedule (stage 6)
 # up — the full installer: fresh installation, re-apply, custom seeds, automatic database creation, UTF8, version 17, upgrade with migrations, PGlite, the first tenant and user (up({ tenant }), createTenant) (stages 6, 8)
-# upgrade — schema upgrade from 1.1.0 (upgrade: true, migration 0007) and from 1.0.1 (upgrade: true, migrations 0006 and 0007) with the letopis-11 and letopis-1 packages: versions and hashes written by the old engine, verify(), the catalog against a clean installation, lock rows, secret rows without an account erased, the application, a subscription and a projector over old data, a repeated up() (work after 1.2.0, stage 1; revision 7)
+# upgrade — schema upgrade from 1.4.1 (a plain up() without migrations, plan 2.0, 7.8 No. 2), from 1.1.0 (upgrade: true, migration 0007) and from 1.0.1 (upgrade: true, migrations 0006 and 0007) with the letopis-141, letopis-11 and letopis-1 packages: versions and hashes written by the old engine, verify(), the catalog against a clean installation, lock rows, secret rows without an account erased, the application, a subscription and a projector over old data, a repeated up() (work after 1.2.0, stage 1; revision 7)
 # scenario-salon — end-to-end salon scenario: 21 acts from 0.21 (salon) with a coverage matrix of the 1.0 API (stage 6)
 # telemetry — onQuery and slowMs, describe() and class metadata with inheritance, describeText (stage 6)
 # history — diff and blame over the log, the reason of a change for verbs, db.begin() and batches; a version hidden by an ACL condition, the changed column, a missing version, row_changes over 20 thousand targets (plan 1.1, stage 1 and checkpoint A)
@@ -2856,4 +2880,6 @@ This section is for those who develop letopis itself. Run: `cd lib && npm test`.
 # mcp — MCP tools: the model and meta only in results, tenant rights, the JSON chain and hints of similar names, row and byte limits with a cursor, the untrusted-data wrapper, writing only with write, update only with rev, deletion with a human confirmation (elicitation in revisions 2025 and 2026-07-28), the reason in blame, credentials, tool schemas, letopis without the SDK; letopis mcp over stdio, the HTTP handler; the confirmation window without the alias and meta, countBy and versions limited in the query itself, limits of steps and $or conditions; the permission classes only with allowAclWrite, a session in the System tenant only with allowSystemAdmin; structuredContent with a note, a requestState signature of the server user with an expiry (plan 1.1, stage 5; security review No. 2; checkpoint B and the work after it)
 # import — import from 0.21 with a fixture of a real 0.21: key violation, --keyless, per-class counters, verify, self-reference, repeat, ids without a key, a dangling reference, $$strict and fields starting with $, update, credentials, CLI (stage 7)
 # security-final — the final security review (stage 8, §7.10 No. 8.4): a family lock by the tenant of the root, account_purge without permission and restore/purge of a foreign id give neither a leak nor a lock; the functions of stage 6, log_refs_at, journal-based find_* reads and watch_read stay within their own tenant; NOTIFY carries only names or mode tokens; the cache key distinguishes the token, the actor and the tenant (stage 8)
+# semver — version rules: check:semver requires at least the matching version step — a major for a removed method or error code, a minor for a new method and a new engine revision, a patch for texts only (plan 2.0, 7.8 No. 1)
+# prerelease — the pre-release check: steps run strictly in order, the first red one stops the run and the following ones do not start (plan 2.0, 7.8 No. 3)
 ```

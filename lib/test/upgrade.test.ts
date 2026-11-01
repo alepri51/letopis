@@ -3,7 +3,9 @@
  * или 1.0.1 (`letopis-1`), данные в неё пишет прежний движок, затем up() текущей версии:
  * - 1.1.0 → текущая: ревизия 6 — up() без upgrade отказывает, up({ upgrade: true }) применяет миграцию 0007 (внешний
  *   ключ secret.account, 1.4.1);
- * - 1.0.1 → текущая: ревизия 5 — up({ upgrade: true }) применяет миграции 0006 и 0007.
+ * - 1.0.1 → текущая: ревизия 5 — up({ upgrade: true }) применяет миграции 0006 и 0007;
+ * - 1.4.1 → текущая (`letopis-141`, план 2.0, 7.8 №2 — каждый выпуск проверяет накат с предыдущего): ревизия та же,
+ *   обычный up() без миграций накатывает функции; connect() до наката предупреждает о штампе, только если SQL менялся.
  * После обновления версии прежнего движка и их хэши на месте, verify({ data: true }) чист, каталог схемы совпадает с
  * чистой установкой текущей версии, у классов есть строки-замки семейств, строки вида LOCK чужих аккаунтов сняты,
  * строк secret без аккаунта нет, приложение и проектор работают по данным прежнего движка, а повторный up() не меняет ни
@@ -13,7 +15,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { ensureDatabase, adminSql, appSql, ensureAppRole, appDsn, ident, schemaFor, ADMIN_DSN, type Sql } from './_harness.js';
-import { up, SYSTEM_ID, type UpResult } from '../src/up.js';
+import { up, stampDrift, SYSTEM_ID, type UpResult } from '../src/up.js';
 import type { SignalMode } from '../src/signals.js';
 import { connect, type ProjectorChange, type ProjectorOut, type WatchEvent } from '../src/index.js';
 import { DDL_REVISION } from '../src/types.js';
@@ -32,7 +34,7 @@ before(async () => {
 
 after(async () => {
   await app?.end({ timeout: 5 });
-  for (const s of ['110', '101', 'ref110', 'ref101']) await sql.unsafe(`drop schema if exists ${ident(`${BASE}_${s}`)} cascade`);
+  for (const s of ['141', '110', '101', 'ref141', 'ref110', 'ref101']) await sql.unsafe(`drop schema if exists ${ident(`${BASE}_${s}`)} cascade`);
   await sql.end({ timeout: 5 });
 });
 
@@ -70,17 +72,17 @@ interface OldData {
   books: string[];
   /** Книги, удалённые прежним движком: первая — со стёртой историей, две другие — каскадом. */
   gone: string[];
-  /** Креденшал пользователя вида LOCK, заведённый прежним движком. */
-  lockCred: string;
-  /** Строка secret удалённого аккаунта: прежний движок удалял аккаунт, оставляя его креды с deleted_at. */
-  orphan: string;
+  /** Креденшал пользователя вида LOCK, заведённый прежним движком (до 1.2; позже такой вид не допускается). */
+  lockCred: string | null;
+  /** Строка secret удалённого аккаунта: движок до 1.4.1 удалял аккаунт, оставляя его креды с deleted_at. */
+  orphan: string | null;
 }
 
 /**
  * Данные прежнего движка: арендатор с правилом «можно всё», класс с политикой хранения и класс с концом, правки,
  * перенос на другую полку, удаление, каскад, purge, обрезка истории и креденшал вида LOCK.
  */
-async function writeOld(S: string): Promise<OldData> {
+async function writeOld(S: string, legacy: boolean): Promise<OldData> {
   const Q = ident(S);
   const pool = await appPool();
   const tenant = randomUUID();
@@ -115,6 +117,7 @@ async function writeOld(S: string): Promise<OldData> {
   await as(`delete from ${Q}.entity where id = $1`, [shelves[2]]); // каскад: книги 2 и 5
   await as(`select ${Q}.purge($1::uuid, true)`, [books[1]]);
   await as(`select ${Q}.trim_history(array[$1::uuid], null, now())`, [books[3]]);
+  if (!legacy) return { tenant, token, shelves, books, gone: [books[1], books[2], books[5]], lockCred: null, orphan: null };
   // вид LOCK у креденшала пользователя прежние версии допускали (auth_kind_ok); накат 1.2 такие строки снимает
   const [{ id: lockCred }] = await as(`select ${Q}.auth_link($1::uuid, 'LOCK', $2, '{}'::jsonb, false) as id`,
     [tenant, `${S}:family:${tenant}:Book`]);
@@ -209,16 +212,16 @@ async function checkLocks(S: string, o: OldData): Promise<void> {
                 and s.id in (${Q}.lock_id(${Q}.family_name(c.tenant, c.data)),
                              ${Q}.lock_id(${Q}.family_name(c.tenant, c.data) || ':gate'))) <> 2) as missing,
       exists (select 1 from ${Q}.secret s where s.kind = 'LOCK' and s.deleted_at is null and s.id = ${Q}.lock_id($3)) as maintain`,
-  [SYSTEM_ID, o.lockCred, `${S}:maintain`]);
+  [SYSTEM_ID, o.lockCred ?? SYSTEM_ID, `${S}:maintain`]);
   assert.equal(r.foreign_live, 0, 'живых строк вида LOCK у чужих аккаунтов нет');
-  assert.equal(r.cred_gone, true, 'креденшал пользователя вида LOCK помечен удалённым');
+  if (o.lockCred) assert.equal(r.cred_gone, true, 'креденшал пользователя вида LOCK помечен удалённым');
   assert.deepEqual(r.missing, [], 'у каждого класса — строка семейства и строка шлюза');
   assert.equal(r.maintain, true, 'строка-замок maintain');
   // миграция 0007: строки secret без аккаунта стёрты, служебные строки System на месте
   const [s] = await sql.unsafe(`select
       (select count(*)::int from ${Q}.secret s where not exists (select 1 from ${Q}.entity e where e.id = s.account)) as orphans,
       exists (select 1 from ${Q}.secret s where s.id = $1::uuid) as orphan_kept,
-      exists (select 1 from ${Q}.secret s where s.id = $2::uuid and s.kind = 'KEY') as key_kept`, [o.orphan, SYSTEM_ID]);
+      exists (select 1 from ${Q}.secret s where s.id = $2::uuid and s.kind = 'KEY') as key_kept`, [o.orphan ?? randomUUID(), SYSTEM_ID]);
   assert.deepEqual([s.orphans, s.orphan_kept, s.key_kept], [0, false, true], 'строк secret без аккаунта нет, строка ключа на месте');
 }
 
@@ -305,9 +308,17 @@ async function workAfter(S: string, o: OldData): Promise<void> {
 async function scenario(o: { old: OldLib; S: string; ref: string; signals?: SignalMode; from: number; migrations: string[] }): Promise<void> {
   const opts = { dsn: ADMIN_DSN, quiet: true, ...(o.signals ? { signals: o.signals } : {}) };
   await o.old.up({ ...opts, schema: o.S, fresh: true, seeds: ['booking'] });
-  const data = await writeOld(o.S);
-  // connect() текущей версии на схеме прежней ревизии предупреждает о ревизии
-  assert.match((await connectWarns(o.S)).join('\n'), new RegExp(`ревизии ${o.from}, библиотека ждёт ${DDL_REVISION}`));
+  const lagging = o.from < DDL_REVISION;
+  const data = await writeOld(o.S, o.from < 7);
+  if (lagging) {
+    // connect() текущей версии на схеме прежней ревизии предупреждает о ревизии
+    assert.match((await connectWarns(o.S)).join('\n'), new RegExp(`ревизии ${o.from}, библиотека ждёт ${DDL_REVISION}`));
+  } else {
+    // ревизия та же: предупреждение о штампе — только если функции движка с прошлого выпуска менялись
+    const [c] = await sql`select obj_description(n.oid, 'pg_namespace') as c from pg_namespace n where n.nspname = ${o.S}`;
+    const drift = await stampDrift(o.S, String(c?.c ?? ''));
+    assert.deepEqual(await connectWarns(o.S), drift ? [drift] : [], 'до наката connect() предупреждает только о штампе');
+  }
   const before = await versions(o.S, data.tenant);
   assert.ok(before.log.length > 20 && before.ent.length > 5, 'прежний движок записал данные');
   // эталон — чистая установка текущей версии с теми же сидами и режимом сигналов; сверка обязана различать схему до наката
@@ -316,9 +327,15 @@ async function scenario(o: { old: OldLib; S: string; ref: string; signals?: Sign
   assert.ok(ref.length > 300, 'каталог эталона прочитан');
   assert.notDeepEqual(await catalog(o.S), ref, 'сверка каталога различает схему прежней версии');
 
-  await assert.rejects(up({ dsn: ADMIN_DSN, schema: o.S, quiet: true }), /upgrade: true/);
-  const r: UpResult = await up({ dsn: ADMIN_DSN, schema: o.S, quiet: true, upgrade: true });
-  assert.equal(r.upgraded, true);
+  let r: UpResult;
+  if (lagging) {
+    await assert.rejects(up({ dsn: ADMIN_DSN, schema: o.S, quiet: true }), /upgrade: true/);
+    r = await up({ dsn: ADMIN_DSN, schema: o.S, quiet: true, upgrade: true });
+  } else {
+    // патч и минор без новой ревизии: обычный up() при старте приложения не отказывает
+    r = await up({ dsn: ADMIN_DSN, schema: o.S, quiet: true });
+  }
+  assert.equal(r.upgraded, lagging);
   assert.deepEqual(r.migrations, o.migrations);
   assert.equal(r.serviceKey, null, 'ключ сервиса прежней установки сохранён, новый не выдан');
   assert.equal(r.signals, o.signals ?? 'class', 'режим сигналов сохранён');
@@ -360,4 +377,9 @@ test('№1 обновление 1.1.0 → текущая: up({ upgrade: true }) 
 test('№2 обновление 1.0.1 → текущая: up({ upgrade: true }) с миграциями 0006 и 0007', async () => {
   const old = (await import('letopis-1')) as unknown as OldLib;
   await scenario({ old, S: `${BASE}_101`, ref: `${BASE}_ref101`, from: 5, migrations: ['0006-changed-paths.sql', '0007-secret-account-fk.sql'] });
+});
+
+test('№3 (план 2.0, 7.8 №2) обновление 1.4.1 → текущая: обычный up() без миграций, данные и хэши на месте', async () => {
+  const old = (await import('letopis-141')) as unknown as OldLib;
+  await scenario({ old, S: `${BASE}_141`, ref: `${BASE}_ref141`, signals: 'opaque', from: 7, migrations: [] });
 });
