@@ -40,7 +40,7 @@ after(async () => {
 });
 
 test('план 2.0, 7.2 №1: два create одного ключа в батче — exists, батч откатывается целиком', async () => {
-  const b = db.batch();
+  const b = db.batch('повтор ключа');
   b.Wal().create({ number: 'K-1', title: 'a' });
   b.Wal().create({ number: 'K-1', title: 'b' });
   await assert.rejects(b.run(), code('exists'));
