@@ -342,7 +342,15 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
       const classes = o.classes ? [...new Set(o.classes.flatMap((c) => reg.family(c).map((x) => x.name)))] : null;
       return sh.track(new Subscription({
         S: sh.S, exec: poolExecutor(txc), classes, onClose: (s) => void sh.subs.delete(s),
-        ...(o.classes ? { classesOf: () => [...new Set(o.classes!.flatMap((c) => scope.registry().family(c).map((x) => x.name)))] } : {}),
+        // не бросает: класс удалили — список, снятый при watch(); иначе ошибка в общем разборе сигналов остановила бы
+        // доставку другим подписчикам
+        ...(o.classes ? { classesOf: () => {
+          try {
+            return [...new Set(o.classes!.flatMap((c) => scope.registry().family(c).map((x) => x.name)))];
+          } catch {
+            return classes;
+          }
+        } } : {}),
         ...(sh.listen ? {
           onSignal: (fn: (s: Signal) => void) => { sh.signals.add(fn); return () => void sh.signals.delete(fn); },
           tenant: () => (sh.allTenants ? null : sh.sig.tenantToken(scope.tenant())),
