@@ -5,7 +5,8 @@
  *   ключ secret.account, 1.4.1);
  * - 1.0.1 → текущая: ревизия 5 — up({ upgrade: true }) применяет миграции 0006 и 0007;
  * - 1.4.1 → текущая (`letopis-141`, план 2.0, 7.8 №2 — каждый выпуск проверяет накат с предыдущего): ревизия та же,
- *   обычный up() без миграций накатывает функции; connect() до наката предупреждает о штампе, только если SQL менялся.
+ *   обычный up() без миграций накатывает функции; connect() до наката предупреждает о штампе, только если SQL менялся;
+ * - 1.4.2 → текущая (`letopis-142`) — так же: накат с прошлого выпуска.
  * После обновления версии прежнего движка и их хэши на месте, verify({ data: true }) чист, каталог схемы совпадает с
  * чистой установкой текущей версии, у классов есть строки-замки семейств, строки вида LOCK чужих аккаунтов сняты,
  * строк secret без аккаунта нет, приложение и проектор работают по данным прежнего движка, а повторный up() не меняет ни
@@ -34,7 +35,7 @@ before(async () => {
 
 after(async () => {
   await app?.end({ timeout: 5 });
-  for (const s of ['141', '110', '101', 'ref141', 'ref110', 'ref101']) await sql.unsafe(`drop schema if exists ${ident(`${BASE}_${s}`)} cascade`);
+  for (const s of ['142', '141', '110', '101', 'ref142', 'ref141', 'ref110', 'ref101']) await sql.unsafe(`drop schema if exists ${ident(`${BASE}_${s}`)} cascade`);
   await sql.end({ timeout: 5 });
 });
 
@@ -382,4 +383,9 @@ test('№2 обновление 1.0.1 → текущая: up({ upgrade: true }) 
 test('№3 (план 2.0, 7.8 №2) обновление 1.4.1 → текущая: обычный up() без миграций, данные и хэши на месте', async () => {
   const old = (await import('letopis-141')) as unknown as OldLib;
   await scenario({ old, S: `${BASE}_141`, ref: `${BASE}_ref141`, signals: 'opaque', from: 7, migrations: [] });
+});
+
+test('№4 (план 2.0, 7.8 №2) обновление 1.4.2 → текущая: накат с прошлого выпуска', async () => {
+  const old = (await import('letopis-142')) as unknown as OldLib;
+  await scenario({ old, S: `${BASE}_142`, ref: `${BASE}_ref142`, signals: 'opaque', from: 7, migrations: [] });
 });
