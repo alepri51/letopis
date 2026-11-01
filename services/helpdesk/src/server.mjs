@@ -149,9 +149,12 @@ export async function createApp() {
   const admin = postgres(ENV.admin, { max: 2, onnotice: () => {} });
   const r = await up({ dsn: ENV.admin, schema: ENV.schema, upgrade: true, fresh: ENV.fresh, serviceKey: ENV.serviceKey, signals: ENV.signals, quiet: true });
   const appUrl = new URL(ENV.app);
-  await admin.unsafe(`do $$ begin if not exists (select 1 from pg_roles where rolname = '${appUrl.username}') then
-    create role ${appUrl.username} login password '${decodeURIComponent(appUrl.password)}'; end if; end $$`);
-  await admin.unsafe(`grant letopis_app to ${appUrl.username}`);
+  // роль приложения — имя и пароль квотируются, а не склеиваются в SQL: пароль с ' не ломает запуск (план 2.0, 7.6 №7)
+  const appUser = decodeURIComponent(appUrl.username);
+  const ident = (v) => `"${v.replace(/"/g, '""')}"`;
+  const [{ known }] = await admin`select exists (select 1 from pg_roles where rolname = ${appUser}) as known`;
+  if (!known) await admin.unsafe(`create role ${ident(appUser)} login password '${decodeURIComponent(appUrl.password).replace(/'/g, "''")}'`);
+  await admin.unsafe(`grant letopis_app to ${ident(appUser)}`);
   // один пул на всех: подключения пользователей (connect({ sql, token })) делят его соединения
   const pool = postgres(ENV.app, { max: 10, onnotice: () => {} });
   // журнал «под капотом»: запросы к базе, записанные версии и сигналы текущего действия
@@ -260,7 +263,8 @@ export async function createApp() {
   }
 
   async function createTicket(db, { subject, body, priority = 'normal', clientName, channel, owner, ago }, lines, reason) {
-    if (!HOURS[priority]) throw new HttpError(422, 'Неизвестный приоритет');
+    // свой ключ объекта, а не унаследованный: constructor, __proto__ не приоритеты (план 2.0, 7.6 №4)
+    if (!Object.hasOwn(HOURS, priority)) throw new HttpError(422, 'Неизвестный приоритет');
     const tr = await db.begin({ reason });
     try {
       const [counter] = await tr.Counter({ name: 'tickets' }).update({ next: inc(1) }).rows();
@@ -552,7 +556,12 @@ export async function createApp() {
 
   app.get('/api/tickets', auth, route(async (req, res) => {
     const s = req.s, db = dbOf(s), staff = roleOf(whoOf(s).roles) !== 'client';
-    const after = req.query.after ? JSON.parse(String(req.query.after)) : null;
+    let after = null;
+    try {
+      after = req.query.after ? JSON.parse(String(req.query.after)) : null;
+    } catch {
+      throw new HttpError(400, 'Неверный курсор after');
+    }
     const read = async (lines) => {
       let q = db.Ticket(staff ? { status: inList(['new', 'open', 'pending']) } : {}).sort('data.due');
       if (after) q = q.after(after);
@@ -665,7 +674,7 @@ export async function createApp() {
   app.post('/api/team/invite', auth, guard('desk.team'), route(async (req, res) => {
     const s = req.s, company = await companyName(s, s.tenant);
     const name = String(req.body?.name ?? '').trim(), login = String(req.body?.login ?? '').trim().toLowerCase(), role = String(req.body?.role ?? 'client');
-    if (!name || !/^[^@\s]+@[^@\s]+$/.test(login) || !ROLE_OF[role]) throw new HttpError(422, 'Нужны имя, email и роль');
+    if (!name || !/^[^@\s]+@[^@\s]+$/.test(login) || !Object.hasOwn(ROLE_OF, role)) throw new HttpError(422, 'Нужны имя, email и роль');
     // чужую учётную запись в компанию без её согласия не добавляем: приглашение — только для новых адресов
     if ((await svc.auth.credentials(accountOf(login)).catch(() => [])).length) throw new HttpError(409, 'У этого email уже есть учётная запись — без её согласия в компанию не добавить');
     await act(s, `Приглашение: ${name}`, async (lines) => {
@@ -892,7 +901,9 @@ export async function createApp() {
   }));
 
   // ---------- MCP: инструменты letopis по HTTP от имени пользователя, его сессии агента или ключа ----------
-  const mcp = createMcpHandler(async ({ authInfo }) => createMcpServer(authInfo.extra.db, { write: true, maxRows: 50 }));
+  // запись через MCP — только сотрудникам (руководитель, агент) и сессии агента, выданной сотрудником; клиент и ключ
+  // интеграции — только чтение: иначе клиент правил бы служебные строки компании, например счётчик заявок (план 2.0, 7.6 №1)
+  const mcp = createMcpHandler(async ({ authInfo }) => createMcpServer(authInfo.extra.db, { write: authInfo.extra.write === true, maxRows: 50 }));
   app.all('/mcp', route(async (req, res) => {
     let s = web.get(req);
     if (s && !(await aliveWeb(s))) { await web.close(web.sidOf(req)); s = undefined; }
@@ -906,7 +917,8 @@ export async function createApp() {
     const request = new Request(`http://127.0.0.1${req.originalUrl}`, {
       method: req.method, headers, body: req.method === 'POST' ? JSON.stringify(req.body) : undefined,
     });
-    const call = () => mcp.fetch(request, { authInfo: { token: key || 'cookie', clientId: 'helpdesk', scopes: [], extra: { db } } });
+    const write = a ? true : s ? roleOf(whoOf(s).roles) !== 'client' : false;
+    const call = () => mcp.fetch(request, { authInfo: { token: key || 'cookie', clientId: 'helpdesk', scopes: [], extra: { db, write } } });
     const what = Array.isArray(req.body) ? 'пачка' : `${req.body?.method ?? req.method}${req.body?.params?.name ? ` ${req.body.params.name}` : ''}`;
     // «под капотом»: вызов по cookie — у этой вкладки, по сессии агента — у вкладки, которая её выдала (автор версий — вы)
     const who = s ?? (a && { db: a.db, account: a.account, trace: a.owner.trace });
