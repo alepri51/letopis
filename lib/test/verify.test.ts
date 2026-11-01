@@ -118,3 +118,30 @@ test('6.8 verify — только системный администратор 
     console.log = log;
   }
 });
+
+test('план 2.0, 7.9 №11: порча надгробия ловится verify', async () => {
+  const [g] = await db.Box().create({ code: 'G', n: 1 }).rows();
+  await db.Box(g.id).update({ n: 2 }).rows();
+  await db.Box(g.id).delete({ confirm: true }).rows();
+  const tomb = 3;
+  const clean = await adb.verify();
+  assert.equal(clean.ok, true, JSON.stringify(clean.issues));
+  const own = (text: string) => e.asOwner((tx) => tx.unsafe(text, [g.id, tomb]));
+  const at = (is: Issue[], rev: number) => is.some((i) => i.id === g.id && i.rev === rev);
+  // данные надгробия — мимо триггеров, от роли-владельца: хэш пересчитан, а следующей версии и строки entity у него нет
+  await own(`update ${e.S}.log set data = '{"code": "G", "n": 100}' where id = $1 and rev = $2`);
+  const data = await adb.verify();
+  assert.ok((data.issues as Issue[]).some((i) => at([i], tomb) && /надгробие/.test(i.problem)), JSON.stringify(data.issues));
+  assert.notEqual(data.anchor, clean.anchor, 'якорь — и по надгробиям');
+  await own(`update ${e.S}.log t set data = p.data from ${e.S}.log p where t.id = $1 and t.rev = $2 and p.id = t.id and p.rev = t.rev - 1`);
+  const back = await adb.verify();
+  assert.equal(back.ok, true, JSON.stringify(back.issues));
+  assert.equal(back.anchor, clean.anchor);
+  // хэш надгробия (prev_hash входит в хэш) — находка у стыка и другой якорь
+  await own(`update ${e.S}.log set prev_hash = sha256('x'::bytea) where id = $1 and rev = $2`);
+  const hash = await adb.verify();
+  assert.ok(at(hash.issues as Issue[], tomb - 1), JSON.stringify(hash.issues));
+  assert.notEqual(hash.anchor, clean.anchor);
+  await own(`update ${e.S}.log t set prev_hash = p.hash from ${e.S}.log p where t.id = $1 and t.rev = $2 and p.id = t.id and p.rev = t.rev - 1`);
+  assert.equal((await adb.verify()).anchor, clean.anchor);
+});

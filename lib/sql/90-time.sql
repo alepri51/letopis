@@ -984,14 +984,15 @@ end $$;
 -- ========================= verify =========================
 
 -- Проверка цепочек хэшей (этап 1, п. 11; этап 6, п. 4): номера версий подряд с 1, prev_hash каждой
--- версии равен хэшу предыдущей, строка entity совпадает с последней версией журнала. Законные
+-- версии равен хэшу предыдущей, строка entity совпадает с последней версией журнала, надгробие — с предыдущей версией
+-- (план 2.0, 7.3 №5). Законные
 -- разрывы: после записи trim (стык — по $trimmed и $hash), запись purge и reset — начало цепочки,
 -- прореживание — пропуск после версии старше яруса all класса, у которого есть (или была) политика
 -- хранения — своя или умолчание установки (метка default_policy в строке ключа). p_data — ещё и все строки: данные по проверке класса, концы (цель существует, её
 -- арендатор — тот же или System, класс принимается концом), арендатор и владелец существуют, id
 -- класса с ключом — v5 от ключа, агрегатные поля равны итогу живых источников (план 1.1, §2.4; ремонт —
--- rebuild_aggregates). Возвращает находки и якорь — хэш всех голов цепочек. Только
--- системный администратор (право letopis.verify) или администраторское подключение.
+-- rebuild_aggregates). Возвращает находки и якорь — хэш всех голов цепочек: строк entity и последних версий удалённых
+-- объектов. Только системный администратор (право letopis.verify) или администраторское подключение.
 create or replace function @SCHEMA@.verify(p_data boolean default false) returns jsonb
 language plpgsql stable security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -1051,6 +1052,15 @@ begin
       left join lateral (select l.hash, l.rev from @SCHEMA@.log l where l.id = e.id order by l.rev desc limit 1) l on true
       where coalesce((@SCHEMA@.class_row(e.class, e.tenant)).data->'resolved'->>'history', 'true') <> 'false'
         and (l.hash is distinct from e.hash or l.rev is distinct from e.rev)
+    union all
+    -- надгробие — последний снимок строки: класс, арендатор, владелец, концы, данные и теги — как у предыдущей версии
+    -- (план 2.0, 7.3 №5: правку надгробия мимо триггеров не выдавали ни следующая версия, ни строка entity). Сверяются
+    -- надгробия движка — с посчитанным changed; загрузчик и импорт переносят чужую историю как есть (changed — null)
+    select jsonb_build_object('id', t.id, 'rev', t.rev, 'problem', @SCHEMA@.lt_text('sql-time.verify_tombstone'))
+      from @SCHEMA@.log t
+      join @SCHEMA@.log p on p.id = t.id and p.rev = t.rev - 1
+      where t.op = 'delete' and t.changed is not null and p.op not in ('purge', 'trim', 'reset')
+        and (t.class, t.tenant, t.owner, t.links, t.data, t.tags) is distinct from (p.class, p.tenant, p.owner, p.links, p.data, p.tags)
   )
   select coalesce(jsonb_agg(f), '[]'::jsonb) into issues from found;
   if coalesce(p_data, false) then
@@ -1110,8 +1120,16 @@ begin
     )
     select coalesce(jsonb_agg(f), '[]'::jsonb) into data_issues from found;
   end if;
-  select encode(sha256(coalesce(string_agg(e.hash, ''::bytea order by e.id), ''::bytea)), 'hex') into anchor
-  from @SCHEMA@.entity e;
+  -- якорь — хэш голов цепочек в порядке id: строки entity и последние версии удалённых объектов — надгробие или запись
+  -- purge (план 2.0, 7.3 №5: раньше только строки entity, и порчу надгробия якорь не выдавал). Строка entity, удалённая
+  -- мимо триггеров, из якоря выпадает, как и прежде: последняя версия её журнала — не надгробие
+  select encode(sha256(coalesce(string_agg(h.hash, ''::bytea order by h.id), ''::bytea)), 'hex') into anchor
+  from (select e.id, e.hash from @SCHEMA@.entity e
+        union all
+        select l.id, l.hash from @SCHEMA@.log l
+        where l.op in ('delete', 'purge')
+          and not exists (select 1 from @SCHEMA@.log z where z.id = l.id and z.rev > l.rev)
+          and not exists (select 1 from @SCHEMA@.entity e where e.id = l.id)) h;
   issues := issues || data_issues;
   return jsonb_build_object('ok', issues = '[]'::jsonb, 'issues', issues, 'anchor', anchor);
 end $$;

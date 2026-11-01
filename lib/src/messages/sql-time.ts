@@ -555,6 +555,12 @@ export const sqlTime = {
     ru: 'verify доступен только системному администратору',
     en: 'verify is available only to the system administrator',
   },
+  // 90-time.sql, verify(): находка — надгробие не совпадает с предыдущей версией (план 2.0, 7.3 №5)
+  'sql-time.verify_tombstone': {
+    code: 'invalid_data',
+    ru: 'надгробие не совпадает с предыдущей версией',
+    en: 'the tombstone does not match the previous version',
+  },
   // 90-time.sql, watch_read()
   'sql-time.cursor_expired': {
     code: 'cursor_expired',
