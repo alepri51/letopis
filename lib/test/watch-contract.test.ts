@@ -67,3 +67,15 @@ test('план 2.0, 7.4 №8: close() подключения закрывает 
     await pool.end({ timeout: 5 });
   }
 });
+
+test('план 2.0, 7.4 №4: reclass класса без ключа сбрасывает кэш и прежнего класса', async () => {
+  const [x] = await db.Lead().create({ name: 'Анна' }).rows();
+  // сигнал своей записи приходит не сразу: пока он не пришёл, ответ в кэш не кладётся — читаем, пока не ляжет
+  const stored = db.cache.stats().stores;
+  for (let i = 0; i < 200 && db.cache.stats().stores === stored; i++) await db.Lead().cache().rows();
+  assert.ok(db.cache.stats().stores > stored, 'ответ Lead лёг в кэш');
+  await db.Lead(x.id).reclass('Client').rows();
+  const leads = await db.Lead().cache().rows();
+  assert.equal(leads.some((r) => r.id === x.id), false, 'строка ушла из Lead — прежний ответ кэша сброшен');
+  assert.equal((await db.Client(x.id).rows()).length, 1);
+});
