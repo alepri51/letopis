@@ -198,6 +198,8 @@ export interface ProjectorEnv {
   ownerRole: string;
   /** Подписка на сигналы базы (нет LISTEN — только опрос). */
   onSignal?: (fn: (s: Signal) => void) => () => void;
+  /** Проверка администраторского пула `connect({ admin })` до первой работы (план 2.0, 7.9 №3): роль не та — отказ run(). */
+  ready?: () => Promise<void>;
 }
 
 interface Pos { tx: string; seq: string; snap?: string }
@@ -514,6 +516,10 @@ export class Projector {
    */
   async run(opts: { once?: boolean } = {}): Promise<ProjectorReport> {
     if (this.running) throw new LetopisError('invalid_query', `проектор ${this.name} уже запущен в этом процессе`);
+    if (this.env.ready) {
+      await this.env.ready();
+      if (this.running) throw new LetopisError('invalid_query', `проектор ${this.name} уже запущен в этом процессе`);
+    }
     this.running = true;
     this.stopped = false;
     if (!this.env.onSignal) this.stale = true;

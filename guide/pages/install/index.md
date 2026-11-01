@@ -80,6 +80,12 @@ sequenceDiagram
 
 <Example id="install/03-connect-options" />
 
+## Один процесс
+
+Малому приложению хватит одного процесса: `up({ login })` заводит роль приложения, а `connect({ admin })` открывает второй пул для администраторских вызовов — цепочки остаются под правами базы.
+
+<Example id="install/07-one-process" />
+
 ## Разработка без PostgreSQL
 
 <Example id="install/04-pglite" />

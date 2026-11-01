@@ -54,7 +54,7 @@ export type { WatchOptions, WatchEvent, Subscription } from './watch.js';
 export type { Projector, ProjectorOptions, ProjectorChange, ProjectorOut, ProjectorRow, ProjectorReport, ProjectorStatus, ProjectorFailure } from './project.js';
 export type { VerifyResult, VerifyIssue, MaintainOptions, MaintainReport, ResetOptions, ResetResult, ModelDescription } from './admin.js';
 export { describeText } from './admin.js';
-export { up, createTenant, type UpOptions, type UpResult, type HistoryPolicy, type TenantOptions, type TenantResult } from './up.js';
+export { up, createTenant, type UpOptions, type UpResult, type HistoryPolicy, type TenantOptions, type TenantResult, type LoginOptions } from './up.js';
 export { RESERVED_CLASS_NAMES, CHAIN_METHODS, DB_METHODS } from './types.js';
 
 /** Снесено в 1.0.0: id v7 больше не выдаются (§2.3). */
@@ -86,6 +86,14 @@ export interface ConnectOptions {
   refreshSession?: boolean;
   /** Разрешить роль, которая обходит RLS (суперпользователь, `BYPASSRLS`, член роли-владельца), — администраторское подключение (§2.9). */
   allowBypassRls?: boolean;
+  /**
+   * Один процесс малого приложения (план 2.0, этап 3): строка подключения администратора (или пул postgres.js). Второй
+   * пул — не больше двух соединений — открывается при первой надобности и служит только администраторским вызовам корня
+   * подключения: `load`, `projector`, `rebuildAggregates`, `verify`, `maintain` и `syncModels`, с той же сессией.
+   * Цепочки и `db.sql` идут через пул приложения (`dsn`) под RLS. Роль строки — суперпользователь или роль с `SET` на
+   * роль-владельца, иначе `admin_required`. Пароль администратора в процессе приложения — только для малых приложений.
+   */
+  admin?: string | postgres.Sql;
   /** Имя роли-владельца (по умолчанию `letopis_owner`). */
   owner?: string;
   /** Интервал отправки отложенного сигнала, мс (по умолчанию 100; решение 9 точки А). */
@@ -272,6 +280,9 @@ interface Shared {
   /** Подключение может стать владельцем схемы — загрузчик доступен. */
   admin: boolean;
   ownerRole: string;
+  /** Пул администратора connect({ admin }) и проверка его роли (один раз, при первой надобности; план 2.0, 7.9 №3). */
+  adminSql?: postgres.Sql<Record<string, unknown>>;
+  adminReady?: () => Promise<void>;
   /** Кэш результатов (null — выключен опцией). */
   cache: ResultCache | null;
   /** Режим сигналов установки и ключ подключения (токены классов и арендаторов). */
@@ -311,6 +322,14 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
   // запись правил (grant, deny, revoke, roles) идёт цепочками самого фасада — он объявлен ниже, берётся при вызове
   const acl = makeAcl(sh.S, exec, () => facade);
   const adm: AdminCtx = { sql: sh.sql, schema: sh.schema, S: sh.S, txc, exec, registry: scope.registry, tenant: scope.tenant };
+  // один процесс (план 2.0, 7.9 №3): у корня с connect({ admin }) администраторские вызовы идут вторым пулом с той же
+  // сессией, а цепочки и db.sql — пулом приложения под RLS; db.as() и db.begin() администраторский пул не берут
+  const viaAdmin = scope.root && !tx && sh.adminSql ? sh.adminSql : null;
+  const adminReady = sh.adminReady ?? (async () => {});
+  const admCtx = (): AdminCtx => {
+    const t: TxContext = { ...txc, sql: viaAdmin! };
+    return { ...adm, sql: viaAdmin!, txc: t, exec: poolExecutor(t) };
+  };
   const core: DbCore = {
     schema: sh.schema,
     get token() { return txc.token; },
@@ -328,8 +347,8 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
     },
     refresh: sh.refresh,
     flushSignals: () => sh.notifier.flush(),
-    verify: (o) => runVerify(adm, o),
-    maintain: (o) => runMaintain(adm, o),
+    verify: (o) => (viaAdmin ? adminReady().then(() => runVerify(admCtx(), o)) : runVerify(adm, o)),
+    maintain: (o) => (viaAdmin ? adminReady().then(() => runMaintain(admCtx(), o)) : runMaintain(adm, o)),
     reset: async (o) => {
       const r = await runReset(adm, o);
       sh.passes.clear();
@@ -396,19 +415,28 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
     },
     load: async (input, o) => {
       if (tx) throw new LetopisError('invalid_query', 'load() — своей транзакцией, не внутри db.begin()');
+      if (viaAdmin) {
+        await adminReady();
+        return load({ sql: viaAdmin, schema: sh.schema, tenant: scope.tenant(), admin: true, ownerRole: sh.ownerRole }, input, o);
+      }
       return load({ sql: sh.sql, schema: sh.schema, tenant: scope.tenant(), admin: sh.admin, ownerRole: sh.ownerRole }, input, o);
     },
     projector: (name, o) => {
       if (tx) throw new LetopisError('invalid_query', 'projector() — от корня подключения, а не внутри db.begin()');
-      if (!sh.admin) throw new LetopisError('admin_required', 'проектору нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы)');
+      if (!sh.admin && !viaAdmin) throw new LetopisError('admin_required', 'проектору нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы, или connect({ admin }))');
       return new Projector({
-        sql: sh.sql, schema: sh.schema, S: sh.S, ownerRole: sh.ownerRole,
+        sql: viaAdmin ?? sh.sql, schema: sh.schema, S: sh.S, ownerRole: sh.ownerRole,
         ...(sh.listen ? { onSignal: (fn: (s: Signal) => void) => { sh.signals.add(fn); return () => void sh.signals.delete(fn); } } : {}),
+        ...(viaAdmin ? { ready: adminReady } : {}),
       }, name, o);
     },
     rebuildAggregates: async (cls) => {
       if (tx) throw new LetopisError('invalid_query', 'rebuildAggregates() — своей транзакцией, не внутри db.begin()');
-      if (!sh.admin) throw new LetopisError('admin_required', 'ремонту агрегатов нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы)');
+      if (viaAdmin) {
+        await adminReady();
+        return runRebuildAggregates({ sql: viaAdmin, S: sh.S, ownerRole: sh.ownerRole }, cls);
+      }
+      if (!sh.admin) throw new LetopisError('admin_required', 'ремонту агрегатов нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы, или connect({ admin }))');
       return runRebuildAggregates({ sql: sh.sql, S: sh.S, ownerRole: sh.ownerRole }, cls);
     },
     batch: (name, o) => {
@@ -441,7 +469,10 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
     },
   }) as Db;
   // модули пакета (letopis/mcp) узнают обход RLS по самому подключению, а не со слов вызывающего (internal.ts)
-  registerDb(facade, { allTenants: sh.allTenants, explicit: Boolean(tx) });
+  registerDb(facade, {
+    allTenants: sh.allTenants, explicit: Boolean(tx),
+    ...(viaAdmin ? { adminTx: <T>(fn: (q: Tx) => Promise<T>) => adminReady().then(() => runTx({ ...txc, sql: viaAdmin }, fn)) } : {}),
+  });
   return facade;
 }
 
@@ -453,15 +484,31 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
   for (const k of Object.keys(opts)) if (k in REMOVED_OPTIONS) throw removed(`опция connect({ ${k} })`, REMOVED_OPTIONS[k]);
   // интервал обслуживания — до пула и таймеров: неверный не оставляет за собой открытых соединений
   const maintainEvery = opts.maintain === undefined ? undefined : parseInterval(opts.maintain);
+  if (opts.admin !== undefined && typeof opts.admin !== 'string' && typeof opts.admin !== 'function') {
+    throw new LetopisError('invalid_data', 'connect: admin — строка подключения администратора или пул postgres.js');
+  }
   const own = !opts.sql;
   // timestamptz — строкой: Date в JS режет микросекунды, а на них держатся asOf и курсоры по времени
-  const sql = (opts.sql ?? postgres(opts.dsn!, {
-    max: opts.max ?? 10,
-    onnotice: () => {},
-    types: { timestamptz: { to: 1184, from: [1184], serialize: (v: unknown) => (v instanceof Date ? v.toISOString() : v), parse: (v: string) => v } },
-  })) as postgres.Sql<Record<string, unknown>>;
+  const types = { timestamptz: { to: 1184, from: [1184], serialize: (v: unknown) => (v instanceof Date ? v.toISOString() : v), parse: (v: string) => v } };
+  const sql = (opts.sql ?? postgres(opts.dsn!, { max: opts.max ?? 10, onnotice: () => {}, types })) as postgres.Sql<Record<string, unknown>>;
+  // один процесс (план 2.0, 7.9 №3): пул администратора postgres.js соединяется при первом запросе — до первого
+  // администраторского вызова соединений у него нет
+  const ownAdmin = typeof opts.admin === 'string';
+  const adminSql = (typeof opts.admin === 'string'
+    ? postgres(opts.admin, { max: 2, onnotice: () => {}, types, connection: { application_name: 'letopis admin' } })
+    : opts.admin) as postgres.Sql<Record<string, unknown>> | undefined;
   const S = quote(opts.schema);
   const owner = opts.owner ?? 'letopis_owner';
+  let adminChecked: Promise<void> | undefined;
+  const adminReady = adminSql ? () => (adminChecked ??= (async () => {
+    const [a] = await adminSql`select r.rolsuper, pg_has_role(current_user, ${owner}, 'SET') as can_set from pg_roles r where r.rolname = current_user`;
+    if (!a?.rolsuper && !a?.can_set) {
+      throw new LetopisError('admin_required', `connect({ admin }): роль администраторской строки подключения не может стать владельцем схемы — нужен суперпользователь или роль с SET на ${owner}`);
+    }
+  })().catch((e: unknown) => {
+    adminChecked = undefined;
+    throw e;
+  })) : undefined;
   try {
     // роль, которая обходит RLS, видела бы данные всех арендаторов (§2.9)
     // роли владельца нет (опечатка в owner) — понятная ошибка, а не сырая 42704 PostgreSQL (план 2.0, 7.5 №3)
@@ -693,6 +740,7 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
       sql, schema: opts.schema, S, notifier, passes, root, registryFor, registryOf, refresh, onQuery: opts.onQuery, slowMs: opts.slowMs,
       admin: Boolean(bypass && (role.rolsuper || role.can_set)),
       ownerRole: owner,
+      ...(adminSql ? { adminSql, adminReady } : {}),
       cache,
       sig,
       allTenants: Boolean(bypass),
@@ -715,6 +763,7 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
         await notifier.close();
         await listener?.unlisten();
         if (own) await sql.end({ timeout: 5 });
+        if (ownAdmin) await adminSql!.end({ timeout: 5 });
       },
     };
     const db = makeDb(shared, { txc: ctx, tenant: () => root.tenant, registry: () => root.registry, root: true }, poolExecutor(ctx));
@@ -722,6 +771,7 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
     return db;
   } catch (e) {
     if (own) await sql.end({ timeout: 1 });
+    if (ownAdmin) await adminSql!.end({ timeout: 1 });
     throw e;
   }
 }

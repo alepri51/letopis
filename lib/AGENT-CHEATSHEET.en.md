@@ -59,8 +59,12 @@ const r = await up({ dsn: ADMIN, schema: 'myapp',                  // schema 'v2
   ids are v5 of `tenant:<name>` and `user:<login>`). Another tenant: `createTenant(postgres(ADMIN), 'v2.myapp', { name,
   user })` (needs an admin connection).
 - The application connects with an **application LOGIN role** that is a member of `letopis_app` only:
-  `create role myapp login password '…'; grant letopis_app to myapp;`. Connecting as a superuser is the error
-  `bypass_rls` (RLS would not apply); an admin connection is possible only with an explicit `allowBypassRls: true`.
+  `up({ login: { user, password } })` creates it (the connection string is `r.login.dsn`; a privileged role is refused
+  with `invalid_data`), by hand — `create role myapp login password '…'; grant letopis_app to myapp;`. Connecting as a
+  superuser is the error `bypass_rls` (RLS would not apply); an admin connection is possible only with an explicit
+  `allowBypassRls: true`. One process: `connect({ dsn: r.login.dsn, admin: ADMIN, token })` — `load`, `projector`,
+  `rebuildAggregates`, `verify`, `maintain`, `syncModels` go through a second pool with the same session, chains under
+  RLS.
 - Accounts live in the System tenant; the system administrator (a member of System with the `admin` role; your own
   installation seed or the loader on an admin connection appoints one) creates them with the chain `admin.Account().create({ name, categories })`. Your own seed (`seeds: ['./my.sql']`, the owner functions
   `sys_create`, `sys_grant_all`, the markers `@SCHEMA@`, `@SYSTEM@`) remains for special cases.

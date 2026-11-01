@@ -1,0 +1,4648 @@
+{
+  "id": "install/07-one-process",
+  "title": "Один процесс: роль приложения и второй пул администратора",
+  "summary": "Малому приложению не обязательно держать два процесса. up({ login }) заводит роль приложения, а connect({ admin }) берёт строку администратора для своих администраторских вызовов; цепочки при этом идут под ролью приложения и правами базы.",
+  "covers": [
+    "up.login",
+    "connect.admin"
+  ],
+  "tables": [
+    "entity"
+  ],
+  "context": {
+    "schema": "v2.g_install_07_one_process",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": null
+  },
+  "source": "import { up, connect } from 'letopis';\nimport type { Db, UpResult } from 'letopis';\nimport { example } from '../../kit/example.ts';\n\nlet r: UpResult;\nlet db: Db;\n\nexport default example({\n  title: 'Один процесс: роль приложения и второй пул администратора',\n  summary:\n    'Малому приложению не обязательно держать два процесса. up({ login }) заводит роль приложения, а ' +\n    'connect({ admin }) берёт строку администратора для своих администраторских вызовов; цепочки при этом идут под ' +\n    'ролью приложения и правами базы.',\n  setup: 'none',\n  tables: ['entity'],\n  covers: ['up.login', 'connect.admin'],\n  steps: [\n    {\n      title: 'up() заводит роль приложения',\n      text:\n        '`login` — имя и пароль роли приложения: `up()` создаёт её или обновляет пароль и делает членом `letopis_app`. ' +\n        'Имя и пароль квотирует сама база, поэтому кавычка в пароле ничего не ломает. В ответе — строка подключения ' +\n        'этой роли, `r.login.dsn`.',\n      run: async ({ dsn, schema }) => {\n        r = await up({ dsn: dsn.admin, schema, quiet: true, login: { user: 'guide_one_app', password: \"пароль с 'кавычкой'\" },\n          tenant: { name: 'Ромашка', user: { name: 'Анна', login: 'anna@romashka.ru', password: 'Ромашка-2026!' } } });\n        return { 'роль приложения': r.login!.user, 'строка подключения': r.login!.dsn ? 'есть' : 'нет' };\n      },\n    },\n    {\n      title: 'Одно подключение — два пула',\n      text:\n        '`connect({ dsn, admin, token })`: цепочки и `db.sql` идут под ролью приложения и правами базы, а `verify()` — ' +\n        'администраторский вызов — открывает второй пул строкой администратора, с той же сессией Анны. Так же идут ' +\n        '`load`, `projector`, `rebuildAggregates`, `maintain` и `syncModels`.',\n      run: async ({ dsn, schema }) => {\n        db = await connect({ dsn: r.login!.dsn!, admin: dsn.admin, schema, token: r.tenant!.token!, max: 2 });\n        const [who] = await db.sql`select current_user as role`;\n        const check = await db.verify();\n        return { 'цепочки и db.sql — роль': who.role, 'verify вторым пулом': check.ok };\n      },\n    },\n    {\n      title: 'close() закрывает оба пула',\n      text: 'Пароль администратора в процессе приложения — только для малых приложений: взломанный процесс получит и его.',\n      run: async () => {\n        await db.close();\n        return 'закрыто';\n      },\n    },\n  ],\n});\n",
+  "sourceHtml": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { up, connect } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'letopis'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> type</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { Db, UpResult } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'letopis'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { example } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> '../../kit/example.ts'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">let</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> UpResult</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">let</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> Db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">export</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> default</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> example</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Один процесс: роль приложения и второй пул администратора'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  summary:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'Малому приложению не обязательно держать два процесса. up({ login }) заводит роль приложения, а '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'connect({ admin }) берёт строку администратора для своих администраторских вызовов; цепочки при этом идут под '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'ролью приложения и правами базы.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  setup: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'none'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  tables: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'entity'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  covers: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'up.login'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'connect.admin'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  steps: [</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'up() заводит роль приложения'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '`login` — имя и пароль роли приложения: `up()` создаёт её или обновляет пароль и делает членом `letopis_app`. '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Имя и пароль квотирует сама база, поэтому кавычка в пароле ничего не ломает. В ответе — строка подключения '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'этой роли, `r.login.dsn`.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">dsn</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">schema</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        r </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, login: { user: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'guide_one_app'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">\"пароль с 'кавычкой'\"</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">          tenant: { name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, user: { name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Анна'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, login: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'anna@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка-2026!'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } } });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'роль приложения'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: r.login</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'строка подключения'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: r.login</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.dsn </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">?</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'есть'</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> :</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'нет'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> };</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Одно подключение — два пула'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '`connect({ dsn, admin, token })`: цепочки и `db.sql` идут под ролью приложения и правами базы, а `verify()` — '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'администраторский вызов — открывает второй пул строкой администратора, с той же сессией Анны. Так же идут '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '`load`, `projector`, `rebuildAggregates`, `maintain` и `syncModels`.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">dsn</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">schema</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        db </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: r.login</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.dsn</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, admin: dsn.admin, schema, token: r.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, max: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">who</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sql</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`select current_user as role`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> check</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verify</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'цепочки и db.sql — роль'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: who.role, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'verify вторым пулом'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: check.ok };</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'close() закрывает оба пула'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Пароль администратора в процессе приложения — только для малых приложений: взломанный процесс получит и его.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> () </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">close</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'закрыто'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  ],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">});</span></span>\n<span class=\"line\"></span></code></pre>",
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": null
+  },
+  "steps": [
+    {
+      "title": "up() заводит роль приложения",
+      "text": "`login` — имя и пароль роли приложения: `up()` создаёт её или обновляет пароль и делает членом `letopis_app`. Имя и пароль квотирует сама база, поэтому кавычка в пароле ничего не ломает. В ответе — строка подключения этой роли, `r.login.dsn`.",
+      "code": "r = await up({ dsn: dsn.admin, schema, quiet: true, login: { user: 'guide_one_app', password: \"пароль с 'кавычкой'\" },\n  tenant: { name: 'Ромашка', user: { name: 'Анна', login: 'anna@romashka.ru', password: 'Ромашка-2026!' } } });\nreturn { 'роль приложения': r.login!.user, 'строка подключения': r.login!.dsn ? 'есть' : 'нет' };",
+      "params": [
+        "dsn",
+        "schema"
+      ],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">r </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, login: { user: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'guide_one_app'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">\"пароль с 'кавычкой'\"</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  tenant: { name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, user: { name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Анна'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, login: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'anna@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка-2026!'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } } });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'роль приложения'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: r.login</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'строка подключения'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: r.login</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.dsn </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">?</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'есть'</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> :</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'нет'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> };</span></span></code></pre>",
+      "result": {
+        "роль приложения": "guide_one_app",
+        "строка подключения": "есть"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "System",
+          "class": "Account",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "name": "System",
+            "enabled": true,
+            "categories": [
+              "System"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Class «Class»",
+          "class": "Class",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "key": [
+              "name"
+            ],
+            "kind": "hub",
+            "name": "Class",
+            "fields": {
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [
+                "name"
+              ],
+              "ends": {},
+              "kind": "hub",
+              "meta": {},
+              "name": "Class",
+              "vars": {},
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"name\")))",
+                  "path": [
+                    "name"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "name"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"name\").value"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"name\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "Class"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t2",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Class «Account»",
+          "class": "Class",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "key": [],
+            "kind": "hub",
+            "name": "Account",
+            "fields": {
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "categories": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "uniqueItems": true
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [],
+              "ends": {},
+              "kind": "hub",
+              "meta": {},
+              "name": "Account",
+              "vars": {},
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"name\")))",
+                  "path": [
+                    "name"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "name"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"name\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
+                    "enabled"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"enabled\").value"
+                },
+                {
+                  "cond": "@.type() == \"array\"",
+                  "path": [
+                    "categories"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                },
+                {
+                  "cond": "true",
+                  "path": [
+                    "categories"
+                  ],
+                  "vars": {},
+                  "extra": {
+                    "kind": "unique"
+                  },
+                  "keyword": "uniqueItems",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "categories",
+                    "*"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value ? (@.type() == \"array\")[*]"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"name\" || @.key == \"enabled\" || @.key == \"categories\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "categories": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "uniqueItems": true
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "Account"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t3",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Class «member»",
+          "class": "Class",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "key": [
+              "User",
+              "Tenant"
+            ],
+            "ends": {
+              "User": {
+                "class": "Account",
+                "onDelete": "cascade",
+                "required": true
+              },
+              "Tenant": {
+                "class": "Account",
+                "onDelete": "cascade",
+                "required": true
+              }
+            },
+            "kind": "link",
+            "name": "member",
+            "fields": {
+              "properties": {
+                "roles": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": [],
+                  "uniqueItems": true
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [
+                "User",
+                "Tenant"
+              ],
+              "ends": {
+                "User": {
+                  "class": "Account",
+                  "onDelete": "cascade",
+                  "required": true
+                },
+                "Tenant": {
+                  "class": "Account",
+                  "onDelete": "cascade",
+                  "required": true
+                }
+              },
+              "kind": "link",
+              "meta": {},
+              "name": "member",
+              "vars": {},
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"array\"",
+                  "path": [
+                    "roles"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"roles\").value"
+                },
+                {
+                  "cond": "true",
+                  "path": [
+                    "roles"
+                  ],
+                  "vars": {},
+                  "extra": {
+                    "kind": "unique"
+                  },
+                  "keyword": "uniqueItems",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"roles\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "roles",
+                    "*"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"roles\").value ? (@.type() == \"array\")[*]"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"roles\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [],
+                "properties": {
+                  "roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "default": [],
+                    "uniqueItems": true
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "member"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Class «Resource»",
+          "class": "Class",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "key": [
+              "alias"
+            ],
+            "kind": "hub",
+            "name": "Resource",
+            "fields": {
+              "required": [
+                "alias",
+                "category"
+              ],
+              "properties": {
+                "alias": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "pattern": {
+                  "type": "object",
+                  "properties": {
+                    "class": {
+                      "type": "string"
+                    },
+                    "roles": {
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "type": "string"
+                    },
+                    "categories": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "category": {
+                  "enum": [
+                    "ACCOUNT",
+                    "API",
+                    "READ",
+                    "WRITE",
+                    "DELETE"
+                  ],
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [
+                "alias"
+              ],
+              "ends": {},
+              "kind": "hub",
+              "meta": {},
+              "name": "Resource",
+              "vars": {
+                "v1": "ACCOUNT",
+                "v2": "API",
+                "v3": "READ",
+                "v4": "WRITE",
+                "v5": "DELETE"
+              },
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"alias\")))",
+                  "path": [
+                    "alias"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"category\")))",
+                  "path": [
+                    "category"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "alias"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"alias\").value"
+                },
+                {
+                  "cond": "true",
+                  "path": [
+                    "alias"
+                  ],
+                  "vars": {},
+                  "extra": {
+                    "max": null,
+                    "min": 1,
+                    "kind": "length"
+                  },
+                  "keyword": "minLength",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"alias\").value"
+                },
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [
+                    "pattern"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "class"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"class\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "roles"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"roles\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "endpoint"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"endpoint\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "categories"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "category"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
+                },
+                {
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4) || (@.type() == \"string\" && @ == $v5))",
+                  "path": [
+                    "category"
+                  ],
+                  "vars": {
+                    "v1": "ACCOUNT",
+                    "v2": "API",
+                    "v3": "READ",
+                    "v4": "WRITE",
+                    "v5": "DELETE"
+                  },
+                  "keyword": "enum",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "description"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"description\").value"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"alias\" || @.key == \"pattern\" || @.key == \"category\" || @.key == \"description\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [
+                  "alias",
+                  "category"
+                ],
+                "properties": {
+                  "alias": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "pattern": {
+                    "type": "object",
+                    "properties": {
+                      "class": {
+                        "type": "string"
+                      },
+                      "roles": {
+                        "type": "string"
+                      },
+                      "endpoint": {
+                        "type": "string"
+                      },
+                      "categories": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "category": {
+                    "enum": [
+                      "ACCOUNT",
+                      "API",
+                      "READ",
+                      "WRITE",
+                      "DELETE"
+                    ],
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "Resource"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t5",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Class «rule»",
+          "class": "Class",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "key": [
+              "Group",
+              "Object"
+            ],
+            "ends": {
+              "Group": {
+                "class": "Resource",
+                "onDelete": "cascade",
+                "required": true
+              },
+              "Object": {
+                "class": "Resource",
+                "onDelete": "cascade",
+                "required": true
+              }
+            },
+            "kind": "link",
+            "name": "rule",
+            "fields": {
+              "required": [
+                "permission"
+              ],
+              "properties": {
+                "code": {
+                  "type": "integer"
+                },
+                "weight": {
+                  "type": "integer",
+                  "default": 0
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "message": {
+                  "type": "string"
+                },
+                "permission": {
+                  "enum": [
+                    "allow",
+                    "deny"
+                  ],
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [
+                "Group",
+                "Object"
+              ],
+              "ends": {
+                "Group": {
+                  "class": "Resource",
+                  "onDelete": "cascade",
+                  "required": true
+                },
+                "Object": {
+                  "class": "Resource",
+                  "onDelete": "cascade",
+                  "required": true
+                }
+              },
+              "kind": "link",
+              "meta": {},
+              "name": "rule",
+              "vars": {
+                "v1": "allow",
+                "v2": "deny"
+              },
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"permission\")))",
+                  "path": [
+                    "permission"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() == \"number\" && @ == @.floor())",
+                  "path": [
+                    "code"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"code\").value"
+                },
+                {
+                  "cond": "(@.type() == \"number\" && @ == @.floor())",
+                  "path": [
+                    "weight"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"weight\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
+                    "enabled"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"enabled\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "message"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"message\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "permission"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"permission\").value"
+                },
+                {
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2))",
+                  "path": [
+                    "permission"
+                  ],
+                  "vars": {
+                    "v1": "allow",
+                    "v2": "deny"
+                  },
+                  "keyword": "enum",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"permission\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "description"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"description\").value"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"code\" || @.key == \"weight\" || @.key == \"enabled\" || @.key == \"message\" || @.key == \"permission\" || @.key == \"description\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [
+                  "permission"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "integer"
+                  },
+                  "weight": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "permission": {
+                    "enum": [
+                      "allow",
+                      "deny"
+                    ],
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "rule"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t6",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Resource·1",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "anonymous:ACCOUNT",
+            "pattern": {
+              "categories": "{Anonymous,Shadow}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t7",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Resource·2",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "authenticated:ACCOUNT",
+            "pattern": {
+              "categories": "!{Anonymous,Shadow}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t8",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Resource·3",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "any:ACCOUNT",
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t9",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Resource·4",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "service:ACCOUNT",
+            "pattern": {
+              "categories": "{Service}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t10",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Resource·5",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "admin:ACCOUNT",
+            "pattern": {
+              "roles": "{admin}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t11",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Resource·6",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "any:API",
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t12",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Resource·7",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "auth:API",
+            "pattern": {
+              "endpoint": "auth.*"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t13",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Resource·8",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "letopis:API",
+            "pattern": {
+              "endpoint": "letopis.*"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t14",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Resource·9",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "signals:API",
+            "pattern": {
+              "endpoint": "letopis.signals"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t15",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·1",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·6"
+          },
+          "data": {
+            "code": 403,
+            "weight": 0,
+            "enabled": true,
+            "message": "Доступ запрещён по умолчанию",
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t16",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·2",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·4",
+            "Object": "Resource·7"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t17",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·3",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·4",
+            "Object": "Resource·9"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t18",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·4",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·7"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t19",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·5",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t20",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Resource·10",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "all:READ",
+            "category": "READ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t21",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·6",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t22",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Resource·11",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "all:WRITE",
+            "category": "WRITE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t23",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·7",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·11"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t24",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Resource·12",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "all:DELETE",
+            "category": "DELETE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t25",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·8",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·12"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t26",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "service",
+          "class": "Account",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "name": "service",
+            "enabled": true,
+            "categories": [
+              "Service"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t27",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Ромашка",
+          "class": "Account",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "name": "Ромашка",
+            "enabled": true,
+            "categories": []
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t28",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·9",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t29",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·10",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·11"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t30",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·11",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·12"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t31",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Анна",
+          "class": "Account",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "enabled": true,
+            "categories": [
+              "User"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t32",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "member·1",
+          "class": "member",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "User": "Анна",
+            "Tenant": "Ромашка"
+          },
+          "data": {
+            "roles": [
+              "owner"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t33",
+          "$changed": [
+            "*"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null,
+      "signals": []
+    },
+    {
+      "title": "Одно подключение — два пула",
+      "text": "`connect({ dsn, admin, token })`: цепочки и `db.sql` идут под ролью приложения и правами базы, а `verify()` — администраторский вызов — открывает второй пул строкой администратора, с той же сессией Анны. Так же идут `load`, `projector`, `rebuildAggregates`, `maintain` и `syncModels`.",
+      "code": "db = await connect({ dsn: r.login!.dsn!, admin: dsn.admin, schema, token: r.tenant!.token!, max: 2 });\nconst [who] = await db.sql`select current_user as role`;\nconst check = await db.verify();\nreturn { 'цепочки и db.sql — роль': who.role, 'verify вторым пулом': check.ok };",
+      "params": [
+        "dsn",
+        "schema"
+      ],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: r.login</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.dsn</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, admin: dsn.admin, schema, token: r.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, max: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">who</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sql</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`select current_user as role`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> check</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verify</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'цепочки и db.sql — роль'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: who.role, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'verify вторым пулом'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: check.ok };</span></span></code></pre>",
+      "result": {
+        "цепочки и db.sql — роль": "guide_one_app",
+        "verify вторым пулом": true
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "System",
+          "class": "Account",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "name": "System",
+            "enabled": true,
+            "categories": [
+              "System"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Class «Class»",
+          "class": "Class",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "key": [
+              "name"
+            ],
+            "kind": "hub",
+            "name": "Class",
+            "fields": {
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [
+                "name"
+              ],
+              "ends": {},
+              "kind": "hub",
+              "meta": {},
+              "name": "Class",
+              "vars": {},
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"name\")))",
+                  "path": [
+                    "name"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "name"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"name\").value"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"name\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "Class"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Class «Account»",
+          "class": "Class",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "key": [],
+            "kind": "hub",
+            "name": "Account",
+            "fields": {
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "categories": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "uniqueItems": true
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [],
+              "ends": {},
+              "kind": "hub",
+              "meta": {},
+              "name": "Account",
+              "vars": {},
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"name\")))",
+                  "path": [
+                    "name"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "name"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"name\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
+                    "enabled"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"enabled\").value"
+                },
+                {
+                  "cond": "@.type() == \"array\"",
+                  "path": [
+                    "categories"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                },
+                {
+                  "cond": "true",
+                  "path": [
+                    "categories"
+                  ],
+                  "vars": {},
+                  "extra": {
+                    "kind": "unique"
+                  },
+                  "keyword": "uniqueItems",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "categories",
+                    "*"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value ? (@.type() == \"array\")[*]"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"name\" || @.key == \"enabled\" || @.key == \"categories\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "categories": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "uniqueItems": true
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "Account"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t3",
+          "$changed": []
+        },
+        {
+          "id": "Class «member»",
+          "class": "Class",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "key": [
+              "User",
+              "Tenant"
+            ],
+            "ends": {
+              "User": {
+                "class": "Account",
+                "onDelete": "cascade",
+                "required": true
+              },
+              "Tenant": {
+                "class": "Account",
+                "onDelete": "cascade",
+                "required": true
+              }
+            },
+            "kind": "link",
+            "name": "member",
+            "fields": {
+              "properties": {
+                "roles": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": [],
+                  "uniqueItems": true
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [
+                "User",
+                "Tenant"
+              ],
+              "ends": {
+                "User": {
+                  "class": "Account",
+                  "onDelete": "cascade",
+                  "required": true
+                },
+                "Tenant": {
+                  "class": "Account",
+                  "onDelete": "cascade",
+                  "required": true
+                }
+              },
+              "kind": "link",
+              "meta": {},
+              "name": "member",
+              "vars": {},
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"array\"",
+                  "path": [
+                    "roles"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"roles\").value"
+                },
+                {
+                  "cond": "true",
+                  "path": [
+                    "roles"
+                  ],
+                  "vars": {},
+                  "extra": {
+                    "kind": "unique"
+                  },
+                  "keyword": "uniqueItems",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"roles\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "roles",
+                    "*"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"roles\").value ? (@.type() == \"array\")[*]"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"roles\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [],
+                "properties": {
+                  "roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "default": [],
+                    "uniqueItems": true
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "member"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$changed": []
+        },
+        {
+          "id": "Class «Resource»",
+          "class": "Class",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "key": [
+              "alias"
+            ],
+            "kind": "hub",
+            "name": "Resource",
+            "fields": {
+              "required": [
+                "alias",
+                "category"
+              ],
+              "properties": {
+                "alias": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "pattern": {
+                  "type": "object",
+                  "properties": {
+                    "class": {
+                      "type": "string"
+                    },
+                    "roles": {
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "type": "string"
+                    },
+                    "categories": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "category": {
+                  "enum": [
+                    "ACCOUNT",
+                    "API",
+                    "READ",
+                    "WRITE",
+                    "DELETE"
+                  ],
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [
+                "alias"
+              ],
+              "ends": {},
+              "kind": "hub",
+              "meta": {},
+              "name": "Resource",
+              "vars": {
+                "v1": "ACCOUNT",
+                "v2": "API",
+                "v3": "READ",
+                "v4": "WRITE",
+                "v5": "DELETE"
+              },
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"alias\")))",
+                  "path": [
+                    "alias"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"category\")))",
+                  "path": [
+                    "category"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "alias"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"alias\").value"
+                },
+                {
+                  "cond": "true",
+                  "path": [
+                    "alias"
+                  ],
+                  "vars": {},
+                  "extra": {
+                    "max": null,
+                    "min": 1,
+                    "kind": "length"
+                  },
+                  "keyword": "minLength",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"alias\").value"
+                },
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [
+                    "pattern"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "class"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"class\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "roles"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"roles\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "endpoint"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"endpoint\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "categories"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "category"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
+                },
+                {
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4) || (@.type() == \"string\" && @ == $v5))",
+                  "path": [
+                    "category"
+                  ],
+                  "vars": {
+                    "v1": "ACCOUNT",
+                    "v2": "API",
+                    "v3": "READ",
+                    "v4": "WRITE",
+                    "v5": "DELETE"
+                  },
+                  "keyword": "enum",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "description"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"description\").value"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"alias\" || @.key == \"pattern\" || @.key == \"category\" || @.key == \"description\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [
+                  "alias",
+                  "category"
+                ],
+                "properties": {
+                  "alias": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "pattern": {
+                    "type": "object",
+                    "properties": {
+                      "class": {
+                        "type": "string"
+                      },
+                      "roles": {
+                        "type": "string"
+                      },
+                      "endpoint": {
+                        "type": "string"
+                      },
+                      "categories": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "category": {
+                    "enum": [
+                      "ACCOUNT",
+                      "API",
+                      "READ",
+                      "WRITE",
+                      "DELETE"
+                    ],
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "Resource"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t5",
+          "$changed": []
+        },
+        {
+          "id": "Class «rule»",
+          "class": "Class",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "key": [
+              "Group",
+              "Object"
+            ],
+            "ends": {
+              "Group": {
+                "class": "Resource",
+                "onDelete": "cascade",
+                "required": true
+              },
+              "Object": {
+                "class": "Resource",
+                "onDelete": "cascade",
+                "required": true
+              }
+            },
+            "kind": "link",
+            "name": "rule",
+            "fields": {
+              "required": [
+                "permission"
+              ],
+              "properties": {
+                "code": {
+                  "type": "integer"
+                },
+                "weight": {
+                  "type": "integer",
+                  "default": 0
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "message": {
+                  "type": "string"
+                },
+                "permission": {
+                  "enum": [
+                    "allow",
+                    "deny"
+                  ],
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [
+                "Group",
+                "Object"
+              ],
+              "ends": {
+                "Group": {
+                  "class": "Resource",
+                  "onDelete": "cascade",
+                  "required": true
+                },
+                "Object": {
+                  "class": "Resource",
+                  "onDelete": "cascade",
+                  "required": true
+                }
+              },
+              "kind": "link",
+              "meta": {},
+              "name": "rule",
+              "vars": {
+                "v1": "allow",
+                "v2": "deny"
+              },
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"permission\")))",
+                  "path": [
+                    "permission"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() == \"number\" && @ == @.floor())",
+                  "path": [
+                    "code"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"code\").value"
+                },
+                {
+                  "cond": "(@.type() == \"number\" && @ == @.floor())",
+                  "path": [
+                    "weight"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"weight\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
+                    "enabled"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"enabled\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "message"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"message\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "permission"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"permission\").value"
+                },
+                {
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2))",
+                  "path": [
+                    "permission"
+                  ],
+                  "vars": {
+                    "v1": "allow",
+                    "v2": "deny"
+                  },
+                  "keyword": "enum",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"permission\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "description"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"description\").value"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"code\" || @.key == \"weight\" || @.key == \"enabled\" || @.key == \"message\" || @.key == \"permission\" || @.key == \"description\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [
+                  "permission"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "integer"
+                  },
+                  "weight": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "permission": {
+                    "enum": [
+                      "allow",
+                      "deny"
+                    ],
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "rule"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t6",
+          "$changed": []
+        },
+        {
+          "id": "Resource·1",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "anonymous:ACCOUNT",
+            "pattern": {
+              "categories": "{Anonymous,Shadow}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t7",
+          "$changed": []
+        },
+        {
+          "id": "Resource·2",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "authenticated:ACCOUNT",
+            "pattern": {
+              "categories": "!{Anonymous,Shadow}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t8",
+          "$changed": []
+        },
+        {
+          "id": "Resource·3",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "any:ACCOUNT",
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t9",
+          "$changed": []
+        },
+        {
+          "id": "Resource·4",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "service:ACCOUNT",
+            "pattern": {
+              "categories": "{Service}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t10",
+          "$changed": []
+        },
+        {
+          "id": "Resource·5",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "admin:ACCOUNT",
+            "pattern": {
+              "roles": "{admin}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t11",
+          "$changed": []
+        },
+        {
+          "id": "Resource·6",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "any:API",
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t12",
+          "$changed": []
+        },
+        {
+          "id": "Resource·7",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "auth:API",
+            "pattern": {
+              "endpoint": "auth.*"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t13",
+          "$changed": []
+        },
+        {
+          "id": "Resource·8",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "letopis:API",
+            "pattern": {
+              "endpoint": "letopis.*"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t14",
+          "$changed": []
+        },
+        {
+          "id": "Resource·9",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "signals:API",
+            "pattern": {
+              "endpoint": "letopis.signals"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t15",
+          "$changed": []
+        },
+        {
+          "id": "rule·1",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·6"
+          },
+          "data": {
+            "code": 403,
+            "weight": 0,
+            "enabled": true,
+            "message": "Доступ запрещён по умолчанию",
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t16",
+          "$changed": []
+        },
+        {
+          "id": "rule·2",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·4",
+            "Object": "Resource·7"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t17",
+          "$changed": []
+        },
+        {
+          "id": "rule·3",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·4",
+            "Object": "Resource·9"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t18",
+          "$changed": []
+        },
+        {
+          "id": "rule·4",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·7"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t19",
+          "$changed": []
+        },
+        {
+          "id": "rule·5",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t20",
+          "$changed": []
+        },
+        {
+          "id": "Resource·10",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "all:READ",
+            "category": "READ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t21",
+          "$changed": []
+        },
+        {
+          "id": "rule·6",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t22",
+          "$changed": []
+        },
+        {
+          "id": "Resource·11",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "all:WRITE",
+            "category": "WRITE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t23",
+          "$changed": []
+        },
+        {
+          "id": "rule·7",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·11"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t24",
+          "$changed": []
+        },
+        {
+          "id": "Resource·12",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "all:DELETE",
+            "category": "DELETE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t25",
+          "$changed": []
+        },
+        {
+          "id": "rule·8",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·12"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t26",
+          "$changed": []
+        },
+        {
+          "id": "service",
+          "class": "Account",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "name": "service",
+            "enabled": true,
+            "categories": [
+              "Service"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t27",
+          "$changed": []
+        },
+        {
+          "id": "Ромашка",
+          "class": "Account",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "name": "Ромашка",
+            "enabled": true,
+            "categories": []
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t28",
+          "$changed": []
+        },
+        {
+          "id": "rule·9",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t29",
+          "$changed": []
+        },
+        {
+          "id": "rule·10",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·11"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t30",
+          "$changed": []
+        },
+        {
+          "id": "rule·11",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·12"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t31",
+          "$changed": []
+        },
+        {
+          "id": "Анна",
+          "class": "Account",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "enabled": true,
+            "categories": [
+              "User"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t32",
+          "$changed": []
+        },
+        {
+          "id": "member·1",
+          "class": "member",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "User": "Анна",
+            "Tenant": "Ромашка"
+          },
+          "data": {
+            "roles": [
+              "owner"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t33",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null,
+      "signals": []
+    },
+    {
+      "title": "close() закрывает оба пула",
+      "text": "Пароль администратора в процессе приложения — только для малых приложений: взломанный процесс получит и его.",
+      "code": "await db.close();\nreturn 'закрыто';",
+      "params": [],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">close</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'закрыто'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span></code></pre>",
+      "result": "закрыто",
+      "error": null,
+      "entity": [
+        {
+          "id": "System",
+          "class": "Account",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "name": "System",
+            "enabled": true,
+            "categories": [
+              "System"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Class «Class»",
+          "class": "Class",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "key": [
+              "name"
+            ],
+            "kind": "hub",
+            "name": "Class",
+            "fields": {
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [
+                "name"
+              ],
+              "ends": {},
+              "kind": "hub",
+              "meta": {},
+              "name": "Class",
+              "vars": {},
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"name\")))",
+                  "path": [
+                    "name"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "name"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"name\").value"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"name\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "Class"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Class «Account»",
+          "class": "Class",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "key": [],
+            "kind": "hub",
+            "name": "Account",
+            "fields": {
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "categories": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "uniqueItems": true
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [],
+              "ends": {},
+              "kind": "hub",
+              "meta": {},
+              "name": "Account",
+              "vars": {},
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"name\")))",
+                  "path": [
+                    "name"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "name"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"name\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
+                    "enabled"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"enabled\").value"
+                },
+                {
+                  "cond": "@.type() == \"array\"",
+                  "path": [
+                    "categories"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                },
+                {
+                  "cond": "true",
+                  "path": [
+                    "categories"
+                  ],
+                  "vars": {},
+                  "extra": {
+                    "kind": "unique"
+                  },
+                  "keyword": "uniqueItems",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "categories",
+                    "*"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value ? (@.type() == \"array\")[*]"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"name\" || @.key == \"enabled\" || @.key == \"categories\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "categories": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "uniqueItems": true
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "Account"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t3",
+          "$changed": []
+        },
+        {
+          "id": "Class «member»",
+          "class": "Class",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "key": [
+              "User",
+              "Tenant"
+            ],
+            "ends": {
+              "User": {
+                "class": "Account",
+                "onDelete": "cascade",
+                "required": true
+              },
+              "Tenant": {
+                "class": "Account",
+                "onDelete": "cascade",
+                "required": true
+              }
+            },
+            "kind": "link",
+            "name": "member",
+            "fields": {
+              "properties": {
+                "roles": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": [],
+                  "uniqueItems": true
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [
+                "User",
+                "Tenant"
+              ],
+              "ends": {
+                "User": {
+                  "class": "Account",
+                  "onDelete": "cascade",
+                  "required": true
+                },
+                "Tenant": {
+                  "class": "Account",
+                  "onDelete": "cascade",
+                  "required": true
+                }
+              },
+              "kind": "link",
+              "meta": {},
+              "name": "member",
+              "vars": {},
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"array\"",
+                  "path": [
+                    "roles"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"roles\").value"
+                },
+                {
+                  "cond": "true",
+                  "path": [
+                    "roles"
+                  ],
+                  "vars": {},
+                  "extra": {
+                    "kind": "unique"
+                  },
+                  "keyword": "uniqueItems",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"roles\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "roles",
+                    "*"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"roles\").value ? (@.type() == \"array\")[*]"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"roles\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [],
+                "properties": {
+                  "roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "default": [],
+                    "uniqueItems": true
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "member"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$changed": []
+        },
+        {
+          "id": "Class «Resource»",
+          "class": "Class",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "key": [
+              "alias"
+            ],
+            "kind": "hub",
+            "name": "Resource",
+            "fields": {
+              "required": [
+                "alias",
+                "category"
+              ],
+              "properties": {
+                "alias": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "pattern": {
+                  "type": "object",
+                  "properties": {
+                    "class": {
+                      "type": "string"
+                    },
+                    "roles": {
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "type": "string"
+                    },
+                    "categories": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "category": {
+                  "enum": [
+                    "ACCOUNT",
+                    "API",
+                    "READ",
+                    "WRITE",
+                    "DELETE"
+                  ],
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [
+                "alias"
+              ],
+              "ends": {},
+              "kind": "hub",
+              "meta": {},
+              "name": "Resource",
+              "vars": {
+                "v1": "ACCOUNT",
+                "v2": "API",
+                "v3": "READ",
+                "v4": "WRITE",
+                "v5": "DELETE"
+              },
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"alias\")))",
+                  "path": [
+                    "alias"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"category\")))",
+                  "path": [
+                    "category"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "alias"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"alias\").value"
+                },
+                {
+                  "cond": "true",
+                  "path": [
+                    "alias"
+                  ],
+                  "vars": {},
+                  "extra": {
+                    "max": null,
+                    "min": 1,
+                    "kind": "length"
+                  },
+                  "keyword": "minLength",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"alias\").value"
+                },
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [
+                    "pattern"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "class"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"class\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "roles"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"roles\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "endpoint"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"endpoint\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "categories"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "category"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
+                },
+                {
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4) || (@.type() == \"string\" && @ == $v5))",
+                  "path": [
+                    "category"
+                  ],
+                  "vars": {
+                    "v1": "ACCOUNT",
+                    "v2": "API",
+                    "v3": "READ",
+                    "v4": "WRITE",
+                    "v5": "DELETE"
+                  },
+                  "keyword": "enum",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "description"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"description\").value"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"alias\" || @.key == \"pattern\" || @.key == \"category\" || @.key == \"description\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [
+                  "alias",
+                  "category"
+                ],
+                "properties": {
+                  "alias": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "pattern": {
+                    "type": "object",
+                    "properties": {
+                      "class": {
+                        "type": "string"
+                      },
+                      "roles": {
+                        "type": "string"
+                      },
+                      "endpoint": {
+                        "type": "string"
+                      },
+                      "categories": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "category": {
+                    "enum": [
+                      "ACCOUNT",
+                      "API",
+                      "READ",
+                      "WRITE",
+                      "DELETE"
+                    ],
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "Resource"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t5",
+          "$changed": []
+        },
+        {
+          "id": "Class «rule»",
+          "class": "Class",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "key": [
+              "Group",
+              "Object"
+            ],
+            "ends": {
+              "Group": {
+                "class": "Resource",
+                "onDelete": "cascade",
+                "required": true
+              },
+              "Object": {
+                "class": "Resource",
+                "onDelete": "cascade",
+                "required": true
+              }
+            },
+            "kind": "link",
+            "name": "rule",
+            "fields": {
+              "required": [
+                "permission"
+              ],
+              "properties": {
+                "code": {
+                  "type": "integer"
+                },
+                "weight": {
+                  "type": "integer",
+                  "default": 0
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "message": {
+                  "type": "string"
+                },
+                "permission": {
+                  "enum": [
+                    "allow",
+                    "deny"
+                  ],
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [
+                "Group",
+                "Object"
+              ],
+              "ends": {
+                "Group": {
+                  "class": "Resource",
+                  "onDelete": "cascade",
+                  "required": true
+                },
+                "Object": {
+                  "class": "Resource",
+                  "onDelete": "cascade",
+                  "required": true
+                }
+              },
+              "kind": "link",
+              "meta": {},
+              "name": "rule",
+              "vars": {
+                "v1": "allow",
+                "v2": "deny"
+              },
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"permission\")))",
+                  "path": [
+                    "permission"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() == \"number\" && @ == @.floor())",
+                  "path": [
+                    "code"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"code\").value"
+                },
+                {
+                  "cond": "(@.type() == \"number\" && @ == @.floor())",
+                  "path": [
+                    "weight"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"weight\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
+                    "enabled"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"enabled\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "message"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"message\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "permission"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"permission\").value"
+                },
+                {
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2))",
+                  "path": [
+                    "permission"
+                  ],
+                  "vars": {
+                    "v1": "allow",
+                    "v2": "deny"
+                  },
+                  "keyword": "enum",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"permission\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "description"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"description\").value"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"code\" || @.key == \"weight\" || @.key == \"enabled\" || @.key == \"message\" || @.key == \"permission\" || @.key == \"description\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [
+                  "permission"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "integer"
+                  },
+                  "weight": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "permission": {
+                    "enum": [
+                      "allow",
+                      "deny"
+                    ],
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "rule"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t6",
+          "$changed": []
+        },
+        {
+          "id": "Resource·1",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "anonymous:ACCOUNT",
+            "pattern": {
+              "categories": "{Anonymous,Shadow}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t7",
+          "$changed": []
+        },
+        {
+          "id": "Resource·2",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "authenticated:ACCOUNT",
+            "pattern": {
+              "categories": "!{Anonymous,Shadow}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t8",
+          "$changed": []
+        },
+        {
+          "id": "Resource·3",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "any:ACCOUNT",
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t9",
+          "$changed": []
+        },
+        {
+          "id": "Resource·4",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "service:ACCOUNT",
+            "pattern": {
+              "categories": "{Service}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t10",
+          "$changed": []
+        },
+        {
+          "id": "Resource·5",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "admin:ACCOUNT",
+            "pattern": {
+              "roles": "{admin}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t11",
+          "$changed": []
+        },
+        {
+          "id": "Resource·6",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "any:API",
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t12",
+          "$changed": []
+        },
+        {
+          "id": "Resource·7",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "auth:API",
+            "pattern": {
+              "endpoint": "auth.*"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t13",
+          "$changed": []
+        },
+        {
+          "id": "Resource·8",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "letopis:API",
+            "pattern": {
+              "endpoint": "letopis.*"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t14",
+          "$changed": []
+        },
+        {
+          "id": "Resource·9",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "signals:API",
+            "pattern": {
+              "endpoint": "letopis.signals"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t15",
+          "$changed": []
+        },
+        {
+          "id": "rule·1",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·6"
+          },
+          "data": {
+            "code": 403,
+            "weight": 0,
+            "enabled": true,
+            "message": "Доступ запрещён по умолчанию",
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t16",
+          "$changed": []
+        },
+        {
+          "id": "rule·2",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·4",
+            "Object": "Resource·7"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t17",
+          "$changed": []
+        },
+        {
+          "id": "rule·3",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·4",
+            "Object": "Resource·9"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t18",
+          "$changed": []
+        },
+        {
+          "id": "rule·4",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·7"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t19",
+          "$changed": []
+        },
+        {
+          "id": "rule·5",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t20",
+          "$changed": []
+        },
+        {
+          "id": "Resource·10",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "all:READ",
+            "category": "READ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t21",
+          "$changed": []
+        },
+        {
+          "id": "rule·6",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t22",
+          "$changed": []
+        },
+        {
+          "id": "Resource·11",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "all:WRITE",
+            "category": "WRITE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t23",
+          "$changed": []
+        },
+        {
+          "id": "rule·7",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·11"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t24",
+          "$changed": []
+        },
+        {
+          "id": "Resource·12",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "all:DELETE",
+            "category": "DELETE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t25",
+          "$changed": []
+        },
+        {
+          "id": "rule·8",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·5",
+            "Object": "Resource·12"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t26",
+          "$changed": []
+        },
+        {
+          "id": "service",
+          "class": "Account",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "name": "service",
+            "enabled": true,
+            "categories": [
+              "Service"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t27",
+          "$changed": []
+        },
+        {
+          "id": "Ромашка",
+          "class": "Account",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "name": "Ромашка",
+            "enabled": true,
+            "categories": []
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t28",
+          "$changed": []
+        },
+        {
+          "id": "rule·9",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t29",
+          "$changed": []
+        },
+        {
+          "id": "rule·10",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·11"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t30",
+          "$changed": []
+        },
+        {
+          "id": "rule·11",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·12"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t31",
+          "$changed": []
+        },
+        {
+          "id": "Анна",
+          "class": "Account",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "name": "Анна",
+            "enabled": true,
+            "categories": [
+              "User"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t32",
+          "$changed": []
+        },
+        {
+          "id": "member·1",
+          "class": "member",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "User": "Анна",
+            "Tenant": "Ромашка"
+          },
+          "data": {
+            "roles": [
+              "owner"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t33",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null,
+      "signals": []
+    }
+  ]
+}

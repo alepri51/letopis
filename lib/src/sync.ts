@@ -8,6 +8,8 @@
  */
 import type { Db } from './index.js';
 import { LetopisError } from './errors.js';
+import { internalsOf } from './internal.js';
+import type { Tx } from './tx.js';
 import type { AnyModel, LostRule } from './model.js';
 import type { JsonSchema } from './jsonschema.js';
 import type { Registry } from './registry.js';
@@ -57,8 +59,12 @@ export async function syncModels(db: Db, models: readonly AnyModel[], opts: { ap
     ordered.push(m);
   };
   models.forEach(visit);
+  // у корня connect({ admin }) классы пишет администраторский пул с той же сессией (план 2.0, 7.9 №3): описание
+  // производного класса и правка класса со строками требуют прав, которых у роли приложения может не быть
+  const adminTx = internalsOf(db)?.adminTx;
+  const run = <T>(fn: (tx: Tx) => Promise<T>): Promise<T> => (adminTx ? adminTx(fn) : db.transaction(fn));
   try {
-    await db.transaction(async (tx) => {
+    await run(async (tx) => {
       for (const m of ordered) {
         const desc = m.describe();
         const [cur] = await tx.unsafe(`select tenant = ${S}.ctx_tenant() as own, data - 'resolved' as data from ${S}.entity

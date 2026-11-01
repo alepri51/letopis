@@ -109,6 +109,7 @@
         "LoadIssue",
         "LoadOptions",
         "LoadReport",
+        "LoginOptions",
         "LoginResult",
         "MaintainOptions",
         "MaintainReport",

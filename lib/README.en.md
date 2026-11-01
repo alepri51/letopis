@@ -70,12 +70,8 @@ npm install letopis zod postgres    # postgres: for createTenant and your own SQ
 ```
 
 The application connects to the database with a separate role that is a member of `letopis_app`. The installation
-creates `letopis_app`. So after the first installation, create the application role once:
-
-```sql
-create role shop_app login password 'app-secret';
-grant letopis_app to shop_app;
-```
+creates it itself: the `login` option of `up()` creates the role with a password (a repeat only updates the password)
+and grants it `letopis_app`.
 
 The example installs the schema, creates a shop with its first user, describes two classes and works with them:
 
@@ -88,8 +84,8 @@ import { z } from 'zod'
 const ADMIN = 'postgres://postgres:secret@localhost:5432/shop'    // admin: installs the schema
 const APP = 'postgres://shop_app:app-secret@localhost:5432/shop'  // application: a member of letopis_app
 
-// 1. Install the v2.shop schema. tenant is the first tenant (the shop) and its user Anna.
-const r = await up({ dsn: ADMIN, schema: 'shop',
+// 1. Install the v2.shop schema. login is the application role shop_app, tenant is the first tenant (the shop) and its user Anna.
+const r = await up({ dsn: ADMIN, schema: 'shop', login: { user: 'shop_app', password: 'app-secret' },
   tenant: { name: 'Chamomile', user: { name: 'Anna', login: 'anna@shop.ru', password: 'Chamomile-2026!' } } })
 // r.serviceKey is the application's service key: it is issued on the first installation, so save it
 
@@ -276,11 +272,15 @@ const ANNA = r.tenant!.user!       // its first user
 
 ### Application role
 
-The application works as a LOGIN role that is a member of `letopis_app` only:
-`create role shop_app login password '…'; grant letopis_app to shop_app;`. Then RLS and triggers apply to it, as to
+The application works as a LOGIN role that is a member of `letopis_app` only. `up({ login: { user, password } })`
+creates it: the database quotes the name and the password, a repeat updates the password, and `up()` does not touch a
+privileged role (a superuser, a role with `CREATEROLE` or `BYPASSRLS`, the owner role or its member) — `invalid_data`;
+the role's connection string is `r.login.dsn`. By hand: `create role shop_app login password '…'; grant letopis_app to
+shop_app;`. RLS and triggers apply to the application role, as to
 any raw SQL from this role. `connect()` rejects a role that bypasses RLS with the error `bypass_rls`. The admin
 connection (`allowBypassRls: true`) is needed only for the loader, projectors, aggregate repair (`rebuildAggregates`),
-verification and maintenance; keep it in a separate process, not in the web application.
+verification and maintenance; keep it in a separate process, not in the web application. A small application can do
+with one process — [below](#one-process).
 
 ### First tenant and user
 
@@ -366,6 +366,25 @@ separate loading process is better off with a service key:
 <!-- run: guide -->
 ```ts
 const adm = await connect({ dsn: ADMIN, schema: r.schema, token: r.tenant!.token!, allowBypassRls: true })
+```
+
+### One process
+
+A small application does not have to keep two processes. `up({ login })` creates the application role and returns its
+connection string (`r.login.dsn`), and `connect({ dsn, admin, token })` opens a second pool — at most two connections —
+with the admin connection string on the first admin call. Only `load`, `projector`, `rebuildAggregates`, `verify`,
+`maintain` and `syncModels` go through it, with the same session; chains and `db.sql` stay in the application pool
+under RLS. The role of the `admin` string is a superuser or a role with `SET` on the owner role, otherwise
+`admin_required`. The admin password in the application process is for small applications only: a compromised process
+gets it too.
+
+<!-- run: guide -->
+```ts
+const soloUp = await up({ dsn: ADMIN, schema: r.schema, login: { user: 'shop_app', password: 'app-secret' } })
+const solo = await connect({ dsn: soloUp.login!.dsn!, admin: ADMIN, schema: r.schema, token: r.tenant!.token! })
+const soloCheck = await solo.verify()        // through the admin pool, with Anna's session: { ok: true, … }
+const soloMembers = await solo.member().count()  // through the application pool, under RLS: only its own tenant
+await solo.close()                           // closes both pools
 ```
 
 ### Upgrading the package and schema
@@ -2914,6 +2933,7 @@ order; the first red step stops the run. The same load for a day: `cd lib && npm
 # import — import from 0.21 with a fixture of a real 0.21: key violation, --keyless, per-class counters, verify, self-reference, repeat, ids without a key, a dangling reference, $$strict and fields starting with $, update, credentials, CLI (stage 7)
 # security-final — the final security review (stage 8, §7.10 No. 8.4): a family lock by the tenant of the root, account_purge without permission and restore/purge of a foreign id give neither a leak nor a lock; the functions of stage 6, log_refs_at, journal-based find_* reads and watch_read stay within their own tenant; NOTIFY carries only names or mode tokens; the cache key distinguishes the token, the actor and the tenant (stage 8)
 # semver — version rules: check:semver requires at least the matching version step — a major for a removed method or error code, a minor for a new method and a new engine revision, a patch for texts only (plan 2.0, 7.8 No. 1)
+# one-process — one process: up({ login }) quotes the name and password of the application role, a repeat updates the password, a privileged role is left alone; connect({ admin }) — a second pool on first need for load, projector, syncModels, verify, maintain with the same session, chains under RLS, without admin — admin_required (plan 2.0, 7.9 No. 3, No. 4)
 # prerelease — the pre-release check: steps run strictly in order, the first red one stops the run and the following ones do not start (plan 2.0, 7.8 No. 3)
 # write-contract — README promises about writes (plan 2.0, 7.2): a repeated key in a batch gives exists and a rollback, the row order of reclass, restore and rekey responses, a chain with a verb as a slot value, the loader with existing: update does not edit a row of another class, a cached answer is not spoiled by editing an earlier answer
 # watch-contract — README promises about subscriptions and connections (plan 2.0, 7.4): an idle subscription polls the journal once per pollMs, close() of the connection closes live subscriptions, a reclass without a key resets the cache of the old class, a new projector participant gets an initial rebuild, a projector without LISTEN re-reads its participants, at most a limit of db.as() registries

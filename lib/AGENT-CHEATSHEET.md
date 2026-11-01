@@ -53,9 +53,12 @@ const r = await up({ dsn: ADMIN, schema: 'myapp',                  // схема
   пароль для входа по логину `login` и сессию в арендаторе. Повтор с тем же именем и логином ничего не дублирует и роли
   существующего членства не меняет (id — v5 от «tenant:<имя>» и «user:<логин>»).
   Ещё арендатор — `createTenant(postgres(ADMIN), 'v2.myapp', { name, user })` (нужно администраторское подключение).
-- Приложение подключается **прикладной LOGIN-ролью**, которая состоит только в `letopis_app`:
-  `create role myapp login password '…'; grant letopis_app to myapp;`. Подключение суперпользователем —
-  ошибка `bypass_rls` (RLS не действовал бы); администраторское подключение — только явно `allowBypassRls: true`.
+- Приложение подключается **прикладной LOGIN-ролью**, которая состоит только в `letopis_app`: её заводит
+  `up({ login: { user, password } })` (строка подключения — `r.login.dsn`; привилегированную роль — отказ
+  `invalid_data`), вручную — `create role myapp login password '…'; grant letopis_app to myapp;`. Подключение
+  суперпользователем — ошибка `bypass_rls` (RLS не действовал бы); администраторское подключение — только явно
+  `allowBypassRls: true`. Один процесс: `connect({ dsn: r.login.dsn, admin: ADMIN, token })` — `load`, `projector`,
+  `rebuildAggregates`, `verify`, `maintain`, `syncModels` идут вторым пулом с той же сессией, цепочки — под RLS.
 - Аккаунты живут в арендаторе System; системный администратор (член System с ролью `admin`; назначает его свой сид
   установки или загрузчик на администраторском подключении) создаёт их цепочкой `admin.Account().create({ name, categories })`. Свой сид (`seeds: ['./my.sql']`, функции владельца `sys_create`,
   `sys_grant_all`, маркеры `@SCHEMA@`, `@SYSTEM@`) остаётся для особых случаев.

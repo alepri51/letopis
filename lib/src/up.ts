@@ -390,6 +390,20 @@ export interface UpOptions extends Omit<InstallOptions, 'schema' | 'upTo' | 'mig
    * кладёт итог в `r.tenant` — свой сид для этого не нужен.
    */
   tenant?: TenantOptions;
+  /**
+   * Роль приложения с логином (план 2.0, этап 3): заводится или получает новый пароль и членство в роли приложения
+   * (`letopis_app`). Имя и пароль квотирует база (`format` с `%I` и `%L`). Привилегированную роль — суперпользователя,
+   * с `CREATEROLE`, `CREATEDB`, `REPLICATION`, `BYPASSRLS`, роль-владельца или её члена — up() не трогает
+   * (`invalid_data`). Строка подключения роли — `r.login.dsn`: с ней и `connect({ admin })` малое приложение работает
+   * одним процессом.
+   */
+  login?: LoginOptions;
+}
+
+/** Роль приложения up({ login }). */
+export interface LoginOptions {
+  user: string;
+  password: string;
 }
 
 export interface UpResult extends InstallResult {
@@ -405,6 +419,11 @@ export interface UpResult extends InstallResult {
   pglite?: PgliteServer;
   /** up({ tenant }): арендатор (и его первый пользователь с сессией). */
   tenant?: TenantResult;
+  /**
+   * up({ login }): роль приложения — заведена (`created`) или получила новый пароль; `dsn` — строка подключения роли
+   * (из `dsn` установки или PGlite; при готовом пуле `sql` её нет).
+   */
+  login?: { user: string; created: boolean; dsn?: string };
   /** Предупреждения (версия сервера); без quiet каждое уже напечатано через console.warn. */
   warnings: string[];
 }
@@ -480,8 +499,9 @@ export async function up(opts: UpOptions): Promise<UpResult> {
   const log = opts.quiet ? () => {} : (m: string) => console.log(`letopis.up: ${m}`);
   const schema = opts.schema.includes('.') ? opts.schema : `${SCHEMA_VERSION}.${opts.schema}`;
   if (!SCHEMA_NAME.test(schema)) throw new Error(`letopis.up: bad schema name "${opts.schema}" (нужно <имя> или v<N>.<имя>)`);
-  // опции арендатора — до подключения и наката: с неверными up() ничего не начинает
+  // опции арендатора и роли приложения — до подключения и наката: с неверными up() ничего не начинает
   if (opts.tenant) checkTenant(opts.tenant);
+  if (opts.login !== undefined) checkLogin(opts.login);
   let sql = opts.sql;
   const own = !sql;
   const lite = opts.pglite ? await startPglite(opts.pglite === true ? {} : opts.pglite) : undefined;
@@ -515,7 +535,7 @@ export async function up(opts: UpOptions): Promise<UpResult> {
     if (before !== null && before < DDL_REVISION && !opts.upgrade) {
       throw new Error(`letopis.up: схема ${schema} ревизии ${before}, библиотека — ${DDL_REVISION}: обновите её up({ schema: '${schema}', upgrade: true })`);
     }
-    const { dsn: _d, sql: _s, schema: _sc, fresh: _f, upgrade: _u, quiet: _q, waitTimeoutMs: _w, pglite: _p, ...rest } = opts;
+    const { dsn: _d, sql: _s, schema: _sc, fresh: _f, upgrade: _u, quiet: _q, waitTimeoutMs: _w, pglite: _p, login: _l, ...rest } = opts;
     const { found, ...res } = await install(sql, {
       ...rest, schema, ...(opts.fresh ? { fresh: true } : {}), ...(before !== null && before < DDL_REVISION ? { migrateFrom: before } : {}),
     });
@@ -528,8 +548,10 @@ export async function up(opts: UpOptions): Promise<UpResult> {
     const revision = (await schemaRevision(sql, schema)) ?? 0;
     log(`${found === null ? 'схема поставлена' : found < DDL_REVISION ? `схема обновлена с ревизии ${found}` : 'повторный накат'}: ${schema}, ревизия ${revision}`);
     const tenant = opts.tenant ? await createTenant(sql, schema, opts.tenant, opts.owner) : undefined;
+    const login = opts.login ? await ensureLogin(sql, opts.login, res.owner, res.app, opts.dsn ?? lite?.dsn) : undefined;
+    if (login) log(`роль приложения ${login.user}: ${login.created ? 'заведена' : 'пароль обновлён'}`);
     return { ...res, created: found === null, upgraded: found !== null && found < DDL_REVISION, revision, analyzed, warnings,
-      ...(lite ? { pglite: lite } : {}), ...(tenant ? { tenant } : {}) };
+      ...(lite ? { pglite: lite } : {}), ...(tenant ? { tenant } : {}), ...(login ? { login } : {}) };
   } catch (e) {
     if (lite) await sql.end({ timeout: 1 }).then(() => lite.close(), () => lite.close());
     throw e;
@@ -537,6 +559,50 @@ export async function up(opts: UpOptions): Promise<UpResult> {
     if (own && !lite) await sql.end({ timeout: 5 });
     else if (lite) await sql.end({ timeout: 5 }).catch(() => {});
   }
+}
+
+/** Проверка up({ login }) до подключения: имя роли и пароль. */
+function checkLogin(login: unknown): void {
+  const bad = (why: string) => new LetopisError('invalid_data', `up({ login }): ${why}`);
+  if (!login || typeof login !== 'object') throw bad('нужен объект { user, password }');
+  const { user, password } = login as Record<string, unknown>;
+  if (typeof user !== 'string' || !user.trim() || Buffer.byteLength(user, 'utf8') > 63 || user.startsWith('pg_') || user.includes('\0')) {
+    throw bad(`user ${JSON.stringify(user)} — имя роли: непустое, до 63 байт, не pg_…`);
+  }
+  if (typeof password !== 'string' || !password || password.includes('\0')) throw bad('password — непустая строка');
+}
+
+/**
+ * Роль приложения up({ login }) (план 2.0, 7.9 №4): заводится или получает новый пароль, затем членство в роли
+ * приложения. Роли — объекты кластера: под той же блокировкой, что общая часть install(). Текст create/alter/grant
+ * собирает база (`format` с `%I` и `%L`), поэтому кавычки в имени и пароле не ломают SQL.
+ */
+async function ensureLogin(sql: postgres.Sql, login: LoginOptions, owner: string, app: string, dsn?: string): Promise<NonNullable<UpResult['login']>> {
+  const created = await sql.begin(async (tx) => {
+    await tx`select pg_advisory_xact_lock(hashtext('letopis'), hashtext('install'))`;
+    const [r] = await tx`select r.rolsuper or r.rolcreaterole or r.rolcreatedb or r.rolreplication or r.rolbypassrls
+        or pg_has_role(r.oid, ${owner}, 'USAGE') or pg_has_role(r.oid, ${owner}, 'SET') as privileged
+      from pg_roles r where r.rolname = ${login.user}`;
+    if (r?.privileged || login.user === owner || login.user === app) {
+      throw new LetopisError('invalid_data', `up({ login }): роль ${login.user} — привилегированная (суперпользователь, CREATEROLE, `
+        + 'CREATEDB, REPLICATION, BYPASSRLS, роль-владелец или её член) или сама роль приложения: роль приложения — обычная роль '
+        + 'входа, привилегированную up() не трогает');
+    }
+    const verb = r ? 'alter role %I login password %L' : 'create role %I login password %L';
+    const [{ q }] = await tx`select format(${verb}::text, ${login.user}::text, ${login.password}::text) as q`;
+    await tx.unsafe(q as string);
+    const [{ g }] = await tx`select format('grant %I to %I', ${app}::text, ${login.user}::text) as g`;
+    await tx.unsafe(g as string);
+    return !r;
+  });
+  let url: string | undefined;
+  if (dsn) {
+    const u = new URL(dsn);
+    u.username = login.user;
+    u.password = login.password;
+    url = u.toString();
+  }
+  return { user: login.user, created, ...(url ? { dsn: url } : {}) };
 }
 
 // ---------------------------------------------------------------------------

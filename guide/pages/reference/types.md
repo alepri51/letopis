@@ -621,6 +621,14 @@ interface ConnectOptions {
   refreshSession?: boolean;
   /** Разрешить роль, которая обходит RLS (суперпользователь, `BYPASSRLS`, член роли-владельца), — администраторское подключение. */
   allowBypassRls?: boolean;
+  /**
+   * Один процесс малого приложения: строка подключения администратора (или пул postgres.js). Второй
+   * пул — не больше двух соединений — открывается при первой надобности и служит только администраторским вызовам корня
+   * подключения: `load`, `projector`, `rebuildAggregates`, `verify`, `maintain` и `syncModels`, с той же сессией.
+   * Цепочки и `db.sql` идут через пул приложения (`dsn`) под RLS. Роль строки — суперпользователь или роль с `SET` на
+   * роль-владельца, иначе `admin_required`. Пароль администратора в процессе приложения — только для малых приложений.
+   */
+  admin?: string | postgres.Sql;
   /** Имя роли-владельца (по умолчанию `letopis_owner`). */
   owner?: string;
   /** Интервал отправки отложенного сигнала, мс (по умолчанию 100). */
@@ -1056,6 +1064,16 @@ interface LoadReport {
   /** Зафиксировано порций. */
   portions: number;
   ms: number;
+}
+```
+
+## LoginOptions {#type-loginoptions}
+
+```ts
+/** Роль приложения up({ login }). */
+interface LoginOptions {
+  user: string;
+  password: string;
 }
 ```
 
@@ -1782,6 +1800,14 @@ interface UpOptions extends Omit<InstallOptions, 'schema' | 'upTo' | 'migrateFro
    * кладёт итог в `r.tenant` — свой сид для этого не нужен.
    */
   tenant?: TenantOptions;
+  /**
+   * Роль приложения с логином: заводится или получает новый пароль и членство в роли приложения
+   * (`letopis_app`). Имя и пароль квотирует база (`format` с `%I` и `%L`). Привилегированную роль — суперпользователя,
+   * с `CREATEROLE`, `CREATEDB`, `REPLICATION`, `BYPASSRLS`, роль-владельца или её члена — up() не трогает
+   * (`invalid_data`). Строка подключения роли — `r.login.dsn`: с ней и `connect({ admin })` малое приложение работает
+   * одним процессом.
+   */
+  login?: LoginOptions;
 }
 ```
 
@@ -1801,6 +1827,11 @@ interface UpResult extends InstallResult {
   pglite?: PgliteServer;
   /** up({ tenant }): арендатор (и его первый пользователь с сессией). */
   tenant?: TenantResult;
+  /**
+   * up({ login }): роль приложения — заведена (`created`) или получила новый пароль; `dsn` — строка подключения роли
+   * (из `dsn` установки или PGlite; при готовом пуле `sql` её нет).
+   */
+  login?: { user: string; created: boolean; dsn?: string };
   /** Предупреждения (версия сервера); без quiet каждое уже напечатано через console.warn. */
   warnings: string[];
 }
