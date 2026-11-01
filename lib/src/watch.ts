@@ -80,6 +80,8 @@ export interface WatchCtx {
   exec: Executor;
   /** Классы подписки с потомками (null — все). */
   classes: string[] | null;
+  /** Классы с потомками заново — по текущему реестру: потомки, заведённые после watch(), тоже в подписке (план 2.0, 7.4 №2). */
+  classesOf?: () => string[] | null;
   /** Подписка на сигналы базы (разобранные); возвращает отписку. */
   onSignal?: (fn: (s: Signal) => void) => () => void;
   /** Токен арендатора подписки (null — процесс без ключа или режим без токенов). */
@@ -146,9 +148,9 @@ export class Subscription implements AsyncIterable<WatchEvent> {
       this.start.catch(() => {});
     }
     if (ctx.onSignal) {
-      const watched = ctx.classes ? new Set(ctx.classes) : null;
       this.off = ctx.onSignal((s) => {
-        if (!wakes(s, watched, ctx.tenant?.() ?? null)) return;
+        const cls = ctx.classesOf?.() ?? ctx.classes;
+        if (!wakes(s, cls ? new Set(cls) : null, ctx.tenant?.() ?? null)) return;
         this.dirty = true;
         this.burst = true;
         this.wake?.();
@@ -215,7 +217,7 @@ export class Subscription implements AsyncIterable<WatchEvent> {
          and l.tx >= pg_snapshot_xmin(pg_current_snapshot()) and ($4::text[] is null or l.class = any ($4::text[]))
          and ($6::text::pg_snapshot is null or not pg_visible_in_snapshot(l.tx, $6::text::pg_snapshot))
        having (select count(*) from r) < $5`,
-      [p.tx, p.seq, p.at, this.ctx.classes, this.batch, p.snap ?? null] as never[]) as unknown as Promise<(R & { src: number })[]>, { read: true });
+      [p.tx, p.seq, p.at, this.ctx.classesOf?.() ?? this.ctx.classes, this.batch, p.snap ?? null] as never[]) as unknown as Promise<(R & { src: number })[]>, { read: true });
     const before = (a: R, b: R) => BigInt(a.tx) < BigInt(b.tx) || (a.tx === b.tx && BigInt(a.seq) < BigInt(b.seq));
     const order = (a: R, b: R) => (before(a, b) ? -1 : before(b, a) ? 1 : 0);
     const read = both.filter((r) => r.src === 0).sort(order);

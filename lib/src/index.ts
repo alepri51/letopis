@@ -342,6 +342,7 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
       const classes = o.classes ? [...new Set(o.classes.flatMap((c) => reg.family(c).map((x) => x.name)))] : null;
       return sh.track(new Subscription({
         S: sh.S, exec: poolExecutor(txc), classes, onClose: (s) => void sh.subs.delete(s),
+        ...(o.classes ? { classesOf: () => [...new Set(o.classes!.flatMap((c) => scope.registry().family(c).map((x) => x.name)))] } : {}),
         ...(sh.listen ? {
           onSignal: (fn: (s: Signal) => void) => { sh.signals.add(fn); return () => void sh.signals.delete(fn); },
           tenant: () => (sh.allTenants ? null : sh.sig.tenantToken(scope.tenant())),

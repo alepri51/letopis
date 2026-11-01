@@ -79,3 +79,19 @@ test('план 2.0, 7.4 №4: reclass класса без ключа сбрас�
   assert.equal(leads.some((r) => r.id === x.id), false, 'строка ушла из Lead — прежний ответ кэша сброшен');
   assert.equal((await db.Client(x.id).rows()).length, 1);
 });
+
+test('план 2.0, 7.4 №2: подписка на класс получает события потомка, заведённого после watch()', async () => {
+  await e.defineClass(t, { name: 'Base2', kind: 'hub', fields: { properties: { name: { type: 'string' } } } });
+  await db.refresh();
+  const sub = db.watch({ from: 'now', classes: ['Base2'] });
+  try {
+    await sub.ready();
+    await e.defineClass(t, { name: 'Child2', kind: 'hub', parent: 'Base2', fields: { properties: { name: { type: 'string' } } } });
+    await db.refresh();
+    await db.Child2().create({ name: 'потомок' }).rows();
+    const ev = await Promise.race([sub.next(), new Promise<never>((_, j) => setTimeout(() => j(new Error('события потомка нет за 5 с')), 5000))]);
+    assert.equal(ev.value.class, 'Child2');
+  } finally {
+    sub.close();
+  }
+});
