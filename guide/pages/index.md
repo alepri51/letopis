@@ -6,8 +6,8 @@ hero:
   tagline: Хранилище, которое помнит каждую версию. Здесь всё объяснено простыми словами и показано на настоящих данных — каждый пример прогнан на живой базе.
   actions:
     - theme: brand
-      text: Начать с основ
-      link: /basics/what-is
+      text: Начать
+      link: /first/
     - theme: alt
       text: Сервисы-примеры
       link: /services/

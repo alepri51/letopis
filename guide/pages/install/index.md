@@ -14,6 +14,8 @@ create role shop_app login password 'app-secret';
 grant letopis_app to shop_app;
 ```
 
+Роль приложения может завести и сам `up()` — опция `login`. Весь путь одним процессом, от пустой базы до первых данных, — на странице [«Первые 15 минут»](../first/).
+
 ## Пример: установка, арендатор и вход
 
 <Example id="install/01-up-and-connect" />

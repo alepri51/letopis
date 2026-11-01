@@ -25,7 +25,7 @@ export default defineConfig({
   },
   themeConfig: {
     nav: [
-      { text: 'Начать', link: '/basics/what-is' },
+      { text: 'Начать', link: '/first/' },
       { text: 'Справочник API', link: '/reference/' },
       { text: 'Сервисы-примеры', link: '/services/' },
     ],
@@ -33,6 +33,7 @@ export default defineConfig({
       {
         text: 'Основы',
         items: [
+          { text: 'Первые 15 минут', link: '/first/' },
           { text: 'Старт с нуля', link: '/start/' },
           { text: '1. Что такое letopis', link: '/basics/what-is' },
           { text: '2. Установка и подключение', link: '/install/' },
