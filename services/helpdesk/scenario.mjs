@@ -152,6 +152,12 @@ try {
   const credLine = issuedHood?.lines.find((l) => l.startsWith('svc.auth.credentials')) ?? '';
   check(issuedHood?.title === 'Сессия для ИИ-агента' && credLine.includes('APIKEY') && !credLine.includes('SESSION') && !JSON.stringify(issuedHood).includes(ses.token),
     'под капотом: ключ агента — кред (APIKEY в credentials()), сессии там нет; токена в панели нет', issuedHood);
+  // клиент через MCP — только чтение: служебные строки компании (счётчик заявок) ему не правятся (план 2.0, 7.6 №1)
+  const asClient = new Client({ name: 'сценарий-клиент', version: '1.0.0' });
+  await asClient.connect(new StreamableHTTPClientTransport(new URL(`${base}/mcp`), { requestInit: { headers: { cookie: client.cookie } } }));
+  const clientTools = (await asClient.listTools()).tools.map((x) => x.name);
+  check(clientTools.includes('letopis_query') && !clientTools.includes('letopis_write'), `клиент через MCP — только чтение: ${clientTools.join(', ')}`);
+  await asClient.close();
   const viaSession = new Client({ name: 'сценарий-сессия', version: '1.0.0' });
   await viaSession.connect(new StreamableHTTPClientTransport(new URL(`${base}${ses.url}`), { requestInit: { headers: { authorization: `Bearer ${ses.token}` } } }));
   const bySession = (await viaSession.callTool({ name: 'letopis_query', arguments: { class: 'Ticket', filter: { number: t.number } } })).structuredContent?.data?.rows?.[0];

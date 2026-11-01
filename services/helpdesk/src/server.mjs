@@ -103,6 +103,7 @@ const RESOURCES = {
   'role-owner:ACCOUNT': { category: 'ACCOUNT', pattern: { roles: '{owner}' } },
   'role-agent:ACCOUNT': { category: 'ACCOUNT', pattern: { roles: '{agent}' } },
   'role-client:ACCOUNT': { category: 'ACCOUNT', pattern: { roles: '{client}' } },
+  'role-integration:ACCOUNT': { category: 'ACCOUNT', pattern: { roles: '{integration}' } },
   'not-owner:ACCOUNT': { category: 'ACCOUNT', pattern: { roles: '!{owner}' } },
   'own-ticket:READ': { category: 'READ', pattern: { class: 'Ticket', owner: '$actor' } },
   'own-ticket:WRITE': { category: 'WRITE', pattern: { class: 'Ticket', owner: '$actor' } },
@@ -129,6 +130,10 @@ const RULES = [
   ['role-client:ACCOUNT', 'profile:WRITE', 'deny', 50],
   ['role-client:ACCOUNT', 'note:READ', 'deny', 50],
   ['role-client:ACCOUNT', 'note:WRITE', 'deny', 50],
+  // ключ интеграции (форма на сайте) заводит заявки — внутренние заметки и профили ему закрыты (план 2.0, 7.6 №2)
+  ['role-integration:ACCOUNT', 'note:READ', 'deny', 50],
+  ['role-integration:ACCOUNT', 'note:WRITE', 'deny', 50],
+  ['role-integration:ACCOUNT', 'profile:WRITE', 'deny', 50],
   ['not-owner:ACCOUNT', 'ticket:DELETE', 'deny', 50],
   ['not-owner:ACCOUNT', 'desk:WRITE', 'deny', 50],
   ['not-owner:ACCOUNT', 'acl:WRITE', 'deny', 60],
@@ -917,7 +922,9 @@ export async function createApp() {
     const request = new Request(`http://127.0.0.1${req.originalUrl}`, {
       method: req.method, headers, body: req.method === 'POST' ? JSON.stringify(req.body) : undefined,
     });
-    const write = a ? true : s ? roleOf(whoOf(s).roles) !== 'client' : false;
+    // ключ API — по ролям его аккаунта в арендаторе ключа: ключ агента пишет, ключ интеграции и клиента — нет
+    const keyRoles = k ? (await k.db.member({ User: k.account, Tenant: k.tenant }).first())?.data.roles ?? [] : [];
+    const write = a ? true : s ? roleOf(whoOf(s).roles) !== 'client' : k ? roleOf(keyRoles) !== 'client' : false;
     const call = () => mcp.fetch(request, { authInfo: { token: key || 'cookie', clientId: 'helpdesk', scopes: [], extra: { db, write } } });
     const what = Array.isArray(req.body) ? 'пачка' : `${req.body?.method ?? req.method}${req.body?.params?.name ? ` ${req.body.params.name}` : ''}`;
     // «под капотом»: вызов по cookie — у этой вкладки, по сессии агента — у вкладки, которая её выдала (автор версий — вы)
