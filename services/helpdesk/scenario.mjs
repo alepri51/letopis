@@ -251,6 +251,14 @@ try {
   const again = await call('', '/api/register', failBody);
   check(again.status === 200 && again.data?.role === 'manager', 'повтор тем же человеком достраивает компанию — он руководитель', { status: again.status });
   check((await call(again.cookie, '/api/tickets', { subject: 'После сбоя', body: 'тест' })).status === 200, 'достроенная компания работает — заявка создана');
+  // с включённым вторым фактором повтор регистрации сессию по одному паролю не выдаёт — только вход с кодом
+  const zoya = { company: `Сбой-2 ${run}`, name: 'Зоя', login: `zoya-${run}@proba.ru`, password: 'Proba-2026!' };
+  process.env.HELPDESK_FAIL_REGISTER = zoya.company;
+  await call('', '/api/register', zoya);
+  const zl = await call('', '/api/login', { login: zoya.login, password: zoya.password });
+  const zt = await call(zl.cookie, '/api/security/totp/enroll', {});
+  await call(zl.cookie, '/api/security/totp/verify', { code: totpCode(zt.data?.secret ?? '') });
+  check((await call('', '/api/register', zoya)).status === 409, 'повтор регистрации с включённым TOTP — 409, не обход второго фактора');
   await call(reg.cookie, '/api/tickets', { subject: 'Проверка связи', body: 'тест' });
   check((await call(boss.cookie, '/api/company/close', {})).status === 403, 'демо-компанию закрыть нельзя');
   const closed = await call(reg.cookie, '/api/company/close', {});

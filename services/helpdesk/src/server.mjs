@@ -479,7 +479,10 @@ export async function createApp() {
     if ((await svc.auth.credentials(accountOf(login)).catch(() => [])).length) {
       const ok = await svc.auth.verifyPassword({ identifier: login, password, ttl: 60 }).catch(() => null);
       if (ok) await dropToken(ok.token);
-      if (!ok || !(await unfinished(company, ok.account))) throw new HttpError(409, 'Этот email уже зарегистрирован — войдите');
+      // второй фактор: с включённым TOTP сессию по одному паролю не выдаём — вход (/api/login) проверит код
+      if (!ok || (await svc.auth.totpEnabled(ok.account)) || !(await unfinished(company, ok.account))) {
+        throw new HttpError(409, 'Этот email уже зарегистрирован — войдите');
+      }
     } else if (!(await createTenant(admin, r.schema, { name: company })).created && !(await unfinished(company, null))) {
       throw new HttpError(409, 'Компания с таким названием уже есть');
     }
