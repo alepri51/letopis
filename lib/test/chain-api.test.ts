@@ -32,7 +32,7 @@ after(async () => {
 });
 
 const removedErr = (replacement: RegExp) => (err: { code?: string; message?: string }) =>
-  err.code === 'removed' && /снята? в 1\.0\.0/.test(err.message ?? '') && replacement.test(err.message ?? '');
+  err.code === 'removed' && /сняты? в 1\.0\.0|снята в 1\.0\.0/.test(err.message ?? '') && replacement.test(err.message ?? '');
 
 test('охранники снесённого API: ошибка с версией 1.0.0 и заменой (3.9)', async () => {
   const any = db as unknown as Record<string, unknown>;
