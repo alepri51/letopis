@@ -165,9 +165,20 @@ test('6.10 автосоздание базы; база не в UTF8 — поня
 });
 
 test('up({ pglite }): база для разработки без PostgreSQL — установка, вход сервисом, запись и чтение (решение 6 точки А)', async () => {
-  const r = await up({ pglite: true, schema: 'dev', quiet: true });
+  const r = await up({ pglite: true, schema: 'dev', quiet: true,
+    tenant: { name: 'Дев', user: { name: 'Аня', login: 'anya@dev.local', password: 'Dev-2026!pglite' } } });
   try {
     assert.equal(r.revision, DDL_REVISION);
+    // запись и чтение — от пользователя арендатора (PGlite — суперпользователь, права не проверяет): класс, строка, ответ
+    const app = await connect({ dsn: r.pglite!.dsn, schema: 'v2.dev', token: r.tenant!.token!, allowBypassRls: true, listen: false, max: 1 });
+    try {
+      await app.Class().create({ name: 'Note', kind: 'hub', fields: { properties: { text: { type: 'string' } } } }).rows();
+      await app.refresh();
+      await app.Note().create({ text: 'привет' }).rows();
+      assert.deepEqual((await app.Note().rows()).map((n) => n.data.text), ['привет']);
+    } finally {
+      await app.close();
+    }
     const db = await connect({ dsn: r.pglite!.dsn, schema: 'v2.dev', apiKey: r.serviceKey!, allowBypassRls: true, listen: false, max: 1 });
     try {
       assert.ok(db.describe().classes.some((c) => c.name === 'Class'));
