@@ -384,9 +384,16 @@ async function slotIds(w: WriteCtx, v: SlotValue): Promise<string[]> {
   if (typeof v === 'string') return [v];
   if (Array.isArray(v)) return v;
   if ('plan' in v) {
-    const rows = v.plan.some((s) => s.op)
-      ? ((await execPlan(w, v.plan, v.mods, 'rows')) as { rows: Row[] }).rows
-      : await readRows(w, v.plan, v.mods);
+    let rows: Row[];
+    if (v.plan.some((s) => s.op)) {
+      // вложенный план — те же проверки до базы, что у плана терминала; с читающим хвостом после глагола execPlan
+      // отдаёт строки чтения (план 2.0, 7.2 №3: раньше — TypeError)
+      precheckPlan(w.reg, v.plan);
+      const r = await execPlan(w, v.plan, v.mods, 'rows');
+      rows = r.kind === 'rows' ? r.rows : (r.res as Row[]);
+    } else {
+      rows = await readRows(w, v.plan, v.mods);
+    }
     return rows.map((r) => r.id);
   }
   return [v.id];
@@ -607,7 +614,8 @@ async function reclassOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<Writ
   const moved = await query<{ id: string }>(w,
     `select ${S}.reclass(x, $2::text, $3::jsonb) as id from unnest($1::uuid[]) with ordinality as u(x, i) order by u.i`, [ids, cls, op.data ?? null]);
   const res = await query<{ row: Record<string, unknown> }>(w, `select ${rowJson('e')} as row from ${S}.entity e where e.id = any ($1::uuid[])`, [moved.map((m) => m.id)]);
-  return res.map((r) => toRow(r.row));
+  // строки ответа — в порядке целей (moved — по порядку целей, план 2.0, 7.2 №2)
+  return inTargetOrder(moved.map((m) => m.id), res.map((r) => toRow(r.row)));
 }
 
 /** Удалённые объекты шага (restore, purge): живые цели без удалённых — not_deleted. */
@@ -626,8 +634,8 @@ async function restoreOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<Writ
   if (!dead.length) return [];
   const ids = dead.map((r) => r.id);
   await query(w, `select ${S}.restore(x) from unnest($1::uuid[]) with ordinality as u(x, i) order by u.i`, [ids]);
-  const res = await query<{ row: Record<string, unknown> }>(w, `select ${rowJson('e')} as row from ${S}.entity e where e.id = any ($1::uuid[]) order by e.id`, [ids]);
-  return res.map((r) => toRow(r.row));
+  const res = await query<{ row: Record<string, unknown> }>(w, `select ${rowJson('e')} as row from ${S}.entity e where e.id = any ($1::uuid[])`, [ids]);
+  return inTargetOrder(ids, res.map((r) => toRow(r.row)));
 }
 
 /**
@@ -669,8 +677,8 @@ async function rekeyOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteR
       throw e;
     }
   }
-  const res = await query<{ row: Record<string, unknown> }>(w, `select ${rowJson('e')} as row from ${S}.entity e where e.id = any ($1::uuid[]) order by e.id`, [moved]);
-  return res.map((r) => toRow(r.row));
+  const res = await query<{ row: Record<string, unknown> }>(w, `select ${rowJson('e')} as row from ${S}.entity e where e.id = any ($1::uuid[])`, [moved]);
+  return inTargetOrder(moved, res.map((r) => toRow(r.row)));
 }
 
 async function opCall(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {
@@ -818,7 +826,9 @@ export async function execBatch(w: WriteCtx, plans: Step[][]): Promise<WriteRow[
         && reasonFor(w, plans[j][0]) === why) {
         const s = plans[j][0];
         const id = idFor(s);
-        if (!id || (verb === 'upsert' && seen.has(id))) break;
+        // повтор id режет группу и у create: иначе вторая строка «находила» строку первой, и батч проходил молча
+        // (план 2.0, 7.2 №1); повтор уходит следующим оператором и получает exists
+        if (!id || seen.has(id)) break;
         seen.add(id);
         group.push({ at: j, s, id });
         j++;

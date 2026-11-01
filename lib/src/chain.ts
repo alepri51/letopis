@@ -436,7 +436,11 @@ const rowOf = (r: { row: Record<string, unknown>; done?: true }): Row => (r.done
 /** Значение слота: id, список id, строка ответа или ленивая цепочка. */
 function slotValue(v: unknown): SlotValue {
   const peek = peekPlan(v);
-  if (peek) return { plan: peek.steps, mods: peek.mods };
+  if (peek) {
+    // модификатор сразу после глагола вложенной цепочки — тот же отказ, что у терминала (план 2.0, 7.2 №3)
+    checkAfterVerb(peek.steps, peek.mods);
+    return { plan: peek.steps, mods: peek.mods };
+  }
   if (v === null || typeof v === 'string') return v as SlotValue;
   if (Array.isArray(v)) return v.map((x) => (typeof x === 'string' ? x : (x as { id: string }).id));
   if (typeof v === 'object' && typeof (v as { id?: unknown }).id === 'string') return { id: (v as { id: string }).id };

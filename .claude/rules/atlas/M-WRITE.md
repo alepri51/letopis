@@ -6,7 +6,8 @@ synced: f20b1cf
 # M-WRITE — планы записи, транзакции, батч, загрузчик
 
 **Инварианты и грабли**
-- Строки ответа `update` и `anonymize` — в порядке целей (`inTargetOrder` по `targetIds`: `sort()` до глагола, иначе id): `returning` отдаёт порядок обхода таблицы.
+- Строки ответа глаголов — в порядке целей (`inTargetOrder`: у `update` и `anonymize` — по `targetIds`, у `reclass` и `rekey` — по новым id в порядке целей, у `restore` — по `deletedTargets`; `sort()` до глагола, иначе id; план 2.0, 7.2 №2): `returning` и `where id = any(…)` отдают порядок обхода таблицы.
+- Группа вставок батча режется повтором id и у `create` (план 2.0, 7.2 №1): иначе `on conflict do nothing` пропускал вторую строку, а сопоставление по id отдавало ей строку первой. Цепочка в значении слота: `precheckPlan` и `checkAfterVerb` (в `chain.ts:slotValue`) — как у терминала; с читающим хвостом `execPlan` отдаёт `{ kind: 'read', res }` (7.2 №3).
 - После обрыва (`isConnectionError`) в соединение не шлют `rollback`, а после обрыва сокета не возвращают его в пул (`release()` в tx.ts): postgres.js 3.4 роняет процесс необработанным `TypeError`. Поэтому `runTx` берёт `reserve()`, а не `sql.begin`. Загрузчик (`loadPortion`, `initialSession`) шлёт `rollback` и `conn.release()` без этой проверки.
 - Причина изменения (`letopis.reason`, план 1.1 §2.1) — состояние транзакции: `useReason` ставит её перед оператором, только если она меняется (`WriteCtx.cur`), а `execPlan` и `execBatch` в конце возвращают причину по умолчанию — иначе причина глагола уйдёт в `db.sql` и следующие планы. Один оператор — одна причина: другая режет группу вставок батча.
 - `.tags(…)` перед глаголом: строка или список — теги, которые пишут create, upsert и update (у update они же отбирают цели); оператор `has`/`hasAny`/`hasAll` только отбирает (`tagsValue` → `null`), create и upsert его не принимают (`precheckPlan`).
