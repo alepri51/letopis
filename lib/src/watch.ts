@@ -120,6 +120,8 @@ export class Subscription implements AsyncIterable<WatchEvent> {
   private dirty = true;
   /** Пришёл сигнал: пустой ответ — ещё не горизонт, нужны короткие повторы. Таймер их не запускает (план 2.0, 7.4 №1). */
   private burst = false;
+  /** from: 'start' — пока подписка не догнала журнал, у курсора нет времени: весь журнал, без cursor_expired на старых событиях (план 2.0, 7.4 №3). */
+  private catchingUp = false;
   private off: (() => void) | null = null;
   private timer: NodeJS.Timeout | null = null;
   private failure: unknown = null;
@@ -134,7 +136,10 @@ export class Subscription implements AsyncIterable<WatchEvent> {
     this.batch = opts.batch ?? 500;
     this.pollMs = opts.pollMs ?? 1000;
     const from = opts.from ?? 'now';
-    if (from === 'start') this.pos = { tx: '0', seq: '0', at: null };
+    if (from === 'start') {
+      this.pos = { tx: '0', seq: '0', at: null };
+      this.catchingUp = true;
+    }
     else if (from !== 'now') this.pos = decode(from);
     else {
       this.start = this.head();
@@ -231,12 +236,15 @@ export class Subscription implements AsyncIterable<WatchEvent> {
     for (const r of rows) {
       const row = toRow(r.row);
       const snap = keepSnap(p.snap, r.tx);
-      this.pos = { tx: r.tx, seq: r.seq, at: row.at, ...(snap ? { snap } : {}) };
+      this.pos = { tx: r.tx, seq: r.seq, at: this.catchingUp ? null : row.at, ...(snap ? { snap } : {}) };
       this.buf.push({ cursor: encode(this.pos), row, id: row.id, class: row.class, op: row.op, rev: row.rev, at: row.at });
     }
     // догнала журнал — время курсора подписки (sub.cursor) обновляется и на пустых опросах: прореживать после него нечего,
     // и подписка, к которой долго не было событий, не получает ложный cursor_expired. Курсоры событий хранят время события
-    if (caught && away.length < this.batch) this.pos = { ...(this.pos ?? p), at: String((caught.row as { at: string }).at) };
+    if (caught && away.length < this.batch) {
+      this.pos = { ...(this.pos ?? p), at: String((caught.row as { at: string }).at) };
+      this.catchingUp = false;
+    }
     return rows.length;
   }
 

@@ -292,6 +292,20 @@ test('план 2.0, 7.3 №3: стирание истории удалённог
   assert.deepEqual((await adm.verify()).issues, [], 'цепочка цела');
 });
 
+test('план 2.0, 7.4 №3: watch({ from: start }) отдаёт весь журнал — без cursor_expired на старых событиях после первой пачки', async () => {
+  await defineHub('Old3', { all: '1 day', daily: 'forever' });
+  await db.refresh();
+  await history('Old3', 'O1', [NOW - 10 * DAY, NOW - 9 * DAY, NOW - 8 * DAY]);
+  const sub = db.watch({ from: 'start', classes: ['Old3'], batch: 2 });
+  try {
+    const got: number[] = [];
+    for (let i = 0; i < 3; i++) got.push((await sub.next()).value.rev as number);
+    assert.deepEqual(got, [1, 2, 3]);
+  } finally {
+    sub.close();
+  }
+});
+
 test('7.8.1 №6: подписчик с курсором старше яруса all — cursor_expired; после перечитывания поток идёт', async () => {
   const sub = db.watch({ from: `1:1:${iso(NOW - 3 * DAY)}`, classes: ['Gauge'] });
   await assert.rejects(sub.next(), (err: { code?: string }) => err.code === 'cursor_expired');
