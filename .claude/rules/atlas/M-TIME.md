@@ -14,6 +14,7 @@ synced: f20b1cf
 - Сигнал — только подсказка: NOTIFY в канал схемы может послать любая роль базы, а данных он не несёт. По нему лишь будят подписку (`wakes`), сбрасывают кэш (`ResultCache.apply`) и пропуска прав, перечитывают ключ и реестр не чаще заданного (`throttle`, `bucket` в `lib/src/index.ts`); карты счётчиков кэша ограничены (`bump`) — ревью №1 точки А плана 1.1.
 - `maintain()`: один исполнитель — строка-замок `lock_try('@SCHEMA_NAME@:maintain')` (`lib/sql/60-write.sql`) в транзакции пачки, а не advisory-блокировка: её ключ может занять посторонняя роль (ревью безопасности №3, №2). Каждая пачка — своя транзакция, поэтому работает и за PgBouncer в режиме транзакций. Замок занят — база отвечает `null`: до первой пачки `skipped`, между пачками `more: true`.
 - `describe()` берёт `resolved.schema` реестра: наследование уже развернула база (`class_resolve`), предков не сливать.
+- `examples` в `describe()` (план 2.0, 7.9 №9) — текст цепочек из реестра (`examplesOf` в `lib/src/admin.ts`): «найти» берёт те же образцы значений, что «создать» (`sample`: `examples`, `const`, `default`, `enum`, тип и формат), — по ним тест `describe-examples` находит созданный объект. Строки и ключи — только через `lit` (экранирование): поля, `enum` и `examples` пишут арендаторы. `letopis_model` при модели больше `maxBytes` сначала убирает `examples`, затем отдаёт `brief`.
 
 **Что ещё менять вместе**
 - Новая функция владельца: перечень `alter function … owner` в конце `lib/sql/90-time.sql` (и `grant execute`, если её зовёт приложение), `lib/test/roles.test.ts` («№4» — негативный тест, белый список функций приложения); образец a25b432.
@@ -24,7 +25,7 @@ synced: f20b1cf
 - Ярус `all` — общая граница: `thin_batch` прореживает только старше него, `verify` считает законным разрыв после версии старше него, `watch_read` отказывает `cursor_expired`, проектор (`lib/src/project.ts`) проверяет свой курсор сам.
 - Подписка: короткие повторы (до 40) — только после сигнала (`Subscription.burst`); тик таймера `pollMs` — один запрос (план 2.0, 7.4 №1). `from: 'start'`, пока не догнала журнал (`catchingUp`), шлёт в `watch_read` время курсора `null` — весь журнал без `cursor_expired` (7.4 №3); курсоры событий и `sub.cursor` время события хранят: продолжение с них после прореживания — `cursor_expired` (пример сайта `history/03`, шаг 6; `retention` «7.4 №3»). Живые подписки подключения — `Shared.subs` (`track`, `WatchCtx.onClose`): `close()` подключения закрывает их (7.4 №8).
 - Окно, горизонт и снимок у `watch_read` и `watch_leaving` одни (`Subscription.fetch` зовёт обе одним оператором); `watch_read(…, p_leaving)` зовёт ещё `lib/src/project.ts`.
-- Новое свойство класса в реестре → `ModelDescription`, `describe`, `describeText`, тест `telemetry`; образец f38fbd7.
+- Новое свойство класса в реестре → `ModelDescription`, `describe`, `describeText`, тест `telemetry`; образец f38fbd7. Свойство, от которого зависит запись (обязательность, ключ, концы, умолчания), — ещё `createExample`, `findExample` в `admin.ts` и тест `describe-examples`.
 
 **Состояние и побочки**
 - Строка KEY (`secret`, id = System) — общая. `material` — секрет пропусков прав (`acl_token`), ключа сигналов (`signal_key`) и признака агрегатов (`agg_token`); `reset` уровня all его пересоздаёт. В `meta`: `v` (`acl_bump`), `signals` (сид), `thin` — курсор прореживания, `default_policy` — метка для `verify`; пишут только слиянием (`||`, `-`). `thin_batch` держит строку `for update` до фиксации пачки — `acl_bump` ждёт.
@@ -34,7 +35,7 @@ synced: f20b1cf
 - `projector_unread` (отказ `projector_pending` у `purge` и `trim_history`) разбирает чекпоинт проектора: строку `secret` вида `PROJECTOR`, `meta.cursor` «tx:seq~снимок» (`lib/src/project.ts:enc`) и `meta.from`; проектор ищет по `derivedBy` класса.
 
 **Проверка**
-- `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `time`, `rekey`, `reset`, `verify`, `retention`, `watch`, `cache`, `signals`, `maintain` («7.8.1 №11», «разбор в)»), `projector`, `roles`, `engine-attacks`, `telemetry`, `security-final`, `up`.
+- `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `time`, `rekey`, `reset`, `verify`, `retention`, `watch`, `cache`, `signals`, `maintain` («7.8.1 №11», «разбор в)»), `projector`, `roles`, `engine-attacks`, `telemetry`, `describe-examples`, `security-final`, `up`.
 - Цена режимов сигналов: `cd lib && npx tsx bench/signals.bench.mjs`.
 
 **Точки входа**

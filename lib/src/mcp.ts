@@ -150,8 +150,8 @@ function instructions(o: Limits, t: Tr): string {
 }
 
 const DESCRIBE_MODEL: Text = {
-  ru: 'Модель данных, доступная пользователю: классы, поля (JSON Schema), условия anyOf и oneOf, концы (связи), ключи, алиасы, наследование, метаданные. С class — подробно один класс. Только чтение.',
-  en: 'The data model available to the user: classes, fields (JSON Schema), anyOf and oneOf conditions, ends (links), keys, aliases, inheritance, metadata. With class — one class in detail. Read-only.',
+  ru: 'Модель данных, доступная пользователю: классы, поля (JSON Schema), условия anyOf и oneOf, концы (связи), ключи, алиасы, наследование, метаданные и рабочие цепочки examples (create, find, neighbors; db.Класс(фильтр).Роль().rows() — это letopis_query { class, filter, steps: [{ step: "Роль" }] }, \'<id Класс>\' — id объекта). Большая модель — без examples или кратко; с class — подробно один класс. Только чтение.',
+  en: 'The data model available to the user: classes, fields (JSON Schema), anyOf and oneOf conditions, ends (links), keys, aliases, inheritance, metadata and working chains examples (create, find, neighbors; db.Class(filter).Role().rows() is letopis_query { class, filter, steps: [{ step: "Role" }] }, \'<id Class>\' is an object id). A large model comes without examples or brief; with class — one class in detail. Read-only.',
 };
 
 /** Операторы поля для описания letopis_query — из реестра (`$between [a, b]`, `$in [..]`, …); `$or` описан отдельно. */
@@ -532,6 +532,9 @@ function model(db: Db, a: Args, o: Limits): CallToolResult {
   }
   const full = { schema: d.schema, tenant: d.tenant, classes: d.classes };
   if (bytes(full) <= o.maxBytes) return ok(full);
+  // сначала без примеров цепочек (план 2.0, этап 3, п. 7): без них модель часто помещается, у класса они — в { class }
+  const plain = { ...full, classes: d.classes.map(({ examples: _x, ...c }) => c) };
+  if (bytes(plain) <= o.maxBytes) return ok(plain);
   // большая модель — кратко; подробно каждый класс — letopis_model { class }
   return ok({
     schema: d.schema, tenant: d.tenant, brief: true,

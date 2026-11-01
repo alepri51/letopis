@@ -2191,6 +2191,18 @@ metadata, plus the multi-field conditions `anyOf` and `oneOf` with inheritance a
 `derivedBy` and the aggregates `aggregate`, when a class has them. From the command line:
 `letopis describe --format text --out llms.txt`.
 
+Every class has `examples`, working chains built from the registry: `create` creates, `find` finds, `neighbors` goes
+to the neighbors. `create` passes the key fields and the required fields without a default, and sets the required ends
+and the key ends with slots; an abstract, derived or system class has none. A sample value is `examples` from the
+field's JSON Schema (in Zod, `.meta({ examples: […] })`), otherwise `const`, `default`, the first of `enum`, otherwise
+by type and format. A field with a `pattern` and no `examples` may get a sample that fails validation. `find` searches
+by the key (`first()`), and without a key by a required field (`rows()`). `neighbors` goes along every end of the class
+and to the classes whose ends lead to it. `'<id Org>'` is the place for the id of an object of the class or of its
+descendant; `'<id Service|Product>'` means any of the classes; a multiple end with `min` gets `'<id Class #1>'`,
+`'<id Class #2>'`. `describeText` prints the examples as the lines «создать», «найти», «соседи». The MCP tool
+`letopis_model` returns them in every class. If the model is larger than `maxBytes`, it comes first without
+`examples`, then brief.
+
 ### Agents and MCP
 
 Language. `createMcpServer(db, { lang: 'en' })` and `letopis mcp --lang en` return tool and parameter descriptions,
@@ -2993,5 +3005,6 @@ order; the first red step stops the run. The same load for a day: `cd lib && npm
 # model-contract — README promises about models, types, the CLI and errors (plan 2.0, 7.5): letopis types gives valid TypeScript for Cyrillic names, a class without fields and anyOf, the full form of hub() with z.object, clear errors instead of raw ones, CLI exit codes
 # read-contract — README promises about reads and history (plan 2.0, 7.1): an asOf slice by class and by ends after a class change without an id change, versions, diff and blame with follow after rekey, the after() cursor in versions() and paths(), a field name with @S@
 # messages — the message catalog (plan 2.0, 7.9 №5, №6): with lang: 'en' every code has an English text and hint, errors of translated places and of the database come in the language of the connection, raw SQL gets Russian, with ru everything is as before, docs leads to the anchor of the code; similar names for an unknown class, role, field and option
+# describe-examples — chain examples of describe() (plan 2.0, 7.9 №9): every "create", "find" and "go to the neighbors" chain runs on the booking demo schema; describeText and letopis_model return the same examples, a large model first loses only them
 # llms — documents for an agent (plan 2.0, 7.9 №7, №8): llms-full.txt has every error code with its meaning and what to do, every nuance, the reserved names and the operators; the operator registry matches the package factories, the letopis_query keys (the same answer as the chain) and the tables of the README and the cheatsheet, both versions
 ```
