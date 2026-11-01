@@ -908,12 +908,12 @@ begin
   return jsonb_build_object('thinned', k, 'more', more);
 end $$;
 
--- Обслуживание (этап 6, п. 8): истёкшие и погашенные сессии и одноразовые коды, одна пачка
--- прореживания журнала, заполнение очереди сигналов. Вызывает системный администратор, роль с
+-- Обслуживание (этап 6, п. 8): истёкшие и погашенные сессии и одноразовые коды, строки-замки удалённых семейств, одна
+-- пачка прореживания журнала, заполнение очереди сигналов. Вызывает системный администратор, роль с
 -- правом letopis.maintain или администраторское подключение. p_now — момент «сейчас» для
 -- прореживания, только при allow_reset (тесты): иначе одним вызовом можно было бы проредить всю историю. p_cleanup —
--- удалять ли истёкшие сессии и коды: библиотека передаёт true только в первой пачке вызова, иначе каждая из ≤100 пачек
--- заново просматривала бы secret (план 2.0, 7.3 №4); прежний вызов без третьего аргумента чистит, как раньше.
+-- удалять ли истёкшие сессии, коды и строки-замки: библиотека передаёт true только в первой пачке вызова, иначе каждая
+-- из ≤100 пачек заново просматривала бы secret (план 2.0, 7.3 №4); прежний вызов без третьего аргумента чистит, как раньше.
 drop function if exists @SCHEMA@.maintain(timestamptz, int);
 create or replace function @SCHEMA@.maintain(p_now timestamptz default null, p_limit int default 10000,
   p_cleanup boolean default true) returns jsonb
@@ -924,6 +924,7 @@ declare
   ts timestamptz := clock_timestamp();
   s int;
   o int;
+  fam text := '@SCHEMA_NAME@:family:';
 begin
   if not @SCHEMA@.letopis_allowed('letopis.maintain') then
     perform @SCHEMA@.lt_fail('acl_denied', 'нет права letopis.maintain');
@@ -950,6 +951,29 @@ begin
     with d as (delete from @SCHEMA@.secret x where x.kind ~ '^OTP(_[A-Z0-9]{1,27})?$'
                and (x.deleted_at is not null or x.expires_at <= clock_timestamp()) returning 1)
     select count(*)::int into o from d;
+    -- строки-замки семейств, чьего корня больше нет — удалён класс или его арендатор (план 2.0, 7.7 №8, долгий
+    -- прогон): их заранее заводит запись строки Class (family_rows), а сами они не уходили — заведение и удаление
+    -- классов копило их без предела. Корень жив — строка Class с этим именем у арендатора семейства (family_name;
+    -- в имени класса двоеточия нет). Занятую строку не трогаем (skip locked), а строку-замок семейства — только вместе
+    -- с её шлюзом или без шлюза: исключительная блокировка берёт шлюз первым, и строка-замок, до которой она ещё не
+    -- дошла, у неё не пропадёт. Пропавшую строку lock_row и family_lock заводят заново, если класс с этим именем
+    -- появится снова.
+    with stale as (
+      select l.id, l.meta->>'name' as n
+      from @SCHEMA@.secret l
+      where l.kind = 'LOCK' and l.account = '@SYSTEM@'::uuid and l.deleted_at is null
+        and left(l.meta->>'name', length(fam)) = fam
+        and not exists (
+          select 1 from @SCHEMA@.entity c
+          where c.class = 'Class'
+            and c.data->>'name' = split_part(substr(l.meta->>'name', length(fam) + 1), ':', 2)
+            and c.tenant::text = split_part(substr(l.meta->>'name', length(fam) + 1), ':', 1))
+      for update of l skip locked)
+    delete from @SCHEMA@.secret x using stale st
+    where x.id = st.id
+      and (st.n like '%:gate'
+           or exists (select 1 from stale g where g.n = st.n || ':gate')
+           or not exists (select 1 from @SCHEMA@.secret y where y.id = @SCHEMA@.lock_id(st.n || ':gate')));
   end if;
   return jsonb_build_object('sessions', s, 'codes', o, 'queue', pg_notification_queue_usage())
     || @SCHEMA@.thin_batch(ts, greatest(coalesce(p_limit, 10000), 1));

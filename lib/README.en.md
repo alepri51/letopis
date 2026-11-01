@@ -2100,7 +2100,8 @@ const report = await adm.maintain()     // { sessions, codes, thinned, batches, 
 
 `maintain()` deletes sessions and one-time codes of all kinds (`OTP` and custom `OTP_<NAME>` from `issueOtp({ kind })`)
 from the `secret` table — expired ones, as well as
-revoked sessions and codes that were used, replaced by a new one or ran out of attempts, — thins the journal by the
+revoked sessions and codes that were used, replaced by a new one or ran out of attempts, — and the lock rows of deleted
+classes (two per class; a row held by a transaction goes on the next call), thins the journal by the
 retention policy and checks the PostgreSQL signal queue: if it is more than half full, you get a warning. You do not
 need `maintain()` for the rows of a deleted account: the deletion itself erases them ([Deleting an account](#deleting-an-account)).
 The system administrator, a role with the `letopis.maintain` permission or an admin connection can call it. An external scheduler
@@ -2887,7 +2888,7 @@ test for a fix is named after its test-plan item ("plan 2.0, 7.3 No. 1") and fai
 # retention — retention policy: tiers, a finite term, special versions, deleted rows, asOf, cursor_expired, time zone, catch-up run, inheritance and default — versus a reference in TypeScript (stage 6)
 # watch — cursor subscription: commit order, a long transaction, resuming, listener drop, two tenants (stage 6)
 # cache — result cache: hits, own and others' writes, the key with the user, permissions, revoked sessions, listener drop, ttl, class marking, without LISTEN, a race, db.sql, the limit of signal counters (stage 6; plan 1.1, checkpoint A)
-# maintain — maintenance: expired sessions and codes, permissions, one process under a lock, schedule (stage 6)
+# maintain — maintenance: expired sessions and codes, permissions, one process under a lock, schedule (stage 6), lock rows of deleted classes
 # up — the full installer: fresh installation, re-apply, custom seeds, automatic database creation, UTF8, version 17, upgrade with migrations, PGlite, the first tenant and user (up({ tenant }), createTenant) (stages 6, 8)
 # upgrade — schema upgrade from 1.4.1 (a plain up() without migrations, plan 2.0, 7.8 No. 2), from 1.1.0 (upgrade: true, migration 0007) and from 1.0.1 (upgrade: true, migrations 0006 and 0007) with the letopis-141, letopis-11 and letopis-1 packages: versions and hashes written by the old engine, verify(), the catalog against a clean installation, lock rows, secret rows without an account erased, the application, a subscription and a projector over old data, a repeated up() (work after 1.2.0, stage 1; revision 7)
 # scenario-salon — end-to-end salon scenario: 21 acts from 0.21 (salon) with a coverage matrix of the 1.0 API (stage 6)

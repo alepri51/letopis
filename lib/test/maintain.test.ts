@@ -1,7 +1,8 @@
 /**
  * maintain — обслуживание (план, этап 6, п. 8; тест-план §7.8 №6.11, §7.8.1 №11): истёкшие сессии и
  * одноразовые коды убираются; не администратор — отказ, сервис — по отдельному правилу letopis.maintain;
- * из нескольких процессов работает один (строка-замок обслуживания), запуск по расписанию.
+ * из нескольких процессов работает один (строка-замок обслуживания), запуск по расписанию; строки-замки удалённых
+ * классов убираются (план 2.0, 7.7 №8 — находка долгого прогона).
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -199,5 +200,47 @@ test('разбор в) maintain() за пулом в режиме транзак
     s0.release();
     s1.release();
     await pool.end();
+  }
+});
+
+test('план 2.0, 7.7 №8: maintain() убирает строки-замки семейств удалённых классов — живые и служебные на месте, занятые ждут следующего вызова, класс с тем же именем заводит их заново', async () => {
+  const tdb = await connect({ dsn: appDsn(), schema: e.schema, token: t.token, max: 2 });
+  const fam = (name: string) => `${e.schema}:family:${t.id}:${name}`;
+  const pair = (name: string) => [fam(name), `${fam(name)}:gate`];
+  const locks = async (name: string) => (await e.sql.unsafe(
+    `select meta->>'name' as n from ${e.S}.secret where kind = 'LOCK' and meta->>'name' in ($1, $2) order by 1`, pair(name)))
+    .map((x) => x.n as string);
+  const F = { properties: { v: { type: 'integer' } } };
+  try {
+    for (const name of ['Lock1', 'Lock2', 'Lock3']) await tdb.Class().create({ name, kind: 'hub', fields: F }).rows();
+    await tdb.Class().create({ name: 'Lock3Child', kind: 'hub', parent: 'Lock3' }).rows();
+    assert.deepEqual(await locks('Lock1'), pair('Lock1'), 'строки-замки заведены вместе с классом');
+    for (const name of ['Lock1', 'Lock2', 'Lock3Child']) await tdb.Class({ name }).delete({ confirm: true }).rows();
+    assert.deepEqual(await locks('Lock1'), pair('Lock1'), 'удаление класса строки-замки оставляет — их убирает maintain()');
+    // шлюз семейства Lock2 занят, как у исключительной блокировки: семейство ждёт следующего вызова, maintain() не ждёт
+    const held = await e.sql.reserve();
+    try {
+      await held.unsafe('begin');
+      await held.unsafe(`select 1 from ${e.S}.secret where id = ${e.S}.lock_id($1) for update`, [`${fam('Lock2')}:gate`]);
+      assert.equal((await adb.maintain()).skipped, false);
+      assert.deepEqual(await locks('Lock1'), [], 'строки-замки удалённого корня убраны');
+      assert.deepEqual(await locks('Lock2'), pair('Lock2'), 'шлюз занят — семейство оставлено целиком');
+    } finally {
+      await held.unsafe('rollback');
+      held.release();
+    }
+    assert.deepEqual(await locks('Lock3'), pair('Lock3'), 'семейство живого корня на месте, хотя потомок удалён');
+    const [service] = await e.sql.unsafe(`select count(*)::int as n from ${e.S}.secret where kind = 'LOCK' and meta->>'name' in ($1, $2)`,
+      [`${e.schema}:maintain`, `${e.schema}:family:${SYSTEM_ID}:Class`]);
+    assert.equal(service.n, 2, 'строка-замок обслуживания и семейство System на месте');
+    await adb.maintain();
+    assert.deepEqual(await locks('Lock2'), [], 'шлюз освободился — семейство убрано следующим вызовом');
+    await tdb.Class().create({ name: 'Lock1', kind: 'hub', fields: F }).rows();
+    assert.deepEqual(await locks('Lock1'), pair('Lock1'), 'класс с тем же именем заводит строки-замки заново');
+    await tdb.refresh();
+    const [row] = await tdb.Lock1().create({ v: 1 }).rows();
+    assert.equal(row.data.v, 1, 'запись в заново заведённый класс идёт');
+  } finally {
+    await tdb.close();
   }
 });

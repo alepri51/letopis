@@ -32,7 +32,7 @@ synced: f20b1cf
 **Неимпортные связи**
 - RLS (`50-acl.sql`) отсекает чужие строки до триггеров правки и удаления, вставку первым проверяет триггер (`tenant_denied`).
 - `99-revision.sql`: `@ENGINE_VERSION@` и `@ENGINE_SQL@` подставляет `lib/src/up.ts:engineStamp`; формат комментария схемы разбирают `lib/src/up.ts` (`schemaRevision`, `stampDrift`) и `connect()`. `@RESERVED_NAMES@` — из `RESERVED_CLASS_NAMES` (`lib/src/types.ts`).
-- Строки-замки: семейств заводят заранее `class_admit` (`family_rows`) и `seed_system`; `lock_try` берут `maintain` (`90-time.sql`) и проектор (`lib/src/project.ts`).
+- Строки-замки: семейств заводят заранее `class_admit` (`family_rows`) и `seed_system`; `lock_try` берут `maintain` (`90-time.sql`) и проектор (`lib/src/project.ts`). Строки семейств, чей корень удалён, убирает `maintain()` по имени (`family_name`: схема, арендатор корня, имя корня) — формат имени менять вместе с разбором в `maintain`; пропавшую строку `lock_row` и `family_lock` заводят заново (план 2.0, 7.7 №8).
 
 **Проверка**
 - `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `engine-attacks` (атаки №…), `engine-races`, `engine-write`, `engine-class`, `write-races`, `security-final`, `hash`, `roles`, `upgrade`, `aggregate`, `projector`.
