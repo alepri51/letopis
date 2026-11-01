@@ -281,6 +281,9 @@ interface Shared {
   signals: Set<(s: Signal) => void>;
   /** LISTEN включён. */
   listen: boolean;
+  /** Живые подписки подключения: close() закрывает их (план 2.0, 7.4 №8). */
+  subs: Set<Subscription>;
+  track(s: Subscription): Subscription;
   close: () => Promise<void>;
 }
 
@@ -338,13 +341,13 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
       if (typeof o === 'function' || typeof o === 'string') throw removed('watch(cb) и watch(класс, cb)', 'watch({ from }) — подписка по курсору');
       const reg = scope.registry();
       const classes = o.classes ? [...new Set(o.classes.flatMap((c) => reg.family(c).map((x) => x.name)))] : null;
-      return new Subscription({
-        S: sh.S, exec: poolExecutor(txc), classes,
+      return sh.track(new Subscription({
+        S: sh.S, exec: poolExecutor(txc), classes, onClose: (s) => void sh.subs.delete(s),
         ...(sh.listen ? {
           onSignal: (fn: (s: Signal) => void) => { sh.signals.add(fn); return () => void sh.signals.delete(fn); },
           tenant: () => (sh.allTenants ? null : sh.sig.tenantToken(scope.tenant())),
         } : {}),
-      }, o);
+      }, o));
     },
     cache: {
       clear: () => sh.cache?.clear(),
@@ -650,6 +653,7 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
       stamper.unref?.();
     }
     let stopMaintain: (() => Promise<void>) | null = null;
+    const subs = new Set<Subscription>();
     const shared: Shared = {
       sql, schema: opts.schema, S, notifier, passes, root, registryFor, refresh, onQuery: opts.onQuery, slowMs: opts.slowMs,
       admin: Boolean(bypass && (role.rolsuper || role.can_set)),
@@ -659,7 +663,15 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
       allTenants: Boolean(bypass),
       signals,
       listen,
+      subs,
+      track: (s) => {
+        subs.add(s);
+        return s;
+      },
       async close() {
+        // живые подписки закрываются: иначе с чужим пулом (connect({ sql })) они опрашивали бы журнал и после close()
+        // (план 2.0, 7.4 №8)
+        for (const s of [...subs]) s.close();
         // идущий maintain() по расписанию доделывает пачку: пул закрывается после неё, а не посреди транзакции
         await stopMaintain?.();
         resync.stop();

@@ -84,6 +84,8 @@ export interface WatchCtx {
   onSignal?: (fn: (s: Signal) => void) => () => void;
   /** Токен арендатора подписки (null — процесс без ключа или режим без токенов). */
   tenant?: () => string | null;
+  /** Подписка закрылась: подключение перестаёт её учитывать (план 2.0, 7.4 №8). */
+  onClose?: (s: Subscription) => void;
 }
 
 /**
@@ -116,6 +118,8 @@ export class Subscription implements AsyncIterable<WatchEvent> {
   private closed = false;
   private wake: (() => void) | null = null;
   private dirty = true;
+  /** Пришёл сигнал: пустой ответ — ещё не горизонт, нужны короткие повторы. Таймер их не запускает (план 2.0, 7.4 №1). */
+  private burst = false;
   private off: (() => void) | null = null;
   private timer: NodeJS.Timeout | null = null;
   private failure: unknown = null;
@@ -141,6 +145,7 @@ export class Subscription implements AsyncIterable<WatchEvent> {
       this.off = ctx.onSignal((s) => {
         if (!wakes(s, watched, ctx.tenant?.() ?? null)) return;
         this.dirty = true;
+        this.burst = true;
         this.wake?.();
       });
     }
@@ -267,12 +272,15 @@ export class Subscription implements AsyncIterable<WatchEvent> {
           this.close();
           throw e;
         }
-        // сигнал был, а событий ниже горизонта ещё нет: короткие повторы, затем — запасной опрос
-        if (++empty < 40) {
+        // сигнал был, а событий ниже горизонта ещё нет: короткие повторы, затем — запасной опрос. Опрос по таймеру —
+        // один запрос: серия повторов на каждый тик давала около 4 запросов в секунду на молчащую подписку (план 2.0,
+        // 7.4 №1)
+        if (this.burst && ++empty < 40) {
           await sleep(Math.min(25 * empty, 250));
           continue;
         }
         this.dirty = false;
+        this.burst = false;
         empty = 0;
       }
       await new Promise<void>((r) => {
@@ -302,6 +310,7 @@ export class Subscription implements AsyncIterable<WatchEvent> {
     if (this.closed) return;
     this.closed = true;
     this.off?.();
+    this.ctx.onClose?.(this);
     if (this.timer) clearInterval(this.timer);
     this.wake?.();
   }
