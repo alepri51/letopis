@@ -103,11 +103,12 @@ begin
   select c.rules, c.validator, c.vars into rules, validator, vars from @SCHEMA@.compile_validator(@SCHEMA@.class_metaschema()) c;
 end $$;
 
--- Строка класса по имени: собственная строка арендатора или системная. Поиск — по индексу
+-- Строка класса по имени: собственная строка арендатора, иначе системная. Поиск — по индексу
 -- entity_class_name, без вычисления v5 (два SHA-1 стоили 30 мкс на поиск, а запись ищет описание
--- несколько раз). Пара «арендатор, имя» однозначна: id строки Class — v5 от имени. Имя
--- пользовательского класса не совпадает с именем системного (проверка при определении), поэтому
--- порядок нужен только для ясности. Нет строки — null.
+-- несколько раз). Пара «арендатор, имя» однозначна: id строки Class — v5 от имени. Порядок важен:
+-- арендатор не заведёт класс с именем уже существующего класса System (class_admit,
+-- system_name_taken), но класс System может появиться позже одноимённого класса арендатора — тогда
+-- строк две, и действует собственная (атака №54 в engine-attacks). Нет строки — null.
 create or replace function @SCHEMA@.class_row(p_name text, p_tenant uuid) returns @SCHEMA@.entity
 language sql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp

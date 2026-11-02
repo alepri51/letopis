@@ -775,7 +775,8 @@ const stale: string[] = [];
 if (!check) mkdirSync(OUT, { recursive: true });
 for (const [name, text] of pages) {
   const file = join(OUT, name);
-  if (check) { if (!existsSync(file) || readFileSync(file, 'utf8') !== text) stale.push(`pages/${API_DIR}/${name}`); }
+  // концы строк с диска не важны (рабочая копия Windows с core.autocrlf=true — CRLF): сравнение по LF
+  if (check) { if (!existsSync(file) || readFileSync(file, 'utf8').replace(/\r\n/g, '\n') !== text) stale.push(`pages/${API_DIR}/${name}`); }
   else writeFileSync(file, text);
 }
 const total = items.size, options = [...items.values()].filter((it) => it.kind === 'option').length;
