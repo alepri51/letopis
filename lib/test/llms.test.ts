@@ -2,7 +2,8 @@
  * llms — документы для агента из реестров кода (план 2.0, этап 3, пп. 4–5; тест-план 7.9 №7, №8): llms-full.txt полон —
  * каждый код ошибки со смыслом и «что делать», каждый нюанс, зарезервированные имена и операторы; реестр операторов
  * OPERATORS совпадает с фабриками пакета, с ключами JSON-фильтра letopis_query (тот же ответ, что у цепочки, на
- * PostgreSQL 18) и с таблицами README и шпаргалки, обе версии. Свежесть файлов против генератора сверяет check:docs.
+ * PostgreSQL 18) и с таблицами README и шпаргалки, обе версии, и главы «Чтение» сайта. Свежесть файлов против генератора
+ * сверяет check:docs.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -92,7 +93,7 @@ test('план 2.0, 7.9 №7: llms-full.txt — каждый код ошибки
   assert.match(doc('llms.txt'), /\(llms-full\.txt\)/, 'llms.txt ссылается на llms-full.txt');
 });
 
-test('план 2.0, 7.9 №8: реестр операторов — фабрики пакета, ключи letopis_query с тем же ответом, что у цепочки, и таблицы README и шпаргалки, обе версии', async () => {
+test('план 2.0, 7.9 №8: реестр операторов — фабрики пакета, ключи letopis_query с тем же ответом, что у цепочки, и таблицы README и шпаргалки, обе версии, и главы «Чтение» сайта', async () => {
   // 1. реестр == фабрики операторов, которые экспортирует letopis (без isOp и помощников таблиц)
   const pkg = letopis as unknown as Record<string, unknown>;
   const ops = opsModule as unknown as Record<string, unknown>;
@@ -154,10 +155,12 @@ test('план 2.0, 7.9 №8: реестр операторов — фабрик
     await handle.close();
   }
 
-  // 3. реестр == таблицы между метками <!-- ops --> в README и шпаргалке, обе версии
-  for (const [file, lang] of [['README.md', 'ru'], ['README.en.md', 'en'], ['AGENT-CHEATSHEET.md', 'ru'], ['AGENT-CHEATSHEET.en.md', 'en']] as const) {
+  // 3. реестр == таблицы между метками <!-- ops --> в README и шпаргалке, обе версии, и в главе «Чтение» сайта (без MCP)
+  const tables: [file: string, lang: 'ru' | 'en', opts?: { mcp?: boolean }][] = [['README.md', 'ru'], ['README.en.md', 'en'],
+    ['AGENT-CHEATSHEET.md', 'ru'], ['AGENT-CHEATSHEET.en.md', 'en'], ['../guide/pages/read/index.md', 'ru', { mcp: false }]];
+  for (const [file, lang, opts] of tables) {
     const blocks = [...doc(file).matchAll(/<!-- ops -->\n([\s\S]*?)\n<!-- \/ops -->/g)];
     assert.equal(blocks.length, 1, `${file}: одна таблица операторов`);
-    assert.equal(blocks[0][1], operatorTable(lang), `${file}: таблица операторов совпадает с реестром`);
+    assert.equal(blocks[0][1], operatorTable(lang, opts), `${file}: таблица операторов совпадает с реестром`);
   }
 });

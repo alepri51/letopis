@@ -45,7 +45,7 @@ synced: f20b1cf
 - `lib/scripts/check-docs.mjs:checkMessages`, `:checkLiterals` — каталог сообщений и литеральные тексты ошибок
 - `lib/scripts/check-package.mjs` — проверка пакета (dev и реестр)
 - `lib/scripts/gen-api-contract.mjs` — контракт API, `--check`
-- `lib/scripts/gen-llms-full.mjs` — `llms-full.txt` и таблицы операторов в README и шпаргалке, `--check`
+- `lib/scripts/gen-llms-full.mjs` — `llms-full.txt` и таблицы операторов в README и шпаргалке и в главе «Чтение» сайта (`guide/pages/read/index.md`), `--check`
 - `lib/scripts/contract.mjs:buildContract` — сборка контракта из дерева (файлы или тег)
 - `lib/scripts/check-semver.mjs` — шаг версии против прошлого выпуска
 - `lib/scripts/prerelease.mjs` — полная локальная проверка; `:crashedFiles`, `:rerunCrashed` — повтор файла, упавшего до первого теста

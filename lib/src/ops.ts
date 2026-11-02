@@ -89,9 +89,10 @@ export const or = (...filters: Record<string, unknown>[]) => op('or', filters);
 
 // ---------------------------------------------------------------------------
 // Реестр операторов — один словарь фильтров (план 2.0, этап 3, п. 5; тест-план 7.9 №8). Из него строятся таблица OPS
-// и список операторов в описании letopis_query (lib/src/mcp.ts), таблицы в README и шпаргалке, обе версии, и в
-// llms-full.txt (npm run llms:full) и таблица в справочнике сайта (guide/coverage/api-docs.ts). Таблицы документов
-// сверяет check:docs (генератор с --check), реестр с MCP и документами — тест llms.
+// и список операторов в описании letopis_query (lib/src/mcp.ts), таблицы в README и шпаргалке, обе версии, в
+// llms-full.txt и в главе «Чтение» сайта (guide/pages/read/index.md, без колонки MCP) — npm run llms:full — и таблица в
+// справочнике сайта (guide/scripts/gen-api.ts). Таблицы документов сверяет check:docs (генератор с --check), реестр с
+// MCP и документами — тест llms.
 // ---------------------------------------------------------------------------
 
 /**
@@ -229,12 +230,14 @@ export function opHint(o: OperatorSpec): string {
 }
 
 /**
- * Таблица операторов в Markdown — README, шпаргалка, llms-full.txt и справочник сайта: TypeScript, MCP, смысл.
- * Вертикальная черта в ячейке экранируется, иначе она разрезала бы строку таблицы.
+ * Таблица операторов в Markdown — README, шпаргалка, llms-full.txt и справочник сайта: TypeScript, MCP, смысл;
+ * `mcp: false` — без колонки MCP (глава «Чтение» сайта: там цепочки на TypeScript). Вертикальная черта в ячейке
+ * экранируется, иначе она разрезала бы строку таблицы.
  */
-export function operatorTable(lang: Lang): string {
+export function operatorTable(lang: Lang, { mcp = true }: { mcp?: boolean } = {}): string {
   const cell = (s: string) => s.replaceAll('|', '\\|');
-  const head = lang === 'en' ? '| TypeScript | MCP | Meaning |' : '| TypeScript | MCP | Смысл |';
-  const rows = OPERATORS.map((o) => `| ${[`\`${opCall(o)}\``, `\`${opJson(o)}\``, o[lang]].map(cell).join(' | ')} |`);
-  return [head, '|---|---|---|', ...rows].join('\n');
+  const meaning = lang === 'en' ? 'Meaning' : 'Смысл';
+  const head = mcp ? `| TypeScript | MCP | ${meaning} |` : `| TypeScript | ${meaning} |`;
+  const rows = OPERATORS.map((o) => `| ${[`\`${opCall(o)}\``, ...(mcp ? [`\`${opJson(o)}\``] : []), o[lang]].map(cell).join(' | ')} |`);
+  return [head, mcp ? '|---|---|---|' : '|---|---|', ...rows].join('\n');
 }
