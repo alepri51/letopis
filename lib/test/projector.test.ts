@@ -379,7 +379,7 @@ test('проектор: версия, имя, только администра�
   assert.throws(() => adm.projector('Daily', dailyDef()), lt('invalid_data'));
   assert.throws(() => db.projector('daily', dailyDef()), lt('admin_required'));
   // повторный накат: чекпоинты, проекции и данные на месте, проверка базы чиста
-  await install(e.sql, { schema: e.schema, allowReset: true });
+  await install(e.sql, { schema: e.schema });
   const again = adm.projector('daily', dailyDef({ version: 2 }));
   await insSale(t.token, { day: 'after-up', amount: 4 });
   await again.run({ once: true });
@@ -571,7 +571,7 @@ test('ревью безопасности №2, О1: строка PROJECTOR др
   }
   // накат помечает удалёнными строки PROJECTOR других аккаунтов
   const late = await plant('marker-late');
-  await install(e.sql, { schema: e.schema, allowReset: true });
+  await install(e.sql, { schema: e.schema });
   assert.ok((await rowOf(late)).deleted_at);
   assert.equal((await e.sql.unsafe(`select count(*)::int as n from ${e.S}.secret where kind = 'PROJECTOR' and account <> $1 and deleted_at is null`, [SYSTEM_ID]))[0].n, 0);
 });

@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { engine, type Engine, type Tenant } from './_engine.js';
 import { ADMIN_DSN, appDsn } from './_harness.js';
 import { member, session, sysadmin } from './_access.js';
-import { connect, describeText, fromDbError, up, LetopisError, ValidationError, type Db } from '../src/index.js';
+import { connect, fromDbError, up, LetopisError, ValidationError, type Db } from '../src/index.js';
 import { createMcpServer } from '../src/mcp.js';
 import { codes } from '../src/messages/codes.js';
 import { MESSAGES } from '../src/messages/index.js';
@@ -68,7 +68,7 @@ test('план 2.0, этап 3, п. 3: каталог полон — у кажд
 });
 
 test('план 2.0, этап 3, п. 3: hint и docs у каждого кода; docs ведёт на якорь кода в разделе «Ошибки» README', async () => {
-  const section = readFileSync(new URL('../README.md', import.meta.url), 'utf8').split('\n## 16. Ошибки')[1].split('\n## 17.')[0];
+  const section = readFileSync(new URL('../README.md', import.meta.url), 'utf8').split(/\n## \d+\. Ошибки\n/)[1].split(/\n## \d+\. /)[0];
   for (const m of Object.values(codes)) {
     // подсказку и ссылку получает и ошибка места, ещё не переведённого на каталог
     const x = new LetopisError(m.code, 'x');
@@ -265,13 +265,6 @@ test('план 2.0, этап 3, п. 3: повторяемый конфликт �
   assert.equal(fromDbError(c), c);
   assert.equal(c.code, '40P01');
   assert.equal(c.message, 'letopis: invalid_class: класс A$&B$1 не найден');
-});
-
-test('план 2.0, этап 3, п. 3: describeText — заголовок и подписи из каталога (time.describe_*)', async () => {
-  const text = describeText(ru.describe());
-  assert.match(text, /^# letopis: модель схемы /);
-  assert.match(text, /\n## Shop\n- вид: хаб \(объект\)\n- ключ: name\n- поля: city: string, name\*: string\n- создать: `db\.Shop\(\)\.create\(/);
-  assert.match(text, /\n## Product\n[\s\S]*?- концы: Seller → Shop\n/);
 });
 
 test('план 2.0, 7.9 №6: похожие имена — неизвестный класс и роль в цепочке дают ошибку с похожими', async () => {

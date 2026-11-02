@@ -4,7 +4,7 @@
  * против PostgreSQL 18: lib/README.md, lib/AGENT-CHEATSHEET.md и корневой README.md. Каждый сценарий — в своей свежей
  * схеме v2.t_docs_<документ>[_<сценарий>]: строки `const ADMIN = …` и `const APP = …`
  * заменяются подключениями обвязки, имя схемы примеров — схемой теста, импорты 'letopis', 'letopis/model' и 'letopis/mcp' —
- * исходниками пакета, `import type` убирается. Блоки без пометки (командная строка, импорт из 0.21, PGlite, сброс)
+ * исходниками пакета, `import type` убирается. Блоки без пометки (командная строка, PGlite)
  * не исполняются: их покрывают свои тесты.
  */
 import { test, before, after } from 'node:test';
@@ -93,7 +93,6 @@ assert.ok(trimmed >= 1)
 assert.equal(audit.ok, true)
 assert.notEqual(cursor, '')
 assert.equal(report.skipped, false)
-assert.match(modelText, /Product/)
 {
   const chk = await __connect({ dsn: APP, schema: r.schema, token: r.tenant!.token!, listen: false })
   try {

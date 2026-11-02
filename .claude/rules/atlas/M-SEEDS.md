@@ -22,7 +22,7 @@ synced: f20b1cf
 **Что ещё менять вместе**
 - Изменил модель в `demo/booking.ts` — `cd lib && npm run seed:booking`, иначе падает сверка в `demo.test.ts`; при смене состава классов — `BOOKING.length` там же и фикстура `lib/test/_salon.ts:seedSalon` (сырые insert под сессией), сценарии и бенчи на салоне (`bench/salon-data.mjs`).
 - Изменил набор ресурсов/правил `seed_system` — ожидания в `system-classes.test.ts` (список alias, `rule().count()`), трасса `docs/atlas/F-BOOT.md`; влияние на права — карточка M-ACCESS.
-- Изменил функции `95-seed.system.sql` — их зовут `up.ts` (`bootstrap_service`), `90-time.sql` (`reset`), `test/_engine.ts`, `test/_access.ts`, бенчи.
+- Изменил функции `95-seed.system.sql` — их зовут `up.ts` (`bootstrap_service`), `test/_engine.ts`, `test/_access.ts`, бенчи.
 - Новый побочный эффект записи строки `Class` или прав в триггерах (`lib/sql/60-write.sql:trg_entity_ai`, `class_admit`) — повторить в `sys_create`, если он нужен и строкам сида (как `acl_bump`, `agg_mark`): владелец триггеры записи не вызывает.
 
 **Проверка**
@@ -30,7 +30,7 @@ synced: f20b1cf
 - `cd lib && npm run check:docs`.
 
 **Точки входа**
-- `lib/sql/95-seed.system.sql:seed_system` — системный сид (установка и `reset({ all })`)
+- `lib/sql/95-seed.system.sql:seed_system` — системный сид установки
 - `lib/sql/95-seed.system.sql:sys_create` — первая версия строки от владельца
 - `lib/sql/95-seed.system.sql:bootstrap_service` — сервисный аккаунт и ключ
 - `lib/src/demo/booking.ts:BOOKING` — модели демо-домена

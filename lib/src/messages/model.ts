@@ -1,6 +1,6 @@
 /**
- * Раздел model: model.ts, registry.ts, sync.ts, cli.ts, check.ts, validate.ts, jsonschema.ts, uuid.ts — модели, реестр,
- * CLI, проверки до запуска, валидатор и JSON Schema на TypeScript.
+ * Раздел model: model.ts, registry.ts, sync.ts, cli.ts, validate.ts, jsonschema.ts, uuid.ts — модели, реестр, CLI,
+ * валидатор и JSON Schema на TypeScript.
  */
 import type { Section } from './types.js';
 
@@ -257,12 +257,6 @@ export const model = {
     hint: 'значение конца в ключе — id цели (uuid)',
   },
 
-  // cli.ts, main: letopis load --trust — режима доверия нет с 1.0.0
-  'model.cli_trust_removed': {
-    code: 'removed',
-    ru: '--trust снят в 1.0.0 — запрос по целям вне загрузки стоит 0,1–1,3 % её времени',
-    hint: 'запускать letopis load без --trust: режима доверия больше нет, цели вне загрузки загрузчик проверяет сам',
-  },
   // cli.ts, mcp: letopis mcp с ключом сервиса (--api-key)
   'model.mcp_api_key_refused': {
     code: 'user_session_required',
@@ -307,66 +301,5 @@ export const model = {
   'model.types_header': {
     code: 'invalid_query',
     ru: 'Сгенерировано letopis types — не править руками.',
-  },
-
-  // check.ts, loadTypescript: нет пакета typescript (или в нём нет Compiler API) — обычный Error с префиксом
-  // letopis check, без кода (код записи при броске не берётся)
-  'model.check_typescript_missing': {
-    code: 'invalid_query',
-    ru: 'для letopis check нужен пакет typescript (Compiler API) — npm i -D typescript',
-  },
-  // check.ts, правило reserved-name: имя класса, алиас или роль в hub() и link() — из RESERVED_CLASS_NAMES; fn — hub
-  // или link
-  'model.check_reserved_name': {
-    code: 'invalid_class',
-    ru: '{fn}(): имя {name} занято методом цепочки или корня db — шаг с таким именем до класса или роли не дойдёт',
-  },
-  // check.ts, правило no-filter: update() или delete({ confirm: true }), а ни у одного шага нет фильтра, id, limit(),
-  // tags(), owner() и entity(); call — сам вызов
-  'model.check_no_filter': {
-    code: 'invalid_query',
-    ru: '{call} без фильтра: ни у одного шага нет фильтра, id или limit() — правка пройдёт по всем строкам',
-  },
-  // check.ts, правило delete-preview: delete() без { confirm: true } последним глаголом, результат цепочки не используется
-  'model.check_delete_preview': {
-    code: 'invalid_query',
-    ru: 'delete() без { confirm: true } — только предпросмотр: ничего не удаляется, а его результат не используется',
-  },
-  // check.ts, правило upsert-no-key: upsert() у класса без ключа (по моделям --models и системным классам)
-  'model.check_upsert_no_key': {
-    code: 'no_key',
-    ru: 'upsert(): у класса {cls} нет ключа — сравнивать не с чем, используйте create()',
-  },
-  // check.ts, правило mod-after-verb: модификатор выборки после глагола перед rows, first, ids, count, paths или в конце
-  // цепочки батча
-  'model.check_mod_after_verb': {
-    code: 'invalid_query',
-    ru: '{name}() после {verb}() ни на что не действует: глагол проходит по всем целям шага, а ответ — его строки. Цели сужают limit(), offset() и sort() до глагола: db.Класс(…).limit(n).{verb}(…)',
-  },
-  // check.ts, правило mod-after-verb: модификатор шага (deep, exact, alias, tags, owner) сразу после глагола
-  'model.check_step_mod_after_verb': {
-    code: 'invalid_query',
-    ru: '{name}() после {verb}(): модификатор шага — сначала шаг класса',
-  },
-  // check.ts, правило for-update-outside-tx: forUpdate() в цепочке от подключения, а не от db.begin()
-  'model.check_for_update_outside_tx': {
-    code: 'tx_required',
-    ru: 'forUpdate() — только внутри db.begin(): вне явной транзакции блокировка снялась бы сразу',
-  },
-  // check.ts, правило unknown-name: шаг или слот не из классов, алиасов и ролей моделей --models и системных классов;
-  // похожие — params.similar
-  'model.check_unknown_name': {
-    code: 'invalid_class',
-    ru: 'класс или роль {name} не найдены в моделях',
-  },
-  // check.ts, formatReport: без --models два правила не проверялись (часть текста отчёта, не ошибка)
-  'model.check_no_models': {
-    code: 'invalid_query',
-    ru: 'без --models не проверялись неизвестные классы и роли и upsert() у класса без ключа',
-  },
-  // check.ts, formatReport: итог текстового отчёта (часть текста, не ошибка)
-  'model.check_summary': {
-    code: 'invalid_query',
-    ru: 'letopis check: файлов {files}, ошибок {errors}',
   },
 } satisfies Section<'model'>;

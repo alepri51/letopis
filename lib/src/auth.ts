@@ -11,7 +11,7 @@
  */
 import { createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
-import { lerr, removed } from './errors.js';
+import { lerr } from './errors.js';
 import type { Executor } from './tx.js';
 
 const scryptAsync = promisify(scrypt) as (password: string, salt: Buffer, keylen: number,
@@ -221,16 +221,6 @@ export interface AuthApi {
 
 /** Фасад db.auth. onSwitch — подключение перечитывает арендатора, реестр и пропуска прав. */
 export function makeAuth(S: string, exec: Executor, onSwitch: () => Promise<void>, canSwitch: boolean): AuthApi {
-  const api = makeAuthCore(S, exec, onSwitch, canSwitch);
-  return new Proxy(api, {
-    get(t, p, r) {
-      if (p === 'sessions') throw removed('db.auth.sessions(store)', 'access.replacement_sessions');
-      return Reflect.get(t, p, r);
-    },
-  });
-}
-
-function makeAuthCore(S: string, exec: Executor, onSwitch: () => Promise<void>, canSwitch: boolean): AuthApi {
   const one = async <T>(text: string, params: unknown[] = []): Promise<T> => {
     const rows = await exec.run((q) => q.unsafe(text, params as never[]));
     return rows[0] as T;

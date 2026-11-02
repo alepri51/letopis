@@ -93,7 +93,7 @@ test('план 2.0, 7.3 №4: maintain() чистит сессии и коды �
       $at: new Date(base + i * 3_600_000).toISOString() })), { withHistory: true });
     await expired(t.id);
     // по версии за пачку: прореживание идёт несколькими пачками
-    const r = await mdb.maintain({ now: new Date().toISOString(), limit: 1, batches: 3 });
+    const r = await mdb.maintain({ limit: 1, batches: 3 });
     assert.equal(r.batches, 3);
     assert.ok(r.sessions >= 1 && r.codes >= 1, 'истёкшие сессии и коды убраны');
     // параметр приходит в отладку уже сериализованным: true — 't'
@@ -122,6 +122,7 @@ test('6.11 не администратор — отказ; сервису — п
     });
     const r = await svc.maintain();
     assert.equal(r.skipped, false);
+    await assert.rejects(svc.maintain({ now: new Date() }), code('acl_denied'), 'момент «сейчас» — только администраторскому подключению');
     await assert.rejects(svc.verify(), code('acl_denied'), 'правило — только на maintain');
   } finally {
     await svc.close();

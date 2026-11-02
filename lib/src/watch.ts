@@ -92,14 +92,13 @@ export interface WatchCtx {
 
 /**
  * Будит ли сигнал подписку: свои классы (watched; null — все) и свой арендатор (mine — токен; null —
- * любой); сессии не будят; *, opaque без ключа и нагрузка не по режиму — будят. Незнакомый токен класса
- * будит только подписку на все классы: классы подписки с перечнем есть в реестре, их токены известны.
+ * любой); сессии не будят; переподключение слушателя, opaque без ключа и нагрузка не по режиму — будят. Незнакомый
+ * токен класса будит только подписку на все классы: классы подписки с перечнем есть в реестре, их токены известны.
  */
 export function wakes(s: Signal, watched: ReadonlySet<string> | null, mine: string | null): boolean {
   const ours = (t: string | null) => t === null || mine === null || t === mine;
   switch (s.kind) {
     case 'session':
-    case 'sessions':
       return false;
     case 'class':
       return (!watched || watched.has(s.cls)) && ours(s.tenant);

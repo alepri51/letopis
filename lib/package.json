@@ -54,7 +54,6 @@
     "AGENT-CHEATSHEET.md",
     "llms.txt",
     "CHANGELOG.md",
-    "MIGRATION.md",
     "LICENSE"
   ],
   "scripts": {
@@ -64,7 +63,6 @@
     "check:docs": "node scripts/check-docs.mjs",
     "check:package": "node scripts/check-package.mjs",
     "seed:booking": "tsx scripts/gen-seed-booking.mjs",
-    "test:import-salon": "tsx bench/import-salon.mjs",
     "api:contract": "node scripts/gen-api-contract.mjs",
     "ops:tables": "tsx scripts/gen-ops-tables.mjs",
     "prepublishOnly": "npm run typecheck && npm run check:docs && npm run build",
@@ -79,7 +77,6 @@
     "@electric-sql/pglite": "^0.5.8",
     "@electric-sql/pglite-socket": "^0.2.11",
     "@modelcontextprotocol/server": "^2.4.0",
-    "typescript": ">=5",
     "zod": "^4"
   },
   "peerDependenciesMeta": {
@@ -94,9 +91,6 @@
     },
     "@modelcontextprotocol/server": {
       "optional": true
-    },
-    "typescript": {
-      "optional": true
     }
   },
   "devDependencies": {
@@ -105,7 +99,6 @@
     "@modelcontextprotocol/client": "^2.4.0",
     "@modelcontextprotocol/server": "^2.4.0",
     "@types/node": "^22.20.5",
-    "letopis-0": "npm:letopis@0.21.0",
     "letopis-1": "npm:letopis@1.0.1",
     "letopis-11": "npm:letopis@1.1.0",
     "letopis-141": "npm:letopis@1.4.1",

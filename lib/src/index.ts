@@ -5,10 +5,10 @@
  * Этап 2: connect() — подключение под сессией, реестр классов, отложенный сигнал, db.sql.
  * Этап 3: цепочки чтения t.Класс(…).Связь().rows(); этап 4 — запись цепочками и загрузчик.
  * Этап 5: db.auth (креды, вход, сессии), db.acl, db.as(аккаунт, { tenant }) — имперсонация.
- * Этап 6: история (restore, purge, rekey, trimHistory), verify, maintain, reset, watch, кэш результатов.
+ * Этап 6: история (restore, purge, rekey, trimHistory), verify, maintain, watch, кэш результатов.
  */
 import postgres from 'postgres';
-import { LetopisError, checkOptions, fromDbError, lerr, lwarn, removed, type MsgKey } from './errors.js';
+import { LetopisError, checkOptions, fromDbError, lerr, lwarn } from './errors.js';
 import { Registry } from './registry.js';
 import { AclPasses, ExplicitTx, Notifier, poolExecutor, runTx, type Executor, type Tx, type TxContext } from './tx.js';
 import { checkReason } from './write.js';
@@ -26,9 +26,8 @@ import { Subscription, type WatchOptions } from './watch.js';
 import { Projector, type ProjectorOptions } from './project.js';
 import { SIGNAL_MODES, Signals, bucket, throttle, type Signal, type SignalMode } from './signals.js';
 import {
-  describe as describeModel, maintain as runMaintain, rebuildAggregates as runRebuildAggregates, rekeyClass as runRekeyClass,
-  reset as runReset, MAINTAIN_STOP, parseInterval, scheduleMaintain, trimHistory as runTrim, verify as runVerify, type AdminCtx, type MaintainOptions, type MaintainReport, type ModelDescription,
-  type ResetOptions, type ResetResult, type VerifyResult,
+  maintain as runMaintain, rebuildAggregates as runRebuildAggregates, rekeyClass as runRekeyClass, MAINTAIN_STOP, parseInterval,
+  scheduleMaintain, trimHistory as runTrim, verify as runVerify, type AdminCtx, type MaintainOptions, type MaintainReport, type VerifyResult,
 } from './admin.js';
 import type { AnyModelLike, OrOp, StepsOf } from './typed.js';
 import { stampDrift } from './up.js';
@@ -60,22 +59,9 @@ export type { CacheOptions, CacheStats } from './cache.js';
 export type { SignalMode } from './signals.js';
 export type { WatchOptions, WatchEvent, Subscription } from './watch.js';
 export type { Projector, ProjectorOptions, ProjectorChange, ProjectorOut, ProjectorRow, ProjectorReport, ProjectorStatus, ProjectorFailure } from './project.js';
-export type { VerifyResult, VerifyIssue, MaintainOptions, MaintainReport, ResetOptions, ResetResult, ModelDescription } from './admin.js';
-export { describeText } from './admin.js';
+export type { VerifyResult, VerifyIssue, MaintainOptions, MaintainReport } from './admin.js';
 export { up, createTenant, type UpOptions, type UpResult, type HistoryPolicy, type TenantOptions, type TenantResult, type LoginOptions } from './up.js';
 export { RESERVED_CLASS_NAMES, CHAIN_METHODS, DB_METHODS } from './types.js';
-
-/** Снесено в 1.0.0: id v7 больше не выдаются (§2.3). */
-export function uuidv7(): never {
-  throw removed('uuidv7()', 'api.replacement_uuidv7');
-}
-/** Снесено в 1.0.0: пространство имён v5 — id арендатора. Любое использование значения — ошибка. */
-export const LETOPIS_NS: string = new Proxy({} as object, {
-  get(_t, p) {
-    if (p === 'then') return undefined;
-    throw removed('LETOPIS_NS', 'api.replacement_letopis_ns');
-  },
-}) as unknown as string;
 
 const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
 const SCHEMA_NAME = /^v\d+\.[a-z_][a-z0-9_]{0,40}$/;
@@ -145,21 +131,6 @@ const CONNECT_OPTIONS = {
 /** Опции watch() (WatchOptions). */
 const WATCH_OPTIONS = { from: true, classes: true, batch: true, pollMs: true } satisfies Record<keyof WatchOptions, true>;
 
-/**
- * Опции 0.21, снятые в 1.0.0, и их замены (этап 3, п. 11) — ключи каталога api.replacement_option_*: контракт API
- * берёт шаблон записи (lib/scripts/contract.mjs).
- */
-const REMOVED_OPTIONS: Record<string, MsgKey> = {
-  partition: 'api.replacement_option_partition',
-  enforceAccount: 'api.replacement_option_enforce_account',
-  enforceAcl: 'api.replacement_option_enforce_acl',
-  container: 'api.replacement_option_docker',
-  image: 'api.replacement_option_docker',
-  dataDir: 'api.replacement_option_docker',
-  redisPort: 'api.replacement_option_redis',
-  version: 'api.replacement_option_version',
-};
-
 export interface DbCore {
   readonly schema: string;
   readonly token: string | null;
@@ -197,12 +168,6 @@ export interface DbCore {
   /** Обслуживание: истёкшие сессии и коды, прореживание журнала по политике хранения, очередь сигналов. */
   maintain(opts?: MaintainOptions): Promise<MaintainReport>;
   /**
-   * Сбрасывает тестовую установку: сессии, данные одного арендатора или всё — смотря по `level`. Работает, только если
-   * установка поставлена с `up({ allowReset: true })`, у вызывающего есть право `letopis.reset` (или подключение
-   * администраторское), а `confirm` совпадает с именем схемы.
-   */
-  reset(opts: ResetOptions): Promise<ResetResult>;
-  /**
    * Стирает версии, сделанные раньше момента `before`; текущая версия остаётся всегда. Вместо стёртого начала истории
    * остаётся служебная запись `trim` со временем появления объекта.
    */
@@ -212,11 +177,6 @@ export interface DbCore {
    * переезжают на новый id, а ссылки на них переводятся.
    */
   rekeyClass(cls: string, key: string[]): Promise<number>;
-  /**
-   * Описание модели для программ и языковых моделей: классы арендатора сессии и общие классы System с полями, ключом,
-   * ссылками и метаданными `meta`. `describeText(db.describe())` превращает его в текст.
-   */
-  describe(): ModelDescription;
   /** Подписка по курсору: `for await (const ev of db.watch({ from })) …`; `sub.cursor` — откуда продолжить. */
   watch(opts?: WatchOptions): Subscription;
   /** Кэш результатов подключения. */
@@ -388,17 +348,9 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
     flushSignals: () => sh.notifier.flush(),
     verify: (o) => (viaAdmin ? adminReady().then(() => runVerify(admCtx(), o)) : runVerify(adm, o)),
     maintain: (o) => (viaAdmin ? adminReady().then(() => runMaintain(admCtx(), o)) : runMaintain(adm, o)),
-    reset: async (o) => {
-      const r = await runReset(adm, o);
-      sh.passes.clear();
-      sh.cache?.clear();
-      return r;
-    },
     trimHistory: (target, before) => runTrim(adm, target, before),
     rekeyClass: (cls, key) => runRekeyClass(adm, cls, key),
-    describe: () => describeModel(adm),
     watch: (o = {}) => {
-      if (typeof o === 'function' || typeof o === 'string') throw removed('watch(cb) и watch(класс, cb)', 'api.replacement_watch');
       checkOptions('watch', o, WATCH_OPTIONS);
       const reg = scope.registry();
       const classes = o.classes ? [...new Set(o.classes.flatMap((c) => reg.family(c).map((x) => x.name)))] : null;
@@ -489,22 +441,10 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
     rollback: async (tr) => (tr ? tr.rollback() : tx ? tx.rollback() : noTx('rollback()')),
     close: () => (tx ? tx.rollback() : sh.close()),
   };
-  /** Свойство фасада: служебное — из core, снятое API — охранник, иначе шаг класса, алиаса или роли. */
+  /** Свойство фасада: служебное — из core, иначе шаг класса, алиаса или роли. */
   const member = (t: DbCore, prop: string | symbol, r: unknown): unknown => {
     if (typeof prop === 'symbol' || prop in t) return Reflect.get(t, prop, r);
-    switch (prop) {
-      case 'then':
-        return undefined;
-      case 'reloadSchema':
-        throw removed('reloadSchema()', 'api.replacement_reload_schema');
-      case 'accounts':
-      case 'credentials':
-      case 'resources':
-      case 'rules':
-        throw removed(`фасад db.${prop}`, 'api.replacement_facades');
-      case 'compact':
-        throw removed('compact()', 'api.replacement_compact');
-    }
+    if (prop === 'then') return undefined;
     return startStep(chainCtx, prop);
   };
   const facade = new Proxy(core, {
@@ -527,8 +467,6 @@ export function connect<M extends readonly AnyModelLike[]>(opts: ConnectOptions)
 export async function connect(opts: ConnectOptions): Promise<Db> {
   if (!SCHEMA_NAME.test(opts.schema)) throw lerr('api.connect_schema', { schema: opts.schema });
   if (!opts.sql && !opts.dsn) throw lerr('api.connect_no_dsn');
-  // имя — без слова «опция»: его добавляет запись api.removed_option, которую охранник выбирает по ключу замены
-  for (const k of Object.keys(opts)) if (Object.hasOwn(REMOVED_OPTIONS, k)) throw removed(`connect({ ${k} })`, REMOVED_OPTIONS[k]);
   checkOptions('connect', opts, CONNECT_OPTIONS);
   // интервал обслуживания — до пула и таймеров: неверный не оставляет за собой открытых соединений
   const maintainEvery = opts.maintain === undefined ? undefined : parseInterval(opts.maintain);
@@ -758,14 +696,14 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
           if (e instanceof LetopisError && (e.code === 'acl_denied' || e.code === 'no_session')) return null;
           throw e;
         });
-      // ключ сменился (reset({ all })): ответы с токенами старого ключа сигналы больше не узнают
+      // ключ сменился: ответы с токенами старого ключа сигналы больше не узнают
       if (sig.setKey(key)) cache?.clear();
     };
     await fetchKey();
     await refresh();
-    // ключ, реестр и пропуска прав — заново по *, незнакомому токену, нагрузке не по режиму, а у процесса
-    // без ключа в режиме opaque — по любому сигналу; не чаще раза в 5 с: заливка канала (в том числе
-    // поддельными сигналами) не становится потоком перечитываний
+    // ключ, реестр и пропуска прав — заново после переподключения слушателя, по незнакомому токену, нагрузке не по
+    // режиму, а у процесса без ключа в режиме opaque — по любому сигналу; не чаще раза в 5 с: заливка канала (в том
+    // числе поддельными сигналами) не становится потоком перечитываний
     const resync = throttle(() => {
       passes.clear();
       void fetchKey().then(() => refresh()).catch(() => {});

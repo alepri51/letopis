@@ -3,7 +3,7 @@
 Триггер: `const db = await connect({ dsn, schema, token }); await db.Org(org).Staff().skill().Service().rows()` (имя класса, алиас `Организация` или роль конца — одинаково)
 
 ## Построение (синхронно, без SQL)
-1. [N] `lib/src/index.ts:makeDb#«new Proxy(core»` — свойства фасада `core`, охранники снесённого API (`removed`); иначе `startStep`.
+1. [N] `lib/src/index.ts:makeDb#«new Proxy(core»` — свойства фасада `core`; иначе `startStep`.
 2. [N] `lib/src/chain.ts:lookupStep` — класс или алиас из реестра; иначе роль — шаг её класса целей с `role`; неизвестное имя — `invalid_class`.
 3. [N] `lib/src/chain.ts:classProp#«ранняя проверка пути»` — повтор связи — возврат к её узлу (pivot); иначе `resolveHop` проверяет переход сразу (`no_path`).
 4. [N] `lib/src/chain.ts:makeChain` — модификатор = новая цепочка (шаговые правят последний шаг, `limit/sort/asOf/after/withDeleted/cache/forUpdate` — mods); `then` → undefined; глагол записи — звено плана (F-WRITE).
@@ -30,10 +30,10 @@
 16. [N] `lib/src/sql.ts:toRow` — `op = 'delete'` → `$deleted`, глубина → `$depth`, пустые `agent/reason/moved` без ключа.
 
 Состояние: БД не меняется.
-Сбои: `invalid_class` (имя), `no_path` (переход) — при построении; `invalid_query` — `deep()` на первом шаге или не к тому же классу, `deep()` с `withDeleted()`, `after()` без `sort()`, неизвестное поле сортировки, курсор `after()` со значением не того типа, что поле `sort`, без `v` или с `id` не uuid (`lib/src/sql.ts:cursorParams`, до запроса); `forUpdate()` вне `db.begin()` — `tx_required`, с asOf/withDeleted/deep/агрегатами — `lock_unsupported`; `removed` — снесённый API; без сессии — пустой ответ (политики и find_* видят только с сессией).
+Сбои: `invalid_class` (имя), `no_path` (переход) — при построении; `invalid_query` — `deep()` на первом шаге или не к тому же классу, `deep()` с `withDeleted()`, `after()` без `sort()`, неизвестное поле сортировки, курсор `after()` со значением не того типа, что поле `sort`, без `v` или с `id` не uuid (`lib/src/sql.ts:cursorParams`, до запроса); `forUpdate()` вне `db.begin()` — `tx_required`, с asOf/withDeleted/deep/агрегатами — `lock_unsupported`; без сессии — пустой ответ (политики и find_* видят только с сессией).
 Логи: `letopis: медленный запрос {ms} мс — {mode} A→B` (slowMs без onQuery); `.versions()/.asOf() у класса … без журнала` — `lib/src/chain.ts:warnNoHistory`.
 Варианты режима:
-- `asOf(t)` — все шаги из журнала: последняя версия ≤ t, не надгробие и не purge/trim/reset;
+- `asOf(t)` — все шаги из журнала: последняя версия ≤ t, не надгробие и не purge/trim;
 - `withDeleted()` — последний узел ещё и из надгробий журнала;
 - `forUpdate()` — `lockedRead`: id, `for no key update`, повторное чтение (F-WRITE);
 - `count({ paths: true })` — число путей, `count()` — сущностей.

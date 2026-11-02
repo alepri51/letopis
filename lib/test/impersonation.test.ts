@@ -158,7 +158,7 @@ test('доработки после точки Б: реестр db.as() — од
 });
 
 test('доработки после точки Б: сигнал Class с токеном арендатора (режим tenant) перечитывает реестр db.as() только этого арендатора', async () => {
-  await install(e.sql, { schema: e.schema, allowReset: true, signals: 'tenant' });
+  await install(e.sql, { schema: e.schema, signals: 'tenant' });
   const svcT = await connect({ dsn: appDsn(), schema: e.schema, apiKey: e.serviceKey, max: 2 });
   try {
     const a = await shopWithNote('Арендатор-А');
@@ -179,7 +179,7 @@ test('доработки после точки Б: сигнал Class с ток�
     assert.equal(loadsB, 0, 'реестр Б не перечитывался');
   } finally {
     await svcT.close();
-    await install(e.sql, { schema: e.schema, allowReset: true });
+    await install(e.sql, { schema: e.schema });
   }
 });
 

@@ -33,11 +33,6 @@ export interface InstallOptions {
   owner?: string;
   app?: string;
   /**
-   * Разрешить `db.reset()` и `maintain({ now })` — для тестовых установок и стендов; по умолчанию запрещено. Значение
-   * задаётся при установке и хранится в схеме: каждый `up()` записывает его заново (план, §2.2).
-   */
-  allowReset?: boolean;
-  /**
    * Политика хранения истории для классов без своей, например
    * `{ all: '1 day', daily: '1 week', weekly: '1 month', monthly: '1 year', yearly: 'forever' }`; не задана — история
    * хранится вся. Значение задаётся при установке и хранится в схеме: каждый `up()` записывает его заново (план, §2.11).
@@ -61,7 +56,7 @@ export interface InstallOptions {
   /**
    * Что видно в сигналах базы (`NOTIFY`): `'class'` (у новой схемы по умолчанию) — имя класса; `'tenant'` — имя класса и
    * псевдоним арендатора (токен); `'opaque'` — только псевдонимы класса и арендатора; `'none'` — сигналов нет.
-   * Режим хранится в схеме: `up()` без опции его не меняет, `reset({ all })` сохраняет (план 1.1, §2.2).
+   * Режим хранится в схеме: `up()` без опции его не меняет (план 1.1, §2.2).
    */
   signals?: SignalMode;
 }
@@ -243,7 +238,6 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
     APP_NAME: app,
     PGCRYPTO: quoteIdent(nsp),
     SYSTEM: SYSTEM_ID,
-    ALLOW_RESET: opts.allowReset ? 'true' : 'false',
     HISTORY_DEFAULT: quoteLiteral(JSON.stringify(opts.history ?? null)),
     // методы цепочки — в тексте функции reserved_names() (план, §2.14)
     RESERVED_NAMES: RESERVED_CLASS_NAMES.map(quoteLiteral).join(', '),
@@ -425,7 +419,7 @@ export interface LoginOptions {
 /** Все опции up(): неизвестную checkOptions называет с похожими (план 2.0, 7.9 №6). */
 const UP_OPTIONS = {
   dsn: true, sql: true, schema: true, fresh: true, upgrade: true, quiet: true, waitTimeoutMs: true, pglite: true, tenant: true,
-  login: true, owner: true, app: true, allowReset: true, history: true, seeds: true, migrationsDir: true, serviceKey: true,
+  login: true, owner: true, app: true, history: true, seeds: true, migrationsDir: true, serviceKey: true,
   signals: true,
 } satisfies Record<keyof UpOptions, true>;
 
@@ -668,7 +662,7 @@ async function ensureLogin(sql: postgres.Sql, login: LoginOptions, owner: string
 export interface TenantOptions {
   /**
    * Имя арендатора — его аккаунта в System. Из имени вычисляется id арендатора, поэтому одно имя — всегда один и тот же
-   * арендатор (так же его находит `letopis import --tenant`).
+   * арендатор.
    */
   name: string;
   /** Правило арендатора «аутентифицированным можно всё» (READ, WRITE, DELETE; по умолчанию да). */

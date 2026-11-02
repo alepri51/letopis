@@ -1,6 +1,6 @@
 /**
  * verify — проверка базы (план, этап 6, п. 4; тест-план §7.8 №6.8 и §7.3.7 №4): законные разрывы
- * (purge, обрезка, reset) не находки, подмены — находки; verify({ data: true }) называет строку, не
+ * (purge, обрезка) не находки, подмены — находки; verify({ data: true }) называет строку, не
  * проходящую описание класса, висячий конец, строку несуществующего арендатора и id не по ключу;
  * не администратор — отказ; letopis verify — ненулевой код при находках; колонку hash считает не выражение
  * установки (снято, у наследника своё) — находка (ревью); версию, записанную при подменённом теле функции хэша,
@@ -46,16 +46,13 @@ after(async () => {
   await e?.close();
 });
 
-test('6.8 законные разрывы — purge, обрезка, reset арендатора — не находки; якорь меняется вместе с данными', async () => {
+test('6.8 законные разрывы — purge и обрезка — не находки; якорь меняется вместе с данными', async () => {
   const [a] = await db.Box().create({ code: 'A', n: 1 }).rows();
   for (let i = 2; i <= 4; i++) await db.Box(a.id).update({ n: i }).rows();
   await db.trimHistory(a.id, (await db.Box(a.id).versions())[2].at);
   const [b] = await db.Box().create({ code: 'B' }).rows();
   await db.Box(b.id).delete({ confirm: true }).rows();
   await db.Box(b.id).purge({ confirm: true }).rows();
-  const other = await e.tenant('verify-reset');
-  await e.defineClass(other, { name: 'Box', kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
-  await adb.reset({ level: 'tenant', confirm: e.schema, tenant: other.id });
   const v1 = await adb.verify({ data: true });
   assert.equal(v1.ok, true, JSON.stringify(v1.issues));
   await db.Box(a.id).update({ n: 10 }).rows();

@@ -2,8 +2,7 @@
 
 - Одна страница вместо [README.md](README.md) — для ИИ-агента, который пишет код поверх пакета; лежит в пакете рядом
   с README.
-- Переход с 0.21 — [MIGRATION.md](MIGRATION.md); машинный каталог API и ошибок — `docs/api-contract.json` в
-  репозитории.
+- Машинный каталог API и ошибок — `docs/api-contract.json` в репозитории.
 - Примеры ниже идут по порядку и образуют одну программу; тест `docs` исполняет её против PostgreSQL 18, так что код
   сверен с пакетом.
 - Правила записаны строками «условие → поведение».
@@ -47,7 +46,7 @@ const r = await up({ dsn: ADMIN, schema: 'myapp',                  // схема
   - `upgrade` → накатить миграции;
   - `seeds` → имя сида пакета (например, `'booking'` — демо-домен) или путь к своему `.sql`;
   - `history` → политика хранения;
-  - ещё `allowReset`, `serviceKey`, `quiet`;
+  - ещё `serviceKey`, `quiet`;
   - `pglite: true` → база для разработки без PostgreSQL; затем `connect({ dsn: r.pglite.dsn, listen: false, max: 1,
     allowBypassRls: true, … })` — подключение суперпользователя, RLS на нём не действует.
 - `signals` — что видно в сигналах `NOTIFY` любой роли, способной подключиться к базе. Канал — полное имя схемы
@@ -56,7 +55,7 @@ const r = await up({ dsn: ADMIN, schema: 'myapp',                  // схема
   - `'tenant'` → `Класс@токен арендатора` (кэш сбрасывается только в арендаторе записи);
   - `'opaque'` → `токен класса@токен арендатора`;
   - `'none'` → сигналов нет (кэш — только `ttlOnly`, подписка опрашивает журнал);
-  - служебные сигналы: `session:<16 hex>` → погашенная сессия, `session:*` и `*` → сбросы (`reset`);
+  - служебный сигнал: `session:<16 hex>` → погашенная сессия;
   - режим хранится в схеме: `up()` без опции → его не меняет; после смены → перезапуск процессов;
   - ключ сигналов (точный сброс кэша) получают сервисы — право `letopis.signals`;
   - результат `up()`: ещё `signals` и `warnings` (PostgreSQL ниже 18.2 → обновить).
@@ -285,7 +284,7 @@ const rep = await adm.load({
 }, { existing: 'skip' })   // duplicates 'error'|'first'|'last', existing 'error'|'skip'|'update', commitEvery, withHistory, verify, tenant, as
 // rep: { rows, loaded, updated, skipped, duplicates, byClass, external, portions, ms }
 ```
-- Первая заливка — `adm.load(rows, { initial: true })`, `letopis load --initial`, `letopis import --initial`:
+- Первая заливка — `adm.load(rows, { initial: true })`, `letopis load --initial`:
   - только в пустую схему, иначе → `not_empty`;
   - одной транзакцией; на миллионе объектов — примерно в 2,2 раза быстрее обычной загрузки;
   - без `commitEvery`, `existing` и `{ as }`.
@@ -391,39 +390,7 @@ await db.Wallet(w).blame()                                            // кто,
 - Типы — из `letopis`.
 - Класс с `history: false` → не даёт `versions`, `asOf`, `restore` и событий подписки.
 
-### 11. Импорт из 0.21
-
-- Схема 1.0 → ставится заранее (`up()` без демо-сида); подключения — администраторские.
-- Источник — таблицы 0.21 (`Schema`, `Entity`, `Account`, `Credential`, `Resource`, `Rule`) в схеме `v1.<имя>` любой
-  базы.
-- В репозитории есть фикстура `lib/test/fixtures/v021.sql` — дамп таблиц с маркером `<SCHEMA>`: замените его и
-  выполните файл.
-
-```ts
-import postgres from 'postgres'; import { readFile } from 'node:fs/promises'
-const sql = postgres(ADMIN)
-await sql.unsafe((await readFile('lib/test/fixtures/v021.sql', 'utf8')).replaceAll('<SCHEMA>', 'v1.fixture'))
-await up({ dsn: ADMIN, schema: 'imported' })                  // v2.imported
-```
-```sh
-npx letopis import --from "$ADMIN" --from-schema v1.fixture --dsn "$ADMIN" --schema v2.imported \
-  --tenant Импорт --keyless Service
-```
-- Флаги `letopis import`:
-  - `--tenant <имя>` → арендатор для данных System 0.21;
-  - `--keyless <Класс>` → класс, чьи данные нарушают ключ (без него импорт фикстуры останавливается: два объекта 0.21
-    дают один id 1.0);
-  - `--rename Старое=Новое` → имена, занятые методами 1.0;
-  - `--update` → дописать новые версии;
-  - `--commit-every N` → фиксировать порциями;
-  - `--partition <имя>` → партиция источника 0.21 (по умолчанию `entity`).
-- Отчёт — JSON в конце вывода (перед ним — строки хода `letopis.import: …`): `classes`, `notes`, `source`/`target`
-  (объекты, версии и живые по классам в 0.21 и 1.0), `tenants`, `accounts`, `credentials`, `resources`, `rules`,
-  `objects`, `uuidFields`, `droppedFields`, `ownerLost`, `verify`, `ms`:
-  - `verify` не прошёл → код выхода 1;
-  - повтор импорта → дописывает недостающее без дублей.
-
-### 12. Проекторы
+### 11. Проекторы
 
 - Проектор → строит строки производных классов из журнала: сводки, карточки, всё, что можно считать с отставанием.
 - Производный класс помечен `derivedBy: 'имя-проектора'` → его строки пишет только этот проектор.
@@ -446,7 +413,7 @@ p.run().catch(report)         // run() без once — с catch: после ош
   остальное возьмёт следующий запуск.
 - `rebuild()`, пока другой процесс пишет пачку, → `projector_busy`.
 - Первый запуск → перестраивает проекцию с текущего состояния, пачками.
-- `purge`, `trim` и `reset` → приходят изменениями с `rev` 1: сначала разберите `op`.
+- `purge` и `trim` → приходят изменениями с `rev` 1: сначала разберите `op`.
 - Другая `version` → `rebuild_required`.
 - Курсор старше яруса `all` → `cursor_expired`; с `onExpired: 'rebuild'` → проектор перестраивается сам, пачками.
 - Ярус — по арендатору: истёк у части участников → выбывают только они.
@@ -476,7 +443,7 @@ p.run().catch(report)         // run() без once — с catch: после ош
 | прошлая версия — удаление (после `restore`) | `null` |
 | прошлая версия — вне семейства `from` | `null` |
 | изменение перестройки (`rebuild: true`) | `null` |
-| `purge`, `trim`, `reset` | поля нет (`undefined`) |
+| `purge`, `trim` | поля нет (`undefined`) |
 
 - Вычитайте `before`, только проверив его истинность: `if (c.before)`.
 
@@ -490,7 +457,7 @@ p.run().catch(report)         // run() без once — с catch: после ош
   `delete` или `get`), а правило класса проверяет над их итогом.
 - Полный рецепт — [README, «Рецепт: дневная выручка»](README.md#рецепт-дневная-выручка).
 
-### 13. Агрегаты в базе
+### 12. Агрегаты в базе
 
 Сумму или счётчик строк источника держит сама база — для итогов, которые обязаны совпадать и для сырого SQL:
 ```ts
@@ -511,7 +478,7 @@ await db.Wallet(w).Payment().create({ opId: 'op-9', amount: 500 }).rows()   // �
   - `syncModels` → сам ставит источники раньше целей.
 - Горячий счётчик (больше ~150 записей в секунду на объект) → проектор со свёрткой пачкой, а не агрегат.
 
-### 14. Агенты и MCP
+### 13. Агенты и MCP
 
 Агенту — инструменты MCP под сессией пользователя (нужен `npm i @modelcontextprotocol/server`):
 ```ts
@@ -519,6 +486,9 @@ import { createMcpServer } from 'letopis/mcp'
 const server = await createMcpServer(await svc.as(userId))   // letopis_model, letopis_query, letopis_history; { write: true } — letopis_write
 // stdio: letopis mcp --dsn … --schema v2.x --token <токен пользователя> [--write]; HTTP — createMcpHandler(() => createMcpServer(…)) из SDK
 ```
+- `letopis_model` → классы, поля, концы, ключи и рабочие цепочки `examples` (`create`, `find`, `neighbors`;
+  `'<id Класс>'` — место для id); модель больше `maxBytes` → сначала без `examples`, затем кратко (`brief`), а
+  `{ class }` — один класс целиком.
 - Только сессия пользователя или `svc.as(пользователь)`:
   - подключение в обход RLS → `bypass_rls`;
   - корень сервиса без `as()`, сессия в арендаторе System (без `allowSystemAdmin`) → `user_session_required`.
@@ -548,8 +518,6 @@ const server = await createMcpServer(await svc.as(userId))   // letopis_model, l
 - `db.verify({ data: true })` и `letopis verify` → цепочки хэшей, якорь.
 - `db.maintain()` и `connect({ maintain: '1h' })` → сессии, коды, прореживание журнала.
 - `db.trimHistory(цель, момент)`.
-- `db.reset({ level, confirm, tenant })` → только при `up({ allowReset: true })`.
-- `db.describe()` / `letopis describe --format text`.
 - Закрыть подключения — по одному разу; подключения из `svc.as()` делят пул с `svc`:
 
 <!-- run -->
@@ -607,15 +575,13 @@ await adm.close(); await db.close(); await svc.close()
     - удаление, `reclass` и `rekey` → только в `read committed` (иначе `isolation_level`).
 11. **Классы — в арендаторе сессии.**
     - `letopis sync` с токеном арендатора → пишет классы ему; другие арендаторы их не видят;
-    - общие для всех классы → в System (сид установки или импорт).
+    - общие для всех классы → в System (сид установки).
 12. **id класса с ключом не передают** — он вычисляется (`db.idOf('Shop', { name: 'Центр' })`).
     - чужой id → `id_mismatch`;
     - id для класса без ключа → `id_from_db`.
 13. **Имена методов зарезервированы**:
-    - класс с именем `count`, `sort`, `set`, `run`, `account`, `sql`, `auth` … → как шаг недостижим (список —
-      `RESERVED_CLASS_NAMES`);
-    - снятое API 0.21 (`run()`, `account()`, `watch(cb)`, `reloadSchema()`, фасады `db.accounts` …) → бросает
-      `removed` с заменой — см. [MIGRATION.md](MIGRATION.md).
+    - класс с именем `count`, `sort`, `set`, `run`, `sql`, `auth` … → как шаг недостижим (список —
+      `RESERVED_CLASS_NAMES`).
 14. **Права запрещают по умолчанию.**
     - новый арендатор без правил → ничего не видит;
     - быстрый старт → `up({ tenant })` и `createTenant` (`grantAll`);

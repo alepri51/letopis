@@ -37,10 +37,7 @@ function textOf(key: string, params: Params | undefined): string {
   return Array.isArray(sim) && sim.length ? s + render(SIMILAR, { similar: sim.join(', ') }) : s;
 }
 
-/**
- * Текст записи каталога с параметрами (params.similar — «— похожие: …»): сообщения нарушений, описания, подписи
- * describeText.
- */
+/** Текст записи каталога с параметрами (params.similar — «— похожие: …»): сообщения нарушений, описания, отчёты CLI. */
 export function lmsg(key: MsgKey, params?: Params): string {
   return textOf(key, params);
 }
@@ -141,22 +138,6 @@ export function checkOptions(where: string, opts: unknown, known: Readonly<Recor
   }
 }
 
-/** Версия, в которой снято старое API (её берёт и контракт API — scripts/gen-api-contract.mjs). */
-export const REMOVED_IN = '1.0.0';
-
-/**
- * Охранник снесённого API (план, этап 3, п. 11): понятная ошибка с версией и заменой. name — имя снятого API: контракт
- * API собирает охранники по литералам обоих аргументов и сверяет их по имени. replacement — ключ каталога (контракт берёт
- * шаблон записи) или текст — имя API, например 'paths()'; ключ api.replacement_option_* — снятая опция connect().
- */
-export function removed(name: string, replacement: MsgKey | (string & {})): LetopisError {
-  // «опция …» — женского рода, несколько имён через «и» — множественное число, методы и свойства — мужского: у каждой
-  // формы своя запись каталога
-  const params = { version: REMOVED_IN, replacement: msgOf(replacement) ? lmsg(replacement as MsgKey) : replacement };
-  if (replacement.startsWith('api.replacement_option_')) return lerr('api.removed_option', { name, ...params });
-  return lerr(/ и /.test(name) ? 'api.removed_many' : 'api.removed', { name, ...params });
-}
-
 /** Данные не проходят описание класса (`invalid_data`); текст — по ключу (по умолчанию api.validation_failed). */
 export class ValidationError extends LetopisError {
   readonly issues: Issue[];
@@ -174,8 +155,7 @@ const LT_NAMES: Record<string, string> = {
   LT006: 'acl_denied', LT007: 'id_mismatch', LT008: 'id_from_db', LT009: 'immutable_key', LT010: 'invalid_class',
   LT011: 'use_reclass', LT012: 'reclass_denied', LT013: 'tightening_conflict', LT014: 'isolation_level',
   LT015: 'recreated_in_statement', LT016: 'cursor_expired', LT017: 'delete_restricted', LT018: 'not_deleted',
-  LT019: 'reset_disabled', LT020: 'confirm_mismatch', LT021: 'derived_class', LT022: 'aggregate_field',
-  LT023: 'projector_pending',
+  LT021: 'derived_class', LT022: 'aggregate_field', LT023: 'projector_pending',
 };
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);

@@ -8,8 +8,8 @@
  *
  * 1. Раздел — по файлу, где брошена ошибка:
  *      api — index, chain, typed, errors, internal;  write — write, tx, load;  query — sql, ops;
- *      time — watch, admin, cache, signals;  access — auth, acl;  model — model, registry, sync, cli, check,
- *      validate, jsonschema, uuid;  boot — up, pglite, import;  mcp — mcp;  derived — project;
+ *      time — watch, admin, cache, signals;  access — auth, acl;  model — model, registry, sync, cli, validate,
+ *      jsonschema, uuid;  boot — up, pglite;  mcp — mcp, describe;  derived — project;
  *      sql-core — sql/10, 15, 20, 30, 40;  sql-write — sql/60;  sql-access — sql/50, 80;
  *      sql-time — sql/70, 75, 88, 90, 95, 99 и sql/migrate.
  *    codes.ts — запись на каждый код: заголовок и подсказка. Новый код — ещё ErrorCode (types.ts), для кода базы —
@@ -47,12 +47,8 @@
  * 6. Готовый файл — убрать из PENDING_LITERALS в lib/scripts/check-docs.mjs (проверка «в LetopisError, fail и lt_fail не
  *    осталось литеральных текстов»). Затем cd lib && npm run typecheck, npm run check:docs, npm run api:contract и тесты
  *    модуля по одному файлу: тест, который сверял русский текст, остаётся зелёным без правки.
- * 7. Особые места. Разделы каталога контракт API читает регэкспами: код — из поля code: в кавычках, охранник — из вызова
- *    removed с двумя литералами, текст ошибки — из строки с префиксом letopis и двоеточием; в комментариях их в таком виде
- *    не пишут. removed(имя, замена): охранники снятого API контракт собирает по литералам обоих аргументов
- *    (contract.mjs:removedOf) — форму вызова не менять; замена — ключ каталога (рендерится при броске, contract.mjs
- *    разворачивает его в шаблон записи) или текст ('paths()'); имя снятого API не менять — его сверяет check:semver.
- *    up.ts и pglite.ts бросают обычный Error('letopis.up: ' + lmsg(…)) — подходящего кода нет. Сообщения нарушений
+ * 7. Особые места. Разделы каталога контракт API читает регэкспами: код — из поля code: в кавычках, текст ошибки — из
+ *    строки с префиксом letopis и двоеточием; в комментариях их в таком виде не пишут. up.ts и pglite.ts бросают обычный Error('letopis.up: ' + lmsg(…)) — подходящего кода нет. Сообщения нарушений
  *    (issues[].message: validate.ts, 30-validate.sql) — lmsg и lt_text с кодом invalid_data. Описания инструментов MCP и
  *    instructions — строки в mcp.ts рядом со схемами, тексты ответов — раздел mcp.
  */

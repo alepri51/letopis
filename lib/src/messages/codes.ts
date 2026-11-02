@@ -98,16 +98,6 @@ export const codes = {
     ru: '`restore` и `purge` работают только для удалённых объектов',
     hint: 'сначала `delete()`, потом `restore()` или `purge()`',
   },
-  'codes.reset_disabled': {
-    code: 'reset_disabled',
-    ru: 'сброс выключен: установка поставлена без `allowReset`',
-    hint: 'сброс работает только в установке с `up({ allowReset: true })`; рабочей базе его лучше не включать',
-  },
-  'codes.confirm_mismatch': {
-    code: 'confirm_mismatch',
-    ru: 'подтверждение сброса не совпадает с именем схемы',
-    hint: 'передать в `confirm` точное имя схемы установки',
-  },
   'codes.derived_class': {
     code: 'derived_class',
     ru: 'в производный класс (`derivedBy`) пишет не его проектор',
@@ -222,11 +212,6 @@ export const codes = {
     code: 'confirmation_required',
     ru: 'MCP: удаление не подтвердил человек',
     hint: 'подтвердить удаление в клиенте MCP; клиенту, который не умеет спрашивать человека, удаление недоступно',
-  },
-  'codes.removed': {
-    code: 'removed',
-    ru: 'вызвано снятое API; в тексте ошибки — чем его заменить',
-    hint: 'заменить вызов тем, что назван в тексте ошибки',
   },
   // SQLSTATE XX000 с ключом каталога в DETAIL: база не держит условие, которое обязана держать сама (строка-замок)
   'codes.internal': {

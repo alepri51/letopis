@@ -116,14 +116,4 @@ export const access = {
     ru: 'секрет TOTP — не base32',
     hint: 'передать секрет из auth.enrollTotp() — строку base32 (A–Z, 2–7)',
   },
-  // auth.ts и acl.ts: замены охранников db.auth.sessions(store) и db.acl.reload() — removed(имя, ключ) рендерит их;
-  // контракт API берёт шаблон записи (lib/scripts/contract.mjs)
-  'access.replacement_sessions': {
-    code: 'removed',
-    ru: 'сессии хранятся в базе: sessionFor, refresh, revoke, revokeAll',
-  },
-  'access.replacement_acl_reload': {
-    code: 'removed',
-    ru: 'права обновляются сами: база применяет действующие правила',
-  },
 } satisfies Section<'access'>;

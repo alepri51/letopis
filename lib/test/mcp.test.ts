@@ -199,7 +199,7 @@ test('№3: JSON-цепочка — шаги по ролям и классам; 
     const op = refused(await call(cn, 'letopis_query', { class: 'Task', filter: { n: { $gtt: 5 } } }), 'invalid_query');
     assert.ok(op.similar?.includes('$gt'));
     // имена методов цепочки и корня, свойства Object.prototype — не шаги: отказ, а не вызов метода
-    for (const name of ['auth', 'sql', 'describe', 'constructor', 'rows']) refused(await call(cn, 'letopis_query', { class: name }), 'invalid_class');
+    for (const name of ['auth', 'sql', 'maintain', 'constructor', 'rows']) refused(await call(cn, 'letopis_query', { class: name }), 'invalid_class');
     refused(await call(cn, 'letopis_query', { class: 'Task', steps: [{ step: 'delete' }] }), 'invalid_class');
     refused(await call(cn, 'letopis_query', { class: 'Task', id: 'не-uuid' }), 'invalid_query');
     refused(await call(cn, 'letopis_query', { class: 'Task', filter: JSON.parse('{"__proto__": {"n": 1}}') }), 'invalid_query');

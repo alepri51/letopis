@@ -166,7 +166,7 @@ test('№3в (/security-review после ревью №3): строка вид�
   await waitForLock(e.sql);
   await B.finish(true);
   await assert.rejects(A, lt('tightening_conflict'));
-  await install(e.sql, { schema: e.schema, allowReset: true });
+  await install(e.sql, { schema: e.schema });
   const [row] = await e.sql.unsafe(`select deleted_at from ${S}.secret where id = $1`, [planted]);
   assert.ok(row.deleted_at, 'накат пометил чужую строку LOCK удалённой');
   const [{ n }] = await e.sql.unsafe(`select count(*)::int as n from ${S}.secret where kind = 'LOCK' and account <> $1 and deleted_at is null`, [SYSTEM_ID]);

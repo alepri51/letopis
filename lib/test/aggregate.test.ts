@@ -107,11 +107,11 @@ async function verifyOk(msg: string): Promise<void> {
   assert.equal(v.ok, true, `${msg}: ${JSON.stringify(v.issues)}`);
 }
 
-test('описание агрегата: в реестре и describe(); новое поле — 0', async () => {
-  const w = db.describe().classes.find((c) => c.name === 'Wallet');
-  assert.deepEqual(w?.aggregate?.balance, { sum: 'amount', of: 'Movement', via: 'Wallet' });
-  assert.deepEqual(w?.aggregate?.plus, { count: true, of: 'Movement', via: 'Wallet', where: { properties: { amount: { minimum: 1 } } } });
-  assert.deepEqual(db.describe().classes.find((c) => c.name === 'VipWallet')?.aggregate, w?.aggregate, 'опция наследуется');
+test('описание агрегата: в реестре; новое поле — 0', async () => {
+  const w = db.registry.resolve('Wallet');
+  assert.deepEqual(w.aggregate?.balance, { sum: 'amount', of: 'Movement', via: 'Wallet' });
+  assert.deepEqual(w.aggregate?.plus, { count: true, of: 'Movement', via: 'Wallet', where: { properties: { amount: { minimum: 1 } } } });
+  assert.deepEqual(db.registry.resolve('VipWallet').aggregate, w.aggregate, 'опция наследуется');
   const id = await wallet('d0');
   assert.deepEqual((await row(id)).data, { number: 'd0', balance: 0, ops: 0, plus: 0, entries: 0 });
 });
@@ -583,7 +583,7 @@ test('ревью коммита этапа 4б: агрегат арендато�
       sys({ name: 'BigCrate', kind: 'link', parent: 'Crate' }),
       sys({ name: 'Depot', kind: 'hub', fields: { properties: { n: { type: 'integer' } } }, aggregate: { n: { count: true, of: 'Crate', via: 'Depot' } } }),
     ].join('\n'));
-    await install(e.sql, { schema: e.schema, allowReset: true, seeds: [f] });
+    await install(e.sql, { schema: e.schema, seeds: [f] });
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

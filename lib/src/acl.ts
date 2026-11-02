@@ -17,7 +17,7 @@
  * `revoke({ everyone: true, read: '*', write: '*', delete: '*' })` снимает «можно всё». Строк System арендатор не видит,
  * их id — `v5Id(System, 'Resource', [alias])`.
  */
-import { lerr, removed } from './errors.js';
+import { lerr } from './errors.js';
 import { internalsOf } from './internal.js';
 import type { Executor } from './tx.js';
 import { v5Id } from './uuid.js';
@@ -379,10 +379,5 @@ export function makeAcl(S: string, exec: Executor, db?: () => unknown): AclApi {
       return out.sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
     },
   };
-  return new Proxy(api, {
-    get(t, p, r) {
-      if (p === 'reload') throw removed('db.acl.reload()', 'access.replacement_acl_reload');
-      return Reflect.get(t, p, r);
-    },
-  });
+  return api;
 }

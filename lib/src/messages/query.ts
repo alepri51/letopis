@@ -14,7 +14,7 @@ export const query = {
   'query.unknown_field': {
     code: 'invalid_query',
     ru: '{where}: поле {field} не описано в классе {cls}',
-    hint: 'проверить имя поля: похожие названы в тексте, поля класса — db.registry.resolve(класс).schema или describe()',
+    hint: 'проверить имя поля: похожие названы в тексте, поля класса — db.registry.resolve(класс).schema',
   },
   // sql.ts, resolveHop: классы соседних шагов не ссылаются друг на друга; from, to — имена шагов
   'query.no_path': {

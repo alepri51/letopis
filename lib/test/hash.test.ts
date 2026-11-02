@@ -99,7 +99,7 @@ test('verify доступен только системному админист
   await assert.rejects(q(`select ${S}.verify()`), lt('acl_denied'));
 });
 
-test('7.3.7 №4: законные разрывы этапа 6 — purge, обрезка истории, reset арендатора — verify чист', async () => {
+test('7.3.7 №4: законные разрывы этапа 6 — purge и обрезка истории — verify чист', async () => {
   const [a] = await q(`insert into ${S}.entity (class, data) values ('Doc', '{"n": 1}') returning id`);
   for (let i = 2; i <= 4; i++) await q(`update ${S}.entity set data = '{"n": ${i}}' where id = $1`, [a.id]);
   const [{ at }] = await q(`select at::text as at from ${S}.log where id = $1 and rev = 3`, [a.id]);
@@ -107,9 +107,6 @@ test('7.3.7 №4: законные разрывы этапа 6 — purge, обр
   const [b] = await q(`insert into ${S}.entity (class, data) values ('Doc', '{"n": 9}') returning id`);
   await q(`delete from ${S}.entity where id = $1`, [b.id]);
   await q(`select ${S}.purge($1, true)`, [b.id]);
-  const other = await e.tenant('hash-reset');
-  await e.as(other.token, (tx) => tx.unsafe(`insert into ${S}.entity (class, data) values ('Class', '{"name": "Tmp", "kind": "hub"}')`));
-  await e.sql.unsafe(`select ${S}.reset('tenant', $1, $2)`, [e.schema, other.id]);
   const v = await verify();
   assert.equal(v.ok, true, JSON.stringify(v.issues));
 });

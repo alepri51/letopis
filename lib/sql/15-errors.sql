@@ -24,8 +24,6 @@ as $$
     ('LT016', 'cursor_expired',         'letopis: cursor_expired: курсор подписки старше яруса all'),
     ('LT017', 'delete_restricted',      'letopis: delete_restricted: удалению мешают ссылающиеся строки'),
     ('LT018', 'not_deleted',            'letopis: not_deleted: объект не удалён — restore и purge только для удалённых'),
-    ('LT019', 'reset_disabled',         'letopis: reset_disabled: reset выключен в этой установке'),
-    ('LT020', 'confirm_mismatch',       'letopis: confirm_mismatch: подтверждение не совпадает с именем схемы'),
     ('LT021', 'derived_class',          'letopis: derived_class: строки производного класса пишет только его проектор'),
     ('LT022', 'aggregate_field',        'letopis: aggregate_field: агрегатное поле считает база'),
     ('LT023', 'projector_pending',      'letopis: projector_pending: проектор источника ещё не прочёл удаление')

@@ -37,14 +37,14 @@ after(async () => {
 });
 
 test('6.10 свежая установка и повторный накат: данные целы, ключ выдаётся один раз, ANALYZE — только без статистики', async () => {
-  const r1 = await up({ dsn: ADMIN_DSN, schema: 't_up', quiet: true, allowReset: true });
+  const r1 = await up({ dsn: ADMIN_DSN, schema: 't_up', quiet: true });
   assert.equal(r1.schema, SCHEMA);
   assert.equal(r1.created, true);
   assert.equal(r1.revision, DDL_REVISION);
   assert.match(r1.serviceKey ?? '', /^lts_/);
   assert.deepEqual(r1.analyzed.sort(), ['entity', 'log', 'secret']);
   const [{ n }] = await sql.unsafe(`select count(*)::int as n from ${ident(SCHEMA)}.entity`);
-  const r2 = await up({ dsn: ADMIN_DSN, schema: SCHEMA, quiet: true, allowReset: true });
+  const r2 = await up({ dsn: ADMIN_DSN, schema: SCHEMA, quiet: true });
   assert.equal(r2.created, false);
   assert.equal(r2.serviceKey, null);
   assert.deepEqual(r2.analyzed, [], 'статистика уже есть');
@@ -183,7 +183,7 @@ test('up({ pglite }): база для разработки без PostgreSQL —
     }
     const db = await connect({ dsn: r.pglite!.dsn, schema: 'v2.dev', apiKey: r.serviceKey!, allowBypassRls: true, listen: false, max: 1 });
     try {
-      assert.ok(db.describe().classes.some((c) => c.name === 'Class'));
+      assert.ok(db.registry.has('Class'));
       const v = await db.verify({ data: true });
       assert.equal(v.ok, true);
     } finally {

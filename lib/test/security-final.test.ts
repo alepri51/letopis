@@ -121,8 +121,7 @@ test('функции этапа 6 на чужих id и классах: тот �
   assert.equal(c, 1);
   const [still] = await e.sql.unsafe(`select data->>'code' as code from ${S}.entity where id = $1`, [coded.id]);
   assert.equal(still.code, 'c-b');
-  // сброс, обслуживание и verify — только по правам letopis.* (правила System)
-  await assert.rejects(as(a, `select ${S}.reset('tenant', $1, $2)`, [e.schema, b.id]), lt('acl_denied'));
+  // обслуживание и verify — только по правам letopis.* (правила System)
   await assert.rejects(as(a, `select ${S}.maintain(null, 1000000)`), lt('acl_denied'));
   await assert.rejects(as(a, `select ${S}.verify(true)`), lt('acl_denied'));
 });

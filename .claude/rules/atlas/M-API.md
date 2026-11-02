@@ -21,11 +21,11 @@ synced: f20b1cf
 - `similar()` — общий (`errors.ts`, его берёт `mcp.ts`): неизвестный шаг — `api.unknown_step` с `params.similar` (`stepNames`: классы, алиасы, роли). Неизвестная опция — `checkOptions(где, опции, KNOWN)`: `KNOWN` — объект `satisfies Record<keyof Опции, true>` (`CONNECT_OPTIONS`, `WATCH_OPTIONS`; у `up`, `load`, проектора, MCP — в их модулях), в 1.5 предупреждение один раз на имя, в 2.0 — отказ `invalid_data`.
 
 **Что ещё менять вместе**
-- Новое имя Proxy (метод цепочки, свойство корня или батча, охранник снятого API) — `CHAIN_METHODS`, `DB_METHODS` или `BATCH_METHODS` (`lib/src/types.ts`) и раздел «Зарезервированные имена» README; при накате список уходит в `reserved_names()` базы.
+- Новое имя Proxy (метод цепочки, свойство корня или батча) — `CHAIN_METHODS`, `DB_METHODS` или `BATCH_METHODS` (`lib/src/types.ts`) и раздел «Зарезервированные имена» README; при накате список уходит в `reserved_names()` базы.
 - Новый метод цепочки — ещё `ChainCore`; если он отдаёт цепочку или строки класса — перегрузка в `TypedChain` и ключ в `Retyped` (`lib/src/typed.ts`); глагол — ещё `PlanOp` и его исполнение (`lib/src/write.ts`, M-WRITE).
 - Новый код ошибки базы (`LTnnn`) — `LT_NAMES` (`lib/src/errors.ts`) и `error_catalog()` в `lib/sql/15-errors.sql`.
 - Новая ошибка — запись в разделе каталога своего модуля и `lerr`; новый код — ещё `ErrorCode` (`lib/src/messages/types.ts`), запись `codes.ts` (заголовок и подсказка), строка таблицы «Ошибки» README с якорем, страница сайта (`cd guide && npx tsx scripts/gen-errors.ts`). Новая опция `connect()` или `watch()` — ключ в `CONNECT_OPTIONS` или `WATCH_OPTIONS` (без него ошибка типов).
-- Снятое API — охранник `removed('имя', 'замена')` с литералами в обоих аргументах, снятая опция `connect` — `REMOVED_OPTIONS`: `lib/scripts/contract.mjs` собирает их регэкспом, версия снятия — `REMOVED_IN` (`errors.ts`). Имя не меняется: `check:semver` сверяет охранники по имени, новое имя потребует мажор. Замена — ключ каталога (`api.replacement_*`, у снятой опции — `api.replacement_option_*`, по этому префиксу `removed()` выбирает запись `api.removed_option`; у `auth.ts`, `acl.ts`, `load.ts` — ключи своих разделов) или текст — имя API (`'paths()'`, `'batch.run()'`); `removed()` рендерит ключ (`err.params.replacement`), а контракт подставляет шаблон записи (`templatesOf`); ключа нет в каталоге — `api:contract` падает.
+- Снятое API в 2.0.0 исчезает без охранника (план 2.0, редакция 2): его нет в экспортах, `CHAIN_METHODS`, `DB_METHODS` и контракте API, и `check:semver` требует мажор. Опечатку в имени ловят строгие типы, неизвестную опцию — `checkOptions` с похожими именами.
 
 **Неимпортные связи**
 - Комментарий схемы `ddl_revision=N engine=… sql=…` пишет накат (`lib/sql/99-revision.sql`); `connect()` берёт из него ревизию регэкспом, а при ревизии, равной `DDL_REVISION`, сверяет штамп движка (`stampDrift`, `lib/src/up.ts`, M-BOOTSTRAP). Формат комментария менять вместе с ними.
@@ -48,4 +48,4 @@ synced: f20b1cf
 - `lib/src/internal.ts:registerDb` — канал фасада для `letopis/mcp`
 
 **Не здесь**
-- Транзакции и исполнение планов → M-WRITE; построитель чтения → M-QUERY; сигналы, кэш, подписка, `verify`, `maintain`, `reset` → M-TIME; `auth`, `acl` → M-ACCESS; `up()` и штамп движка → M-BOOTSTRAP; проекторы и агрегаты → M-DERIVED; инструменты MCP → M-MCP.
+- Транзакции и исполнение планов → M-WRITE; построитель чтения → M-QUERY; сигналы, кэш, подписка, `verify`, `maintain` → M-TIME; `auth`, `acl` → M-ACCESS; `up()` и штамп движка → M-BOOTSTRAP; проекторы и агрегаты → M-DERIVED; инструменты MCP → M-MCP.

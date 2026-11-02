@@ -1,7 +1,7 @@
 /**
  * retention — политика хранения истории (план, §2.11, этап 6, п. 3, 8; тест-план §7.8.1 №1–10).
  * Версии с нужными датами пишет загрузчик в режиме истории; момент «сейчас» передаётся в maintain()
- * (только в установке с allowReset). Что останется после прореживания, считает независимая эталонная
+ * (только на администраторском подключении). Что останется после прореживания, считает независимая эталонная
  * реализация правила на TypeScript (ниже), и результат базы сверяется с ней версия в версию.
  */
 import { test, before, after } from 'node:test';
@@ -398,10 +398,10 @@ test('7.8.1 №10: наследование политики и умолчани
   assert.equal((await revs(plain)).length, 120, 'без политики и без умолчания история вся');
   // умолчание установки — константа: повторный накат с up({ history })
   const def = { all: '1 day', weekly: 'forever' };
-  await install(e.sql, { schema: e.schema, allowReset: true, history: def });
+  await install(e.sql, { schema: e.schema, history: def });
   await maintainAll();
   assert.deepEqual(await revs(plain), expected(def, vers, NOW), 'класс без своей политики — по умолчанию установки');
-  await install(e.sql, { schema: e.schema, allowReset: true });
+  await install(e.sql, { schema: e.schema });
   void ident;
 });
 

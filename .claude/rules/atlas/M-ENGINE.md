@@ -22,7 +22,7 @@ synced: f20b1cf
 - Внутренняя ошибка — условие, которое движок держит сам, не выполнено (строки-замка нет и после вставки — `lock_row`, блокировка её не нашла — `family_lock`): `lt_raise('XX000', 'sql-write.lock_row_*', параметры, 'null')`, код записи каталога — `internal`. Библиотека отдаёт её `LetopisError('internal')` (`fromDbError`); голые `XX000` самого PostgreSQL (`tuple concurrently updated` у `up()`) — как есть. Тест — `messages` (вставку строки-замка глушит триггер на `secret`).
 - Строка `family_conflicts` (отказ ужесточения и `rekeyClass`, `detail.rows`) несёт `key` и `params` своего `problem`: у `sql-write.problem_data` в `params.issues` — нарушения с ключами, а в русском тексте — без `key` и `params` (текст прежний). Библиотека убирает из строки `key` и `params` (`findingsFromDb` в `lib/src/errors.ts`).
 - Смена класса через `sys_update` (`reclass` без ключа) сигналит и прежний класс: `log_version` сигналит только новый, а ответы кэша и подписки прежнего класса тоже устарели (план 2.0, 7.4 №4).
-- Сигнал — только через `signal()` или `signal_raw()`; `pg_notify` напрямую не зовут ни функции, ни загрузчик, ни импорт.
+- Сигнал — только через `signal()` или `signal_raw()`; `pg_notify` напрямую не зовут ни функции, ни загрузчик.
 
 **Что ещё менять вместе**
 - Колонка или ограничение существующей таблицы (`create table if not exists` их не добавит) → миграция в `lib/sql/migrate/` (номер файла — новая ревизия), `ddl_revision` в `99-revision.sql`, `DDL_REVISION` в `lib/src/types.ts` (сверяет `check-docs`), тест `upgrade`. Индексы и функции догоняет повторный накат.

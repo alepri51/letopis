@@ -26,7 +26,7 @@ synced: f20b1cf
 - Новый оператор фильтра: фабрика и запись реестра `OPERATORS` в `lib/src/ops.ts` (ключ MCP, вид значения `OpArg`, смысл `ru`; один словарь фильтров — план 2.0, 7.9 №8), `compileOp`, `chain-read` («18 операторов…»), случай в `llms` (№8); затем `cd lib && npm run ops:tables` — таблицы README, шпаргалки и главы «Чтение» сайта (`guide/pages/read/index.md`, без колонки MCP), и `cd guide && npx tsx scripts/gen-api.ts` — справочник сайта. Таблицы руками не правят: их сверяет `check:docs` (`ops`).
 - Новый режим чтения: `ReadMode` и ветка в `buildRead` → терминал в `lib/src/chain.ts:makeChain`; в `lib/src/types.ts` — `CHAIN_METHODS` (из него же зарезервированные имена), `ChainMods`, `QueryEvent.mode`; чтение после глагола — `lib/src/write.ts:execPlan`. Образец — c199d09.
 - Колонка журнала: `grant select (…) on log` в `lib/sql/10-core.sql` и `lib/src/sql.ts:LOG_COLS` — один список; `changed` в нём нет, поэтому `select *` и `l.*` по журналу от приложения падают.
-- Новая служебная запись журнала (не версия, как `purge`, `trim`, `reset`): все исключения — grep `'purge', 'trim', 'reset'` по `lib/sql` и `lib/src`.
+- Новая служебная запись журнала (не версия, как `purge`, `trim`): все исключения — grep `'purge', 'trim'` по `lib/sql` и `lib/src`.
 
 **Неимпортные связи**
 - `change_paths` (→ `row_changes` → `jsonb_changes`) вызывают `lib/sql/60-write.sql:log_version` и `lib/sql/60-write.sql:trg_entity_au` на каждой записи версии: цена помощников — цена записи (`history` «row_changes без квадрата…»).

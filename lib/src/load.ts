@@ -19,7 +19,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
-import { LetopisError, checkOptions, fromDbError, issuesFromDb, lerr, lmsg, removed, type Issue } from './errors.js';
+import { LetopisError, checkOptions, fromDbError, issuesFromDb, lerr, lmsg, type Issue } from './errors.js';
 import { isOp } from './ops.js';
 import { Registry, aggregateFields, type ClassInfo, type EndInfo } from './registry.js';
 import { accepts } from './sql.js';
@@ -57,7 +57,7 @@ export interface LoadOptions {
   tenant?: string;
   /**
    * Исполнитель записи — строка, которую журнал сохранит в поле `agent` загруженных версий рядом с автором (по умолчанию
-   * «letopis load»; импорт — «letopis import»).
+   * «letopis load»).
    */
   agent?: string;
   /**
@@ -160,13 +160,9 @@ export interface InitialState {
   freeze: boolean;
 }
 
-/** Первая заливка для нескольких загрузок (импорт): соединение и транзакция сессии. */
+/** Первая заливка для нескольких загрузок: загрузки идут на соединении и в транзакции сессии. */
 export interface InitialSession {
-  /** Соединение сессии (роль владельца): свои операторы импорта — в той же транзакции. */
-  readonly sql: Sql;
   load(input: LoadInput, opts?: LoadOptions): Promise<LoadReport>;
-  /** id уже есть в схеме: строка системного класса или объект, записанный этой сессией. */
-  taken(id: string): boolean;
 }
 
 // значения без обратной косой, табуляции и переводов строки (почти все: uuid, числа, время) — как есть, без четырёх
@@ -469,7 +465,6 @@ async function verifyIds(conn: Sql, S: string, ids: string[], to: Issues): Promi
  * называет строки и нарушения.
  */
 export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {}): Promise<LoadReport> {
-  if ('trust' in opts) throw removed('load({ trust })', 'write.replacement_load_trust');
   checkOptions('load', opts, LOAD_OPTIONS);
   if (!env.admin) throw lerr('write.load_admin_required');
   const asAcc = opts.as;
@@ -1219,7 +1214,7 @@ async function catalogOf(conn: Sql, S: string) {
 
 /**
  * Первая заливка (план 1.1, §2.3): загрузки fn — одной транзакцией в пустую схему. Блокировка таблиц до
- * проверки; в схеме только строки системных классов и записи reset (иначе not_empty); они (с seq и tx
+ * проверки; в схеме только строки системных классов (иначе not_empty); они (с seq и tx
  * журнала) и определения ограничений, индексов и триггеров из каталога (с режимом включения tgenabled:
  * pg_get_triggerdef его не передаёт) сохраняются в памяти; внешний ключ secret.account снимается до TRUNCATE и
  * возвращается после первичного ключа entity; TRUNCATE; триггеры, ограничения и индексы
@@ -1242,9 +1237,9 @@ export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) =>
     await q(`select set_config('TimeZone', 'UTC', true)`);
     // 1. блокировка — до проверки: строка, вставленная между проверкой и TRUNCATE, пропала бы молча
     await q(`lock table ${S}.entity, ${S}.log in access exclusive mode`);
-    // 2. пустая схема: кроме строк системных классов и записей reset — ничего
+    // 2. пустая схема: кроме строк системных классов — ничего
     const [busy] = await q(`select exists (select 1 from ${S}.entity where class <> all ($1::text[]))
-        or exists (select 1 from ${S}.log where class <> all ($2::text[])) as b`, [SYSTEM_CLASSES, [...SYSTEM_CLASSES, '#reset']]);
+        or exists (select 1 from ${S}.log where class <> all ($1::text[])) as b`, [SYSTEM_CLASSES]);
     if (busy.b) {
       throw lerr('write.load_not_empty');
     }
@@ -1268,11 +1263,7 @@ export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) =>
     await q(`insert into ${S}.entity (${cat.entityCols}) select ${cat.entityCols} from jsonb_populate_recordset(null::${S}.entity, $1::jsonb)`, [sys.ent]);
     await q(`insert into ${S}.log (${cat.logCols}) overriding system value select ${cat.logCols} from jsonb_populate_recordset(null::${S}.log, $1::jsonb)`, [sys.log]);
     const state: InitialState = { conn: conn as unknown as Sql, ids, pending: [], touched: new Map(), freeze: tune.freeze !== false };
-    const out = await fn({
-      sql: conn as unknown as Sql,
-      load: (input, opts = {}) => load({ ...env, session: state }, input, opts),
-      taken: (id) => state.ids.has(id.toLowerCase()),
-    });
+    const out = await fn({ load: (input, opts = {}) => load({ ...env, session: state }, input, opts) });
     // 6. агрегаты в базе (план 1.1, §2.4): триггеров нет — поле целей считает agg_fill, одним оператором на агрегат, и
     // пишет его в ту же (последнюю) версию в entity и log: строки ещё никто не видел, хэши — генерируемые колонки
     await q(`select ${S}.agg_fill()`);

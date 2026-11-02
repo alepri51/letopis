@@ -26,6 +26,7 @@ import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from
 import { createRequire } from 'node:module';
 import type { CallToolResult, InputRequiredResult, McpServer, ServerContext } from '@modelcontextprotocol/server';
 import { lookupStep, type Chain, type StepFn } from './chain.js';
+import { describeModel } from './describe.js';
 import { LetopisError, checkOptions, lerr, lmsg, similar } from './errors.js';
 import { internalsOf } from './internal.js';
 import { OPERATORS, opHint, or, type OpArg } from './ops.js';
@@ -447,7 +448,7 @@ function decodeCursor(s: unknown): PageCursor {
 
 function model(db: Db, a: Args, o: Limits): CallToolResult {
   checkKeys(a, ['class'], 'letopis_model');
-  const d = db.describe();
+  const d = describeModel(db.registry, db.schema, db.tenant);
   if (a.class !== undefined) {
     const name = text(a.class, 'letopis_model.class');
     const c = d.classes.find((x) => x.name === name || x.alias === name);

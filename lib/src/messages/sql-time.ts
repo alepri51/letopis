@@ -415,45 +415,15 @@ export const sqlTime = {
     code: 'delete_restricted',
     ru: 'на аккаунт ссылаются другие строки',
   },
-  // 90-time.sql, reset()
-  'sql-time.reset_disabled': {
-    code: 'reset_disabled',
-    ru: 'reset выключен в этой установке (up({ allowReset }))',
-  },
-  // 90-time.sql, reset()
-  'sql-time.reset_denied': {
-    code: 'acl_denied',
-    ru: 'нет права letopis.reset',
-  },
-  // 90-time.sql, reset()
-  'sql-time.reset_confirm': {
-    code: 'confirm_mismatch',
-    ru: 'подтверждение сброса — имя схемы установки',
-  },
-  // 90-time.sql, reset()
-  'sql-time.reset_system': {
-    code: 'tenant_denied',
-    ru: 'System сбрасывается только целиком (level all)',
-  },
-  // 90-time.sql, reset()
-  'sql-time.tenant_not_found': {
-    code: 'target_not_found',
-    ru: 'арендатор не найден',
-  },
-  // 90-time.sql, reset()
-  'sql-time.reset_level': {
-    code: 'invalid_data',
-    ru: 'уровень сброса {level}: sessions, tenant или all',
-  },
   // 90-time.sql, maintain()
   'sql-time.maintain_denied': {
     code: 'acl_denied',
     ru: 'нет права letopis.maintain',
   },
-  // 90-time.sql, maintain()
+  // 90-time.sql, maintain(): момент «сейчас» (p_now) — не от администраторской роли подключения (admin_role)
   'sql-time.maintain_now': {
-    code: 'reset_disabled',
-    ru: 'maintain(now) — только в установке с allow_reset',
+    code: 'acl_denied',
+    ru: 'maintain(now) — только на администраторском подключении',
   },
   // 90-time.sql, verify()
   'sql-time.verify_denied': {

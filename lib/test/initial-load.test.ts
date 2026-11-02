@@ -1,19 +1,17 @@
 /**
- * initial-load — первая заливка (план 1.1, §2.3, этап 3; тест-план §7.4 №1–9, №11 — замер
- * bench/initial-load.mjs): равенство с обычным загрузчиком (строки, журнал, хэши, verify), структура
- * и режимы триггеров после перестройки, seq и tx системных строк, непустая схема, вставка во время
- * запуска, откат, пакетная вставка в WAL, commitEvery, импорт одной транзакцией.
+ * initial-load — первая заливка (план 1.1, §2.3, этап 3; тест-план §7.4 №1–8, №10; №11 — замер
+ * bench/initial-load.mjs; №9 — импорт из 0.21 одной транзакцией — снят вместе с импортом в 2.0.0): равенство с обычным
+ * загрузчиком (строки, журнал, хэши, verify), структура и режимы триггеров после перестройки, seq и tx системных строк,
+ * непустая схема, вставка во время запуска, откат, пакетная вставка в WAL, commitEvery, агрегаты.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { engine, lt, waitForLock, SYSTEM_ID, type Engine } from './_engine.js';
 import { ADMIN_DSN, ident } from './_harness.js';
-import { connect, v5Id, type Db } from '../src/index.js';
+import { connect, type Db } from '../src/index.js';
 import { install } from '../src/up.js';
 import { initialSession } from '../src/load.js';
-import { import021 } from '../src/import.js';
 
 let e: Engine;
 let B: string;
@@ -55,10 +53,12 @@ const sysLog = (S: string) => e.sql.unsafe(`select id, rev, seq::text as seq, tx
   where class in ('Class', 'Account', 'member', 'Resource', 'rule') order by seq`);
 const dataCount = async (S: string) => (await e.sql.unsafe(`select count(*)::int as n from ${S}.entity where tenant = $1`, [T]))[0].n as number;
 const adminDb = (schema: string) => connect({ dsn: ADMIN_DSN, schema, allowBypassRls: true, listen: false, cache: false, max: 3 });
-/** Схема B заново пустая: reset({ all }), затем арендатор и классы. */
+/** Схема B заново пустая: установка заново (fresh), затем арендатор и классы; подключение к ней — тоже заново. */
 async function emptyB(): Promise<void> {
-  await b.reset({ level: 'all', confirm: B });
+  await b.close();
+  await install(e.sql, { schema: B, fresh: true });
   await prepare(SB);
+  b = await adminDb(B);
 }
 const loadEnv = (schema: string) => ({ sql: e.sql, schema, tenant: T, admin: true, ownerRole: 'letopis_owner' });
 
@@ -67,7 +67,7 @@ before(async () => {
   B = `${e.schema}_b`;
   SB = ident(B);
   await e.sql.unsafe(`drop schema if exists ${SB} cascade`);
-  await install(e.sql, { schema: B, allowReset: true });
+  await install(e.sql, { schema: B });
   await prepare(e.S);
   await prepare(SB);
   a = await adminDb(e.schema);
@@ -111,7 +111,7 @@ test('7.4 №1–3: равенство с обычным загрузчиком;
   assert.deepEqual((await sysLog(SB)).slice(0, sys0.length), [...sys0]);
 });
 
-test('7.4 №4: непустая схема — not_empty до любых изменений; после reset({ all }) первая заливка работает', async () => {
+test('7.4 №4: непустая схема — not_empty до любых изменений; в установленной заново первая заливка работает', async () => {
   const cat0 = await catalog(B);
   const n0 = await dataCount(SB);
   await assert.rejects(b.load(rows(10, 'x'), { initial: true, tenant: T }), lt('not_empty'));
@@ -195,25 +195,6 @@ test('7.4 №8: commitEvery вместе с initial — отказ до отпр
   await assert.rejects(b.load(rows(10, 'c'), { initial: true, existing: 'skip', tenant: T }), lt('invalid_data'));
   assert.deepEqual(await catalog(B), cat0);
   assert.equal(await dataCount(SB), n0);
-});
-
-test('7.4 №9: letopis import --initial — одной транзакцией, данные обоих арендаторов', async () => {
-  const SRC = 'v1.t_initial_src';
-  const DST = 'v2.t_initial_imp';
-  await e.sql.unsafe(`drop schema if exists ${ident(SRC)} cascade`);
-  await e.sql.unsafe((await readFile(new URL('./fixtures/v021.sql', import.meta.url), 'utf8')).replaceAll('<SCHEMA>', SRC));
-  await e.sql.unsafe(`drop schema if exists ${ident(DST)} cascade`);
-  await install(e.sql, { schema: DST, allowReset: true });
-  await assert.rejects(import021({ from: ADMIN_DSN, fromSchema: SRC, dsn: ADMIN_DSN, schema: DST, tenant: 'Импорт', keyless: ['Service'], quiet: true, initial: true, update: true }),
-    lt('invalid_data'));
-  const r = await import021({ from: ADMIN_DSN, fromSchema: SRC, dsn: ADMIN_DSN, schema: DST, tenant: 'Импорт', keyless: ['Service'], quiet: true, initial: true });
-  assert.equal(r.verify.ok, true);
-  assert.ok(r.resources.skipped > 0, 'ресурсы сида пропущены, как без флага');
-  const tenants = [v5Id(SYSTEM_ID, 'Account', ['aaaaaaaa-0000-4000-8000-000000000001']), v5Id(SYSTEM_ID, 'Account', ['aaaaaaaa-0000-4000-8000-000000000002'])];
-  const per = await e.sql.unsafe(`select tenant, count(*)::int as n from ${ident(DST)}.entity where tenant = any ($1::uuid[]) group by tenant`, [tenants]);
-  assert.equal(per.length, 2, 'данные обоих арендаторов');
-  const [{ txs }] = await e.sql.unsafe(`select count(distinct tx)::int as txs from ${ident(DST)}.log where agent = 'letopis import'`);
-  assert.equal(txs, 1, 'весь импорт — одна транзакция');
 });
 
 test('7.4 №10: агрегаты — первая заливка операций в схему с агрегатом: итог равен сумме загруженных операций', async () => {

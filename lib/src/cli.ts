@@ -1,22 +1,17 @@
 #!/usr/bin/env node
 /**
- * CLI letopis (план, этап 2, п. 7; этап 4, п. 11; этап 6, п. 4, 8, 12): `letopis sync`, `types`, `load`,
- * `verify`, `maintain`, `describe`; этап 7 — `import` (из 0.21); план 2.0, этап 3, п. 8 — `check`, `sync --check`.
+ * CLI letopis (план, этап 2, п. 7; этап 4, п. 11; этап 6, п. 4, 8): `letopis sync`, `types`, `load`, `verify`,
+ * `maintain`; план 1.1, §2.5 — `mcp`; план 2.0, этап 3, п. 8 — `sync --check`.
  *
  *   letopis sync <модуль моделей> --dsn … --schema v2.x (--token … | --api-key …) [--apply | --check]
  *     --check — сухой прогон с кодом 1, если он нашёл изменения (создать или изменить); вместе с --apply — USAGE, код 2
- *   letopis check <файлы…> [--models <модуль моделей>] [--json]   — проверки до запуска без базы (check.ts), код 1 при
- *     ошибках; нужен пакет typescript — его грузит только эта команда
  *   letopis types --dsn … --schema v2.x (--token … | --api-key …) [--out types.d.ts] [--system]
  *     --system — и классы арендатора System (системные, сиды пакета), без него — только классы арендатора сессии
  *   letopis load <файлы NDJSON…> --dsn … --schema v2.x (--token … | --api-key …) [--class C]
  *     [--duplicates error|first|last] [--existing error|skip|update] [--commit-every N] [--verify] [--initial]
+ *     --initial — первая заливка (план 1.1, §2.3): пустая схема, одна транзакция, индексы и триггеры — после загрузки
  *   letopis verify --dsn … --schema v2.x [--token … | --api-key …] [--data]   — код 1 при находках
  *   letopis maintain --dsn … --schema v2.x [--token … | --api-key …] [--batches N]
- *   letopis describe --dsn … --schema v2.x (--token … | --api-key …) [--format json|text] [--out файл]
- *   letopis import --from <строка 0.21> --from-schema v1.x --dsn … --schema v2.x [--tenant <имя>] [--keyless C]…
- *     [--rename Старое=Новое]… [--update] [--commit-every N] [--partition p] [--initial]   — код 1, если verify нашёл расхождения
- *   --initial — первая заливка (план 1.1, §2.3): пустая схема, одна транзакция, индексы и триггеры — после загрузки
  *   letopis mcp --dsn … --schema v2.x --token … [--write]   — сервер MCP по stdio (план 1.1, §2.5); dsn, schema и
  *     token — ещё из LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; только токен пользователя: --api-key — отказ
  *   справка — USAGE (её же читает справочник сайта, guide/scripts/gen-api.ts)
@@ -26,9 +21,8 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
-import { connect, describeText } from './index.js';
+import { connect } from './index.js';
 import { syncModels, generateTypes } from './sync.js';
-import { import021 } from './import.js';
 import type { AnyModel } from './model.js';
 import { lerr, lmsg } from './errors.js';
 
@@ -38,38 +32,18 @@ letopis load <файлы…> --dsn <строка> --schema <v2.имя> (--token 
   [--duplicates error|first|last] [--existing error|skip|update] [--commit-every <N>] [--verify] [--initial]
 letopis verify --dsn <строка> --schema <v2.имя> [--token <токен> | --api-key <ключ>] [--data]
 letopis maintain --dsn <строка> --schema <v2.имя> [--token <токен> | --api-key <ключ>] [--batches <N>]
-letopis describe --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--format json|text] [--out <файл>]
-letopis import --from <строка 0.21> --from-schema <v1.имя> --dsn <строка> --schema <v2.имя> [--tenant <имя>] [--keyless <Класс>]…
-  [--rename <Старое>=<Новое>]… [--update] [--commit-every <N>] [--partition <имя>] [--initial]
 letopis mcp --dsn <строка> --schema <v2.имя> --token <токен пользователя> [--write]
-  (или LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; ключ сервиса --api-key не принимается)
-letopis check <файлы…> [--models <модуль>] [--json]
-  (без базы; нужен пакет typescript)`;
+  (или LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; ключ сервиса --api-key не принимается)`;
 
 /** Команды CLI: остальное — USAGE с кодом 2 ещё до подключения. */
-const COMMANDS = new Set(['sync', 'types', 'load', 'verify', 'maintain', 'describe', 'import', 'mcp', 'check']);
+const COMMANDS = new Set(['sync', 'types', 'load', 'verify', 'maintain', 'mcp']);
 
 const isModel = (v: unknown): v is AnyModel => typeof v === 'object' && v !== null && typeof (v as AnyModel).describe === 'function' && typeof (v as AnyModel).name === 'string';
 
-/** Модели из модуля (letopis sync, letopis check --models): экспорты-модели и массивы моделей, без повторов. */
+/** Модели из модуля (letopis sync): экспорты-модели и массивы моделей, без повторов. */
 async function loadModels(path: string): Promise<AnyModel[]> {
   const mod = await import(pathToFileURL(resolve(path)).href) as Record<string, unknown>;
   return [...new Set(Object.values(mod).flatMap((v) => (Array.isArray(v) ? v : [v])).filter(isModel))];
-}
-
-/**
- * letopis check (план 2.0, этап 3, п. 8): проверки до запуска — без базы и без запуска кода. Модуль check.js и пакет
- * typescript грузятся только здесь: остальные команды работают без typescript. Есть ошибки — код 1, нет файлов — USAGE.
- */
-async function check(files: string[], v: { models?: string; json?: boolean }): Promise<number> {
-  if (!files.length) {
-    console.log(USAGE);
-    return 2;
-  }
-  const { checkFiles, formatReport } = await import('./check.js');
-  const r = await checkFiles(files, v.models ? { models: await loadModels(v.models) } : {});
-  console.log(v.json ? JSON.stringify(r, null, 2) : formatReport(r));
-  return r.ok ? 0 : 1;
 }
 
 export async function main(argv: string[]): Promise<number> {
@@ -80,12 +54,8 @@ export async function main(argv: string[]): Promise<number> {
       dsn: { type: 'string' }, schema: { type: 'string' }, token: { type: 'string' }, 'api-key': { type: 'string' },
       apply: { type: 'boolean' }, out: { type: 'string' }, help: { type: 'boolean' },
       class: { type: 'string' }, duplicates: { type: 'string' }, existing: { type: 'string' }, 'commit-every': { type: 'string' },
-      verify: { type: 'boolean' }, trust: { type: 'boolean' }, data: { type: 'boolean' }, batches: { type: 'string' },
-      format: { type: 'string' },
-      from: { type: 'string' }, 'from-schema': { type: 'string' }, tenant: { type: 'string' }, partition: { type: 'string' },
-      keyless: { type: 'string', multiple: true }, rename: { type: 'string', multiple: true }, update: { type: 'boolean' },
-      initial: { type: 'boolean' }, write: { type: 'boolean' }, system: { type: 'boolean' },
-      check: { type: 'boolean' }, models: { type: 'string' }, json: { type: 'boolean' },
+      verify: { type: 'boolean' }, data: { type: 'boolean' }, batches: { type: 'string' },
+      initial: { type: 'boolean' }, write: { type: 'boolean' }, system: { type: 'boolean' }, check: { type: 'boolean' },
     },
   });
   const [cmd, arg] = positionals;
@@ -100,29 +70,10 @@ export async function main(argv: string[]): Promise<number> {
     console.log(USAGE);
     return 0;
   }
-  // проверки до запуска — без базы (план 2.0, этап 3, п. 8)
-  if (cmd === 'check') return check(positionals.slice(1), values);
   // --check — сухой прогон: вместе с --apply смысла нет
   if (!cmd || !COMMANDS.has(cmd) || !values.dsn || !values.schema || (cmd === 'sync' && values.check && values.apply)) {
     console.log(USAGE);
     return cmd ? 2 : 0;
-  }
-  if (cmd === 'import') {
-    // импорт сам открывает администраторские подключения к 0.21 и к 1.0 (загрузчик, функции владельца)
-    if (!values.from || !values['from-schema']) { console.log(USAGE); return 2; }
-    const rename: Record<string, string> = {};
-    for (const x of values.rename ?? []) {
-      const [from, to] = x.split('=');
-      if (!from || !to) { console.log(USAGE); return 2; }
-      rename[from] = to;
-    }
-    const r = await import021({
-      from: values.from, fromSchema: values['from-schema'], dsn: values.dsn, schema: values.schema, tenant: values.tenant,
-      partition: values.partition, keyless: values.keyless, rename, update: values.update,
-      commitEvery: values['commit-every'] ? Number(values['commit-every']) : undefined, initial: values.initial,
-    });
-    console.log(JSON.stringify(r, null, 2));
-    return r.verify.ok ? 0 : 1;
   }
   if (cmd === 'mcp') return mcp(values);
   // загрузчику нужно администраторское подключение (§2.6, п. 1)
@@ -146,7 +97,6 @@ export async function main(argv: string[]): Promise<number> {
     if (cmd === 'load') {
       const files = positionals.slice(1);
       if (!files.length) { console.log(USAGE); return 2; }
-      if (values.trust) throw lerr('model.cli_trust_removed');
       // несколько файлов — одна загрузка и одна транзакция; в файле — объект на строку
       const rows: Record<string, unknown>[] = [];
       for (const f of files) {
@@ -173,20 +123,11 @@ export async function main(argv: string[]): Promise<number> {
       console.log(JSON.stringify(r));
       return 0;
     }
-    if (cmd === 'describe' || cmd === 'types') {
-      // обе команды читают реестр сессии: без действующей сессии (токен истёк, погашен, неверен или не задан) он пуст,
-      // и команда выдала бы пустой результат с кодом 0, а с --out затёрла бы им файл. acl.check ничего не пишет, а без
-      // сессии отказывает no_session — тогда выход с кодом 1, файл не тронут
-      await db.acl.check('letopis.cli');
-    }
-    if (cmd === 'describe') {
-      const d = db.describe();
-      const text = values.format === 'text' ? describeText(d) : JSON.stringify(d, null, 2);
-      if (values.out) await writeFile(values.out, text);
-      else console.log(text);
-      return 0;
-    }
     if (cmd === 'types') {
+      // реестр сессии без действующей сессии (токен истёк, погашен, неверен или не задан) пуст, и команда выдала бы
+      // пустой результат с кодом 0, а с --out затёрла бы им файл. acl.check ничего не пишет, а без сессии отказывает
+      // no_session — тогда выход с кодом 1, файл не тронут
+      await db.acl.check('letopis.cli');
       // --system — и классы арендатора System: системные и классы сидов пакета (например, booking)
       const text = generateTypes(db.registry, { includeSystem: values.system === true });
       if (values.out) await writeFile(values.out, text);

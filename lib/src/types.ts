@@ -20,26 +20,25 @@ export const ACL_CLASS_NAMES: readonly string[] = ['rule', 'Resource', 'member',
 // ---------------------------------------------------------------------------
 
 /**
- * Имена методов цепочки: модификаторы, терминалы, глаголы записи и слоты концов, а также `then` и снятые методы прежних
- * версий. После шага цепочки эти имена библиотека не ищет среди классов; все они входят в `RESERVED_CLASS_NAMES`.
+ * Имена методов цепочки: модификаторы, терминалы, глаголы записи и слоты концов, а также `then`. После шага цепочки эти
+ * имена библиотека не ищет среди классов; все они входят в `RESERVED_CLASS_NAMES`.
  */
 export const CHAIN_METHODS = [
   'then', 'entity', 'paths', 'rows', 'first', 'ids', 'count', 'limit', 'offset', 'sort', 'asOf', 'withDeleted',
   'deep', 'exact', 'sum', 'avg', 'min', 'max', 'countBy', 'after', 'versions', 'create', 'update', 'upsert', 'set',
   'unset', 'add', 'remove', 'delete', 'anonymize', 'reclass', 'restore', 'purge', 'alias', 'tags', 'owner',
-  'forUpdate', 'cache', 'rekey', 'run', 'execute', 'account', 'diff', 'blame',
+  'forUpdate', 'cache', 'rekey', 'diff', 'blame',
 ] as const;
 
 /** Свойства корня db (и транзакции db.begin()). */
 export const DB_METHODS = [
   'as', 'begin', 'commit', 'rollback', 'lock', 'batch', 'watch', 'close', 'registry', 'sql', 'load', 'verify',
-  'maintain', 'reset', 'describe', 'auth', 'acl', 'idOf', 'refresh', 'transaction', 'flushSignals', 'schema',
-  'token', 'tenant', 'reloadSchema', 'accounts', 'credentials', 'resources', 'rules', 'compact',
+  'maintain', 'auth', 'acl', 'idOf', 'refresh', 'transaction', 'flushSignals', 'schema', 'token', 'tenant',
   'trimHistory', 'rekeyClass', 'cache', 'projector', 'rebuildAggregates',
 ] as const;
 
 /** Свойства батча db.batch(name). */
-export const BATCH_METHODS = ['discard', 'size'] as const;
+export const BATCH_METHODS = ['run', 'discard', 'size'] as const;
 
 /**
  * Имена методов цепочки, корня `db` и батча. Там, где имя занято методом, библиотека не ищет его среди классов, и шаг с

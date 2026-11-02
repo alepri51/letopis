@@ -38,7 +38,7 @@ test('системный сид: System, системные классы, общ
   assert.deepEqual(res, ['admin:ACCOUNT', 'all:DELETE', 'all:READ', 'all:WRITE', 'any:ACCOUNT', 'any:API', 'anonymous:ACCOUNT',
     'auth:API', 'authenticated:ACCOUNT', 'letopis:API', 'service:ACCOUNT', 'signals:API'].sort());
   assert.equal(await admin.rule().count(), 8);
-  assert.equal((await admin.acl.check('letopis.reset')).allow, true, 'reset и maintain — системному администратору');
+  assert.equal((await admin.acl.check('letopis.maintain')).allow, true, 'verify и maintain — системному администратору');
   assert.equal((await svc.acl.check('letopis.maintain')).allow, false, 'сервису — отдельными правилами');
   assert.equal((await svc.acl.check('letopis.signals')).allow, true, 'ключ сигналов — сервису (план 1.1, этап 2)');
   assert.equal((await svc.acl.check('auth.impersonate')).allow, true);

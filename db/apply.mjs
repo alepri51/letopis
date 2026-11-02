@@ -3,7 +3,7 @@
  * Тонкая обёртка над up() (план, этап 6, п. 9) для CI и бенчей: поставить или обновить установку.
  *
  *   node db/apply.mjs --dsn=postgres://user:pass@host:5432/db --schema=salon [--seed=booking] [--fresh]
- *     [--upgrade] [--allow-reset] [--quiet]
+ *     [--upgrade] [--quiet]
  *
  * Берёт исходники через tsx из lib/node_modules, без них — собранный пакет (lib/dist).
  */
@@ -19,7 +19,7 @@ for (const a of process.argv.slice(2)) {
 }
 const dsn = args.dsn ?? process.env.ENTITY_DSN;
 if (!dsn || typeof args.schema !== 'string') {
-  console.error('usage: node db/apply.mjs --dsn=postgres://… --schema=<имя | v2.имя> [--seed=<имя|путь>]… [--fresh] [--upgrade] [--allow-reset] [--quiet]');
+  console.error('usage: node db/apply.mjs --dsn=postgres://… --schema=<имя | v2.имя> [--seed=<имя|путь>]… [--fresh] [--upgrade] [--quiet]');
   process.exit(2);
 }
 
@@ -37,7 +37,7 @@ try {
 try {
   const r = await mod.up({
     dsn, schema: args.schema, seeds: args.seed, fresh: Boolean(args.fresh), upgrade: Boolean(args.upgrade),
-    allowReset: Boolean(args['allow-reset']), quiet: Boolean(args.quiet),
+    quiet: Boolean(args.quiet),
   });
   console.log(JSON.stringify({ schema: r.schema, revision: r.revision, created: r.created, upgraded: r.upgraded, serviceKey: r.serviceKey }));
 } catch (e) {

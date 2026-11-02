@@ -56,7 +56,7 @@ export async function engine(file: string, opts: { keep?: boolean; seeds?: strin
   const schema = schemaFor(file);
   const S = ident(schema);
   await sql.unsafe(`drop schema if exists ${S} cascade`);
-  const inst = await install(sql, { schema, allowReset: true, seeds: opts.seeds });
+  const inst = await install(sql, { schema, seeds: opts.seeds });
   await ensureAppRole(sql);
   const app = appSql(16);
 

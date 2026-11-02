@@ -118,16 +118,6 @@ test('№6 погашенная сессия: каждый путь — след
     ['выход везде', async (_a, u) => u.auth.revokeAll()],
     ['отключение аккаунта', async (a) => e.asOwner((tx) => tx.unsafe(`update ${e.S}.entity set data = data || '{"enabled": false}' where id = $1`, [a.id]))
       .then(() => e.sql.unsafe(`select ${e.S}.auth_kill($1, null)`, [a.id]).catch(() => null))],
-    ['reset sessions', async () => {
-      const { sysadmin } = await import('./_access.js');
-      const ad = await sysadmin(e, 'cache-admin');
-      const adb = await connect({ dsn: appDsn(), schema: e.schema, token: ad.token, max: 1 });
-      try {
-        await adb.reset({ level: 'sessions', confirm: e.schema });
-      } finally {
-        await adb.close();
-      }
-    }],
   ];
   for (const [name, kill] of paths) {
     const a = await account(e, `s-${name}`);
@@ -147,16 +137,6 @@ test('№6 погашенная сессия: каждый путь — след
       assert.deepEqual(await udb.Item().cache().rows(), [], name);
     } finally {
       await udb.close();
-    }
-    // снова сессия админа таблицы: reset sessions погасил и сессию арендатора теста
-    if (name === 'reset sessions') {
-      const [{ tok: nt }] = await e.sql.unsafe(`select ${e.S}.new_session($1::uuid, interval '1 day', '{}') as tok`, [t.id]);
-      t.token = nt as string;
-      await db.close();
-      await other.close();
-      db = await connect({ dsn: appDsn(), schema: e.schema, token: t.token, max: 4, notifyIntervalMs: 10, onQuery: (ev) => events.push(ev) });
-      other = await connect({ dsn: appDsn(), schema: e.schema, token: t.token, max: 2, notifyIntervalMs: 10 });
-      await until(() => db.cache.stats().enabled);
     }
   }
 });

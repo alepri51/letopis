@@ -12,7 +12,7 @@
  * исполняет весь план одной транзакцией (write.ts): продолжение идёт от результата глагола.
  * Этап 6: restore, purge, rekey; versions({ follow }); кэш результатов .cache() (cache.ts).
  */
-import { lerr, lwarn, removed, similar, type LetopisError } from './errors.js';
+import { lerr, lwarn, similar, type LetopisError } from './errors.js';
 import { sessionTag, type ResultCache } from './cache.js';
 import type { ClassInfo, Registry } from './registry.js';
 import {
@@ -674,13 +674,6 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
         return (v: unknown) => withLast({ tagsFilter: v });
       case 'owner':
         return (v: string | { id: string }) => withLast({ ownerFilter: typeof v === 'object' ? v.id : v });
-      // охранники снесённого API (этап 3, п. 11)
-      case 'run':
-        throw removed('run()', 'paths()');
-      case 'execute':
-        throw removed('execute()', 'paths()');
-      case 'account':
-        throw removed('account()', 'api.replacement_account_step');
       // глаголы записи — звенья плана (этап 4)
       case 'create':
         return (data: Record<string, unknown> = {}, opts?: { reason?: string }) => withOp({ kind: 'create', data, ...reasonOf(opts) });
@@ -744,8 +737,6 @@ export function makeBatch(ctx: ChainCtx, queue: BatchEntry[]): Batch {
           if (!plans.length) return [];
           return ctx.exec.run((q) => execBatch({ reg: ctx.reg, schema: ctx.schema, q, tenant: ctx.tenant(), owner: ctx.owner, ...reasons(ctx) }, plans));
         };
-      case 'execute':
-        throw removed('batch.execute()', 'batch.run()');
       case 'discard':
         return () => void queue.splice(0, queue.length);
       case 'size':

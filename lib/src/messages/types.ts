@@ -13,11 +13,11 @@ export type ErrorCode =
   | 'no_session' | 'target_not_found' | 'invalid_data' | 'undeclared_end' | 'tenant_denied' | 'acl_denied'
   | 'id_mismatch' | 'id_from_db' | 'immutable_key' | 'invalid_class' | 'use_reclass' | 'reclass_denied'
   | 'tightening_conflict' | 'isolation_level' | 'recreated_in_statement' | 'cursor_expired' | 'delete_restricted'
-  | 'not_deleted' | 'reset_disabled' | 'confirm_mismatch' | 'derived_class' | 'aggregate_field' | 'projector_pending'
+  | 'not_deleted' | 'derived_class' | 'aggregate_field' | 'projector_pending'
   | 'exists' | 'duplicate' | 'deleted' | 'conflict' | 'rev_ambiguous' | 'tx_required' | 'lock_unsupported'
   | 'commit_unknown' | 'tx_rolled_back' | 'no_key' | 'no_path' | 'invalid_query' | 'admin_required'
   | 'rebuild_required' | 'projector_busy' | 'not_empty' | 'class_not_loadable' | 'bypass_rls'
-  | 'user_session_required' | 'confirmation_required' | 'removed' | 'internal';
+  | 'user_session_required' | 'confirmation_required' | 'internal';
 
 /**
  * Запись каталога: код ошибки, шаблон текста (`ru`), `{имя}` в шаблоне — параметр. `hint` — своя подсказка «что делать»;

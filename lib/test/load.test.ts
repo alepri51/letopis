@@ -1,8 +1,7 @@
 /**
  * load — загрузчик (план, §2.6, этап 4, п. 11; тест-план §7.6.1). Строки 9 (после purge — этап 6),
  * 18 (db.verify — этап 6), 20 (скорость — бенч этапа 7) здесь не проверяются; 16 (as) — в access-rest,
- * 24 (as с режимом доверия) снята вместе с режимом;
- * строка 23 (режим доверия) заменена проверкой охранника: режим убран решением 2 точки А.
+ * 23 и 24 (режим доверия, as с ним) сняты вместе с режимом (решение 2 точки А), охранник режима — в 2.0.0.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -223,10 +222,9 @@ test('отчёт ошибки: в тексте — число всех проб�
   assert.equal(await db.Org({ name: 'one-0' }).count(), 0, 'отменённые загрузки ничего не записали');
 });
 
-test('7.6.1 №13–14, 23: только администратор; строки Class не принимаются; режима доверия нет', async () => {
+test('7.6.1 №13–14: только администратор; строки Class не принимаются', async () => {
   await assert.rejects(db.load([{ $class: 'Org', name: 'x' }]), code('admin_required'));
   await assert.rejects(adm.load([{ $class: 'Class', name: 'X', kind: 'hub' }]), code('class_not_loadable'));
-  await assert.rejects(adm.load([{ $class: 'Org', name: 'x' }], { trust: true } as never), code('removed'));
 });
 
 test('7.6.1 №17: сигнал — по одному на класс после фиксации', async () => {

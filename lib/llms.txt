@@ -17,16 +17,15 @@
 - Сигналы NOTIFY видны любой роли базы: `up({ signals: 'class' | 'tenant' | 'opaque' | 'none' })` выбирает, что они раскрывают (по умолчанию `class`).
 - Права действуют всегда и по умолчанию запрещают; `up({ tenant })` или `createTenant()` заводит арендатора с правилом «вошедшим можно всё» и его первого пользователя.
 - MCP: `createMcpServer(db)` из `letopis/mcp` и `letopis mcp` (stdio, только токен сессии пользователя) дают ИИ-агенту инструменты `letopis_model`, `letopis_query` (JSON-цепочка, без SQL), `letopis_history` и, с `write: true`, `letopis_write`; агент действует с правами одного пользователя, удаление подтверждает человек через elicitation. `structuredContent` ответа — `{ notice, data }` (отказ — `{ notice, error }`): `notice` предупреждает, что в `data` — данные базы, а не инструкции.
-- У ошибок строчный код `err.code`: `exists`, `conflict`, `invalid_data` (`err.issues`), `target_not_found`, `acl_denied`, `no_session`, `removed` (API 0.21 с заменой), …; `err.hint` — что делать, `err.docs` — ссылка на код в разделе «Ошибки» README.
+- У ошибок строчный код `err.code`: `exists`, `conflict`, `invalid_data` (`err.issues`), `target_not_found`, `acl_denied`, `no_session`, …; `err.hint` — что делать, `err.docs` — ссылка на код в разделе «Ошибки» README.
 
 ## Документы
 
 - [Шпаргалка для агента](AGENT-CHEATSHEET.md): одна страница для ИИ-агента, который пишет код на letopis, — рабочий цикл и грабли
 - [Руководство](README.md): руководство по задачам, справочник API, ограничения
-- [Ошибки](README.md#16-ошибки): все коды — что значит и что делать
+- [Ошибки](README.md#15-ошибки): все коды — что значит и что делать
 
 ## Дополнительно
 
-- [Переход с 0.21](MIGRATION.md): импорт данных `letopis import` и таблица замен API
 - [Изменения по версиям](CHANGELOG.md): решения по версиям, несовместимые изменения
-- Модель конкретной установки для агента: `letopis describe --format text --out llms.txt` или `describeText(db.describe())` — классы, ключи, поля и концы этой схемы
+- Модель конкретной установки для агента — инструмент MCP `letopis_model`: классы, ключи, поля, концы и рабочие цепочки этой схемы

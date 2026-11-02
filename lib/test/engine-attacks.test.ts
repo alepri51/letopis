@@ -456,7 +456,8 @@ test('№32 (план 1.1, этап 2): заливка канала поддел
     };
     const before = await db.Org().cache().rows();
     const sig = db.cache.stats().signals;
-    // сброс, класс данных, все сессии, чужой токен, мусор — каждый своей транзакцией (без склейки)
+    // бывшие служебные «*» и «session:*» (с 2.0.0 — нагрузка не по режиму), класс данных, чужой токен, мусор — каждый
+    // своей транзакцией (без склейки)
     const fakes = ['*', 'Org', 'session:*', `${'ab'.repeat(12)}@${'cd'.repeat(12)}`, 'не класс!'];
     const t0 = Date.now();
     for (let i = 0; i < 600; i++) await e.app.unsafe('select pg_notify($1, $2)', [e.schema, fakes[i % fakes.length]]);

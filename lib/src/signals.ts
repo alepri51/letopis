@@ -4,7 +4,7 @@
  * Канал — имя схемы; нагрузку строит функция базы signal() по режиму up({ signals }):
  *   - class — `Booking` (как в 1.0); tenant — `Booking@<токен арендатора>`;
  *   - opaque — `<токен класса>@<токен арендатора>`; none — сигналов нет;
- *   - сессии — `session:<16 hex>` и `session:*`, сброс — `*` (кроме none).
+ *   - погашенная сессия — `session:<16 hex>` (кроме none).
  * Токен — первые 96 бит HMAC-SHA256 от «назначение:значение» на ключе сигналов (signal_key(): HMAC
  * ключа строки KEY по 'letopis:signals'), 24 строчных шестнадцатеричных знака. Имя класса не содержит
  * `@`, `:` и `*` (метасхема Class), поэтому нагрузка разбирается однозначно.
@@ -26,10 +26,8 @@ const TOKEN = /^[0-9a-f]{24}$/;
 
 /** Разобранный сигнал. */
 export type Signal =
-  /** `*` — сброс: кэш, пропуска прав, реестр и ключ — заново. */
+  /** Слушатель сигналов (пере)подключился — сигналы за время обрыва потеряны: кэш, пропуска прав, реестр и ключ — заново. */
   | { kind: 'all' }
-  /** `session:*` — все сессии. */
-  | { kind: 'sessions' }
   /** `session:<тег>` — погашенная сессия (тег — начало sha256 токена). */
   | { kind: 'session'; tag: string }
   /** Запись класса; tenant — токен арендатора, null — все арендаторы (System, режим class, процесс без ключа). */
@@ -98,8 +96,6 @@ export class Signals {
 
   /** Разобрать нагрузку сигнала или элемент letopis.changed своей транзакции. */
   parse(p: string): Signal {
-    if (p === '*') return { kind: 'all' };
-    if (p === 'session:*') return { kind: 'sessions' };
     if (p.startsWith('session:')) return /^session:[0-9a-f]{16}$/.test(p) ? { kind: 'session', tag: p.slice(8) } : { kind: 'foreign' };
     const at = p.indexOf('@');
     const head = at < 0 ? p : p.slice(0, at);

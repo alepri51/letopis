@@ -468,7 +468,7 @@ begin
   if @SCHEMA@.history_on(e.class, e.tenant) then
     -- пути изменения: против предыдущей версии id, у первой версии переноса — против прежнего id (moved)
     select l.* into p from @SCHEMA@.log l
-    where l.id = case when e.rev > 1 then e.id else e.moved end and l.op not in ('purge', 'trim', 'reset')
+    where l.id = case when e.rev > 1 then e.id else e.moved end and l.op not in ('purge', 'trim')
     order by l.rev desc limit 1;
     insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash, changed)
     values (e.id, e.rev, e.class, e.cv, e.tenant, e.owner, e.links, e.data, e.tags, e.at, e.author, e.agent, e.op, e.reason, e.moved, e.prev_hash,
@@ -739,7 +739,7 @@ begin
   end loop;
 end $$;
 
--- Есть ли в журнале версии строк класса p_name арендатора p_tenant; записи purge, trim и reset — не версии (доработки
+-- Есть ли в журнале версии строк класса p_name арендатора p_tenant; записи purge и trim — не версии (доработки
 -- после точки Б: удаление и пересоздание класса, остаток Н2 ревью №2). У класса System — строки любого арендатора, кроме
 -- арендаторов со своим классом с тем же именем: их строки — строки своего класса, как их резолвит class_row (ревью
 -- безопасности №3: история такого класса не мешает администратору создать и удалить класс System)
@@ -747,7 +747,7 @@ create or replace function @SCHEMA@.class_has_history(p_name text, p_tenant uuid
 language sql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 return exists (select 1 from @SCHEMA@.log l
-               where l.class = p_name and l.op not in ('purge', 'trim', 'reset')
+               where l.class = p_name and l.op not in ('purge', 'trim')
                  and (l.tenant = p_tenant
                       or p_tenant = '@SYSTEM@'::uuid
                          and l.tenant <> all (array(select x.tenant from @SCHEMA@.entity x

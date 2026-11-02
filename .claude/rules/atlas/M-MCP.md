@@ -1,11 +1,13 @@
 ---
 paths:
-  - 'lib/src/mcp.ts'
+  - 'lib/src/{mcp,describe}.ts'
 synced: f20b1cf
 ---
-# M-MCP — инструменты MCP: `letopis/mcp` и `letopis mcp`
+# M-MCP — инструменты MCP: `letopis/mcp` и `letopis mcp`, описание модели `letopis_model`
 
 **Инварианты и грабли**
+- Описание модели для `letopis_model` — `describeModel(registry, schema, tenant)` в `lib/src/describe.ts` (модуля нет в `exports`: в 2.0.0 описание модели есть только у `letopis_model`, план 2.0, редакция 2): классы реестра подключения, `resolved.schema` — наследование уже развернула база (`class_resolve`), предков не сливать. `SYSTEM_CLASSES` там же — системные классы без `create` в примерах.
+- `examples` (план 2.0, 7.9 №9) — текст цепочек из реестра (`examplesOf`): «найти» берёт те же образцы значений, что «создать» (`sample`: `examples`, `const`, `default`, `enum`, тип и формат), — по ним тест `mcp-model` находит созданный объект. Строки и ключи — только через `lit` (экранирование): поля, `enum` и `examples` пишут арендаторы. Модель больше `maxBytes` — сначала без `examples`, затем `brief`.
 - Тексты: описания инструментов, параметров и `instructions` — русские строки в `mcp.ts` рядом со схемами (английский снят в 2.0.0); тексты ошибок — ключи раздела `lib/src/messages/mcp.ts`. Пояснения к данным базы (`mcp.untrusted_note` в тексте, `mcp.structured_note` в `notice`), первая строка отказа (`mcp.tool_error`), подсказка `confirm` превью, окно и поле формы подтверждения удаления (`mcp.delete_message`, `mcp.delete_ids_more`, `mcp.confirm_*`) — тоже ключи: `lmsg` при ответе. `failure()` отдаёт `code`, `message`, `hint`, `similar` (из `params.similar`, а не `detail`), `detail`, `sqlstate`; SDK без пакета — `lmsg('mcp.sdk_missing')` в `loadSdk`.
 - Права — только базы: инструменты зовут цепочки фасада, переданного в `createMcpServer`; слой их лишь сужает (перечень — шапка файла). Отказ классам прав (и `update`, и `delete`: снятое правило тоже меняет права) и сессии в арендаторе System — решение владельца 27.10.2026 по ревью безопасности №2, О5 (`docs/checkpoint-1.2.md`). Признака сисадмина в сессии нет — проверяется рабочий арендатор из `ctx()`. `upsert` без `rev` — сознательно (О6).
 - Обход RLS — флаг всего подключения (`Shared.allTenants`), а не фасада: `as()` поверх подключения с `allowBypassRls` — тоже `bypass_rls`. Опции «разрешить» нет.
@@ -17,7 +19,8 @@ synced: f20b1cf
 - letopis грузится без SDK: `index.ts` и `cli.ts` не импортируют `mcp.ts` и `@modelcontextprotocol/*` статически (тест №12, `check-package`).
 
 **Что ещё менять вместе**
-- Новый инструмент: `registerTool` через `guard`; имя `[A-Za-z0-9_]`; корень схемы `type: object` без `anyOf`/`oneOf`; аннотации; `checkKeys` = свойства схемы; `instructions`. Списки инструментов и `readOnlyHint` сверяют `mcp` №6, №11, stdio и `docs` (сценарий `mcp`); README «Агенты и MCP» и шпаргалка §14.
+- Новое свойство класса в реестре (M-MODEL) → `ModelDescription` и `describeModel` (`lib/src/describe.ts`), тест `mcp-model`; свойство, от которого зависит запись (обязательность, ключ, концы, умолчания), — ещё `createExample`, `findExample`; новый системный класс (M-SEEDS) — `SYSTEM_CLASSES`.
+- Новый инструмент: `registerTool` через `guard`; имя `[A-Za-z0-9_]`; корень схемы `type: object` без `anyOf`/`oneOf`; аннотации; `checkKeys` = свойства схемы; `instructions`. Списки инструментов и `readOnlyHint` сверяют `mcp` №6, №11, stdio и `docs` (сценарий `mcp`); README «Агенты и MCP» и шпаргалка §13.
 - Оператор фильтра — запись реестра `OPERATORS` (`lib/src/ops.ts`, план 2.0, 7.9 №8): `OPS`, `OP_NAMES` и список операторов в `describeQuery` строятся из него, значение ключа проверяет `OP_ARGS` по виду `OpArg` (новый вид — новая ветка `OP_ARGS`); README — таблица из реестра (`npm run ops:tables`), случай — тест `llms` №8. Терминал (`TERMINALS`, `PAGED`): текст `describeQuery` пишется руками; README — таблица `structuredContent.data`.
 - Новая опция `McpOptions`: `limitsOf`, README «Экспорты пакета» и абзац HTTP. Флаг `letopis mcp` — `cli.ts` (M-MODEL); `allowAclWrite`/`allowSystemAdmin` в CLI нет по решению владельца.
 - Код отказа — README «Ошибки»; тест-кейс — строка `# mcp — …` в «Тесты» (check-docs сверяет только имена файлов).
@@ -35,11 +38,12 @@ synced: f20b1cf
 - Превью удаления (`Row.$action`, `$depth`) ↔ окно и хэш: окно считает `delete`/`unset`, до человека — отказ по `restrict`; новое действие каскада — правка `write`.
 
 **Проверка**
-- `cd lib && npx tsx --test --test-force-exit test/mcp.test.ts` — №1–12, stdio, HTTP, О7, О8, «решение точки Б», `requestState`, «описания инструментов, их параметров и instructions — у каждого есть, по-русски»; ещё `engine-attacks` (№35, №37), `docs` (сценарий `mcp`), `npm run typecheck`.
+- `cd lib && npx tsx --test --test-force-exit test/mcp.test.ts test/mcp-model.test.ts` — `mcp-model`: примеры `letopis_model` (7.9 №9), метаданные и наследование, `anyOf`/`oneOf`; `mcp`: №1–12, stdio, HTTP, О7, О8, «решение точки Б», `requestState`, «описания инструментов, их параметров и instructions — у каждого есть, по-русски»; ещё `engine-attacks` (№35, №37), `docs` (сценарий `mcp`), `npm run typecheck`.
 - Сигналы: отказ — `isError` и `structuredContent.error.code`; запись агента — `reason: 'mcp: letopis_write'` в `blame` и `versions`; `letopis mcp` — stderr и код 1 (код 2 — `--api-key` или нет токена).
 
 **Точки входа**
 - `lib/src/mcp.ts:createMcpServer` — опции, допуск, инструменты
+- `lib/src/describe.ts:describeModel` — описание модели и примеры цепочек для `letopis_model`
 - `lib/src/mcp.ts:checkCredentials` — отказы подключению
 - `lib/src/mcp.ts:failure` — форма отказа
 - `lib/src/mcp.ts:query` — JSON-цепочка, пределы, курсор

@@ -19,8 +19,7 @@
  * - сессии в базе (Redis не нужен): db.auth.sessionFor, refresh, revoke, revokeAll;
  * - up() не подключает: возвращает { created, revision, serviceKey } — Акт 2 проверяет повторный накат
  *   на своей схеме v2.t_scenario_salon_up;
- * - watch — асинхронный итератор по курсору: db.watch({ from: 'now', classes }), sub.close();
- * - охранники снесённого API бросают LetopisError с кодом removed.
+ * - watch — асинхронный итератор по курсору: db.watch({ from: 'now', classes }), sub.close().
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -29,7 +28,7 @@ import { engine, type Engine, type Tenant } from './_engine.js';
 import { appDsn, ADMIN_DSN, ident } from './_harness.js';
 import { account, member, session, sqlAs, sysadmin, type Acc } from './_access.js';
 import {
-  connect, up, cursorOf, totpCode, uuidv7, LETOPIS_NS, LetopisError, ValidationError, Registry, DDL_REVISION,
+  connect, up, cursorOf, totpCode, ValidationError, Registry, DDL_REVISION,
   CHAIN_METHODS, DB_METHODS,
   ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends, exists, isNull, not, or,
   type Db, type Row, type WatchEvent, type QueryEvent,
@@ -103,7 +102,7 @@ after(async () => {
 
 // ===========================================================================
 // АКТ 1. Открытие салона: подключение, реестр, описание модели, создание, батч
-// покрывает: connect, schema, token, tenant, registry, describe, idOf, sql, transaction,
+// покрывает: connect, schema, token, tenant, registry, idOf, sql, transaction,
 //            Класс().create, rows, batch: Класс, size, run, discard
 // ===========================================================================
 test('Акт 1. Открытие: организация, локация, мастера — создание цепочками и батч', async () => {
@@ -114,9 +113,8 @@ test('Акт 1. Открытие: организация, локация, мас
   assert.equal(db.registry.resolve('Организация').name, 'Org');
   assert.ok(db.registry.has('содержимое'));
   assert.ok(db.registry.all().length >= 18);
-  const model = db.describe();
-  assert.equal(model.tenant, t.id);
-  assert.ok(model.classes.some((c) => c.name === 'booking' && c.kind === 'link' && c.parent === 'slot'));
+  const booking = db.registry.resolve('booking');
+  assert.deepEqual([booking.kind, booking.ancestors[1]], ['link', 'slot'], 'описание модели: связь booking — потомок slot');
 
   [S.org] = await db.Организация().create({ name: 'Салон «Локоны»', phone: '+7 900 111', timezone: 'Europe/Moscow' }).rows();
   assert.equal(S.org.data.name, 'Салон «Локоны»');
@@ -809,12 +807,11 @@ test('Акт 20. Аренда и наблюдаемость: изоляция а
 });
 
 // ===========================================================================
-// АКТ 21. Охранники и ошибки — валидация, пути, глаголы, слоты, снесённый API, служебные отказы
-// покрывает: ValidationError, set/unset/add/remove вне слота, run/execute/account, batch.execute,
-//            commit/rollback/lock вне транзакции, load, reset, verify, maintain, rekeyClass,
-//            снесённые свойства db, auth.sessions, acl.reload, watch(cb), uuidv7, LETOPIS_NS, опции connect
+// АКТ 21. Охранники и ошибки — валидация, пути, глаголы, слоты, служебные отказы
+// покрывает: ValidationError, set/unset/add/remove вне слота, commit/rollback/lock вне транзакции, load, verify,
+//            maintain, rekeyClass
 // ===========================================================================
-test('Акт 21. Охранники: валидация, пути, слоты, снесённый API (removed), служебные права', async () => {
+test('Акт 21. Охранники: валидация, пути, слоты, служебные права', async () => {
   // строгая валидация данных
   await assert.rejects(db.Организация(S.org).Услуга().create({ name: 'Плохая', duration: -1 }).rows(), ValidationError);
   await assert.rejects(db.Организация(S.org).Услуга().create({ name: 'Лишнее', duration: 10, xx: 1 }).rows(), ValidationError);
@@ -830,38 +827,18 @@ test('Акт 21. Охранники: валидация, пути, слоты, �
   await fails(() => db.запись(S.зАни15.id).update().Клиент.remove(S.аня).rows(), 'invalid_query');
   await fails(() => db.запись(S.зАни15.id).update().Папка.set(S.волосы).rows(), 'invalid_query');
 
-  // снесённый API цепочек и батча — код removed
-  await fails(() => (db.Услуга() as unknown as { run: () => void }).run(), 'removed');
-  await fails(() => (db.Услуга() as unknown as { execute: () => void }).execute(), 'removed');
-  await fails(() => (db.Услуга() as unknown as { account: (a: string) => void }).account(t.id), 'removed');
-  await fails(() => (db.batch('g') as unknown as { execute: () => void }).execute(), 'removed');
   // цепочка не thenable: await без терминала запроса не шлёт
   assert.equal((db.Услуга() as unknown as { then?: unknown }).then, undefined);
-
-  // снесённые свойства db и их замены
-  for (const p of ['reloadSchema', 'accounts', 'credentials', 'resources', 'rules', 'compact']) {
-    await fails(() => (db as unknown as Record<string, unknown>)[p], 'removed');
-  }
-  await fails(() => (db.auth as unknown as { sessions: unknown }).sessions, 'removed');
-  await fails(() => (db.acl as unknown as { reload: unknown }).reload, 'removed');
-  await fails(() => (db.watch as unknown as (cb: () => void) => void)(() => {}), 'removed');
-  await fails(() => uuidv7(), 'removed');
-  assert.throws(() => uuidv7(), LetopisError, 'охранник — LetopisError');
-  await fails(() => LETOPIS_NS.length, 'removed');
-  await fails(() => connect({ dsn: appDsn(), schema: e.schema, token: t.token, enforceAccount: true } as never), 'removed');
 
   // транзакционные методы вне db.begin()
   await fails(() => db.commit(), 'tx_required');
   await fails(() => db.rollback(), 'tx_required');
   await fails(() => db.lock('x'), 'tx_required');
 
-  // служебные операции: загрузчик — только администраторское подключение; verify, maintain, reset —
-  // системный администратор; reset — ещё и подтверждение именем схемы
+  // служебные операции: загрузчик — только администраторское подключение; verify и maintain — системный администратор
   await fails(() => db.load([]), 'admin_required');
   await fails(() => db.verify(), 'acl_denied');
   await fails(() => db.maintain(), 'acl_denied');
-  await fails(() => db.reset({ level: 'sessions', confirm: e.schema }), 'acl_denied');
-  await fails(() => adb.reset({ level: 'sessions', confirm: 'v2.other' }), 'confirm_mismatch');
   // ключ меняют только у собственных классов арендатора; Service — системный класс демо-домена
   await fails(() => db.rekeyClass('Услуга', ['name']), 'invalid_class');
   const m = await adb.maintain();
@@ -885,19 +862,11 @@ const COVERED: Record<string, string> = {
   // db
   as: 'А20', begin: 'А6 А7 А9', commit: 'А6 А7 А21', rollback: 'А7 А21', lock: 'А6 А7 А21', batch: 'А1 А5',
   watch: 'А15', close: 'везде', registry: 'А1', sql: 'А1', load: 'А21 (admin_required)', verify: 'А21',
-  maintain: 'А21', reset: 'А21 (права и подтверждение)', describe: 'А1', auth: 'А17 А18', acl: 'А19', idOf: 'А5 А6',
+  maintain: 'А21', auth: 'А17 А18', acl: 'А19', idOf: 'А5 А6',
   refresh: 'А15', transaction: 'А1', flushSignals: 'А15', schema: 'А1', token: 'А1', tenant: 'А1 А17',
   trimHistory: 'А14', rekeyClass: 'А21 (invalid_class: системный класс арендатору не перекодировать)',
   // батч
-  discard: 'А1', size: 'А1',
-};
-/** Охранники снесённого API (код removed) — проверены в Акте 21, живым API не считаются. */
-const GUARDS: Record<string, string> = {
-  run: 'снят в 1.0.0 — paths(); batch.run() жив (А1)', execute: 'снят — paths() / batch.run()',
-  account: 'снят — арендатор сессии и auth.switch()', reloadSchema: 'снят — db.refresh()',
-  accounts: 'фасад снят — системный класс Account', credentials: 'фасад снят — db.auth.credentials',
-  resources: 'фасад снят — системный класс Resource', rules: 'фасад снят — системный класс rule',
-  compact: 'снят — db.trimHistory и политика хранения',
+  run: 'А1', discard: 'А1', size: 'А1',
 };
 /** Имена, которых сценарий осознанно не касается как методов, — с причиной. */
 const NOT_TOUCHED: Record<string, string> = {
@@ -908,9 +877,9 @@ const NOT_TOUCHED: Record<string, string> = {
   then: 'не метод: цепочка нарочно не thenable (А21 проверяет, что then === undefined)',
 };
 
-test('Матрица покрытия: каждый метод цепочки, свойство db и батча — в акте, охранник или исключение с причиной', async () => {
+test('Матрица покрытия: каждый метод цепочки, свойство db и батча — в акте или исключение с причиной', async () => {
   const all = [...new Set<string>([...CHAIN_METHODS, ...DB_METHODS, ...BATCH_METHODS])];
-  const lists = { COVERED, GUARDS, NOT_TOUCHED };
+  const lists = { COVERED, NOT_TOUCHED };
   for (const name of all) {
     const where = Object.entries(lists).filter(([, l]) => name in l).map(([k]) => k);
     assert.equal(where.length, 1, `${name}: должен быть ровно в одном списке, найден в [${where.join(', ')}]`);
@@ -920,16 +889,7 @@ test('Матрица покрытия: каждый метод цепочки, �
   // покрытое действительно вызывается в тексте актов (до матрицы), а не только объявлено
   const src = readFileSync(import.meta.filename, 'utf8');
   const acts = src.slice(0, src.indexOf('// МАТРИЦА ПОКРЫТИЯ API 1.0'));
-  for (const name of [...Object.keys(COVERED), ...Object.keys(GUARDS)]) {
+  for (const name of Object.keys(COVERED)) {
     assert.match(acts, new RegExp(`[.\\[{'] ?${name}\\b`), `${name}: не встречается в актах`);
-  }
-
-  // охранники и сейчас бросают removed
-  for (const name of Object.keys(GUARDS)) {
-    const target = (DB_METHODS as readonly string[]).includes(name) ? db : db.Услуга();
-    await fails(() => {
-      const v = (target as unknown as Record<string, unknown>)[name];
-      return typeof v === 'function' ? (v as () => unknown)() : v;
-    }, 'removed');
   }
 });

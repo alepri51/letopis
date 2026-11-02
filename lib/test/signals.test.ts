@@ -2,7 +2,7 @@
  * signals — режимы сигналов NOTIFY (план 1.1, §2.2, этап 2; тест-план §7.3 №1–9, №12–17): нагрузка у
  * посторонней роли в каждом режиме, точность до арендатора, строки System, классы прав, процесс без
  * ключа, один путь у библиотеки и сырого SQL, загрузчик, подписка, ключ, режим none, склейка, версия
- * сервера, смена класса, повтор отправки, режим после повторного up() и reset({ all }).
+ * сервера, смена класса, повтор отправки, режим после повторного up().
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -52,7 +52,7 @@ async function hear(fn: () => Promise<unknown>): Promise<string[]> {
 }
 
 /** Режим сигналов схемы файла — повторным накатом с опцией. */
-const setMode = (mode: SignalMode) => install(e.sql, { schema: e.schema, allowReset: true, signals: mode });
+const setMode = (mode: SignalMode) => install(e.sql, { schema: e.schema, signals: mode });
 
 /** Ключ сигналов (администраторское подключение) и токены — независимо от кода библиотеки. */
 async function keyHex(): Promise<string> {
@@ -398,24 +398,18 @@ test('7.3 №17: отправка сигнала нотификатором уп
   assert.deepEqual(got, ['Signals17'], 'сигнал ушёл повтором');
 });
 
-test('7.3 №12: режим хранится в схеме — повторный up() без опции и reset({ all }) его не меняют', async () => {
+test('7.3 №12: режим хранится в схеме — повторный up() без опции его не меняет', async () => {
   const mode = async () => ((await e.sql.unsafe(`select ${e.S}.signal_mode() as m`))[0].m as string);
-  const r1 = await up({ dsn: ADMIN_DSN, schema: e.schema, signals: 'opaque', allowReset: true, quiet: true });
+  const r1 = await up({ dsn: ADMIN_DSN, schema: e.schema, signals: 'opaque', quiet: true });
   assert.equal(r1.signals, 'opaque');
   assert.ok(Array.isArray(r1.warnings));
   assert.equal(await mode(), 'opaque');
-  const r2 = await up({ dsn: ADMIN_DSN, schema: e.schema, allowReset: true, quiet: true });
+  const r2 = await up({ dsn: ADMIN_DSN, schema: e.schema, quiet: true });
   assert.equal(r2.signals, 'opaque', 'up() без опции — прежний режим');
   assert.equal(await mode(), 'opaque');
-  const adm = await connect({ dsn: ADMIN_DSN, schema: e.schema, allowBypassRls: true, max: 2, cache: false });
-  try {
-    await adm.reset({ level: 'all', confirm: e.schema });
-  } finally {
-    await adm.close();
-  }
   const [{ m }] = await e.sql.unsafe(`select meta->>'signals' as m from ${e.S}.secret where id = $1 and kind = 'KEY'`, [SYSTEM_ID]);
-  assert.equal(m, 'opaque', 'reset({ all }) кладёт режим в новую строку ключа');
-  const r3 = await up({ dsn: ADMIN_DSN, schema: e.schema, allowReset: true, quiet: true });
+  assert.equal(m, 'opaque', 'режим лежит в строке ключа');
+  const r3 = await up({ dsn: ADMIN_DSN, schema: e.schema, quiet: true });
   assert.equal(r3.signals, 'opaque');
   assert.equal(await mode(), 'opaque');
 });

@@ -58,10 +58,10 @@ alter function @SCHEMA@.sys_resource(uuid, text, text, jsonb) owner to @OWNER@;
 alter function @SCHEMA@.sys_rule(uuid, uuid, uuid, text, int, jsonb) owner to @OWNER@;
 revoke all on function @SCHEMA@.sys_resource(uuid, text, text, jsonb), @SCHEMA@.sys_rule(uuid, uuid, uuid, text, int, jsonb) from public;
 
--- Системный сид целиком (установка и reset({ all }), этап 6): ключ подписи и счётчик прав, System,
+-- Системный сид целиком (установка, этап 6): ключ подписи и счётчик прав, System,
 -- системные классы, общие группы и системные права (этап 5, п. 8). Роль admin — роль членства в
 -- System: системные администраторы работают в арендаторе System. Права auth.* — сервису
--- (имперсонация, выпуск сессий, креды), letopis.* (verify, reset, maintain) — только системному
+-- (имперсонация, выпуск сессий, креды), letopis.* (verify, maintain) — только системному
 -- администратору. Повторный вызов ничего не меняет.
 create or replace function @SCHEMA@.seed_system() returns void
 language plpgsql volatile
@@ -80,14 +80,13 @@ declare
 begin
   -- аккаунт System — раньше строки ключа: служебные строки secret (KEY, LOCK, PROJECTOR) принадлежат ему, а внешний
   -- ключ secret.account (ревизия 7) требует строку аккаунта в entity. Счётчик прав sys_create повышает, только когда
-  -- строка ключа уже есть, — на свежей установке и после reset({ all }) ей неоткуда взяться, и начальный v — 0
+  -- строка ключа уже есть, — на свежей установке ей неоткуда взяться, и начальный v — 0
   perform @SCHEMA@.sys_create('@SYSTEM@'::uuid, 'Account', '@SYSTEM@'::uuid, '{}',
     '{"name": "System", "categories": ["System"], "enabled": true}');
 
   -- Ключ подписи пропуска прав и счётчик изменений прав (50-acl.sql: acl_token, acl_bump); от ключа же
   -- выводится ключ сигналов. Режим сигналов (up({ signals })) хранится в meta этой строки: установщик
-  -- читает его перед накатом, поэтому повторный up() без опции режим не меняет, а reset({ all }) кладёт
-  -- его заново из константы установки.
+  -- читает его перед накатом, поэтому повторный up() без опции режим не меняет.
   insert into @SCHEMA@.secret as k (id, account, kind, material, meta)
   values ('@SYSTEM@'::uuid, '@SYSTEM@'::uuid, 'KEY', @PGCRYPTO@.gen_random_bytes(32), '{"v": 0, "signals": "@SIGNALS@"}')
   on conflict (id) do update set meta = k.meta || '{"signals": "@SIGNALS@"}'
