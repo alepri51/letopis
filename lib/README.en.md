@@ -2014,8 +2014,9 @@ sales.close()                                    // stop() after the current bat
   of its own. If the database rejects writing the results of a tenant (the data do not pass the description of its
   derived class, the target of an end is not found and so on) or `out` rejects a row or a delta built from its data
   (a delta that is not a number), only its changes are rolled back: the tenant drops out, and the others are written
-  in the same batch. A dropped tenant gets into `status().failed` — `{ [tenant id]: { cursor, code, message } }`, and
-  `message` names the tenant and the row id — and its changes are skipped until it is rebuilt. The derived rows of a
+  in the same batch. A dropped tenant gets into `status().failed` — `{ [tenant id]: { cursor, code, message, key,
+  params } }`, and `message` names the tenant and the row id and is built from the catalog key `key` in the language of
+  the connection — and its changes are skipped until it is rebuilt. The derived rows of a
   dropped tenant no longer change: a tenant dropped in `run()` keeps them as they were before the failed batch, and a
   tenant dropped in the middle of a rebuild is left without them — the partly built rows are deleted. An exception
   from `handle`, a breach of the `out` limits and a failure of the environment (a deadlock, a cancelled query, a
@@ -2093,19 +2094,16 @@ sales.close()                                    // stop() after the current bat
   error drops the tenant with its code, without retries. The tier of a rebuilt tenant counts from the start of its
   rebuild until the cursor catches up with it: a lagging projector does not drop it again. A projector without new
   changes does not expire. `status().lag` is the age of the oldest unprocessed change in ms.
-- `run({ once: true })` reads the log up to the horizon — the oldest open transaction of the cluster — and returns when
-  there are no more changes before the horizon or another process is writing a batch (the `skipped` counter). Changes
-  committed after a still open transaction began wait for its end, so after `once` the projection may lag behind. To
-  catch up with the log completely, repeat the passes until `status().lag` is 0, with a time limit:
+- `run({ once: true })` catches up with everything committed before the call. A projector reads the log up to the
+  horizon — the oldest open transaction of the cluster; otherwise it would lose the changes of transactions that commit
+  later. So `once` waits for the transactions open at the moment of the call — no longer than `wait` ms (5000 by
+  default, `0` — do not wait) — and answers `caughtUp: true` if it caught up. `caughtUp: false` means a long
+  transaction held the horizon longer than `wait` (its changes and everything after it go to the next run) or another
+  process is writing a batch (the `skipped` counter):
 
   ```ts
-  const deadline = Date.now() + 60_000
-  for (;;) {
-    await sales.run({ once: true })
-    if ((await sales.status()).lag === 0) break                    // caught up: no unprocessed changes
-    if (Date.now() > deadline) throw new Error('the projector did not catch up')   // a long transaction holds the horizon
-    await new Promise((resolve) => setTimeout(resolve, 200))
-  }
+  const r = await sales.run({ once: true, wait: 30_000 })
+  if (!r.caughtUp) console.warn('the projector did not catch up: a long transaction holds the horizon')
   ```
 - A projector works with the tenants in which every `into` class is marked with its `derivedBy`; it skips the changes
   of other tenants, so a class with the same name and no mark in another tenant does not get in its way. No such tenant
@@ -2126,7 +2124,8 @@ sales.close()                                    // stop() after the current bat
 - `lockTimeout` is how long a projector transaction waits for another transaction's row lock (5000 ms; 0 — no limit).
   Otherwise a transaction of any tenant holding a total row or an end target would hold the batch of all tenants.
   Longer than that, the batch rolls back, the cursor stays, and `run()` does not reject but skips the pass
-  (`skipped`) and repeats it. The report names the tenant whose row stopped the batch (`locked`).
+  (`skipped`) and repeats it (`run({ once: true })` does not repeat it but returns with `caughtUp: false`). The report
+  names the tenant whose row stopped the batch (`locked`).
   `rebuild({ tenant, chunked: true })` waits such a lock out.
 - `lockRetries` is how many passes in a row the writes of one tenant may run into `lockTimeout` before it drops out
   (0 by default — it never drops out). The dropped tenant gets the code `55P03`, and the batch goes on for the others;
@@ -2651,11 +2650,11 @@ give `invalid_data`.
 | Member | What it does |
 |---|---|
 | options `ProjectorOptions` | `from`, `into`: classes with descendants; `version`: an integer from 1; `handle(changes, out)`; `withBefore`; `onExpired: 'rebuild' \| 'error'` (`'rebuild'` rebuilds in batches); `batch`: changes in a batch (500, from 1 to 10,000); `pollMs`: fallback polling (1000 ms); `lockTimeout`: waiting for another transaction's row lock (5000 ms, 0 — no limit); `lockRetries`: passes in a row before a tenant with another transaction's lock drops out (0 — never); `tenants`: ids of the participant tenants |
-| `run({ once })` | catch up with the journal (`once`) or follow it until `stop()` → `ProjectorReport` |
+| `run({ once, wait })` | catch up with the journal (`once`; waits up to `wait` ms, 5000 by default, for the transactions open at the call) or follow it until `stop()` → `ProjectorReport` |
 | `rebuild({ chunked, tenant })` | rebuild from the current state: atomically, in batches or for one tenant → `ProjectorReport` |
-| `status()` | → `ProjectorStatus`: `{ name, state, version, cursor, at, lag, failed, rebuildingTenants }`; `failed` is `{ [tenant id]: ProjectorFailure }`, where `ProjectorFailure` is `{ cursor, code, message }` |
+| `status()` | → `ProjectorStatus`: `{ name, state, version, cursor, at, lag, failed, rebuildingTenants }`; `failed` is `{ [tenant id]: ProjectorFailure }`, where `ProjectorFailure` is `{ cursor, code, message, key?, params? }` (`message` is in the language of the connection, built from the catalog key `key`) |
 | `stop()`, `close()` | stop `run()` after the current batch; the same plus unsubscribing from signals |
-| `ProjectorReport` | `{ batches, changes, created, updated, deleted, unchanged, skipped, rebuilds, locked }` |
+| `ProjectorReport` | `{ batches, changes, created, updated, deleted, unchanged, skipped, rebuilds, locked, caughtUp }` (`caughtUp` — only with `once`: whether it caught up with everything committed before the call) |
 | `ProjectorChange` | `{ cursor, id, class, tenant, op, rev, at, author, row }` and, when present, `agent`, `reason`, `moved`, `before`, `rebuild` |
 | `ProjectorOut` | `upsert(class, row, { tenant })`, `inc(class, row, deltas, { tenant })`, `delete(class, key or id, { tenant })`, `get(class, key or id, { tenant })` → `Row \| null`; a row is a `ProjectorRow` in the loader format; for a class with a key `delete` and `get` go by the key, an id only for a class without a key |
 
@@ -3114,7 +3113,7 @@ order; the first red step stops the run. The same load for a day: `cd lib && npm
 # history — diff and blame over the log, the reason of a change for verbs, db.begin() and batches; a version hidden by an ACL condition, the changed column, a missing version, row_changes over 20 thousand targets (plan 1.1, stage 1 and checkpoint A)
 # signals — signal modes: the payload seen by a foreign role, cache precision per tenant, System, permission classes, a process without the key, the loader, subscriptions, the key, none, coalescing, the server version, a class change, a resend, the mode after up() and reset({ all }) (plan 1.1, stage 2)
 # initial-load — the initial load: equality with the regular loader, structure and trigger modes, system rows, a non-empty schema, an insert during the start, rollback, MULTI_INSERT in WAL, commitEvery, import --initial, aggregates (agg_fill) (plan 1.1, stages 3 and 4b)
-# projector — projectors from the journal: catching up, exactly once on a break, one writer, a long transaction, a transaction on the boundary of the rebuild snapshot, no writes to derived classes and no references to them, the bounds of out, atomic and batch rebuilds during source writes, purge of a source, lag and cursor_expired, the credential functions; the version, the name, an admin connection; a race of two processes; a data error of one tenant drops out only this tenant (failed, rebuild({ tenant }), the tenants option), the checkpoint is only a System row, a rebuild touches only the rows of participants and into families, before after rekey, the all tier and the journal of sources per tenant; folding of out.inc by key in a batch, batch rebuilds on the automatic paths of run() and a second process during them; rebuilding one tenant in batches while the tail goes on; onExpired in batches in another process, a data error without retries, the tier from the start of the rebuild; an empty last pass of a batch rebuild, a tenant that drops out in the middle of its rebuild keeps no partial rows, a class change that keeps the id out of the source family and into it, purge of an unread tombstone (plan 1.1, stage 4a; security review No. 2; checkpoint B and the work after it; security review No. 3)
+# projector — projectors from the journal: catching up, exactly once on a break, one writer, a long transaction, a transaction on the boundary of the rebuild snapshot, no writes to derived classes and no references to them, the bounds of out, atomic and batch rebuilds during source writes, purge of a source, lag and cursor_expired, the credential functions; the version, the name, an admin connection; a race of two processes; a data error of one tenant drops out only this tenant (failed, rebuild({ tenant }), the tenants option), the checkpoint is only a System row, a rebuild touches only the rows of participants and into families, before after rekey, the all tier and the journal of sources per tenant; folding of out.inc by key in a batch, batch rebuilds on the automatic paths of run() and a second process during them; rebuilding one tenant in batches while the tail goes on; onExpired in batches in another process, a data error without retries, the tier from the start of the rebuild; an empty last pass of a batch rebuild, a tenant that drops out in the middle of its rebuild keeps no partial rows, a class change that keeps the id out of the source family and into it, purge of an unread tombstone, run({ once: true }) waits up to wait ms for the transactions open at the call — caughtUp (plan 1.1, stage 4a; security review No. 2; checkpoint B and the work after it; security review No. 3; plan 2.0, stage 3, item 9)
 # mcp — MCP tools: the model and meta only in results, tenant rights, the JSON chain and hints of similar names, row and byte limits with a cursor, the untrusted-data wrapper, writing only with write, update only with rev, deletion with a human confirmation (elicitation in revisions 2025 and 2026-07-28), the reason in blame, credentials, tool schemas, letopis without the SDK; letopis mcp over stdio, the HTTP handler; the confirmation window without the alias and meta, countBy and versions limited in the query itself, limits of steps and $or conditions; the permission classes only with allowAclWrite, a session in the System tenant only with allowSystemAdmin; structuredContent with a note, a requestState signature of the server user with an expiry (plan 1.1, stage 5; security review No. 2; checkpoint B and the work after it)
 # import — import from 0.21 with a fixture of a real 0.21: key violation, --keyless, per-class counters, verify, self-reference, repeat, ids without a key, a dangling reference, $$strict and fields starting with $, update, credentials, CLI (stage 7)
 # security-final — the final security review (stage 8, §7.10 No. 8.4): a family lock by the tenant of the root, account_purge without permission and restore/purge of a foreign id give neither a leak nor a lock; the functions of stage 6, log_refs_at, journal-based find_* reads and watch_read stay within their own tenant; NOTIFY carries only names or mode tokens; the cache key distinguishes the token, the actor and the tenant (stage 8)

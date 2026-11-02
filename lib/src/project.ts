@@ -23,7 +23,8 @@
  * этого арендатора, чья транзакция в нём видна.
  */
 import type postgres from 'postgres';
-import { LetopisError, checkOptions, fromDbError, lerr, lmsg } from './errors.js';
+import { LetopisError, checkOptions, fromDbError, lerr, lmsg, type MsgKey, type Params } from './errors.js';
+import { msgOf } from './messages/index.js';
 import { release, rollbackAfter } from './tx.js';
 import { toRow } from './sql.js';
 import { wakes } from './watch.js';
@@ -165,7 +166,15 @@ export interface ProjectorReport {
   rebuilds: number;
   /** Арендаторы, чья запись упиралась в чужую блокировку строки дольше lockTimeout (по порядку, без повторов). */
   locked: string[];
+  /**
+   * Только у run({ once: true }): догнал ли запуск всё, что было зафиксировано до вызова. false — транзакция, открытая в
+   * момент вызова, держала горизонт дольше wait, блокировку проектора держит другой процесс (skipped) или вызван stop().
+   */
+  caughtUp?: boolean;
 }
+
+/** Опции run(): неизвестную checkOptions называет с похожими. */
+const RUN_OPTIONS = { once: true, wait: true } as const;
 
 /** Выбывший арендатор: база отклонила запись его результатов. */
 export interface ProjectorFailure {
@@ -176,8 +185,21 @@ export interface ProjectorFailure {
    * арендатора, invalid_class — его источники не ведут журнал (history: false).
    */
   code: string;
-  /** Текст ошибки: проектор, арендатор и id строки. */
+  /** Текст ошибки: проектор, арендатор и id строки — на языке подключения, если отметка несёт ключ каталога. */
   message: string;
+  /** Ключ каталога сообщений и параметры текста: по ним status() и rebuild({ tenant }) собирают message на языке подключения. */
+  key?: string;
+  params?: Record<string, unknown>;
+}
+
+/** Отметка выбывшего по ключу каталога: текст — на языке вокруг, ключ и параметры — чтобы перевести при чтении. */
+function failure(cursor: string, code: string, key: MsgKey, params: Params): ProjectorFailure {
+  return { cursor, code, message: lmsg(key, params), key, params };
+}
+
+/** Текст отметки на языке вокруг: по ключу каталога, если он есть и известен этой версии; иначе — записанный. */
+function localized(f: ProjectorFailure): ProjectorFailure {
+  return f.key && msgOf(f.key) ? { ...f, message: lmsg(f.key as MsgKey, f.params as Params | undefined) } : f;
 }
 
 export interface ProjectorStatus {
@@ -512,11 +534,17 @@ export class Projector {
   }
 
   /**
-   * Догнать журнал и следовать за ним до stop(); { once: true } — только догнать. Первый запуск (проекции
-   * ещё нет) начинается с перестройки пачками, прерванная перестройка пачками продолжается; так же, пачками,
-   * перестраивает onExpired: 'rebuild' (решение точки Б: горизонт подписок кластера стоит не дольше пачки).
+   * Догнать журнал и следовать за ним до stop(); { once: true } — только догнать: всё, что зафиксировано до вызова.
+   * Проектор читает журнал ниже горизонта — самой старой открытой транзакции кластера, иначе потерял бы события
+   * транзакций, зафиксированных позже; поэтому once ждёт транзакции, открытые в момент вызова, до wait мс (по умолчанию
+   * 5000, 0 — не ждать) и отвечает caughtUp: true, если догнал. Первый запуск (проекции ещё нет) начинается с
+   * перестройки пачками, прерванная перестройка пачками продолжается; так же, пачками, перестраивает onExpired:
+   * 'rebuild' (решение точки Б: горизонт подписок кластера стоит не дольше пачки).
    */
-  async run(opts: { once?: boolean } = {}): Promise<ProjectorReport> {
+  async run(opts: { once?: boolean; wait?: number } = {}): Promise<ProjectorReport> {
+    checkOptions('projector.run', opts, RUN_OPTIONS);
+    const wait = opts.wait ?? 5000;
+    if (!Number.isInteger(wait) || wait < 0) throw lerr('derived.bad_wait', { name: this.name });
     if (this.running) throw lerr('derived.already_running', { name: this.name });
     if (this.env.ready) {
       await this.env.ready();
@@ -526,9 +554,18 @@ export class Projector {
     this.stopped = false;
     if (!this.env.onSignal) this.stale = true;
     const rep = emptyReport();
+    const done = (caughtUp: boolean): ProjectorReport => {
+      if (opts.once) rep.caughtUp = caughtUp;
+      return rep;
+    };
     try {
+      // once — граница: xmax снимка на входе; транзакции ниже неё (открытые в момент вызова) горизонт ещё держат
+      const goal = opts.once ? await this.snapXmax() : null;
+      const deadline = Date.now() + wait;
       for (;;) {
-        if (this.stopped) return rep;
+        if (this.stopped) return done(false);
+        // горизонт до прохода уже за границей — пустой проход значит «догнал всё, что зафиксировано до вызова»
+        const ready = goal !== null && (await this.horizonAt(goal));
         let r: 'busy' | 'empty' | 'more' | 'rebuild';
         try {
           r = await this.step(rep);
@@ -558,11 +595,41 @@ export class Projector {
           r = 'busy';
         }
         if (r === 'more') continue;
-        if (opts.once) return rep;
-        await this.sleep();
+        if (goal === null) {
+          await this.sleep();
+          continue;
+        }
+        // блокировку проектора держит другой процесс — сразу, как прежде (skipped)
+        if (r === 'busy') return done(false);
+        if (ready) return done(true);
+        // горизонт держат транзакции, открытые в момент вызова: ждать их до wait мс, затем ещё проход
+        if (!(await this.untilHorizon(goal, deadline))) return done(false);
       }
     } finally {
       this.running = false;
+    }
+  }
+
+  /** xmax текущего снимка: транзакции с меньшим номером начаты до этой минуты. */
+  private async snapXmax(): Promise<string> {
+    const [r] = await this.env.sql.unsafe(`select pg_snapshot_xmax(pg_current_snapshot())::text as x`);
+    return String(r.x);
+  }
+
+  /** Горизонт кластера (самая старая открытая транзакция) прошёл goal; mark — метка ожидания в тексте запроса. */
+  private async horizonAt(goal: string, mark = false): Promise<boolean> {
+    const [r] = await this.env.sql.unsafe(
+      `select ${mark ? '/* letopis projector once: wait */ ' : ''}pg_snapshot_xmin(pg_current_snapshot()) >= $1::xid8 as ok`, [goal]);
+    return Boolean(r?.ok);
+  }
+
+  /** Ждать, пока горизонт пройдёт goal, не дольше deadline; stop() прерывает. */
+  private async untilHorizon(goal: string, deadline: number): Promise<boolean> {
+    for (;;) {
+      const left = deadline - Date.now();
+      if (left <= 0 || this.stopped) return false;
+      await new Promise((res) => setTimeout(res, Math.min(50, left)));
+      if (await this.horizonAt(goal, true)) return true;
     }
   }
 
@@ -600,7 +667,10 @@ export class Projector {
         // ошибка данных арендатора — как у перестройки одной транзакцией: отказ, арендатор выбывший; чекпоинт держит
         // пачка run() другого процесса дольше lockTimeout — подождать
         const f = (await this.untilFree(rep, () => this.tx(async (q) => this.state(q)))).failed?.[tenant];
-        if (f) throw new LetopisError(f.code as never, f.message);
+        if (f) {
+          const l = localized(f);
+          throw new LetopisError(l.code, l.message, undefined, l.key ? { key: l.key, params: l.params as Params | undefined } : undefined);
+        }
         // последнюю пачку мог записать run() другого процесса (он продвигает начатые перестройки): перестройка этого
         // вызова всё равно завершена
         if (rep.rebuilds === started) rep.rebuilds++;
@@ -634,7 +704,7 @@ export class Projector {
         cursor: meta.cursor ?? null,
         at: meta.at ?? null,
         lag,
-        failed,
+        failed: Object.fromEntries(Object.entries(failed).map(([k, f]) => [k, localized(f)])),
         rebuildingTenants: Object.entries(meta.retenant ?? {}).filter(([, v]) => !v.done).map(([t]) => t).sort(),
       };
     });
@@ -705,7 +775,9 @@ export class Projector {
 
   /** Отметка выбывшего: источники арендатора не ведут журнал. */
   private blindFailure(tenant: string, cursor: string): ProjectorFailure {
-    return { cursor, code: 'invalid_class', message: this.blindError(tenant).message.replace(/^letopis: [a-z_]+: /, '') };
+    const e = this.blindError(tenant);
+    return { cursor, code: 'invalid_class', message: e.message.replace(/^letopis: [a-z_]+: /, ''),
+      ...(e.key ? { key: e.key, params: e.params } : {}) };
   }
 
   private blindError(tenant: string): LetopisError {
@@ -815,8 +887,7 @@ export class Projector {
           throw lerr('derived.cursor_expired', { name: this.name });
         }
         for (const x of old) {
-          failed[x] = { cursor: meta.cursor, code: 'cursor_expired',
-            message: lmsg('derived.tenant_cursor_expired', { name: this.name, tenant: x }) };
+          failed[x] = failure(meta.cursor, 'cursor_expired', 'derived.tenant_cursor_expired', { name: this.name, tenant: x });
         }
       }
       let pos: Pos = cur;
@@ -979,13 +1050,10 @@ export class Projector {
           this.lockHits.delete(tenant);
           await q.unsafe('rollback to savepoint letopis_projector');
           await q.unsafe('release savepoint letopis_projector');
-          failed[tenant] = {
-            cursor: list[0].cursor || start,
-            code: '55P03',
-            // форма числа — по правилу русского языка: 1, 21, 31 … — «прохода», иначе «проходов» (две записи каталога)
-            message: lmsg(hits % 10 === 1 && hits % 100 !== 11 ? 'derived.tenant_locked_one' : 'derived.tenant_locked_many',
-              { name: this.name, tenant, passes: hits }),
-          };
+          // форма числа — по правилу русского языка: 1, 21, 31 … — «прохода», иначе «проходов» (две записи каталога)
+          failed[tenant] = failure(list[0].cursor || start, '55P03',
+            hits % 10 === 1 && hits % 100 !== 11 ? 'derived.tenant_locked_one' : 'derived.tenant_locked_many',
+            { name: this.name, tenant, passes: hits });
           continue;
         }
         if (!failed || !out.owns(e) || !tenantFault(cause)) throw e;
@@ -996,6 +1064,8 @@ export class Projector {
           cursor: list[0].cursor || start,
           code: le instanceof LetopisError ? le.code : String(le?.code ?? 'internal'),
           message: String(le?.message ?? le).replace(/^letopis: [a-z_]+: /, ''),
+          // ключ ошибки базы или out (DETAIL, lerr) — чтобы прочитать текст на языке подключения
+          ...(le instanceof LetopisError && le.key ? { key: le.key, params: le.params } : {}),
         };
         continue;
       }
@@ -1275,7 +1345,7 @@ export class Projector {
           if (!this.scopes.has(tenant) || this.blind.has(tenant)) {
             const failed: Failed = { ...(meta.failed ?? {}) };
             failed[tenant] = this.scopes.has(tenant) ? this.blindFailure(tenant, meta.cursor)
-              : { cursor: meta.cursor, code: 'tenant_denied', message: lmsg('derived.left_before_rebuild', { name: this.name, tenant }) };
+              : failure(meta.cursor, 'tenant_denied', 'derived.left_before_rebuild', { name: this.name, tenant });
             await this.advance(q, meta.cursor, withFailed(meta, failed));
             return 'skip';
           }
@@ -1322,7 +1392,7 @@ export class Projector {
       const sc = this.scopes.get(tenant);
       const failed: Failed = { ...(meta.failed ?? {}) };
       if (!sc || this.blind.has(tenant)) {
-        failed[tenant] = sc ? this.blindFailure(tenant, meta.cursor!) : { cursor: meta.cursor!, code: 'tenant_denied', message: lmsg('derived.left_during_rebuild', { name: this.name, tenant }) };
+        failed[tenant] = sc ? this.blindFailure(tenant, meta.cursor!) : failure(meta.cursor!, 'tenant_denied', 'derived.left_during_rebuild', { name: this.name, tenant });
       } else {
         const rows = await q.unsafe(`with s as (select pg_current_snapshot()::text as snap)
           select s.snap, case when e.id is null then null else ${rowJson('e')} end as row

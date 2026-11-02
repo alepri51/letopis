@@ -124,6 +124,13 @@ export const derived = {
     en: 'projector {name}: batch must be from 1 to 10,000',
     hint: OPTION_HINT,
   },
+  // project.ts, run(): опция wait — сколько once ждёт транзакции, открытые в момент вызова
+  'derived.bad_wait': {
+    code: 'invalid_data',
+    ru: 'проектор {name}: run({ wait }) — целое число мс, 0 и больше',
+    en: 'projector {name}: run({ wait }) must be an integer number of ms, 0 or more',
+    hint: OPTION_HINT,
+  },
   // project.ts, run(): run() того же объекта проектора ещё идёт (проверка до и после env.ready)
   'derived.already_running': {
     code: 'invalid_query',

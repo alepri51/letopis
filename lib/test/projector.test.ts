@@ -172,11 +172,49 @@ test('7.5 №4: долгая пишущая транзакция — проек�
   await p.run({ once: true });
   const a = await e.hold(t.token, (tx) => tx.unsafe(`insert into ${e.S}.entity (class, data) values ('Sale', '{"day": "long", "amount": 100}')`));
   await insSale(t.token, { day: 'long', amount: 1 });
-  await p.run({ once: true });
+  assert.equal((await p.run({ once: true, wait: 0 })).caughtUp, false);
   assert.equal((await totals(db)).long, undefined, 'горизонт стоит на A: зафиксированная позже B ещё не отдана');
   await a.finish(true);
-  await p.run({ once: true });
+  assert.equal((await p.run({ once: true })).caughtUp, true);
   assert.deepEqual((await totals(db)).long, { total: 101, count: 2 });
+  p.close();
+});
+
+/** Ждать запрос с меткой mark, начатый после since (время сервера), — признак, что run() дошёл до этого места. */
+async function untilQuery(mark: string, since: string): Promise<void> {
+  for (let i = 0; i < 1000; i++) {
+    const [r] = await e.sql.unsafe(`select count(*)::int as n from pg_stat_activity
+      where pid <> pg_backend_pid() and query_start > $2::timestamptz and strpos(query, $1) > 0`, [mark, since]);
+    if (r.n > 0) return;
+    await new Promise((res) => setTimeout(res, 20));
+  }
+  throw new Error(`run() не дошёл до «${mark}»`);
+}
+
+test('план 2.0, этап 3, п. 9: run({ once: true }) догоняет всё, что зафиксировано до вызова, — ждёт транзакции, открытые в момент вызова, до wait мс; отчёт caughtUp (внедрение)', async () => {
+  const p = adm.projector('daily', dailyDef());
+  assert.equal((await p.run({ once: true })).caughtUp, true, 'горизонт свободен — догнал');
+  // A начата раньше B и держит горизонт ниже неё
+  const a = await e.hold(t.token, (tx) => tx.unsafe(`insert into ${e.S}.entity (class, data) values ('Sale', '{"day": "wait", "amount": 100}')`));
+  await insSale(t.token, { day: 'wait', amount: 1 });
+  assert.equal((await p.run({ once: true, wait: 0 })).caughtUp, false, 'без ожидания — не догнал');
+  assert.equal((await totals(db)).wait, undefined);
+  // с ожиданием: A фиксируется, пока run() ждёт, — проход догоняет и A, и B
+  const [{ now }] = await e.sql.unsafe(`select clock_timestamp()::text as now`);
+  const running = p.run({ once: true, wait: 60_000 });
+  await untilQuery('/* letopis projector once: wait */', now as string);
+  await a.finish(true);
+  const r = await running;
+  assert.equal(r.caughtUp, true);
+  assert.deepEqual((await totals(db)).wait, { total: 101, count: 2 });
+  // предел: транзакция держит горизонт дольше wait — возврат с caughtUp: false, событие не потеряно
+  const b = await e.hold(t.token, (tx) => tx.unsafe(`insert into ${e.S}.entity (class, data) values ('Sale', '{"day": "late", "amount": 10}')`));
+  await insSale(t.token, { day: 'late', amount: 2 });
+  assert.equal((await p.run({ once: true, wait: 200 })).caughtUp, false);
+  await b.finish(true);
+  assert.equal((await p.run({ once: true })).caughtUp, true);
+  assert.deepEqual((await totals(db)).late, { total: 12, count: 2 });
+  await assert.rejects(p.run({ once: true, wait: -1 }), lt('invalid_data'));
   p.close();
 });
 
@@ -476,6 +514,41 @@ test('ревью безопасности №2, Н1: ошибка данных �
   } finally {
     p.close();
     await xdb.close();
+  }
+});
+
+test('план 2.0, 7.9 №5: отметка выбывшего — по ключу каталога: status() и rebuild({ tenant }) на подключении с lang en — по-английски', async () => {
+  // у z итог дня не больше 0: первая же сумма отклоняется базой — z выбывает с invalid_data
+  const z = await e.tenant('proj-en');
+  await e.defineClass(z, { name: 'Sale', kind: 'hub', fields: { properties: { day: { type: 'string' }, amount: { type: 'integer' } }, required: ['day', 'amount'] } });
+  await e.defineDerived(z, { name: 'EnTotal', kind: 'hub', key: ['day'], derivedBy: 'enmark', history: false,
+    fields: { properties: { day: { type: 'string' }, total: { type: 'integer', maximum: 0 } }, required: ['day'] } });
+  const def: ProjectorOptions = { from: ['Sale'], into: ['EnTotal'], version: 1, tenants: [z.id],
+    handle(changes, out) {
+      for (const c of changes) if (c.op === 'create') out.inc('EnTotal', { day: 'd' }, { total: 1 }, { tenant: c.tenant });
+    } };
+  const cyr = /[а-яё]/i;
+  const p = adm.projector('enmark', def);
+  const en = await connect({ dsn: ADMIN_DSN, schema: e.schema, allowBypassRls: true, max: 1, listen: false, lang: 'en' });
+  const pe = en.projector('enmark', def);
+  try {
+    await insSale(z.token, { day: 'a', amount: 1 });
+    await p.run({ once: true });
+    const ru = (await p.status()).failed[z.id];
+    assert.equal(ru.code, 'invalid_data');
+    assert.match(ru.message, cyr, 'ru — прежний текст');
+    const f = (await pe.status()).failed[z.id];
+    assert.equal(f.code, 'invalid_data');
+    assert.doesNotMatch(f.message, cyr, f.message);
+    await assert.rejects(pe.rebuild({ tenant: z.id, chunked: true }), (err: Error & { code?: string }) => {
+      assert.equal(err.code, 'invalid_data');
+      assert.doesNotMatch(err.message, cyr, err.message);
+      return true;
+    });
+  } finally {
+    pe.close();
+    p.close();
+    await en.close();
   }
 });
 

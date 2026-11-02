@@ -453,9 +453,11 @@ p.run().catch(report)         // run() without once needs a catch: after a proje
 ```
 - Not an admin connection → `admin_required`.
 - A batch → one transaction; every change is applied exactly once; there is one writer.
-- `run({ once: true })` → catches up with the journal only up to the horizon of the cluster's open transactions and
-  skips a pass if another process writes a batch; to catch up completely → repeat until `(await p.status()).lag` is 0,
-  with a time limit.
+- `run({ once: true })` → catches up with everything committed before the call: waits up to `wait` ms (5000 by default,
+  `0` — do not wait) for the transactions open at the call (they hold the horizon); the answer `caughtUp: true` — it
+  caught up.
+- `caughtUp: false` → a long transaction held the horizon longer than `wait` or another process writes a batch
+  (`skipped`); the next run takes the rest.
 - `rebuild()` while another process writes a batch → `projector_busy`.
 - The first start → rebuilds the projection from the current state, in batches.
 - `purge`, `trim` and `reset` → come as changes with `rev` 1, so check `op` first.
