@@ -773,9 +773,11 @@ for (const p of PAGES) {
 // ---------- запись или сверка ----------
 const stale: string[] = [];
 if (!check) mkdirSync(OUT, { recursive: true });
-for (const [name, text] of pages) {
+for (const [name, raw] of pages) {
   const file = join(OUT, name);
-  // концы строк с диска не важны (рабочая копия Windows с core.autocrlf=true — CRLF): сравнение по LF
+  // концы строк с диска не важны (рабочая копия Windows с core.autocrlf=true — CRLF): страница — в LF, сравнение по LF.
+  // Тексты JSDoc и объявлений берутся из исходников, а у них в рабочей копии тоже бывают CRLF
+  const text = raw.replace(/\r\n/g, '\n');
   if (check) { if (!existsSync(file) || readFileSync(file, 'utf8').replace(/\r\n/g, '\n') !== text) stale.push(`pages/${API_DIR}/${name}`); }
   else writeFileSync(file, text);
 }
