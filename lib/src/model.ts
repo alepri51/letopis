@@ -13,6 +13,7 @@
 import { z } from 'zod';
 import { lerr } from './errors.js';
 import { normalizeSchema, type JsonSchema } from './jsonschema.js';
+import { RESERVED_CLASS_NAMES } from './types.js';
 
 export type OnDelete = 'restrict' | 'cascade' | 'unset';
 
@@ -32,8 +33,17 @@ export interface HistoryPolicy {
 
 type Target = AnyModel | string;
 
-/** Конец класса: `one(X)`, `one(A, B)`, `many(X, { min, max })`. */
-export class End<Many extends boolean = boolean, Required extends boolean = boolean> {
+/** Имя класса цели: у модели — её имя, у строки — сама строка. */
+type TargetName<T> = T extends string ? T : T extends { readonly name: infer N extends string } ? N : string;
+
+/**
+ * Обязателен ли множественный конец по `min` (для типов): `min` больше нуля — да, нет `min` или ноль — нет, число,
+ * известное только во время выполнения, — неизвестно (`boolean`).
+ */
+type MinRequired<O> = O extends { min: infer N } ? (N extends 0 | undefined ? false : number extends N ? boolean : true) : false;
+
+/** Конец класса: `one(X)`, `one(A, B)`, `many(X, { min, max })`. `T` — имена классов целей (только для типов). */
+export class End<Many extends boolean = boolean, Required extends boolean = boolean, T extends string = string> {
   readonly targets: readonly Target[];
   readonly many: Many;
   readonly required: Required;
@@ -41,6 +51,8 @@ export class End<Many extends boolean = boolean, Required extends boolean = bool
   readonly max?: number;
   readonly onDeleteRule?: OnDelete;
   readonly metaData?: Record<string, unknown>;
+  /** Только для вывода типов: имена классов целей — строгие переходы и слоты цепочек (план 2.0, этап 4, п. 1). */
+  declare readonly __targets?: T;
 
   constructor(targets: readonly Target[], opts: { many: Many; required: Required; min?: number; max?: number; onDelete?: OnDelete; meta?: Record<string, unknown> }) {
     if (!targets.length) throw lerr('model.end_no_targets');
@@ -53,7 +65,7 @@ export class End<Many extends boolean = boolean, Required extends boolean = bool
     this.metaData = opts.meta;
   }
 
-  private with<M extends boolean, R extends boolean>(patch: Partial<{ many: M; required: R; onDelete: OnDelete; meta: Record<string, unknown> }>): End<M, R> {
+  private with<M extends boolean, R extends boolean>(patch: Partial<{ many: M; required: R; onDelete: OnDelete; meta: Record<string, unknown> }>): End<M, R, T> {
     return new End(this.targets, {
       many: (patch.many ?? this.many) as M,
       required: (patch.required ?? this.required) as R,
@@ -61,15 +73,15 @@ export class End<Many extends boolean = boolean, Required extends boolean = bool
       max: this.max,
       onDelete: patch.onDelete ?? this.onDeleteRule,
       meta: patch.meta ?? this.metaData,
-    });
+    }) as End<M, R, T>;
   }
 
   /** Необязательный конец. */
-  optional(): End<Many, false> { return this.with<Many, false>({ required: false }); }
+  optional(): End<Many, false, T> { return this.with<Many, false>({ required: false }); }
   /** Правило при удалении цели: restrict (по умолчанию), cascade, unset. */
-  onDelete(rule: OnDelete): End<Many, Required> { return this.with<Many, Required>({ onDelete: rule }); }
+  onDelete(rule: OnDelete): End<Many, Required, T> { return this.with<Many, Required>({ onDelete: rule }); }
   /** Метаданные конца (§2.13). */
-  meta(meta: Record<string, unknown>): End<Many, Required> { return this.with<Many, Required>({ meta }); }
+  meta(meta: Record<string, unknown>): End<Many, Required, T> { return this.with<Many, Required>({ meta }); }
 
   /** Имена классов целей. */
   classNames(): string[] {
@@ -78,14 +90,19 @@ export class End<Many extends boolean = boolean, Required extends boolean = bool
 }
 
 /** Одиночный конец; несколько классов — союз: `one(Service, Product)`. По умолчанию обязательный. */
-export function one(...targets: Target[]): End<false, true> {
-  return new End(targets, { many: false, required: true });
+export function one<const T extends readonly Target[]>(...targets: T): End<false, true, TargetName<T[number]>> {
+  return new End(targets, { many: false, required: true }) as End<false, true, TargetName<T[number]>>;
 }
 
-/** Множественный конец: список целей в одном конце (§4 предложения). */
-export function many(target: Target | readonly Target[], opts: { min?: number; max?: number; onDelete?: OnDelete } = {}): End<true, boolean> {
+/**
+ * Множественный конец: список целей в одном конце (§4 предложения). Обязателен при `min` больше нуля — `unset()` у него
+ * в цепочке типизированного подключения нет.
+ */
+export function many<const T extends Target | readonly Target[], const O extends { min?: number; max?: number; onDelete?: OnDelete } = Record<never, never>>(
+  target: T, opts: O = {} as O): End<true, MinRequired<O>, TargetName<T extends readonly (infer X)[] ? X : T>> {
   const targets = Array.isArray(target) ? target : [target as Target];
-  return new End<true, boolean>(targets, { many: true, required: (opts.min ?? 0) > 0, min: opts.min, max: opts.max, onDelete: opts.onDelete });
+  return new End<true, boolean>(targets, { many: true, required: (opts.min ?? 0) > 0, min: opts.min, max: opts.max, onDelete: opts.onDelete }) as
+    End<true, MinRequired<O>, TargetName<T extends readonly (infer X)[] ? X : T>>;
 }
 
 type EndsInput = Record<string, End | AnyModel>;
@@ -150,7 +167,24 @@ export interface LostRule {
 type DataOf<P, S extends z.ZodRawShape> = P extends Model<string, infer PD, unknown> ? Omit<PD, keyof z.output<z.ZodObject<S>>> & z.output<z.ZodObject<S>> : z.output<z.ZodObject<S>>;
 type AllLinks<P, E extends EndsInput> = P extends Model<string, unknown, infer PL> ? Omit<PL, keyof E> & LinksOf<E> : LinksOf<E>;
 
-export interface Model<N extends string = string, D = unknown, L = unknown, A extends string = string> {
+/**
+ * Концы класса для строгих типов цепочек (план 2.0, этап 4, п. 1): роль → классы целей, множественный ли, обязательный
+ * ли; с концами предков (потомок заменяет конец целиком). Тот же вид выдаёт `letopis types` (generateTypes, sync.ts).
+ */
+type EndSpecOf<V> = V extends End<infer Mn, infer R, infer T> ? { targets: T; many: Mn; required: R }
+  : V extends { readonly name: infer N extends string } ? { targets: N; many: false; required: true } : never;
+type EndsSpecOf<E> = { [K in keyof E]: EndSpecOf<E[K]> };
+type AllEnds<P, E extends EndsInput> = P extends Model<string, unknown, unknown, string, infer PE, string> ? Omit<PE, keyof E> & EndsSpecOf<E> : EndsSpecOf<E>;
+/** Имя класса и его предков — как `ancestors` реестра (семейства и переходы строгих типов). */
+type Lineage<N extends string, P> = N | (P extends Model<infer PN, unknown, unknown, string, unknown, infer PP> ? PN | PP : never);
+/** Концы описания класса: `ends` или пусто. */
+type EndsIn<D> = D extends { ends?: infer E extends EndsInput } ? E : Record<never, never>;
+
+/**
+ * Модель класса. `N` — имя, `D` — данные строки, `L` — концы строки, `A` — алиас, `E` — концы класса (роль → классы
+ * целей, множественный ли, обязательный ли), `P` — имя класса и его предков: всё это — для строгих типов цепочек.
+ */
+export interface Model<N extends string = string, D = unknown, L = unknown, A extends string = string, E = unknown, P extends string = N> {
   readonly name: N;
   readonly kind: 'hub' | 'link';
   readonly alias?: A;
@@ -172,10 +206,10 @@ export interface Model<N extends string = string, D = unknown, L = unknown, A ex
   /** Правила refine, которых нет в JSON Schema и в базе. */
   lostRules(): LostRule[];
   /** Только для вывода типов. */
-  readonly __types?: { data: D; links: L };
+  readonly __types?: { data: D; links: L; ends: E; ancestors: P };
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyModel = Model<string, any, any, any>;
+export type AnyModel = Model<string, any, any, any, any, any>;
 
 /** Тип данных строки класса: `Infer<typeof Master>`. */
 export type Infer<M> = M extends Model<string, infer D, unknown> ? D : never;
@@ -208,6 +242,9 @@ function collectLost(schema: z.ZodType, path: string, out: LostRule[]): void {
 
 function makeModel<N extends string>(kind: 'hub' | 'link', name: N, defArg: unknown, optsArg?: unknown): AnyModel {
   if (!NAME.test(name)) throw lerr('model.class_name_invalid', { name });
+  // имя метода цепочки или корня db: шаг с таким именем до хаба не дойдёт (план 2.0, этап 4, п. 2; 7.10 №3); связь с
+  // таким именем отклоняет база
+  if (kind === 'hub' && RESERVED_CLASS_NAMES.includes(name)) throw lerr('model.hub_name_reserved', { name });
   // короткая форма: hub(name, { поле: z…, … }, { key, meta, … })
   let def: ClassDef<z.ZodRawShape, EndsInput, AnyModel | undefined>;
   // { fields: z.object(…) } без других ключей описания — полная форма, а не класс с единственным полем fields (план 2.0,
@@ -333,22 +370,27 @@ function makeModel<N extends string>(kind: 'hub' | 'link', name: N, defArg: unkn
 
 type ShapeOf<F> = F extends z.ZodObject<infer S> ? S : F extends z.ZodRawShape ? F : Record<never, never>;
 type AliasOf<D> = D extends { alias: infer A extends string } ? A : string;
+/** Предок из описания класса (`extends`); нет — unknown. */
+type ExtendsOf<D> = D extends { extends?: infer P } ? P : unknown;
+/** Описание класса без полей — третьим аргументом короткой формы. */
+type ClassOpts = Omit<ClassDef<z.ZodRawShape, EndsInput, AnyModel | undefined>, 'fields'>;
+/** Тип модели по имени, описанию и собственным полям: данные и концы — с предками. */
+type ModelOf<N extends string, D, S extends z.ZodRawShape> = Model<N, DataOf<ExtendsOf<D>, S>, AllLinks<ExtendsOf<D>, EndsIn<D>>, AliasOf<D>,
+  AllEnds<ExtendsOf<D>, EndsIn<D>>, Lineage<N, ExtendsOf<D>>>;
 
 /**
  * Описывает класс объектов (хаб): поля, ключ, концы и свойства класса. Класс-связь объектов со своими данными
  * описывает `link()`.
  */
-export function hub<N extends string, S extends z.ZodRawShape>(name: N, shape: S, opts: Omit<ClassDef, 'fields'>): Model<N, z.output<z.ZodObject<S>>, Record<never, never>>;
-export function hub<N extends string, const D extends ClassDef<z.ZodRawShape, EndsInput, AnyModel | undefined>>(name: N, def?: D):
-  Model<N, DataOf<D['extends'], ShapeOf<D['fields']>>, AllLinks<D['extends'], D['ends'] extends EndsInput ? D['ends'] : Record<never, never>>, AliasOf<D>>;
+export function hub<N extends string, S extends z.ZodRawShape, const O extends ClassOpts>(name: N, shape: S, opts: O): ModelOf<N, O, S>;
+export function hub<N extends string, const D extends ClassDef<z.ZodRawShape, EndsInput, AnyModel | undefined>>(name: N, def?: D): ModelOf<N, D, ShapeOf<D['fields']>>;
 export function hub(name: string, def?: unknown, opts?: unknown): AnyModel {
   return makeModel('hub', name, def, opts);
 }
 
 /** Связь — отношение между объектами со своими данными (бронь, навык). */
-export function link<N extends string, S extends z.ZodRawShape>(name: N, shape: S, opts: Omit<ClassDef, 'fields'>): Model<N, z.output<z.ZodObject<S>>, Record<never, never>>;
-export function link<N extends string, const D extends ClassDef<z.ZodRawShape, EndsInput, AnyModel | undefined>>(name: N, def?: D):
-  Model<N, DataOf<D['extends'], ShapeOf<D['fields']>>, AllLinks<D['extends'], D['ends'] extends EndsInput ? D['ends'] : Record<never, never>>, AliasOf<D>>;
+export function link<N extends string, S extends z.ZodRawShape, const O extends ClassOpts>(name: N, shape: S, opts: O): ModelOf<N, O, S>;
+export function link<N extends string, const D extends ClassDef<z.ZodRawShape, EndsInput, AnyModel | undefined>>(name: N, def?: D): ModelOf<N, D, ShapeOf<D['fields']>>;
 export function link(name: string, def?: unknown, opts?: unknown): AnyModel {
   return makeModel('link', name, def, opts);
 }

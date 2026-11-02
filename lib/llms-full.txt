@@ -765,25 +765,25 @@ in English with `connect({ lang: 'en' })`, `createMcpServer(db, { lang: 'en' })`
 - `update-merge`: update merges the patch inside the database: nested objects recursively, while arrays and scalars are replaced.
 - `update-empty-target`: update with no rows found returns an empty list without an error; check the length of the answer.
 - `upsert-replaces`: upsert replaces the data entirely: fields that are not in the object disappear; it overwrites concurrent increments.
-- `links-from-path`: The references of a created row are taken from the chain path: db.Shop(shop).Product().create() references shop.
-- `slots-atomic`: The .RoleName.set/unset/add/remove slots change links atomically, without reading the list.
+- `links-from-path`: The ends of a created row are taken from the chain path: db.Shop(shop).Product().create() references shop.
+- `slots-atomic`: The role steps .RoleName.set/unset/add/remove change links atomically, without reading the list.
 - `inc-min-check`: inc checks the model constraint (min) against the resulting value: going negative gives invalid_data.
 - `inc-start`: inc on a missing field is an error; inc(n, { start }) starts from the given value.
-- `rekey-new-id`: rekey gives a new id; references are moved, and rows with this end in their key get a new id too.
+- `rekey-new-id`: rekey gives a new id; ends of other rows are moved to it, and rows with this end in their key get a new id too.
 - `anonymize-history`: anonymize writes a new version with [erased] and the anonymized tag; the earlier versions stay in the journal.
 - `reason-in-log`: The reason for a change (reason) is written into the journal version next to the author and the time.
 - `batch-own-queue`: Each connection object (db, db.as(), db.begin()) has its own batch queue; a plan runs on behalf of the object through which it was queued.
 - `mods-after-verb`: limit(), offset() and sort() before the verb narrow the targets of a write. A modifier right after the verb, before rows(), first(), ids(), count() or paths(), is an invalid_query error, and nothing is written: the verb has already gone through all targets. In a batch, run() refuses the same way.
 - `tags-op-update`: Before update(), a string or a list in .tags(...) both selects the rows and replaces their tags entirely, while an operator (has, hasAny, hasAll) only selects; the tags stay as they were.
 - `hasall-empty`: hasAll([]) and .tags([]) match any row (every row has "all tags from the empty list"), while hasAny([]) and inList([]) match none. An empty list from a user before update() or delete() will hit all rows of the step; check it before the query.
-- `asof-reverse-once`: An object reached by several paths (for example, a product in two categories on a backward step from the categories) comes in rows() once, both in an asOf() slice and with withDeleted(); count() and totals do not count it twice, while paths() returns one path per reference.
-- `step-direction`: A chain step follows references: backward to the objects that reference the current ones; forward to the objects the current ones reference; a step of the same class goes to the child nodes of a tree.
+- `asof-reverse-once`: An object reached by several paths (for example, a product in two categories on a backward step from the categories) comes in rows() once, both in an asOf() slice and with withDeleted(); count() and totals do not count it twice, while paths() returns one path per end leading to it.
+- `step-direction`: A chain step follows ends: backward to the objects that reference the current ones; forward to the objects the current ones reference; a step of the same class goes to the child nodes of a tree.
 - `filter-no-cast`: A plain filter value is compared without type casting: { price: 900 } will not find "900".
-- `filter-end-null`: An end role in a filter takes a target id or null ("no reference"): this is how the root nodes of a tree are found.
+- `filter-end-null`: An end role in a filter takes a target id or null ("the end is empty"): this is how the root nodes of a tree are found.
 - `cursor-json`: A page cursor { v, id } can be saved to JSON and restored; the field in cursorOf must match the sort field; the value type is checked before the query.
 - `countby-limit-groups`: limit before countBy applies to the groups: the most frequent values.
 - `count-paths`: count() counts each object once; count({ paths: true }) is the number of paths to the objects.
-- `cascade-unset-restrict`: The on-delete action set on an end decides the fate of references to a target being deleted: cascade deletes the referencing rows together with it, unset removes the reference, restrict refuses with delete_restricted.
+- `cascade-unset-restrict`: The on-delete action set on an end decides the fate of ends leading to a target being deleted: cascade deletes the referencing rows together with it, unset empties the end, restrict refuses with delete_restricted.
 - `restore-only-targets`: restore() brings back only the targets of the step; rows deleted by the cascade are brought back separately via withDeleted().
 - `purge-record`: purge erases the versions of a deleted object; in place of version 1, a purge record stays with the number of erased versions.
 - `tx-all-or-nothing`: db.begin(): the writes are committed together by commit(); on an error, rollback(), and nothing is written.

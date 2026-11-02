@@ -74,7 +74,7 @@ export const flows: Record<string, FlowDef> = {
     title: 'Чтение: шаги и переходы',
     example: 'read/01-steps',
     code: `flowchart LR
-  parse["разбор цепочки<br/>без базы"] --> sql["один SQL-запрос:<br/>переходы по ссылкам"]
+  parse["разбор цепочки<br/>без базы"] --> sql["один SQL-запрос:<br/>переходы по концам"]
   sql --> rls["RLS отсекает<br/>чужие строки"]
   rls --> last["строки последнего шага,<br/>без повторов"]
   last --> fin{"окончание"}
@@ -82,8 +82,8 @@ export const flows: Record<string, FlowDef> = {
   fin --> ids["ids() / count()"]`,
     steps: {
       1: { nodes: [], note: 'Подготовка: магазины, категории, товары, заказы.' },
-      2: { nodes: ['parse', 'sql', 'rls', 'last', 'rows'], note: 'Назад по ссылке: товары, которые ссылаются на магазин.' },
-      3: { nodes: ['parse', 'sql', 'rls', 'last', 'rows'], note: 'Вперёд по ссылке: магазин, на который ссылается товар.' },
+      2: { nodes: ['parse', 'sql', 'rls', 'last', 'rows'], note: 'Назад по концу: товары, которые ссылаются на магазин.' },
+      3: { nodes: ['parse', 'sql', 'rls', 'last', 'rows'], note: 'Вперёд по концу: магазин, на который ссылается товар.' },
       4: { nodes: ['parse', 'sql', 'rls', 'last', 'rows'], note: 'Три перехода одним запросом: заказ → строка заказа → товар.' },
       5: { nodes: ['parse', 'sql', 'rls', 'last', 'rows'], note: 'Шаг по роли конца: родительская категория.' },
       6: { nodes: ['parse', 'sql', 'rls', 'last', 'rows'], note: 'Покупатели заказов магазина — каждый один раз.' },
@@ -92,14 +92,14 @@ export const flows: Record<string, FlowDef> = {
   },
 
   delete: {
-    title: 'Удаление: каскад, снятие ссылки, запрет',
+    title: 'Удаление: каскад, очистка конца, запрет',
     example: 'delete/01-delete-cascade',
     code: `flowchart TD
   prev["delete() без confirm:<br/>предпросмотр, база не меняется"]
   go["delete({ confirm: true })"] --> who{"кто ссылается<br/>на цель?"}
   who -- "никто" --> gone["цель удалена,<br/>надгробие в журнале"]
   who -- "конец cascade" --> casc["удалить и ссылающуюся строку —<br/>каскад идёт дальше"]
-  who -- "конец unset" --> unset["снять ссылку —<br/>новая версия строки"]
+  who -- "конец unset" --> unset["очистить конец —<br/>новая версия строки"]
   who -- "конец restrict (по умолчанию)" --> restrict["отказ delete_restricted —<br/>не удалено ничего"]
   casc --> gone
   unset --> gone`,
@@ -109,7 +109,7 @@ export const flows: Record<string, FlowDef> = {
       3: { nodes: ['go', 'who', 'casc', 'gone'], note: 'Заказ и обе строки удалены: надгробия по уровням каскада, внутри уровня — по id.' },
       4: { nodes: ['prev'], note: 'Предпросмотр магазина: товары помечены $action: restrict.' },
       5: { nodes: ['go', 'who', 'restrict'], note: 'Товары мешают: delete_restricted, не удалено ничего.' },
-      6: { nodes: ['go', 'who', 'unset', 'gone'], note: 'Категория удалена, у товаров ссылка снята — новая версия каждого.' },
+      6: { nodes: ['go', 'who', 'unset', 'gone'], note: 'Категория удалена, у товаров конец очищен — новая версия каждого.' },
     },
   },
 

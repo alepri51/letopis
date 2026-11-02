@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import { engine, type Engine, type Tenant } from './_engine.js';
 import { appDsn } from './_harness.js';
-import { connect, syncModels, generateTypes, type Db } from '../src/index.js';
+import { connect, syncModels, generateTypes, type Db, type LetopisError } from '../src/index.js';
 import { hub, link } from '../src/model.js';
 
 let e: Engine;
@@ -104,4 +104,31 @@ test('хвост ревью доработок после 1.2.0: модели п
   const Plain = hub('SLoop', { code: z.string(), total: z.number().int() }, { key: ['code'] });
   await syncModels(db, [Plain, hub('SLoopKid', { fields: { v: z.number().int() }, extends: Plain, ends: { SLoop: Plain } })], { apply: true });
   await assert.rejects(syncModels(db, [Base], { apply: true }), /цикл агрегатов: SLoopKid → SLoopKid/);
+});
+
+test('план 2.0, 7.10 №3: зарезервированное имя хаба — отказ hub(), syncModels (модель мимо hub()) и базы (сырая запись строки Class)', async () => {
+  const reserved = (key: string, text: string) => (x: LetopisError) => {
+    assert.equal(x.code, 'invalid_class', x.message);
+    assert.equal(x.key, key);
+    assert.equal(x.message, `letopis: invalid_class: ${text}`);
+    return true;
+  };
+  // hub(): имя метода цепочки и корня db — до базы; регистр различается, связь отклоняет база (как прежде)
+  assert.throws(() => hub('count', { fields: { n: z.string() } }),
+    reserved('model.hub_name_reserved', 'hub(): имя count занято методом цепочки или корня db — шаг с таким именем до класса не дойдёт'));
+  assert.throws(() => hub('tenant'), reserved('model.hub_name_reserved', 'hub(): имя tenant занято методом цепочки или корня db — шаг с таким именем до класса не дойдёт'));
+  assert.equal(hub('Count', { fields: { n: z.string() } }).name, 'Count');
+  // syncModels: модель хаба, собранная мимо hub(), — отказ до транзакции
+  const base = hub('SRack', { fields: { code: z.string() } });
+  const fake = { ...base, name: 'limit', describe: () => ({ ...base.describe(), name: 'limit' }) } as unknown as typeof base;
+  await assert.rejects(syncModels(db, [base, fake], { apply: true }),
+    reserved('model.sync_hub_name_reserved', 'syncModels: имя хаба limit занято методом цепочки или корня db — шаг с таким именем до класса не дойдёт'));
+  await db.refresh();
+  assert.equal(db.registry.has('SRack'), false, 'ничего не записано');
+  // база: сырая запись строки Class (связь с таким именем база отклоняла и раньше)
+  await assert.rejects(e.defineClass(t, { name: 'sort', kind: 'hub', fields: { properties: { n: { type: 'string' } } } }),
+    (x: { message?: string }) => x.message === 'letopis: invalid_class: имя хаба sort совпадает с методом цепочки');
+  await assert.rejects(db.transaction((tx) => tx.unsafe(`insert into "${e.schema}".entity (class, data) values ('Class', $1::jsonb)`,
+    [{ name: 'begin', kind: 'hub' } as never])), reserved('sql-write.hub_name_reserved', 'имя хаба begin совпадает с методом цепочки'));
+  assert.equal((await db.transaction((tx) => tx.unsafe(`select 1 from "${e.schema}".entity where class = 'Class' and data->>'name' in ('sort', 'begin', 'limit')`))).length, 0);
 });

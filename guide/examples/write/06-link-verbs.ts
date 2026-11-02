@@ -4,9 +4,9 @@ import { seedShop, type ShopData } from '../../kit/shop.ts';
 let d: ShopData;
 
 export default example({
-  title: 'Ссылки шагами: set, unset, add, remove; entity(), cache(); await цепочки — не запрос',
+  title: 'Концы шагами ролей: set, unset, add, remove; entity(), cache(); await цепочки — не запрос',
   summary:
-    'Ссылку меняют шагом по роли конца: одиночную — set и unset, множественную — add и remove. Цепочку можно ' +
+    'Конец меняют шагом роли: одиночный — set и unset, множественный — add и remove. Цепочку можно ' +
     'продолжить с готовой строки — entity(), повтор чтения взять из кэша — cache(). await цепочки ничего не читает — нужен rows().',
   tables: ['entity'],
   classes: ['Product', 'Category'],

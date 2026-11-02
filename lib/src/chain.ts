@@ -164,19 +164,25 @@ export interface ChainCore {
    * же цепочка (та же переменная) второй раз в одном пути шагов не добавляет, а возвращает к своему последнему шагу:
    * следующий шаг пойдёт от него.
    */
-  entity(x: Chain | Row): Chain;
+  entity(x: ChainRef | Row): Chain;
   /** Создать объект: концы — из пути и слотов; занятый ключ — ошибка exists с id. */
   create(data?: Record<string, unknown>, opts?: { reason?: string }): Chain;
-  /** Новая версия каждой цели шага: слияние патча в базе; inc(n) — приращение; { rev } — с проверкой версии. */
-  update(patch?: Record<string, unknown>, opts?: { rev?: number; reason?: string }): Chain;
+  /**
+   * Новая версия каждой цели шага: слияние патча в базе; inc(n) — приращение; { rev } — с проверкой версии. Цели сужают
+   * фильтр, id, `tags()`, `owner()` или `limit()` хотя бы у одного шага, иначе `invalid_query`; правка всех строк —
+   * `{ all: true }`.
+   */
+  update(patch?: Record<string, unknown>, opts?: { rev?: number; all?: boolean; reason?: string }): Chain;
   /** Создать или заменить целиком (класс с ключом); строка ответа несёт $upsert. */
   upsert(data: Record<string, unknown>, opts?: { reason?: string }): Chain;
   /**
    * Удаляет цели шага; строки, которые на них ссылаются, база удаляет вместе с ними, отвязывает или не даёт удалить цель —
    * как задано в `onDelete` их ссылок. Без `{ confirm: true }` — предпросмотр удаления: ничего не удаляется, терминал
-   * вернёт все строки, которых оно коснулось бы, у каждой `$action` — что с ней будет.
+   * вернёт все строки, которых оно коснулось бы, у каждой `$action` — что с ней будет. С `{ confirm: true }` цели сужают
+   * фильтр, id, `tags()`, `owner()` или `limit()` хотя бы у одного шага, иначе `invalid_query`; удаление всех строк —
+   * `{ confirm: true, all: true }`.
    */
-  delete(opts?: { confirm?: boolean; reason?: string }): Chain;
+  delete(opts?: { confirm?: boolean; all?: boolean; reason?: string }): Chain;
   /** Затереть строковые поля ('[erased]') и пометить тегом anonymized. */
   anonymize(fields: string[], opts?: { reason?: string }): Chain;
   /** Сменить класс: у класса с ключом — новый id и перевод ссылок. */
@@ -213,6 +219,8 @@ export type StepFn = ((filter?: Filter) => Chain) & {
   remove(value: unknown): Chain;
 };
 export type Chain = ChainCore & { [className: string]: StepFn };
+/** Любая цепочка — с типами по моделям (`TypedChain`) или без них (`Chain`): аргумент `entity()` и значение слота. */
+export type ChainRef = Pick<ChainCore, 'ids'>;
 
 /** Внутренний канал: план чужой ленивой цепочки (entity()). */
 export const PLAN: unique symbol = Symbol('letopis.plan');
@@ -423,6 +431,8 @@ async function lockedRead(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: R
 const reasons = (ctx: ChainCtx) => ({ reason: ctx.reason ?? ctx.txReason ?? '', txReason: ctx.txReason ?? '' });
 /** Опция reason глагола (план 1.1, §2.1): проверяет precheckPlan. */
 const reasonOf = (o?: { reason?: unknown }): { reason?: string } => (o?.reason !== undefined ? { reason: o.reason as string } : {});
+/** Опция all у update() и delete({ confirm: true }): правка всех целей без фильтра (план 2.0, этап 4, п. 2). */
+const allOf = (o?: { all?: unknown }): { all?: true } => (o?.all === true ? { all: true } : {});
 
 /** diff({ from, to }): номер версии (целое ≥ 1) или момент (ISO-строка, Date). */
 function versionRef(v: unknown, what: string, moments = true): number | string {
@@ -685,12 +695,12 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
       case 'create':
         return (data: Record<string, unknown> = {}, opts?: { reason?: string }) => withOp({ kind: 'create', data, ...reasonOf(opts) });
       case 'update':
-        return (data: Record<string, unknown> = {}, opts?: { rev?: number; reason?: string }) =>
-          withOp({ kind: 'update', data, ...(opts?.rev !== undefined ? { rev: opts.rev } : {}), ...reasonOf(opts) });
+        return (data: Record<string, unknown> = {}, opts?: { rev?: number; all?: boolean; reason?: string }) =>
+          withOp({ kind: 'update', data, ...(opts?.rev !== undefined ? { rev: opts.rev } : {}), ...allOf(opts), ...reasonOf(opts) });
       case 'upsert':
         return (data: Record<string, unknown> = {}, opts?: { reason?: string }) => withOp({ kind: 'upsert', data, ...reasonOf(opts) });
       case 'delete':
-        return (opts?: { confirm?: boolean; reason?: string }) => withOp({ kind: 'delete', confirm: opts?.confirm === true, ...reasonOf(opts) });
+        return (opts?: { confirm?: boolean; all?: boolean; reason?: string }) => withOp({ kind: 'delete', confirm: opts?.confirm === true, ...allOf(opts), ...reasonOf(opts) });
       case 'anonymize':
         return (fields: string[], opts?: { reason?: string }) => withOp({ kind: 'anonymize', fields, ...reasonOf(opts) });
       case 'reclass':
@@ -780,6 +790,6 @@ export function startStep(ctx: ChainCtx, name: string): StepFn {
 }
 
 /** Старт пути с готового узла: db.entity(row | цепочка). */
-export function startEntity(ctx: ChainCtx, x: Chain | Row): Chain {
+export function startEntity(ctx: ChainCtx, x: ChainRef | Row): Chain {
   return makeChain(ctx, [], {}, NO_NODES).entity(x);
 }

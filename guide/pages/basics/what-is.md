@@ -43,7 +43,7 @@ erDiagram
     text class "какого класса"
     uuid tenant "чей (арендатор)"
     jsonb data "поля"
-    jsonb links "ссылки на другие объекты"
+    jsonb links "концы к другим объектам"
   }
   log {
     uuid id "чья версия"

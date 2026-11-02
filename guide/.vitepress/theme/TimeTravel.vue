@@ -77,7 +77,7 @@ const OPS: Record<string, string> = {
             <td v-if="prev">{{ changed(key) ? fmt(prev.data?.[key]) : '' }}</td>
           </tr>
           <tr v-if="links(cur) || links(prev)" :class="{ 'lt-tt-chg': linksChanged }">
-            <td>ссылки</td>
+            <td>концы</td>
             <td>{{ links(cur) || '—' }}</td>
             <td v-if="prev">{{ linksChanged ? links(prev) || '—' : '' }}</td>
           </tr>

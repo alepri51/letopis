@@ -382,7 +382,7 @@ function onKey(e: KeyboardEvent) {
                 <thead>
                   <tr>
                     <th>id</th><th>rev</th><th>действие</th><th>данные</th>
-                    <th v-if="hasLinks(resultRows)">ссылки</th>
+                    <th v-if="hasLinks(resultRows)">концы</th>
                     <th v-for="k in extraKeys" :key="k">{{ k }}</th>
                     <th>автор</th><th>когда</th>
                   </tr>
@@ -492,7 +492,7 @@ function onKey(e: KeyboardEvent) {
             <thead>
               <tr>
                 <th>id</th><th>класс</th><th>rev</th><th>данные</th>
-                <th v-if="entLinks">ссылки</th>
+                <th v-if="entLinks">концы</th>
                 <th>действие</th><th>автор</th><th>когда</th>
               </tr>
             </thead>

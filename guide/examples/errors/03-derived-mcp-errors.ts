@@ -71,7 +71,7 @@ export default example({
     },
     {
       title: 'reclass_denied — на кошку ссылаются как на кошку',
-      text: 'Роль `Pet` у `Holder` принимает только `Cat`: перевести кошку в `Dog` нельзя, пока на неё так ссылаются. Что делать: сначала перевести ссылку.',
+      text: 'Роль `Pet` у `Holder` принимает только `Cat`: перевести кошку в `Dog` нельзя, пока на неё так ссылаются. Что делать: сначала перевести конец `Pet` на другую цель.',
       run: async ({ db }) => {
         const [cat] = await db.Cat().create({ name: 'Барсик' }).rows();
         await db.Holder().create({ title: 'Хозяин' }).Pet.set(cat).rows();

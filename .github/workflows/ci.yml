@@ -109,6 +109,12 @@ jobs:
         working-directory: guide
         run: npx tsx scripts/gen-nuances.ts --check && npx tsx scripts/gen-errors.ts --check && npx tsx scripts/gen-api.ts --check
 
+      # Сверка словаря (план 2.0, этап 5, п. 2; тест-план 7.11 №1): запрещённые синонимы на страницах и в текстах
+      # примеров, колонка «По-английски» глоссария против coverage/terms.ts. Статическая, без базы.
+      - name: Terms
+        working-directory: guide
+        run: npx tsx scripts/check-terms.ts --check
+
       # Тесты в CI не гоняются (решение владельца 01.11.2026): примеры со снимками, песочница и сценарии сервисов,
       # как и полный набор тестов библиотеки, проходят локально до выкатки (cd lib && npm run prerelease).
       # Здесь — только статические сверки; сайт не разворачивается, его сборка — тоже локально.

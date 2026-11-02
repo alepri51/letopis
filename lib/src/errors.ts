@@ -184,14 +184,14 @@ export function similar(name: string, candidates: Iterable<string>, n = 5): stri
 }
 
 /**
- * Неизвестные ключи опций (план 2.0, 7.9 №6): в 1.5 — предупреждение с похожими именами, один раз на опцию, в 2.0 —
- * invalid_data. known — все ключи опций: объект `satisfies Record<keyof Опции, true>`, пропуск ключа — ошибка типов.
+ * Неизвестный ключ опций — invalid_data с похожими именами (план 2.0, этап 4, п. 2; 7.10 №4; в 1.5 было предупреждение,
+ * 7.9 №6). known — все ключи опций: объект `satisfies Record<keyof Опции, true>`, пропуск ключа — ошибка типов.
  */
 export function checkOptions(where: string, opts: unknown, known: Readonly<Record<string, true>>): void {
   if (!opts || typeof opts !== 'object') return;
   for (const k of Object.keys(opts)) {
     if (Object.hasOwn(known, k)) continue;
-    lwarn('api.unknown_option', { where, name: k, similar: similar(k, Object.keys(known)) }, { once: `${where}\u0000${k}`, future: true });
+    lwarn('api.unknown_option', { where, name: k, similar: similar(k, Object.keys(known)) }, { once: `${where}0000${k}`, future: true });
   }
 }
 

@@ -17,7 +17,8 @@ import { makeAuth, type AuthApi } from './auth.js';
 import { makeAcl, type AclApi } from './acl.js';
 import { idOf as idOfClass } from './uuid.js';
 import { load, type LoadInput, type LoadOptions, type LoadReport } from './load.js';
-import { makeBatch, startEntity, startStep, type Batch, type BatchEntry, type Chain, type ChainCtx, type StepFn } from './chain.js';
+import { makeBatch, startEntity, startStep, type Batch, type BatchEntry, type Chain, type ChainCtx, type ChainRef, type StepFn } from './chain.js';
+import { or as orFilters } from './ops.js';
 import type { QueryEvent, Row } from './types.js';
 import { DDL_REVISION } from './types.js';
 import { ACL_CLASSES, ResultCache, type CacheOptions, type CacheStats } from './cache.js';
@@ -29,7 +30,7 @@ import {
   reset as runReset, MAINTAIN_STOP, parseInterval, scheduleMaintain, trimHistory as runTrim, verify as runVerify, type AdminCtx, type MaintainOptions, type MaintainReport, type ModelDescription,
   type ResetOptions, type ResetResult, type VerifyResult,
 } from './admin.js';
-import type { AnyModelLike, StepsOf } from './typed.js';
+import type { AnyModelLike, OrOp, StepsOf } from './typed.js';
 import { stampDrift } from './up.js';
 
 export { DDL_REVISION } from './types.js';
@@ -38,14 +39,21 @@ export { LetopisError, ValidationError, fromDbError, type Issue, type Lang } fro
 export { Registry, type AggregateInfo, type ClassInfo, type EndInfo, type LeafType } from './registry.js';
 export { compileValidator, applyDefaults, type Validator } from './validate.js';
 export { syncModels, generateTypes, schemaToTs, type SyncResult } from './sync.js';
-export { ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends, has, hasAny, hasAll, exists, isNull, not, or, isOp } from './ops.js';
+export { ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends, has, hasAny, hasAll, exists, isNull, not, isOp } from './ops.js';
+/**
+ * Хотя бы один из фильтров: `db.Product(or({ sku: 'K-1' }, { price: lt(500) }))` — товар K-1 или дешевле 500. Ставится
+ * вместо всего фильтра шага, а не значением поля; условия внутри одного фильтра соединяются через «и». В шаге подключения
+ * с моделями (`TypedDb`) фильтры внутри — поля и роли класса шага: тип им даёт шаг (план 2.0, этап 4, п. 1). Та же
+ * фабрика, что в реестре операторов (ops.ts), — другой у неё только тип.
+ */
+export const or = orFilters as unknown as <F extends object>(...filters: NoInfer<F>[]) => OrOp<F>;
 export { cursorOf } from './sql.js';
 export { inc, isInc, type IncMarker, type WriteRow } from './write.js';
 export { totpCode, hashPassword, verifyHash, type AuthApi, type LoginResult, type Credential, type SessionInfo } from './auth.js';
 export type { AclApi, AclDecision, AclDataDecision, AclOp, AclRule, AclRuleSpec, AclTarget } from './acl.js';
 export type { LoadOptions, LoadReport, LoadIssue, LoadInput } from './load.js';
-export type { Chain, ChainCore, StepFn, BatchEntry } from './chain.js';
-export type { ModelLike, AnyModelLike, RowOf, FilterOf, FieldFilterOf, TypedChain, StepsOf, PatchOf } from './typed.js';
+export type { Chain, ChainCore, ChainRef, StepFn, BatchEntry } from './chain.js';
+export type { ModelLike, AnyModelLike, RowOf, FilterOf, FieldFilterOf, TypedChain, StepsOf, PatchOf, OrOp, SystemModels } from './typed.js';
 export type { Row, Path, Filter, FieldFilter, Cursor, ChainMods, QueryEvent, Op, Scalar } from './types.js';
 export type { DiffChange, DiffResult, DiffOptions, BlameField, BlameResult, BlameOptions } from './types.js';
 export type { CacheOptions, CacheStats } from './cache.js';
@@ -220,7 +228,7 @@ export interface DbCore {
   /** Кэш результатов подключения. */
   readonly cache: { clear(): void; stats(): CacheStats };
   /** Начать путь с готового узла: `db.entity(row | цепочка)`. */
-  entity(x: Chain | Row): Chain;
+  entity(x: ChainRef | Row): Chain;
   /**
    * Подключение на том же пуле от имени другого аккаунта: запросы идут с его правами и в его арендаторе. Журнал
    * записывает автором версий этот аккаунт, а исполнителем (`agent`) — аккаунт сессии, например сервис. Нужно право
@@ -266,9 +274,22 @@ export interface DbCore {
 export type Db = DbCore & { [className: string]: StepFn };
 /** Явная транзакция `db.begin()`: тот же API; ошибка любого запроса её ломает (§2.5). */
 export type DbTx = Db;
-/** Подключение с типами шагов, строк и фильтров по моделям: `connect({ models })`. */
-export type TypedDb<M extends readonly AnyModelLike[]> = DbCore & StepsOf<M> & { [className: string]: StepFn };
+/**
+ * Подключение со строгими типами по моделям: `connect({ models })` или `connect<Models>()` с объявлениями
+ * `letopis types`. Шаг — только известный класс или алиас (модели и системные классы), переходы — по концам, слоты — роли
+ * класса; имена, известные только во время выполнения, — `loose(db)` (план 2.0, этап 4, п. 1). Модели без литеральных
+ * имён (`AnyModel[]` вместо списка `as const`) строгим типам не помогут — тогда это `Db`.
+ */
+export type TypedDb<M extends readonly AnyModelLike[]> = string extends M[number]['name'] ? Db : DbCore & StepsOf<M>;
 export type { Batch };
+
+/**
+ * То же подключение без строгих типов: шагом может быть любое имя, в том числе известное только во время выполнения, —
+ * `loose(db)[имя]()`. Объект тот же: проверки во время выполнения (неизвестное имя, переход, слот) не меняются.
+ */
+export function loose(db: DbCore): Db {
+  return db as Db;
+}
 
 const quote = (name: string): string => `"${name.replace(/"/g, '""')}"`;
 
@@ -522,6 +543,8 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
 
 export function connect<const M extends readonly AnyModelLike[]>(opts: ConnectOptions & { models: M }): Promise<TypedDb<M>>;
 export function connect(opts: ConnectOptions): Promise<Db>;
+/** Строгие типы без моделей Zod — из объявлений `letopis types`: `connect<Models>({ … })`. */
+export function connect<M extends readonly AnyModelLike[]>(opts: ConnectOptions): Promise<TypedDb<M>>;
 export async function connect(opts: ConnectOptions): Promise<Db> {
   // lang (план 2.0, этап 3, п. 3): и само подключение, и все вызовы его фасадов — на языке подключения
   const L = langRun(checkLang(opts?.lang, 'connect'));

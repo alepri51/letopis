@@ -37,7 +37,7 @@ export const api = {
     },
   },
   // errors.ts, checkOptions: неизвестная опция connect(), up(), load(), проектора, watch(), createMcpServer() — в 1.5
-  // предупреждение (lwarn), в 2.0 — ошибка
+  // было предупреждение, с 2.0 — ошибка (план 2.0, этап 4, п. 2; 7.10 №4)
   'api.unknown_option': {
     code: 'invalid_data',
     ru: 'неизвестная опция {where}({ {name} })',

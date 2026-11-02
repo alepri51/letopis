@@ -635,7 +635,7 @@ class LetopisError extends Error {
 | `code` | `string` | обязательный | Код ошибки, например `'conflict'` или `'invalid_data'`. |
 | `message` | `string` | обязательный | Сообщение для человека; в `err.message` к нему спереди добавляется `letopis: <код>: `. |
 | `detail` | `unknown` | нет (`undefined`) | Подробности для программы, например `{ id, rev, expected }` у `conflict`. |
-| `msg` | `{ key: string; params?: Params }` | нет (`undefined`) | Ключ каталога сообщений и параметры текста — `{ key, params }`, они попадают в `err.key` и `err.params`. Так ошибку создают библиотека и `fromDbError()`; подсказка `err.hint` и ссылка `err.docs` есть и без них. |
+| `msg` | `{ key: string; params?: Params }` | нет (`undefined`) | Ключ каталога сообщений и параметры текста — `{ key, params }`, они попадают в `err.key` и `err.params`. Так ошибку создают библиотека и `fromDbError()`; подсказка `err.hint` и адрес раздела документации `err.docs` есть и без них. |
 | `msg.key` | `string` | обязательный | Ключ каталога сообщений вида `<раздел>.<имя>`, например `'api.unknown_step'`. |
 | `msg.params` | `Params` | `{}` | Параметры текста `{ имя: значение }`; `similar` — похожие имена. |
 

@@ -17,6 +17,16 @@ export const model = {
     ru: 'имя класса {name} недопустимо',
     en: 'class name {name} is invalid',
   },
+  // model.ts, makeModel: имя хаба — из RESERVED_CLASS_NAMES (план 2.0, этап 4, п. 2; 7.10 №3)
+  'model.hub_name_reserved': {
+    code: 'invalid_class',
+    ru: 'hub(): имя {name} занято методом цепочки или корня db — шаг с таким именем до класса не дойдёт',
+    en: 'hub(): the name {name} is taken by a method of the chain or of the db root — a step with this name never reaches the class',
+    hint: {
+      ru: 'дать классу другое имя: зарезервированные имена — в README, «Справочник API → Зарезервированные имена»',
+      en: 'give the class another name: the reserved names are in README, "API reference → Reserved names"',
+    },
+  },
   // model.ts, makeModel: поле модели начинается с $
   'model.field_name_dollar': {
     code: 'invalid_class',
@@ -250,6 +260,17 @@ export const model = {
     en: 'class {name} not found',
   },
 
+  // sync.ts, syncModels: модель хаба с именем из RESERVED_CLASS_NAMES, собранная мимо hub() (план 2.0, этап 4, п. 2;
+  // 7.10 №3) — отказ до записи
+  'model.sync_hub_name_reserved': {
+    code: 'invalid_class',
+    ru: 'syncModels: имя хаба {name} занято методом цепочки или корня db — шаг с таким именем до класса не дойдёт',
+    en: 'syncModels: the hub name {name} is taken by a method of the chain or of the db root — a step with this name never reaches the class',
+    hint: {
+      ru: 'дать классу другое имя: зарезервированные имена — в README, «Справочник API → Зарезервированные имена»',
+      en: 'give the class another name: the reserved names are in README, "API reference → Reserved names"',
+    },
+  },
   // sync.ts, syncModels: родители и источники агрегатов замыкают круг; cycle — имена моделей через стрелку
   'model.models_cycle': {
     code: 'invalid_class',

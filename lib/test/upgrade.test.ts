@@ -35,7 +35,7 @@ before(async () => {
 
 after(async () => {
   await app?.end({ timeout: 5 });
-  for (const s of ['142', '141', '110', '101', 'ref142', 'ref141', 'ref110', 'ref101']) await sql.unsafe(`drop schema if exists ${ident(`${BASE}_${s}`)} cascade`);
+  for (const s of ['142', '142r', '141', '110', '101', 'ref142', 'ref141', 'ref110', 'ref101']) await sql.unsafe(`drop schema if exists ${ident(`${BASE}_${s}`)} cascade`);
   await sql.end({ timeout: 5 });
 });
 
@@ -388,4 +388,47 @@ test('№3 (план 2.0, 7.8 №2) обновление 1.4.1 → текуща�
 test('№4 (план 2.0, 7.8 №2) обновление 1.4.2 → текущая: накат с прошлого выпуска', async () => {
   const old = (await import('letopis-142')) as unknown as OldLib;
   await scenario({ old, S: `${BASE}_142`, ref: `${BASE}_ref142`, signals: 'opaque', from: 7, migrations: [] });
+});
+
+test('план 2.0, 7.10 №3: хаб с зарезервированным именем, заведённый 1.4.2, переживает up() — предупреждение, строки на месте, правку его описания база отклоняет', async () => {
+  const old = (await import('letopis-142')) as unknown as OldLib;
+  const S = `${BASE}_142r`;
+  const Q = ident(S);
+  await old.up({ dsn: ADMIN_DSN, schema: S, quiet: true, fresh: true });
+  const pool = await appPool();
+  const tenant = randomUUID();
+  await sql.begin(async (tx) => {
+    await tx.unsafe('set local role letopis_owner');
+    await tx.unsafe(`select ${Q}.sys_create($1::uuid, 'Account', $2::uuid, '{}', $3::jsonb)`, [tenant, SYSTEM_ID, { name: 'old-hub', enabled: true } as never]);
+    await tx.unsafe(`select ${Q}.sys_grant_all($1::uuid)`, [tenant]);
+  });
+  const [{ tok }] = await sql.unsafe(`select ${Q}.new_session($1::uuid, interval '1 day', '{}') as tok`, [tenant]);
+  const as = (text: string, params: unknown[] = []) => pool.begin(async (tx) => {
+    await tx`select set_config('letopis.token', ${tok as string}, true)`;
+    return tx.unsafe(text, params as never[]);
+  });
+  // прежний движок хаб с именем метода цепочки создавал
+  await as(`insert into ${Q}.entity (class, data) values ('Class', $1::jsonb)`, [{ name: 'count', kind: 'hub', fields: { properties: { n: { type: 'integer' } } } }]);
+  const [old1] = await as(`insert into ${Q}.entity (class, data) values ('count', $1::jsonb) returning id`, [{ n: 1 }]);
+
+  const r = await up({ dsn: ADMIN_DSN, schema: S, quiet: true });
+  assert.equal(r.upgraded, false);
+  const warn = `хабы с зарезервированными именами: count (${tenant}) — `;
+  assert.equal(r.warnings.filter((w) => w.startsWith(warn)).length, 1, `нет предупреждения о хабе count: ${r.warnings.join(' | ')}`);
+  // повторный накат предупреждает снова: хаб остаётся, пока его не переименуют
+  assert.equal((await up({ dsn: ADMIN_DSN, schema: S, quiet: true })).warnings.filter((w) => w.startsWith(warn)).length, 1);
+
+  // класс и его строки на месте: читаются и пишутся цепочкой (шаг от корня — до класса доходит)
+  const db = await connect({ dsn: appDsn(), schema: S, token: tok as string, max: 1, listen: false });
+  try {
+    const step = (db as unknown as Record<string, (f?: unknown) => { rows(): Promise<{ id: string; data: { n: number } }[]>; create(d: object): { rows(): Promise<unknown[]> } }>).count;
+    assert.deepEqual((await step().rows()).map((x) => x.id), [old1.id]);
+    await step().create({ n: 2 }).rows();
+    assert.deepEqual((await step().rows()).map((x) => x.data.n).sort(), [1, 2]);
+  } finally {
+    await db.close();
+  }
+  // описание такого хаба база больше не пишет: правка строки Class — invalid_class
+  await assert.rejects(as(`update ${Q}.entity set data = data || '{"meta": {"note": "x"}}' where class = 'Class' and data->>'name' = 'count'`),
+    (x: { message?: string }) => x.message === 'letopis: invalid_class: имя хаба count совпадает с методом цепочки');
 });

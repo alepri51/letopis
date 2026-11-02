@@ -124,6 +124,17 @@ export const write = {
     ru: 'update(patch, { rev }): rev — номер версии строки',
     en: 'update(patch, { rev }): rev must be the row version number',
   },
+  // write.ts:precheckPlan — update() или delete({ confirm: true }), а ни у одного шага до глагола нет фильтра, id,
+  // tags(), owner() или limit() (план 2.0, этап 4, п. 2; 7.10 №2); call — сам вызов, cls — класс шага глагола
+  'write.no_filter': {
+    code: 'invalid_query',
+    ru: '{call} без фильтра ({cls}): ни у одного шага нет фильтра, id или limit() — правка прошла бы по всем строкам',
+    en: '{call} without a filter ({cls}): no step has a filter, an id or limit() — the change would go over all rows',
+    hint: {
+      ru: 'сузить цели фильтром, id или limit(); правка всех строк — опция глагола { all: true }',
+      en: 'narrow the targets with a filter, an id or limit(); to change all rows, pass the verb option { all: true }',
+    },
+  },
   // anonymize() без полей
   'write.anonymize_no_fields': {
     code: 'invalid_query',

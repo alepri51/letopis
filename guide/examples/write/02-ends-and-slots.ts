@@ -4,10 +4,10 @@ import { syncShop } from '../../kit/shop.ts';
 let shop: { id: string }, tea: { id: string }, green: { id: string }, sencha: { id: string };
 
 export default example({
-  title: 'Ссылки: из пути цепочки и вызовами .Роль.set(), .add(), .remove()',
+  title: 'Концы: из пути цепочки и вызовами .Роль.set(), .add(), .remove()',
   summary:
-    'Ссылки создаваемой строки берутся из пути цепочки. Явно ссылку задают вызовы роли после глагола: ' +
-    '.Роль.set() и .Роль.unset(), у списка — .add() и .remove(). Они меняют ссылки атомарно — одной операцией ' +
+    'Концы создаваемой строки берутся из пути цепочки. Явно конец задают вызовы роли после глагола: ' +
+    '.Роль.set() и .Роль.unset(), у списка — .add() и .remove(). Они меняют концы атомарно — одной операцией ' +
     'в базе, без чтения списка.',
   covers: ['nuance.links-from-path', 'nuance.slots-atomic'],
   steps: [
@@ -30,7 +30,7 @@ export default example({
     },
     {
       title: 'Добавить ещё одну категорию',
-      text: '`.Category.add(tea)` дописывает категорию в список — смотрите колонку «ссылки».',
+      text: '`.Category.add(tea)` дописывает категорию в список — смотрите колонку «концы».',
       run: async ({ db }) => db.Product(sencha).update({}).Category.add(tea).rows(),
     },
     {
@@ -39,7 +39,7 @@ export default example({
     },
     {
       title: 'Категория стала корневой',
-      text: '`.Parent.unset()` снимает ссылку на родителя.',
+      text: '`.Parent.unset()` очищает конец: у категории больше нет родителя.',
       run: async ({ db }) => db.Category(green).update({}).Parent.unset().rows(),
     },
     {

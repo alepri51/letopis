@@ -386,33 +386,45 @@ test('план 2.0, 7.9 №6: похожие имена — неизвестно
   assert.deepEqual(quiet, []);
 });
 
-test('план 2.0, 7.9 №6: похожие имена — неизвестная опция connect(), up(), load(), проектора, watch() и createMcpServer()', async () => {
-  const opt = (where: string, name: string, like: string, lang: 'ru' | 'en' = 'ru') => lang === 'ru'
-    ? `letopis: неизвестная опция ${where}({ ${name} }) — похожие: ${like} (в 2.0 — ошибка invalid_data)`
-    : `letopis: unknown option ${where}({ ${name} }) — similar: ${like} (an error invalid_data in 2.0)`;
-  let db: Db | undefined;
-  assert.deepEqual(await warnings(async () => {
-    db = await connect({ dsn: appDsn(), schema: e.schema, token: t.token, max: 1, chache: false } as never);
-  }), [opt('connect', 'chache', 'cache')]);
-  await db!.close();
-  assert.deepEqual(await warnings(async () => {
-    db = await connect({ dsn: appDsn(), schema: e.schema, token: t.token, max: 1, lang: 'en', listn: false } as never);
-  }), [opt('connect', 'listn', 'listen', 'en')]);
-  await db!.close();
-  // up(): опции сверяются до подключения — неверное имя схемы останавливает его сразу
-  assert.deepEqual(await warnings(() => assert.rejects(up({ schema: 'Bad Name', qiuet: true } as never), /bad schema name/)), [opt('up', 'qiuet', 'quiet')]);
-  // load(): опции сверяются до проверки подключения
-  assert.deepEqual(await warnings(() => assert.rejects(ru.load([], { comitEvery: 10 } as never), (x: LetopisError) => x.code === 'admin_required')),
-    [opt('load', 'comitEvery', 'commitEvery')]);
-  assert.deepEqual(await warnings(() => ru.watch({ form: 'now' } as never).close()), [opt('watch', 'form', 'from')]);
-  // похожие — и ближайшие по Левенштейну, и содержащие искомое
-  assert.deepEqual(await warnings(() => createMcpServer(ru, { writ: true } as never)), [opt('createMcpServer', 'writ', 'write, allowAclWrite')]);
-  // проектор — на администраторском подключении
-  const adb = await connect({ dsn: ADMIN_DSN, schema: e.schema, token: t.token, max: 1, allowBypassRls: true });
-  try {
-    const w = await warnings(() => adb.projector('msg_check', { from: ['Shop'], into: ['Shop'], version: 1, handle: () => {}, batchh: 10 } as never).close());
-    assert.deepEqual(w, [opt('projector', 'batchh', 'batch')]);
-  } finally {
-    await adb.close();
-  }
+test('план 2.0, 7.10 №4: неизвестная опция connect(), up(), load(), проектора, watch() и createMcpServer() — invalid_data с похожими именами (в 1.5 — предупреждение, 7.9 №6)', async () => {
+  const opt = (where: string, name: string, like: string, lang: 'ru' | 'en' = 'ru') => (x: unknown) => {
+    assert.ok(x instanceof LetopisError, `ожидалась LetopisError, получено: ${String(x)}`);
+    assert.equal(x.code, 'invalid_data');
+    assert.equal(x.key, 'api.unknown_option');
+    assert.deepEqual(x.params?.similar, like.split(', '));
+    assert.equal(x.message, lang === 'ru'
+      ? `letopis: invalid_data: неизвестная опция ${where}({ ${name} }) — похожие: ${like}`
+      : `letopis: invalid_data: unknown option ${where}({ ${name} }) — similar: ${like}`);
+    return true;
+  };
+  // отказ вместо предупреждения: ни одного console.warn
+  const w = await warnings(async () => {
+    await assert.rejects(connect({ dsn: appDsn(), schema: e.schema, token: t.token, max: 1, chache: false } as never), opt('connect', 'chache', 'cache'));
+    await assert.rejects(connect({ dsn: appDsn(), schema: e.schema, token: t.token, max: 1, lang: 'en', listn: false } as never), opt('connect', 'listn', 'listen', 'en'));
+    // up(): опции сверяются до подключения и до проверки имени схемы
+    await assert.rejects(up({ schema: 'Bad Name', qiuet: true } as never), opt('up', 'qiuet', 'quiet'));
+    await assert.rejects(up({ schema: 'Bad Name', lang: 'en', qiuet: true } as never), opt('up', 'qiuet', 'quiet', 'en'));
+    // load(): опции сверяются до проверки подключения (admin_required)
+    await assert.rejects(ru.load([], { comitEvery: 10 } as never), opt('load', 'comitEvery', 'commitEvery'));
+    assert.throws(() => ru.watch({ form: 'now' } as never), opt('watch', 'form', 'from'));
+    assert.throws(() => en.watch({ form: 'now' } as never), opt('watch', 'form', 'from', 'en'));
+    // похожие — и ближайшие по Левенштейну, и содержащие искомое
+    await assert.rejects(createMcpServer(ru, { writ: true } as never), opt('createMcpServer', 'writ', 'write, allowAclWrite'));
+    await assert.rejects(createMcpServer(ru, { lang: 'en', maxRow: 5 } as never), opt('createMcpServer', 'maxRow', 'maxRows', 'en'));
+    // проектор и его run() — на администраторском подключении
+    const adb = await connect({ dsn: ADMIN_DSN, schema: e.schema, token: t.token, max: 1, allowBypassRls: true });
+    try {
+      assert.throws(() => adb.projector('msg_check', { from: ['Shop'], into: ['Shop'], version: 1, handle: () => {}, batchh: 10 } as never),
+        opt('projector', 'batchh', 'batch'));
+      const p = adb.projector('msg_check', { from: ['Shop'], into: ['Shop'], version: 1, handle: () => {} });
+      try {
+        await assert.rejects(p.run({ onse: true } as never), opt('projector.run', 'onse', 'once'));
+      } finally {
+        await p.close();
+      }
+    } finally {
+      await adb.close();
+    }
+  });
+  assert.deepEqual(w.filter((m) => /опция|option/.test(m)), []);
 });

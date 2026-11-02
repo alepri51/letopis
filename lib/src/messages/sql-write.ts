@@ -154,6 +154,13 @@ export const sqlWrite = {
     ru: 'имя связи {name} совпадает с методом цепочки',
     en: 'link name {name} coincides with a chain method',
   },
+  // хаб с зарезервированным именем (план 2.0, этап 4, п. 2; 7.10 №3): прежние такие хабы up() оставляет и называет в
+  // предупреждении (boot.reserved_hubs), но описание их строки Class база больше не пишет
+  'sql-write.hub_name_reserved': {
+    code: 'invalid_class',
+    ru: 'имя хаба {name} совпадает с методом цепочки',
+    en: 'hub name {name} coincides with a chain method',
+  },
   'sql-write.alias_taken': {
     code: 'invalid_class',
     ru: 'алиас {alias} класса {cls} совпадает с именем или алиасом другого класса',

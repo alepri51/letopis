@@ -15,8 +15,8 @@ export default example({
     'nuance.engine-checks-raw-sql', 'export.fromDbError'],
   steps: [
     {
-      title: 'undeclared_end — ссылка по роли, которой нет в классе',
-      text: 'Концы класса описаны в модели; чужую роль база не примет. Что делать: описать конец в модели или убрать ссылку.',
+      title: 'undeclared_end — конец с ролью, которой нет в классе',
+      text: 'Концы класса описаны в модели; чужую роль база не примет. Что делать: описать конец в модели или убрать его из данных.',
       run: async ({ db, schema }) => {
         d = await seedShop(db);
         return db.transaction((tx) => tx.unsafe(`insert into ${T(schema)} (class, data, links) values ('Customer', '{"name":"Х","email":"x@x.ru"}', jsonb_build_object('Stranger', $1::text))`, [d.romashka]));
@@ -31,7 +31,7 @@ export default example({
     },
     {
       title: 'use_reclass — сменить класс простым UPDATE',
-      text: 'Смена класса меняет id и ссылки — её делает функция `reclass`. Что делать: `db.Класс(id).reclass(\'Другой\', данные)`.',
+      text: 'Смена класса меняет id и концы других строк — её делает функция `reclass`. Что делать: `db.Класс(id).reclass(\'Другой\', данные)`.',
       run: async ({ db, schema }) => db.transaction((tx) => tx.unsafe(`update ${T(schema)} set class = 'Category' where id = $1`, [d.romashka])),
       expect: { error: 'use_reclass' },
     },

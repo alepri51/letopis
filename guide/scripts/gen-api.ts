@@ -222,7 +222,7 @@ function typeLiteralMembers(t: ts.TypeNode): ts.TypeElement[] {
   return [];
 }
 
-// цепочка: ChainCore и слоты StepFn
+// цепочка: ChainCore и шаги ролей StepFn
 const chainCore = new Map(find('chain.ts', ts.isInterfaceDeclaration, 'ChainCore').members.map((m) => [m.name!.getText(), m]));
 const stepFn = find('chain.ts', ts.isTypeAliasDeclaration, 'StepFn');
 const slots = new Map(typeLiteralMembers(stepFn.type).filter((m) => m.name).map((m) => [m.name!.getText(), m]));
@@ -486,7 +486,7 @@ const PAGES: Page[] = [
       { title: 'Модификаторы', intro: 'Модификатор уточняет цепочку и возвращает её продолжение: сколько строк, в каком порядке, на какой момент.', ids: ['chain.limit', 'chain.offset', 'chain.sort', 'chain.after', 'chain.asOf', 'chain.withDeleted', 'chain.deep', 'chain.exact', 'chain.alias', 'chain.tags', 'chain.owner', 'chain.entity', 'chain.forUpdate', 'chain.cache'] },
       { title: 'Терминалы', intro: 'Терминал исполняет цепочку и возвращает результат. После глагола записи терминал исполняет план записи и возвращает записанные строки.', ids: ['chain.rows', 'chain.first', 'chain.ids', 'chain.count', 'chain.paths', 'chain.versions', 'chain.diff', 'chain.blame', 'chain.sum', 'chain.avg', 'chain.min', 'chain.max', 'chain.countBy'] },
       { title: 'Глаголы записи', intro: 'Глагол ставит запись в план. Исполняет план терминал (`rows()`, `first()`, `ids()`, `count()`).', ids: ['chain.create', 'chain.update', 'chain.upsert', 'chain.delete', 'chain.anonymize', 'chain.reclass', 'chain.rekey', 'chain.restore', 'chain.purge'] },
-      { title: 'Слоты концов', intro: 'После глагола записи шаг роли без вызова — слот конца: `.Роль.set(…)`, `.Роль.unset()`, у множественного конца ещё `.add(…)` и `.remove(…)`.', ids: ['chain.set', 'chain.unset', 'chain.add', 'chain.remove'] },
+      { title: 'Шаги ролей', intro: 'После глагола записи шаг роли без вызова задаёт конец: `.Роль.set(…)`, `.Роль.unset()`, у множественного конца ещё `.add(…)` и `.remove(…)`.', ids: ['chain.set', 'chain.unset', 'chain.add', 'chain.remove'] },
     ],
   },
   {

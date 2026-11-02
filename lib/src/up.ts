@@ -455,7 +455,10 @@ export interface UpResult extends InstallResult {
    * (из `dsn` установки или PGlite; при готовом пуле `sql` её нет).
    */
   login?: { user: string; created: boolean; dsn?: string };
-  /** Предупреждения (версия сервера, таблицы без статистики); без quiet каждое уже напечатано через console.warn. */
+  /**
+   * Предупреждения (версия сервера, таблицы без статистики, хабы с зарезервированными именами); без quiet каждое уже
+   * напечатано через console.warn.
+   */
   warnings: string[];
 }
 
@@ -595,6 +598,20 @@ async function runUp(opts: UpOptions): Promise<UpResult> {
     const analyzed = todo.filter((t) => !left.includes(t));
     if (left.length) {
       const w = lmsg('boot.analyze_skipped', { owner: res.owner, tables: left.map((t) => `${schema}.${t}`).join(', ') });
+      warnings.push(w);
+      if (!opts.quiet) console.warn(`letopis.up: ${w}`);
+    }
+    // хабы с зарезервированными именами, заведённые до 2.0 (план 2.0, этап 4, п. 2; 7.10 №3): накат их оставляет и
+    // называет, новых таких база не пишет. Строки Class — от роли владельца, как ANALYZE: у установщика без
+    // суперпользователя прав на таблицы нет, а RLS владельца таблицы не касается
+    const reserved = await sql.begin(async (tx) => {
+      await tx.unsafe(`set local role ${quoteIdent(res.owner)}`);
+      return tx.unsafe(`select x.data->>'name' as name, x.tenant::text as tenant from ${quoteIdent(schema)}.entity x
+        where x.class = 'Class' and x.data->>'kind' = 'hub' and x.data->>'name' = any ($1::text[])
+        order by x.data->>'name', x.tenant`, [[...RESERVED_CLASS_NAMES] as never]);
+    });
+    if (reserved.length) {
+      const w = lmsg('boot.reserved_hubs', { hubs: reserved.map((h) => `${h.name as string} (${h.tenant as string})`).join(', ') });
       warnings.push(w);
       if (!opts.quiet) console.warn(`letopis.up: ${w}`);
     }

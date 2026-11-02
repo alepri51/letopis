@@ -52,6 +52,7 @@ export default defineConfig({
           { text: '15. ИИ-агенты: MCP', link: '/mcp/' },
           { text: '16. Ошибки', link: '/errors/' },
           { text: '17. Все нюансы', link: '/nuances/' },
+          { text: 'Карта понятий', link: '/concepts/' },
           { text: 'Глоссарий', link: '/glossary/' },
           { text: 'Песочница', link: '/sandbox' },
         ],

@@ -274,6 +274,13 @@ export const boot = {
     ru: 'таблицы без статистики после ANALYZE от роли владельца {owner}: {tables} — проверьте, что они принадлежат ей; иначе статистику соберёт автоочистка или ANALYZE их владельца',
     en: 'tables without statistics after ANALYZE as the owner role {owner}: {tables} — check that they belong to it; otherwise the statistics will be collected by autovacuum or by ANALYZE of their owner',
   },
+  // up.ts, up(): предупреждение (UpResult.warnings) — в схеме есть хабы с именами из RESERVED_CLASS_NAMES, заведённые до
+  // 2.0 (план 2.0, этап 4, п. 2; 7.10 №3): up() их оставляет; hubs — «имя (арендатор)» через запятую
+  'boot.reserved_hubs': {
+    code: 'invalid_class',
+    ru: 'хабы с зарезервированными именами: {hubs} — имя занято методом цепочки или корня db, шаг с ним до класса может не дойти; с 2.0 такой хаб не создаётся, а его описание не меняется: переименуйте класс (новый класс и reclass() строк)',
+    en: 'hubs with reserved names: {hubs} — the name is taken by a method of the chain or of the db root, a step with it may never reach the class; since 2.0 such a hub is not created and its description is not changed: rename the class (a new class and reclass() of the rows)',
+  },
   // up.ts, stampDrift(): предупреждение connect() (его печатает index.ts) — схему той же ревизии обновила более новая
   // версия; was — версия из штампа схемы, version — версия пакета
   'boot.stamp_newer': {

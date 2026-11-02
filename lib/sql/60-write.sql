@@ -773,7 +773,7 @@ return exists (select 1 from @SCHEMA@.log t
                  and @SCHEMA@.class_has_history(t.data->>'name', t.tenant));
 
 -- Проверки строки Class сверх метасхемы (этап 1, п. 6): признак system, имя системного класса,
--- имена связей против методов цепочки, однозначность имени конца во всей схеме, право на агрегаты,
+-- имена связей и хабов против методов цепочки, однозначность имени конца во всей схеме, право на агрегаты,
 -- алиас и право на смену предков, алиаса и derivedBy (ревью безопасности №2).
 create or replace function @SCHEMA@.class_admit(p_data jsonb, p_tenant uuid, out data jsonb, out validator jsonpath)
 language plpgsql volatile
@@ -815,6 +815,11 @@ begin
   select c.data, c.validator into data, validator from @SCHEMA@.class_prepare(p_data, p_tenant) c;
   if data->>'kind' = 'link' and (data->>'name') = any (@SCHEMA@.reserved_names()) then
     perform @SCHEMA@.lt_fail('sql-write.link_name_reserved', jsonb_build_object('name', data->>'name'));
+  end if;
+  -- и хаб (план 2.0, этап 4, п. 2): шаг с именем метода цепочки или корня db до класса не дойдёт. Прежние такие хабы
+  -- остаются (up() называет их в предупреждении), но их строку Class база больше не пишет — ни создание, ни правку
+  if data->>'kind' = 'hub' and (data->>'name') = any (@SCHEMA@.reserved_names()) then
+    perform @SCHEMA@.lt_fail('sql-write.hub_name_reserved', jsonb_build_object('name', data->>'name'));
   end if;
   -- алиас — второе имя класса и для правил прав (ревью безопасности №2): совпади он с именем другого класса (в том
   -- числе Class и системных) или с чужим алиасом арендатора и System, правила одного класса действовали бы на строки

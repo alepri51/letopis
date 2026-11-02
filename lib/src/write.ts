@@ -58,9 +58,9 @@ export const isInc = (v: unknown): v is IncMarker =>
 /** Глагол плана; reason — причина изменения этого глагола (план 1.1, §2.1). */
 export type PlanOp = (
   | { kind: 'create'; data: Record<string, unknown> }
-  | { kind: 'update'; data: Record<string, unknown>; rev?: number }
+  | { kind: 'update'; data: Record<string, unknown>; rev?: number; all?: true }
   | { kind: 'upsert'; data: Record<string, unknown> }
-  | { kind: 'delete'; confirm: boolean }
+  | { kind: 'delete'; confirm: boolean; all?: true }
   | { kind: 'anonymize'; fields: string[] }
   | { kind: 'reclass'; cls: string; data?: Record<string, unknown> }
   | { kind: 'restore' }
@@ -173,6 +173,25 @@ function checkAggregatePatch(cls: ClassInfo, patch: Record<string, unknown>): vo
   if (given.length) throw lerr('write.aggregate_patched', { fields: given.join(', '), cls: cls.name });
 }
 
+/** Фильтр шага сужает цели: id, список id, оператор, строка ответа, объект хотя бы с одним заданным полем. */
+const narrowingFilter = (f: unknown): boolean =>
+  f !== undefined && f !== null && (typeof f !== 'object' || Array.isArray(f) || isOp(f) || Object.values(f).some((v) => v !== undefined));
+
+/**
+ * Цели глагола шага i сужены (план 2.0, этап 4, п. 2; 7.10 №2): у него или у шага до него есть фильтр, id, tags()
+ * (пустой список подходит любой строке), owner() или limit(), либо до него был create() или upsert() — дальше путь
+ * идёт от записанных строк.
+ */
+function narrowed(steps: Step[], i: number): boolean {
+  for (let j = 0; j <= i; j++) {
+    const s = steps[j];
+    if (narrowingFilter(s.filter) || s.ownerFilter !== undefined || s.opMods?.limit !== undefined) return true;
+    if (s.tagsFilter !== undefined && s.tagsFilter !== null && !(Array.isArray(s.tagsFilter) && !s.tagsFilter.length)) return true;
+    if (j < i && (s.op?.kind === 'create' || s.op?.kind === 'upsert')) return true;
+  }
+  return false;
+}
+
 /** Всё, что проверяется без базы, — до отправки первого оператора (§2.5). */
 export function precheckPlan(reg: Registry, steps: Step[]): void {
   let prevOp: PlanOp | undefined;
@@ -208,6 +227,10 @@ export function precheckPlan(reg: Registry, steps: Step[]): void {
         splitPatch(op.data);
         checkAggregatePatch(s.cls, op.data);
         if (op.rev !== undefined && (!Number.isInteger(op.rev) || op.rev < 1)) throw lerr('write.bad_rev');
+        // data.id у шага без фильтра — тоже цель (updateOp)
+        if (false && !op.all && !(s.filter === undefined && typeof op.data.id === 'string') && !narrowed(steps, i)) {
+          throw lerr('write.no_filter', { call: 'update()', cls: s.cls.name });
+        }
         break;
       case 'anonymize': {
         if (!Array.isArray(op.fields) || !op.fields.length) throw lerr('write.anonymize_no_fields');
@@ -224,6 +247,9 @@ export function precheckPlan(reg: Registry, steps: Step[]): void {
         if (op.data !== undefined) checkFullData(reg.resolve(op.cls), op.data, 'reclass');
         break;
       case 'delete':
+        // превью (без confirm) ничего не удаляет — его не сужают
+        if (false && op.confirm && !op.all && !narrowed(steps, i)) throw lerr('write.no_filter', { call: 'delete({ confirm: true })', cls: s.cls.name });
+        break;
       case 'restore':
       case 'purge':
         break;

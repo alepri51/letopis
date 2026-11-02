@@ -14,7 +14,7 @@ export default example({
   summary:
     'Номер входит в ключ, а id (v5) вычисляется из арендатора, класса и ключа. Поэтому reclass черновика в договор ' +
     'и rekey номера дают новый id. versions() показывает версии одного id, а versions({ follow: true }) проходит по ' +
-    'ссылкам moved через все смены — вся жизнь документа одним списком.',
+    'полю moved через все смены — вся жизнь документа одним списком.',
   tables: ['log'],
   covers: ['nuance.versions-follow', 'nuance.reclass-keyed-new-id', 'db.rekeyClass'],
   steps: [
@@ -52,7 +52,7 @@ export default example({
     },
     {
       title: 'Сменить ключ всему классу: rekeyClass',
-      text: '`db.rekeyClass(класс, ключ)` переносит все строки класса и его потомков на новые id по новому ключу и переводит ссылки; результат — сколько строк перенесено.',
+      text: '`db.rekeyClass(класс, ключ)` переносит все строки класса и его потомков на новые id по новому ключу и переводит на них концы других строк; результат — сколько строк перенесено.',
       run: async ({ db }) => {
         await db.Code().create({ code: 'A', region: 'Москва' }).rows();
         await db.Code().create({ code: 'B', region: 'Казань' }).rows();

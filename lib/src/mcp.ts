@@ -33,7 +33,7 @@ import { OPERATORS, opHint, or, type OpArg } from './ops.js';
 import type { Registry } from './registry.js';
 import { cursorOf } from './sql.js';
 import { ACL_CLASS_NAMES, RESERVED_CLASS_NAMES, type Cursor, type FieldFilter, type Filter, type Op, type Row, type Scalar } from './types.js';
-import type { Db } from './index.js';
+import type { Db, DbCore } from './index.js';
 
 export interface McpOptions {
   /** Инструмент letopis_write (create, update, upsert, delete); по умолчанию сервер только читает. */
@@ -858,12 +858,15 @@ async function checkCredentials(db: Db, o: Limits): Promise<Actor> {
  * `db.as(пользователь)`. Транспорт выбирает приложение: `server.connect(транспорт)`, `serveStdio(() => createMcpServer(db))`
  * или обработчик HTTP `createMcpHandler(() => createMcpServer(db))` из SDK; токен запроса HTTP проверяет приложение.
  */
-export async function createMcpServer(db: Db, opts: McpOptions = {}): Promise<McpServer> {
+export async function createMcpServer(db: DbCore, opts: McpOptions = {}): Promise<McpServer> {
   // lang (план 2.0, этап 3, п. 3): допуск и каждый вызов инструмента — на языке сервера; описания инструментов, их
   // параметров и instructions — тоже, по самой опции (по умолчанию ru), а не по языку вокруг
   const lang = checkLang(opts?.lang, 'createMcpServer') ?? 'ru';
   const L = langRun(lang);
-  return L ? L(() => serve(db, opts, L, lang)) : serve(db, opts, undefined, lang);
+  // DbCore — чтобы подключение со строгими типами (TypedDb) принималось без приведения (план 2.0, этап 4); классы
+  // инструменты берут по имени из запроса агента — как у Db
+  const d = db as Db;
+  return L ? L(() => serve(d, opts, L, lang)) : serve(d, opts, undefined, lang);
 }
 
 async function serve(db: Db, opts: McpOptions, L: LangRun | undefined, lang: Lang): Promise<McpServer> {

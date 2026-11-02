@@ -6,13 +6,14 @@
  * мешающими строками отклоняет сама база (`tightening_conflict` с перечнем) уже в сухом прогоне.
  * generateTypes: объявления TypeScript для классов из реестра — в том числе созданных данными.
  */
-import type { Db } from './index.js';
+import type { DbCore } from './index.js';
 import { lerr, lmsg } from './errors.js';
 import { internalsOf } from './internal.js';
 import type { Tx } from './tx.js';
 import type { AnyModel, LostRule } from './model.js';
 import type { JsonSchema } from './jsonschema.js';
 import type { Registry } from './registry.js';
+import { RESERVED_CLASS_NAMES } from './types.js';
 
 export interface SyncResult {
   applied: boolean;
@@ -34,7 +35,12 @@ function canon(v: unknown): string {
   return JSON.stringify(v);
 }
 
-export async function syncModels(db: Db, models: readonly AnyModel[], opts: { apply?: boolean } = {}): Promise<SyncResult> {
+export async function syncModels(db: DbCore, models: readonly AnyModel[], opts: { apply?: boolean } = {}): Promise<SyncResult> {
+  // хаб с именем метода цепочки или корня db (модель собрана мимо hub()) — отказ до записи (план 2.0, этап 4, п. 2;
+  // 7.10 №3); связь с таким именем отклоняет база
+  for (const m of models) {
+    if (m.kind === 'hub' && RESERVED_CLASS_NAMES.includes(m.name)) throw lerr('model.sync_hub_name_reserved', { name: m.name });
+  }
   const res: SyncResult = { applied: Boolean(opts.apply), created: [], updated: [], unchanged: [], skipped: [], lost: models.flatMap((m) => m.lostRules()) };
   const S = `"${db.schema.replace(/"/g, '""')}"`;
   // предок раньше потомка; класс-источник агрегата раньше цели: агрегат над классом, которого ещё нет, база отклоняет.
@@ -126,12 +132,16 @@ export function schemaToTs(s: JsonSchema | undefined, indent = ''): string {
 }
 
 /**
- * Объявления `<Класс>Data` и `<Класс>Links` для классов реестра; классы арендатора System (системные и классы сидов
- * пакета) — только с includeSystem (`letopis types --system`). Пометка в первой строке — на языке сообщений (у CLI —
- * `--lang`).
+ * Объявления `<Класс>Data` и `<Класс>Links` для классов реестра и `<Класс>Model` — имя, алиас, концы с классами целей
+ * и предки (ModelLike, typed.ts), — а в конце список `Models`: строгие типы цепочек без моделей Zod, `connect<Models>()`
+ * (план 2.0, этап 4, п. 1). Классы арендатора System (системные и классы сидов пакета) — только с includeSystem
+ * (`letopis types --system`); без него системные классы даёт встроенный набор SystemModels. Пометка в первой строке — на
+ * языке сообщений (у CLI — `--lang`).
  */
 export function generateTypes(registry: Registry, opts: { includeSystem?: boolean } = {}): string {
   const out = [`// ${lmsg('model.types_header')}`, ''];
+  const models: string[] = [];
+  const lit = (v: string): string => JSON.stringify(v);
   for (const c of registry.all().sort((a, b) => a.name.localeCompare(b.name))) {
     if (!opts.includeSystem && c.tenant === '2eba6d0a-1edd-4bb6-a85a-a703dab49035') continue;
     // идентификатор TypeScript — буквы Unicode, цифры, _ и $: кириллические имена классов допустимы (план 2.0, 7.5 №1)
@@ -142,8 +152,19 @@ export function generateTypes(registry: Registry, opts: { includeSystem?: boolea
     // объектный литерал — интерфейс; класс без полей, union и открытая схема — псевдоним типа (иначе неверный TypeScript)
     const data = schemaToTs(open);
     out.push(/^\{[\s\S]*\}$/.test(data) && !/\}\s*&/.test(data) ? `export interface ${c.name}Data ${data}` : `export type ${c.name}Data = ${data};`);
-    const ends = Object.entries(c.ends).map(([role, e]) => `  ${JSON.stringify(role)}${e.required || (e.min ?? 0) > 0 ? '' : '?'}: ${e.many ? 'string[]' : 'string'};`);
-    out.push(`export interface ${c.name}Links {${ends.length ? `\n${ends.join('\n')}\n` : ''}}`, '');
+    const required = (e: { required?: boolean; min?: number }): boolean => e.required === true || (e.min ?? 0) > 0;
+    const ends = Object.entries(c.ends).map(([role, e]) => `  ${lit(role)}${required(e) ? '' : '?'}: ${e.many ? 'string[]' : 'string'};`);
+    out.push(`export interface ${c.name}Links {${ends.length ? `\n${ends.join('\n')}\n` : ''}}`);
+    // концы с классами целей и предки — переходы, слоты и семейства строгих типов (typed.ts: ModelLike)
+    const specs = Object.entries(c.ends).map(([role, e]) => {
+      const targets = (Array.isArray(e.class) ? e.class : [e.class]).map(lit).join(' | ');
+      return `      ${lit(role)}: { targets: ${targets}; many: ${e.many === true}; required: ${required(e)} };`;
+    });
+    out.push(`export interface ${c.name}Model {`, `  readonly name: ${lit(c.name)};`, ...(c.alias ? [`  readonly alias: ${lit(c.alias)};`] : []),
+      '  readonly __types?: {', `    data: ${c.name}Data;`, `    links: ${c.name}Links;`,
+      `    ends: {${specs.length ? `\n${specs.join('\n')}\n    ` : ''}};`, `    ancestors: ${(c.ancestors.length ? c.ancestors : [c.name]).map(lit).join(' | ')};`, '  };', '}', '');
+    models.push(`${c.name}Model`);
   }
+  out.push(`export type Models = readonly [${models.join(', ')}];`, '');
   return out.join('\n');
 }
