@@ -1841,10 +1841,13 @@ const audit = await adm.verify({ data: true })     // { ok, issues, anchor }
 `verify()` recomputes the hash chains of all versions and returns an anchor: a hash of all chain heads, that is, the
 `entity` rows and the latest versions of deleted objects (tombstones and `purge` records). Keep the anchor outside the
 database: a mismatch with it exposes tampering with the latest versions, tombstones included. A tombstone that does not
-match the previous version is also reported as an issue. `{ data: true }` also checks again
-the data, ends, tenants, owners and ids of all rows. The system administrator or an admin connection can call it; from
-the command line, use `letopis verify [--data]` (exit code 1 if something is found). Legitimate gaps (`trim` and
-`purge` records, thinning and `reset`) are not counted as errors.
+match the previous version is also reported as an issue. `verify()` trusts version hashes only while the database
+computes them: if the `hash` column of `entity`, `log` or a table inheriting from them is not generated or its
+expression is not the one the installer sets, it reports an issue with the System id and a `table` field: a dropped or
+replaced expression lets anyone write arbitrary hashes, and neither the chains nor the anchor would expose that.
+`{ data: true }` also checks again the data, ends, tenants, owners and ids of all rows. The system administrator or an
+admin connection can call it; from the command line, use `letopis verify [--data]` (exit code 1 if something is
+found). Legitimate gaps (`trim` and `purge` records, thinning and `reset`) are not counted as errors.
 
 ## 12. Change subscription and cache
 
@@ -3014,7 +3017,7 @@ order; the first red step stops the run. The same load for a day: `cd lib && npm
 # time — history: versions({ follow }) across reclass and rekey, withDeleted, restore, purge, history trimming, account deletion (stage 6)
 # rekey — a new key value of an object and a new key of a class: new ids, moving references, recursion through links with the end in the key (stage 6)
 # reset — reset of sessions, tenant, all: the allowReset flag, the letopis.reset permission, confirmation by the schema name, the reset record, a new service key (stage 6)
-# verify — legitimate gaps and tampering, verify({ data: true }): data, ends, tenants, id by key; permissions and CLI (stage 6); a tampered tombstone gives an issue and another anchor (plan 2.0, 7.9 №11)
+# verify — legitimate gaps and tampering, verify({ data: true }): data, ends, tenants, id by key; permissions and CLI (stage 6); a tampered tombstone gives an issue and another anchor (plan 2.0, 7.9 №11); a dropped expression of the hash column and a child table with its own give an issue (review)
 # retention — retention policy: tiers, a finite term, special versions, deleted rows, asOf, cursor_expired, time zone, catch-up run, inheritance and default — versus a reference in TypeScript (stage 6)
 # watch — cursor subscription: commit order, a long transaction, resuming, listener drop, two tenants (stage 6)
 # cache — result cache: hits, own and others' writes, the key with the user, permissions, revoked sessions, listener drop, ttl, class marking, without LISTEN, a race, db.sql, the limit of signal counters, others' revoked sessions do not grow the counters (stage 6; plan 1.1, checkpoint A; plan 2.0, 7.7)

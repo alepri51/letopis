@@ -2,13 +2,14 @@
  * verify — проверка базы (план, этап 6, п. 4; тест-план §7.8 №6.8 и §7.3.7 №4): законные разрывы
  * (purge, обрезка, reset) не находки, подмены — находки; verify({ data: true }) называет строку, не
  * проходящую описание класса, висячий конец, строку несуществующего арендатора и id не по ключу;
- * не администратор — отказ; letopis verify — ненулевой код при находках.
+ * не администратор — отказ; letopis verify — ненулевой код при находках; колонку hash считает не выражение
+ * установки (снято, у наследника своё) — находка (ревью).
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { engine, type Engine, type Tenant } from './_engine.js';
-import { ADMIN_DSN, appDsn } from './_harness.js';
+import { engine, SYSTEM_ID, type Engine, type Tenant } from './_engine.js';
+import { ADMIN_DSN, appDsn, type Sql } from './_harness.js';
 import { connect, type Db } from '../src/index.js';
 import { main } from '../src/cli.js';
 import { sysadmin } from './_access.js';
@@ -144,4 +145,48 @@ test('план 2.0, 7.9 №11: порча надгробия ловится veri
   assert.notEqual(hash.anchor, clean.anchor);
   await own(`update ${e.S}.log t set prev_hash = p.hash from ${e.S}.log p where t.id = $1 and t.rev = $2 and p.id = t.id and p.rev = t.rev - 1`);
   assert.equal((await adb.verify()).anchor, clean.anchor);
+});
+
+test('ревью: снятое выражение колонки hash ловится verify', async () => {
+  const [h] = await db.Box().create({ code: 'H', n: 1 }).rows();
+  await db.Box(h.id).update({ n: 2 }).rows();
+  type Found = Issue & { table?: string; column?: string; expression?: string | null };
+  type Report = { ok: boolean; issues: Found[]; anchor: string };
+  const ROLLBACK = new Error('rollback');
+  // подмена — от владельца на схеме теста, в транзакции с откатом: простую колонку генерируемой без пересчёта всех
+  // значений не вернуть, а verify той же транзакции видит и каталог, и строки
+  const attempt = (fn: (tx: Sql, check: () => Promise<Report>) => Promise<void>) =>
+    e.sql.begin(async (tx) => {
+      const check = async () => (await tx.unsafe(`select ${e.S}.verify() as v`))[0].v as Report;
+      await fn(tx as unknown as Sql, check);
+      throw ROLLBACK;
+    }).catch((err) => {
+      if (err !== ROLLBACK) throw err;
+    });
+  const columns = (is: Found[]) => is.filter((i) => i.column === 'hash').map((i) => [i.table, i.id, i.expression]);
+  await attempt(async (tx, check) => {
+    const clean = await check();
+    assert.equal(clean.ok, true, JSON.stringify(clean.issues));
+    await tx.unsafe('set local role letopis_owner');
+    for (const t of ['entity', 'log']) await tx.unsafe(`alter table ${e.S}.${t} alter column hash drop expression`);
+    // данные последней версии и строки — другие, хэши прежние: ни цепочки, ни якорь подмену не видят
+    await tx.unsafe(`update ${e.S}.log set data = '{"code": "H", "n": 200}' where id = $1 and rev = 2`, [h.id]);
+    await tx.unsafe(`update ${e.S}.entity set data = '{"code": "H", "n": 200}' where id = $1`, [h.id]);
+    await tx.unsafe('reset role');
+    const v = await check();
+    assert.equal(v.ok, false);
+    assert.equal(v.anchor, clean.anchor, 'якорь подмену не видит');
+    assert.deepEqual(v.issues.filter((i) => i.column !== 'hash'), [], 'цепочки подмену не видят');
+    assert.deepEqual(columns(v.issues), [['entity', SYSTEM_ID, null], ['log', SYSTEM_ID, null]], JSON.stringify(v.issues));
+    assert.ok(v.issues.every((i) => /^колонка hash таблицы (entity|log) не генерируемая/.test(i.problem)), JSON.stringify(v.issues));
+  });
+  // наследник log со своим выражением: его строки видны в log
+  await attempt(async (tx, check) => {
+    await tx.unsafe('set local role letopis_owner');
+    await tx.unsafe(`create table ${e.S}.log_kid (fake bytea, hash bytea generated always as (fake) stored) inherits (${e.S}.log)`);
+    await tx.unsafe('reset role');
+    assert.deepEqual(columns((await check()).issues), [['log_kid', SYSTEM_ID, 'fake']]);
+  });
+  const restored = await adb.verify();
+  assert.equal(restored.ok, true, JSON.stringify(restored.issues));
 });

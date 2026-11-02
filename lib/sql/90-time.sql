@@ -985,7 +985,7 @@ end $$;
 
 -- Проверка цепочек хэшей (этап 1, п. 11; этап 6, п. 4): номера версий подряд с 1, prev_hash каждой
 -- версии равен хэшу предыдущей, строка entity совпадает с последней версией журнала, надгробие — с предыдущей версией
--- (план 2.0, 7.3 №5). Законные
+-- (план 2.0, 7.3 №5), колонку hash считает выражение установки (ревью). Законные
 -- разрывы: после записи trim (стык — по $trimmed и $hash), запись purge и reset — начало цепочки,
 -- прореживание — пропуск после версии старше яруса all класса, у которого есть (или была) политика
 -- хранения — своя или умолчание установки (метка default_policy в строке ключа). p_data — ещё и все строки: данные по проверке класса, концы (цель существует, её
@@ -999,6 +999,7 @@ set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 declare
   issues jsonb;
+  hash_issues jsonb;
   data_issues jsonb := '[]'::jsonb;
   anchor text;
   ts timestamptz := clock_timestamp();
@@ -1006,6 +1007,32 @@ begin
   if not @SCHEMA@.letopis_allowed('letopis.verify') then
     perform @SCHEMA@.lt_fail('sql-time.verify_denied');
   end if;
+  -- Колонка hash (ревью): цепочки и якорь верят её значениям, поэтому она обязана быть генерируемой (stored) с выражением
+  -- установки (10-core.sql) — у entity, log и у каждой таблицы-наследника (pg_inherits): строки наследника видны в entity
+  -- и log, а выражение у него может быть своим. Иначе владелец снимает выражение (drop expression) или ставит своё и
+  -- пишет любые хэши, и ни цепочки, ни якорь этого не видят. Вернуть выражение установки можно только с пересчётом всех
+  -- значений (set expression переписывает таблицу, простую колонку генерируемой не сделать — только новой колонкой),
+  -- поэтому подменённые хэши живут, пока подмену видно в каталоге. Эталон — текст pg_get_expr в пути поиска verify: имя
+  -- функции без схемы — только если путь находит ту же функцию, то есть version_hash и snapshot этой схемы. Их тела verify
+  -- не сверяет (у тела return … prosrc пуст, тело — в prosqlbody): значения считаются при записи, а up() при каждом
+  -- накате ставит функции заново, и сверка видела бы лишь нынешнее тело, а не то, с которым писались строки. Хэши,
+  -- записанные при подменённой функции, выдаёт только пересчёт.
+  with recursive rel as (
+    select c.oid from pg_class c where c.oid in ('@SCHEMA@.entity'::regclass, '@SCHEMA@.log'::regclass)
+    union
+    select i.inhrelid from pg_inherits i join rel on i.inhparent = rel.oid
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('id', '@SYSTEM@', 'table', r.oid::regclass::text, 'column', 'hash',
+                    'expression', pg_get_expr(d.adbin, d.adrelid),
+                    'problem', @SCHEMA@.lt_text('sql-time.verify_hash_column', jsonb_build_object('table', r.oid::regclass::text)))
+                  order by r.oid::regclass::text), '[]'::jsonb)
+    into hash_issues
+  from rel r
+  left join pg_attribute a on a.attrelid = r.oid and a.attname = 'hash' and not a.attisdropped
+  left join pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+  where a.attgenerated is distinct from 's'
+     or pg_get_expr(d.adbin, d.adrelid) is distinct from
+        'version_hash(prev_hash, snapshot(id, rev, class, tenant, owner, links, data, tags, at, author, agent, op, reason, moved))';
   with pol as (
     -- классы с политикой хранения сейчас или в истории строки Class; ярус all — действующий или сутки
     select x.data->>'name' as cls, x.tenant as ct,
@@ -1130,7 +1157,7 @@ begin
         where l.op in ('delete', 'purge')
           and not exists (select 1 from @SCHEMA@.log z where z.id = l.id and z.rev > l.rev)
           and not exists (select 1 from @SCHEMA@.entity e where e.id = l.id)) h;
-  issues := issues || data_issues;
+  issues := hash_issues || issues || data_issues;
   return jsonb_build_object('ok', issues = '[]'::jsonb, 'issues', issues, 'anchor', anchor);
 end $$;
 

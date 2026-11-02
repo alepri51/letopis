@@ -13,6 +13,10 @@ import { CHAIN_METHODS, DB_METHODS } from './types.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 
+/**
+ * Находка `verify()`: `id` и `rev` — объект и версия. Находка об устройстве таблицы (колонку `hash` считает не выражение
+ * установки) — с id System и полями `table`, `column`, `expression`.
+ */
 export interface VerifyIssue {
   id: string;
   rev?: number;

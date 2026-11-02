@@ -561,6 +561,12 @@ export const sqlTime = {
     ru: 'надгробие не совпадает с предыдущей версией',
     en: 'the tombstone does not match the previous version',
   },
+  // 90-time.sql, verify(): находка — колонку hash считает не выражение установки (ревью: снятое выражение)
+  'sql-time.verify_hash_column': {
+    code: 'invalid_data',
+    ru: 'колонка hash таблицы {table} не генерируемая или её выражение — не то, что ставит установка: подмену хэшей не выдадут ни цепочки, ни якорь',
+    en: 'column hash of table {table} is not generated or its expression is not the one the installer sets: neither the chains nor the anchor would expose forged hashes',
+  },
   // 90-time.sql, watch_read()
   'sql-time.cursor_expired': {
     code: 'cursor_expired',
