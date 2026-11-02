@@ -63,7 +63,8 @@
           "unchanged": 0,
           "skipped": 0,
           "rebuilds": 1,
-          "locked": []
+          "locked": [],
+          "caughtUp": true
         },
         "итог дня": 1500
       },
