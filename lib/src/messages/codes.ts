@@ -404,4 +404,14 @@ export const codes = {
       en: 'replace the call with the one named in the error text',
     },
   },
+  // SQLSTATE XX000 с ключом каталога в DETAIL: база не держит условие, которое обязана держать сама (строка-замок)
+  'codes.internal': {
+    code: 'internal',
+    ru: 'внутренняя ошибка letopis: база не держит условие, которое обязана держать сама (например, нет строки-замка)',
+    en: 'an internal letopis error: the database does not keep a condition it must keep by itself (for example, a lock row is missing)',
+    hint: {
+      ru: 'это ошибка letopis: сообщите о ней с текстом, кодом и версией пакета',
+      en: 'this is a letopis bug: report it with the text, the code and the package version',
+    },
+  },
 } satisfies { [K in ErrorCode as `codes.${K}`]: Msg & { code: K; hint: Text } };

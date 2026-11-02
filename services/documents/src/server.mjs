@@ -8,7 +8,7 @@
  * - Каждая правка — версия с причиной (reason); diff двух версий, blame («кто последним менял поле»), asOf —
  *   документ на любой момент (ползунок в интерфейсе).
  * - Удаление с превью, корзина (withDeleted), restore, purge; anonymize персональных данных контрагента;
- *   trimHistory — обрезка истории до даты.
+ *   trimHistory — обрезка истории до даты, в сессии руководителя — своей на каждую обрезку.
  * - Хранение по ярусам: политика history класса Doc и maintain({ now }) «как будто через N дней».
  * - verify({ data: true }) и кнопка «испортить запись журнала» (прямой UPDATE в обход библиотеки).
  * - Архив старых договоров — первая заливка db.load(…, { initial: true }) с историей; сброс демо — reset.
@@ -50,6 +50,7 @@ const POLICY_TEXT = [
   { tier: 'monthly — 1 год', keep: 'последняя версия каждого месяца за год' },
   { tier: 'yearly — навсегда', keep: 'последняя версия каждого года' },
 ];
+const OP_TTL = 60; // срок сессии руководителя на одну операцию (обрезку истории), с; гаснет она сразу после операции
 
 // ---------- модель (src/models.mjs) ----------
 const MODELS = documentModels(model, z);
@@ -63,20 +64,46 @@ export async function createApp() {
   const r = await up({ dsn: ENV.admin, schema: ENV.schema, upgrade: true, fresh: ENV.fresh, serviceKey: ENV.serviceKey, allowReset: true, quiet: true,
     login: { user: decodeURIComponent(appUrl.username), password: decodeURIComponent(appUrl.password) } });
   // журнал «под капотом»: запросы к базе, записанные версии и сигналы текущего действия;
-  // обслуживание (trimHistory, maintain) идёт администраторским подключением adm — его сигналы тоже
+  // обслуживание (maintain) идёт администраторским подключением adm — его сигналы тоже; подключение обрезки
+  // истории живёт одну операцию, и его сигналы отправляет close()
   const trace = await createTrace({ admin, schema: r.schema, size: 15, flush: (s) => [s.db, adm] });
   const { onQuery } = trace;
   const svc = await connect({ dsn: ENV.app, schema: r.schema, apiKey: ENV.serviceKey, onQuery });
-  const t = await createTenant(admin, r.schema, { name: FIRM, user: { name: USERS.head.name, login: USERS.head.login, password: USERS.head.password, ttl: '7 days' } });
+  // сессия createTenant руководителя — только на запись модели при запуске (ниже), потом она погашена: срок короткий
+  const t = await createTenant(admin, r.schema, { name: FIRM, user: { name: USERS.head.name, login: USERS.head.login, password: USERS.head.password, ttl: '10 minutes' } });
   await createTenant(admin, r.schema, { name: FIRM, user: { name: USERS.lawyer.name, login: USERS.lawyer.login, password: USERS.lawyer.password, roles: ['staff'], ttl: '1 minute' } });
-  // обслуживание (verify, maintain, trimHistory, load, reset) — администраторское подключение в сессии руководителя
-  // сессия руководителя — на 7 дней простоя (connect её продлевает): с 10 минутами trimHistory после простоя падал
-  // на no_session (план 2.0, 7.6 №5)
-  const adm = await connect({ dsn: ENV.admin, schema: r.schema, token: t.token, allowBypassRls: true, onQuery });
-  // модель — классы арендатора фирмы: при каждом запуске их пишет syncModels этого подключения, сессия пользователя
-  // модель не пишет. Не System: классы System syncModels пропускает, а сид установки уже существующий класс не меняет —
-  // изменение модели до работающей установки так не дошло бы
-  await syncModels(adm, MODELS, { apply: true });
+  // модель — классы арендатора фирмы: при каждом запуске их пишет syncModels администраторского подключения в сессии
+  // руководителя (токен createTenant), сессия пользователя модель не пишет. Не System: классы System syncModels
+  // пропускает, а сид установки уже существующий класс не меняет — изменение модели до работающей установки так не дошло
+  // бы. Подключение — только на эту запись: потом revoke и close, как syncCompany в helpdesk
+  const boot = await connect({ dsn: ENV.admin, schema: r.schema, token: t.token, allowBypassRls: true, listen: false, refreshSession: false });
+  try {
+    await syncModels(boot, MODELS, { apply: true });
+  } finally {
+    await boot.auth.revoke().catch(() => {});
+    await boot.close();
+  }
+  // обслуживание (verify, maintain, load архива) — администраторское подключение без сессии: verify и maintain пускает
+  // его роль, load пишет в арендатора, названного явно. Постоянного токена у него нет: прежний после простоя дольше срока
+  // сессии давал trimHistory отказ no_session (план 2.0, 7.6 №5)
+  const adm = await connect({ dsn: ENV.admin, schema: r.schema, allowBypassRls: true, onQuery });
+  /**
+   * Работа в сессии руководителя — своя сессия на одну операцию, как syncCompany в helpdesk: svc.auth.sessionFor,
+   * подключение с её токеном и auth.switch в фирму; после — revoke и close. Обрезке истории (trimHistory) нужна живая
+   * сессия с правами READ и DELETE на документ, а роль подключения её не заменяет: администраторская роль тут ни к чему,
+   * подключение — роли приложения.
+   */
+  async function asHead(fn) {
+    const token = await svc.auth.sessionFor(t.user, { ttl: OP_TTL });
+    const db = await connect({ dsn: ENV.app, schema: r.schema, token, listen: false, refreshSession: false, onQuery });
+    try {
+      await db.auth.switch(t.tenant);
+      return await fn(db);
+    } finally {
+      await db.auth.revoke().catch(() => {});
+      await db.close();
+    }
+  }
   const head = await svc.as(t.user, { tenant: t.tenant });
   const accountOf = async (u) => (await svc.auth.verifyPassword({ identifier: u.login, password: u.password, ttl: 60 })).account;
   let archive = null;
@@ -95,7 +122,8 @@ export async function createApp() {
     }
     // версии одного объекта — по возрастанию времени: $at растёт вместе с $rev
     for (let k = 0; k < 12; k++) for (let v = 0; v < 4; v++) Contract_[k * 4 + v].$at = new Date(Date.UTC(2025, 0, 1) + (k * 20 + v * 5) * 86_400_000).toISOString();
-    const report = await adm.load({ Party: Party_, Contract: Contract_ }, { initial: true, withHistory: true, agent: 'перенос архива' });
+    // арендатор — явно: у администраторского подключения нет сессии, из которой его взять
+    const report = await adm.load({ Party: Party_, Contract: Contract_ }, { initial: true, withHistory: true, agent: 'перенос архива', tenant: t.tenant });
     // свежие черновики — уже обычными цепочками от людей фирмы
     const lawyer = await svc.as(await accountOf(USERS.lawyer), { tenant: t.tenant });
     const parties = await head.Party().rows();
@@ -319,8 +347,9 @@ export async function createApp() {
   app.post('/api/docs/:id/trim', auth, route(async (req, res) => {
     const s = req.s;
     const n = await act(s, 'Обрезка истории', async (lines) => {
-      lines.push('adm.trimHistory(id, сегодня) — версии старше даты стёрты, первая оставшаяся получила запись trim');
-      return adm.trimHistory(req.params.id, new Date(new Date().toISOString().slice(0, 10)));
+      lines.push('svc.auth.sessionFor(руководитель) — своя сессия на эту операцию; connect({ token }), db.auth.switch(фирма)');
+      lines.push('db.trimHistory(id, сегодня) — версии старше даты стёрты, первая оставшаяся получила запись trim; затем db.auth.revoke()');
+      return asHead((db) => db.trimHistory(req.params.id, new Date(new Date().toISOString().slice(0, 10))));
     });
     res.json({ trimmed: n });
   }));

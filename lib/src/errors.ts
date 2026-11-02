@@ -5,8 +5,9 @@
  * Каталог сообщений (план 2.0, этап 3, п. 3; lib/src/messages): ошибка по ключу — `lerr(ключ, параметры)`, текст —
  * шаблон на языке вокруг: опция lang подключения, сервера MCP или CLI держит его в AsyncLocalStorage на время вызова
  * (`langRun`), по умолчанию ru. У каждой ошибки — подсказка «что делать» (`hint`) и ссылка на строку её кода в разделе
- * «Ошибки» README на GitHub по тегу версии (`docs`). База кладёт ключ и параметры в DETAIL (`lt_fail(ключ, …)`), а
- * fromDbError собирает текст по ним; без ключа остаётся текст базы.
+ * «Ошибки» README на GitHub по тегу версии (`docs`; с lang en — README.en.md). База кладёт ключ и параметры в DETAIL
+ * (`lt_fail(ключ, …)`), а fromDbError собирает текст по ним; без ключа остаётся текст базы. Так же — у нарушений
+ * (validate_data) и находок (verify, строки отказа ужесточения): issuesFromDb, findingsFromDb.
  */
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createRequire } from 'node:module';
@@ -22,8 +23,14 @@ export interface Issue {
 }
 
 const VERSION = (createRequire(import.meta.url)('../package.json') as { version: string }).version;
-/** Раздел «Ошибки» README по тегу версии пакета; якорь — сам код (`<a id="код"></a>` в строке таблицы). */
-const DOCS = `https://github.com/alepri51/letopis/blob/v${VERSION}/lib/README.md`;
+/**
+ * Раздел «Ошибки» README по тегу версии пакета на языке ошибки (английский — README.en.md); якорь — сам код
+ * (`<a id="код"></a>` в строке таблицы, в обеих версиях).
+ */
+const DOCS: Readonly<Record<Lang, string>> = {
+  ru: `https://github.com/alepri51/letopis/blob/v${VERSION}/lib/README.md`,
+  en: `https://github.com/alepri51/letopis/blob/v${VERSION}/lib/README.en.md`,
+};
 
 // ---------------------------------------------------------------------------
 // Язык вокруг
@@ -82,9 +89,12 @@ function textOf(key: string, params: Params | undefined, lang: Lang): string {
   return Array.isArray(sim) && sim.length ? s + render(SIMILAR[lang], { similar: sim.join(', ') }) : s;
 }
 
-/** Текст записи каталога на языке вокруг (params.similar — «— похожие: …»): сообщения нарушений, описания. */
-export function lmsg(key: MsgKey, params?: Params): string {
-  return textOf(key, params, currentLang());
+/**
+ * Текст записи каталога на языке вокруг или на языке lang (params.similar — «— похожие: …»): сообщения нарушений,
+ * описания, подписи describeText.
+ */
+export function lmsg(key: MsgKey, params?: Params, lang: Lang = currentLang()): string {
+  return textOf(key, params, lang);
 }
 
 const warned = new Set<string>();
@@ -126,8 +136,9 @@ export class LetopisError extends Error {
     }
     const sign = codeOf(code);
     const hint = (msg ? msgOf(msg.key)?.hint : undefined) ?? sign?.hint;
-    if (hint) self.hint = hint[currentLang()];
-    if (sign) self.docs = `${DOCS}#${code}`;
+    const lang = currentLang();
+    if (hint) self.hint = hint[lang];
+    if (sign) self.docs = `${DOCS[lang]}#${code}`;
   }
 }
 
@@ -187,12 +198,17 @@ export function checkOptions(where: string, opts: unknown, known: Readonly<Recor
 /** Версия, в которой снято старое API (её берёт и контракт API — scripts/gen-api-contract.mjs). */
 export const REMOVED_IN = '1.0.0';
 
-/** Охранник снесённого API (план, этап 3, п. 11): понятная ошибка с версией и заменой. */
-export function removed(name: string, replacement: string): LetopisError {
+/**
+ * Охранник снесённого API (план, этап 3, п. 11): понятная ошибка с версией и заменой. name — имя снятого API, не
+ * переводится: контракт API собирает охранники по литералам обоих аргументов и сверяет их по имени. replacement — ключ
+ * каталога (замена на языке вокруг; контракт берёт русский шаблон) или текст без перевода — имя API, например 'paths()';
+ * ключ api.replacement_option_* — снятая опция connect().
+ */
+export function removed(name: string, replacement: MsgKey | (string & {})): LetopisError {
   // «опция …» — женского рода, несколько имён через «и» — множественное число, методы и свойства — мужского: у каждой
   // формы своя запись каталога
-  const params = { version: REMOVED_IN, replacement };
-  if (name.startsWith('опция ')) return lerr('api.removed_option', { name: name.slice('опция '.length), ...params });
+  const params = { version: REMOVED_IN, replacement: msgOf(replacement) ? lmsg(replacement as MsgKey) : replacement };
+  if (replacement.startsWith('api.replacement_option_')) return lerr('api.removed_option', { name, ...params });
   return lerr(/ и /.test(name) ? 'api.removed_many' : 'api.removed', { name, ...params });
 }
 
@@ -219,10 +235,85 @@ const LT_NAMES: Record<string, string> = {
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
+/** Текст записи из базы на языке lang: ru — текст, который собрала база; другой — из каталога; ключа нет в каталоге — текст базы. */
+function dbTextIn(lang: Lang, key: unknown, params: unknown, text: string): string {
+  return lang !== 'ru' && typeof key === 'string' && msgOf(key) ? textOf(key, isObj(params) ? params : {}, lang) : text;
+}
+
+/**
+ * Нарушения из базы (validate_data, inc) на языке вокруг или lang: у нарушения базы ещё key и params — message
+ * собирается по ним (ru — текст базы), а сами key и params наружу не идут: форма та же, { path, keyword, message }.
+ * Нарушение без ключа (схема прежней сборки) — как есть.
+ */
+export function issuesFromDb(issues: unknown, lang: Lang = currentLang()): Issue[] {
+  if (!Array.isArray(issues)) return issues as Issue[];
+  return issues.map((i: unknown) => {
+    if (!isObj(i) || typeof i.key !== 'string') return i as unknown as Issue;
+    const { key, params, ...rest } = i;
+    rest.message = dbTextIn(lang, key, params, String(rest.message ?? ''));
+    return rest as unknown as Issue;
+  });
+}
+
+/** JSON текстом, как его печатает jsonb::text («, » и «: » между элементами): нарушения в тексте находки — как у базы. */
+function jsonbText(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(jsonbText).join(', ')}]`;
+  if (isObj(v)) return `{${Object.entries(v).map(([k, x]) => `${JSON.stringify(k)}: ${jsonbText(x)}`).join(', ')}}`;
+  return JSON.stringify(v) ?? 'null';
+}
+
+/**
+ * Находки из базы — находки verify() и строки отказа ужесточения (detail.rows от family_conflicts) — на языке вокруг
+ * или lang: у находки ещё key и params, problem собирается по ним (ru — текст базы; нарушения в параметре issues —
+ * через issuesFromDb), нарушения в поле issues — тоже; key и params наружу не идут. Строка без ключа — как есть.
+ */
+export function findingsFromDb<T>(rows: readonly T[], lang: Lang = currentLang()): T[] {
+  return rows.map((r) => {
+    if (!isObj(r) || typeof r.key !== 'string') return r;
+    const { key, params, ...rest }: Record<string, unknown> = r;
+    if (lang !== 'ru' && msgOf(key as string)) {
+      const p = isObj(params) ? params : {};
+      rest.problem = textOf(key as string, Array.isArray(p.issues) ? { ...p, issues: jsonbText(issuesFromDb(p.issues, lang)) } : p, lang);
+    }
+    if (Array.isArray(rest.issues)) rest.issues = issuesFromDb(rest.issues, lang);
+    return rest as T;
+  });
+}
+
+/** DETAIL ошибки базы: JSON — разобранный, иначе строка как есть. */
+function parseDetail(detail: string | undefined): unknown {
+  try {
+    return detail ? JSON.parse(detail) : undefined;
+  } catch {
+    return detail;
+  }
+}
+
+/**
+ * Повторяемый конфликт базы (40001, 40P01) с ключом каталога в DETAIL остаётся ошибкой базы — на её SQLSTATE держатся
+ * повторы (tx.ts), — но русский текст шаблона в message заменяется текстом на языке вокруг (хвост hintTxRetry — своим
+ * ключом). Без ключа и на ru — как есть.
+ */
+function retryInLang(e: unknown, err: { message?: string; detail?: string }): unknown {
+  const lang = currentLang();
+  if (lang === 'ru' || typeof err.message !== 'string') return e;
+  const d = parseDetail(err.detail);
+  if (!isObj(d) || typeof d.key !== 'string' || !msgOf(d.key)) return e;
+  const key = d.key;
+  const params = isObj(d.params) ? d.params : {};
+  const ru = textOf(key, params, 'ru');
+  // заменитель — функция: в строке-замене replace толкует $
+  if (ru && err.message.includes(ru)) (e as { message: string }).message = err.message.replace(ru, () => textOf(key, params, lang));
+  return e;
+}
+
 /**
  * Ошибка базы → LetopisError (ValidationError для invalid_data с нарушениями). Детали из DETAIL (JSON) переносятся в
  * detail; ключ каталога и параметры из DETAIL (lt_fail(ключ, …)) — в key и params: русский текст — тот, что собрала
- * база, другой язык вокруг — из каталога; без ключа — текст базы. Прочие ошибки возвращаются как есть.
+ * база, другой язык вокруг — из каталога; без ключа — текст базы. Так же — сообщения нарушений (issues) и problem строк
+ * отказа (detail.rows): key и params из них наружу не идут. Внутренняя ошибка базы (XX000) с ключом в DETAIL — код
+ * internal; повторяемый конфликт (40001, 40P01) с ключом — ошибка базы с текстом на языке вокруг. Прочие ошибки
+ * возвращаются как есть.
  */
 export function fromDbError(e: unknown): unknown {
   const err = e as { code?: string; message?: string; detail?: string; routine?: string };
@@ -232,14 +323,19 @@ export function fromDbError(e: unknown): unknown {
   if (err.code === '42501' && err.routine === 'ExecWithCheckOptions' && !/USING/.test(err.message ?? '')) {
     return lerr('api.row_check_denied', undefined, { cause: e });
   }
-  const name = err.code ? LT_NAMES[err.code] : undefined;
-  if (!name) return e;
+  if (err.code === '40001' || err.code === '40P01') return retryInLang(e, err);
+  let name: string | undefined;
   let detail: unknown;
-  try {
-    detail = err.detail ? JSON.parse(err.detail) : undefined;
-  } catch {
-    detail = err.detail;
+  if (err.code === 'XX000') {
+    // своя внутренняя ошибка — lt_raise('XX000', ключ, …): ключ каталога в DETAIL; голые XX000 самого PostgreSQL («tuple
+    // concurrently updated» и т. п.) — как есть
+    detail = parseDetail(err.detail);
+    if (isObj(detail) && typeof detail.key === 'string') name = 'internal';
+  } else if (err.code) {
+    name = LT_NAMES[err.code];
+    if (name) detail = parseDetail(err.detail);
   }
+  if (!name) return e;
   // ключ каталога (план 2.0, этап 3, п. 3): в detail остаются прежние поля, а ключ и параметры — в key и params
   let msg: { key: string; params: Params } | undefined;
   if (isObj(detail) && typeof detail.key === 'string') {
@@ -253,11 +349,13 @@ export function fromDbError(e: unknown): unknown {
   // русский текст база уже собрала из того же шаблона — он остаётся как есть; другой язык — из каталога. Ключа нет в
   // каталоге этой версии (схему обновил более новый пакет) — тоже текст базы
   const lang = currentLang();
-  const text = msg && lang !== 'ru' && msgOf(msg.key) ? textOf(msg.key, msg.params, lang) : dbText;
+  const text = msg ? dbTextIn(lang, msg.key, msg.params, dbText) : dbText;
+  // строки отказа с находками (ужесточение, rekeyClass: problem по ключу) — на том же языке, без key и params
+  if (isObj(detail) && Array.isArray(detail.rows)) detail = { ...detail, rows: findingsFromDb(detail.rows, lang) };
   const issues = (detail as { issues?: Issue[] } | undefined)?.issues;
   if (name === 'invalid_data' && Array.isArray(issues)) {
     const cls = msg ? String(msg.params.cls ?? '?') : /класса (\S+)/.exec(dbText)?.[1] ?? '?';
-    const v = new ValidationError(cls, issues, msg);
+    const v = new ValidationError(cls, issuesFromDb(issues, lang), msg);
     // текст целиком: в нём бывает больше, чем имя класса (у проектора — арендатор и id строки)
     return Object.assign(v, { cause: e, ...(text ? { message: `letopis: invalid_data: ${text}` } : {}) });
   }

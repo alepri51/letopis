@@ -264,10 +264,6 @@ begin
   return p_id;
 end $$;
 
--- Стирание истории удалённого объекта (этап 6, п. 3): без p_confirm — превью (число версий), с ним —
--- все версии удаляются, а на место версии 1 встаёт запись purge с числом стёртых версий и хэшем
--- последней. Право DELETE на класс по последнему снимку. История системных классов — аудит прав и
--- схемы: её не стирают.
 -- Проектор источника ещё не прочёл одну из версий p_id арендатора p_tenant с номером до p_rev включительно (null — все
 -- версии): курсор не прошёл её позицию (tx, seq), и снимок перестройки её не учёл (ревью безопасности №3, №5 — purge;
 -- хвост ревью №3 — обрезка истории). Проверяется каждая версия (хвост ревью доработок после 1.2.0): у более поздней
@@ -301,6 +297,10 @@ return exists (select 1 from @SCHEMA@.secret s
 -- до 1.4 проверялась одна позиция: надгробие у purge, самая поздняя по (tx, seq) версия у стыка обрезки
 drop function if exists @SCHEMA@.projector_behind(uuid, text[], xid8, bigint);
 
+-- Стирание истории удалённого объекта (этап 6, п. 3): без p_confirm — превью (число версий), с ним —
+-- все версии удаляются, а на место версии 1 встаёт запись purge с числом стёртых версий и хэшем
+-- последней. Право DELETE на класс по последнему снимку. История системных классов — аудит прав и
+-- схемы: её не стирают.
 create or replace function @SCHEMA@.purge(p_id uuid, p_confirm boolean default false) returns jsonb
 language plpgsql volatile security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -993,7 +993,8 @@ end $$;
 -- класса с ключом — v5 от ключа, агрегатные поля равны итогу живых источников (план 1.1, §2.4; ремонт —
 -- rebuild_aggregates), хэш каждой версии журнала равен пересчитанному из её содержимого (ревью). Возвращает находки и
 -- якорь — хэш всех голов цепочек: строк entity и последних версий удалённых
--- объектов. Только системный администратор (право letopis.verify) или администраторское подключение.
+-- объектов. Находка — id (и rev или class), problem — русский текст по ключу каталога, key и params (план 2.0, этап 3,
+-- п. 3). Только системный администратор (право letopis.verify) или администраторское подключение.
 create or replace function @SCHEMA@.verify(p_data boolean default false) returns jsonb
 language plpgsql stable security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -1026,7 +1027,7 @@ begin
   )
   select coalesce(jsonb_agg(jsonb_build_object('id', '@SYSTEM@', 'table', r.oid::regclass::text, 'column', 'hash',
                     'expression', pg_get_expr(d.adbin, d.adrelid),
-                    'problem', @SCHEMA@.lt_text('sql-time.verify_hash_column', jsonb_build_object('table', r.oid::regclass::text)))
+                    'key', 'sql-time.verify_hash_column', 'params', jsonb_build_object('table', r.oid::regclass::text))
                   order by r.oid::regclass::text), '[]'::jsonb)
     into hash_issues
   from rel r
@@ -1057,13 +1058,14 @@ begin
            case when prev_op = 'trim' then decode(prev_data->>'$hash', 'hex') else prev_h end as want_hash
     from chain where prev_rev is not null
   ), found as (
-    select jsonb_build_object('id', id, 'rev', rev, 'problem', 'цепочка начинается не с версии 1') as f
+    -- находка — id, номер версии, ключ каталога и параметры; текст problem — ниже, у всех находок сразу
+    select jsonb_build_object('id', id, 'rev', rev, 'key', 'sql-time.verify_chain_start', 'params', '{}'::jsonb) as f
       from chain where prev_rev is null and (rev <> 1 or prev_hash is not null)
     union all
-    select jsonb_build_object('id', id, 'rev', prev_rev, 'problem', 'хэш версии не совпадает с prev_hash следующей')
+    select jsonb_build_object('id', id, 'rev', prev_rev, 'key', 'sql-time.verify_prev_hash', 'params', '{}'::jsonb)
       from exp where rev = want_rev and prev_hash is distinct from want_hash
     union all
-    select jsonb_build_object('id', id, 'rev', want_rev, 'problem', 'разрыв: нет версий ' || want_rev || '…' || (rev - 1))
+    select jsonb_build_object('id', id, 'rev', want_rev, 'key', 'sql-time.verify_gap', 'params', jsonb_build_object('from', want_rev, 'to', rev - 1))
       from exp
       where rev > want_rev
         and not exists (select 1 from pol where pol.cls = exp.class and exp.prev_at < ts - pol.all_iv
@@ -1073,10 +1075,10 @@ begin
                                                                     where y.class = 'Class' and y.tenant = exp.tenant
                                                                       and y.data->>'name' = exp.class)))
     union all
-    select jsonb_build_object('id', id, 'rev', rev, 'problem', 'номер версии меньше ожидаемого после обрезки')
+    select jsonb_build_object('id', id, 'rev', rev, 'key', 'sql-time.verify_trim_rev', 'params', '{}'::jsonb)
       from exp where rev < want_rev
     union all
-    select jsonb_build_object('id', e.id, 'rev', e.rev, 'problem', 'строка entity не совпадает с последней версией журнала')
+    select jsonb_build_object('id', e.id, 'rev', e.rev, 'key', 'sql-time.verify_entity_head', 'params', '{}'::jsonb)
       from @SCHEMA@.entity e
       left join lateral (select l.hash, l.rev from @SCHEMA@.log l where l.id = e.id order by l.rev desc limit 1) l on true
       where coalesce((@SCHEMA@.class_row(e.class, e.tenant)).data->'resolved'->>'history', 'true') <> 'false'
@@ -1085,7 +1087,7 @@ begin
     -- надгробие — последний снимок строки: класс, арендатор, владелец, концы, данные и теги — как у предыдущей версии
     -- (план 2.0, 7.3 №5: правку надгробия мимо триггеров не выдавали ни следующая версия, ни строка entity). Сверяются
     -- надгробия движка — с посчитанным changed; загрузчик и импорт переносят чужую историю как есть (changed — null)
-    select jsonb_build_object('id', t.id, 'rev', t.rev, 'problem', @SCHEMA@.lt_text('sql-time.verify_tombstone'))
+    select jsonb_build_object('id', t.id, 'rev', t.rev, 'key', 'sql-time.verify_tombstone', 'params', '{}'::jsonb)
       from @SCHEMA@.log t
       join @SCHEMA@.log p on p.id = t.id and p.rev = t.rev - 1
       where t.op = 'delete' and t.changed is not null and p.op not in ('purge', 'trim', 'reset')
@@ -1102,29 +1104,31 @@ begin
       left join lateral (select cls.res, cls.validator from cls where cls.name = e.class and cls.ct in (e.tenant, '@SYSTEM@'::uuid)
                          order by cls.ct = '@SYSTEM@'::uuid limit 1) k on true
     ), found as (
-      select jsonb_build_object('id', r.id, 'class', r.class, 'problem', 'класс строки не найден или абстрактный') as f
+      select jsonb_build_object('id', r.id, 'class', r.class, 'key', 'sql-time.verify_class', 'params', '{}'::jsonb) as f
         from rows_ r where r.class <> 'Class' and (r.res is null or coalesce((r.res->>'abstract')::boolean, false))
       union all
-      select jsonb_build_object('id', r.id, 'class', r.class, 'problem', 'данные не проходят описание класса',
+      -- нарушения — как у validate_data: с key и params, их тексты библиотека тоже собирает на языке подключения
+      select jsonb_build_object('id', r.id, 'class', r.class, 'key', 'sql-time.verify_data', 'params', '{}'::jsonb,
                                 'issues', @SCHEMA@.validate_data(r.res->'rules', r.vld, r.res->'vars', r.data))
         from rows_ r where r.class <> 'Class' and r.res is not null
           and @SCHEMA@.validate_data(r.res->'rules', r.vld, r.res->'vars', r.data) <> '[]'::jsonb
       union all
-      select jsonb_build_object('id', r.id, 'class', r.class, 'problem', 'id не равен v5 от ключа класса')
+      select jsonb_build_object('id', r.id, 'class', r.class, 'key', 'sql-time.verify_key_id', 'params', '{}'::jsonb)
         from rows_ r where r.res is not null and jsonb_array_length(coalesce(r.res->'key', '[]'::jsonb)) > 0
           and @SCHEMA@.key_id(r.res, r.class, r.tenant, r.data, r.links) is distinct from r.id
       union all
-      select jsonb_build_object('id', r.id, 'class', r.class, 'problem', 'арендатор строки не существует', 'tenant', r.tenant)
+      select jsonb_build_object('id', r.id, 'class', r.class, 'key', 'sql-time.verify_tenant', 'params', '{}'::jsonb, 'tenant', r.tenant)
         from rows_ r
         where r.tenant <> '@SYSTEM@'::uuid
           and not exists (select 1 from @SCHEMA@.entity a where a.id = r.tenant and a.class = 'Account' and a.tenant = '@SYSTEM@'::uuid)
       union all
-      select jsonb_build_object('id', r.id, 'class', r.class, 'problem', 'владелец строки не существует', 'owner', r.owner)
+      select jsonb_build_object('id', r.id, 'class', r.class, 'key', 'sql-time.verify_owner', 'params', '{}'::jsonb, 'owner', r.owner)
         from rows_ r
         where r.owner <> r.tenant
           and not exists (select 1 from @SCHEMA@.entity a where a.id = r.owner and a.class = 'Account' and a.tenant = '@SYSTEM@'::uuid)
       union all
-      select jsonb_build_object('id', p.id, 'class', p.class, 'problem', 'цель конца не найдена', 'role', p.role, 'target', p.tid)
+      select jsonb_build_object('id', p.id, 'class', p.class, 'key', 'sql-time.verify_end_target', 'params', '{}'::jsonb,
+                                'role', p.role, 'target', p.tid)
         from (select r.id, r.class, r.tenant, r.res, k.key as role,
                      (case jsonb_typeof(k.value) when 'array' then a.value else k.value end #>> '{}')::uuid as tid
               from rows_ r
@@ -1142,16 +1146,23 @@ begin
                        where k2.class = 'Class' and k2.data->>'name' = t.class and k2.tenant in (t.tenant, '@SYSTEM@'::uuid)
                        order by k2.tenant = '@SYSTEM@'::uuid limit 1), '{}')))
       union all
-      select jsonb_build_object('id', a.id, 'class', a.class, 'field', a.field, 'stored', a.stored, 'expected', a.expected,
-               'problem', format('агрегат %s не равен итогу живых источников: в строке %s, по источникам %s — ремонт rebuildAggregates',
-                 a.field, coalesce(a.stored::text, 'нет значения'), a.expected::text))
+      -- значения в параметрах — JSON текстом, как их печатал прежний текст; в строке значения нет — своя запись каталога
+      select jsonb_build_object('id', a.id, 'class', a.class, 'field', a.field, 'stored', a.stored, 'expected', a.expected) || m.m
         from @SCHEMA@.agg_issues() a
+        cross join lateral (
+          select jsonb_build_object('key', 'sql-time.verify_aggregate',
+                   'params', jsonb_build_object('field', a.field, 'stored', a.stored::text, 'expected', a.expected::text)) as m
+            where a.stored is not null
+          union all
+          select jsonb_build_object('key', 'sql-time.verify_aggregate_unset',
+                   'params', jsonb_build_object('field', a.field, 'expected', a.expected::text))
+            where a.stored is null) m
       union all
       -- хэш каждой версии журнала — заново из её содержимого той же функцией, что у колонки hash (ревью): владелец,
       -- подменивший тело version_hash или snapshot, переписавший строки и вернувший тело, оставляет хэши, которых нынешняя
       -- функция не даёт, а стыки и головы цепочек прежние — ни цепочки, ни якорь подмену не видят. Формула (10-core.sql) с
       -- 1.0.0 не менялась: версии, записанные прежними выпусками, пересчёт не выдаёт (тест upgrade)
-      select jsonb_build_object('id', l.id, 'rev', l.rev, 'problem', @SCHEMA@.lt_text('sql-time.verify_hash_recomputed'))
+      select jsonb_build_object('id', l.id, 'rev', l.rev, 'key', 'sql-time.verify_hash_recomputed', 'params', '{}'::jsonb)
         from @SCHEMA@.log l
         where l.hash is distinct from @SCHEMA@.version_hash(l.prev_hash,
                 @SCHEMA@.snapshot(l.id, l.rev, l.class, l.tenant, l.owner, l.links, l.data, l.tags, l.at, l.author, l.agent, l.op, l.reason, l.moved))
@@ -1168,7 +1179,11 @@ begin
         where l.op in ('delete', 'purge')
           and not exists (select 1 from @SCHEMA@.log z where z.id = l.id and z.rev > l.rev)
           and not exists (select 1 from @SCHEMA@.entity e where e.id = l.id)) h;
-  issues := hash_issues || issues || data_issues;
+  -- текст находки — русский шаблон её ключа каталога с параметрами (план 2.0, этап 3, п. 3); key и params остаются в
+  -- находке: по ним verify() библиотеки собирает текст на языке подключения
+  select coalesce(jsonb_agg(x.f || jsonb_build_object('problem', @SCHEMA@.lt_text(x.f->>'key', x.f->'params')) order by x.n), '[]'::jsonb)
+    into issues
+  from jsonb_array_elements(hash_issues || issues || data_issues) with ordinality x(f, n);
   return jsonb_build_object('ok', issues = '[]'::jsonb, 'issues', issues, 'anchor', anchor);
 end $$;
 

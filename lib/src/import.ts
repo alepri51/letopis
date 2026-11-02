@@ -167,7 +167,7 @@ function conv(rule: unknown, cls: string, path: string, notes: ImportNote[]): Co
   }
   const r = typeof rule === 'string' ? parseShort(rule) : isObj(rule) ? rule : null;
   if (!r) {
-    note(`правило ${JSON.stringify(rule)} не разобрано — поле без проверки`);
+    note(lmsg('boot.import_note_rule_unparsed', { rule: JSON.stringify(rule) }));
     return { s: {}, optional: true, dflt: false };
   }
   const type = String(r.type ?? r.$$type ?? (r.props ? 'object' : 'any'));
@@ -182,7 +182,7 @@ function conv(rule: unknown, cls: string, path: string, notes: ImportNote[]): Co
       if (r.empty === false) s.minLength = Math.max(1, (s.minLength as number | undefined) ?? 0);
       if (typeof r.pattern === 'string') s.pattern = r.pattern;
       for (const k of ['trim', 'lowercase', 'uppercase', 'padStart', 'padEnd', 'alpha', 'numeric', 'alphanum', 'alphadash', 'hex', 'singleLine', 'base64', 'contains', 'enum']) {
-        if (k in r) note(`string.${k} не переносится`);
+        if (k in r) note(lmsg('boot.import_note_not_carried', { rule: `string.${k}` }));
       }
       break;
     }
@@ -192,7 +192,7 @@ function conv(rule: unknown, cls: string, path: string, notes: ImportNote[]): Co
       if (num('max') !== undefined) s.maximum = num('max')!;
       if (r.positive === true) s.exclusiveMinimum = 0;
       if (r.negative === true) s.exclusiveMaximum = 0;
-      for (const k of ['equal', 'notEqual']) if (k in r) note(`number.${k} не переносится`);
+      for (const k of ['equal', 'notEqual']) if (k in r) note(lmsg('boot.import_note_not_carried', { rule: `number.${k}` }));
       break;
     }
     case 'boolean':
@@ -203,14 +203,14 @@ function conv(rule: unknown, cls: string, path: string, notes: ImportNote[]): Co
       break;
     case 'uuid':
       s = { type: 'string', format: 'uuid' };
-      if ('version' in r) note('uuid.version не переносится');
+      if ('version' in r) note(lmsg('boot.import_note_not_carried', { rule: 'uuid.version' }));
       break;
     case 'email':
       s = { type: 'string', format: 'email' };
       break;
     case 'url':
       s = { type: 'string' };
-      note('url → строка без проверки формата');
+      note(lmsg('boot.import_note_url'));
       break;
     case 'enum':
       s = { enum: Array.isArray(r.values) ? (r.values as never[]) : [] };
@@ -234,7 +234,7 @@ function conv(rule: unknown, cls: string, path: string, notes: ImportNote[]): Co
             continue;
           }
           if (k.startsWith('$$')) {
-            note(`директива ${k} не переносится`);
+            note(lmsg('boot.import_note_directive', { name: k }));
             continue;
           }
           const c = conv(v, cls, `${path}.${k}`, notes);
@@ -249,8 +249,8 @@ function conv(rule: unknown, cls: string, path: string, notes: ImportNote[]): Co
     }
     case 'record':
       s = { type: 'object' };
-      if (r.key !== undefined) s.propertyNames = conv(r.key, cls, `${path}.<ключ>`, notes).s;
-      if (r.value !== undefined) s.additionalProperties = conv(r.value, cls, `${path}.<значение>`, notes).s;
+      if (r.key !== undefined) s.propertyNames = conv(r.key, cls, `${path}.${lmsg('boot.import_path_key')}`, notes).s;
+      if (r.value !== undefined) s.additionalProperties = conv(r.value, cls, `${path}.${lmsg('boot.import_path_value')}`, notes).s;
       break;
     case 'array':
       s = { type: 'array' };
@@ -265,12 +265,12 @@ function conv(rule: unknown, cls: string, path: string, notes: ImportNote[]): Co
       s = { anyOf: Array.isArray(r.rules) ? (r.rules as unknown[]).map((x) => conv(x, cls, path, notes).s) : [] };
       break;
     default:
-      note(`тип ${type} не поддерживается — поле без проверки`);
+      note(lmsg('boot.import_note_type_unsupported', { type }));
       s = {};
   }
   for (const k of Object.keys(r)) {
     if (!HANDLED.has(k) && !['trim', 'lowercase', 'uppercase', 'padStart', 'padEnd', 'alpha', 'numeric', 'alphanum', 'alphadash', 'hex',
-      'singleLine', 'base64', 'contains', 'enum', 'equal', 'notEqual', 'version'].includes(k)) note(`${type}.${k} не переносится`);
+      'singleLine', 'base64', 'contains', 'enum', 'equal', 'notEqual', 'version'].includes(k)) note(lmsg('boot.import_note_not_carried', { rule: `${type}.${k}` }));
   }
   const dflt = 'default' in r;
   if (dflt) s.default = r.default as never;
@@ -376,7 +376,7 @@ function buildClasses(rows: SchemaRow[], observed: Map<string, Set<string>>, opt
       if (k === 'id' || k === '$$strict') continue;
       if (k.startsWith('$')) {
         dropped.push(k);
-        notes.push({ class: r.id, field: k, note: 'поле на $ не переносится (метасхема 1.0), значения в данных отброшены' });
+        notes.push({ class: r.id, field: k, note: lmsg('boot.import_note_dollar_field') });
         continue;
       }
       const c = conv(v, r.id, k, notes);
@@ -384,7 +384,7 @@ function buildClasses(rows: SchemaRow[], observed: Map<string, Set<string>>, opt
       try {
         s = normalizeSchema(c.s, { where: `${r.id}.${k}` });
       } catch (e) {
-        notes.push({ class: r.id, field: k, note: `${(e as Error).message} — поле без проверки` });
+        notes.push({ class: r.id, field: k, note: lmsg('boot.import_note_schema_error', { message: (e as Error).message }) });
         s = {};
       }
       properties[k] = s;
@@ -396,11 +396,11 @@ function buildClasses(rows: SchemaRow[], observed: Map<string, Set<string>>, opt
     const own = (r.links ?? []).map(parseEnd);
     own.forEach((e, i) => {
       if (!e) {
-        notes.push({ class: r.id, note: `конец ${JSON.stringify(r.links[i])} не разобран` });
+        notes.push({ class: r.id, note: lmsg('boot.import_note_end_unparsed', { end: JSON.stringify(r.links[i]) }) });
         return;
       }
       if (e.classes.some((c) => omittedSet.has(c))) {
-        notes.push({ class: r.id, note: `полиморфный конец на корень ${e.classes.join('|')} не переносится` });
+        notes.push({ class: r.id, note: lmsg('boot.import_note_polymorphic_root', { classes: e.classes.join('|') }) });
         return;
       }
       let role: string;
@@ -414,7 +414,7 @@ function buildClasses(rows: SchemaRow[], observed: Map<string, Set<string>>, opt
         role = anc ? nameOf(anc.id) : e.classes.map(nameOf).join('_');
         target = anc ? nameOf(anc.id) : e.classes.map(nameOf);
       }
-      if (ends[role]) notes.push({ class: r.id, note: `два конца с ролью ${role}` });
+      if (ends[role]) notes.push({ class: r.id, note: lmsg('boot.import_note_two_ends', { role }) });
       ends[role] = { class: target, ...(e.optional ? {} : { required: true }), onDelete: 'cascade' };
       for (const c of e.classes) for (const f of family(c)) roleOf.set(f, role);
       for (const c of e.classes) roleOf.set(c, role);
@@ -425,7 +425,7 @@ function buildClasses(rows: SchemaRow[], observed: Map<string, Set<string>>, opt
       const role = nameOf(k);
       ends[role] = { class: role, onDelete: 'cascade' };
       roleOf.set(k, role);
-      notes.push({ class: r.id, field: role, note: `ссылка на ${k} в данных не объявлена концом — добавлен необязательный конец` });
+      notes.push({ class: r.id, field: role, note: lmsg('boot.import_note_undeclared_link', { cls: k }) });
     }
     // ключ: собственное правило id (v5 — from; v4, v7, any — без ключа)
     let ownKey: KeyPart[] | undefined;
@@ -485,7 +485,7 @@ function buildClasses(rows: SchemaRow[], observed: Map<string, Set<string>>, opt
     const bad = c.ownKey.find((p) => 'field' in p && !(props[p.field] && (props[p.field].type === 'string' || (Array.isArray(props[p.field].type)
       && (props[p.field].type as string[]).includes('string')))));
     if (bad) {
-      notes.push({ class: c.old, field: (bad as { field: string }).field, note: 'поле ключа — не строка: класс импортирован без ключа' });
+      notes.push({ class: c.old, field: (bad as { field: string }).field, note: lmsg('boot.import_note_key_not_string') });
       c.ownKey = [];
       forced.push(c.old);
     }
@@ -592,7 +592,7 @@ export async function import021(opts: ImportOptions): Promise<ImportReport> {
         for (const k of Object.keys(links)) set.add(k);
       }
     });
-    log(`0.21: классов ${schemaRows.length}, объектов ${objs.size}, аккаунтов ${accounts.length}`);
+    log(lmsg('boot.import_log_source', { classes: schemaRows.length, objects: objs.size, accounts: accounts.length }));
 
     // --- классы ---
     const b = buildClasses(schemaRows, observed, opts);
@@ -706,7 +706,7 @@ export async function import021(opts: ImportOptions): Promise<ImportReport> {
         }
         await tx.unsafe(`select ${S}.sys_create(${S}.v5_id($1::uuid, 'Class', array[$2]), 'Class', $1::uuid, '{}', $3::jsonb)`,
           [SYSTEM_ID, c.name, c.desc as never]).catch((e: Error) => {
-          e.message = `import: класс ${c.name}: ${e.message}`;
+          e.message = lmsg('boot.import_class_failed', { cls: c.name, message: e.message });
           throw e;
         });
         report.classes.created.push(c.name);
@@ -714,7 +714,7 @@ export async function import021(opts: ImportOptions): Promise<ImportReport> {
       // сигнал — функцией базы: нагрузка по режиму сигналов установки (план 1.1)
       await tx.unsafe(`select ${S}.signal(array['Class'], array[$1::uuid])`, [SYSTEM_ID]);
     });
-    log(`классы: создано ${report.classes.created.length}, уже были ${report.classes.existing.length}, опущено ${b.omitted.length}`);
+    log(lmsg('boot.import_log_classes', { created: report.classes.created.length, existing: report.classes.existing.length, omitted: b.omitted.length }));
 
     // --- шаг 2: аккаунты (System) и арендатор данных System ---
     const accRows: Raw[] = [];
@@ -883,7 +883,7 @@ export async function import021(opts: ImportOptions): Promise<ImportReport> {
         }
         throw e;
       }
-      log(`арендатор ${tenant}: объектов ${list.length}, версий ${rows.length}`);
+      log(lmsg('boot.import_log_tenant', { tenant, objects: list.length, versions: rows.length }));
     }
     return byTenant;
     };
@@ -915,7 +915,8 @@ export async function import021(opts: ImportOptions): Promise<ImportReport> {
     const v = await db.verify();
     report.verify = { ok: v.ok, issues: v.issues.length, anchor: v.anchor };
     report.ms = performance.now() - t0;
-    log(`готово за ${(report.ms / 1000).toFixed(1)} с: verify ${v.ok ? 'чист' : `находок ${v.issues.length}`}`);
+    const seconds = (report.ms / 1000).toFixed(1);
+    log(v.ok ? lmsg('boot.import_log_done_clean', { seconds }) : lmsg('boot.import_log_done_issues', { seconds, issues: v.issues.length }));
     return report;
   } finally {
     await db?.close();

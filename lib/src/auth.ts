@@ -226,7 +226,7 @@ export interface AuthApi {
 export function makeAuth(S: string, exec: Executor, onSwitch: () => Promise<void>, canSwitch: boolean, lang?: LangRun): AuthApi {
   const api = makeAuthCore(S, exec, onSwitch, canSwitch);
   const member = (t: AuthApi, p: string | symbol, r: unknown): unknown => {
-    if (p === 'sessions') throw removed('db.auth.sessions(store)', 'сессии хранятся в базе: sessionFor, refresh, revoke, revokeAll');
+    if (p === 'sessions') throw removed('db.auth.sessions(store)', 'access.replacement_sessions');
     return Reflect.get(t, p, r);
   };
   return new Proxy(api, {

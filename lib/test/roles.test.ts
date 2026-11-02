@@ -1,12 +1,13 @@
 /**
- * roles — роли и права (план, §2.7, §2.9; тест-план §7.3.8 №3–8 и §7.3.5 №11).
+ * roles — роли и права (план, §2.7, §2.9; тест-план §7.3.8 №3–8 и §7.3.5 №11); up() от установщика без суперпользователя:
+ * ANALYZE и fresh от роли владельца (ревью).
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import postgres from 'postgres';
 import { engine, lt, SYSTEM_ID, type Engine, type Tenant } from './_engine.js';
 import { ADMIN_DSN, ident, type Sql } from './_harness.js';
-import { install } from '../src/up.js';
+import { install, up } from '../src/up.js';
 
 let e: Engine;
 let t: Tenant;
@@ -49,6 +50,47 @@ test('7.3.8 №3: установка от роли с CREATEROLE без прав
     const [m] = await e.sql.unsafe(`select inherit_option, set_option from pg_auth_members
       where roleid = 'lt_nosu_owner'::regrole and member = 'lt_installer'::regrole and set_option`);
     assert.deepEqual({ ...m }, { inherit_option: false, set_option: true });
+  } finally {
+    await inst.end({ timeout: 5 });
+    await e.sql.unsafe(`drop schema if exists ${ident(schema)} cascade`);
+  }
+});
+
+test('ревью: up() от установщика без суперпользователя (CREATEROLE, create на базе) — ANALYZE от роли владельца, analyzed — только собранные; fresh удаляет схему от роли владельца', async () => {
+  const schema = 'v2.t_roles_analyze';
+  await e.sql.unsafe(`drop schema if exists ${ident(schema)} cascade`);
+  await e.sql.unsafe(`do $$ begin
+    if not exists (select 1 from pg_roles where rolname = 'lt_installer') then
+      create role lt_installer login createrole password 'test';
+    end if;
+  end $$`);
+  await e.sql.unsafe(`grant create on database ${ident(new URL(ADMIN_DSN).pathname.slice(1))} to lt_installer`);
+  const u = new URL(ADMIN_DSN);
+  u.username = 'lt_installer';
+  u.password = 'test';
+  // предупреждения сервера (WARNING «permission denied to analyze … skipping it») — сюда, а не в никуда
+  const notices: string[] = [];
+  const inst = postgres(u.toString(), { max: 1, onnotice: (n) => void notices.push(String(n.message)) }) as Sql;
+  /** Таблицы схемы со статистикой: last_analyze заполнен. */
+  const analyzedNow = async () => (await e.sql.unsafe(`select relname from pg_stat_user_tables
+    where schemaname = $1 and last_analyze is not null order by relname`, [schema])).map((r) => r.relname as string);
+  const opts = { sql: inst, schema, owner: 'lt_an_owner', app: 'lt_an_app', quiet: true };
+  try {
+    const r1 = await up(opts);
+    assert.equal(r1.created, true);
+    assert.deepEqual(r1.analyzed, ['entity', 'log', 'secret']);
+    assert.deepEqual(r1.warnings, []);
+    assert.deepEqual(await analyzedNow(), ['entity', 'log', 'secret'], 'статистика собрана');
+    assert.deepEqual(notices.filter((n) => /permission denied to analyze/.test(n)), [], 'ANALYZE ничего не пропустил');
+    const r2 = await up(opts);
+    assert.deepEqual(r2.analyzed, [], 'повторный накат: статистика уже есть');
+    // fresh от того же установщика: схему удаляет роль владельца (сам он не владелец — inherit false)
+    const r3 = await up({ ...opts, fresh: true });
+    assert.equal(r3.created, true);
+    assert.deepEqual(r3.analyzed, ['entity', 'log', 'secret']);
+    assert.deepEqual(await analyzedNow(), ['entity', 'log', 'secret']);
+    const [{ owner }] = await e.sql.unsafe(`select tableowner as owner from pg_tables where schemaname = $1 and tablename = 'entity'`, [schema]);
+    assert.equal(owner, 'lt_an_owner');
   } finally {
     await inst.end({ timeout: 5 });
     await e.sql.unsafe(`drop schema if exists ${ident(schema)} cascade`);

@@ -23,7 +23,7 @@
  * записи. Неотправленное (ошибка отправки) остаётся в очереди до следующего интервала.
  */
 import type postgres from 'postgres';
-import { fromDbError, lerr, type LetopisError } from './errors.js';
+import { LetopisError, fromDbError, lerr, lmsg } from './errors.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 export type Tx = postgres.TransactionSql<Record<string, unknown>>;
@@ -71,10 +71,13 @@ export function release(conn: { release(): void }, err: unknown): void {
 const commitUnknown = (cause: unknown): LetopisError =>
   lerr('write.commit_unknown', undefined, { cause });
 
-/** Взаимная блокировка в явной транзакции: повторить нужно весь блок (подсказка, как hintTxRetry 0.21). */
+/**
+ * Взаимная блокировка в явной транзакции: повторить нужно весь блок (подсказка, как hintTxRetry 0.21). Хвост — на языке
+ * вокруг (write.tx_retry_hint); в обоих языках он называет db.begin(), поэтому второй раз не дописывается.
+ */
 function hintTxRetry(e: unknown): unknown {
   if (isTransient(e) && e instanceof Error && !e.message.includes('db.begin()')) {
-    e.message += ' — откатите транзакцию и повторите весь блок db.begin()';
+    e.message += lmsg('write.tx_retry_hint');
   }
   return e;
 }
@@ -176,6 +179,16 @@ export interface TxContext {
   /** После успешной операции (продление сессии раз в минуту). */
   after?: () => void;
   /**
+   * Сессия кончилась (no_session): выдать новую и вписать её токен в failed — у подключения по ключу APIKEY ключ
+   * обменивается заново. true — операцию можно повторить (один раз). Нет — no_session как есть.
+   */
+  renew?: (failed: TxContext) => Promise<boolean>;
+  /**
+   * Перед операцией (runTx, ExplicitTx.open): после простоя подключение проверяет, жива ли сессия, — иначе чтение под
+   * истёкшей сессией шло бы как анонимное и молча отдавало пустой ответ. Обновляет токен ctx, если сессию выдали заново.
+   */
+  before?: (ctx: TxContext) => Promise<void>;
+  /**
    * После фиксации записи: нагрузки из letopis.changed (сигналы записи, session:<тег>) — кэш
    * результатов сбрасывает свои ответы сразу (§2.12); raw — запись через db.sql.
    */
@@ -205,6 +218,8 @@ const passSql = (q: Tx, ctx: TxContext) =>
 export async function runTx<T>(ctx: TxContext, fn: (tx: Tx) => Promise<T>,
   opts: { retries?: number; read?: boolean; raw?: boolean } = {}): Promise<T> {
   const retries = opts.retries ?? RETRIES;
+  let renewed = false;
+  if (ctx.before) await ctx.before(ctx);
   for (let attempt = 1; ; attempt++) {
     let bodyDone = false;
     let dead = false;
@@ -245,12 +260,23 @@ export async function runTx<T>(ctx: TxContext, fn: (tx: Tx) => Promise<T>,
         await retryDelay(attempt);
         continue;
       }
-      throw fromDbError(e);
+      const le = fromDbError(e);
+      // сессия кончилась по простою: подключение по ключу выдаёт новую — повтор один раз, транзакция уже откачена
+      if (!renewed && !bodyDone && ctx.renew && isNoSession(le)) {
+        renewed = true;
+        if (await ctx.renew(ctx)) {
+          attempt--;
+          continue;
+        }
+      }
+      throw le;
     } finally {
       release(conn, failure);
     }
   }
 }
+
+const isNoSession = (e: unknown): boolean => e instanceof LetopisError && e.code === 'no_session';
 
 /** Вход цепочек: где исполнить операцию — отдельной транзакцией из пула или в явной транзакции. */
 export interface Executor {
@@ -281,7 +307,8 @@ export class ExplicitTx implements Executor {
 
   private constructor(private ctx: TxContext, private conn: postgres.ReservedSql<Record<string, unknown>>) {}
 
-  static async open(ctx: TxContext): Promise<ExplicitTx> {
+  static async open(ctx: TxContext, renewed = false): Promise<ExplicitTx> {
+    if (!renewed && ctx.before) await ctx.before(ctx);
     const conn = await ctx.sql.reserve();
     try {
       await conn.unsafe('begin isolation level read committed');
@@ -291,7 +318,10 @@ export class ExplicitTx implements Executor {
     } catch (e) {
       await rollbackAfter(conn, e);
       release(conn, e);
-      throw fromDbError(e);
+      const le = fromDbError(e);
+      // сессия кончилась по простою (как у runTx): подключение по ключу выдаёт новую — открыть ещё раз
+      if (!renewed && ctx.renew && isNoSession(le) && (await ctx.renew(ctx))) return ExplicitTx.open(ctx, true);
+      throw le;
     }
     return new ExplicitTx(ctx, conn);
   }

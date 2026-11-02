@@ -680,7 +680,7 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
       case 'execute':
         throw removed('execute()', 'paths()');
       case 'account':
-        throw removed('account()', 'арендатор сессии и auth.switch() (этап 5)');
+        throw removed('account()', 'api.replacement_account_step');
       // глаголы записи — звенья плана (этап 4)
       case 'create':
         return (data: Record<string, unknown> = {}, opts?: { reason?: string }) => withOp({ kind: 'create', data, ...reasonOf(opts) });

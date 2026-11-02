@@ -400,6 +400,7 @@
     "id_from_db",
     "id_mismatch",
     "immutable_key",
+    "internal",
     "invalid_class",
     "invalid_data",
     "invalid_query",
@@ -542,19 +543,11 @@
     },
     {
       "module": "messages/index",
-      "message": "letopis.up: …"
-    },
-    {
-      "module": "messages/index",
       "message": "letopis: ключ каталога <…> повторяется"
     },
     {
       "module": "messages/index",
       "message": "letopis: ключ каталога <…> — не из раздела <…>"
-    },
-    {
-      "module": "pglite",
-      "message": "letopis.up: для pglite нужен пакет <…> — npm i -D @electric-sql/pglite @electric-sql/pglite-socket"
     },
     {
       "module": "up",
@@ -575,30 +568,6 @@
     {
       "module": "up",
       "message": "letopis.up: migrate/<…>: <…>"
-    },
-    {
-      "module": "up",
-      "message": "letopis.up: база <…> не готова за <…> с"
-    },
-    {
-      "module": "up",
-      "message": "letopis.up: база в кодировке <…>, нужна UTF8 (casefold и коллация pg_unicode_fast)"
-    },
-    {
-      "module": "up",
-      "message": "letopis.up: нужен PostgreSQL 18 или новее, а сервер — <…>"
-    },
-    {
-      "module": "up",
-      "message": "letopis.up: нужен PostgreSQL 18 или новее, а сервер — <…> (<…>)"
-    },
-    {
-      "module": "up",
-      "message": "letopis.up: схема <…> ревизии <…>, а библиотека знает только <…> — обновите пакет"
-    },
-    {
-      "module": "up",
-      "message": "letopis: схему <…> обновила letopis <…>, библиотека старее (<…>) — обновите пакет: up() этой версией вернул бы прежние функции"
     }
   ]
 }

@@ -4,18 +4,18 @@
  * сами сверяют права (letopis.* — системный администратор или администраторское подключение).
  */
 import type postgres from 'postgres';
-import { fromDbError, lerr, lmsg, lwarn } from './errors.js';
+import { checkLang, currentLang, findingsFromDb, fromDbError, lerr, lmsg, lwarn, type Lang, type MsgKey, type Params } from './errors.js';
 import type { JsonSchema } from './jsonschema.js';
 import type { AggregateInfo, ClassInfo, Registry } from './registry.js';
 import { accepts } from './sql.js';
-import { runTx, type Executor, type TxContext } from './tx.js';
+import { release, rollbackAfter, runTx, type Executor, type TxContext } from './tx.js';
 import { CHAIN_METHODS, DB_METHODS } from './types.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 
 /**
- * Находка `verify()`: `id` и `rev` — объект и версия. Находка об устройстве таблицы (колонку `hash` считает не выражение
- * установки) — с id System и полями `table`, `column`, `expression`.
+ * Находка `verify()`: `id` и `rev` — объект и версия, `problem` — текст на языке подключения. Находка об устройстве
+ * таблицы (колонку `hash` считает не выражение установки) — с id System и полями `table`, `column`, `expression`.
  */
 export interface VerifyIssue {
   id: string;
@@ -140,7 +140,9 @@ const one = async <T>(a: AdminCtx, text: string, params: unknown[] = []): Promis
 
 export async function verify(a: AdminCtx, opts: { data?: boolean } = {}): Promise<VerifyResult> {
   const r = await one<{ v: VerifyResult }>(a, `select ${a.S}.verify($1::boolean) as v`, [opts.data === true]);
-  return r.v;
+  // находка базы несёт ключ каталога и параметры (план 2.0, этап 3, п. 3): problem и сообщения нарушений — на языке
+  // подключения, key и params наружу не идут
+  return { ...r.v, issues: findingsFromDb(r.v.issues) };
 }
 
 
@@ -295,14 +297,24 @@ export async function rekeyClass(a: AdminCtx, cls: string, key: string[]): Promi
 export async function rebuildAggregates(env: { sql: Sql; S: string; ownerRole: string }, cls: string): Promise<number> {
   if (typeof cls !== 'string' || !cls) throw lerr('time.rebuild_class');
   const role = `"${env.ownerRole.replace(/"/g, '""')}"`;
-  return (env.sql.begin(async (q) => {
+  // своё зарезервированное соединение, а не sql.begin: после гибели серверного процесса postgres.js 3.4 шлёт rollback
+  // в закрытый сокет и роняет процесс необработанным TypeError (план 2.0, 7.4 №7; общие rollbackAfter и release)
+  const q = await env.sql.reserve();
+  let failure: unknown = null;
+  try {
+    await q.unsafe('begin');
     await q.unsafe(`set local role ${role}`);
     await q.unsafe(`select set_config('letopis.reason', 'rebuildAggregates', true)`);
     const [{ n }] = await q.unsafe(`select ${env.S}.rebuild_aggregates($1) as n`, [cls]);
+    await q.unsafe('commit');
     return n as number;
-  }) as Promise<number>).catch((e: unknown) => {
+  } catch (e) {
+    failure = e;
+    await rollbackAfter(q, e);
     throw fromDbError(e);
-  });
+  } finally {
+    release(q, failure);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -503,38 +515,44 @@ export function describe(a: AdminCtx): ModelDescription {
 /** Код в Markdown: обратная кавычка внутри — двойной разделитель. */
 const md = (s: string): string => (s.includes('`') ? `\`\` ${s} \`\`` : `\`${s}\``);
 
-/** Описание модели текстом для языковых моделей. */
-export function describeText(d: ModelDescription): string {
-  const out: string[] = [`# letopis: модель схемы ${d.schema}`, '',
-    'Цепочка: db.Класс(фильтр).Связь().Класс().rows(); запись — create, update, upsert, delete; история — versions(), asOf(), withDeleted().',
-    "Примеры у классов — рабочие цепочки: '<id Класс>' — подставьте id объекта этого класса или его потомка.", ''];
+/**
+ * Описание модели текстом для языковых моделей. Подписи — на языке `opts.lang` (`'ru'` или `'en'`), без него — на
+ * языке вокруг: `lang` подключения, сервера MCP или CLI (`--lang`), иначе ru.
+ */
+export function describeText(d: ModelDescription, opts: { lang?: Lang } = {}): string {
+  const lang = checkLang(opts?.lang, 'describeText') ?? currentLang();
+  const t = (key: MsgKey, params?: Params): string => lmsg(key, params, lang);
+  const out: string[] = [`# letopis: ${t('time.describe_title', { schema: d.schema })}`, '', t('time.describe_chain'), t('time.describe_examples'), ''];
   for (const c of d.classes) {
     const title = typeof c.meta.title === 'string' ? ` — ${c.meta.title}` : '';
     out.push(`## ${c.name}${c.alias ? ` (${c.alias})` : ''}${title}`);
-    out.push(`- вид: ${c.kind === 'hub' ? 'хаб (объект)' : 'связь'}${c.abstract ? ', абстрактный' : ''}${c.parent ? `, предок ${c.parent}` : ''}${c.system ? ', системный' : ''}`);
-    out.push(`- ключ: ${c.key.length ? c.key.join(', ') : 'нет (id выдаёт база)'}`);
+    const kind = [t(c.kind === 'hub' ? 'time.describe_hub' : 'time.describe_link'), ...(c.abstract ? [t('time.describe_abstract')] : []),
+      ...(c.parent ? [t('time.describe_parent', { parent: c.parent })] : []), ...(c.system ? [t('time.describe_system')] : [])];
+    out.push(`- ${t('time.describe_kind')}: ${kind.join(', ')}`);
+    out.push(`- ${t('time.describe_key')}: ${c.key.length ? c.key.join(', ') : t('time.describe_no_key')}`);
     const fields = Object.entries(c.fields).map(([k, v]) => {
-      const t = (v as { type?: unknown; format?: unknown }).type;
-      return `${k}${c.required.includes(k) ? '*' : ''}: ${Array.isArray(t) ? t.join('|') : (t as string | undefined) ?? 'any'}`;
+      const type = (v as { type?: unknown; format?: unknown }).type;
+      return `${k}${c.required.includes(k) ? '*' : ''}: ${Array.isArray(type) ? type.join('|') : (type as string | undefined) ?? 'any'}`;
     });
-    if (fields.length) out.push(`- поля: ${fields.join(', ')}`);
-    if (c.anyOf) out.push(`- условия anyOf (хотя бы одно): ${JSON.stringify(c.anyOf)}`);
-    if (c.oneOf) out.push(`- условия oneOf (ровно одно): ${JSON.stringify(c.oneOf)}`);
+    if (fields.length) out.push(`- ${t('time.describe_fields')}: ${fields.join(', ')}`);
+    if (c.anyOf) out.push(`- ${t('time.describe_any_of')}: ${JSON.stringify(c.anyOf)}`);
+    if (c.oneOf) out.push(`- ${t('time.describe_one_of')}: ${JSON.stringify(c.oneOf)}`);
     const ends = Object.entries(c.ends).map(([k, v]) => {
       const e = v as { class: string | string[]; many?: boolean; required?: boolean };
       return `${k}${e.required ? '*' : ''} → ${Array.isArray(e.class) ? e.class.join('|') : e.class}${e.many ? '[]' : ''}`;
     });
-    if (ends.length) out.push(`- концы: ${ends.join(', ')}`);
-    if (c.derivedBy) out.push(`- производный: строки пишет проектор ${c.derivedBy}, приложение только читает`);
+    if (ends.length) out.push(`- ${t('time.describe_ends')}: ${ends.join(', ')}`);
+    if (c.derivedBy) out.push(`- ${t('time.describe_derived', { projector: c.derivedBy })}`);
     for (const [field, a] of Object.entries(c.aggregate ?? {})) {
-      const what = a.sum !== undefined ? `сумма ${a.sum}` : 'число';
-      out.push(`- агрегат ${field} = ${what} строк ${a.of} по концу ${a.via}${a.where ? `, условие ${JSON.stringify(a.where)}` : ''}; поле считает база, приложение его не пишет`);
+      const where = a.where ? t('time.describe_where', { where: JSON.stringify(a.where) }) : '';
+      const p = { field, of: a.of, via: a.via, where };
+      out.push(`- ${a.sum !== undefined ? t('time.describe_aggregate_sum', { ...p, sum: a.sum }) : t('time.describe_aggregate_count', p)}`);
     }
     // описание прежней версии пакета (JSON letopis describe) примеров не несёт
     const ex = c.examples as ModelDescription['classes'][number]['examples'] | undefined;
-    if (ex?.create) out.push(`- создать: ${md(ex.create)}`);
-    if (ex?.find) out.push(`- найти: ${md(ex.find)}`);
-    if (ex?.neighbors.length) out.push(`- соседи: ${ex.neighbors.map(md).join(', ')}`);
+    if (ex?.create) out.push(`- ${t('time.describe_create')}: ${md(ex.create)}`);
+    if (ex?.find) out.push(`- ${t('time.describe_find')}: ${md(ex.find)}`);
+    if (ex?.neighbors.length) out.push(`- ${t('time.describe_neighbors')}: ${ex.neighbors.map(md).join(', ')}`);
     out.push('');
   }
   return out.join('\n');

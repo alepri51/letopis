@@ -7,7 +7,8 @@
  *     --check — сухой прогон с кодом 1, если он нашёл изменения (создать или изменить); вместе с --apply — USAGE, код 2
  *   letopis check <файлы…> [--models <модуль моделей>] [--json]   — проверки до запуска без базы (check.ts), код 1 при
  *     ошибках; нужен пакет typescript — его грузит только эта команда
- *   letopis types --dsn … --schema v2.x (--token … | --api-key …) [--out types.d.ts]
+ *   letopis types --dsn … --schema v2.x (--token … | --api-key …) [--out types.d.ts] [--system]
+ *     --system — и классы арендатора System (системные, сиды пакета), без него — только классы арендатора сессии
  *   letopis load <файлы NDJSON…> --dsn … --schema v2.x (--token … | --api-key …) [--class C]
  *     [--duplicates error|first|last] [--existing error|skip|update] [--commit-every N] [--verify] [--initial]
  *   letopis verify --dsn … --schema v2.x [--token … | --api-key …] [--data]   — код 1 при находках
@@ -18,7 +19,8 @@
  *   --initial — первая заливка (план 1.1, §2.3): пустая схема, одна транзакция, индексы и триггеры — после загрузки
  *   letopis mcp --dsn … --schema v2.x --token … [--write]   — сервер MCP по stdio (план 1.1, §2.5); dsn, schema и
  *     token — ещё из LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; только токен пользователя: --api-key — отказ
- *   --lang ru|en у любой команды — язык сообщений об ошибках (план 2.0, этап 3, п. 3), по умолчанию ru
+ *   --lang ru|en у любой команды — язык справки, отчётов и сообщений об ошибках (план 2.0, этап 3, п. 3), по умолчанию ru;
+ *     справка — USAGE (её же читает справочник сайта, guide/scripts/gen-api.ts) и USAGE_EN
  */
 import { parseArgs } from 'node:util';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -29,11 +31,11 @@ import { connect, describeText } from './index.js';
 import { syncModels, generateTypes } from './sync.js';
 import { import021 } from './import.js';
 import type { AnyModel } from './model.js';
-import { checkLang, currentLang, langRun, lerr, type Lang } from './errors.js';
+import { checkLang, currentLang, langRun, lerr, lmsg, type Lang } from './errors.js';
 
-const USAGE = `у любой команды: --lang ru|en — язык сообщений об ошибках (по умолчанию ru)
+const USAGE = `у любой команды: --lang ru|en — язык справки, отчётов и сообщений об ошибках (по умолчанию ru)
 letopis sync <модуль> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--apply | --check]
-letopis types --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--out <файл>]
+letopis types --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--out <файл>] [--system]
 letopis load <файлы…> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--class <Класс>]
   [--duplicates error|first|last] [--existing error|skip|update] [--commit-every <N>] [--verify] [--initial]
 letopis verify --dsn <строка> --schema <v2.имя> [--token <токен> | --api-key <ключ>] [--data]
@@ -45,6 +47,25 @@ letopis mcp --dsn <строка> --schema <v2.имя> --token <токен пол
   (или LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; ключ сервиса --api-key не принимается)
 letopis check <файлы…> [--models <модуль>] [--json]
   (без базы; нужен пакет typescript)`;
+
+/** Справка по-английски (--lang en): строки команд — те же, что в USAGE, как в README.en.md. */
+const USAGE_EN = `any command: --lang ru|en — the language of help, reports and error messages (ru by default)
+letopis sync <module> --dsn <dsn> --schema <v2.name> (--token <token> | --api-key <key>) [--apply | --check]
+letopis types --dsn <dsn> --schema <v2.name> (--token <token> | --api-key <key>) [--out <file>] [--system]
+letopis load <files…> --dsn <dsn> --schema <v2.name> (--token <token> | --api-key <key>) [--class <Class>]
+  [--duplicates error|first|last] [--existing error|skip|update] [--commit-every <N>] [--verify] [--initial]
+letopis verify --dsn <dsn> --schema <v2.name> [--token <token> | --api-key <key>] [--data]
+letopis maintain --dsn <dsn> --schema <v2.name> [--token <token> | --api-key <key>] [--batches <N>]
+letopis describe --dsn <dsn> --schema <v2.name> (--token <token> | --api-key <key>) [--format json|text] [--out <file>]
+letopis import --from <0.21 dsn> --from-schema <v1.name> --dsn <dsn> --schema <v2.name> [--tenant <name>] [--keyless <Class>]…
+  [--rename <Old>=<New>]… [--update] [--commit-every <N>] [--partition <name>] [--initial]
+letopis mcp --dsn <dsn> --schema <v2.name> --token <user token> [--write]
+  (or LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; the service key --api-key is not accepted)
+letopis check <files…> [--models <module>] [--json]
+  (no database; needs the typescript package)`;
+
+/** Справка на языке вокруг: --lang ставит его на всю команду (main). */
+const usage = (): string => (currentLang() === 'en' ? USAGE_EN : USAGE);
 
 /** Команды CLI: остальное — USAGE с кодом 2 ещё до подключения. */
 const COMMANDS = new Set(['sync', 'types', 'load', 'verify', 'maintain', 'describe', 'import', 'mcp', 'check']);
@@ -63,7 +84,7 @@ async function loadModels(path: string): Promise<AnyModel[]> {
  */
 async function check(files: string[], v: { models?: string; json?: boolean }): Promise<number> {
   if (!files.length) {
-    console.log(USAGE);
+    console.log(usage());
     return 2;
   }
   const { checkFiles, formatReport } = await import('./check.js');
@@ -84,7 +105,7 @@ export async function main(argv: string[]): Promise<number> {
       format: { type: 'string' },
       from: { type: 'string' }, 'from-schema': { type: 'string' }, tenant: { type: 'string' }, partition: { type: 'string' },
       keyless: { type: 'string', multiple: true }, rename: { type: 'string', multiple: true }, update: { type: 'boolean' },
-      initial: { type: 'boolean' }, write: { type: 'boolean' }, lang: { type: 'string' },
+      initial: { type: 'boolean' }, write: { type: 'boolean' }, lang: { type: 'string' }, system: { type: 'boolean' },
       check: { type: 'boolean' }, models: { type: 'string' }, json: { type: 'boolean' },
     },
   });
@@ -101,23 +122,23 @@ export async function main(argv: string[]): Promise<number> {
   }
   // --help — всегда код 0; неизвестная команда — USAGE до подключения к базе (план 2.0, 7.5 №4)
   if (values.help) {
-    console.log(USAGE);
+    console.log(usage());
     return 0;
   }
   // проверки до запуска — без базы (план 2.0, этап 3, п. 8)
   if (cmd === 'check') return check(positionals.slice(1), values);
   // --check — сухой прогон: вместе с --apply смысла нет
   if (!cmd || !COMMANDS.has(cmd) || !values.dsn || !values.schema || (cmd === 'sync' && values.check && values.apply)) {
-    console.log(USAGE);
+    console.log(usage());
     return cmd ? 2 : 0;
   }
   if (cmd === 'import') {
     // импорт сам открывает администраторские подключения к 0.21 и к 1.0 (загрузчик, функции владельца)
-    if (!values.from || !values['from-schema']) { console.log(USAGE); return 2; }
+    if (!values.from || !values['from-schema']) { console.log(usage()); return 2; }
     const rename: Record<string, string> = {};
     for (const x of values.rename ?? []) {
       const [from, to] = x.split('=');
-      if (!from || !to) { console.log(USAGE); return 2; }
+      if (!from || !to) { console.log(usage()); return 2; }
       rename[from] = to;
     }
     const r = await import021({
@@ -137,19 +158,21 @@ export async function main(argv: string[]): Promise<number> {
     ...(cmd === 'load' || cmd === 'verify' || cmd === 'maintain' || cmd === 'sync' ? { allowBypassRls: true } : {}) });
   try {
     if (cmd === 'sync') {
-      if (!arg) { console.log(USAGE); return 2; }
+      if (!arg) { console.log(usage()); return 2; }
       const r = await syncModels(db, await loadModels(arg), { apply: values.apply });
-      console.log(`${r.applied ? 'применено' : 'сухой прогон'}: создать ${r.created.length}, изменить ${r.updated.length}, без изменений ${r.unchanged.length}, системных ${r.skipped.length}`);
-      for (const [k, list] of [['создать', r.created], ['изменить', r.updated], ['системные (меняет установка)', r.skipped]] as const) {
-        if (list.length) console.log(`  ${k}: ${list.join(', ')}`);
+      // отчёт — на языке команды (--lang)
+      const counts = { created: r.created.length, updated: r.updated.length, unchanged: r.unchanged.length, skipped: r.skipped.length };
+      console.log(lmsg(r.applied ? 'model.cli_sync_applied' : 'model.cli_sync_dry_run', counts));
+      for (const [key, list] of [['model.cli_sync_list_create', r.created], ['model.cli_sync_list_update', r.updated], ['model.cli_sync_list_system', r.skipped]] as const) {
+        if (list.length) console.log(`  ${lmsg(key, { names: list.join(', ') })}`);
       }
-      for (const l of r.lost) console.log(`  правило ${l.kind} в ${l.path} проверяется только в библиотеке — в базе его нет`);
+      for (const l of r.lost) console.log(`  ${lmsg('model.cli_sync_lost', { kind: l.kind, path: l.path })}`);
       // --check (план 2.0, этап 3, п. 8): модели расходятся с базой — код 1, например для шага CI перед --apply
       return values.check && (r.created.length || r.updated.length) ? 1 : 0;
     }
     if (cmd === 'load') {
       const files = positionals.slice(1);
-      if (!files.length) { console.log(USAGE); return 2; }
+      if (!files.length) { console.log(usage()); return 2; }
       if (values.trust) throw lerr('model.cli_trust_removed');
       // несколько файлов — одна загрузка и одна транзакция; в файле — объект на строку
       const rows: Record<string, unknown>[] = [];
@@ -191,12 +214,13 @@ export async function main(argv: string[]): Promise<number> {
       return 0;
     }
     if (cmd === 'types') {
-      const text = generateTypes(db.registry);
+      // --system — и классы арендатора System: системные и классы сидов пакета (например, booking)
+      const text = generateTypes(db.registry, { includeSystem: values.system === true });
       if (values.out) await writeFile(values.out, text);
       else console.log(text);
       return 0;
     }
-    console.log(USAGE);
+    console.log(usage());
     return 2;
   } finally {
     await db.close();

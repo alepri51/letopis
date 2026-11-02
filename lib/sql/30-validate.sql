@@ -353,6 +353,8 @@ end $$;
 
 -- Проверка данных: общий вызов jsonb_path_match; при отказе — список нарушений по правилам.
 -- Результат сравнивается через is true: ошибка внутри выражения даёт NULL, а не «да» (этап 1, п. 5).
+-- Нарушение — { path, keyword, message, key, params }: message — русский текст по ключу каталога, а key и params —
+-- для текста на языке подключения; библиотека собирает его и убирает key и params (fromDbError, загрузчик, verify).
 create or replace function @SCHEMA@.validate_data(p_rules jsonb, p_validator jsonpath, p_vars jsonb, p_data jsonb) returns jsonb
 language plpgsql stable
 as $$
@@ -361,6 +363,7 @@ declare
   bad jsonb := '[]'::jsonb;
   ok boolean;
   x jsonb;
+  p jsonb;
 begin
   ok := jsonb_path_match(p_data, p_validator, p_vars, true) is true;
   if ok and not exists (select 1 from jsonb_array_elements(p_rules) r where r ? 'extra') then
@@ -372,36 +375,44 @@ begin
         if (e->'extra'->>'kind') = 'length' and jsonb_typeof(x) = 'string' then
           if char_length(x #>> '{}') < coalesce((e->'extra'->>'min')::int, 0)
              or char_length(x #>> '{}') > coalesce((e->'extra'->>'max')::int, 2147483647) then
-            bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', @SCHEMA@.lt_text('sql-core.issue_string_length'));
+            bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', @SCHEMA@.lt_text('sql-core.issue_string_length'),
+              'key', 'sql-core.issue_string_length', 'params', '{}'::jsonb);
           end if;
         elsif (e->'extra'->>'kind') = 'unique' and jsonb_typeof(x) = 'array' then
           if (select count(*) from jsonb_array_elements(x)) <> (select count(distinct y) from jsonb_array_elements(x) y) then
-            bad := bad || jsonb_build_object('path', e->'path', 'keyword', 'uniqueItems', 'message', @SCHEMA@.lt_text('sql-core.issue_unique_items'));
+            bad := bad || jsonb_build_object('path', e->'path', 'keyword', 'uniqueItems', 'message', @SCHEMA@.lt_text('sql-core.issue_unique_items'),
+              'key', 'sql-core.issue_unique_items', 'params', '{}'::jsonb);
           end if;
         elsif (e->'extra'->>'kind') = 'date' and jsonb_typeof(x) = 'string' then
           -- смысл проверяется только у строки правильной формы: форму проверяет правило format
           if (x #>> '{}') ~ (e->'extra'->>'re') and not pg_input_is_valid(x #>> '{}', e->'extra'->>'type') then
-            bad := bad || jsonb_build_object('path', e->'path', 'keyword', 'format', 'message', @SCHEMA@.lt_text('sql-core.issue_date'));
+            bad := bad || jsonb_build_object('path', e->'path', 'keyword', 'format', 'message', @SCHEMA@.lt_text('sql-core.issue_date'),
+              'key', 'sql-core.issue_date', 'params', '{}'::jsonb);
           end if;
         elsif (e->'extra'->>'kind') = 'props' and jsonb_typeof(x) = 'object' then
           if (select count(*) from jsonb_object_keys(x)) < coalesce((e->'extra'->>'min')::int, 0)
              or (select count(*) from jsonb_object_keys(x)) > coalesce((e->'extra'->>'max')::int, 2147483647) then
-            bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', @SCHEMA@.lt_text('sql-core.issue_property_count'));
+            bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', @SCHEMA@.lt_text('sql-core.issue_property_count'),
+              'key', 'sql-core.issue_property_count', 'params', '{}'::jsonb);
           end if;
         elsif (e->'extra'->>'kind') = 'enum' then
           if not exists (select 1 from jsonb_array_elements(e->'extra'->'values') y where y = x) then
-            bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', @SCHEMA@.lt_text('sql-core.issue_enum'));
+            bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', @SCHEMA@.lt_text('sql-core.issue_enum'),
+              'key', 'sql-core.issue_enum', 'params', '{}'::jsonb);
           end if;
         end if;
       end loop;
     elsif not ok then
       if jsonb_path_match(p_data, ('strict !exists(' || (e->>'path_expr') || ' ? (!(' || (e->>'cond') || ')))')::jsonpath, e->'vars', true) is not true then
-        bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', @SCHEMA@.lt_text('sql-core.issue_rule', jsonb_build_object('keyword', e->>'keyword')));
+        p := jsonb_build_object('keyword', e->>'keyword');
+        bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', @SCHEMA@.lt_text('sql-core.issue_rule', p),
+          'key', 'sql-core.issue_rule', 'params', p);
       end if;
     end if;
   end loop;
   if not ok and bad = '[]'::jsonb then
-    bad := jsonb_build_array(jsonb_build_object('path', '[]'::jsonb, 'keyword', 'schema', 'message', @SCHEMA@.lt_text('sql-core.issue_schema')));
+    bad := jsonb_build_array(jsonb_build_object('path', '[]'::jsonb, 'keyword', 'schema', 'message', @SCHEMA@.lt_text('sql-core.issue_schema'),
+      'key', 'sql-core.issue_schema', 'params', '{}'::jsonb));
   end if;
   return bad;
 end $$;

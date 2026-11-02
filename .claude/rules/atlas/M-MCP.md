@@ -6,7 +6,7 @@ synced: f20b1cf
 # M-MCP — инструменты MCP: `letopis/mcp` и `letopis mcp`
 
 **Инварианты и грабли**
-- Язык (план 2.0, 7.9 №5): описания инструментов, параметров и `instructions` — парами `{ ru, en }` в `mcp.ts` по `createMcpServer({ lang })` / `letopis mcp --lang`; тексты ошибок — ключи раздела `lib/src/messages/mcp.ts`. `failure()` отдаёт `code`, `message`, `hint`, `similar` (из `params.similar`, а не `detail`), `detail`, `sqlstate`; SDK без пакета — `lmsg('mcp.sdk_missing')` в `loadSdk`.
+- Язык (план 2.0, 7.9 №5): описания инструментов, параметров и `instructions` — парами `{ ru, en }` в `mcp.ts` по `createMcpServer({ lang })` / `letopis mcp --lang`; тексты ошибок — ключи раздела `lib/src/messages/mcp.ts`. Пояснения к данным базы (`mcp.untrusted_note` в тексте, `mcp.structured_note` в `notice`), первая строка отказа (`mcp.tool_error`), подсказка `confirm` превью, окно и поле формы подтверждения удаления (`mcp.delete_message`, `mcp.delete_ids_more`, `mcp.confirm_*`) — тоже ключи: `lmsg` при ответе, внутри `guard` — язык сервера (вне `guard` их не строить). `failure()` отдаёт `code`, `message`, `hint`, `similar` (из `params.similar`, а не `detail`), `detail`, `sqlstate`; SDK без пакета — `lmsg('mcp.sdk_missing')` в `loadSdk`.
 - Права — только базы: инструменты зовут цепочки фасада, переданного в `createMcpServer`; слой их лишь сужает (перечень — шапка файла). Отказ классам прав (и `update`, и `delete`: снятое правило тоже меняет права) и сессии в арендаторе System — решение владельца 27.10.2026 по ревью безопасности №2, О5 (`docs/checkpoint-1.2.md`). Признака сисадмина в сессии нет — проверяется рабочий арендатор из `ctx()`. `upsert` без `rev` — сознательно (О6).
 - Обход RLS — флаг всего подключения (`Shared.allTenants`), а не фасада: `as()` поверх подключения с `allowBypassRls` — тоже `bypass_rls`. Опции «разрешить» нет.
 - `createMcpServer` зовут на каждое соединение stdio и каждый запрос HTTP (`createMcpHandler`), `cli.ts` — ещё раз до протокола. Он должен оставаться дешёвым (один запрос `ctx()`), а общее между экземплярами — только на уровне модуля (`STATE_KEY`, `sdkLoad`).
@@ -35,7 +35,7 @@ synced: f20b1cf
 - Превью удаления (`Row.$action`, `$depth`) ↔ окно и хэш: окно считает `delete`/`unset`, до человека — отказ по `restrict`; новое действие каскада — правка `write`.
 
 **Проверка**
-- `cd lib && npx tsx --test --test-force-exit test/mcp.test.ts` — №1–12, stdio, HTTP, О7, О8, «решение точки Б», `requestState`; ещё `engine-attacks` (№35, №37), `docs` (сценарий `mcp`), `npm run typecheck`.
+- `cd lib && npx tsx --test --test-force-exit test/mcp.test.ts` — №1–12, stdio, HTTP, О7, О8, «решение точки Б», `requestState`, «план 2.0, 7.9 №5» (описания, пояснения, отказ, превью и окно подтверждения с `lang: 'en'`); ещё `engine-attacks` (№35, №37), `docs` (сценарий `mcp`), `npm run typecheck`.
 - Сигналы: отказ — `isError` и `structuredContent.error.code`; запись агента — `reason: 'mcp: letopis_write'` в `blame` и `versions`; `letopis mcp` — stderr и код 1 (код 2 — `--api-key` или нет токена).
 
 **Точки входа**

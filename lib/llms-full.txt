@@ -429,9 +429,11 @@ p.run().catch(report)         // run() without once needs a catch: after a proje
 ```
 - Not an admin connection → `admin_required`.
 - A batch → one transaction; every change is applied exactly once; there is one writer.
-- `run({ once: true })` → catches up with the journal only up to the horizon of the cluster's open transactions and
-  skips a pass if another process writes a batch; to catch up completely → repeat until `(await p.status()).lag` is 0,
-  with a time limit.
+- `run({ once: true })` → catches up with everything committed before the call: waits up to `wait` ms (5000 by default,
+  `0` — do not wait) for the transactions open at the call (they hold the horizon); the answer `caughtUp: true` — it
+  caught up.
+- `caughtUp: false` → a long transaction held the horizon longer than `wait` or another process writes a batch
+  (`skipped`); the next run takes the rest.
 - `rebuild()` while another process writes a batch → `projector_busy`.
 - The first start → rebuilds the projection from the current state, in batches.
 - `purge`, `trim` and `reset` → come as changes with `rev` 1, so check `op` first.
@@ -737,6 +739,7 @@ in English with `connect({ lang: 'en' })`, `createMcpServer(db, { lang: 'en' })`
 | `user_session_required` | the MCP server needs a user session, not a service key or a connection without a session | create the MCP server on a user connection (`svc.as(…)` or `connect({ token })`), not on the service root |
 | `confirmation_required` | MCP: a human did not confirm the deletion | confirm the deletion in the MCP client; a client that cannot ask a human cannot delete |
 | `removed` | a removed API was called; the error text says what replaces it | replace the call with the one named in the error text |
+| `internal` | an internal letopis error: the database does not keep a condition it must keep by itself (for example, a lock row is missing) | this is a letopis bug: report it with the text, the code and the package version |
 
 ## 4. Nuances
 

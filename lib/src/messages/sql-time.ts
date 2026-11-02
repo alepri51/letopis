@@ -555,6 +555,78 @@ export const sqlTime = {
     ru: 'verify доступен только системному администратору',
     en: 'verify is available only to the system administrator',
   },
+  // 90-time.sql, verify(): находки — тексты problem (код записи не печатается). Находка несёт key и params, по ним
+  // verify() библиотеки (admin.ts) собирает problem на языке подключения; сырой SQL видит русский текст
+  'sql-time.verify_chain_start': {
+    code: 'invalid_data',
+    ru: 'цепочка начинается не с версии 1',
+    en: 'the chain does not start with version 1',
+  },
+  'sql-time.verify_prev_hash': {
+    code: 'invalid_data',
+    ru: 'хэш версии не совпадает с prev_hash следующей',
+    en: 'the version hash does not match prev_hash of the next one',
+  },
+  // from, to — номера пропавших версий
+  'sql-time.verify_gap': {
+    code: 'invalid_data',
+    ru: 'разрыв: нет версий {from}…{to}',
+    en: 'gap: versions {from}…{to} are missing',
+  },
+  'sql-time.verify_trim_rev': {
+    code: 'invalid_data',
+    ru: 'номер версии меньше ожидаемого после обрезки',
+    en: 'the version number is lower than expected after a trim',
+  },
+  'sql-time.verify_entity_head': {
+    code: 'invalid_data',
+    ru: 'строка entity не совпадает с последней версией журнала',
+    en: 'the entity row does not match the last version of the log',
+  },
+  // verify(p_data): данные строк
+  'sql-time.verify_class': {
+    code: 'invalid_data',
+    ru: 'класс строки не найден или абстрактный',
+    en: 'the class of the row is not found or is abstract',
+  },
+  // нарушения — в поле issues находки
+  'sql-time.verify_data': {
+    code: 'invalid_data',
+    ru: 'данные не проходят описание класса',
+    en: 'the data does not match the class description',
+  },
+  'sql-time.verify_key_id': {
+    code: 'invalid_data',
+    ru: 'id не равен v5 от ключа класса',
+    en: 'the id is not the v5 of the class key',
+  },
+  'sql-time.verify_tenant': {
+    code: 'invalid_data',
+    ru: 'арендатор строки не существует',
+    en: 'the tenant of the row does not exist',
+  },
+  'sql-time.verify_owner': {
+    code: 'invalid_data',
+    ru: 'владелец строки не существует',
+    en: 'the owner of the row does not exist',
+  },
+  'sql-time.verify_end_target': {
+    code: 'invalid_data',
+    ru: 'цель конца не найдена',
+    en: 'the target of the end is not found',
+  },
+  // агрегатное поле не равно итогу живых источников; stored, expected — значения JSON текстом; в строке значения нет —
+  // своя запись
+  'sql-time.verify_aggregate': {
+    code: 'invalid_data',
+    ru: 'агрегат {field} не равен итогу живых источников: в строке {stored}, по источникам {expected} — ремонт rebuildAggregates',
+    en: 'aggregate {field} does not equal the total of the live sources: {stored} in the row, {expected} by the sources — repair with rebuildAggregates',
+  },
+  'sql-time.verify_aggregate_unset': {
+    code: 'invalid_data',
+    ru: 'агрегат {field} не равен итогу живых источников: в строке нет значения, по источникам {expected} — ремонт rebuildAggregates',
+    en: 'aggregate {field} does not equal the total of the live sources: no value in the row, {expected} by the sources — repair with rebuildAggregates',
+  },
   // 90-time.sql, verify(): находка — надгробие не совпадает с предыдущей версией (план 2.0, 7.3 №5)
   'sql-time.verify_tombstone': {
     code: 'invalid_data',

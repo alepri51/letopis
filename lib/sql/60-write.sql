@@ -34,7 +34,8 @@ begin
     insert into @SCHEMA@.secret (id, account, kind, meta) values (v, '@SYSTEM@'::uuid, 'LOCK', jsonb_build_object('name', p_name))
     on conflict do nothing;
     if not exists (select 1 from @SCHEMA@.secret s where s.id = v) then
-      raise exception using errcode = 'XX000', message = format('строка-замок %s не создана', p_name);
+      -- внутренняя ошибка (SQLSTATE XX000) по ключу каталога: библиотека отдаёт её кодом internal (fromDbError)
+      perform @SCHEMA@.lt_raise('XX000', 'sql-write.lock_row_not_created', jsonb_build_object('name', p_name), 'null'::jsonb);
     end if;
   end if;
   return v;
@@ -104,7 +105,7 @@ begin
     perform @SCHEMA@.lock_row(n);
     perform 1 from @SCHEMA@.secret s where s.id = k for update;
     if not found then
-      raise exception using errcode = 'XX000', message = format('строка-замок %s не найдена', n);
+      perform @SCHEMA@.lt_raise('XX000', 'sql-write.lock_row_not_found', jsonb_build_object('name', n), 'null'::jsonb);
     end if;
   else
     if strpos(held, '|' || n || '|') = 0 then
@@ -121,7 +122,7 @@ begin
       perform @SCHEMA@.lock_row(n);
       perform 1 from @SCHEMA@.secret s where s.id = k for key share;
       if not found then
-        raise exception using errcode = 'XX000', message = format('строка-замок %s не найдена', n);
+        perform @SCHEMA@.lt_raise('XX000', 'sql-write.lock_row_not_found', jsonb_build_object('name', n), 'null'::jsonb);
       end if;
     end if;
   end if;
@@ -605,7 +606,8 @@ return
                     and (coalesce((e.value->>'required')::boolean, false) or coalesce((e.value->>'min')::int, 0) > 0));
 
 -- Строки семейства, которые не проходят текущие описания своих классов (после ужесточения).
--- Не больше 100 строк; p_incoming — проверять ещё и входящие ссылки (смена родителя).
+-- Не больше 100 строк; p_incoming — проверять ещё и входящие ссылки (смена родителя). У строки — problem (русский текст
+-- по ключу каталога) и сами key и params: по ним библиотека собирает problem на языке подключения (fromDbError).
 create or replace function @SCHEMA@.family_conflicts(p_classes text[], p_tenant uuid, p_incoming boolean) returns jsonb
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -617,6 +619,7 @@ declare
   bad jsonb;
   lk record;
   problem text;
+  msg jsonb;  -- ключ и параметры problem
   inc jsonb;
   outv jsonb := '[]'::jsonb;
   a jsonb := @SCHEMA@.acl_actor('READ');
@@ -629,18 +632,26 @@ begin
     cls := @SCHEMA@.class_row(r.class, r.tenant);
     res := cls.data->'resolved';
     problem := null;
+    msg := null;
     if coalesce((res->>'abstract')::boolean, false) then
       problem := @SCHEMA@.lt_text('sql-write.problem_abstract');
+      msg := jsonb_build_object('key', 'sql-write.problem_abstract', 'params', '{}'::jsonb);
     else
       bad := @SCHEMA@.validate_data(res->'rules', cls.validator, res->'vars', r.data);
       if bad <> '[]'::jsonb then
-        problem := @SCHEMA@.lt_text('sql-write.problem_data', jsonb_build_object('issues', bad::text));
+        -- в русском тексте — нарушения без key и params (текст прежний), а в params строки — сами нарушения с ключами:
+        -- по ним библиотека переведёт и их сообщения
+        problem := @SCHEMA@.lt_text('sql-write.problem_data', jsonb_build_object('issues',
+          (select jsonb_agg(x.i - 'key' - 'params' order by x.n) from jsonb_array_elements(bad) with ordinality x(i, n))::text));
+        msg := jsonb_build_object('key', 'sql-write.problem_data', 'params', jsonb_build_object('issues', bad));
       else
         select * into lk from @SCHEMA@.check_links(res, r.links, r.tenant, false, null);
         if lk.key is not null then
           problem := @SCHEMA@.lt_text(lk.key, lk.params);
+          msg := jsonb_build_object('key', lk.key, 'params', coalesce(lk.params, '{}'::jsonb));
         elsif coalesce(@SCHEMA@.key_id(res, r.class, r.tenant, r.data, r.links), r.id) <> r.id then
           problem := @SCHEMA@.lt_text('sql-write.problem_key');
+          msg := jsonb_build_object('key', 'sql-write.problem_key', 'params', '{}'::jsonb);
         end if;
       end if;
     end if;
@@ -655,13 +666,14 @@ begin
         from jsonb_array_elements(inc) i(v)
         left join @SCHEMA@.entity x on x.id = (i.v->>'id')::uuid
         order by seen desc, i.v->>'id' limit 1;
-        problem := case when vis
-          then @SCHEMA@.lt_text('sql-write.problem_ref', jsonb_build_object('role', ref->>'role', 'id', ref->>'id'))
-          else @SCHEMA@.lt_text('sql-write.problem_ref_hidden') end;
+        msg := case when vis
+          then jsonb_build_object('key', 'sql-write.problem_ref', 'params', jsonb_build_object('role', ref->>'role', 'id', ref->>'id'))
+          else jsonb_build_object('key', 'sql-write.problem_ref_hidden', 'params', '{}'::jsonb) end;
+        problem := @SCHEMA@.lt_text(msg->>'key', msg->'params');
       end if;
     end if;
     if problem is not null then
-      outv := outv || jsonb_build_object('id', r.id, 'class', r.class, 'tenant', r.tenant, 'problem', problem);
+      outv := outv || (jsonb_build_object('id', r.id, 'class', r.class, 'tenant', r.tenant, 'problem', problem) || coalesce(msg, '{}'::jsonb));
       exit when jsonb_array_length(outv) >= 100;
     end if;
   end loop;
@@ -2068,13 +2080,15 @@ begin
       end if;
     end if;
   end if;
-  -- путь — параметр всех текстов, кроме inc_args; нарушение в detail.issues — тот же русский текст
+  -- путь — параметр всех текстов, кроме inc_args; нарушение в detail.issues — тот же русский текст, а его key и params —
+  -- для текста на языке подключения (fromDbError)
   if fail <> 'sql-write.inc_args' then
     p := jsonb_build_object('path', array_to_string(path, '.'));
   end if;
   raise exception using errcode = 'LT003', message = 'letopis: invalid_data: ' || @SCHEMA@.lt_text(fail, p),
     detail = jsonb_build_object('issues', jsonb_build_array(jsonb_build_object(
-      'path', to_jsonb(coalesce(path, '{}')), 'keyword', 'inc', 'message', @SCHEMA@.lt_text(fail, p))), 'key', fail, 'params', p)::text;
+      'path', to_jsonb(coalesce(path, '{}')), 'keyword', 'inc', 'message', @SCHEMA@.lt_text(fail, p), 'key', fail, 'params', p)),
+      'key', fail, 'params', p)::text;
 end $$;
 
 do $$

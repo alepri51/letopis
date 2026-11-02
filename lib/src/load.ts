@@ -19,7 +19,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
-import { LetopisError, checkOptions, fromDbError, lerr, lmsg, removed, type Issue } from './errors.js';
+import { LetopisError, checkOptions, fromDbError, issuesFromDb, lerr, lmsg, removed, type Issue } from './errors.js';
 import { isOp } from './ops.js';
 import { Registry, aggregateFields, type ClassInfo, type EndInfo } from './registry.js';
 import { accepts } from './sql.js';
@@ -447,7 +447,7 @@ async function verifyIds(conn: Sql, S: string, ids: string[], to: Issues): Promi
   const bad = await conn.unsafe(`select e.id, e.class, ${S}.validate_data(c.data->'resolved'->'rules', c.validator, c.data->'resolved'->'vars', e.data) as issues
     from ${S}.entity e cross join lateral ${S}.class_row(e.class, e.tenant) c
     where e.id = any ($1::uuid[]) and ${S}.validate_data(c.data->'resolved'->'rules', c.validator, c.data->'resolved'->'vars', e.data) <> '[]'::jsonb limit ${ISSUES_LIMIT}`, [ids]);
-  for (const r of bad) to.add({ line: 0, code: 'invalid_data', message: lmsg('write.load_db_invalid', { id: r.id, cls: r.class }), id: r.id as string, issues: r.issues as Issue[] });
+  for (const r of bad) to.add({ line: 0, code: 'invalid_data', message: lmsg('write.load_db_invalid', { id: r.id, cls: r.class }), id: r.id as string, issues: issuesFromDb(r.issues) });
   if (bad.length >= ISSUES_LIMIT) to.unchecked.add(lmsg('write.load_db_check_limit', { limit: ISSUES_LIMIT }));
   const [t] = await conn.unsafe(`select ${S}.targets_bad((select jsonb_agg(jsonb_build_object('class', e.class, 'tenant', e.tenant, 'links', e.links))
     from ${S}.entity e where e.id = any ($1::uuid[]) and e.links <> '{}'::jsonb), false) as role`, [ids]);
@@ -463,7 +463,7 @@ async function verifyIds(conn: Sql, S: string, ids: string[], to: Issues): Promi
  * называет строки и нарушения.
  */
 export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {}): Promise<LoadReport> {
-  if ('trust' in opts) throw removed('load({ trust })', 'запрос по целям вне загрузки стоит 0,1–1,3 % её времени — режим доверия убран (решение 2 точки А)');
+  if ('trust' in opts) throw removed('load({ trust })', 'write.replacement_load_trust');
   checkOptions('load', opts, LOAD_OPTIONS);
   if (!env.admin) throw lerr('write.load_admin_required');
   const asAcc = opts.as;
@@ -891,7 +891,8 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
         where issues <> '[]'::jsonb order by i limit ${ISSUES_LIMIT}`, [list.slice(b, b + batch) as never, tenant]);
       for (const r of bad) {
         const { id, cls } = p1[r.i as number]!;
-        issues.add({ line: (r.i as number) + 1, code: 'invalid_data', message: lmsg('write.load_invalid_data', { cls: cls.name }), id, class: cls.name, issues: r.issues as Issue[] });
+        // нарушения базы — с ключом каталога: сообщения на языке подключения, key и params наружу не идут
+        issues.add({ line: (r.i as number) + 1, code: 'invalid_data', message: lmsg('write.load_invalid_data', { cls: cls.name }), id, class: cls.name, issues: issuesFromDb(r.issues) });
       }
       if (bad.length >= ISSUES_LIMIT) issues.unchecked.add(lmsg('write.load_db_check_limit', { limit: ISSUES_LIMIT }));
     }

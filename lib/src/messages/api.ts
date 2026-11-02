@@ -53,14 +53,16 @@ export const api = {
     ru: 'новые значения строки запрещают правила доступа',
     en: 'the access rules forbid the new values of the row',
   },
-  // errors.ts, охранник снятого API: метод или свойство — мужской род; name и replacement — литералы вызова охранника,
-  // version — REMOVED_IN. Замена остаётся текстом вызова (её читает контракт API) — по-английски она тоже русская
+  // errors.ts, охранник снятого API: метод или свойство — мужской род; name — имя снятого API, как в вызове охранника (не
+  // переводится: по нему контракт API сверяет охранники), version — REMOVED_IN, replacement — замена на языке вокруг:
+  // текст записи-замены (ниже) или имя API без перевода, например paths()
   'api.removed': {
     code: 'removed',
     ru: '{name} снят в {version} — {replacement}',
     en: '{name} was removed in {version} — {replacement}',
   },
-  // errors.ts, охранник снятой опции connect(): женский род; name — без слова «опция»
+  // errors.ts, охранник снятой опции connect() (замена — запись api.replacement_option_*): женский род; name — без слова
+  // «опция»
   'api.removed_option': {
     code: 'removed',
     ru: 'опция {name} снята в {version} — {replacement}',
@@ -71,6 +73,75 @@ export const api = {
     code: 'removed',
     ru: '{name} сняты в {version} — {replacement}',
     en: '{name} were removed in {version} — {replacement}',
+  },
+  // замены охранников снятого API index.ts и chain.ts (второй аргумент removed): текст после «— » в api.removed* на языке
+  // вокруг; контракт API берёт русский шаблон (lib/scripts/contract.mjs). Имена API в замене не переводятся
+  'api.replacement_uuidv7': {
+    code: 'removed',
+    ru: 'uuidv5() и idOf(): id объекта вычисляется из ключа',
+    en: 'uuidv5() and idOf(): the object id is computed from the key',
+  },
+  'api.replacement_letopis_ns': {
+    code: 'removed',
+    ru: 'пространство имён v5 — id арендатора: idOf(класс, ключ, { tenant })',
+    en: 'the v5 namespace is the tenant id: idOf(class, key, { tenant })',
+  },
+  'api.replacement_watch': {
+    code: 'removed',
+    ru: 'watch({ from }) — подписка по курсору',
+    en: 'watch({ from }) — a subscription by cursor',
+  },
+  'api.replacement_reload_schema': {
+    code: 'removed',
+    ru: 'реестр обновляется сам по сигналу; принудительно — db.refresh()',
+    en: 'the registry refreshes itself on a signal; to force it — db.refresh()',
+  },
+  'api.replacement_facades': {
+    code: 'removed',
+    ru: 'системные классы Account, Resource, rule, member и db.auth (accounts.purge — db.auth.purgeAccount)',
+    en: 'the system classes Account, Resource, rule, member and db.auth (accounts.purge — db.auth.purgeAccount)',
+  },
+  'api.replacement_compact': {
+    code: 'removed',
+    ru: 'db.trimHistory(цель, момент), политика хранения history и history: false',
+    en: 'db.trimHistory(target, moment), the history retention policy and history: false',
+  },
+  'api.replacement_account_step': {
+    code: 'removed',
+    ru: 'арендатор сессии и auth.switch() (этап 5)',
+    en: 'the session tenant and auth.switch() (stage 5)',
+  },
+  // замены снятых опций connect() — значения REMOVED_OPTIONS в index.ts: по префиксу ключа api.replacement_option_
+  // охранник выбирает запись api.removed_option
+  'api.replacement_option_partition': {
+    code: 'removed',
+    ru: 'отдельные схемы установки (v2.<имя>)',
+    en: 'separate installation schemas (v2.<name>)',
+  },
+  'api.replacement_option_enforce_account': {
+    code: 'removed',
+    ru: 'изоляция арендаторов включена всегда (RLS)',
+    en: 'tenant isolation is always on (RLS)',
+  },
+  'api.replacement_option_enforce_acl': {
+    code: 'removed',
+    ru: 'права включены всегда (этап 5)',
+    en: 'permissions are always on (stage 5)',
+  },
+  'api.replacement_option_docker': {
+    code: 'removed',
+    ru: 'Docker в up() не нужен',
+    en: 'up() does not need Docker',
+  },
+  'api.replacement_option_redis': {
+    code: 'removed',
+    ru: 'Redis не нужен: сессии в базе',
+    en: 'Redis is not needed: sessions are in the database',
+  },
+  'api.replacement_option_version': {
+    code: 'removed',
+    ru: 'версия схемы — константа движка',
+    en: 'the schema version is an engine constant',
   },
 
   // chain.ts, warnNoHistory: versions(), asOf(), diff(), blame() у класса без журнала — предупреждение (lwarn), один раз

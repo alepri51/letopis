@@ -6,6 +6,18 @@
 import type { Section } from './types.js';
 
 export const sqlWrite = {
+  // 60-write.sql, lock_row(), family_lock(): внутренняя ошибка (SQLSTATE XX000) — строки-замка нет и после вставки или
+  // блокировка её не нашла; name — имя строки-замка
+  'sql-write.lock_row_not_created': {
+    code: 'internal',
+    ru: 'строка-замок {name} не создана',
+    en: 'lock row {name} was not created',
+  },
+  'sql-write.lock_row_not_found': {
+    code: 'internal',
+    ru: 'строка-замок {name} не найдена',
+    en: 'lock row {name} is not found',
+  },
   // 60-write.sql, триггеры вставки и правки, move_row: данные не проходят описание класса; detail.issues — нарушения
   'sql-write.invalid_data': {
     code: 'invalid_data',
@@ -65,12 +77,14 @@ export const sqlWrite = {
     en: 'the target of end {end} is not found',
   },
   // family_conflicts(): чем строка семейства не проходит новое описание — поле problem в detail.rows отказа
-  // tightening_conflict (ужесточение класса, rekeyClass)
+  // tightening_conflict (ужесточение класса, rekeyClass); у строки ещё key и params — по ним fromDbError собирает problem
+  // на языке подключения
   'sql-write.problem_abstract': {
     code: 'tightening_conflict',
     ru: 'класс абстрактный',
     en: 'the class is abstract',
   },
+  // issues — нарушения текстом JSON без key и params; в params строки — сами нарушения с ключами (массив)
   'sql-write.problem_data': {
     code: 'tightening_conflict',
     ru: 'данные: {issues}',

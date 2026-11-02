@@ -5,13 +5,15 @@
  * (aggregate_field); смена описания пересчитывает поле под исключительными блокировками; ремонт —
  * rebuildAggregates, расхождение находит verify({ data: true }). Ревью коммита этапа 4б: агрегат задаёт и класс делает
  * источником только тот, кто без условий читает все их строки; агрегат класса арендатора считает только классы
- * арендатора и не останавливает установку и правку классов System.
+ * арендатора и не останавливает установку и правку классов System. План 2.0, 7.5 №5: чекпоинт проектора в том же
+ * 88-derived.sql ищет одноимённую строку PROJECTOR другого аккаунта по индексу secret_kind_ident.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import postgres from 'postgres';
 import { engine, lt, waitForLock, SYSTEM_ID, type Engine, type Tenant } from './_engine.js';
 import { ADMIN_DSN, appDsn } from './_harness.js';
 import { resource, rule, sysRes, sysadmin, sqlAs } from './_access.js';
@@ -642,4 +644,38 @@ test('ревью коммита этапа 4б: агрегат класса ар
   }
   assert.deepEqual([(await row(ms.id)).data.n, (await row(ss.id)).data.n], [1, 1]);
   await verifyOk('агрегаты классов арендатора и System');
+});
+
+test('план 2.0, 7.5 №5: чекпоинт проектора сравнивает имя casefold той же коллацией, что индекс secret_kind_ident, — поиск чужой строки идёт по индексу', async () => {
+  // строка PROJECTOR другого аккаунта с тем же именем в другом регистре заняла бы уникальный индекс secret_kind_ident
+  // (kind, casefold(ident) collate pg_unicode_fast): первый запуск проектора помечает её удалённой и заводит строку System
+  await e.defineDerived(t, { name: 'CaseTotal', kind: 'hub', key: ['k'], derivedBy: 'case_probe', history: false,
+    fields: { properties: { k: { type: 'string' } }, required: ['k'] } });
+  const [planted] = await e.asOwner((tx) => tx.unsafe(`insert into ${e.S}.secret (account, kind, ident) values ($1::uuid, 'PROJECTOR', 'CASE_PROBE')
+    returning id`, [u.id]));
+  // планы вложенных операторов функций базы — auto_explain уровнем NOTICE этому клиенту; перебор таблицы выключен: secret
+  // тестовой схемы мала, и планировщик перебрал бы её и при годном индексе
+  const plans: string[] = [];
+  const pool = postgres(ADMIN_DSN, { max: 1, onnotice: (n) => void plans.push(String(n.message)), connection: {
+    session_preload_libraries: 'auto_explain', 'auto_explain.log_min_duration': '0', 'auto_explain.log_nested_statements': 'on',
+    'auto_explain.log_level': 'notice', enable_seqscan: 'off',
+  } as never });
+  const pdb = await connect({ sql: pool as never, schema: e.schema, allowBypassRls: true, listen: false, cache: false });
+  try {
+    const p = pdb.projector('case_probe', { from: ['Payer'], into: ['CaseTotal'], version: 1, handle: () => {} });
+    await p.run({ once: true, wait: 0 });
+    p.close();
+  } finally {
+    await pdb.close();
+    await pool.end({ timeout: 5 });
+  }
+  const [was] = await e.sql.unsafe(`select deleted_at from ${e.S}.secret where id = $1`, [planted.id]);
+  assert.ok(was.deleted_at, 'строка другого аккаунта с тем же именем в другом регистре помечена удалённой');
+  const [own] = await e.sql.unsafe(`select count(*)::int as n from ${e.S}.secret
+    where kind = 'PROJECTOR' and ident = 'case_probe' and account = $1::uuid and deleted_at is null`, [SYSTEM_ID]);
+  assert.equal(own.n, 1, 'чекпоинт — строка System');
+  const plan = plans.find((x) => /update \S*secret s set deleted_at/.test(x) && /'PROJECTOR'/.test(x));
+  assert.ok(plan, 'план поиска чужой строки PROJECTOR снят');
+  // коллация сравнения другая, чем у индекса, — индекс годится только для kind, а casefold(ident) уходит в фильтр
+  assert.match(plan, /using secret_kind_ident[\s\S]*Index Cond: [^\n]*casefold\(ident\)/, `casefold(ident) — в условии индекса:\n${plan}`);
 });

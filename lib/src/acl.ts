@@ -390,7 +390,7 @@ export function makeAcl(S: string, exec: Executor, db?: () => unknown, lang?: La
     },
   };
   const member = (t: AclApi, p: string | symbol, r: unknown): unknown => {
-    if (p === 'reload') throw removed('db.acl.reload()', 'права обновляются сами: база применяет действующие правила');
+    if (p === 'reload') throw removed('db.acl.reload()', 'access.replacement_acl_reload');
     return Reflect.get(t, p, r);
   };
   return new Proxy(api, {

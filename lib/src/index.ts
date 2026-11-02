@@ -8,7 +8,7 @@
  * Этап 6: история (restore, purge, rekey, trimHistory), verify, maintain, reset, watch, кэш результатов.
  */
 import postgres from 'postgres';
-import { LetopisError, checkLang, checkOptions, fromDbError, langMethods, langRun, lerr, lwarn, removed, wrapLang, type Lang, type LangRun } from './errors.js';
+import { LetopisError, checkLang, checkOptions, fromDbError, langMethods, langRun, lerr, lwarn, removed, wrapLang, type Lang, type LangRun, type MsgKey } from './errors.js';
 import { Registry } from './registry.js';
 import { AclPasses, ExplicitTx, Notifier, poolExecutor, runTx, type Executor, type Tx, type TxContext } from './tx.js';
 import { checkReason } from './write.js';
@@ -59,13 +59,13 @@ export { RESERVED_CLASS_NAMES, CHAIN_METHODS, DB_METHODS } from './types.js';
 
 /** Снесено в 1.0.0: id v7 больше не выдаются (§2.3). */
 export function uuidv7(): never {
-  throw removed('uuidv7()', 'uuidv5() и idOf(): id объекта вычисляется из ключа');
+  throw removed('uuidv7()', 'api.replacement_uuidv7');
 }
 /** Снесено в 1.0.0: пространство имён v5 — id арендатора. Любое использование значения — ошибка. */
 export const LETOPIS_NS: string = new Proxy({} as object, {
   get(_t, p) {
     if (p === 'then') return undefined;
-    throw removed('LETOPIS_NS', 'пространство имён v5 — id арендатора: idOf(класс, ключ, { tenant })');
+    throw removed('LETOPIS_NS', 'api.replacement_letopis_ns');
   },
 }) as unknown as string;
 
@@ -82,7 +82,11 @@ export interface ConnectOptions {
   token?: string;
   apiKey?: string;
   service?: string;
-  /** Продлевать сессию раз в минуту работы (по умолчанию да, §2.9). */
+  /**
+   * Продлевать сессию раз в минуту работы (по умолчанию да, §2.9); после простоя дольше минуты — до операции: истёкшая
+   * сессия тогда даёт `no_session`, а не анонимное чтение с пустым ответом, а подключение по `apiKey` обменивает ключ
+   * заново. `false` — без продления и без этой проверки.
+   */
   refreshSession?: boolean;
   /** Разрешить роль, которая обходит RLS (суперпользователь, `BYPASSRLS`, член роли-владельца), — администраторское подключение (§2.9). */
   allowBypassRls?: boolean;
@@ -139,16 +143,19 @@ const CONNECT_OPTIONS = {
 /** Опции watch() (WatchOptions). */
 const WATCH_OPTIONS = { from: true, classes: true, batch: true, pollMs: true } satisfies Record<keyof WatchOptions, true>;
 
-/** Опции 0.21, снятые в 1.0.0, и их замены (этап 3, п. 11). */
-const REMOVED_OPTIONS: Record<string, string> = {
-  partition: 'отдельные схемы установки (v2.<имя>)',
-  enforceAccount: 'изоляция арендаторов включена всегда (RLS)',
-  enforceAcl: 'права включены всегда (этап 5)',
-  container: 'Docker в up() не нужен',
-  image: 'Docker в up() не нужен',
-  dataDir: 'Docker в up() не нужен',
-  redisPort: 'Redis не нужен: сессии в базе',
-  version: 'версия схемы — константа движка',
+/**
+ * Опции 0.21, снятые в 1.0.0, и их замены (этап 3, п. 11) — ключи каталога api.replacement_option_*: текст замены — на
+ * языке вокруг, контракт API берёт русский шаблон (lib/scripts/contract.mjs).
+ */
+const REMOVED_OPTIONS: Record<string, MsgKey> = {
+  partition: 'api.replacement_option_partition',
+  enforceAccount: 'api.replacement_option_enforce_account',
+  enforceAcl: 'api.replacement_option_enforce_acl',
+  container: 'api.replacement_option_docker',
+  image: 'api.replacement_option_docker',
+  dataDir: 'api.replacement_option_docker',
+  redisPort: 'api.replacement_option_redis',
+  version: 'api.replacement_option_version',
 };
 
 export interface DbCore {
@@ -284,8 +291,10 @@ interface Shared {
   passes: AclPasses;
   /** Арендатор и реестр корня — меняются после auth.switch. */
   root: { tenant: string | null; registry: Registry };
-  /** Реестр классов арендатора (System + арендатор), загруженный контекстом txc. */
-  /** Реестр арендатора для db.as(); null — контекст уже не в этом арендаторе (реестр не загружен и не кэширован). */
+  /**
+   * Реестр классов арендатора (System + арендатор) для db.as(), загруженный контекстом txc; null — контекст уже не в
+   * этом арендаторе (реестр не загружен и не кэширован).
+   */
   registryFor: (tenant: string, txc: TxContext) => Promise<Registry | null>;
   /** Реестр фасада db.as() при каждом обращении: вытесненный возвращается в карту и перечитывается (план 2.0, 7.4 №8). */
   registryOf: (tenant: string, registry: Registry, txc: TxContext) => Registry;
@@ -378,7 +387,7 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
     rekeyClass: (cls, key) => runRekeyClass(adm, cls, key),
     describe: () => describeModel(adm),
     watch: (o = {}) => {
-      if (typeof o === 'function' || typeof o === 'string') throw removed('watch(cb) и watch(класс, cb)', 'watch({ from }) — подписка по курсору');
+      if (typeof o === 'function' || typeof o === 'string') throw removed('watch(cb) и watch(класс, cb)', 'api.replacement_watch');
       checkOptions('watch', o, WATCH_OPTIONS);
       const reg = scope.registry();
       const classes = o.classes ? [...new Set(o.classes.flatMap((c) => reg.family(c).map((x) => x.name)))] : null;
@@ -478,14 +487,14 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
       case 'then':
         return undefined;
       case 'reloadSchema':
-        throw removed('reloadSchema()', 'реестр обновляется сам по сигналу; принудительно — db.refresh()');
+        throw removed('reloadSchema()', 'api.replacement_reload_schema');
       case 'accounts':
       case 'credentials':
       case 'resources':
       case 'rules':
-        throw removed(`фасад db.${prop}`, 'системные классы Account, Resource, rule, member и db.auth (accounts.purge — db.auth.purgeAccount)');
+        throw removed(`фасад db.${prop}`, 'api.replacement_facades');
       case 'compact':
-        throw removed('compact()', 'db.trimHistory(цель, момент), политика хранения history и history: false');
+        throw removed('compact()', 'api.replacement_compact');
     }
     return startStep(chainCtx, prop);
   };
@@ -522,7 +531,8 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
 async function open(opts: ConnectOptions, L: LangRun | undefined): Promise<Db> {
   if (!SCHEMA_NAME.test(opts.schema)) throw lerr('api.connect_schema', { schema: opts.schema });
   if (!opts.sql && !opts.dsn) throw lerr('api.connect_no_dsn');
-  for (const k of Object.keys(opts)) if (k in REMOVED_OPTIONS) throw removed(`опция connect({ ${k} })`, REMOVED_OPTIONS[k]);
+  // имя — без слова «опция»: его добавляет запись api.removed_option, которую охранник выбирает по ключу замены
+  for (const k of Object.keys(opts)) if (Object.hasOwn(REMOVED_OPTIONS, k)) throw removed(`connect({ ${k} })`, REMOVED_OPTIONS[k]);
   checkOptions('connect', opts, CONNECT_OPTIONS);
   // интервал обслуживания — до пула и таймеров: неверный не оставляет за собой открытых соединений
   const maintainEvery = opts.maintain === undefined ? undefined : parseInterval(opts.maintain);
@@ -602,7 +612,10 @@ async function open(opts: ConnectOptions, L: LangRun | undefined): Promise<Db> {
     // продление сессии (§2.9): отдельным вызовом не чаще раза в минуту; ошибка (реплика,
     // транзакции только для чтения) не мешает работе
     let refreshedAt = Date.now();
+    // время последней удачной операции: после простоя дольше минуты сессию проверяют до операции (ctx.before)
+    let lastOk = Date.now();
     const touch = (): void => {
+      lastOk = Date.now();
       if (!token || opts.refreshSession === false || Date.now() - refreshedAt < 60_000) return;
       refreshedAt = Date.now();
       void runTx({ sql, token, notifier: null }, (q) => q.unsafe(`select ${S}.auth_refresh()`), { retries: 0 }).catch(() => {});
@@ -611,6 +624,62 @@ async function open(opts: ConnectOptions, L: LangRun | undefined): Promise<Db> {
     const ctx: TxContext = { sql, token, notifier: mode === 'none' ? null : notifier, passes, after: touch,
       ...(cache ? { onChanged: (names, raw) => cache.changed(names, raw) } : {}) };
     const root = { tenant: null as string | null, registry: new Registry() };
+    // подключение по ключу APIKEY: сессия истекает по простою (срок — 7 суток), и процесс, простоявший дольше, получал
+    // бы no_session на каждый вызов. Ключ обменивается на новую сессию заново (один обмен на все ждущие вызовы), с тем
+    // же рабочим арендатором, что выбрал auth.switch(); операция повторяется один раз (runTx, ExplicitTx.open)
+    if (apiKey && !opts.token) {
+      let renewing: Promise<string | null> | null = null;
+      const exchange = async (): Promise<string | null> => {
+        const [r] = await sql.unsafe(`select ${S}.login_apikey($1) as t`, [apiKey]);
+        const next = r?.t ? String(r.t) : null;
+        const want = root.tenant;
+        if (next && want) {
+          await runTx({ sql, token: next, notifier: null }, async (q) => {
+            const [t] = await q.unsafe(`select ${S}.ctx_tenant() as t`);
+            if (String(t?.t ?? '').toLowerCase() !== want.toLowerCase()) await q.unsafe(`select ${S}.auth_switch($1::uuid)`, [want]);
+          }, { retries: 0 });
+        }
+        return next;
+      };
+      ctx.renew = async (failed) => {
+        // ключ уже обменян другим вызовом — достаточно нового токена
+        if (token && failed.token !== token) {
+          failed.token = token;
+          return true;
+        }
+        renewing ??= exchange().catch(() => null).finally(() => {
+          renewing = null;
+        });
+        const next = await renewing;
+        if (!next) return false;
+        token = next;
+        ctx.token = next;
+        failed.token = next;
+        refreshedAt = Date.now();
+        return true;
+      };
+    }
+    // после простоя дольше минуты — продление до операции: сессия, истёкшая по простою, даёт no_session (подключение по
+    // ключу выдаёт новую), а не анонимное чтение с пустым ответом; ошибка продления другого рода (реплика, транзакция
+    // только для чтения) работе не мешает, как у touch
+    let checking: Promise<void> | null = null;
+    const checkSession = async (): Promise<void> => {
+      try {
+        await runTx({ sql, token, notifier: null }, (q) => q.unsafe(`select ${S}.auth_refresh()`), { retries: 0 });
+      } catch (e) {
+        if (!(e instanceof LetopisError && e.code === 'no_session')) return;
+        if (!ctx.renew || !(await ctx.renew(ctx))) throw e;
+      }
+      refreshedAt = lastOk = Date.now();
+    };
+    ctx.before = async (c) => {
+      if (!token || opts.refreshSession === false || Date.now() - lastOk < 60_000) return;
+      checking ??= checkSession().finally(() => {
+        checking = null;
+      });
+      await checking;
+      if (token && c.token !== token) c.token = token;
+    };
     // классы арендатора tenant под контекстом txc; null — контекст уже не в этом арендаторе (сессия кончилась,
     // пользователь выбыл из арендатора): тогда прежний реестр остаётся, а не пустеет (доработки после точки Б)
     const loadClasses = (txc: TxContext, tenant: string) => runTx(txc, async (q) => {

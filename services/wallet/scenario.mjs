@@ -2,11 +2,13 @@
  * Сценарий «день работы» кошелька: сервис в этом же процессе, шаги — через его JSON API (как интерфейс).
  *   ADMIN_DSN=… APP_DSN=… node scenario.mjs        Код выхода 1 — сбой.
  * «Чужая транзакция», которая держит строку выписки (проверка lockTimeout и lockRetries проектора), и порча данных
- * в обход библиотеки для verify — тоже через API сервиса, как кнопки интерфейса.
+ * в обход библиотеки для verify — тоже через API сервиса, как кнопки интерфейса. Простой сервиса дольше срока сессии —
+ * без ожидания: срок сессий createTenant оператора истекает в базе отдельным подключением по ADMIN_DSN.
  */
+import postgres from 'postgres';
 import { createApp, OPERATOR } from './src/server.mjs';
 
-const { app, close } = await createApp();
+const { app, schema, close } = await createApp();
 const server = app.listen(0, '127.0.0.1');
 await new Promise((r) => server.once('listening', r));
 const base = `http://127.0.0.1:${server.address().port}`;
@@ -127,6 +129,22 @@ try {
   const hoodFix = (await call(cookie, '/api/trace')).data?.[0];
   check(fix.status === 200 && !(await statusOf()).failed && (await topups()) === t0 + 700 && hoodFix?.lines.some((l) => l.startsWith('statement.rebuild({ tenant })')),
     'перестроить выписку — rebuild({ tenant }): отметка выбывшего снята, пополнение 7 ₽ в выписке');
+
+  // простой дольше срока сессии оператора — без ожидания: срок её сессий createTenant (без methods; веб-сессия входа по
+  // паролю не трогается) истекает в базе. Проектор выписки, rebuild и verify ниже идут администраторским подключением —
+  // сессия подключения им не нужна (план 2.0, 7.6 №5)
+  const sql = postgres(process.env.ADMIN_DSN ?? 'postgres://postgres:guide@127.0.0.1:15440/letopis', { max: 1, onnotice: () => {} });
+  const S = `"${schema.replace(/"/g, '""')}"`;
+  const expired = await sql.unsafe(`update ${S}.secret set expires_at = clock_timestamp() - interval '1 second'
+    where kind = 'SESSION' and not (meta ? 'methods') and account = (select account from ${S}.secret where kind = 'PASSWORD' and ident = $1)`, [OPERATOR.login])
+    .finally(() => sql.end({ timeout: 2 }));
+  const t1 = await topups();
+  const late = await call(cookie, '/api/topup', { wallet: w1.id, amount: 300, card, opId: `id-${run}` });
+  let seen = await topups();
+  for (let i = 0; i < 40 && seen !== t1 + 300; i++) { await sleep(250); seen = await topups(); }
+  const rb2 = await call(cookie, '/api/statement/rebuild', {});
+  check(late.data?.result === 'проведено' && seen === t1 + 300 && rb2.status === 200 && (await topups()) === t1 + 300 && !(await statusOf()).failed,
+    `после простоя (истекло сессий createTenant: ${expired.count}): проектор довёл пополнение 3 ₽ до выписки, rebuild() — те же итоги`);
 
   // целостность — после всех записей сценария, обрывов и перестроек
   const v = await call(cookie, '/api/admin/verify');

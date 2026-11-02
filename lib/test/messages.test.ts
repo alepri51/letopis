@@ -12,13 +12,14 @@ import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { engine, type Engine, type Tenant } from './_engine.js';
 import { ADMIN_DSN, appDsn } from './_harness.js';
 import { member, session, sysadmin } from './_access.js';
-import { connect, up, LetopisError, ValidationError, type Db } from '../src/index.js';
+import { connect, describeText, fromDbError, up, LetopisError, ValidationError, type Db } from '../src/index.js';
 import { createMcpServer } from '../src/mcp.js';
 import { codes } from '../src/messages/codes.js';
 import { MESSAGES } from '../src/messages/index.js';
 
 const VERSION = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 const DOCS = `https://github.com/alepri51/letopis/blob/v${VERSION}/lib/README.md`;
+const DOCS_EN = `https://github.com/alepri51/letopis/blob/v${VERSION}/lib/README.en.md`;
 const CODES = Object.values(codes).map((m) => m.code);
 
 let e: Engine;
@@ -86,8 +87,9 @@ test('план 2.0, 7.9 №5: hint и docs у каждого кода — на �
     const inRu = await ru.transaction(async () => new LetopisError(m.code, 'x'));
     assert.equal(inEn.hint, m.hint.en, `${m.code}: hint на английском`);
     assert.equal(inRu.hint, m.hint.ru, `${m.code}: hint на русском`);
-    assert.equal(inEn.docs, `${DOCS}#${m.code}`);
-    assert.equal(inRu.docs, inEn.docs);
+    // docs — раздел «Ошибки» README своего языка: с lang en — README.en.md
+    assert.equal(inEn.docs, `${DOCS_EN}#${m.code}`);
+    assert.equal(inRu.docs, `${DOCS}#${m.code}`);
     for (const [lang, sec] of Object.entries(sections)) {
       assert.ok(sec.includes(`<a id="${m.code}"></a>`), `якорь ${m.code} в разделе ошибок README (${lang})`);
     }
@@ -161,7 +163,7 @@ test('план 2.0, 7.9 №5: ошибки базы с ключом — на я�
   const foreign = await session(e, t.id, { tenant: other.id });
   await assert.rejects(connect({ dsn: appDsn(), schema: e.schema, token: foreign, lang: 'en' }),
     (x: LetopisError) => err('tenant_denied', 'no membership in the tenant')(x) && x.key === 'sql-core.no_membership'
-      && x.hint === codes['codes.tenant_denied'].hint.en && x.docs === `${DOCS}#tenant_denied`);
+      && x.hint === codes['codes.tenant_denied'].hint.en && x.docs === `${DOCS_EN}#tenant_denied`);
   await assert.rejects(connect({ dsn: appDsn(), schema: e.schema, token: foreign }), err('tenant_denied', 'нет членства в арендаторе'));
   // удаление последнего владельца арендатора (90-time.sql, sql-time.last_owner): detail.tenant — как раньше, подсказка — своя
   const admin = await sysadmin(e);
@@ -201,6 +203,159 @@ test('план 2.0, 7.9 №5: createMcpServer({ lang }) — ошибки инс�
     await handle.close();
   }
   await assert.rejects(createMcpServer(ru, { lang: 'fr' as never }), err('invalid_data', "createMcpServer: lang — 'ru' или 'en', а не fr"));
+});
+
+test('план 2.0, 7.9 №5: нарушения из базы — сообщения на языке подключения без key и params: запись, ужесточение класса, загрузчик; у сырого SQL — русские, с ключом', async () => {
+  // pattern проверяет только база: валидатор на TypeScript шаблоны арендатора не исполняет
+  await e.defineClass(t, { name: 'Coded', kind: 'hub', key: ['name'],
+    fields: { properties: { name: { type: 'string' }, code: { type: 'string', pattern: '^[A-Z]{3}$' } }, required: ['name'] } });
+  await e.defineClass(t, { name: 'Tight', kind: 'hub', fields: { properties: { code: { type: 'string' } } } });
+  await ru.refresh();
+  await en.refresh();
+  const issue = (message: string) => [{ path: ['code'], keyword: 'pattern', message }];
+  const create = (db: Db) => (db as any).Coded().create({ name: 'c1', code: 'abc' }).rows();
+  await assert.rejects(create(en), (x: ValidationError) => {
+    assert.ok(x instanceof ValidationError);
+    assert.equal(x.message, 'letopis: invalid_data: the data does not match the description of class Coded');
+    assert.deepEqual(x.issues, issue('rule pattern is violated'));
+    assert.deepEqual(x.detail, { issues: x.issues });
+    return true;
+  });
+  await assert.rejects(create(ru), (x: ValidationError) => {
+    err('invalid_data', 'данные не проходят описание класса Coded')(x);
+    assert.deepEqual(x.issues, issue('нарушено правило pattern'));
+    return true;
+  });
+  // сырой SQL: русское сообщение нарушения, его ключ и параметры — в DETAIL
+  await assert.rejects(e.as(t.token, (q) => q.unsafe(`insert into ${e.S}.entity (class, data) values ('Coded', '{"name": "c2", "code": "abc"}')`)),
+    (x: { detail: string }) => {
+      assert.deepEqual((JSON.parse(x.detail) as { issues: unknown[] }).issues,
+        [{ path: ['code'], keyword: 'pattern', message: 'нарушено правило pattern', key: 'sql-core.issue_rule', params: { keyword: 'pattern' } }]);
+      return true;
+    });
+
+  // ужесточение: строка не проходит новое описание — problem строки отказа на языке подключения (family_conflicts)
+  const [row] = await (ru as any).Tight().create({ code: 'abc' }).rows();
+  const tighten = `update ${e.S}.entity set data = ${e.S}.merge(data, '{"fields": {"properties": {"code": {"type": "string", "pattern": "^[A-Z]{3}$"}}}}')
+    where class = 'Class' and tenant = '${t.id}' and data->>'name' = 'Tight'`;
+  const problem = (word: string, message: string) => `${word}: [{"path": ["code"], "keyword": "pattern", "message": "${message}"}]`;
+  await assert.rejects(en.transaction((q) => q.unsafe(tighten)), (x: LetopisError) => {
+    err('tightening_conflict', 'rows do not match the new description of class Tight')(x);
+    assert.deepEqual(x.detail, { rows: [{ id: row.id, class: 'Tight', problem: problem('data', 'rule pattern is violated') }], others: 0 });
+    return true;
+  });
+  await assert.rejects(ru.transaction((q) => q.unsafe(tighten)), (x: LetopisError) => {
+    err('tightening_conflict', 'новому описанию класса Tight не соответствуют строки')(x);
+    assert.deepEqual(x.detail, { rows: [{ id: row.id, class: 'Tight', problem: problem('данные', 'нарушено правило pattern') }], others: 0 });
+    return true;
+  });
+  // сырой SQL: русский problem (нарушения в нём — без key и params), ключ и параметры строки — с нарушениями
+  await assert.rejects(e.as(t.token, (q) => q.unsafe(tighten)), (x: { detail: string }) => {
+    const [r] = (JSON.parse(x.detail) as { rows: Record<string, unknown>[] }).rows;
+    assert.equal(r.problem, problem('данные', 'нарушено правило pattern'));
+    assert.equal(r.key, 'sql-write.problem_data');
+    assert.deepEqual(r.params, { issues: [{ path: ['code'], keyword: 'pattern', message: 'нарушено правило pattern',
+      key: 'sql-core.issue_rule', params: { keyword: 'pattern' } }] });
+    return true;
+  });
+
+  // загрузчик: строки классов с pattern сверяет запрос к базе (checkInDb) — нарушения в отчёте на языке подключения
+  for (const lang of ['en', 'ru'] as const) {
+    const adb = await connect({ dsn: ADMIN_DSN, schema: e.schema, token: t.token, max: 1, allowBypassRls: true, ...(lang === 'en' ? { lang } : {}) });
+    try {
+      await assert.rejects(adb.load({ Coded: [{ name: 'l1', code: 'abc' }] }), (x: LetopisError) => {
+        assert.equal(x.code, 'invalid_data');
+        const [r] = (x.detail as { rows: { line: number; issues: unknown[] }[] }).rows;
+        assert.equal(r.line, 1);
+        assert.deepEqual(r.issues, issue(lang === 'en' ? 'rule pattern is violated' : 'нарушено правило pattern'));
+        return true;
+      });
+    } finally {
+      await adb.close();
+    }
+  }
+});
+
+test('план 2.0, 7.9 №5: внутренняя ошибка базы (строка-замок не создана) — код internal на языке подключения; у сырого SQL — русский текст', async () => {
+  await e.defineClass(t, { name: 'Lockless', kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
+  await ru.refresh();
+  await en.refresh();
+  const [{ name }] = await e.sql.unsafe(`select ${e.S}.family_name(c.tenant, c.data) as name from ${e.S}.class_row('Lockless', $1::uuid) c`, [t.id]);
+  // строки-замка семейства нет, а её вставку глушит триггер: lock_row не может её завести
+  await e.sql.unsafe(`delete from ${e.S}.secret where id = ${e.S}.lock_id($1)`, [name]);
+  await e.sql.unsafe(`create function ${e.S}.no_lock_row() returns trigger language plpgsql as $f$
+    begin
+      if NEW.kind = 'LOCK' and NEW.meta->>'name' = '${name}' then return null; end if;
+      return NEW;
+    end $f$`);
+  await e.sql.unsafe(`create trigger no_lock_row before insert on ${e.S}.secret for each row execute function ${e.S}.no_lock_row()`);
+  try {
+    const create = (db: Db) => (db as any).Lockless().create({ n: 1 }).rows();
+    await assert.rejects(create(en), (x: LetopisError) => {
+      err('internal', `lock row ${name} was not created`)(x);
+      assert.equal(x.key, 'sql-write.lock_row_not_created');
+      assert.deepEqual(x.params, { name });
+      assert.equal(x.detail, undefined);
+      assert.equal(x.hint, codes['codes.internal'].hint.en);
+      assert.equal(x.docs, `${DOCS_EN}#internal`);
+      return true;
+    });
+    await assert.rejects(create(ru), (x: LetopisError) => err('internal', `строка-замок ${name} не создана`)(x)
+      && x.hint === codes['codes.internal'].hint.ru && x.docs === `${DOCS}#internal`);
+    // сырой SQL мимо библиотеки: SQLSTATE XX000, русский текст, ключ и параметры — в DETAIL
+    await assert.rejects(e.as(t.token, (q) => q.unsafe(`insert into ${e.S}.entity (class, data) values ('Lockless', '{"n": 2}')`)),
+      (x: { code: string; message: string; detail: string }) => {
+        assert.equal(x.code, 'XX000');
+        assert.equal(x.message, `letopis: internal: строка-замок ${name} не создана`);
+        assert.deepEqual(JSON.parse(x.detail), { nodetail: true, key: 'sql-write.lock_row_not_created', params: { name } });
+        return true;
+      });
+  } finally {
+    await e.sql.unsafe(`drop trigger no_lock_row on ${e.S}.secret`);
+    await e.sql.unsafe(`select ${e.S}.lock_row($1)`, [name]);
+  }
+  assert.equal((await (ru as any).Lockless().create({ n: 3 }).rows()).length, 1, 'строка-замок на месте — запись идёт');
+  // блокировка не нашла строку-замок (family_lock) — та же запись каталога internal; голые XX000 самого PostgreSQL — как есть
+  const raw = (text: string) => e.sql.unsafe(text).then(() => assert.fail('ожидалась ошибка'), (x: unknown) => x);
+  const notFound = await raw(`select ${e.S}.lt_raise('XX000', 'sql-write.lock_row_not_found', jsonb_build_object('name', 'x:family'), 'null'::jsonb)`);
+  assert.ok(err('internal', 'lock row x:family is not found')(await en.transaction(async () => fromDbError(notFound))));
+  const bare = await raw(`do $$ begin raise exception using errcode = 'XX000', message = 'tuple concurrently updated'; end $$`);
+  assert.equal(await en.transaction(async () => fromDbError(bare)), bare);
+});
+
+test('план 2.0, 7.9 №5: повторяемый конфликт с ключом в DETAIL (40001, 40P01) — ошибка базы с SQLSTATE, текст шаблона на языке подключения', async () => {
+  const raw = (text: string) => e.sql.unsafe(text).then(() => assert.fail('ожидалась ошибка'), (x: unknown) => x as { code: string; message: string });
+  const conflict = `select ${e.S}.lt_raise('40001', 'sql-access.apikey_prefix_conflict', '{}'::jsonb)`;
+  const a = await raw(conflict);
+  assert.equal(a.message, 'letopis: conflict: не удалось выпустить ключ с уникальным префиксом');
+  // не LetopisError: по SQLSTATE ошибку повторяют runTx и вызывающий
+  assert.equal(await en.transaction(async () => fromDbError(a)), a);
+  assert.equal(a.code, '40001');
+  assert.equal(a.message, 'letopis: conflict: failed to issue a key with a unique prefix');
+  const b = await raw(conflict);
+  assert.equal(await ru.transaction(async () => fromDbError(b)), b);
+  assert.equal(b.message, 'letopis: conflict: не удалось выпустить ключ с уникальным префиксом');
+  // $ в параметре — как есть: перевод подставляется функцией, а не строкой-заменой
+  const c = await raw(`select ${e.S}.lt_raise('40P01', 'sql-write.class_not_found', jsonb_build_object('cls', 'A$&B$1'))`);
+  assert.equal(c.message, 'letopis: invalid_class: класс A$&B$1 не найден');
+  assert.equal(await en.transaction(async () => fromDbError(c)), c);
+  assert.equal(c.message, 'letopis: invalid_class: class A$&B$1 not found');
+});
+
+test('план 2.0, 7.9 №5: describeText — подписи на языке lang, без него — на языке вокруг; неверный lang — invalid_data', async () => {
+  const d = ru.describe();
+  const inEn = describeText(d, { lang: 'en' });
+  const inRu = describeText(d);
+  assert.match(inEn, /^# letopis: model of schema /);
+  assert.match(inEn, /\n## Shop\n- kind: hub \(object\)\n- key: name\n- fields: city: string, name\*: string\n- create: `db\.Shop\(\)\.create\(/);
+  assert.match(inEn, /\n## Product\n[\s\S]*?- ends: Seller → Shop\n/);
+  assert.match(inRu, /^# letopis: модель схемы /);
+  assert.match(inRu, /\n## Shop\n- вид: хаб \(объект\)\n- ключ: name\n- поля: city: string, name\*: string\n- создать: `db\.Shop\(\)\.create\(/);
+  assert.match(inRu, /\n## Product\n[\s\S]*?- концы: Seller → Shop\n/);
+  // язык вокруг — внутри вызова подключения с lang en; явный lang сильнее его
+  assert.equal(await en.transaction(async () => describeText(d)), inEn);
+  assert.equal(await en.transaction(async () => describeText(d, { lang: 'ru' })), inRu);
+  assert.throws(() => describeText(d, { lang: 'de' as never }), err('invalid_data', "describeText: lang — 'ru' или 'en', а не de"));
 });
 
 test('план 2.0, 7.9 №6: похожие имена — неизвестный класс и роль в цепочке дают ошибку с похожими', async () => {

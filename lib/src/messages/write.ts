@@ -701,4 +701,18 @@ export const write = {
     ru: 'первая заливка — только в пустую схему: в entity и log, кроме строк системных классов (Class, Account, member, Resource, rule) и записей reset, ничего быть не должно',
     en: 'the initial load goes only into an empty schema: entity and log must hold nothing except rows of system classes (Class, Account, member, Resource, rule) and reset records',
   },
+  // load.ts: замена охранника load({ trust }) — removed(имя, ключ) рендерит её на языке вокруг; контракт API берёт
+  // русский шаблон (lib/scripts/contract.mjs)
+  'write.replacement_load_trust': {
+    code: 'removed',
+    ru: 'запрос по целям вне загрузки стоит 0,1–1,3 % её времени — режим доверия убран (решение 2 точки А)',
+    en: 'the query for targets outside the load costs 0.1–1.3% of its time — the trust mode is gone (decision 2 of checkpoint A)',
+  },
+  // tx.ts, hintTxRetry: хвост к тексту взаимной блокировки или ошибки сериализации в явной транзакции (lmsg) — с
+  // пробелом и тире в начале; называет db.begin(), поэтому второй раз не дописывается
+  'write.tx_retry_hint': {
+    code: 'invalid_query',
+    ru: ' — откатите транзакцию и повторите весь блок db.begin()',
+    en: ' — roll back the transaction and repeat the whole db.begin() block',
+  },
 } satisfies Section<'write'>;

@@ -7,7 +7,7 @@
  * generateTypes: объявления TypeScript для классов из реестра — в том числе созданных данными.
  */
 import type { Db } from './index.js';
-import { lerr } from './errors.js';
+import { lerr, lmsg } from './errors.js';
 import { internalsOf } from './internal.js';
 import type { Tx } from './tx.js';
 import type { AnyModel, LostRule } from './model.js';
@@ -125,9 +125,13 @@ export function schemaToTs(s: JsonSchema | undefined, indent = ''): string {
   }).join(' | ');
 }
 
-/** Объявления `<Класс>Data` и `<Класс>Links` для классов реестра (кроме системных). */
+/**
+ * Объявления `<Класс>Data` и `<Класс>Links` для классов реестра; классы арендатора System (системные и классы сидов
+ * пакета) — только с includeSystem (`letopis types --system`). Пометка в первой строке — на языке сообщений (у CLI —
+ * `--lang`).
+ */
 export function generateTypes(registry: Registry, opts: { includeSystem?: boolean } = {}): string {
-  const out = ['// Сгенерировано letopis types — не править руками.', ''];
+  const out = [`// ${lmsg('model.types_header')}`, ''];
   for (const c of registry.all().sort((a, b) => a.name.localeCompare(b.name))) {
     if (!opts.includeSystem && c.tenant === '2eba6d0a-1edd-4bb6-a85a-a703dab49035') continue;
     // идентификатор TypeScript — буквы Unicode, цифры, _ и $: кириллические имена классов допустимы (план 2.0, 7.5 №1)

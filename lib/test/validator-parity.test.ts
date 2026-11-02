@@ -4,6 +4,7 @@
  * и 10 000 случайных документов по описаниям демо-классов, в том числе с ключами на $ во вложенных
  * объектах. Сравниваются пути и ключевые слова нарушений. `pattern` валидатор на TypeScript не исполняет
  * (ревью: шаблон арендатора с катастрофическим перебором вешал процесс) — нарушения `pattern` даёт только база.
+ * Нарушение базы несёт ключ каталога и параметры (план 2.0, 7.9 №5): русский шаблон с ними — текст базы.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,6 +14,7 @@ import { install } from '../src/up.js';
 import { compileValidator, applyDefaults } from '../src/validate.js';
 import type { JsonSchema } from '../src/jsonschema.js';
 import type { Issue } from '../src/errors.js';
+import { MESSAGES, render, type MsgKey } from '../src/messages/index.js';
 
 let sql: Sql;
 const schema = schemaFor(import.meta.filename);
@@ -169,6 +171,28 @@ test('2.10: 10 000 случайных документов по описания
   if (diffs.length) console.log(diffs.slice(0, 30).join('\n'));
   assert.deepEqual(diffs.slice(0, 30), []);
   assert.ok(invalid > 3000, `среди случайных документов должны быть отклонённые: ${invalid}`);
+});
+
+test('план 2.0, 7.9 №5: нарушение базы — ключ каталога и параметры; русский шаблон с ними — текст базы, у каждого вида нарушения', async () => {
+  const [complex, slot] = [MODELS[3].schema, MODELS[2].schema];
+  const docs: [JsonSchema, unknown][] = [
+    // длина строки, повтор элементов, число ключей, const объекта (перечисление), anyOf (правило)
+    [complex, { tags: ['toolong', 'a', 'a'], opts: {}, fixed: { a: [1] }, mode: 'x' }],
+    // смысл даты и форма даты-времени (правило format)
+    [slot, { start: 'x', day: '2026-02-30' }],
+  ];
+  const seen = new Set<string>();
+  for (const [js, doc] of docs) {
+    for (const i of (await dbIssues(js, [doc]))[0] as (Issue & { key?: string; params?: Record<string, unknown> })[]) {
+      assert.ok(i.key?.startsWith('sql-core.issue_') && Object.hasOwn(MESSAGES, i.key), JSON.stringify(i));
+      const m = MESSAGES[i.key as MsgKey];
+      assert.equal(render(m.ru, i.params), i.message, JSON.stringify(i));
+      assert.notEqual(render(m.en, i.params), i.message, `${i.key}: английский текст — другой`);
+      seen.add(i.key!);
+    }
+  }
+  assert.deepEqual([...seen].sort(), ['sql-core.issue_date', 'sql-core.issue_enum', 'sql-core.issue_property_count', 'sql-core.issue_rule',
+    'sql-core.issue_string_length', 'sql-core.issue_unique_items']);
 });
 
 test('умолчания в TypeScript — как apply_defaults в базе', async () => {

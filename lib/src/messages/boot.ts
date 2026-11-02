@@ -217,6 +217,128 @@ export const boot = {
     hint: GONE,
   },
 
+  // up.ts и pglite.ts: обычный Error с префиксом letopis.up (подходящего кода нет) — текст на языке вокруг (lmsg), код
+  // записи при броске не берётся
+  // up.ts, install(): сервер ниже PostgreSQL 18; version — server_version_num
+  'boot.install_pg_version': {
+    code: 'invalid_query',
+    ru: 'нужен PostgreSQL 18 или новее, а сервер — {version}',
+    en: 'PostgreSQL 18 or newer is required, but the server is {version}',
+  },
+  // up.ts, checkServer(): сервер ниже PostgreSQL 18; major — основная версия, num — server_version_num
+  'boot.pg_version': {
+    code: 'invalid_query',
+    ru: 'нужен PostgreSQL 18 или новее, а сервер — {major} ({num})',
+    en: 'PostgreSQL 18 or newer is required, but the server is {major} ({num})',
+  },
+  // up.ts, checkServer(): база не в UTF8
+  'boot.encoding': {
+    code: 'invalid_query',
+    ru: 'база в кодировке {encoding}, нужна UTF8 (casefold и коллация pg_unicode_fast)',
+    en: 'the database is in encoding {encoding}, UTF8 is required (casefold and the pg_unicode_fast collation)',
+  },
+  // up.ts, up(): база не ответила за waitTimeoutMs; host — хост строки подключения, seconds — срок в секундах
+  'boot.wait_timeout': {
+    code: 'invalid_query',
+    ru: 'база {host} не готова за {seconds} с',
+    en: 'database {host} is not ready within {seconds} s',
+  },
+  // up.ts, up(): ревизия схемы новее пакета; rev — ревизия схемы, known — DDL_REVISION
+  'boot.schema_newer': {
+    code: 'invalid_data',
+    ru: 'схема {schema} ревизии {rev}, а библиотека знает только {known} — обновите пакет',
+    en: 'schema {schema} is revision {rev}, but the library knows only {known} — update the package',
+  },
+  // up.ts, up(): ревизия схемы старше пакета, а upgrade нет; want — DDL_REVISION
+  'boot.schema_older': {
+    code: 'invalid_data',
+    ru: "схема {schema} ревизии {rev}, библиотека — {want}: обновите её up({ schema: '{schema}', upgrade: true })",
+    en: "schema {schema} is revision {rev}, the library is {want}: upgrade it with up({ schema: '{schema}', upgrade: true })",
+  },
+  // pglite.ts, startPglite(): нет пакета PGlite; name — имя пакета
+  'boot.pglite_package': {
+    code: 'invalid_query',
+    ru: 'для pglite нужен пакет {name} — npm i -D @electric-sql/pglite @electric-sql/pglite-socket',
+    en: 'pglite needs the {name} package — npm i -D @electric-sql/pglite @electric-sql/pglite-socket',
+  },
+  // up.ts, checkServer(): предупреждение (UpResult.warnings, lmsg) — сервер ниже 18.2; version — вида 18.1
+  'boot.pg_clog': {
+    code: 'invalid_query',
+    ru: 'PostgreSQL {version}: до 18.2 сервер мог усечь CLOG, который ещё нужен непрочитанным сигналам NOTIFY; обновите сервер до 18.2 или новее',
+    en: 'PostgreSQL {version}: before 18.2 the server could truncate CLOG still needed by unread NOTIFY signals; upgrade the server to 18.2 or newer',
+  },
+  // up.ts, up(): предупреждение (UpResult.warnings) — после ANALYZE от роли владельца у таблиц всё ещё нет статистики;
+  // tables — схема.таблица через запятую
+  'boot.analyze_skipped': {
+    code: 'invalid_query',
+    ru: 'таблицы без статистики после ANALYZE от роли владельца {owner}: {tables} — проверьте, что они принадлежат ей; иначе статистику соберёт автоочистка или ANALYZE их владельца',
+    en: 'tables without statistics after ANALYZE as the owner role {owner}: {tables} — check that they belong to it; otherwise the statistics will be collected by autovacuum or by ANALYZE of their owner',
+  },
+  // up.ts, stampDrift(): предупреждение connect() (его печатает index.ts) — схему той же ревизии обновила более новая
+  // версия; was — версия из штампа схемы, version — версия пакета
+  'boot.stamp_newer': {
+    code: 'invalid_data',
+    ru: 'схему {schema} обновила letopis {was}, библиотека старее ({version}) — обновите пакет: up() этой версией вернул бы прежние функции',
+    en: 'schema {schema} was upgraded by letopis {was}, the library is older ({version}) — update the package: up() of this version would bring back the old functions',
+  },
+  // up.ts, stampDrift(): функции схемы той же ревизии поставила другая версия — по записи на того, кто поставил: версия
+  // до 1.4.0 (штампа нет), другая сборка той же версии, другая версия
+  'boot.stamp_before_140': {
+    code: 'invalid_data',
+    ru: "функции схемы {schema} поставила версия до 1.4.0, библиотека — {version}: обновите схему — вызовите up({ schema: '{schema}' })",
+    en: "the functions of schema {schema} were installed by a version before 1.4.0, the library is {version}: upgrade the schema — call up({ schema: '{schema}' })",
+  },
+  'boot.stamp_other_build': {
+    code: 'invalid_data',
+    ru: "функции схемы {schema} поставила другая сборка letopis {was}, библиотека — {version}: обновите схему — вызовите up({ schema: '{schema}' })",
+    en: "the functions of schema {schema} were installed by another build of letopis {was}, the library is {version}: upgrade the schema — call up({ schema: '{schema}' })",
+  },
+  'boot.stamp_other_version': {
+    code: 'invalid_data',
+    ru: "функции схемы {schema} поставила letopis {was}, библиотека — {version}: обновите схему — вызовите up({ schema: '{schema}' })",
+    en: "the functions of schema {schema} were installed by letopis {was}, the library is {version}: upgrade the schema — call up({ schema: '{schema}' })",
+  },
+  // up.ts: ход установки в консоли (lmsg, префикс letopis.up добавляет up()) — тексты не для ошибки, код не печатается.
+  // ensureDatabase(): база создана
+  'boot.log_database_created': {
+    code: 'invalid_query',
+    ru: 'база {name} создана',
+    en: 'database {name} created',
+  },
+  // up({ fresh })
+  'boot.log_fresh': {
+    code: 'invalid_query',
+    ru: 'схема {schema} удалена и поставлена заново (fresh)',
+    en: 'schema {schema} dropped and installed again (fresh)',
+  },
+  // итог наката — по записи на исход; revision — ревизия после наката, from — до (у обновления)
+  'boot.log_installed': {
+    code: 'invalid_query',
+    ru: 'схема поставлена: {schema}, ревизия {revision}',
+    en: 'schema installed: {schema}, revision {revision}',
+  },
+  'boot.log_upgraded': {
+    code: 'invalid_query',
+    ru: 'схема обновлена с ревизии {from}: {schema}, ревизия {revision}',
+    en: 'schema upgraded from revision {from}: {schema}, revision {revision}',
+  },
+  'boot.log_reapplied': {
+    code: 'invalid_query',
+    ru: 'повторный накат: {schema}, ревизия {revision}',
+    en: 're-apply: {schema}, revision {revision}',
+  },
+  // up({ login }): роль приложения заведена или получила новый пароль
+  'boot.log_login_created': {
+    code: 'invalid_query',
+    ru: 'роль приложения {user}: заведена',
+    en: 'application role {user}: created',
+  },
+  'boot.log_login_updated': {
+    code: 'invalid_query',
+    ru: 'роль приложения {user}: пароль обновлён',
+    en: 'application role {user}: password updated',
+  },
+
   // import.ts, buildClasses(): класса из --keyless нет в таблице Schema 0.21
   'boot.import_keyless_unknown': {
     code: 'invalid_data',
@@ -383,5 +505,126 @@ export const boot = {
     code: 'tenant_denied',
     ru: 'import: арендатор {tenant}: {message}',
     en: 'import: tenant {tenant}: {message}',
+  },
+  // import.ts, import021(): ошибка базы при записи класса — префикс к её тексту (текст базы остаётся); message — он
+  'boot.import_class_failed': {
+    code: 'invalid_class',
+    ru: 'import: класс {cls}: {message}',
+    en: 'import: class {cls}: {message}',
+  },
+
+  // import.ts: заметки отчёта notes[].note (lmsg) — правило 0.21, перенесённое не один к одному; тексты не для ошибки.
+  // conv(): правило не разобрано; rule — правило в JSON
+  'boot.import_note_rule_unparsed': {
+    code: 'invalid_class',
+    ru: 'правило {rule} не разобрано — поле без проверки',
+    en: 'rule {rule} is not parsed — the field is not checked',
+  },
+  // conv(): ключ правила не переносится; rule — тип и ключ: string.trim, number.equal, uuid.version
+  'boot.import_note_not_carried': {
+    code: 'invalid_class',
+    ru: '{rule} не переносится',
+    en: '{rule} is not carried over',
+  },
+  // conv(): тип url
+  'boot.import_note_url': {
+    code: 'invalid_class',
+    ru: 'url → строка без проверки формата',
+    en: 'url → a string without a format check',
+  },
+  // conv(): директива $$… вложенного объекта (кроме $$strict); name — директива
+  'boot.import_note_directive': {
+    code: 'invalid_class',
+    ru: 'директива {name} не переносится',
+    en: 'directive {name} is not carried over',
+  },
+  // conv(): тип не поддерживается
+  'boot.import_note_type_unsupported': {
+    code: 'invalid_class',
+    ru: 'тип {type} не поддерживается — поле без проверки',
+    en: 'type {type} is not supported — the field is not checked',
+  },
+  // conv(): часть пути поля в заметках (notes[].field) у правила record — ключ и значение
+  'boot.import_path_key': {
+    code: 'invalid_class',
+    ru: '<ключ>',
+    en: '<key>',
+  },
+  'boot.import_path_value': {
+    code: 'invalid_class',
+    ru: '<значение>',
+    en: '<value>',
+  },
+  // buildClasses(): поле на $
+  'boot.import_note_dollar_field': {
+    code: 'invalid_class',
+    ru: 'поле на $ не переносится (метасхема 1.0), значения в данных отброшены',
+    en: 'a field starting with $ is not carried over (the 1.0 metaschema), its values in the data are dropped',
+  },
+  // buildClasses(): нормализатор отклонил описание поля; message — текст его ошибки
+  'boot.import_note_schema_error': {
+    code: 'invalid_class',
+    ru: '{message} — поле без проверки',
+    en: '{message} — the field is not checked',
+  },
+  // buildClasses(): конец не разобран; end — конец в JSON
+  'boot.import_note_end_unparsed': {
+    code: 'invalid_class',
+    ru: 'конец {end} не разобран',
+    en: 'end {end} is not parsed',
+  },
+  // buildClasses(): полиморфный конец на опущенный корень; classes — классы через |
+  'boot.import_note_polymorphic_root': {
+    code: 'invalid_class',
+    ru: 'полиморфный конец на корень {classes} не переносится',
+    en: 'a polymorphic end to the root {classes} is not carried over',
+  },
+  // buildClasses(): два конца с одной ролью
+  'boot.import_note_two_ends': {
+    code: 'invalid_class',
+    ru: 'два конца с ролью {role}',
+    en: 'two ends with role {role}',
+  },
+  // buildClasses(): ссылка в данных на класс, не объявленный концом; cls — класс цели 0.21
+  'boot.import_note_undeclared_link': {
+    code: 'invalid_class',
+    ru: 'ссылка на {cls} в данных не объявлена концом — добавлен необязательный конец',
+    en: 'the reference to {cls} in the data is not declared as an end — an optional end is added',
+  },
+  // buildClasses(): поле ключа — не строка
+  'boot.import_note_key_not_string': {
+    code: 'invalid_class',
+    ru: 'поле ключа — не строка: класс импортирован без ключа',
+    en: 'the key field is not a string: the class is imported without a key',
+  },
+  // import.ts, import021(): ход импорта в консоли (lmsg, префикс letopis.import добавляет log) — тексты не для ошибки.
+  // прочитано из 0.21
+  'boot.import_log_source': {
+    code: 'invalid_query',
+    ru: '0.21: классов {classes}, объектов {objects}, аккаунтов {accounts}',
+    en: '0.21: classes {classes}, objects {objects}, accounts {accounts}',
+  },
+  // шаг классов
+  'boot.import_log_classes': {
+    code: 'invalid_query',
+    ru: 'классы: создано {created}, уже были {existing}, опущено {omitted}',
+    en: 'classes: created {created}, already existed {existing}, omitted {omitted}',
+  },
+  // данные арендатора
+  'boot.import_log_tenant': {
+    code: 'invalid_query',
+    ru: 'арендатор {tenant}: объектов {objects}, версий {versions}',
+    en: 'tenant {tenant}: objects {objects}, versions {versions}',
+  },
+  // итог — verify чист или с находками; seconds — с одной цифрой после точки, issues — число находок
+  'boot.import_log_done_clean': {
+    code: 'invalid_query',
+    ru: 'готово за {seconds} с: verify чист',
+    en: 'done in {seconds} s: verify is clean',
+  },
+  'boot.import_log_done_issues': {
+    code: 'invalid_query',
+    ru: 'готово за {seconds} с: verify находок {issues}',
+    en: 'done in {seconds} s: verify issues {issues}',
   },
 } satisfies Section<'boot'>;

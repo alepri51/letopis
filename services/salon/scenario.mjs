@@ -3,10 +3,14 @@
  * те же запросы, что шлёт интерфейс (React + shadcn/ui). Им же проверяется сервис в CI. Код выхода 1 — сбой.
  *
  *   ADMIN_DSN=… APP_DSN=… node scenario.mjs
+ *
+ * Простой сервиса дольше срока сессии — без ожидания: срок сессий createTenant управляющей истекает в базе отдельным
+ * подключением по ADMIN_DSN.
  */
+import postgres from 'postgres';
 import { createApp, SALONS } from './src/server.mjs';
 
-const { app, close } = await createApp();
+const { app, schema, close } = await createApp();
 const server = app.listen(0, '127.0.0.1');
 await new Promise((r) => server.once('listening', r));
 const base = `http://127.0.0.1:${server.address().port}`;
@@ -121,6 +125,18 @@ try {
   const unknown = await call(cookie, '/api/price/load', { text: `${cut.name}; 1\nМассаж спины; 3000` });
   check(unknown.status === 422 && /Массаж спины/.test(unknown.data?.error ?? '') && (await call(cookie, '/api/price')).data.find((x) => x.id === cut.id)?.price === want.get(cut.id),
     'неизвестная услуга в списке — 422, ничего не загружено');
+  // простой дольше срока сессии управляющей — без ожидания: срок её сессий createTenant (без methods; веб-сессия входа
+  // по паролю не трогается) истекает в базе. Прайс списком пишет загрузчик администраторского подключения от имени
+  // вошедшей (load({ as, tenant })) — сессия подключения ему не нужна (план 2.0, 7.6 №5)
+  const sql = postgres(process.env.ADMIN_DSN ?? 'postgres://postgres:guide@127.0.0.1:15440/letopis', { max: 1, onnotice: () => {} });
+  const S = `"${schema.replace(/"/g, '""')}"`;
+  const expired = await sql.unsafe(`update ${S}.secret set expires_at = clock_timestamp() - interval '1 second'
+    where kind = 'SESSION' and not (meta ? 'methods') and account = (select account from ${S}.secret where kind = 'PASSWORD' and ident = $1)`, [SALONS[0].user.login])
+    .finally(() => sql.end({ timeout: 2 }));
+  const later = new Map(before.map((x) => [x.id, want.get(x.id) + 100]));
+  const idle = await call(cookie, '/api/price/load', { text: before.map((x) => `${x.name}; ${later.get(x.id)}`).join('\n') });
+  check(idle.status === 200 && idle.data.loaded + idle.data.updated === before.length && (await call(cookie, '/api/price')).data.every((x) => x.price === later.get(x.id)),
+    `прайс списком после простоя (истекло сессий createTenant: ${expired.count}) — цены записаны${idle.status === 200 ? '' : `: ${idle.status} ${idle.data?.error}`}`);
 
   const other = await call('', '/api/login', SALONS[1].user);
   const otherDay = (await call(other.cookie, `/api/schedule?day=${day}`)).data;

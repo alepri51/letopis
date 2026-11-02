@@ -1,12 +1,16 @@
 /**
  * Сценарий «день работы» документов: сервис в этом же процессе, шаги — через его JSON API (как интерфейс).
  *   ADMIN_DSN=… APP_DSN=… node scenario.mjs        Код выхода 1 — сбой. Схема своя и с нуля (documents_scenario).
+ * Простой сервиса дольше срока сессии — без ожидания: срок сессий createTenant руководителя истекает в базе отдельным
+ * подключением по ADMIN_DSN.
  */
+import postgres from 'postgres';
+
 process.env.SCHEMA ??= 'documents_scenario';
 process.env.FRESH ??= '1';
 const { createApp, USERS } = await import('./src/server.mjs');
 
-const { app, close } = await createApp();
+const { app, schema, close } = await createApp();
 const server = app.listen(0, '127.0.0.1');
 await new Promise((r) => server.once('listening', r));
 const base = `http://127.0.0.1:${server.address().port}`;
@@ -64,9 +68,20 @@ try {
   await call(head, `/api/parties/${party}/anonymize`, {});
   const p2 = (await call(head, '/api/docs')).data.parties.find((x) => x.id === party);
   check(p2?.passport === '[erased]' && p2.anonymized, 'контрагент обезличен: паспорт затёрт', p2);
-  const arch = list.docs.find((x) => x.archived);
+  const [arch, arch2] = list.docs.filter((x) => x.archived);
   const trimmed = (await call(head, `/api/docs/${arch.id}/trim`, {})).data.trimmed;
   check(trimmed >= 1 && (await call(head, `/api/docs/${arch.id}`)).data.versions[0].op === 'trim', `обрезка истории архивного договора: стёрто версий ${trimmed}`);
+  // простой дольше срока сессии руководителя — без ожидания: срок его сессий createTenant (без methods; веб-сессии
+  // входа по паролю не трогаются) истекает в базе. Обрезка идёт в сессии руководителя: со статичным токеном
+  // администраторского подключения она падала на no_session (план 2.0, 7.6 №5)
+  const sql = postgres(process.env.ADMIN_DSN ?? 'postgres://postgres:guide@127.0.0.1:15440/letopis', { max: 1, onnotice: () => {} });
+  const S = `"${schema.replace(/"/g, '""')}"`;
+  const expired = await sql.unsafe(`update ${S}.secret set expires_at = clock_timestamp() - interval '1 second'
+    where kind = 'SESSION' and not (meta ? 'methods') and account = (select account from ${S}.secret where kind = 'PASSWORD' and ident = $1)`, [USERS.head.login])
+    .finally(() => sql.end({ timeout: 2 }));
+  const idle = await call(head, `/api/docs/${arch2.id}/trim`, {});
+  check(idle.status === 200 && idle.data.trimmed >= 1 && (await call(head, `/api/docs/${arch2.id}`)).data.versions[0].op === 'trim',
+    `обрезка после простоя (истекло сессий createTenant: ${expired.count}): другой архивный договор, стёрто версий ${idle.data?.trimmed}`, idle);
   check((await call(head, '/api/admin/verify')).data.ok, 'журнал цел');
   const bad = (await call(head, '/api/admin/corrupt', {})).data;
   const v2 = (await call(head, '/api/admin/verify')).data;

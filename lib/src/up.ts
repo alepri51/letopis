@@ -19,7 +19,7 @@ import postgres from 'postgres';
 import { DDL_REVISION, RESERVED_CLASS_NAMES } from './types.js';
 import { startPglite, type PgliteOptions, type PgliteServer } from './pglite.js';
 import { hashPassword } from './auth.js';
-import { checkOptions, lerr, type MsgKey, type Params } from './errors.js';
+import { checkLang, checkOptions, langRun, lerr, lmsg, type Lang, type MsgKey, type Params } from './errors.js';
 import { sqlCatalog } from './messages/index.js';
 import { v5Id } from './uuid.js';
 import { SIGNAL_MODES, type SignalMode } from './signals.js';
@@ -169,11 +169,11 @@ export async function stampDrift(schema: string, comment: string): Promise<strin
   const code = await engineStamp().catch(() => null); // файлов ядра рядом со сборкой нет — сверять не с чем
   if (!code || /\bsql=([0-9a-f]+)/.exec(comment)?.[1] === code.sql) return null;
   const was = /\bengine=(\S+)/.exec(comment)?.[1];
-  if (was && compareVersions(was, code.version) > 0) {
-    return `letopis: схему ${schema} обновила letopis ${was}, библиотека старее (${code.version}) — обновите пакет: up() этой версией вернул бы прежние функции`;
-  }
-  const by = !was ? 'версия до 1.4.0' : was === code.version ? `другая сборка letopis ${was}` : `letopis ${was}`;
-  return `letopis: функции схемы ${schema} поставила ${by}, библиотека — ${code.version}: обновите схему — вызовите up({ schema: '${schema}' })`;
+  // текст — на языке вокруг: connect() зовёт stampDrift на языке подключения. Схему обновила версия новее пакета — или
+  // функции поставила версия до 1.4.0 (штампа нет), другая сборка той же версии, другая версия
+  const key: MsgKey = was && compareVersions(was, code.version) > 0 ? 'boot.stamp_newer'
+    : !was ? 'boot.stamp_before_140' : was === code.version ? 'boot.stamp_other_build' : 'boot.stamp_other_version';
+  return 'letopis: ' + lmsg(key, { schema, version: code.version, ...(was ? { was } : {}) });
 }
 
 export function substitute(text: string, vars: Record<string, string>): string {
@@ -193,7 +193,7 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
   }
 
   const [{ v }] = await sql<{ v: string }[]>`select current_setting('server_version_num') as v`;
-  if (Number(v) < 180000) throw new Error(`letopis.up: нужен PostgreSQL 18 или новее, а сервер — ${v}`);
+  if (Number(v) < 180000) throw new Error(`letopis.up: ${lmsg('boot.install_pg_version', { version: v })}`);
 
   // Общая часть установки — роли, членство установщика, pgcrypto и право владельца на схему pgcrypto — одна на все
   // установки базы, а роли — на весь кластер. Параллельные up() разных схем меняли её одновременно: grant на схему
@@ -271,7 +271,17 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
     // считаются миграции, — под блокировкой: up() видит ревизию до неё, и второй upgrade повторил бы миграции, уже
     // накатанные первым. Разные схемы друг друга не ждут: ключ — имя схемы.
     await lockSchema(tx, opts.schema);
-    if (opts.fresh) await tx.unsafe(`drop schema if exists ${quoteIdent(opts.schema)} cascade`);
+    if (opts.fresh) {
+      // схему удаляет её владелец или суперпользователь. Установщик без суперпользователя состоит в роли владельца без
+      // наследования прав (inherit false, set true): сам он получил бы «must be owner of schema» (42501), а от роли
+      // владельца — удаляет (ревью: fresh от такого установщика падал)
+      const [own] = await tx.unsafe(`select r.rolname as role, not pg_has_role(current_user, n.nspowner, 'USAGE')
+          and pg_has_role(current_user, n.nspowner, 'SET') as via
+        from pg_namespace n join pg_roles r on r.oid = n.nspowner where n.nspname = $1`, [opts.schema]);
+      if (own?.via) await tx.unsafe(`set local role ${quoteIdent(own.role as string)}`);
+      await tx.unsafe(`drop schema if exists ${quoteIdent(opts.schema)} cascade`);
+      if (own?.via) await tx.unsafe('set local role none');
+    }
     found = await schemaRevision(tx, opts.schema);
     if (opts.migrateFrom !== undefined && found !== null) {
       migrations = await migrationFiles(opts.migrationsDir ?? MIGRATE_DIR, Math.max(opts.migrateFrom, found));
@@ -404,6 +414,11 @@ export interface UpOptions extends Omit<InstallOptions, 'schema' | 'upTo' | 'mig
    * одним процессом.
    */
   login?: LoginOptions;
+  /**
+   * Язык сообщений (план 2.0, этап 3, п. 3): `'ru'` (по умолчанию) или `'en'`. На этом языке — ошибки и предупреждения
+   * `up()`, в том числе заведения арендатора `tenant`, и ход установки в консоли.
+   */
+  lang?: Lang;
 }
 
 /** Роль приложения up({ login }). */
@@ -416,7 +431,7 @@ export interface LoginOptions {
 const UP_OPTIONS = {
   dsn: true, sql: true, schema: true, fresh: true, upgrade: true, quiet: true, waitTimeoutMs: true, pglite: true, tenant: true,
   login: true, owner: true, app: true, allowReset: true, history: true, seeds: true, migrationsDir: true, serviceKey: true,
-  signals: true,
+  signals: true, lang: true,
 } satisfies Record<keyof UpOptions, true>;
 
 export interface UpResult extends InstallResult {
@@ -426,7 +441,10 @@ export interface UpResult extends InstallResult {
   upgraded: boolean;
   /** Ревизия движка после наката. */
   revision: number;
-  /** Таблицы, для которых выполнен ANALYZE (статистики не было). */
+  /**
+   * Таблицы, у которых статистики не было и ANALYZE от роли владельца её собрал; оставшиеся без статистики — в
+   * `warnings`.
+   */
   analyzed: string[];
   /** up({ pglite }): запущенный PGlite — строка подключения и остановка. */
   pglite?: PgliteServer;
@@ -437,7 +455,7 @@ export interface UpResult extends InstallResult {
    * (из `dsn` установки или PGlite; при готовом пуле `sql` её нет).
    */
   login?: { user: string; created: boolean; dsn?: string };
-  /** Предупреждения (версия сервера); без quiet каждое уже напечатано через console.warn. */
+  /** Предупреждения (версия сервера, таблицы без статистики); без quiet каждое уже напечатано через console.warn. */
   warnings: string[];
 }
 
@@ -473,7 +491,7 @@ export async function ensureDatabase(dsn: string, log: (m: string) => void = () 
     await sql.unsafe(`create database ${quoteIdent(name)} encoding 'UTF8' template template0`).catch((e: { code?: string }) => {
       if (e.code !== '42P04') throw e;
     });
-    log(`база ${name} создана`);
+    log(lmsg('boot.log_database_created', { name }));
     return true;
   } finally {
     await sql.end({ timeout: 1 });
@@ -485,14 +503,12 @@ export async function ensureDatabase(dsn: string, log: (m: string) => void = () 
  * иначе отказ. Возвращает предупреждения: с чем установка работает, но рискует.
  */
 export function checkServer(versionNum: number, encoding: string): string[] {
-  if (versionNum < 180000) throw new Error(`letopis.up: нужен PostgreSQL 18 или новее, а сервер — ${Math.floor(versionNum / 10000)} (${versionNum})`);
-  if (encoding.toUpperCase() !== 'UTF8') throw new Error(`letopis.up: база в кодировке ${encoding}, нужна UTF8 (casefold и коллация pg_unicode_fast)`);
+  // обычный Error: подходящего кода нет; текст — на языке вокруг (up({ lang }))
+  if (versionNum < 180000) throw new Error(`letopis.up: ${lmsg('boot.pg_version', { major: Math.floor(versionNum / 10000), num: versionNum })}`);
+  if (encoding.toUpperCase() !== 'UTF8') throw new Error(`letopis.up: ${lmsg('boot.encoding', { encoding })}`);
   const warnings: string[] = [];
   // план 1.1, этап 2: исправлено в 18.2
-  if (versionNum < 180002) {
-    warnings.push(`PostgreSQL ${Math.floor(versionNum / 10000)}.${versionNum % 10000}: до 18.2 сервер мог усечь CLOG, который ещё нужен `
-      + 'непрочитанным сигналам NOTIFY; обновите сервер до 18.2 или новее');
-  }
+  if (versionNum < 180002) warnings.push(lmsg('boot.pg_clog', { version: `${Math.floor(versionNum / 10000)}.${versionNum % 10000}` }));
   return warnings;
 }
 
@@ -509,6 +525,12 @@ export async function schemaRevision(sql: Pick<postgres.Sql, 'unsafe'>, schema: 
  * Схему отставшей ревизии `up()` обновляет только с `upgrade: true`, а на схеме новее пакета отказывает.
  */
 export async function up(opts: UpOptions): Promise<UpResult> {
+  // lang (план 2.0, 7.9 №5): ошибки, предупреждения и ход установки — на языке опции, по умолчанию ru
+  const L = langRun(checkLang(opts?.lang, 'up'));
+  return L ? L(() => runUp(opts)) : runUp(opts);
+}
+
+async function runUp(opts: UpOptions): Promise<UpResult> {
   checkOptions('up', opts, UP_OPTIONS);
   const log = opts.quiet ? () => {} : (m: string) => console.log(`letopis.up: ${m}`);
   const schema = opts.schema.includes('.') ? opts.schema : `${SCHEMA_VERSION}.${opts.schema}`;
@@ -531,7 +553,9 @@ export async function up(opts: UpOptions): Promise<UpResult> {
         await ensureDatabase(opts.dsn, log);
         continue;
       }
-      if (Date.now() > deadline) throw new Error(`letopis.up: база ${new URL(opts.dsn).host} не готова за ${Math.round((opts.waitTimeoutMs ?? 60_000) / 1000)} с`);
+      if (Date.now() > deadline) {
+        throw new Error(`letopis.up: ${lmsg('boot.wait_timeout', { host: new URL(opts.dsn).host, seconds: Math.round((opts.waitTimeoutMs ?? 60_000) / 1000) })}`);
+      }
       await new Promise((r) => setTimeout(r, 500));
     }
     sql = postgres(opts.dsn, { max: 1, onnotice: () => {} });
@@ -544,26 +568,41 @@ export async function up(opts: UpOptions): Promise<UpResult> {
     // ревизия до блокировки схемы — для ранних отказов; что накатывать, install() решает по ревизии под блокировкой
     const before = opts.fresh ? null : await schemaRevision(sql, schema);
     if (before !== null && before > DDL_REVISION) {
-      throw new Error(`letopis.up: схема ${schema} ревизии ${before}, а библиотека знает только ${DDL_REVISION} — обновите пакет`);
+      throw new Error(`letopis.up: ${lmsg('boot.schema_newer', { schema, rev: before, known: DDL_REVISION })}`);
     }
     if (before !== null && before < DDL_REVISION && !opts.upgrade) {
-      throw new Error(`letopis.up: схема ${schema} ревизии ${before}, библиотека — ${DDL_REVISION}: обновите её up({ schema: '${schema}', upgrade: true })`);
+      throw new Error(`letopis.up: ${lmsg('boot.schema_older', { schema, rev: before, want: DDL_REVISION })}`);
     }
-    const { dsn: _d, sql: _s, schema: _sc, fresh: _f, upgrade: _u, quiet: _q, waitTimeoutMs: _w, pglite: _p, login: _l, ...rest } = opts;
+    const { dsn: _d, sql: _s, schema: _sc, fresh: _f, upgrade: _u, quiet: _q, waitTimeoutMs: _w, pglite: _p, login: _l, lang: _lg, ...rest } = opts;
     const { found, ...res } = await install(sql, {
       ...rest, schema, ...(opts.fresh ? { fresh: true } : {}), ...(before !== null && before < DDL_REVISION ? { migrateFrom: before } : {}),
     });
-    if (opts.fresh) log(`схема ${schema} удалена и поставлена заново (fresh)`);
-    // ANALYZE — только там, где статистики ещё нет: на повторном накате это самая дорогая часть
-    const fresh = await sql`select relname from pg_stat_user_tables
-      where schemaname = ${schema} and last_analyze is null and last_autoanalyze is null order by relname`;
-    const analyzed = fresh.map((r) => r.relname as string);
-    for (const t of analyzed) await sql.unsafe(`analyze ${quoteIdent(schema)}.${quoteIdent(t)}`);
+    if (opts.fresh) log(lmsg('boot.log_fresh', { schema }));
+    // ANALYZE — только там, где статистики ещё нет: на повторном накате это самая дорогая часть. От роли владельца, как у
+    // загрузчика: таблицы принадлежат ей, а установщик без суперпользователя наследования её прав не имеет — его ANALYZE
+    // PostgreSQL пропускал с WARNING (ревью). В analyzed — только таблицы, где статистика появилась; оставшиеся без
+    // неё — предупреждение
+    const missing = async (): Promise<string[]> => (await sql`select relname from pg_stat_user_tables
+      where schemaname = ${schema} and last_analyze is null and last_autoanalyze is null order by relname`).map((r) => r.relname as string);
+    const todo = await missing();
+    if (todo.length) {
+      await sql.begin(async (tx) => {
+        await tx.unsafe(`set local role ${quoteIdent(res.owner)}`);
+        for (const t of todo) await tx.unsafe(`analyze ${quoteIdent(schema)}.${quoteIdent(t)}`);
+      });
+    }
+    const left = todo.length ? await missing() : [];
+    const analyzed = todo.filter((t) => !left.includes(t));
+    if (left.length) {
+      const w = lmsg('boot.analyze_skipped', { owner: res.owner, tables: left.map((t) => `${schema}.${t}`).join(', ') });
+      warnings.push(w);
+      if (!opts.quiet) console.warn(`letopis.up: ${w}`);
+    }
     const revision = (await schemaRevision(sql, schema)) ?? 0;
-    log(`${found === null ? 'схема поставлена' : found < DDL_REVISION ? `схема обновлена с ревизии ${found}` : 'повторный накат'}: ${schema}, ревизия ${revision}`);
+    log(lmsg(found === null ? 'boot.log_installed' : found < DDL_REVISION ? 'boot.log_upgraded' : 'boot.log_reapplied', { schema, revision, from: found }));
     const tenant = opts.tenant ? await createTenant(sql, schema, opts.tenant, opts.owner) : undefined;
     const login = opts.login ? await ensureLogin(sql, opts.login, res.owner, res.app, opts.dsn ?? lite?.dsn) : undefined;
-    if (login) log(`роль приложения ${login.user}: ${login.created ? 'заведена' : 'пароль обновлён'}`);
+    if (login) log(lmsg(login.created ? 'boot.log_login_created' : 'boot.log_login_updated', { user: login.user }));
     return { ...res, created: found === null, upgraded: found !== null && found < DDL_REVISION, revision, analyzed, warnings,
       ...(lite ? { pglite: lite } : {}), ...(tenant ? { tenant } : {}), ...(login ? { login } : {}) };
   } catch (e) {

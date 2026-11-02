@@ -236,10 +236,13 @@ functions and the system seed. On the first installation, it issues a service ke
 | `upgrade` | upgrade a schema of an older revision: migrations and a re-apply |
 | `pglite` | a database for development without PostgreSQL (see below) |
 | `quiet`, `waitTimeoutMs` | no console messages; how long to wait for the database (60,000 ms by default) |
+| `lang` | the language of errors, warnings and installation progress: `'ru'` (the default) or `'en'` ([section 16](#16-errors)) |
 | `owner`, `app` | the names of the owner and application roles (`letopis_owner`, `letopis_app` by default) |
 
 Result: `schema` (the full name), `serviceKey` (on the first installation, and on a re-run when the installation has no
-API key left except revoked ones: an expired or disabled key counts too; otherwise `null`), `created`, `upgraded`, `revision`, `migrations`, `analyzed`, `owner`, `app`,
+API key left except revoked ones: an expired or disabled key counts too; otherwise `null`), `created`, `upgraded`, `revision`, `migrations`,
+`analyzed` (tables without statistics that `ANALYZE` as the owner role collected them for; those still without them are
+in `warnings`), `owner`, `app`,
 `signals` (the signal mode of the installation), `warnings` (without `quiet` they are printed), and also `tenant` and
 `pglite` if they were requested. On PostgreSQL below 18.2, `up()` warns: such a server could truncate CLOG that unread
 signals still need — upgrade it.
@@ -1545,6 +1548,18 @@ account is deleted. Deleting a credential revokes the other sessions of the acco
 "key + secret" pair revokes only the sessions opened by that key (and old sessions of the same sign-in method without
 a key mark); the current session stays unless you pass `keepCurrent: false`.
 
+A connection with a fixed token (`connect({ token })`) that has not been used for longer than the session lifetime is
+left without a session: refreshing does not bring an expired session back, and the connection does not obtain a new
+token by itself. After more than a minute of idleness the connection refreshes the session before an operation and
+learns whether it is alive: an expired one gives `no_session` for any operation, and a read does not run as an
+anonymous one with an empty answer (with `refreshSession: false` there is no such check). Issue the token again — by
+repeating `createTenant()` (for an existing tenant and user the repeat only issues a new session) or with
+`svc.auth.sessionFor()` — and open a new connection with it. A connection by key (`connect({ apiKey })`, a service
+key) does not get stuck like that: it replaces an expired session by itself — exchanges the key again, with the same
+working tenant that `auth.switch()` chose, and repeats the operation. A process that needs a user session for rare
+operations is better off taking one per operation: `sessionFor()`, a connection with its token, the work, `revoke()`
+and `close()`.
+
 A service that holds a user's token (for example, in a cookie) learns about the session with `svc.auth.session(token)`:
 no connection is opened with that token, and the session is not extended. The answer tells whose session it is
 (`account`), which tenant it works in (`tenant`: the one chosen by `auth.switch()` or the account's own tenant),
@@ -1898,6 +1913,12 @@ const trimmed = await db.trimHistory(kettle, new Date())     // erase the versio
 descendants (by name), an id, a list of ids or rows. This is the middle step of the "right to be forgotten":
 `anonymize` → history trimming → deletion and `purge`. In place of version 1, a `trim` record stays with its time, so a
 point-in-time read knows when the object appeared.
+
+Trimming needs a live session: the target is in the session's working tenant, and the session's account sees the target
+(READ) and has the DELETE right on its class; otherwise `target_not_found` for a target given by id and `acl_denied`,
+without a session — `no_session`. The connection role does not replace the session: an administrative connection
+without an active session also gets `no_session` from `trimHistory`, whereas `verify()` and `maintain()` admit the
+administrative role alone.
 
 ### Integrity check
 
@@ -2290,8 +2311,9 @@ by type and format. A field with a `pattern` and no `examples` may get a sample 
 by the key (`first()`), and without a key by a required field (`rows()`). `neighbors` goes along every end of the class
 and to the classes whose ends lead to it. `'<id Org>'` is the place for the id of an object of the class or of its
 descendant; `'<id Service|Product>'` means any of the classes; a multiple end with `min` gets `'<id Class #1>'`,
-`'<id Class #2>'`. `describeText` prints the examples as the lines «создать», «найти», «соседи». The MCP tool
-`letopis_model` returns them in every class. If the model is larger than `maxBytes`, it comes first without
+`'<id Class #2>'`. `describeText` prints the examples as the lines «создать», «найти», «соседи»; English labels
+(«create», «find», «neighbors») come from `describeText(model, { lang: 'en' })` (`letopis describe` takes the language
+from `--lang`). The MCP tool `letopis_model` returns them in every class. If the model is larger than `maxBytes`, it comes first without
 `examples`, then brief.
 
 ### Agents and MCP
@@ -2464,7 +2486,7 @@ application.
 
 ```sh
 letopis sync <module> --dsn <dsn> --schema <v2.name> (--token <token> | --api-key <key>) [--apply | --check]
-letopis types --dsn <dsn> --schema <v2.name> (--token <token> | --api-key <key>) [--out <file>]
+letopis types --dsn <dsn> --schema <v2.name> (--token <token> | --api-key <key>) [--out <file>] [--system]
 letopis load <files…> --dsn <dsn> --schema <v2.name> (--token <token> | --api-key <key>) [--class <Class>]
   [--duplicates error|first|last] [--existing error|skip|update] [--commit-every <N>] [--verify] [--initial]
 letopis verify --dsn <dsn> --schema <v2.name> [--token <token> | --api-key <key>] [--data]
@@ -2481,6 +2503,8 @@ letopis check <files…> [--models <module>] [--json]
 `letopis types` and `letopis describe` build their output from the session's classes, so without a valid session (the
 token expired, was revoked, is wrong or not given, or the API key is wrong) they exit with code 1 and the `no_session`
 error and leave the `--out` file untouched.
+The classes of the System tenant — the system classes and the classes of package seeds (for example, `booking`) —
+`letopis types` emits only with `--system`.
 
 `letopis sync --check` is the same dry run, but it exits with code 1 if the models differ from the database (there is
 something to create or change): a CI step before `--apply`. Together with `--apply` it prints the usage and exits with
@@ -2697,11 +2721,12 @@ error also has:
 
 - `err.hint` — what to do: a hint from the message catalog of the library, either the place's own or the general one of
   the code;
-- `err.docs` — a link to the row of the code in this README section on GitHub, at the tag of the package version;
+- `err.docs` — a link to the row of the code in this README section on GitHub, at the tag of the package version (in
+  README.en.md with `lang: 'en'`, in the Russian README.md otherwise);
 - `err.key` and `err.params` — the key of the message catalog and the parameters of the text. Places already moved to
   the catalog have them, and so do database errors whose `DETAIL` carries a key.
 
-The language of the messages is set by the `lang` option: `'ru'` (the default) or `'en'`. `connect()`,
+The language of the messages is set by the `lang` option: `'ru'` (the default) or `'en'`. `connect()`, `up()`,
 `createMcpServer()` and the command line (`--lang ru|en` with any command) accept it. The text and the `hint` of errors
 of the connection itself, of the `db` methods, chains, `db.auth`, `db.acl`, subscriptions and projectors come in this
 language. The library rebuilds a database error that carries a key in the language of the connection, while raw SQL
@@ -2715,7 +2740,7 @@ try {
 } catch (e) {
   // e.code is 'invalid_class', e.params.similar is ['Shop']
   // e.message is 'letopis: invalid_class: class or role Shpo not found — similar: Shop'
-  // e.hint says what to do; e.docs is https://github.com/alepri51/letopis/blob/v<version>/lib/README.md#invalid_class
+  // e.hint says what to do; e.docs is https://github.com/alepri51/letopis/blob/v<version>/lib/README.en.md#invalid_class
 }
 ```
 
@@ -2774,6 +2799,7 @@ Library codes:
 | `user_session_required`<a id="user_session_required"></a> | `createMcpServer` and `letopis mcp`: a user session is needed — the connection has no session, it is the service root without `as()`, a session in the System tenant without `allowSystemAdmin`, or the command line got the service key or no token |
 | `confirmation_required`<a id="confirmation_required"></a> | `letopis_write` (MCP): a deletion without a human confirmation — the client has no elicitation, the human declined, the answer belongs to another operation, or the data changed after the preview |
 | `removed`<a id="removed"></a> | a removed 0.21 API; the text gives the replacement |
+| `internal`<a id="internal"></a> | an internal letopis error: the database did not create or find its own lock row (from the database — SQLSTATE `XX000`, the key in `DETAIL`); report it with the text, the code and the package version |
 
 A PostgreSQL permission denial (`42501`) comes, for example, on an `upsert` over someone else's row that you may not
 edit.
@@ -3058,10 +3084,10 @@ order; the first red step stops the run. The same load for a day: `cd lib && npm
 24 hours by default). A test for a fix is named after its test-plan item ("plan 2.0, 7.3 No. 1") and fails without the fix.
 
 ```
-# connect — connecting under a session, refusing roles that bypass RLS, the registry, the deferred signal, error translation (stage 2)
+# connect — connecting under a session, refusing roles that bypass RLS, the registry, the deferred signal, error translation (stage 2); a session expired by idleness: by key — exchanged again with the same tenant, by token — no_session instead of an empty read (services review)
 # context — sessions, service sign-in by key, the RLS policies of stage 1 (stage 1)
 # access-rest — the remaining rows of stage 5: loading on behalf of a user, balance No. 20, 22, 29, upsert and { rev } under ACL, inlining of acl_ok (stage 5)
-# aggregate — aggregates in the database: 20 writers of one wallet, raw SQL, a cascade, reclass, restore, the loader, account deletion, restore and rekey of the target, a description change under writes and race No. 18, aggregate_field, repair and verify, a System row (plan 1.1, stage 4b)
+# aggregate — aggregates in the database: 20 writers of one wallet, raw SQL, a cascade, reclass, restore, the loader, account deletion, restore and rekey of the target, a description change under writes and race No. 18, aggregate_field, repair and verify, a System row (plan 1.1, stage 4b); the projector checkpoint looks up a PROJECTOR row of another account with the same name through the secret_kind_ident index — casefold with the same collation (plan 2.0, 7.5 No. 5)
 # acl — ACL permissions: the 0.21 suite ported, row conditions, weight and default deny, cascade, deny on a descendant, deep, an invisible target, raw SQL versus the library; a change of parent and alias of a class only with permissions on all its rows, an alias is not the name of another class, a name is not another class's alias (stage 5; security review No. 2)
 # acl-grant — the db.acl wrapper: grant, deny, revoke, roles and list are idempotent, the database enforces them on top of "may do everything", deny wins on equal weight, the $actor condition, api, the db.begin() transaction, invalid_data before writing (plan 2.0, 7.9 No. 1); everyone — rules for all accounts, revoke({ everyone: true, … }) removes "may do everything"; list() on an administrative connection — only the session tenant, enabled; an administrative connection writes the rules of a tenant without "may do everything" — no target_not_found (the agent run, stage 3, item 9); check() with lang en — the default denial in English (7.9 No. 5)
 # acl-parity — 1000 random rule sets: the database permission plan and endpoint decisions versus decide from 0.21 (stage 5)
@@ -3082,31 +3108,31 @@ order; the first red step stops the run. The same load for a day: `cd lib && npm
 # hash — the version hash chain, journal tampering and gaps, verify() (stage 1)
 # harness — the test harness: starting the database, a schema per file, two connection strings (stage 0)
 # jsonschema — compiling JSON Schema to jsonpath and checking data in the database (stage 1)
-# impersonation — impersonation: letopis.account only for a service with the permission, target restrictions, author and agent in the journal, sessionFor; the db.as() registry is one per tenant, does not empty, is re-read on a signal of its tenant (stage 5; the work after checkpoint B); the facade registry is not shared with the root, an empty registry is not cached (security review No. 3 leftovers)
+# impersonation — impersonation: letopis.account only for a service with the permission, target restrictions, author and agent in the journal, sessionFor; the db.as() registry is one per tenant, does not empty, is re-read on a signal of its tenant (stage 5; the work after checkpoint B); the facade registry is not shared with the root, an empty registry is not cached (security review No. 3 leftovers); auth.switch during impersonation gives a LetopisError acl_denied from the catalog, not a raw LT000 error (plan 2.0, 7.5 No. 3)
 # install — the installer and roles: a repeated installation, two installations in one database, three tables (stage 1)
 # member — memberships: working in a tenant by roles, auth.switch, leaving with ownership transfer, system rows, tenant roles without System permissions (stage 5)
 # model — Zod models, the JSON Schema normalizer, pattern translation, agreement with the database metaschema (stage 2); a format email longer than 254 characters is a violation without the pattern (review)
 # load — the loader: several classes, cycles, $key and $ext, repeats, existing, portions, history mode, the query for targets outside the load, CLI (stage 4)
-# roles — roles and privileges: installation without a superuser, owner functions, triggers by catalog, the log without the changed column (stage 1; plan 1.1, checkpoint A)
+# roles — roles and privileges: installation without a superuser, owner functions, triggers by catalog, the log without the changed column; up() by such an installer — ANALYZE and fresh as the owner role (stage 1; plan 1.1, checkpoint A; review)
 # write-races — write races: 20 concurrent edits of different fields without losses and strict rev, concurrent add/remove on a multiple end, the loader versus class tightening and versus a concurrent edit (existing: update) in both orders (stage 4)
-# validator-parity — the TypeScript validator versus the database check: the official suite, 10,000 random documents, defaults (stage 2)
+# validator-parity — the TypeScript validator versus the database check: the official suite, 10,000 random documents, defaults (stage 2); a database issue carries a catalog key and parameters, the Russian template with them gives the database text (plan 2.0, 7.9 №5)
 # scenario-barbershop — end-to-end barbershop scenario: 9 scenes from 0.21 (integration) on 1.0 chains — catalog, free slots in a batch, bookings under lock, multi-slot and multi-specialist, versions, cancellation and booking again on the same id, closing a month with restrict (stage 4)
 # scenario-real-life — the "real life" of a salon: 16 scenes from 0.21 (real-life) — a booking service on top of chains, races of double booking, rescheduling and cancellation, walk-in, refusals, reports and daily invariants (stage 4)
 # system-classes — system classes instead of the 0.21 facades: the System seed, accounts, credentials, resources and rules, transactions (stage 5)
 # sync — letopis sync (dry run, apply, tightening, lost refine) and letopis types (stage 2)
-# check — checks before running (plan 2.0, 7.9 No. 10): every rule of letopis check has a positive and a negative case — reserved names in hub() and link(), update() and delete({ confirm: true }) without a filter, delete() without confirm whose result is not used, upsert() on a class without a key, a modifier after a verb, forUpdate() outside db.begin(), unknown classes and roles with similar names; text, --json, --models, --lang and exit codes; the exit codes of letopis sync --check
+# check — checks before running (plan 2.0, 7.9 No. 10): every rule of letopis check has a positive and a negative case — reserved names in hub() and link(), update() and delete({ confirm: true }) without a filter, delete() without confirm whose result is not used, upsert() on a class without a key, a modifier after a verb, forUpdate() outside db.begin(), unknown classes and roles with similar names; text, --json, --models, --lang and exit codes; the exit codes of letopis sync --check; --lang en — the usage, the sync report and letopis types in English, letopis types --system (7.9 No. 5); letopis load --trust — a LetopisError removed (7.5 No. 3)
 # tx — explicit db.begin() transactions: a broken transaction, lock(), 40P01; forUpdate(); the batch and its merging, a batch queue per facade; db.as(…, { owner }) (stage 4)
 # v5 — v5 identifiers on the SQL side versus the vectors of an independent implementation (stage 1)
 # zod-output — a snapshot of the z.toJSONSchema() output by field kind of the demo domain versus a reference (stage 0)
 # time — history: versions({ follow }) across reclass and rekey, withDeleted, restore, purge, history trimming, account deletion (stage 6)
 # rekey — a new key value of an object and a new key of a class: new ids, moving references, recursion through links with the end in the key (stage 6)
 # reset — reset of sessions, tenant, all: the allowReset flag, the letopis.reset permission, confirmation by the schema name, the reset record, a new service key (stage 6)
-# verify — legitimate gaps and tampering, verify({ data: true }): data, ends, tenants, id by key; permissions and CLI (stage 6); a tampered tombstone gives an issue and another anchor (plan 2.0, 7.9 №11); a dropped expression of the hash column and a child table with its own give an issue (review); a substituted body of the hash function gives an issue from verify({ data: true }) (review)
+# verify — legitimate gaps and tampering, verify({ data: true }): data, ends, tenants, id by key; permissions and CLI (stage 6); a tampered tombstone gives an issue and another anchor (plan 2.0, 7.9 №11); a dropped expression of the hash column and a child table with its own give an issue (review); a substituted body of the hash function gives an issue from verify({ data: true }) (review); the texts of the issues come in the language of the connection, raw SQL gets Russian ones with the key and parameters (plan 2.0, 7.9 №5)
 # retention — retention policy: tiers, a finite term, special versions, deleted rows, asOf, cursor_expired, time zone, catch-up run, inheritance and default — versus a reference in TypeScript (stage 6)
 # watch — cursor subscription: commit order, a long transaction, resuming, listener drop, two tenants (stage 6)
 # cache — result cache: hits, own and others' writes, the key with the user, permissions, revoked sessions, listener drop, ttl, class marking, without LISTEN, a race, db.sql, the limit of signal counters, others' revoked sessions do not grow the counters (stage 6; plan 1.1, checkpoint A; plan 2.0, 7.7)
 # maintain — maintenance: expired sessions and codes, permissions, one process under a lock, schedule (stage 6), lock rows of deleted classes
-# up — the full installer: fresh installation, re-apply, custom seeds, automatic database creation, UTF8, version 17, upgrade with migrations, PGlite, the first tenant and user (up({ tenant }), createTenant) (stages 6, 8)
+# up — the full installer: fresh installation, re-apply, custom seeds, automatic database creation, UTF8, version 17, upgrade with migrations, PGlite, the first tenant and user (up({ tenant }), createTenant); up({ lang: 'en' }) — errors, installation progress and the engine stamp warning in English (plan 2.0, 7.9 No. 5); installation without ADMIN OPTION on an existing owner role — admin_required (7.5 No. 3) (stages 6, 8)
 # upgrade — schema upgrade from 1.4.2 and 1.4.1 (a plain up() without migrations, plan 2.0, 7.8 No. 2), from 1.1.0 (upgrade: true, migration 0007) and from 1.0.1 (upgrade: true, migrations 0006 and 0007) with the letopis-142, letopis-141, letopis-11 and letopis-1 packages: versions and hashes written by the old engine, verify(), the catalog against a clean installation, lock rows, secret rows without an account erased, the application, a subscription and a projector over old data, a repeated up() (work after 1.2.0, stage 1; revision 7)
 # scenario-salon — end-to-end salon scenario: 21 acts from 0.21 (salon) with a coverage matrix of the 1.0 API (stage 6)
 # telemetry — onQuery and slowMs, describe() and class metadata with inheritance, describeText (stage 6)
@@ -3114,17 +3140,18 @@ order; the first red step stops the run. The same load for a day: `cd lib && npm
 # signals — signal modes: the payload seen by a foreign role, cache precision per tenant, System, permission classes, a process without the key, the loader, subscriptions, the key, none, coalescing, the server version, a class change, a resend, the mode after up() and reset({ all }) (plan 1.1, stage 2)
 # initial-load — the initial load: equality with the regular loader, structure and trigger modes, system rows, a non-empty schema, an insert during the start, rollback, MULTI_INSERT in WAL, commitEvery, import --initial, aggregates (agg_fill) (plan 1.1, stages 3 and 4b)
 # projector — projectors from the journal: catching up, exactly once on a break, one writer, a long transaction, a transaction on the boundary of the rebuild snapshot, no writes to derived classes and no references to them, the bounds of out, atomic and batch rebuilds during source writes, purge of a source, lag and cursor_expired, the credential functions; the version, the name, an admin connection; a race of two processes; a data error of one tenant drops out only this tenant (failed, rebuild({ tenant }), the tenants option), the checkpoint is only a System row, a rebuild touches only the rows of participants and into families, before after rekey, the all tier and the journal of sources per tenant; folding of out.inc by key in a batch, batch rebuilds on the automatic paths of run() and a second process during them; rebuilding one tenant in batches while the tail goes on; onExpired in batches in another process, a data error without retries, the tier from the start of the rebuild; an empty last pass of a batch rebuild, a tenant that drops out in the middle of its rebuild keeps no partial rows, a class change that keeps the id out of the source family and into it, purge of an unread tombstone, run({ once: true }) waits up to wait ms for the transactions open at the call — caughtUp (plan 1.1, stage 4a; security review No. 2; checkpoint B and the work after it; security review No. 3; plan 2.0, stage 3, item 9)
-# mcp — MCP tools: the model and meta only in results, tenant rights, the JSON chain and hints of similar names, row and byte limits with a cursor, the untrusted-data wrapper, writing only with write, update only with rev, deletion with a human confirmation (elicitation in revisions 2025 and 2026-07-28), the reason in blame, credentials, tool schemas, letopis without the SDK; letopis mcp over stdio, the HTTP handler; the confirmation window without the alias and meta, countBy and versions limited in the query itself, limits of steps and $or conditions; the permission classes only with allowAclWrite, a session in the System tenant only with allowSystemAdmin; structuredContent with a note, a requestState signature of the server user with an expiry (plan 1.1, stage 5; security review No. 2; checkpoint B and the work after it)
+# mcp — MCP tools: the model and meta only in results, tenant rights, the JSON chain and hints of similar names, row and byte limits with a cursor, the untrusted-data wrapper, writing only with write, update only with rev, deletion with a human confirmation (elicitation in revisions 2025 and 2026-07-28), the reason in blame, credentials, tool schemas, letopis without the SDK; letopis mcp over stdio, the HTTP handler; the confirmation window without the alias and meta, countBy and versions limited in the query itself, limits of steps and $or conditions; the permission classes only with allowAclWrite, a session in the System tenant only with allowSystemAdmin; structuredContent with a note, a requestState signature of the server user with an expiry; with lang: 'en' — tool descriptions, data notes, refusals, the deletion preview and the confirmation window in English (plan 1.1, stage 5; security review No. 2; checkpoint B and the work after it; plan 2.0, 7.9 No. 5)
 # import — import from 0.21 with a fixture of a real 0.21: key violation, --keyless, per-class counters, verify, self-reference, repeat, ids without a key, a dangling reference, $$strict and fields starting with $, update, credentials, CLI (stage 7)
 # security-final — the final security review (stage 8, §7.10 No. 8.4): a family lock by the tenant of the root, account_purge without permission and restore/purge of a foreign id give neither a leak nor a lock; the functions of stage 6, log_refs_at, journal-based find_* reads and watch_read stay within their own tenant; NOTIFY carries only names or mode tokens; the cache key distinguishes the token, the actor and the tenant (stage 8)
 # semver — version rules: check:semver requires at least the matching version step — a major for a removed method or error code, a minor for a new method and a new engine revision, a patch for texts only (plan 2.0, 7.8 No. 1)
 # one-process — one process: up({ login }) quotes the name and password of the application role, a repeat updates the password, a privileged role is left alone; connect({ admin }) — a second pool on first need for load, projector, syncModels, verify, maintain with the same session, chains under RLS, without admin — admin_required (plan 2.0, 7.9 No. 3, No. 4)
-# prerelease — the pre-release check: steps run strictly in order, the first red one stops the run and the following ones do not start; a test file whose process died before its first test is rerun once, a red test is not (plan 2.0, 7.8 No. 3)
+# prerelease — the pre-release check: steps run strictly in order, the first red one stops the run and the following ones do not start; a test file whose process died before its first test is rerun once, a red test is not; with --only and --skip the summary table accumulates — the rows of other steps stay from earlier runs (plan 2.0, 7.8 No. 3)
 # write-contract — README promises about writes (plan 2.0, 7.2): a repeated key in a batch gives exists and a rollback, the row order of reclass, restore and rekey responses, a chain with a verb as a slot value, the loader with existing: update does not edit a row of another class, a cached answer is not spoiled by editing an earlier answer
 # watch-contract — README promises about subscriptions and connections (plan 2.0, 7.4): an idle subscription polls the journal once per pollMs, close() of the connection closes live subscriptions, a reclass without a key resets the cache of the old class, a new projector participant gets an initial rebuild, a projector without LISTEN re-reads its participants, at most a limit of db.as() registries
-# model-contract — README promises about models, types, the CLI and errors (plan 2.0, 7.5): letopis types gives valid TypeScript for Cyrillic names, a class without fields and anyOf, the full form of hub() with z.object, clear errors instead of raw ones, CLI exit codes
+# model-contract — README promises about models, types, the CLI and errors (plan 2.0, 7.5): letopis types gives valid TypeScript for Cyrillic names, a class without fields and anyOf, the full form of hub() with z.object, clear errors instead of raw ones, CLI exit codes; guards of the removed API with lang: 'en' — the replacement in English (7.9 No. 5)
 # read-contract — README promises about reads and history (plan 2.0, 7.1): an asOf slice by class and by ends after a class change without an id change, versions, diff and blame with follow after rekey, the after() cursor in versions() and paths(), a field name with @S@
-# messages — the message catalog (plan 2.0, 7.9 №5, №6): with lang: 'en' every code has an English text and hint, errors of translated places and of the database come in the language of the connection, raw SQL gets Russian, with ru everything is as before, docs leads to the anchor of the code; similar names for an unknown class, role, field and option
+# messages — the message catalog (plan 2.0, 7.9 №5, №6): with lang: 'en' every code has an English text and hint, errors of translated places and of the database come in the language of the connection, raw SQL gets Russian, with ru everything is as before, docs leads to the anchor of the code in the README of its language; data violations from the database (a write, tightening a class, the loader), the internal error internal, a retryable conflict with a key and the describeText labels come in the language of the connection; similar names for an unknown class, role, field and option
 # describe-examples — chain examples of describe() (plan 2.0, 7.9 №9): every "create", "find" and "go to the neighbors" chain runs on the booking demo schema; describeText and letopis_model return the same examples, a large model first loses only them
 # llms — documents for an agent (plan 2.0, 7.9 №7, №8): llms-full.txt has every error code with its meaning and what to do, every nuance, the reserved names and the operators; the operator registry matches the package factories, the letopis_query keys (the same answer as the chain) and the tables of the README and the cheatsheet, both versions, and of the site's "Reading" chapter
+# disconnect — a connection drop (plan 2.0, 7.4 No. 7): the projector transaction, the loader and the initial load, opening db.begin() — a TCP drop before and after COMMIT and while opening the transaction, pg_terminate_backend of a process waiting for a lock: the promise is rejected with a connection error, the process gets no unhandled errors, the next operation of the pool goes through; rebuildAggregates is a todo until fixed: a backend terminated in the middle of sql.begin crashes the process
 ```

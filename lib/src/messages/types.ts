@@ -9,7 +9,8 @@ export const LANGS: readonly Lang[] = ['ru', 'en'];
 /**
  * Коды ошибок letopis: каталог базы (SQLSTATE LT001–LT023, `error_catalog()` в lib/sql/15-errors.sql, `LT_NAMES` в
  * errors.ts) и коды самой библиотеки. Новый код — сюда, в codes.ts (заголовок и подсказка) и в раздел «Ошибки» README
- * (обе версии, с якорем `<a id="код"></a>`).
+ * (обе версии, с якорем `<a id="код"></a>`). `internal` — внутренняя ошибка базы: SQLSTATE XX000 с ключом каталога в
+ * DETAIL (`lt_raise('XX000', ключ, …)`, fromDbError).
  */
 export type ErrorCode =
   | 'no_session' | 'target_not_found' | 'invalid_data' | 'undeclared_end' | 'tenant_denied' | 'acl_denied'
@@ -19,7 +20,7 @@ export type ErrorCode =
   | 'exists' | 'duplicate' | 'deleted' | 'conflict' | 'rev_ambiguous' | 'tx_required' | 'lock_unsupported'
   | 'commit_unknown' | 'tx_rolled_back' | 'no_key' | 'no_path' | 'invalid_query' | 'admin_required'
   | 'rebuild_required' | 'projector_busy' | 'not_empty' | 'class_not_loadable' | 'bypass_rls'
-  | 'user_session_required' | 'confirmation_required' | 'removed';
+  | 'user_session_required' | 'confirmation_required' | 'removed' | 'internal';
 
 /** Текст на обоих языках. */
 export interface Text {

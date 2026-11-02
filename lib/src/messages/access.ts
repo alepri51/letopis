@@ -153,4 +153,16 @@ export const access = {
       en: 'pass the secret from auth.enrollTotp() — a base32 string (A–Z, 2–7)',
     },
   },
+  // auth.ts и acl.ts: замены охранников db.auth.sessions(store) и db.acl.reload() — removed(имя, ключ) рендерит их на
+  // языке вокруг; контракт API берёт русский шаблон (lib/scripts/contract.mjs)
+  'access.replacement_sessions': {
+    code: 'removed',
+    ru: 'сессии хранятся в базе: sessionFor, refresh, revoke, revokeAll',
+    en: 'sessions are stored in the database: sessionFor, refresh, revoke, revokeAll',
+  },
+  'access.replacement_acl_reload': {
+    code: 'removed',
+    ru: 'права обновляются сами: база применяет действующие правила',
+    en: 'permissions refresh themselves: the database applies the rules in force',
+  },
 } satisfies Section<'access'>;

@@ -80,13 +80,22 @@ export async function createApp() {
   // журнал «под капотом»: запросы к базе, записанные версии и сигналы текущего действия
   const trace = await createTrace({ admin, schema: r.schema, size: 12 });
   const svc = await connect({ dsn: ENV.app, schema: r.schema, apiKey: ENV.serviceKey, onQuery: trace.onQuery });
-  const t = await createTenant(admin, r.schema, { name: 'Копейка', user: OPERATOR });
-  // администраторское подключение в сессии оператора: модель, проектор выписки, verify
-  const adm = await connect({ dsn: ENV.admin, schema: r.schema, token: t.token, allowBypassRls: true });
-  // модель — классы арендатора «Копейка»: при каждом запуске их пишет syncModels этого подключения (производный Statement
-  // иначе и не записать), сессия пользователя модель не пишет. Не System: классы System syncModels пропускает, а сид
-  // установки уже существующий класс не меняет — изменение модели до работающей установки так не дошло бы
-  await syncModels(adm, [Wallet, Movement, Statement], { apply: true });
+  // сессия createTenant оператора — только на запись модели при запуске (ниже), потом она погашена: срок короткий
+  const t = await createTenant(admin, r.schema, { name: 'Копейка', user: { ...OPERATOR, ttl: '10 minutes' } });
+  // модель — классы арендатора «Копейка»: при каждом запуске их пишет syncModels администраторского подключения в сессии
+  // оператора (производный Statement иначе и не записать), сессия пользователя модель не пишет. Не System: классы System
+  // syncModels пропускает, а сид установки уже существующий класс не меняет — изменение модели до работающей установки
+  // так не дошло бы. Подключение — только на эту запись: потом revoke и close, как syncCompany в helpdesk
+  const boot = await connect({ dsn: ENV.admin, schema: r.schema, token: t.token, allowBypassRls: true, listen: false, refreshSession: false });
+  try {
+    await syncModels(boot, [Wallet, Movement, Statement], { apply: true });
+  } finally {
+    await boot.auth.revoke().catch(() => {});
+    await boot.close();
+  }
+  // проектор выписки и verify — администраторское подключение без сессии: проектор пишет от роли владельца схемы, verify
+  // пускает роль подключения. Постоянного токена у него нет — простою сервиса нечему истечь (план 2.0, 7.6 №5)
+  const adm = await connect({ dsn: ENV.admin, schema: r.schema, allowBypassRls: true });
   const opDb = await svc.as(t.user, { tenant: t.tenant });
   if (!(await opDb.Wallet().count())) {
     await opDb.Wallet().create({ number: 'W-1', owner: 'Анна' }).rows();

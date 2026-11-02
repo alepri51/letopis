@@ -61,16 +61,18 @@ export async function createApp() {
       : v.class === 'price' ? `${v.data?.note ?? ''}: ${v.data?.amounts?.RUB ?? '—'} ₽` : ''),
   });
   const svc = await connect({ dsn: ENV.app, schema: r.schema, apiKey: ENV.serviceKey, onQuery: trace.onQuery });
+  // загрузчику (db.load — прайс списком) нужно администраторское подключение letopis: роль, которая обходит RLS и может
+  // стать владельцем схемы. Сессии у него нет, и оно одно на все салоны: автора и арендатора загрузчик берёт из
+  // load({ as, tenant }) — вошедший и его салон, право WRITE на price проверяет по as. Постоянный токен истекал бы при
+  // простое (план 2.0, 7.6 №5)
+  const adm = await connect({ dsn: ENV.admin, schema: r.schema, allowBypassRls: true, onQuery: trace.onQuery });
 
   // ---------- демо-данные: салоны и справочники (повтор ничего не дублирует) ----------
-  const tenants = new Map(); // логин → { tenant, account, adm }
+  const tenants = new Map(); // логин → { tenant, account }
   for (const s of SALONS) {
-    const t = await createTenant(admin, r.schema, { name: s.name, user: s.user });
-    // загрузчику (db.load — прайс списком) нужно администраторское подключение letopis: роль, которая обходит RLS и
-    // может стать владельцем схемы. Сессия — токен createTenant: управляющий в своём салоне (новый на каждый старт,
-    // живёт 7 дней простоя, connect продлевает), так подключение работает в арендаторе салона вошедшего.
-    const adm = await connect({ dsn: ENV.admin, schema: r.schema, token: t.token, allowBypassRls: true, onQuery: trace.onQuery });
-    tenants.set(s.user.login.toLowerCase(), { tenant: t.tenant, account: t.user, adm });
+    // токен createTenant не нужен: справочник пишет сервис от имени управляющего (svc.as) — сессия гаснет через минуту
+    const t = await createTenant(admin, r.schema, { name: s.name, user: { ...s.user, ttl: '1 minute' } });
+    tenants.set(s.user.login.toLowerCase(), { tenant: t.tenant, account: t.user });
     const db = await svc.as(t.user, { tenant: t.tenant });
     if (await db.Org().count()) continue;
     const [org] = await db.Org().create({ name: s.name }).rows();
@@ -82,7 +84,7 @@ export async function createApp() {
   }
 
   // ---------- веб-сессии и журнал «под капотом» ----------
-  const web = createSessions(); // sid → { account, tenant, name, salon, trace: [], db, adm }
+  const web = createSessions(); // sid → { account, tenant, name, salon, trace: [], db }
   const { auth } = web;
   const { act } = trace;
   // фасад пользователя (svc.as — асинхронный) создаётся один раз при входе и живёт в веб-сессии
@@ -102,7 +104,7 @@ export async function createApp() {
     if (!login || !known) return res.status(401).json({ error: 'Неверный логин или пароль' });
     const salon = SALONS.find((x) => x.user.login.toLowerCase() === key);
     const db = await svc.as(login.account, { tenant: known.tenant });
-    web.open(res, { account: login.account, tenant: known.tenant, name: salon.user.name, salon: salon.name, trace: [], db, adm: known.adm });
+    web.open(res, { account: login.account, tenant: known.tenant, name: salon.user.name, salon: salon.name, trace: [], db });
     res.json({ salon: salon.name, name: salon.user.name });
   });
   app.post('/api/logout', async (req, res) => {
@@ -201,7 +203,7 @@ export async function createApp() {
 
   // ---------- API: прайс ----------
   app.get('/api/price', auth, async (req, res) => res.json(await priceList(userDb(req.s))));
-  // прайс списком — db.load() администраторским подключением салона (s.adm) от имени вошедшего;
+  // прайс списком — db.load() администраторским подключением (adm) от имени вошедшего и в его салоне;
   // услуги — из каталога сессии (под RLS), поэтому чужую услугу в список не подставить
   app.post('/api/price/load', auth, async (req, res) => {
     const s = req.s;
@@ -212,7 +214,7 @@ export async function createApp() {
       return res.status(422).json({ error: `Прайс не загружен: ${e.message}` });
     }
     try {
-      const r = await act(s, 'Прайс списком', (lines) => loadPrices(s.adm, s, items, lines));
+      const r = await act(s, 'Прайс списком', (lines) => loadPrices(adm, s, items, lines));
       res.json({ rows: r.rows, loaded: r.loaded, updated: r.updated, skipped: r.skipped, ms: Math.round(r.ms) });
     } catch (e) {
       res.status(e.code === 'acl_denied' ? 403 : 422).json({ error: `Прайс не загружен: ${e.code ?? ''} ${e.message}` });
@@ -240,10 +242,7 @@ export async function createApp() {
 
   return {
     app, schema: r.schema,
-    close: async () => {
-      for (const t of tenants.values()) await t.adm.close();
-      await svc.close(); await admin.end({ timeout: 2 });
-    },
+    close: async () => { await adm.close(); await svc.close(); await admin.end({ timeout: 2 }); },
   };
 }
 
