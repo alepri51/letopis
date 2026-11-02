@@ -1,4 +1,4 @@
-# letopis 1.5.0-alpha.0 — full reference for AI agents
+# letopis 2.0.0-alpha.0 — full reference for AI agents
 
 > One file for an AI agent that writes code with letopis: the agent cheatsheet, the chain grammar, error codes with
 > what to do, nuances, reserved names and filter operators. It is generated from the package sources
