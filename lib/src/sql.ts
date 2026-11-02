@@ -400,8 +400,12 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
 function asFrags(cf: CompiledFilter, p: Params): Frag[] {
   const frags = [...cf.frags];
   if (cf.ids) {
-    const ph = p.push(cf.ids);
-    frags.push((a) => `${a}.id = any (${ph}::uuid[])`);
+    // один id — равенство, а не = any (массив): общий план подготовленного запроса для = any PostgreSQL считает на ~10
+    // элементов, и при неудачной выборке ANALYZE чтение по ключу навсегда оставалось на планах под каждый вызов —
+    // 0,5–0,8 мс планирования на чтение (замер vs-101); общий план равенства стоит как план вызова и выбирается всегда
+    const one = cf.ids.length === 1;
+    const ph = p.push(one ? cf.ids[0] : cf.ids);
+    frags.push((a) => (one ? `${a}.id = ${ph}::uuid` : `${a}.id = any (${ph}::uuid[])`));
   }
   if (cf.eq) {
     const ph = p.push(cf.eq);

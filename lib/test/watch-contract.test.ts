@@ -6,7 +6,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import postgres from 'postgres';
-import { engine, type Engine, type Tenant } from './_engine.js';
+import { engine, waitForLock, type Engine, type Tenant } from './_engine.js';
 import { account, member } from './_access.js';
 import { limits } from '../src/internal.js';
 import { ADMIN_DSN, appDsn } from './_harness.js';
@@ -68,6 +68,32 @@ test('план 2.0, 7.4 №8: close() подключения закрывает 
   } finally {
     sub.close();
     await pool.end({ timeout: 5 });
+  }
+});
+
+test('план 2.0, 7.4 №8: close() подписки, пока идёт её запрос журнала, завершает for await', async () => {
+  // находка обхода сервисов: поток SSE после выхода не закрывался — подписку закрыли, пока шёл её первый запрос, и цикл
+  // for await ждал будильника, которого уже не будет (таймер снят, сигналы отписаны). Запрос держит на месте
+  // исключительная блокировка журнала, пока подписку закрывают
+  const sub = db.watch({ from: 'now', pollMs: 50 });
+  await sub.ready();
+  const conn = await e.sql.reserve();
+  try {
+    await conn.unsafe('begin');
+    await conn.unsafe(`lock table ${e.S}.log in access exclusive mode`);
+    const loop = (async () => {
+      for await (const _ of sub) { /* событий нет */ }
+      return 'вышел';
+    })();
+    await waitForLock(e.sql);
+    sub.close();
+    await conn.unsafe('rollback');
+    const res = await Promise.race([loop, new Promise((r) => setTimeout(() => r('висит'), 5000))]);
+    assert.equal(res, 'вышел', 'цикл for await закрытой подписки завершился');
+  } finally {
+    await conn.unsafe('rollback').catch(() => {});
+    conn.release();
+    sub.close();
   }
 });
 

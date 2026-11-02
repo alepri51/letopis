@@ -571,17 +571,20 @@ export async function createApp() {
     } catch {
       throw new HttpError(400, 'Неверный курсор after');
     }
+    // перечитывание с начала (обновление по событию) — limit: столько строк, сколько уже показано (от PAGE до 100),
+    // иначе подгруженные «Показать ещё» страницы сворачивались бы на каждом событии
+    const size = after ? PAGE : Math.min(Math.max(Number.parseInt(String(req.query.limit ?? ''), 10) || PAGE, PAGE), 100);
     const read = async (lines) => {
       let q = db.Ticket(staff ? { status: inList(['new', 'open', 'pending']) } : {}).sort('data.due');
       if (after) q = q.after(after);
-      lines.push(`db.Ticket(${staff ? "{ status: inList(['new','open','pending']) }" : ''}).sort('data.due')${after ? '.after(курсор)' : ''}.limit(${PAGE + 1})`);
+      lines.push(`db.Ticket(${staff ? "{ status: inList(['new','open','pending']) }" : ''}).sort('data.due')${after ? '.after(курсор)' : ''}.limit(${size + 1})`);
       if (!staff) lines.push('чужие обращения отсекает база: правило клиента { class: Ticket, owner: $actor }');
-      return q.limit(PAGE + 1).rows();
+      return q.limit(size + 1).rows();
     };
     // страницу «показать ещё» видно в панели «Под капотом»; первую страницу очередь перечитывает часто — без записи
     const rows = after ? await act(s, 'Следующая страница очереди', read) : await read([]);
-    const page = rows.slice(0, PAGE);
-    res.json({ rows: page.map(view), next: rows.length > PAGE ? JSON.stringify(cursorOf(page.at(-1), 'data.due')) : null });
+    const page = rows.slice(0, size);
+    res.json({ rows: page.map(view), next: rows.length > size ? JSON.stringify(cursorOf(page.at(-1), 'data.due')) : null });
   }));
 
   app.post('/api/tickets', auth, route(async (req, res) => {

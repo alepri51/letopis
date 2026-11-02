@@ -100,6 +100,10 @@ try {
   const q2 = q1.next ? (await call(agent, `/api/tickets?after=${encodeURIComponent(q1.next)}`)).data : { rows: [] };
   const queue = [...q1.rows, ...q2.rows];
   check(q1.next && queue.length > PAGE_OF(q1) && queue.every((x, i) => i === 0 || queue[i - 1].due <= x.due), 'агент видит очередь компании по сроку, вторая страница — по курсору');
+  // обновление по событию перечитывает столько строк, сколько показано (limit), а не сворачивает список до первой страницы
+  const reread = (await call(agent, `/api/tickets?limit=${queue.length}`)).data;
+  check(reread.rows.length === queue.length && reread.rows.every((x, i) => x.number === queue[i].number),
+    `перечитывание очереди с limit=${queue.length} — те же заявки, что на двух страницах (${reread.rows.length})`);
   check(queue.some((x) => x.client !== DEMO.client.name), 'в очереди агента — обращения разных клиентов');
   await call(agent, `/api/tickets/${t.id}/assign`, {});
   await call(agent, `/api/tickets/${t.id}/reply`, { text: 'Отправили счёт повторно', internal: false });

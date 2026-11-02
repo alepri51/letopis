@@ -26,6 +26,9 @@ export function createSessions({ missing = { error: 'нужен вход' }, che
     const s = sessions.get(sid);
     if (!s) return;
     sessions.delete(sid);
+    // потоки SSE сессии (s.streams — eventStream) закрываются вместе с ней: подписка через фасад сервиса пережила бы
+    // выход, и вкладка получала бы события прежнего арендатора
+    for (const end of s.streams ?? []) end();
     await onClose?.(s);
   }
   /** Закрыть сессии, для которых match(s) — истина (без match — все). */

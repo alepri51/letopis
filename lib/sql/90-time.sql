@@ -828,18 +828,33 @@ begin
   if @SCHEMA@.history_default() is not null then
     update @SCHEMA@.secret s set meta = s.meta || '{"default_policy": true}' where s.id = '@SYSTEM@'::uuid and not (s.meta ? 'default_policy');
   end if;
-  with pol as (
-    select x.data->>'name' as cls, x.tenant as ct, @SCHEMA@.history_policy(x.data->'resolved') as p
-    from @SCHEMA@.entity x where x.class = 'Class'
+  -- момент из будущего (maintain({ now }) пускает только установка с allowReset — тесты и демо): verify() судит о
+  -- законности разрывов прореживания по нему, а не по часам — иначе прореженное «наперёд» он считал бы порчей (обход
+  -- сервиса «Документы»)
+  if p_now > clock_timestamp() then
+    update @SCHEMA@.secret s set meta = s.meta || jsonb_build_object('thin_now', greatest(p_now, (s.meta->>'thin_now')::timestamptz))
+     where s.id = '@SYSTEM@'::uuid;
+  end if;
+  -- политика, граница по ярусу all и арендаторы со своим одноимённым классом (у класса System) — один раз на класс,
+  -- materialized: на строку журнала ни подзапроса, ни разбора data строки Class. Коррелированный not exists по entity в
+  -- условии соединения при выборке ANALYZE без строк Class (их единицы на сотни тысяч) уводил план в полный проход
+  -- журнала с хэш-соединением — maintain в ~6 раз медленнее в части прогонов (разбор замера vs-101, 02.11.2026).
+  -- Курсор — диапазоном по индексу и в общем плане: >= coalesce и is distinct from — то же, что cur is null or l.id > cur
+  with pol as materialized (
+    select x.data->>'name' as cls, x.tenant as ct, p_now - @SCHEMA@.history_iv(h.p->>'all') as edge,
+           case when x.tenant = '@SYSTEM@'::uuid
+                then array(select y.tenant from @SCHEMA@.entity y
+                           where y.class = 'Class' and y.data->>'name' = x.data->>'name' and y.tenant <> '@SYSTEM@'::uuid)
+                else '{}'::uuid[] end as own
+    from @SCHEMA@.entity x cross join lateral (select @SCHEMA@.history_policy(x.data->'resolved') as p) h
+    where x.class = 'Class' and h.p is not null
   )
   select array_agg(q.id order by q.id) into ids from (
     select distinct l.id from @SCHEMA@.log l
-    join pol on pol.p is not null and pol.cls = l.class
-      and (pol.ct = l.tenant
-           or pol.ct = '@SYSTEM@'::uuid
-              and not exists (select 1 from @SCHEMA@.entity y
-                              where y.class = 'Class' and y.tenant = l.tenant and y.data->>'name' = l.class))
-    where l.at < p_now - @SCHEMA@.history_iv(pol.p->>'all') and (cur is null or l.id > cur)
+    join pol on pol.cls = l.class
+      and (pol.ct = l.tenant or pol.ct = '@SYSTEM@'::uuid and l.tenant <> all (pol.own))
+    where l.at < pol.edge
+      and l.id >= coalesce(cur, '00000000-0000-0000-0000-000000000000'::uuid) and l.id is distinct from cur
     order by l.id limit 100) q;
   if ids is null then
     update @SCHEMA@.secret s set meta = s.meta - 'thin' where s.id = '@SYSTEM@'::uuid;
@@ -1009,6 +1024,9 @@ begin
   if not @SCHEMA@.letopis_allowed('letopis.verify') then
     perform @SCHEMA@.lt_fail('sql-time.verify_denied');
   end if;
+  -- прореживание с моментом из будущего (maintain({ now }) — тесты и демо) запомнило его: разрыв законен относительно
+  -- большего из часов и этого момента (thin_batch)
+  ts := greatest(ts, (select (k.meta->>'thin_now')::timestamptz from @SCHEMA@.secret k where k.id = '@SYSTEM@'::uuid));
   -- Колонка hash (ревью): цепочки и якорь верят её значениям, поэтому она обязана быть генерируемой (stored) с выражением
   -- установки (10-core.sql) — у entity, log и у каждой таблицы-наследника (pg_inherits): строки наследника видны в entity
   -- и log, а выражение у него может быть своим. Иначе владелец снимает выражение (drop expression) или ставит своё и

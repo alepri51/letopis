@@ -35,6 +35,8 @@ async function api<T>(path: string, body?: unknown): Promise<T> {
   return data as T;
 }
 const rub = (k: number) => `${(k / 100).toLocaleString('ru-RU', { minimumFractionDigits: 2 })} ₽`;
+/** Время версии (at библиотеки — ISO в UTC) — местное, как в «Под капотом». */
+const clock = (iso: string) => new Date(iso).toLocaleTimeString('ru-RU');
 const newOp = () => `op-${Date.now().toString(36)}`;
 
 export default function App() {
@@ -72,7 +74,20 @@ function Billing({ me }: { me: { name: string } }) {
     const es = new EventSource('/api/events');
     es.addEventListener('ready', () => setLive(true));
     es.addEventListener('changed', () => { reload(); });
-    return () => es.close();
+    // поток закрылся — сервер закрывает его вместе с веб-сессией (выход, в том числе в другой вкладке): вошёл другой или
+    // никто — страница заново, иначе данные новой сессии того же браузера оказались бы под прежней шапкой
+    es.onerror = () => {
+      setLive(false);
+      api<{ name: string } | null>('/api/me').then((m) => { if (m?.name !== me.name) location.reload(); }, () => {});
+    };
+    // уход со страницы (переход на /logout) — поток закрыть сразу: иначе сервер, закрывая его вместе с сессией, будил бы
+    // onerror, и перезагрузка перебивала бы начатый переход
+    const leave = () => es.close();
+    addEventListener('beforeunload', leave);
+    return () => {
+      removeEventListener('beforeunload', leave);
+      es.close();
+    };
   }, [reload]);
   // состояние проектора — раз в 2 с; курсор сдвинулся — проектор записал пачку, выписку перечитать (у Statement нет
   // журнала, подписка о нём не сообщает)
@@ -165,7 +180,7 @@ function Billing({ me }: { me: { name: string } }) {
             <CardHeader><CardTitle>Последние операции</CardTitle></CardHeader>
             <CardContent><Table>
               <TableHeader><TableRow><TableHead>когда</TableHead><TableHead>счёт</TableHead><TableHead>opId</TableHead><TableHead>вид</TableHead><TableHead className="text-right">сумма</TableHead></TableRow></TableHeader>
-              <TableBody>{data.movements.map((m) => <TableRow key={m.id}><TableCell>{m.at}</TableCell><TableCell>{m.wallet}</TableCell><TableCell className="font-mono text-xs">{m.opId}</TableCell>
+              <TableBody>{data.movements.map((m) => <TableRow key={m.id}><TableCell>{clock(m.at)}</TableCell><TableCell>{m.wallet}</TableCell><TableCell className="font-mono text-xs">{m.opId}</TableCell>
                 <TableCell><Badge variant="outline">{m.kind}{m.card4 ? ` ·${m.card4}` : ''}</Badge></TableCell><TableCell className="text-right tabular-nums">{rub(m.amount)}</TableCell></TableRow>)}</TableBody>
             </Table></CardContent>
           </Card>
@@ -177,7 +192,7 @@ function Billing({ me }: { me: { name: string } }) {
                   <Badge variant="outline">status(): {status.state}</Badge>
                   <span>версия {status.version ?? '—'}</span>
                   <span data-lag={status.lag}>отставание {status.lag} мс</span>
-                  <span>проход {status.at ? status.at.slice(11, 19) : '—'}</span>
+                  <span>проход {status.at ? clock(status.at) : '—'}</span>
                   <span>lockTimeout {status.options.lockTimeout} мс · lockRetries {status.options.lockRetries}</span>
                 </div>)}
               {status?.failed && (
@@ -215,7 +230,7 @@ function Billing({ me }: { me: { name: string } }) {
               {verify && (verify.ok
                 ? <Alert data-verify="ok"><AlertTitle>Нарушений нет</AlertTitle><AlertDescription>Проверено версий: {verify.checked}. Цепочки хэшей сходятся, балансы равны сумме операций. Якорь {verify.anchor.slice(0, 16)}… — один хэш текущих версий всех объектов: храните его вне базы, тогда заметна и подмена самых свежих версий.</AlertDescription></Alert>
                 : <Alert variant="destructive" data-verify="issues"><AlertTitle>Найдены нарушения: {verify.issues.length}</AlertTitle>
-                    <AlertDescription><ul>{verify.issues.map((i, k) => <li key={k}>{i.class} {i.label} v{i.rev ?? '—'}: {i.problem}</li>)}</ul></AlertDescription></Alert>)}
+                    <AlertDescription><ul>{verify.issues.map((i, k) => <li key={k}>{[i.class, i.label].filter(Boolean).join(' ')} v{i.rev ?? '—'}: {i.problem}</li>)}</ul></AlertDescription></Alert>)}
             </CardContent>
           </Card>
         </div>
@@ -233,7 +248,7 @@ function Billing({ me }: { me: { name: string } }) {
       <Dialog open={history !== null} onOpenChange={(o) => !o && setHistory(null)}>
         <DialogContent><DialogHeader><DialogTitle>История баланса</DialogTitle><DialogDescription>Каждое изменение баланса — версия кошелька с причиной операции.</DialogDescription></DialogHeader>
           <Table><TableHeader><TableRow><TableHead>rev</TableHead><TableHead>баланс</TableHead><TableHead>причина</TableHead><TableHead>когда</TableHead></TableRow></TableHeader>
-            <TableBody>{(history ?? []).map((v) => <TableRow key={v.rev}><TableCell>{v.rev}</TableCell><TableCell>{rub(v.balance)}</TableCell><TableCell>{v.reason}</TableCell><TableCell>{v.at}</TableCell></TableRow>)}</TableBody></Table>
+            <TableBody>{(history ?? []).map((v) => <TableRow key={v.rev}><TableCell>{v.rev}</TableCell><TableCell>{rub(v.balance)}</TableCell><TableCell>{v.reason}</TableCell><TableCell>{clock(v.at)}</TableCell></TableRow>)}</TableBody></Table>
         </DialogContent>
       </Dialog>
     </div>

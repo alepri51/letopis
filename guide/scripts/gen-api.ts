@@ -28,7 +28,8 @@ const OUT = join(ROOT, 'pages', API_DIR);
 const argv = process.argv.slice(2);
 const check = argv.includes('--check');
 
-/** Не входит в справочник: охранники снятого API 0.21 (бросают removed) и `then` — не метод (цепочка не thenable). */
+/** Не входит в справочник: охранники снятого API 0.21 (бросают removed), `then` — не метод (цепочка не thenable) и
+ * `letopis import` — переход с 0.21 сайт не описывает (решение владельца; команда — в README и MIGRATION.md). */
 const EXCLUDED = new Set([
   'chain.then', 'chain.run', 'chain.execute', 'chain.account',
   'db.reloadSchema', 'db.accounts', 'db.credentials', 'db.resources', 'db.rules', 'db.compact',

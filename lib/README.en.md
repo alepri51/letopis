@@ -2274,7 +2274,9 @@ transaction, and the first thing it does is take the maintenance lock — a row 
 application role nor any other database role can take; the lock is released when the batch commits. If another
 process holds the lock, the call answers `skipped: true` before the first batch, and between batches it stops (that
 process continues) and reports what it has done with `more: true`. There is no session-level lock, so `maintain()`
-works behind any pool, including PgBouncer in transaction mode.
+works behind any pool, including PgBouncer in transaction mode. `maintain({ now })` thins "as if it were another time"
+and works only in an installation with `allowReset` (stands and tests); the installation remembers a moment in the
+future, and `verify()` treats thinning gaps up to it as legitimate rather than as corruption.
 
 ### Reset: `reset()`
 
@@ -2855,8 +2857,10 @@ aggregates, the median of three rounds; the projector rows are a repeat of serie
 | delay of a subscription event during a rebuild | atomic up to 13.4 s, in batches up to 0.21 s | without a rebuild up to 0.12 s |
 
 The aggregate triggers fire on every write statement, but for classes without aggregates the measurement does not see
-their cost: the p50 difference is from −0.28 to +0.21 ms. The benchmark against 1.0.1 (`bench/vs-101.bench.mjs`, four
-runs) showed no write or read regressions against 1.1: two outliers did not repeat in separate checks.
+their cost: the p50 difference is from −0.28 to +0.21 ms. The benchmark against 1.0.1 (`bench/vs-101.bench.mjs`, results
+in `bench/results/vs-101.md`, November 2026): key reads, chains and `asOf` are on par; loading without history is 13–20 %
+faster and `maintain` 4–5 times faster; seeding in history mode is 9–14 % slower — the database checks `pattern` rules
+(the application process does not execute them); 20 parallel writers are 8–13 % slower, as in the runs before 1.5.
 
 ## 18. Limitations
 

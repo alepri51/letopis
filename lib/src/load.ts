@@ -444,9 +444,15 @@ async function copyLines(conn: Sql, text: string, lines: string[]): Promise<void
 
 /** verify: true — загруженные строки перепроверяет проверка базы (данные и цели концов); нарушения — в to. */
 async function verifyIds(conn: Sql, S: string, ids: string[], to: Issues): Promise<void> {
-  const bad = await conn.unsafe(`select e.id, e.class, ${S}.validate_data(c.data->'resolved'->'rules', c.validator, c.data->'resolved'->'vars', e.data) as issues
-    from ${S}.entity e cross join lateral ${S}.class_row(e.class, e.tenant) c
-    where e.id = any ($1::uuid[]) and ${S}.validate_data(c.data->'resolved'->'rules', c.validator, c.data->'resolved'->'vars', e.data) <> '[]'::jsonb limit ${ISSUES_LIMIT}`, [ids]);
+  // строки классов — один раз на пару (класс, арендатор), а не на строку (materialized — иначе class_row вернётся в цикл
+  // по строкам); validate_data — полный, с правилами extra: verify перепроверяет всё
+  const bad = await conn.unsafe(`with k as materialized (select n.class, n.tenant, r.validator, r.data->'resolved'->'rules' as rules,
+        r.data->'resolved'->'vars' as vars
+      from (select distinct e.class, e.tenant from ${S}.entity e where e.id = any ($1::uuid[])) n
+      cross join lateral ${S}.class_row(n.class, n.tenant) r)
+    select id, class, issues from (select e.id, e.class, ${S}.validate_data(k.rules, k.validator, k.vars, e.data) as issues
+      from ${S}.entity e join k on k.class = e.class and k.tenant is not distinct from e.tenant where e.id = any ($1::uuid[])) s
+    where issues <> '[]'::jsonb limit ${ISSUES_LIMIT}`, [ids]);
   for (const r of bad) to.add({ line: 0, code: 'invalid_data', message: lmsg('write.load_db_invalid', { id: r.id, cls: r.class }), id: r.id as string, issues: issuesFromDb(r.issues) });
   if (bad.length >= ISSUES_LIMIT) to.unchecked.add(lmsg('write.load_db_check_limit', { limit: ISSUES_LIMIT }));
   const [t] = await conn.unsafe(`select ${S}.targets_bad((select jsonb_agg(jsonb_build_object('class', e.class, 'tenant', e.tenant, 'links', e.links))
@@ -882,20 +888,45 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
    * Правила, которые валидатор на TypeScript оставляет базе (`pattern`: шаблон арендатора процесс приложения не
    * исполняет — ревью, ReDoS), — запросом к базе на пачку строк классов с ними и до записи: COPY идёт мимо триггеров.
    * Нарушения — в отчёт с номером строки, как у проверки в коде.
+   *
+   * Цена — на каждую строку (в режиме истории — на каждую версию), поэтому (замер vs-101 — засевка полигона была на 42 %
+   * медленнее 1.0.1, 40 % времени — здесь): одинаковые класс и данные проверяются один раз, строки классов читаются один
+   * раз на пачку, а полный разбор `validate_data` идёт только у строк, которых не пропустил общий `validator` класса.
+   * Правил `extra` в `validator` нет, но сюда доходят строки, прошедшие валидатор на TypeScript, — у него те же правила,
+   * кроме `pattern` (равенство — тест `validator-parity`); `pattern` в `validator` есть.
    */
   async function checkInDb(conn: Sql, list: DbRow[]): Promise<void> {
-    for (let b = 0; b < list.length; b += batch) {
-      const bad = await conn.unsafe(`select i, issues from (select (x->>'i')::int as i,
-          ${S}.validate_data(c.data->'resolved'->'rules', c.validator, c.data->'resolved'->'vars', x->'data') as issues
-          from jsonb_array_elements($1::jsonb) x cross join lateral ${S}.class_row(x->>'class', $2::uuid) c) s
-        where issues <> '[]'::jsonb order by i limit ${ISSUES_LIMIT}`, [list.slice(b, b + batch) as never, tenant]);
-      for (const r of bad) {
-        const { id, cls } = p1[r.i as number]!;
-        // нарушения базы — с ключом каталога: сообщения на языке подключения, key и params наружу не идут
-        issues.add({ line: (r.i as number) + 1, code: 'invalid_data', message: lmsg('write.load_invalid_data', { cls: cls.name }), id, class: cls.name, issues: issuesFromDb(r.issues) });
-      }
-      if (bad.length >= ISSUES_LIMIT) issues.unchecked.add(lmsg('write.load_db_check_limit', { limit: ISSUES_LIMIT }));
+    // порядок — по первой строке: первые ISSUES_LIMIT нарушений — те же строки, что без схлопывания
+    const uniq = new Map<string, { class: string; data: Raw; lines: number[] }>();
+    for (const r of [...list].sort((a, b) => a.i - b.i)) {
+      const key = `${r.class}\u0000${JSON.stringify(r.data)}`;
+      const u = uniq.get(key);
+      if (u) u.lines.push(r.i);
+      else uniq.set(key, { class: r.class, data: r.data, lines: [r.i] });
     }
+    const all = [...uniq.values()];
+    const found: { line: number; raw: unknown }[] = [];
+    let capped = false;
+    for (let b = 0; b < all.length; b += batch) {
+      const part = all.slice(b, b + batch);
+      // materialized: без него планировщик возвращает class_row в цикл по строкам
+      const bad = await conn.unsafe(`with c as materialized (select n as name, r.validator, r.data->'resolved'->'rules' as rules,
+            r.data->'resolved'->'vars' as vars from unnest($3::text[]) n cross join lateral ${S}.class_row(n, $2::uuid) r)
+        select k, issues from (select (x.ord - 1)::int as k,
+            case when jsonb_path_match(x.v->'data', c.validator, c.vars, true) is true then '[]'::jsonb
+              else ${S}.validate_data(c.rules, c.validator, c.vars, x.v->'data') end as issues
+            from jsonb_array_elements($1::jsonb) with ordinality x(v, ord) join c on c.name = x.v->>'class') s
+        where issues <> '[]'::jsonb order by k limit ${ISSUES_LIMIT}`,
+      [part.map((u) => ({ class: u.class, data: u.data })) as never, tenant, [...new Set(part.map((u) => u.class))]]);
+      if (bad.length >= ISSUES_LIMIT) capped = true;
+      for (const r of bad) for (const line of part[r.k as number]!.lines) found.push({ line, raw: r.issues });
+    }
+    for (const f of found.sort((a, b) => a.line - b.line)) {
+      const { id, cls } = p1[f.line]!;
+      // нарушения базы — с ключом каталога: сообщения на языке подключения, key и params наружу не идут
+      issues.add({ line: f.line + 1, code: 'invalid_data', message: lmsg('write.load_invalid_data', { cls: cls.name }), id, class: cls.name, issues: issuesFromDb(f.raw) });
+    }
+    if (capped) issues.unchecked.add(lmsg('write.load_db_check_limit', { limit: ISSUES_LIMIT }));
   }
 
   /** Пачка, подготовленная к записи: строки COPY, правки существующих объектов, строки для условий ACL и проверки базы. */

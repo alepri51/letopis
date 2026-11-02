@@ -297,6 +297,10 @@ export class Subscription implements AsyncIterable<WatchEvent> {
         this.burst = false;
         empty = 0;
       }
+      // подписку закрыли, пока шли запрос или пауза (будильник тогда ещё не выставлен — close() будить было некого): ждать
+      // нельзя, будильника не будет — таймер снят, сигналы отписаны (план 2.0, 7.4 №8; находка обхода сервисов — поток
+      // SSE после выхода не закрывался)
+      if (this.closed) return { value: undefined, done: true };
       await new Promise<void>((r) => {
         this.wake = () => {
           this.wake = null;

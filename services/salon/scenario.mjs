@@ -62,6 +62,8 @@ try {
   // объекта, поэтому сверяем последние две версии
   const tail = hist.slice(-2);
   check(tail.map((v) => v.op).join(',') === 'create,delete' && tail[1].reason === 'отмена клиентом', 'история: создание и отмена с причиной');
+  // время версии сервер отдаёт целиком, а местное показывает браузер: обрезка строки давала UTC без пометки пояса
+  check(hist.every((v) => String(v.at).length > 19 && !Number.isNaN(Date.parse(v.at))), `история: at — полный момент версии (${tail[1]?.at})`);
   await call(cookie, `/api/bookings/${mine.id}/restore`, {});
   const back = (await call(cookie, `/api/schedule?day=${day}`)).data;
   // в отменённых дня может лежать перенесённая бронь прошлого прогона — сверяем свою
@@ -144,6 +146,32 @@ try {
   const otherPrice = (await call(other.cookie, '/api/price')).data;
   const foreign = await call(other.cookie, '/api/price/load', { text: `${cut.name}; 1` });
   check(!otherPrice.some((x) => want.has(x.id)) && foreign.status === 422, 'другой салон — свой прайс: услуг «Локонов» в нём нет, загрузить им цену нельзя');
+
+  // выход закрывает поток событий своей сессии: подписка через фасад сервиса переживала выход — вкладка получала
+  // события прежнего салона, а с cookie новой сессии того же браузера показывала её данные под прежней шапкой
+  {
+    const { cookie: c2 } = await call('', '/api/login', SALONS[0].user);
+    const ctl = new AbortController();
+    const ended = new Promise((settle) => {
+      fetch(`${base}/api/events`, { headers: { cookie: c2 }, signal: ctl.signal }).then(async (r) => {
+        const reader = r.body.getReader();
+        let buf = '';
+        let out = false;
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) return settle('закрыт');
+          buf += new TextDecoder().decode(value);
+          if (!out && buf.includes('event: ready')) {
+            out = true;
+            await call(c2, '/api/logout', {});
+          }
+        }
+      }).catch(() => settle('ошибка'));
+    });
+    const outcome = await Promise.race([ended, new Promise((r) => setTimeout(() => r('открыт через 5 с'), 5000))]);
+    ctl.abort();
+    check(outcome === 'закрыт', `выход закрывает поток событий своей сессии (${outcome})`);
+  }
 
   // повторный прогон на тех же данных — убираем свои брони, цены — как до сценария
   await call(cookie, `/api/bookings/${there.id}/cancel`, {});

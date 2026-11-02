@@ -66,7 +66,9 @@ export function Maintenance({ onChanged }: { me: Me; onChanged: () => void }) {
           </Table>
           <form className="flex items-center gap-2" onSubmit={async (e) => {
             e.preventDefault();
-            try { setThin(await api<Record<string, unknown>>('/api/admin/maintain', { days: Number(days) })); toast.success('Обслуживание выполнено'); onChanged(); }
+            try { setThin(await api<Record<string, unknown>>('/api/admin/maintain', { days: Number(days) })); toast.success('Обслуживание выполнено');
+              // журнал изменился: показанный итог проверки устарел — перепроверить, как после порчи и возврата
+              if (verify) await check(); else onChanged(); }
             catch (err) { toast.error((err as Error).message); }
           }}>
             <span className="text-sm">Перемотать на</span>

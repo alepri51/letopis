@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,14 +30,23 @@ export function Tickets({ me, tick, onChanged }: { me: Me; tick: number; onChang
   const [rows, setRows] = useState<Ticket[]>([]);
   const [next, setNext] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
+  // сколько строк показано: обновление по событию перечитывает столько же (limit), а не сворачивает список до первой
+  // страницы; в другой компании — снова первая страница
+  const shown = useRef({ tenant: me.tenant, n: 0 });
   const load = async () => {
-    const r = await api<{ rows: Ticket[]; next: string | null }>('/api/tickets');
+    if (shown.current.tenant !== me.tenant) shown.current = { tenant: me.tenant, n: 0 };
+    const r = await api<{ rows: Ticket[]; next: string | null }>(`/api/tickets${shown.current.n ? `?limit=${shown.current.n}` : ''}`);
     setRows(r.rows); setNext(r.next);
   };
   useEffect(() => { load().catch((e) => toast.error(e.message)); }, [tick, me.tenant]);
   const more = async () => {
     const r = await api<{ rows: Ticket[]; next: string | null }>(`/api/tickets?after=${encodeURIComponent(next!)}`);
-    setRows((x) => [...x, ...r.rows]); setNext(r.next); onChanged();
+    setRows((x) => {
+      const all = [...x, ...r.rows];
+      shown.current.n = all.length;
+      return all;
+    });
+    setNext(r.next); onChanged();
   };
   return (
     <div className="grid gap-6">
@@ -55,7 +64,9 @@ export function Tickets({ me, tick, onChanged }: { me: Me; tick: number; onChang
           <Table>
             <TableHeader><TableRow><TableHead>№</TableHead><TableHead>тема</TableHead>{staff && <TableHead>клиент</TableHead>}<TableHead>статус</TableHead><TableHead>приоритет</TableHead><TableHead>срок</TableHead>{staff && <TableHead>агент</TableHead>}</TableRow></TableHeader>
             <TableBody>{rows.map((t) => (
-              <TableRow key={t.id} className="cursor-pointer" data-ticket={t.number} onClick={() => setOpen(t.id)}>
+              // строка в фокусе (tabIndex): карточка открывается и с клавиатуры, а после закрытия фокус возвращается на строку
+              <TableRow key={t.id} className="cursor-pointer outline-none focus-visible:bg-muted" data-ticket={t.number} tabIndex={0}
+                onClick={() => setOpen(t.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(t.id); } }}>
                 <TableCell className="font-medium">{t.number}</TableCell>
                 <TableCell>{t.subject}{t.channel !== 'web' && <Badge variant="outline" className="ml-2">{t.channel}</Badge>}</TableCell>
                 {staff && <TableCell>{t.client}</TableCell>}
@@ -161,9 +172,9 @@ function TicketDialog({ id, me, tick, onClose, onChanged }: { id: string | null;
           await run(`/api/tickets/${t.id}/reply`, { text, internal }, internal ? 'Заметка добавлена' : 'Ответ отправлен');
           setText(''); setInternal(false);
         }}>
-          <Textarea placeholder={staff ? 'Ответ клиенту или внутренняя заметка' : 'Ваш ответ'} aria-label="Текст ответа" value={text} onChange={(e) => setText(e.target.value)} required />
+          <Textarea placeholder={staff ? 'Ответ клиенту или внутренняя заметка' : 'Ваш ответ'} aria-label="Текст ответа" id="reply-text" name="text" value={text} onChange={(e) => setText(e.target.value)} required />
           <div className="flex items-center gap-3">
-            {staff && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={internal} onChange={(e) => setInternal(e.target.checked)} /> внутренняя заметка</label>}
+            {staff && <label className="flex items-center gap-2 text-sm"><input type="checkbox" id="reply-internal" name="internal" checked={internal} onChange={(e) => setInternal(e.target.checked)} /> внутренняя заметка</label>}
             <Button type="submit" size="sm">Отправить</Button>
           </div>
         </form>

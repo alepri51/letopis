@@ -292,6 +292,19 @@ test('план 2.0, 7.3 №3: стирание истории удалённог
   assert.deepEqual((await adm.verify()).issues, [], 'цепочка цела');
 });
 
+test('ревью: verify после maintain({ now }) с моментом из будущего — разрывы прореживания законны', async () => {
+  // обход сервиса «Документы»: демо прореживает «наперёд» (сегодня + 40 дней), а verify() судил о ярусе all по часам и
+  // называл прореженные сегодняшние версии разрывом
+  await defineHub('Ahead', { all: '1 day' });
+  await db.refresh();
+  const [o] = await db.Ahead().create({ code: 'ahead-1', n: 0 }).rows();
+  for (const n of [1, 2, 3]) await db.Ahead(o.id).update({ n }).rows();
+  await maintainAll(Date.now() + 40 * DAY);
+  assert.deepEqual(await revs(o.id), [1, 4], 'прорежено наперёд: остались первая и текущая версии');
+  const v = await adm.verify();
+  assert.deepEqual(v.issues.filter((i) => i.id === o.id), [], 'разрыв 2…3 — прореживание, а не порча');
+});
+
 test('план 2.0, 7.4 №3: watch({ from: start }) отдаёт весь журнал — без cursor_expired на старых событиях после первой пачки', async () => {
   await defineHub('Old3', { all: '1 day', daily: 'forever' });
   await db.refresh();

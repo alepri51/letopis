@@ -10,7 +10,14 @@ export function eventStream(dbOf, classes) {
   return async (req, res) => {
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
     const sub = dbOf(req.s).watch({ from: 'now', classes });
-    req.on('close', () => sub.return?.());
+    // поток живёт не дольше веб-сессии: её закрытие (выход, в том числе в другой вкладке, погашенная сессия) завершает
+    // подписку — createSessions вызывает end из s.streams
+    const end = () => sub.return?.();
+    (req.s.streams ??= new Set()).add(end);
+    req.on('close', () => {
+      req.s.streams?.delete(end);
+      end();
+    });
     try {
       await sub.ready();
       res.write('event: ready\ndata: {}\n\n');

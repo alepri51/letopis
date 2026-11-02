@@ -44,6 +44,10 @@ try {
     'под капотом: перевод — версии двух Movement и баланса двух Wallet, сигналы канала схемы');
   const hist = (await call(cookie, `/api/wallets/${w1.id}/history`)).data;
   check(hist.at(-1).reason === `transfer x-${run}`, 'история баланса W-1: последняя версия — перевод с причиной');
+  // время версии сервер отдаёт целиком, а местное показывает браузер: обрезка строки давала UTC без пометки пояса
+  const moments = [...hist.map((v) => v.at), ...(await call(cookie, '/api/wallets')).data.movements.map((m) => m.at)];
+  check(moments.length > 0 && moments.every((at) => String(at).length > 19 && !Number.isNaN(Date.parse(at))),
+    `история баланса и последние операции: at — полный момент версии (${moments[0]})`);
 
   // гонка: два списания с W-2 в одну секунду, каждое больше половины баланса — база ставит их в очередь по счёту,
   // и второе упирается в min(0) посчитанного баланса: проходит одно
@@ -110,6 +114,11 @@ try {
   const t0 = await topups();
   const rb = await call(cookie, '/api/statement/rebuild', {});
   check(rb.status === 200 && rb.data.created > 0 && (await topups()) === t0, 'перестроить выписку — rebuild(): строки построены заново, итоги те же');
+  // порядок выписки после перестройки — месяц (новые сверху), в месяце — номер счёта, а не порядок строк в таблице
+  const lines = (await call(cookie, '/api/wallets')).data.statements;
+  check(lines.length > 1 && lines.every((s, i) => i === 0 || lines[i - 1].month > s.month
+    || (lines[i - 1].month === s.month && lines[i - 1].wallet.localeCompare(s.wallet, 'ru', { numeric: true }) < 0)),
+    `выписка после перестройки — по месяцам и номерам счетов (${lines.map((s) => `${s.month} ${s.wallet}`).join(', ')})`);
 
   // «чужая транзакция» из интерфейса: сначала держит горизонт (проектор не видит новых операций), после пополнения
   // берёт строку выписки этого счёта (for update), горизонт закрывается — пачка доходит до пополнения и упирается в
@@ -154,8 +163,8 @@ try {
   // порча журнала в обход библиотеки: verify находит разрыв цепочки хэшей, «вернуть как было» отменяет
   const bad = await call(cookie, '/api/admin/corrupt', {});
   const v1 = await call(cookie, '/api/admin/verify');
-  check(bad.status === 200 && v1.data.ok === false && v1.data.issues.some((i) => i.label === bad.data.label && i.rev === bad.data.rev && /хэш/.test(i.problem)),
-    `испортить запись журнала: verify нашёл версию ${bad.data?.rev} счёта ${bad.data?.label} (${v1.data.issues.map((i) => i.problem).join('; ')})`);
+  check(bad.status === 200 && v1.data.ok === false && v1.data.issues.some((i) => i.class === 'Wallet' && i.label === bad.data.label && i.rev === bad.data.rev && /хэш/.test(i.problem)),
+    `испортить запись журнала: verify нашёл версию ${bad.data?.rev} счёта Wallet ${bad.data?.label} (${v1.data.issues.map((i) => `${i.class} ${i.label} v${i.rev}: ${i.problem}`).join('; ')})`);
   const fixed = await call(cookie, '/api/admin/repair', {});
   const v3 = await call(cookie, '/api/admin/verify');
   check(fixed.status === 200 && v3.data.ok === true && v3.data.issues.length === 0, 'вернуть как было: нарушений снова нет');

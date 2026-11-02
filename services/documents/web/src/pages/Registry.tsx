@@ -30,7 +30,9 @@ export function Registry({ me, tick, onChanged }: { me: Me; tick: number; onChan
           <Table>
             <TableHeader><TableRow><TableHead>№</TableHead><TableHead>документ</TableHead><TableHead>вид</TableHead><TableHead>контрагент</TableHead><TableHead className="text-right">сумма</TableHead><TableHead>версия</TableHead><TableHead>изменён</TableHead></TableRow></TableHeader>
             <TableBody>{docs.map((d) => (
-              <TableRow key={d.id} className="cursor-pointer" data-doc={d.number} onClick={() => setOpen(d.id)}>
+              // строка в фокусе (tabIndex): карточка открывается и с клавиатуры, а после закрытия фокус возвращается на строку
+              <TableRow key={d.id} className="cursor-pointer outline-none focus-visible:bg-muted" data-doc={d.number} tabIndex={0}
+                onClick={() => setOpen(d.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(d.id); } }}>
                 <TableCell className="font-medium">{d.number}</TableCell>
                 <TableCell>{d.title}{d.archived && <Badge variant="outline" className="ml-2">архив</Badge>}</TableCell>
                 <TableCell>{d.class === 'Contract' ? <Badge>договор</Badge> : <Badge variant="secondary">{d.status === 'review' ? 'на согласовании' : 'черновик'}</Badge>}</TableCell>

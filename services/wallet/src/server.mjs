@@ -269,8 +269,12 @@ export async function createApp() {
     res.json({
       // rev — версия счёта: по ней правится владелец ({ rev }); растёт и от операций — баланс тоже поле счёта
       wallets: wallets.map((w) => ({ id: w.id, number: w.data.number, owner: w.data.owner, balance: w.data.balance, rev: w.rev })),
-      movements: movements.map((m) => ({ id: m.id, wallet: number.get(m.links.Wallet), opId: m.data.opId, kind: m.data.kind, amount: m.data.amount, card4: m.data.card4 ?? '', at: String(m.at).slice(11, 19) })),
-      statements: statements.map((s) => ({ wallet: number.get(s.links.Wallet), month: s.data.month, topup: s.data.topup, debit: s.data.debit, count: s.data.count })),
+      // at — момент версии целиком (ISO, UTC): местное время показывает браузер, как в «Под капотом»
+      movements: movements.map((m) => ({ id: m.id, wallet: number.get(m.links.Wallet), opId: m.data.opId, kind: m.data.kind, amount: m.data.amount, card4: m.data.card4 ?? '', at: m.at })),
+      // порядок — месяц (новые сверху), в месяце — номер счёта: без sort() строки идут в порядке таблицы, а перестройка
+      // проектора пишет их заново. Номер счёта — не поле Statement, поэтому сортировка здесь, а не в цепочке
+      statements: statements.map((s) => ({ wallet: number.get(s.links.Wallet) ?? '', month: s.data.month, topup: s.data.topup, debit: s.data.debit, count: s.data.count }))
+        .sort((a, b) => String(b.month).localeCompare(String(a.month)) || a.wallet.localeCompare(b.wallet, 'ru', { numeric: true })),
     });
   });
   app.post('/api/topup', auth, async (req, res) => {
@@ -305,7 +309,7 @@ export async function createApp() {
   });
   app.get('/api/wallets/:id/history', auth, async (req, res) => {
     const versions = await act(req.s, 'История баланса', () => req.s.db.Wallet(req.params.id).versions());
-    res.json(versions.map((v) => ({ rev: v.rev, op: v.op, balance: v.data.balance, reason: v.reason ?? '', at: String(v.at).slice(11, 19) })));
+    res.json(versions.map((v) => ({ rev: v.rev, op: v.op, balance: v.data.balance, reason: v.reason ?? '', at: v.at })));
   });
   // смена владельца по прочитанной версии: счёт успели изменить (другая вкладка или любая операция — баланс тоже поле
   // счёта) — conflict, ничего не записано
@@ -364,10 +368,12 @@ export async function createApp() {
       });
       const [{ n }] = await admin.unsafe(`select count(*)::int as n from ${S}.log`);
       const issues = v.issues.slice(0, 50);
-      // подпись строки — номер счёта, ключ операции или месяц выписки из последней версии в журнале
-      const label = new Map((await admin.unsafe(`select distinct on (id) id::text as id, coalesce(data->>'number', data->>'opId', data->>'month', '') as l
-        from ${S}.log where id = any ($1::uuid[]) order by id, rev desc`, [[...new Set(issues.map((i) => i.id))]])).map((x) => [x.id, x.l]));
-      res.json({ ok: v.ok, checked: n, anchor: v.anchor, issues: issues.map((i) => ({ id: i.id, rev: i.rev ?? null, class: i.class ?? '', problem: i.problem, label: label.get(i.id) || i.id.slice(0, 8) })) });
+      // подпись строки — класс и номер счёта, ключ операции или месяц выписки из последней версии в журнале: у нарушений
+      // цепочки хэшей verify отдаёт только id и rev (класс — у нарушений данных)
+      const label = new Map((await admin.unsafe(`select distinct on (id) id::text as id, class, coalesce(data->>'number', data->>'opId', data->>'month', '') as l
+        from ${S}.log where id = any ($1::uuid[]) order by id, rev desc`, [[...new Set(issues.map((i) => i.id))]])).map((x) => [x.id, x]));
+      res.json({ ok: v.ok, checked: n, anchor: v.anchor, issues: issues.map((i) => ({ id: i.id, rev: i.rev ?? null, class: i.class ?? label.get(i.id)?.class ?? '', problem: i.problem,
+        label: label.get(i.id)?.l || i.id.slice(0, 8) })) });
     } catch (e) { fail(res, e); }
   });
   // ---------- порча журнала в обход библиотеки — чтобы verify было что найти ----------

@@ -8,6 +8,8 @@ export async function api<T>(path: string, body?: unknown): Promise<T> {
 
 export const today = () => new Date().toISOString().slice(0, 10);
 export const rub = (n: number) => `${n.toLocaleString('ru-RU')} ₽`;
+/** Время версии (at библиотеки — ISO в UTC) — местное, как в «Под капотом»; часы работы салона — в UTC (domain.mjs). */
+export const clock = (iso: string) => new Date(iso).toLocaleTimeString('ru-RU');
 
 export type Me = { salon: string; name: string };
 export type Staff = { id: string; name: string; specialization: string };

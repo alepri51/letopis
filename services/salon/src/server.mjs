@@ -186,7 +186,8 @@ export async function createApp() {
     const staff = new Map((await directory(db)).staff.map((m) => [m.id, m.data.name]));
     res.json(versions.map((v) => ({
       id: v.id, rev: v.rev, op: v.op, staff: staff.get(v.links?.Staff) ?? '', start: String(v.data?.start_datetime ?? '').slice(11, 16),
-      reason: v.reason ?? '', at: String(v.at).slice(11, 19),
+      // at — момент версии целиком (ISO, UTC): местное время показывает браузер, как в «Под капотом»
+      reason: v.reason ?? '', at: v.at,
     })));
   });
 
