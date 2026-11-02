@@ -408,3 +408,30 @@ test('CLI через симлинк — так его запускают node_mo
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test('ревью: pattern при загрузке проверяет база — шаблон с катастрофическим перебором не вешает процесс, нарушение с номером строки', async () => {
+  // COPY идёт мимо триггеров, а валидатор на TypeScript шаблоны арендатора не исполняет: их сверяет запрос к базе
+  await e.defineClass(t, { name: 'Code', kind: 'hub', key: ['name'],
+    fields: { properties: { name: { type: 'string' }, code: { type: 'string', pattern: '^(a+)+$' } }, required: ['name'] } });
+  const evil = 'a'.repeat(40) + '!';
+  const stored = async () => Number((await e.sql.unsafe(`select count(*)::int as n from ${e.S}.entity where class = 'Code'`))[0].n);
+  const patternAt = (err: unknown) => (rowsOf(err) as { line: number; code: string; issues?: { path: string[]; keyword: string }[] }[])
+    .map((r) => [r.line, r.code, r.issues?.map((i) => `${i.path.join('.')}|${i.keyword}`)]);
+  await assert.rejects(adm.load({ Code: [{ name: 'c1', code: 'aaa' }, { name: 'c2', code: evil }] }), (err) => {
+    assert.deepEqual(patternAt(err), [[2, 'invalid_data', ['code|pattern']]]);
+    return code('invalid_data')(err as { code?: string });
+  });
+  // режим истории: прошлые версии сверяет та же проверка базы
+  const at = (h: number) => `2026-01-0${h}T00:00:00.000Z`;
+  await assert.rejects(adm.load([
+    { $class: 'Code', name: 'h1', code: evil, $rev: 1, $at: at(1) },
+    { $class: 'Code', name: 'h1', code: 'aa', $rev: 2, $at: at(2) },
+  ], { withHistory: true }), (err) => {
+    assert.deepEqual(patternAt(err), [[1, 'invalid_data', ['code|pattern']]]);
+    return true;
+  });
+  assert.equal(await stored(), 0);
+  const r = await adm.load({ Code: [{ name: 'c1', code: 'a'.repeat(40) }, { name: 'c2' }] });
+  assert.equal(r.loaded, 2);
+  assert.equal(await stored(), 2);
+});

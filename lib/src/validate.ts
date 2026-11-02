@@ -4,6 +4,12 @@
  * слова нарушений. Им пользуются загрузчик (этап 4) и ранние ошибки библиотеки; совпадение с базой
  * закрепляет дифференциальный тест validator-parity.
  *
+ * Исключение — `pattern` (ревью): шаблон задаёт арендатор, и движок V8 с перебором на шаблоне вроде
+ * `^(a+)+$` повесил бы процесс приложения. Такие правила (`db`) проверяет только база (`like_regex`,
+ * движок без катастрофического перебора); здесь шаблон лишь разбирается — то, что база не примет, и
+ * шаблон, неверный для JavaScript, — `invalid_class`. `anyOf`/`oneOf`, в ветке которых есть `pattern`,
+ * без него не решить (у `oneOf` вышло бы ложное нарушение) — их тоже проверяет только база.
+ *
  * Как и в базе, правило — «нет узла по пути, нарушающего условие»: обычное правило даёт одно
  * нарушение, сколько бы узлов его ни нарушили; дополнительные проверки (длина строки, uniqueItems,
  * смысл даты, перечисления объектов, число ключей) — по нарушению на каждый узел.
@@ -22,6 +28,8 @@ interface Rule {
   /** Условие на узел; для дополнительной проверки — возвращает сообщение нарушения или null. */
   test: (node: J) => boolean;
   extra?: (node: J) => string | null;
+  /** Правило проверяет только база (`pattern` и `anyOf`/`oneOf` с ним): в процессе приложения не исполняется. */
+  db?: true;
 }
 
 const isObj = (v: J): v is Record<string, J> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -140,15 +148,14 @@ function compileNode(s: J, sel: Select, path: Path, inAny: boolean, out: Rule[])
   if (sch.multipleOf !== undefined) out.push({ path, keyword: 'multipleOf', select: sel, test: num((v, b) => isMultiple(v, b), sch.multipleOf as number) });
   if (sch.pattern !== undefined) {
     const src = translatePattern(sch.pattern as string); // то, чего база не понимает, — своя ошибка invalid_class
-    let re: RegExp;
     try {
-      re = new RegExp(src);
+      new RegExp(src); // только разбор, без исполнения на данных: проверку шаблона делает база (ревью, ReDoS)
     } catch {
       // шаблон, неверный уже для JavaScript (незакрытая скобка и т. п.): translatePattern его пропускает, RegExp — нет.
       // Текст V8 в сообщение не идёт: он зависит от версии движка
       fail(path, 'model.validator_bad_pattern', { pattern: JSON.stringify(sch.pattern) });
     }
-    out.push({ path, keyword: 'pattern', select: sel, test: (v) => typeof v !== 'string' || re.test(v) });
+    out.push({ path, keyword: 'pattern', select: sel, test: () => true, db: true });
   }
   if (sch.format !== undefined) {
     const f = sch.format as string;
@@ -199,11 +206,17 @@ function compileNode(s: J, sel: Select, path: Path, inAny: boolean, out: Rule[])
   }
   for (const kw of ['anyOf', 'oneOf'] as const) {
     if (!Array.isArray(sch[kw])) continue;
-    const branches = (sch[kw] as J[]).map((b) => {
+    const compiled = (sch[kw] as J[]).map((b) => {
       const rules: Rule[] = [];
       compileNode(b, (root) => [root], path, true, rules);
-      return (node: J) => rules.every((r) => r.select(node).every((n) => r.test(n)));
+      return rules;
     });
+    // ветку с правилом базы здесь не решить: anyOf/oneOf целиком проверяет база (у oneOf иначе — ложное нарушение)
+    if (compiled.some((rules) => rules.some((r) => r.db))) {
+      out.push({ path, keyword: kw, select: sel, test: () => true, db: true });
+      continue;
+    }
+    const branches = compiled.map((rules) => (node: J) => rules.every((r) => r.select(node).every((n) => r.test(n))));
     out.push({ path, keyword: kw, select: sel, test: kw === 'anyOf'
       ? (v) => branches.some((b) => b(v))
       : (v) => branches.filter((b) => b(v)).length === 1 });
@@ -216,13 +229,15 @@ export interface Validator {
 }
 
 /**
- * Превращает JSON Schema данных класса в функцию проверки — ту же проверку, что выполняет база при записи. Схема
+ * Превращает JSON Schema данных класса в функцию проверки — ту же проверку, что выполняет база при записи, кроме
+ * `pattern` (и `anyOf`/`oneOf` с ним в ветке): шаблоны задаёт арендатор, их проверяет только база. Схема
  * класса — `db.registry.resolve(имя).schema`.
  */
 export function compileValidator(schema: JsonSchema): Validator {
-  const rules: Rule[] = [];
-  compileNode(schema, (root) => [root], [], false, rules);
-  return (data: unknown) => {
+  const all: Rule[] = [];
+  compileNode(schema, (root) => [root], [], false, all);
+  const rules = all.filter((r) => !r.db);
+  const v: Validator = (data: unknown) => {
     const issues: Issue[] = [];
     for (const r of rules) {
       const nodes = r.select(data);
@@ -237,6 +252,19 @@ export function compileValidator(schema: JsonSchema): Validator {
     }
     return issues;
   };
+  if (rules.length < all.length) LEAVES_TO_DB.add(v);
+  return v;
+}
+
+/** Валидаторы с правилами, которые проверяет только база. */
+const LEAVES_TO_DB = new WeakSet<Validator>();
+
+/**
+ * Оставляет ли валидатор правила базе (`pattern` и `anyOf`/`oneOf` с ним): строки таких классов загрузчик, который
+ * пишет мимо триггеров, сверяет запросом к базе. Не входит в API пакета.
+ */
+export function leavesToDb(v: Validator): boolean {
+  return LEAVES_TO_DB.has(v);
 }
 
 /**

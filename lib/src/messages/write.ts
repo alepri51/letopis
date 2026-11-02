@@ -326,7 +326,14 @@ export const write = {
     ru: 'условия ACL следующих пачек не проверялись',
     en: 'the ACL conditions of the following batches were not checked',
   },
-  // причина в why (verifyIds, verify: true): проверка базы называет не больше limit строк
+  // причина в why (prepareBatch, pipeline, historyWrite): нарушение нашлось раньше, чем база проверила pattern
+  // (его валидатор на TypeScript оставляет базе) у строк, уже прошедших проверку в коде
+  'write.load_db_rules_unchecked': {
+    code: 'invalid_data',
+    ru: 'шаблоны pattern (их проверяет база) проверены не у всех строк',
+    en: 'the pattern rules (checked by the database) were not checked for all rows',
+  },
+  // причина в why (verifyIds, verify: true; checkInDb): проверка базы называет не больше limit строк
   'write.load_db_check_limit': {
     code: 'invalid_data',
     ru: 'проверка базы называет не больше {limit} строк',

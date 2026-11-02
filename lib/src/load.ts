@@ -24,7 +24,7 @@ import { isOp } from './ops.js';
 import { Registry, aggregateFields, type ClassInfo, type EndInfo } from './registry.js';
 import { accepts } from './sql.js';
 import { v5Id } from './uuid.js';
-import { applyDefaults } from './validate.js';
+import { applyDefaults, leavesToDb } from './validate.js';
 import { isInc } from './write.js';
 import { ACL_CLASS_NAMES } from './types.js';
 import { isConnectionError, release, rollbackAfter } from './tx.js';
@@ -871,12 +871,39 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     return sh;
   }
 
-  /** Пачка, подготовленная к записи: строки COPY, правки существующих объектов, строки для условий ACL. */
+  /** Строка класса с правилами, которые валидатор на TypeScript оставляет базе (`pattern`). */
+  type DbRow = { i: number; class: string; data: Raw };
+
+  function leftToDb(reg: Registry, cls: ClassInfo): boolean {
+    return leavesToDb((reg.find(cls.name) ?? cls).validator());
+  }
+
+  /**
+   * Правила, которые валидатор на TypeScript оставляет базе (`pattern`: шаблон арендатора процесс приложения не
+   * исполняет — ревью, ReDoS), — запросом к базе на пачку строк классов с ними и до записи: COPY идёт мимо триггеров.
+   * Нарушения — в отчёт с номером строки, как у проверки в коде.
+   */
+  async function checkInDb(conn: Sql, list: DbRow[]): Promise<void> {
+    for (let b = 0; b < list.length; b += batch) {
+      const bad = await conn.unsafe(`select i, issues from (select (x->>'i')::int as i,
+          ${S}.validate_data(c.data->'resolved'->'rules', c.validator, c.data->'resolved'->'vars', x->'data') as issues
+          from jsonb_array_elements($1::jsonb) x cross join lateral ${S}.class_row(x->>'class', $2::uuid) c) s
+        where issues <> '[]'::jsonb order by i limit ${ISSUES_LIMIT}`, [list.slice(b, b + batch) as never, tenant]);
+      for (const r of bad) {
+        const { id, cls } = p1[r.i as number]!;
+        issues.add({ line: (r.i as number) + 1, code: 'invalid_data', message: lmsg('write.load_invalid_data', { cls: cls.name }), id, class: cls.name, issues: r.issues as Issue[] });
+      }
+      if (bad.length >= ISSUES_LIMIT) issues.unchecked.add(lmsg('write.load_db_check_limit', { limit: ISSUES_LIMIT }));
+    }
+  }
+
+  /** Пачка, подготовленная к записи: строки COPY, правки существующих объектов, строки для условий ACL и проверки базы. */
   type Prepared = {
     ent: string[];
     log: string[];
     updates: { id: string; data: Raw; links: Raw; tags: string[] | null; line: number }[];
     rowsAcl: { i: number; class: string; id: string; owner: string; tags: string[]; data: Raw; links: Raw }[];
+    inDb: DbRow[];
   };
 
   /** Пачка — подготовка и запись по очереди. */
@@ -903,7 +930,11 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
         const prev: Promise<void> | null = flushing;
         flushing = null;
         if (prev) await prev;
-        if (!p || issues.any) return;
+        if (!p || issues.any) {
+          // нарушение нашла проверка базы прошлой пачки, когда эта была уже готова: её строки база не проверила
+          if (p?.inDb.length) issues.unchecked.add(lmsg('write.load_db_rules_unchecked'));
+          return;
+        }
         flushing = flushBatch(conn, p, ts, touched, written);
         flushing.catch(() => {});
       }
@@ -927,6 +958,8 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     const log: string[] = [];
     const updates: Prepared['updates'] = [];
     const rowsAcl: Prepared['rowsAcl'] = [];
+    const inDb: DbRow[] = [];
+    let dbLeft = false;
     let n = 0;
     for (const i of part) {
       if (yieldEvery && ++n % yieldEvery === 0) await tick();
@@ -936,6 +969,10 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
         continue;
       }
       const sh = check(reg, i, inLoad, external, true);
+      if (sh && leftToDb(reg, cls)) {
+        if (issues.any) dbLeft = true;
+        else inDb.push({ i, class: cls.name, data: sh.data });
+      }
       if (!sh || issues.any) continue;
       if (live.has(id)) {
         // строка с тем же id, но другого класса (класс без ключа после reclass, повторный импорт по $ext): правка
@@ -969,14 +1006,16 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     }
     if (issues.any) {
       if (aclRan) issues.unchecked.add(lmsg('write.load_later_batches'));
+      if (dbLeft || inDb.length) issues.unchecked.add(lmsg('write.load_db_rules_unchecked'));
       return null;
     }
-    return { ent, log, updates, rowsAcl };
+    return { ent, log, updates, rowsAcl, inDb };
   }
 
   /** Запись подготовленной пачки: условия ACL ({ as }) — запросом на пачку, COPY в entity и log, правки существующих. */
   async function flushBatch(conn: Sql, p: Prepared, ts: string, touched: Set<string>, written: string[]): Promise<void> {
-    const { ent, log, updates, rowsAcl } = p;
+    const { ent, log, updates, rowsAcl, inDb } = p;
+    if (inDb.length) await checkInDb(conn, inDb);
     if (acl) {
       aclRan = true;
       // условия ACL на строки — одним запросом на пачку: файл пользователя — не доверенные данные
@@ -999,6 +1038,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       }
       if (issues.any) return;
     }
+    if (issues.any) return;
     // первая заливка: FREEZE — таблицы опустошены этой же транзакцией. Журнал — раньше строк: агрегатные поля новой
     // цели триггер после COPY досчитывает в ту же версию — и в entity, и в уже записанную версию журнала (план 1.1, §2.4)
     await copyLines(conn, `copy ${S}.log (${LOG_COLS}) from stdin${ini?.freeze ? ' with (freeze)' : ''}`, log);
@@ -1052,6 +1092,14 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       const sh = check(reg, i, inLoad, external, k === l.length - 1);
       if (sh) shaped.set(i, sh);
     });
+    // правила, которые проверяет только база (pattern), — у всех версий, до записи
+    const inDb: DbRow[] = [];
+    for (const [i, sh] of shaped) if (leftToDb(reg, p1[i]!.cls)) inDb.push({ i, class: p1[i]!.cls.name, data: sh.data });
+    if (issues.any) {
+      if (inDb.length) issues.unchecked.add(lmsg('write.load_db_rules_unchecked'));
+      return;
+    }
+    await checkInDb(conn, inDb);
     if (issues.any) return;
     // без разворота в аргументы: на сотнях тысяч объектов он переполняет стек
     const waves = lists.reduce((m, l) => Math.max(m, l.length), 0);

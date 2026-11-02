@@ -518,7 +518,11 @@ annotations of a field (`title`, `description`, your own keys), but they do not 
 The `refine`, `superRefine` and `transform` rules cannot be expressed in JSON Schema, and the database does not run
 them. `syncModels` returns them in `lost`: check such rules in the application. A description with a JSON Schema
 keyword that the database does not know is rejected, so no rule is lost silently. `pattern` regexes are a limited
-subset of regular expressions shared by Zod, the validator and the database.
+subset of regular expressions shared by Zod, the validator and the database. Only the database runs a pattern on the
+data: the pattern comes from the tenant, and a pattern with catastrophic backtracking would hang the application
+process. So the TypeScript validator (`compileValidator`, the check before writing) only parses `pattern` and
+`anyOf`/`oneOf` with it in a branch, and a `pattern` violation comes from the database on write — the same
+`ValidationError`.
 
 ### Ends
 
@@ -1297,8 +1301,8 @@ await adjust(db, wallet.id, 'op-3', 5_000)      // an operation of −2,000, bal
 ### When you need the loader
 
 The loader is the path for import, seeding and syncing large reference tables. It checks rows in the library code
-with the same validator as the database, and writes them with the `COPY` command as the owner role, without triggers
-and RLS. In the benchmark, this is about 6,400 rows per second against 130 for row-by-row `create`
+with the same validator as the database (`pattern` regexes — with a database query per batch), and writes them with
+the `COPY` command as the owner role, without triggers and RLS. In the benchmark, this is about 6,400 rows per second against 130 for row-by-row `create`
 ([section 17](#17-performance)). It works only on an admin connection (`allowBypassRls` and the right to become the
 owner), otherwise you get `admin_required`.
 
@@ -2777,8 +2781,8 @@ behavior.
   constraints are built once); it does not speed up the row preparation in the loader, only runs it alongside `COPY`,
   so on a million objects it is about 2.2 times faster than the regular load.
 - The database trusts the loader: the data, ends and ids of loaded rows are checked by the library code (the TypeScript
-  validator), not by the triggers; the database checks only the targets outside the load, the tenants and the owners,
-  with one query at the end. The safeguards: the loader is available only to an admin, differential tests of the
+  validator), not by the triggers; the database checks only the `pattern` regexes — with a query per batch before
+  writing — and the targets outside the load, the tenants and the owners, with one query at the end. The safeguards: the loader is available only to an admin, differential tests of the
   validator against the database, `load({ verify: true })` and `db.verify({ data: true })`. Keep the admin connection
   in a separate loading process, not in the web application: an SQL injection there would get the owner's rights.
 - The schema owner and a superuser can disable the triggers and change anything. letopis does not prevent this; it

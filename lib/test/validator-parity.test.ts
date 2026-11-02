@@ -2,7 +2,8 @@
  * validator-parity — валидатор на TypeScript отвечает так же, как проверка в базе (план, этап 2, п. 11;
  * тест-план §7.4 №2.10, дифференциальные тесты §7.12): официальный набор JSON-Schema-Test-Suite
  * и 10 000 случайных документов по описаниям демо-классов, в том числе с ключами на $ во вложенных
- * объектах. Сравниваются пути и ключевые слова нарушений.
+ * объектах. Сравниваются пути и ключевые слова нарушений. `pattern` валидатор на TypeScript не исполняет
+ * (ревью: шаблон арендатора с катастрофическим перебором вешал процесс) — нарушения `pattern` даёт только база.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -30,6 +31,13 @@ after(async () => {
 });
 
 const norm = (issues: Issue[]) => issues.map((i) => `${JSON.stringify(i.path)}|${i.keyword}`).sort();
+/** Нарушения базы без `pattern`: его проверяет только база (ревью, ReDoS); dbPattern — сколько их отброшено. */
+let dbPattern = 0;
+function normDb(issues: Issue[]): string[] {
+  const rest = issues.filter((i) => i.keyword !== 'pattern');
+  dbPattern += issues.length - rest.length;
+  return norm(rest);
+}
 
 /** Нарушения из базы для набора документов одним запросом. */
 async function dbIssues(js: unknown, docs: unknown[]): Promise<Issue[][]> {
@@ -59,7 +67,7 @@ test('2.10: официальный набор — валидатор и база
       g.tests.forEach((c, i) => {
         compared++;
         const a = norm(v(c.data));
-        const b = norm(db[i]);
+        const b = normDb(db[i]);
         if (JSON.stringify(a) !== JSON.stringify(b)) diffs.push(`${f}: ${g.description} / ${c.description}: ts=${a} db=${b}`);
       });
     }
@@ -67,6 +75,7 @@ test('2.10: официальный набор — валидатор и база
   if (diffs.length) console.log(diffs.join('\n'));
   assert.deepEqual(diffs, []);
   assert.ok(compared >= 300, `сравнено ${compared}`);
+  assert.ok(dbPattern > 0, 'нарушения pattern в наборе есть — их даёт база');
 });
 
 /** Детерминированный генератор случайных чисел (mulberry32) — повторяемый прогон. */
@@ -152,8 +161,8 @@ test('2.10: 10 000 случайных документов по описания
     const db = await dbIssues(m.schema, docs);
     docs.forEach((d, i) => {
       const a = norm(v(d));
-      const b = norm(db[i]);
-      if (b.length) invalid++;
+      const b = normDb(db[i]);
+      if (db[i].length) invalid++;
       if (JSON.stringify(a) !== JSON.stringify(b)) diffs.push(`${m.name} #${i} ${JSON.stringify(d)}: ts=${a} db=${b}`);
     });
   }
