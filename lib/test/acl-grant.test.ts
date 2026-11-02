@@ -14,7 +14,7 @@ import { account } from './_access.js';
 let e: Engine;
 let t: Tenant;
 let owner: Db;
-const people: Record<string, { id: string; db: Db }> = {};
+const people: Record<string, { id: string; token: string; db: Db }> = {};
 
 const code = (c: string) => (err: { code?: string; message?: string }) => {
   assert.equal(err.code, c, err.message);
@@ -37,7 +37,7 @@ before(async () => {
   for (const [name, roles] of [['staff', ['staff']], ['boss', ['staff', 'manager']], ['client', ['client']], ['client2', ['client']]] as const) {
     const a = await account(e, name, { tenant: t.id });
     await owner.acl.roles(a.id, roles);
-    people[name] = { id: a.id, db: await connect({ dsn: appDsn(), schema: e.schema, token: a.token, max: 2 }) };
+    people[name] = { id: a.id, token: a.token, db: await connect({ dsn: appDsn(), schema: e.schema, token: a.token, max: 2 }) };
   }
 });
 
@@ -126,6 +126,9 @@ test('план 2.0, 7.9 №1: внутри db.begin() — в её транзак
     { role: 'staff', read: 'Prod uct' },
     { role: 'staff', read: 'Product', weight: 1000 },
     { role: 'staff' },
+    { read: 'Product' },
+    { everyone: true, role: 'staff', read: 'Product' },
+    { everyone: false, read: 'Product' },
   ];
   for (const spec of bad) await assert.rejects(owner.acl.grant(spec as never), code('invalid_data'), JSON.stringify(spec));
   await assert.rejects(owner.acl.revoke({ role: 'staff', read: 'Product', weight: 5 } as never), code('invalid_data'));
@@ -149,4 +152,74 @@ test('план 2.0, этап 3, п. 9: администраторское под
     await adm.close();
   }
   // под RLS ссылка на цель, которую актор не видит, — по-прежнему target_not_found (acl.test.ts, 5.14)
+});
+
+test('план 2.0, 7.9 №1: list() на администраторском подключении — только правила арендатора сессии, без правил других арендаторов и System; выключенное правило — enabled: false (ревью)', async () => {
+  const other = await e.tenant('acl-grant-list', { bare: true });
+  const adm = await connect({ dsn: ADMIN_DSN, schema: e.schema, token: other.token, allowBypassRls: true, max: 1, listen: false });
+  try {
+    const [mine] = await adm.acl.grant({ role: 'manager', read: 'Product' });
+    assert.equal(mine.enabled, true);
+    // роль без RLS видит строки rule всех арендаторов (acl-grant, System), а list() — правила арендатора сессии
+    assert.deepEqual((await adm.acl.list()).map((x) => x.id), [mine.id]);
+    // выключенное правило база не применяет (acl_plan_for) — list() это показывает
+    await adm.rule(mine.id).update({ enabled: false }).rows();
+    assert.deepEqual((await adm.acl.list()).map((x) => [x.id, x.enabled]), [[mine.id, false]]);
+  } finally {
+    await adm.close();
+  }
+});
+
+test('план 2.0, 7.9 №1: everyone — правила для всех аккаунтов арендатора; revoke({ everyone: true, read: \'*\', write: \'*\', delete: \'*\' }) снимает «можно всё» от createTenant (внедрение)', async () => {
+  const t2 = await e.tenant('acl-grant-everyone');
+  await e.defineClass(t2, { name: 'Shelf', kind: 'hub', fields: { properties: { name: { type: 'string' } } } });
+  // сам арендатор — роль owner; staff — роль, plain — член без ролей
+  const own = await connect({ dsn: appDsn(), schema: e.schema, token: t2.token, max: 2 });
+  const open: Db[] = [own];
+  try {
+    const a = await account(e, 'everyone-staff', { tenant: t2.id });
+    const b = await account(e, 'everyone-plain', { tenant: t2.id });
+    await own.acl.roles(a.id, ['staff']);
+    await own.acl.roles(b.id, []);
+    const staff = await connect({ dsn: appDsn(), schema: e.schema, token: a.token, max: 2 });
+    const plain = await connect({ dsn: appDsn(), schema: e.schema, token: b.token, max: 2 });
+    open.push(staff, plain);
+    await own.Shelf().create({ name: 'полка' }).rows();
+    assert.equal((await plain.Shelf().rows()).length, 1, '«можно всё» — читает и член без ролей');
+    assert.deepEqual((await own.acl.list()).filter((x) => x.everyone).map((x) => `${x.group} ${x.role} ${x.op} ${x.target} ${x.weight}`),
+      ['authenticated:ACCOUNT null DELETE * 10', 'authenticated:ACCOUNT null READ * 10', 'authenticated:ACCOUNT null WRITE * 10']);
+
+    // права только по ролям: сначала роли (владельцу — всё), затем снять «можно всё»
+    await own.acl.grant({ role: 'owner', read: '*', write: '*', delete: '*' });
+    await own.acl.grant({ role: 'staff', read: 'Shelf' });
+    assert.equal(await own.acl.revoke({ everyone: true, read: '*', write: '*', delete: '*' }), 3);
+    assert.deepEqual((await own.acl.list()).filter((x) => x.everyone), []);
+    assert.deepEqual(await plain.Shelf().rows(), [], 'без роли — ничего');
+    assert.equal((await staff.Shelf().rows()).length, 1, 'роль staff читает');
+    assert.equal((await plain.acl.checkData('Shelf', 'READ')).allow, false);
+
+    // всем аккаунтам — группой обёртки everyone:ACCOUNT
+    const [r] = await own.acl.grant({ everyone: true, read: 'Shelf' });
+    assert.deepEqual([r.everyone, r.role, r.group, r.op, r.target, r.weight], [true, null, 'everyone:ACCOUNT', 'READ', 'Shelf', 50]);
+    assert.equal((await plain.Shelf().rows()).length, 1, 'everyone — и член без ролей');
+    assert.ok((await own.acl.list()).some((x) => x.id === r.id && x.everyone && x.role === null));
+    const [again] = await own.acl.grant({ everyone: true, read: 'Shelf' });
+    assert.equal(again.id, r.id, 'повтор — то же правило');
+    assert.equal(await own.acl.revoke({ everyone: true, read: 'Shelf' }), 1);
+    assert.deepEqual(await plain.Shelf().rows(), []);
+  } finally {
+    for (const d of open) await d.close();
+  }
+});
+
+test('план 2.0, 7.9 №5: check() с lang en — отказ правила сида «запрет по умолчанию» по-английски, с ru — прежний текст', async () => {
+  const en = await connect({ dsn: appDsn(), schema: e.schema, token: people.staff.token, max: 1, lang: 'en' });
+  try {
+    const d = await en.acl.check('nothing.matches');
+    assert.equal(d.allow, false);
+    assert.equal(d.message, 'Access denied by default');
+    assert.equal((await people.staff.db.acl.check('nothing.matches')).message, 'Доступ запрещён по умолчанию');
+  } finally {
+    await en.close();
+  }
 });

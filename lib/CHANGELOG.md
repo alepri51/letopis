@@ -9,11 +9,17 @@
 План 2.0, этап 3 (`reports/PLAN-LETOPIS-2.0.md`): права, один процесс, ошибки и агент.
 
 ### Добавлено
-- Обёртка прав `db.acl` (7.9 №1): `grant({ role, read, write, delete, api, weight })`, `deny(…)`, `revoke(…)`,
-  `roles(аккаунт, роли)` и `list()` — те же строки `Resource`, `rule` и `member` текущего арендатора с
-  детерминированными alias (`role:staff:ACCOUNT`, `class:Product:READ`, `api:reports.*:API`), ключ правила — пара
-  группа и объект, вес по умолчанию 50 — сильнее «можно всё» от `createTenant`. Повтор ничего не меняет; права на
-  запись правил, RLS и триггеры проверяет база; внутри `db.begin()` — в её транзакции. Типы `AclRule`, `AclRuleSpec`,
+- Обёртка прав `db.acl` (7.9 №1): `grant({ role | everyone: true, read, write, delete, api, weight })`, `deny(…)`,
+  `revoke(…)`, `roles(аккаунт, роли)` и `list()` — те же строки `Resource`, `rule` и `member` текущего арендатора с
+  детерминированными alias (`role:staff:ACCOUNT`, `everyone:ACCOUNT`, `class:Product:READ`, `api:reports.*:API`),
+  ключ правила — пара группа и объект, вес по умолчанию 50 — сильнее «можно всё» от `createTenant`. Повтор ничего не
+  меняет; права на запись правил, RLS и триггеры проверяет база; внутри `db.begin()` — в её транзакции. `everyone:
+  true` вместо `role` — правило для всех аккаунтов арендатора; `revoke({ everyone: true, read: '*', write: '*',
+  delete: '*' })` снимает «можно всё» от `createTenant` — права только по ролям (агентский прогон: снять его обёрткой
+  было нельзя, только удалением строк `rule` по id). `list()` отдаёт `{ role, everyone, group, op, target, condition,
+  permission, weight, enabled }` (`enabled: false` — правило выключено, база его не применяет) и на администраторском
+  подключении — только правила арендатора сессии (роль без RLS видит строки всех арендаторов). `check()` с
+  `lang: 'en'` отдаёт отказ по умолчанию — правило сида System — по-английски. Типы `AclRule`, `AclRuleSpec`,
   `AclTarget`.
 - Один процесс для малых приложений (7.9 №3, №4): `up({ login: { user, password } })` заводит роль приложения или
   обновляет её пароль и выдаёт `letopis_app` — имя и пароль квотирует база, привилегированную роль `up()` не трогает,

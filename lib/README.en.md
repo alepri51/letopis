@@ -1640,20 +1640,27 @@ const canRead = await asOleg.acl.checkData('Product', 'READ')       // { allow: 
 const canReport = await asOleg.acl.check('shop.reports.daily')      // { allow: true, rule: { weight: 50, … } }
 ```
 
-- `db.acl.grant` and `db.acl.deny` take a role and targets: `read`, `write`, `delete` — a class (with descendants),
-  `'*'` — all classes, or a class with a condition on rows (`{ class: 'Ticket', owner: '$actor' }`); `api` — an endpoint
-  mask; a list means several. Each operation and target gets one rule with the weight `weight` (50 by default, from 1
-  to 999). Under the hood these are the same `Resource` rows (`role:staff:ACCOUNT`, `class:Product:DELETE`,
+- `db.acl.grant` and `db.acl.deny` take who the rule is for — a role (`role`) or all accounts of the tenant except
+  anonymous and shadow ones (`everyone: true`; exactly one of the two) — and targets: `read`, `write`, `delete` — a
+  class (with descendants), `'*'` — all classes, or a class with a condition on rows
+  (`{ class: 'Ticket', owner: '$actor' }`); `api` — an endpoint mask; a list means several. Each operation and target
+  gets one rule with the weight `weight` (50 by default, from 1 to 999). Under the hood these are the same `Resource`
+  rows (`role:staff:ACCOUNT`, `everyone:ACCOUNT`, `class:Product:DELETE`,
   `api:shop.reports.*:API`) and `rule` rows of the current tenant, and the rule key is the group and object pair: a
   repeated call changes nothing, and `grant` after `deny` for the same role and target replaces the denial with a
   permission. Inside `db.begin()` it runs in that transaction. Rules can be written by whoever has `WRITE` on
   `Resource` and `rule` (after `createTenant`, any member through the "may do everything" rule; to close it — `deny`
   with `write: ['Resource', 'rule', 'member']`). A wrong call gives `invalid_data` before anything is written.
-- `db.acl.revoke({ role, … })` removes the role's rules — permissions and denials — for these targets and returns the
-  number removed. `db.acl.roles(account)` gives the roles in the current tenant (`null` — not a member),
+- `db.acl.revoke({ role, … })` and `db.acl.revoke({ everyone: true, … })` remove the rules of the role or of all
+  accounts — permissions and denials — for these targets and return the number removed; for all accounts this also
+  covers "may do everything" from `createTenant` ([Permissions by roles only](#permissions-by-roles-only)).
+  `db.acl.roles(account)` gives the roles in the current tenant (`null` — not a member),
   `db.acl.roles(account, ['staff'])` replaces them (the membership is created), `db.acl.roles(account, null)` removes
-  the membership. `db.acl.list()` gives the tenant's rules `{ role, group, op, target, condition, permission, weight }`,
-  its own and "may do everything" from `createTenant`.
+  the membership. `db.acl.list()` gives the tenant's rules
+  `{ role, everyone, group, op, target, condition, permission, weight, enabled }`, its own and "may do everything"
+  from `createTenant` (`everyone: true`, `role: null`); `enabled: false` means the rule is switched off by the
+  `enabled` field of its `rule` row, and the database does not apply it. On an administrative connection, too, only
+  the rules of the session tenant.
 - `acl.check(endpoint)` → `{ allow, rule, code, message }`: the `code` and `message` fields of the denying rule set the
   endpoint's own denial.
 - `acl.checkData(class, 'READ' | 'WRITE' | 'DELETE')` → `{ allow, filter }`: `filter` is the condition on rows.
@@ -1686,21 +1693,25 @@ Fields of the system permission classes:
 Denials of roles with a greater weight narrow the permissions, but everything no denial closes stays allowed to any
 member. For the permissions to be decided by roles only, remove this rule after the setup or do not create it at all.
 
-Removing it after the setup. "May do everything" is three rules, `READ`, `WRITE` and `DELETE`, of the System group
-`authenticated:ACCOUNT` on all classes; `db.acl.list()` shows them with `role: null`, `group: 'authenticated:ACCOUNT'`
-and `target: '*'`. `db.acl.revoke` does not remove them: it removes the rules of roles. Delete these `rule` rows by id.
-Grant the roles their permissions earlier, while the rule still works: after the removal, a member keeps only the
-permissions of their roles. If the application keeps editing permissions, give some role permissions on the permission
-rows as well (`Resource`, `rule`, `member`); otherwise only an administrative connection will write them.
+Removing it after the setup. "May do everything" is three rules, `READ`, `WRITE` and `DELETE`, for all accounts of
+the tenant (the System group `authenticated:ACCOUNT`) on all classes; `db.acl.list()` shows them with
+`everyone: true`, `role: null` and `target: '*'`, and `db.acl.revoke({ everyone: true, read: '*', write: '*',
+delete: '*' })` removes them. Grant the roles their permissions earlier, while the rule still works: after the
+removal, a member keeps only the permissions of their roles. If the application keeps editing permissions, give some
+role permissions on the permission rows as well (`Resource`, `rule`, `member`); otherwise only an administrative
+connection will write them.
 
 ```ts
 await db.acl.grant({ role: 'manager', read: 'Product', write: 'Product', delete: 'Product' })
 await db.acl.grant({ role: 'staff', read: 'Product' })
 await db.acl.grant({ role: 'manager', read: ['Resource', 'rule', 'member'],      // keeps editing permissions
   write: ['Resource', 'rule', 'member'], delete: ['rule', 'member'] })
-const all = (await db.acl.list()).filter((x) => x.group === 'authenticated:ACCOUNT')   // "may do everything"
-await db.rule(all.map((x) => x.id)).delete({ confirm: true }).rows()
+await db.acl.revoke({ everyone: true, read: '*', write: '*', delete: '*' })     // "may do everything" removed: 3
 ```
+
+To bring it back — `db.acl.grant({ everyone: true, read: '*', write: '*', delete: '*', weight: 10 })`: the wrapper
+writes rules for all accounts with its own group `everyone:ACCOUNT`. The same way, a permission for all accounts on a
+single class: `db.acl.grant({ everyone: true, read: 'Catalog' })`.
 
 Not creating it. `createTenant(sql, schema, { name, grantAll: false, user })` and `up({ tenant: { name, grantAll:
 false, user } })` create a tenant without rules. Its members, the first user included, have no permissions — neither
@@ -1718,9 +1729,9 @@ await adm.acl.grant({ role: 'manager', read: 'Product', write: 'Product', delete
 await adm.close()
 ```
 
-Reads on an administrative connection are not limited to a tenant, so `adm.acl.list()` there shows the rules of all
-tenants. Before 1.5.0, writing a rule on such a connection gave `target_not_found`: the database checked whether the
-session actor sees the targets of the rule, and the actor has no permissions yet.
+An administrative connection can read the rows of all tenants, but `adm.acl.list()` shows the rules of the session
+tenant there too. Before 1.5.0, writing a rule on such a connection gave `target_not_found`: the database checked
+whether the session actor sees the targets of the rule, and the actor has no permissions yet.
 
 ### Deleting an account
 
@@ -3053,7 +3064,7 @@ order; the first red step stops the run. The same load for a day: `cd lib && npm
 # access-rest — the remaining rows of stage 5: loading on behalf of a user, balance No. 20, 22, 29, upsert and { rev } under ACL, inlining of acl_ok (stage 5)
 # aggregate — aggregates in the database: 20 writers of one wallet, raw SQL, a cascade, reclass, restore, the loader, account deletion, restore and rekey of the target, a description change under writes and race No. 18, aggregate_field, repair and verify, a System row (plan 1.1, stage 4b)
 # acl — ACL permissions: the 0.21 suite ported, row conditions, weight and default deny, cascade, deny on a descendant, deep, an invisible target, raw SQL versus the library; a change of parent and alias of a class only with permissions on all its rows, an alias is not the name of another class, a name is not another class's alias (stage 5; security review No. 2)
-# acl-grant — the db.acl wrapper: grant, deny, revoke, roles and list are idempotent, the database enforces them on top of "may do everything", deny wins on equal weight, the $actor condition, api, the db.begin() transaction, invalid_data before writing (plan 2.0, 7.9 No. 1); an administrative connection writes the rules of a tenant without "may do everything" — no target_not_found (the agent run, stage 3, item 9)
+# acl-grant — the db.acl wrapper: grant, deny, revoke, roles and list are idempotent, the database enforces them on top of "may do everything", deny wins on equal weight, the $actor condition, api, the db.begin() transaction, invalid_data before writing (plan 2.0, 7.9 No. 1); everyone — rules for all accounts, revoke({ everyone: true, … }) removes "may do everything"; list() on an administrative connection — only the session tenant, enabled; an administrative connection writes the rules of a tenant without "may do everything" — no target_not_found (the agent run, stage 3, item 9); check() with lang en — the default denial in English (7.9 No. 5)
 # acl-parity — 1000 random rule sets: the database permission plan and endpoint decisions versus decide from 0.21 (stage 5)
 # auth — credentials (password, key, key + secret, OTP, TOTP, identity), timing equalization, case, session revocation, recent sign-in (stage 5)
 # balance — top-up and debit: idempotency by opId, races, deadlock, connection drop (TCP proxy), adjustment under { rev } and forUpdate (stage 4)

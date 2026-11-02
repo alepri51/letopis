@@ -10,9 +10,16 @@
  * или `api:<эндпоинт>:API`, — а ключ правила — пара [Group, Object]: повтор вызова строк и версий не заводит, а grant
  * после deny той же роли и цели заменяет запрет разрешением. Ресурсы обёртки живут в арендаторе: ссылку правила
  * арендатора на ресурс System база не пропустит (цель должна быть видна).
+ *
+ * Все аккаунты арендатора (`everyone: true` вместо `role`): группа обёртки `everyone:ACCOUNT` с маской группы
+ * `authenticated:ACCOUNT` System — её правила «можно всё» (вес 10) заводит createTenant. revoke для всех аккаунтов
+ * снимает правила обеих групп, а цель `'*'` — и объект обёртки `class:*:<ОП>`, и объект System `all:<ОП>`: так
+ * `revoke({ everyone: true, read: '*', write: '*', delete: '*' })` снимает «можно всё». Строк System арендатор не видит,
+ * их id — `v5Id(System, 'Resource', [alias])`.
  */
-import { lerr, removed, wrapLang, type LangRun } from './errors.js';
+import { currentLang, lerr, lmsg, removed, wrapLang, type LangRun } from './errors.js';
 import { internalsOf } from './internal.js';
+import { msgOf } from './messages/index.js';
 import type { Executor } from './tx.js';
 import { v5Id } from './uuid.js';
 
@@ -51,10 +58,15 @@ export interface AclDataDecision {
  */
 export type AclTarget = string | ({ class: string } & { [column: string]: unknown });
 
-/** Что разрешить, запретить или снять: роль и операции — с классами, ресурсами приложения или с теми и другими. */
+/**
+ * Что разрешить, запретить или снять: кому — ровно одно из `role` и `everyone` (иначе `invalid_data`), операции — с
+ * классами, ресурсами приложения или с теми и другими.
+ */
 export interface AclRuleSpec {
   /** Роль членства в текущем арендаторе (как в `member.roles`). */
-  role: string;
+  role?: string;
+  /** Все аккаунты арендатора, кроме анонимных и теневых, — группа правил «можно всё» от createTenant. */
+  everyone?: true;
   read?: AclTarget | readonly AclTarget[];
   write?: AclTarget | readonly AclTarget[];
   delete?: AclTarget | readonly AclTarget[];
@@ -67,8 +79,10 @@ export interface AclRuleSpec {
 /** Правило арендатора в виде обёртки. */
 export interface AclRule {
   id: string;
-  /** Роль группы `role:<роль>:ACCOUNT`; null — группа не одной роли (например, `authenticated:ACCOUNT` от createTenant). */
+  /** Роль группы `role:<роль>:ACCOUNT`; null — группа не одной роли (все аккаунты или своя группа). */
   role: string | null;
+  /** Группа всех аккаунтов арендатора: `authenticated:ACCOUNT` от createTenant или `everyone:ACCOUNT` обёртки. */
+  everyone: boolean;
   /** Alias группы. */
   group: string;
   op: AclOp | 'API';
@@ -78,6 +92,8 @@ export interface AclRule {
   condition?: Record<string, unknown>;
   permission: 'allow' | 'deny';
   weight: number;
+  /** Действует ли правило: `false` — выключено полем `enabled` строки `rule`, база его не применяет. */
+  enabled: boolean;
 }
 
 export interface AclApi {
@@ -92,14 +108,18 @@ export interface AclApi {
    */
   checkData(className: string, op: AclOp): Promise<AclDataDecision>;
   /**
-   * Разрешить роли операции с классами и ресурсы приложения — по правилу на каждую операцию и цель, с весом `weight`
-   * (по умолчанию 50). Повтор ничего не меняет; запрет той же роли и цели заменяется разрешением. Внутри `db.begin()` —
-   * в её транзакции, иначе — своей.
+   * Разрешить роли (`role`) или всем аккаунтам арендатора (`everyone: true`) операции с классами и ресурсы приложения —
+   * по правилу на каждую операцию и цель, с весом `weight` (по умолчанию 50). Повтор ничего не меняет; запрет той же
+   * группы и цели заменяется разрешением. Внутри `db.begin()` — в её транзакции, иначе — своей.
    */
   grant(spec: AclRuleSpec): Promise<AclRule[]>;
   /** Запретить — те же правила с запретом: при равном весе запрет сильнее разрешения. */
   deny(spec: AclRuleSpec): Promise<AclRule[]>;
-  /** Снять правила роли — разрешения и запреты — для этих операций и целей; число снятых. */
+  /**
+   * Снять правила роли или всех аккаунтов — разрешения и запреты — для этих операций и целей; число снятых.
+   * `revoke({ everyone: true, read: '*', write: '*', delete: '*' })` снимает «можно всё» от createTenant: дальше права —
+   * только по ролям.
+   */
   revoke(spec: Omit<AclRuleSpec, 'weight'>): Promise<number>;
   /**
    * Роли аккаунта в текущем арендаторе (строка `member`); null — не член. Со списком ролей — заменить их (членство
@@ -107,7 +127,10 @@ export interface AclApi {
    * `member`: для него ответ null.
    */
   roles(account: string | { id: string }, roles?: readonly string[] | null): Promise<string[] | null>;
-  /** Правила текущего арендатора — свои и «можно всё» от createTenant. */
+  /**
+   * Правила текущего арендатора — свои и «можно всё» от createTenant. На подключении без RLS (`allowBypassRls`) — тоже
+   * только правила арендатора сессии, без правил других арендаторов и System.
+   */
   list(): Promise<AclRule[]>;
 }
 
@@ -150,6 +173,9 @@ function groupOf(role: string): Res {
   return { alias: `role:${role}:ACCOUNT`, category: 'ACCOUNT', pattern: { roles: `{${role}}` } };
 }
 
+/** Все аккаунты арендатора: маска как у группы authenticated:ACCOUNT System (95-seed.system.sql). */
+const EVERYONE: Res = { alias: 'everyone:ACCOUNT', category: 'ACCOUNT', pattern: { categories: '!{Anonymous,Shadow}' } };
+
 function classItem(op: AclOp, t: unknown, what: string): Item {
   let cls: unknown = t;
   let cond: Record<string, unknown> = {};
@@ -178,12 +204,17 @@ function apiItem(ep: unknown, what: string): Item {
   return { op: 'API', category: 'API', target: ep, alias: `api:${ep}:API`, pattern: { endpoint: ep } };
 }
 
-function parse(spec: unknown, what: string, withWeight: boolean): { role: string; weight: number; items: Item[] } {
+/** Спецификация правила; role — null, когда правило для всех аккаунтов арендатора (everyone: true). */
+function parse(spec: unknown, what: string, withWeight: boolean): { role: string | null; weight: number; items: Item[] } {
   if (!spec || typeof spec !== 'object' || Array.isArray(spec)) throw lerr('access.rule_spec_not_object', { what });
   const o = spec as Record<string, unknown>;
-  const keys = ['role', 'read', 'write', 'delete', 'api', ...(withWeight ? ['weight'] : [])];
+  const keys = ['role', 'everyone', 'read', 'write', 'delete', 'api', ...(withWeight ? ['weight'] : [])];
   for (const k of Object.keys(o)) if (!keys.includes(k)) throw lerr('access.unknown_rule_field', { what, field: k, fields: keys.join(', ') });
-  const role = roleName(o.role, what);
+  // кому: ровно одно из role и everyone: true
+  if (o.everyone === undefined ? o.role === undefined : o.everyone !== true || o.role !== undefined) {
+    throw lerr('access.rule_who', { what });
+  }
+  const role = o.everyone === true ? null : roleName(o.role, what);
   let weight = 50;
   if (o.weight !== undefined) {
     if (typeof o.weight !== 'number' || !Number.isInteger(o.weight) || o.weight < 1 || o.weight > 999) {
@@ -243,24 +274,36 @@ export function makeAcl(S: string, exec: Executor, db?: () => unknown, lang?: La
   async function put(spec: AclRuleSpec, permission: 'allow' | 'deny', what: string): Promise<AclRule[]> {
     const p = parse(spec, what, true);
     return inTx(what, async (tr) => {
-      const group = groupOf(p.role);
+      const group = p.role === null ? EVERYONE : groupOf(p.role);
       const g = await resource(tr, group);
       const out: AclRule[] = [];
       for (const it of p.items) {
         const o = await resource(tr, it);
         const [r] = await tr.rule().upsert({ permission, weight: p.weight }).Group.set(g).Object.set(o).rows();
-        out.push({ id: r.id, role: p.role, group: group.alias, op: it.op, target: it.target,
-          ...(it.condition ? { condition: it.condition } : {}), permission, weight: p.weight });
+        out.push({ id: r.id, role: p.role, everyone: p.role === null, group: group.alias, op: it.op, target: it.target,
+          ...(it.condition ? { condition: it.condition } : {}), permission, weight: p.weight, enabled: true });
       }
       return out;
     });
   }
-  const sys = new Map(SYSTEM_RESOURCES.map((a) => [v5Id(SYSTEM_ID, 'Resource', [a]), a]));
+  /** id ресурса сида System: строку арендатор не видит, ссылаться на неё правилом обёртки не может. */
+  const sysId = (alias: string): string => v5Id(SYSTEM_ID, 'Resource', [alias]);
+  const sys = new Map(SYSTEM_RESOURCES.map((a) => [sysId(a), a]));
+  const AUTHENTICATED = sysId('authenticated:ACCOUNT');
+  /** Правило сида System «запрет по умолчанию» на эндпоинты: any:ACCOUNT → any:API, вес 0 (95-seed.system.sql). */
+  const SEED_DENY = v5Id(SYSTEM_ID, 'rule', [sysId('any:ACCOUNT'), sysId('any:API')]);
 
   const api: AclApi = {
     async check(endpoint) {
       const [r] = await exec.run((q) => q.unsafe(`select ${S}.acl_check($1) as d`, [endpoint]), { read: true });
-      return r.d as AclDecision;
+      const d = r.d as AclDecision;
+      // отказ без правила (lt_text в acl_api_for) и message правила сида — тексты библиотеки: на языке подключения;
+      // message правил арендатора и System, заведённых людьми, — их данные, как есть
+      if (d.message !== undefined && currentLang() !== 'ru') {
+        if (!d.rule) d.message = lmsg('sql-access.default_deny');
+        else if (d.rule.id === SEED_DENY && d.message === msgOf('access.seed_default_deny')?.ru) d.message = lmsg('access.seed_default_deny');
+      }
+      return d;
     },
     async checkData(className, op) {
       const [r] = await exec.run((q) => q.unsafe(`select ${S}.acl_check_data($1, $2) as d`, [className, op]), { read: true });
@@ -271,12 +314,19 @@ export function makeAcl(S: string, exec: Executor, db?: () => unknown, lang?: La
     async revoke(spec) {
       const p = parse(spec, 'revoke', false);
       return inTx('revoke', async (tr) => {
-        const [g] = await tr.Resource({ alias: groupOf(p.role).alias }).rows();
-        if (!g) return 0;
+        const find = async (alias: string): Promise<string | undefined> => (await tr.Resource({ alias }).rows())[0]?.id;
+        // все аккаунты — группа обёртки и группа «можно всё» System
+        const groups = p.role === null ? [await find(EVERYONE.alias), AUTHENTICATED] : [await find(groupOf(p.role).alias)];
         let n = 0;
         for (const it of p.items) {
-          const [o] = await tr.Resource({ alias: it.alias }).rows();
-          if (o) n += (await tr.rule({ Group: g.id, Object: o.id }).delete({ confirm: true }).rows()).length;
+          const objects = [await find(it.alias)];
+          // все классы — объект обёртки class:*:<ОП> и объект «можно всё» System all:<ОП>
+          if (it.op !== 'API' && it.target === '*' && !it.condition) objects.push(sysId(`all:${it.op}`));
+          for (const g of groups) {
+            for (const o of objects) {
+              if (g && o) n += (await tr.rule({ Group: g, Object: o }).delete({ confirm: true }).rows()).length;
+            }
+          }
         }
         return n;
       });
@@ -286,7 +336,7 @@ export function makeAcl(S: string, exec: Executor, db?: () => unknown, lang?: La
       if (typeof acc !== 'string' || !acc) throw lerr('access.bad_account');
       const d = facade();
       const tenant = d.tenant as string | undefined;
-      if (!tenant) throw lerr('access.no_session_tenant');
+      if (!tenant) throw lerr('access.no_session_tenant', { what: 'roles' });
       if (roles === undefined) {
         const [m] = await d.member({ User: acc, Tenant: tenant }).rows();
         return m ? [...((m.data.roles as string[] | undefined) ?? [])] : null;
@@ -303,7 +353,10 @@ export function makeAcl(S: string, exec: Executor, db?: () => unknown, lang?: La
     },
     async list() {
       const d = facade();
-      const rules = await d.rule().rows();
+      const tenant = (d.tenant as string | undefined)?.toLowerCase();
+      if (!tenant) throw lerr('access.no_session_tenant', { what: 'list' });
+      // под RLS строки rule — только арендатора сессии; роль без RLS видит правила всех арендаторов и System
+      const rules = (await d.rule().rows()).filter((r: { tenant: string }) => String(r.tenant).toLowerCase() === tenant);
       const res = new Map<string, Res>((await d.Resource().rows()).map((r: { id: string; data: Res }) => [r.id, r.data]));
       const out: AclRule[] = rules.map((r: { id: string; links: Record<string, string>; data: Record<string, unknown> }) => {
         const g = res.get(r.links.Group);
@@ -322,10 +375,14 @@ export function makeAcl(S: string, exec: Executor, db?: () => unknown, lang?: La
           op = (a.split(':').pop() as AclRule['op']) ?? 'READ';
           target = /^(all|any):/.test(a) ? '*' : a.split(':')[0];
         }
+        const group = g?.alias ?? sys.get(r.links.Group) ?? r.links.Group;
         return {
-          id: r.id, role: g ? roleOf(g.pattern) : null, group: g?.alias ?? sys.get(r.links.Group) ?? r.links.Group, op, target,
+          id: r.id, role: g ? roleOf(g.pattern) : null,
+          everyone: r.links.Group === AUTHENTICATED || (group === EVERYONE.alias && !sys.has(r.links.Group)), group, op, target,
           ...(condition ? { condition } : {}),
           permission: r.data.permission === 'allow' ? 'allow' : 'deny', weight: Number(r.data.weight ?? 0),
+          // как acl_plan_for (50-acl.sql): нет поля — правило действует
+          enabled: r.data.enabled !== false,
         };
       });
       const key = (x: AclRule) => `${x.op}\u0000${x.target}\u0000${x.role ?? x.group}\u0000${x.permission}`;

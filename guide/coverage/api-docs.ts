@@ -1302,20 +1302,24 @@ const docs: Record<string, ApiDoc> = {
     examples: ['db.acl'],
   },
   'acl.grant': {
-    details: 'Под капотом — строки `Resource` и `rule` текущего арендатора: группа `role:<роль>:ACCOUNT`, объект ' +
+    details: 'Под капотом — строки `Resource` и `rule` текущего арендатора: группа `role:<роль>:ACCOUNT` (для всех аккаунтов ' +
+      'арендатора — `everyone:ACCOUNT`), объект ' +
       '`class:<класс>:<ОП>` (с условием — его канонический JSON в alias) или `api:<маска>:API`. Ключ правила — пара группа и ' +
       'объект, поэтому повтор ничего не меняет, а `grant` после `deny` той же роли и цели заменяет запрет разрешением. ' +
       'Внутри `db.begin()` — в её транзакции, иначе — своей. Писать правила может тот, у кого есть `WRITE` на `Resource` и `rule` ' +
       '(после `createTenant` — любой участник по правилу «можно всё»).',
     params: {
-      spec: '`{ role, read?, write?, delete?, api?, weight? }`: `role` — роль членства; `read`, `write`, `delete` — класс (с ' +
+      spec: '`{ role | everyone: true, read?, write?, delete?, api?, weight? }`: `role` — роль членства, `everyone: true` — все ' +
+        'аккаунты арендатора, кроме анонимных и теневых (ровно одно из двух); `read`, `write`, `delete` — класс (с ' +
         'потомками), `\'*\'` (все классы) или `{ class, …условие }` — шаблон колонок `owner`, `tenant`, `tags`, `data`, `links`, ' +
         '`id` со значениями `$actor` и `$tenant`, списком — несколько; `api` — маски эндпоинтов; `weight` — от 1 до 999, по ' +
         'умолчанию 50 (сильнее «можно всё» с весом 10).',
     },
-    returns: 'Записанные правила `{ id, role, group, op, target, condition?, permission, weight }` — по одному на операцию и цель.',
+    returns: 'Записанные правила `{ id, role, everyone, group, op, target, condition?, permission, weight, enabled }` — по одному ' +
+      'на операцию и цель.',
     errors: {
-      invalid_data: 'неизвестное поле, роль с запятой, фигурными скобками, «!» в начале или пробелами по краям, цель — не имя ' +
+      invalid_data: 'неизвестное поле, нет ни `role`, ни `everyone: true` или есть оба, роль с запятой, фигурными скобками, «!» в ' +
+        'начале или пробелами по краям, цель — не имя ' +
         'класса, условие не на колонку, вес вне 1–999, нет ни одной операции; ничего не записано.',
       acl_denied: 'нет права `WRITE` на `Resource` или `rule`.',
     },
@@ -1324,8 +1328,8 @@ const docs: Record<string, ApiDoc> = {
   'acl.deny': {
     details: 'То же, что `grant`, с запретом: при равном весе запрет сильнее разрешения — так закрывают «можно всё» от ' +
       '`createTenant` (вес 10) для отдельной роли и класса.',
-    params: { spec: 'Как у `grant`: `{ role, read?, write?, delete?, api?, weight? }`.' },
-    returns: 'Записанные правила `{ id, role, group, op, target, condition?, permission: \'deny\', weight }`.',
+    params: { spec: 'Как у `grant`: `{ role | everyone: true, read?, write?, delete?, api?, weight? }`.' },
+    returns: 'Записанные правила `{ id, role, everyone, group, op, target, condition?, permission: \'deny\', weight, enabled }`.',
     errors: {
       invalid_data: 'как у `grant`; ничего не записано.',
       acl_denied: 'нет права `WRITE` на `Resource` или `rule`.',
@@ -1333,8 +1337,11 @@ const docs: Record<string, ApiDoc> = {
     examples: ['db.acl'],
   },
   'acl.revoke': {
-    details: 'Снимает правила роли — и разрешения, и запреты. Ресурсы остаются: без правил они ни на что не действуют.',
-    params: { spec: '`{ role, read?, write?, delete?, api? }` — как у `grant`, без `weight`.' },
+    details: 'Снимает правила роли или всех аккаунтов — и разрешения, и запреты. Для всех аккаунтов — и правила «можно всё» ' +
+      'от `createTenant` (группа System `authenticated:ACCOUNT`; цель `\'*\'` — и объекты System `all:<ОП>`): ' +
+      '`revoke({ everyone: true, read: \'*\', write: \'*\', delete: \'*\' })` оставляет права только по ролям. Ресурсы ' +
+      'остаются: без правил они ни на что не действуют.',
+    params: { spec: '`{ role | everyone: true, read?, write?, delete?, api? }` — как у `grant`, без `weight`.' },
     returns: 'Число снятых правил; 0 — таких правил не было.',
     errors: {
       invalid_data: 'как у `grant` (и поле `weight`); ничего не снято.',
@@ -1362,9 +1369,12 @@ const docs: Record<string, ApiDoc> = {
     examples: ['db.acl'],
   },
   'acl.list': {
-    details: 'Правила обёртки показаны по роли, прочие — по alias группы (`role: null`). Ресурсы System, на которые ссылаются ' +
-      'правила «можно всё» от `createTenant`, арендатор не видит — `list()` узнаёт их по id.',
-    returns: 'Массив `{ id, role, group, op, target, condition?, permission, weight }`, по операции, цели и роли.',
+    details: 'Правила обёртки показаны по роли, прочие — по alias группы (`role: null`); правила для всех аккаунтов — ' +
+      '«можно всё» от `createTenant` и `everyone: true` обёртки — с `everyone: true`. Ресурсы System, на которые ссылаются ' +
+      'правила «можно всё», арендатор не видит — `list()` узнаёт их по id. На администраторском подключении (роль без RLS ' +
+      'видит строки всех арендаторов) — тоже только правила арендатора сессии.',
+    returns: 'Массив `{ id, role, everyone, group, op, target, condition?, permission, weight, enabled }`, по операции, цели и ' +
+      'роли; `enabled: false` — правило выключено полем `enabled` строки `rule`, база его не применяет.',
     errors: { no_session: 'нет действующей сессии.' },
     examples: ['db.acl'],
   },

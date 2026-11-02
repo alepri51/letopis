@@ -79,6 +79,20 @@ export const access = {
     en: 'db.acl.{what}: weight is an integer from 1 to 999: the weight of a tenant rule (1000 and above is the System admin layer)',
     hint: ACL_CALL,
   },
+  // acl.ts, parse: кому правило — нет ни role, ни everyone, есть оба или everyone не true
+  'access.rule_who': {
+    code: 'invalid_data',
+    ru: 'db.acl.{what}: кому правило — ровно одно из role (роль членства) и everyone: true (все аккаунты арендатора)',
+    en: 'db.acl.{what}: who the rule is for — exactly one of role (a membership role) and everyone: true (all accounts of the tenant)',
+    hint: ACL_CALL,
+  },
+  // acl.ts, check(): message правила сида System «запрет по умолчанию» (95-seed.system.sql) — текст библиотеки, а не
+  // арендатора: на языке подключения; русский шаблон — буква в букву как в сиде
+  'access.seed_default_deny': {
+    code: 'acl_denied',
+    ru: 'Доступ запрещён по умолчанию',
+    en: 'Access denied by default',
+  },
   // acl.ts, parse: в описании правила нет ни read, ни write, ни delete, ни api
   'access.no_rule_operations': {
     code: 'invalid_data',
@@ -99,11 +113,11 @@ export const access = {
     en: 'db.acl.roles: the account is an id or a row with an id field',
     hint: ACL_CALL,
   },
-  // acl.ts, roles(): у фасада нет рабочего арендатора — подключение без сессии
+  // acl.ts, roles() и list(): у фасада нет рабочего арендатора — подключение без сессии; what — метод
   'access.no_session_tenant': {
     code: 'no_session',
-    ru: 'db.acl.roles: нет арендатора сессии',
-    en: 'db.acl.roles: the session has no tenant',
+    ru: 'db.acl.{what}: нет арендатора сессии',
+    en: 'db.acl.{what}: the session has no tenant',
   },
   // acl.ts, roles(): роли — не массив и не null
   'access.roles_not_array': {

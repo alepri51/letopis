@@ -332,22 +332,24 @@ const olga = await svc.as(OLGA, { tenant: SALON })
 const canReport = await olga.acl.check('shop.reports.view')       // { allow: true, rule: { weight: 50, … }, code?, message? }
 const canDelete = await olga.acl.checkData('Wallet', 'DELETE')    // { allow: false } | { allow: true, filter? }
 ```
-- `grant`/`deny({ role, read | write | delete, api, weight })`:
+- `grant`/`deny({ role | everyone: true, read | write | delete, api, weight })`:
+  - who → `role` (a membership role) or `everyone: true` (all accounts of the tenant); exactly one, otherwise
+    `invalid_data`;
   - a target is a class (with descendants), `'*'` — all classes, a class with a condition
     `{ class: 'Wallet', owner: '$actor' }` or `{ class: 'Wallet', data: { … } }`; `api` is an endpoint mask; a list
     means several;
   - a repeated call → changes nothing; `grant` after `deny` for the same role and target → replaces the denial;
   - inside `db.begin()` → runs in that transaction;
   - a wrong call → `invalid_data` before writing.
-- `db.acl.revoke({ role, … })` → removes (the answer is the number removed).
+- `db.acl.revoke({ role | everyone: true, … })` → removes (the answer is the number removed).
 - `db.acl.roles(account)` → the roles in the current tenant (`null` — not a member).
 - `db.acl.roles(account, ['staff'])` → replaces them (the membership is a `member` row with the key `[User, Tenant]`,
   created if missing); `db.acl.roles(account, null)` → removes the membership.
-- `db.acl.list()` → the tenant's rules, its own and "may do everything".
+- `db.acl.list()` → the tenant's rules `{ role, everyone, group, op, target, condition, permission, weight, enabled }`,
+  its own and "may do everything" (`everyone: true`); on an admin connection, too, only the session tenant's.
 - Permissions by roles only:
-  - remove "may do everything" → delete the rules from `db.acl.list()` with `group: 'authenticated:ACCOUNT'`
-    (`role: null`) by `db.rule(ids).delete({ confirm: true })`; `db.acl.revoke` does not remove them;
-  - grant the roles before the removal, including `Resource`, `rule`, `member` if the application edits permissions;
+  - first grant the roles, including `Resource`, `rule`, `member` if the application edits permissions;
+  - then remove "may do everything" → `db.acl.revoke({ everyone: true, read: '*', write: '*', delete: '*' })` (→ 3);
   - or a tenant without it: `createTenant(…, { grantAll: false })` → classes and rules are written by an admin
     connection with the tenant's session (`connect({ dsn: ADMIN, schema, token, allowBypassRls: true })`).
 - Directly with `Resource` and `rule` rows:

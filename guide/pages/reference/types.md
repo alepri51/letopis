@@ -23,14 +23,18 @@ interface AclApi {
    */
   checkData(className: string, op: AclOp): Promise<AclDataDecision>;
   /**
-   * Разрешить роли операции с классами и ресурсы приложения — по правилу на каждую операцию и цель, с весом `weight`
-   * (по умолчанию 50). Повтор ничего не меняет; запрет той же роли и цели заменяется разрешением. Внутри `db.begin()` —
-   * в её транзакции, иначе — своей.
+   * Разрешить роли (`role`) или всем аккаунтам арендатора (`everyone: true`) операции с классами и ресурсы приложения —
+   * по правилу на каждую операцию и цель, с весом `weight` (по умолчанию 50). Повтор ничего не меняет; запрет той же
+   * группы и цели заменяется разрешением. Внутри `db.begin()` — в её транзакции, иначе — своей.
    */
   grant(spec: AclRuleSpec): Promise<AclRule[]>;
   /** Запретить — те же правила с запретом: при равном весе запрет сильнее разрешения. */
   deny(spec: AclRuleSpec): Promise<AclRule[]>;
-  /** Снять правила роли — разрешения и запреты — для этих операций и целей; число снятых. */
+  /**
+   * Снять правила роли или всех аккаунтов — разрешения и запреты — для этих операций и целей; число снятых.
+   * `revoke({ everyone: true, read: '*', write: '*', delete: '*' })` снимает «можно всё» от createTenant: дальше права —
+   * только по ролям.
+   */
   revoke(spec: Omit<AclRuleSpec, 'weight'>): Promise<number>;
   /**
    * Роли аккаунта в текущем арендаторе (строка `member`); null — не член. Со списком ролей — заменить их (членство
@@ -38,7 +42,10 @@ interface AclApi {
    * `member`: для него ответ null.
    */
   roles(account: string | { id: string }, roles?: readonly string[] | null): Promise<string[] | null>;
-  /** Правила текущего арендатора — свои и «можно всё» от createTenant. */
+  /**
+   * Правила текущего арендатора — свои и «можно всё» от createTenant. На подключении без RLS (`allowBypassRls`) — тоже
+   * только правила арендатора сессии, без правил других арендаторов и System.
+   */
   list(): Promise<AclRule[]>;
 }
 ```
@@ -79,8 +86,10 @@ type AclOp = 'READ' | 'WRITE' | 'DELETE';
 /** Правило арендатора в виде обёртки. */
 interface AclRule {
   id: string;
-  /** Роль группы `role:<роль>:ACCOUNT`; null — группа не одной роли (например, `authenticated:ACCOUNT` от createTenant). */
+  /** Роль группы `role:<роль>:ACCOUNT`; null — группа не одной роли (все аккаунты или своя группа). */
   role: string | null;
+  /** Группа всех аккаунтов арендатора: `authenticated:ACCOUNT` от createTenant или `everyone:ACCOUNT` обёртки. */
+  everyone: boolean;
   /** Alias группы. */
   group: string;
   op: AclOp | 'API';
@@ -90,16 +99,23 @@ interface AclRule {
   condition?: Record<string, unknown>;
   permission: 'allow' | 'deny';
   weight: number;
+  /** Действует ли правило: `false` — выключено полем `enabled` строки `rule`, база его не применяет. */
+  enabled: boolean;
 }
 ```
 
 ## AclRuleSpec {#type-aclrulespec}
 
 ```ts
-/** Что разрешить, запретить или снять: роль и операции — с классами, ресурсами приложения или с теми и другими. */
+/**
+ * Что разрешить, запретить или снять: кому — ровно одно из `role` и `everyone` (иначе `invalid_data`), операции — с
+ * классами, ресурсами приложения или с теми и другими.
+ */
 interface AclRuleSpec {
   /** Роль членства в текущем арендаторе (как в `member.roles`). */
-  role: string;
+  role?: string;
+  /** Все аккаунты арендатора, кроме анонимных и теневых, — группа правил «можно всё» от createTenant. */
+  everyone?: true;
   read?: AclTarget | readonly AclTarget[];
   write?: AclTarget | readonly AclTarget[];
   delete?: AclTarget | readonly AclTarget[];

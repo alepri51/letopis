@@ -323,21 +323,22 @@ const olga = await svc.as(OLGA, { tenant: SALON })
 const canReport = await olga.acl.check('shop.reports.view')       // { allow: true, rule: { weight: 50, … }, code?, message? }
 const canDelete = await olga.acl.checkData('Wallet', 'DELETE')    // { allow: false } | { allow: true, filter? }
 ```
-- `grant`/`deny({ role, read | write | delete, api, weight })`:
+- `grant`/`deny({ role | everyone: true, read | write | delete, api, weight })`:
+  - кому → `role` (роль членства) или `everyone: true` (все аккаунты арендатора); ровно одно, иначе `invalid_data`;
   - цель — класс (с потомками), `'*'` — все классы, класс с условием `{ class: 'Wallet', owner: '$actor' }` или
     `{ class: 'Wallet', data: { … } }`; `api` — маска эндпоинта; списком — несколько;
   - повтор → ничего не меняет; `grant` после `deny` той же роли и цели → заменяет запрет;
   - внутри `db.begin()` → в её транзакции;
   - неверный вызов → `invalid_data` до записи.
-- `db.acl.revoke({ role, … })` → снять (ответ — число снятых).
+- `db.acl.revoke({ role | everyone: true, … })` → снять (ответ — число снятых).
 - `db.acl.roles(аккаунт)` → роли в текущем арендаторе (`null` — не член).
 - `db.acl.roles(аккаунт, ['staff'])` → заменить (членство — строка `member`, ключ `[User, Tenant]`, заводится);
   `db.acl.roles(аккаунт, null)` → снять членство.
-- `db.acl.list()` → правила арендатора, свои и «можно всё».
+- `db.acl.list()` → правила арендатора `{ role, everyone, group, op, target, condition, permission, weight, enabled }`,
+  свои и «можно всё» (`everyone: true`); на администраторском подключении — тоже только арендатора сессии.
 - Права только по ролям:
-  - снять «можно всё» → правила из `db.acl.list()` с `group: 'authenticated:ACCOUNT'` (`role: null`) удалить
-    `db.rule(ids).delete({ confirm: true })`; `db.acl.revoke` их не снимает;
-  - права ролям — до снятия, в том числе на `Resource`, `rule`, `member`, если права правит приложение;
+  - сначала права ролям, в том числе на `Resource`, `rule`, `member`, если права правит приложение;
+  - затем снять «можно всё» → `db.acl.revoke({ everyone: true, read: '*', write: '*', delete: '*' })` (→ 3);
   - или арендатор без него: `createTenant(…, { grantAll: false })` → классы и правила пишет администраторское
     подключение с сессией арендатора (`connect({ dsn: ADMIN, schema, token, allowBypassRls: true })`).
 - Напрямую строками `Resource` и `rule`:
