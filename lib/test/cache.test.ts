@@ -278,6 +278,23 @@ test('№17 (ревью №1 точки А): заливка разными по�
   assert.equal(c.get('k'), undefined, 'настоящий сигнал по-прежнему сбрасывает ответ');
 });
 
+test('№18 (план 2.0, 7.7 — находка долгого прогона): гашения чужих сессий не растят счётчики кэша, гашение своей по-прежнему сбрасывает', () => {
+  const c = new ResultCache();
+  c.listen();
+  const own = 'a'.repeat(16);
+  const m = c as unknown as Record<'sessionEpoch', Map<string, number>>;
+  const tok = c.token(['Item'], own);
+  // вход и выход пользователей сервиса: 20 000 гашений сессий, которые через этот кэш не читали (прежде — 20 000 записей)
+  for (let i = 0; i < 20_000; i++) c.signal(`session:${i.toString(16).padStart(16, '0')}`);
+  assert.equal(m.sessionEpoch.size, 1, 'счётчик — только у сессии запроса');
+  assert.equal(c.set('k', [1], ['Item'], own, tok, 60_000, null), true, 'чужие гашения ответ не портят');
+  const tok2 = c.token(['Item'], own);
+  c.signal(`session:${own}`);
+  assert.equal(c.set('k2', [1], ['Item'], own, tok2, 60_000, null), false, 'ответ, начатый до гашения своей сессии, в кэш не кладётся');
+  assert.equal(c.get('k'), undefined, 'ответы погашенной сессии сброшены');
+  assert.equal(m.sessionEpoch.size, 1);
+});
+
 test('№14 каскад и смена класса: сразу после фиксации сброшены ответы всех задетых классов', async () => {
   const [it] = await db.Item().create({ n: 140 }).rows();
   await db.Item(it.id).Part().create({ n: 1 }).rows();
