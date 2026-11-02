@@ -227,30 +227,23 @@ test('ревью: подмена тела функции хэша ловится
   assert.equal(back.ok, true, JSON.stringify(back.issues));
 });
 
-test('план 2.0, 7.9 №5: находки verify — на языке подключения, без key и params; у сырого SQL — русский текст, ключ и параметры', async () => {
+test('находки verify — без key и params; у сырого SQL — тот же текст, ключ и параметры', async () => {
   const [k] = await db.Box().create({ code: 'K', n: 1 }).rows();
   for (let i = 2; i <= 4; i++) await db.Box(k.id).update({ n: i }).rows();
   // мимо триггеров: разрыв цепочки (нет версии 3) и данные строки не по описанию — строка entity расходится с журналом
   await e.sql.unsafe(`delete from ${e.S}.log where id = $1 and rev = 3`, [k.id]);
   await e.asOwner((tx) => tx.unsafe(`update ${e.S}.entity set data = '{"code": "K", "n": "x"}' where id = $1`, [k.id]));
-  const a = await sysadmin(e);
-  const en = await connect({ dsn: appDsn(), schema: e.schema, token: a.token, max: 2, lang: 'en' });
   try {
     type Found = { id: string; [k: string]: unknown };
     const mine = (is: Found[]) => is.filter((i) => i.id === k.id).map(({ id: _id, ...rest }) => rest)
       .sort((x, y) => String(x.problem).localeCompare(String(y.problem)));
-    const findings = (lang: 'ru' | 'en') => {
-      const ru = lang === 'ru';
-      return [
-        { rev: 3, problem: ru ? 'разрыв: нет версий 3…3' : 'gap: versions 3…3 are missing' },
-        { rev: 4, problem: ru ? 'строка entity не совпадает с последней версией журнала' : 'the entity row does not match the last version of the log' },
-        { class: 'Box', problem: ru ? 'данные не проходят описание класса' : 'the data does not match the class description',
-          issues: [{ path: ['n'], keyword: 'type', message: ru ? 'нарушено правило type' : 'rule type is violated' }] },
-      ].sort((x, y) => x.problem.localeCompare(y.problem));
-    };
-    assert.deepEqual(mine((await en.verify({ data: true })).issues), findings('en'));
-    assert.deepEqual(mine((await adb.verify({ data: true })).issues), findings('ru'));
-    // сырой SQL: русский текст, рядом ключ каталога и параметры — у находки и у её нарушений
+    const findings = [
+      { rev: 3, problem: 'разрыв: нет версий 3…3' },
+      { rev: 4, problem: 'строка entity не совпадает с последней версией журнала' },
+      { class: 'Box', problem: 'данные не проходят описание класса', issues: [{ path: ['n'], keyword: 'type', message: 'нарушено правило type' }] },
+    ].sort((x, y) => x.problem.localeCompare(y.problem));
+    assert.deepEqual(mine((await adb.verify({ data: true })).issues), findings);
+    // сырой SQL: тот же текст, рядом ключ каталога и параметры — у находки и у её нарушений
     const [{ v }] = await e.sql.unsafe(`select ${e.S}.verify(true) as v`);
     const raw = mine((v as { issues: Found[] }).issues);
     const keys: Record<string, { key: string; params: unknown }> = {
@@ -258,10 +251,9 @@ test('план 2.0, 7.9 №5: находки verify — на языке подк
       'строка entity не совпадает с последней версией журнала': { key: 'sql-time.verify_entity_head', params: {} },
       'данные не проходят описание класса': { key: 'sql-time.verify_data', params: {} },
     };
-    assert.deepEqual(raw, findings('ru').map((f) => ({ ...f, ...keys[f.problem],
+    assert.deepEqual(raw, findings.map((f) => ({ ...f, ...keys[f.problem],
       ...(f.issues ? { issues: f.issues.map((i) => ({ ...i, key: 'sql-core.issue_rule', params: { keyword: 'type' } })) } : {}) })));
   } finally {
-    await en.close();
     await e.sql.unsafe(`delete from ${e.S}.log where id = $1`, [k.id]);
     await e.asOwner((tx) => tx.unsafe(`delete from ${e.S}.entity where id = $1`, [k.id]));
   }

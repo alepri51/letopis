@@ -24,7 +24,6 @@
  */
 import type postgres from 'postgres';
 import { LetopisError, checkOptions, fromDbError, lerr, lmsg, type MsgKey, type Params } from './errors.js';
-import { msgOf } from './messages/index.js';
 import { release, rollbackAfter } from './tx.js';
 import { toRow } from './sql.js';
 import { wakes } from './watch.js';
@@ -185,21 +184,16 @@ export interface ProjectorFailure {
    * арендатора, invalid_class — его источники не ведут журнал (history: false).
    */
   code: string;
-  /** Текст ошибки: проектор, арендатор и id строки — на языке подключения, если отметка несёт ключ каталога. */
+  /** Текст ошибки: проектор, арендатор и id строки. */
   message: string;
-  /** Ключ каталога сообщений и параметры текста: по ним status() и rebuild({ tenant }) собирают message на языке подключения. */
+  /** Ключ каталога сообщений и параметры текста, если отметка их несёт. */
   key?: string;
   params?: Record<string, unknown>;
 }
 
-/** Отметка выбывшего по ключу каталога: текст — на языке вокруг, ключ и параметры — чтобы перевести при чтении. */
+/** Отметка выбывшего по ключу каталога: текст, ключ и параметры. */
 function failure(cursor: string, code: string, key: MsgKey, params: Params): ProjectorFailure {
   return { cursor, code, message: lmsg(key, params), key, params };
-}
-
-/** Текст отметки на языке вокруг: по ключу каталога, если он есть и известен этой версии; иначе — записанный. */
-function localized(f: ProjectorFailure): ProjectorFailure {
-  return f.key && msgOf(f.key) ? { ...f, message: lmsg(f.key as MsgKey, f.params as Params | undefined) } : f;
 }
 
 export interface ProjectorStatus {
@@ -667,10 +661,7 @@ export class Projector {
         // ошибка данных арендатора — как у перестройки одной транзакцией: отказ, арендатор выбывший; чекпоинт держит
         // пачка run() другого процесса дольше lockTimeout — подождать
         const f = (await this.untilFree(rep, () => this.tx(async (q) => this.state(q)))).failed?.[tenant];
-        if (f) {
-          const l = localized(f);
-          throw new LetopisError(l.code, l.message, undefined, l.key ? { key: l.key, params: l.params as Params | undefined } : undefined);
-        }
+        if (f) throw new LetopisError(f.code, f.message, undefined, f.key ? { key: f.key, params: f.params as Params | undefined } : undefined);
         // последнюю пачку мог записать run() другого процесса (он продвигает начатые перестройки): перестройка этого
         // вызова всё равно завершена
         if (rep.rebuilds === started) rep.rebuilds++;
@@ -704,7 +695,7 @@ export class Projector {
         cursor: meta.cursor ?? null,
         at: meta.at ?? null,
         lag,
-        failed: Object.fromEntries(Object.entries(failed).map(([k, f]) => [k, localized(f)])),
+        failed,
         rebuildingTenants: Object.entries(meta.retenant ?? {}).filter(([, v]) => !v.done).map(([t]) => t).sort(),
       };
     });
@@ -1064,7 +1055,7 @@ export class Projector {
           cursor: list[0].cursor || start,
           code: le instanceof LetopisError ? le.code : String(le?.code ?? 'internal'),
           message: String(le?.message ?? le).replace(/^letopis: [a-z_]+: /, ''),
-          // ключ ошибки базы или out (DETAIL, lerr) — чтобы прочитать текст на языке подключения
+          // ключ ошибки базы или out (DETAIL, lerr)
           ...(le instanceof LetopisError && le.key ? { key: le.key, params: le.params } : {}),
         };
         continue;

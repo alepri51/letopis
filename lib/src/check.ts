@@ -40,7 +40,7 @@ export type CheckRule =
   | 'reserved-name' | 'no-filter' | 'delete-preview' | 'upsert-no-key' | 'mod-after-verb' | 'for-update-outside-tx'
   | 'unknown-name';
 
-/** Найденная ошибка: файл (как передан), строка и столбец с 1, правило, текст на языке вокруг. */
+/** Найденная ошибка: файл (как передан), строка и столбец с 1, правило, текст. */
 export interface CheckProblem {
   file: string;
   line: number;

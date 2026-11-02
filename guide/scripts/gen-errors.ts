@@ -18,7 +18,7 @@ const NOTE: Record<string, string> = {
   removed: 'примера нет: так отвечают методы и опции, снятые после версии 0.21, а переход с 0.21 сайт не описывает',
 };
 // что значит код и что делать — заголовок и подсказка кода в каталоге сообщений (их же отдаёт LetopisError.hint)
-const SIGN = new Map(Object.values(codes).map((m) => [m.code as string, { meaning: m.ru, todo: m.hint.ru }]));
+const SIGN = new Map(Object.values(codes).map((m) => [m.code as string, { meaning: m.ru, todo: m.hint }]));
 
 const where = new Map<string, Set<string>>();
 for (const dir of await readdir(join(ROOT, 'examples'))) {

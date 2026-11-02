@@ -2,9 +2,9 @@
  * up — полный установщик (план, этап 6, п. 9–10; тест-план §7.8 №6.10): свежая установка, повторный
  * накат, свои сиды, автосоздание базы, база не в UTF8, проверка версии с подставленным номером 17,
  * отставшая ревизия — только с upgrade (миграции), connect() предупреждает об отставшем движке и о схеме, которую
- * накатила другая версия той же ревизии (штамп движка в комментарии схемы). План 2.0: up({ lang }) — ошибки,
- * предупреждения и ход установки на языке опции (7.9 №5); установка без ADMIN OPTION на готовую роль владельца —
- * понятная ошибка (7.5 №3).
+ * накатила другая версия той же ревизии (штамп движка в комментарии схемы). План 2.0: ошибки, предупреждения и ход
+ * установки — тексты каталога (раздел boot); установка без ADMIN OPTION на готовую роль владельца — понятная ошибка
+ * (7.5 №3).
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -354,8 +354,7 @@ test('createTenant после удаления: членство, аккаунт
   }
 });
 
-test('план 2.0, 7.9 №5: up({ lang: \'en\' }) — ошибки, ход установки и предупреждение штампа без кириллицы; без lang — прежние русские тексты', async () => {
-  const CYRILLIC = /[а-яё]/i;
+test('up() — ошибки, ход установки и предупреждение штампа: тексты каталога (раздел boot)', async () => {
   /** Вывод в консоль за время fn: console.log и console.warn. */
   const consoleOf = async (fn: () => Promise<unknown>): Promise<{ logs: string[]; warns: string[] }> => {
     const out = { logs: [] as string[], warns: [] as string[] };
@@ -374,68 +373,55 @@ test('план 2.0, 7.9 №5: up({ lang: \'en\' }) — ошибки, ход ус
     assert.match(e.message, re);
     return true;
   };
-  // до подключения: lerr (имя схемы), неверный lang, обычный Error (база не отвечает за срок)
-  await assert.rejects(up({ dsn: ADMIN_DSN, schema: 'Bad Name', lang: 'en', quiet: true }), (e: LetopisError) => {
+  // до подключения: lerr (имя схемы), обычный Error (база не отвечает за срок)
+  await assert.rejects(up({ dsn: ADMIN_DSN, schema: 'Bad Name', quiet: true }), (e: LetopisError) => {
     assert.equal(e.code, 'invalid_data');
-    assert.doesNotMatch(`${e.message} ${e.hint}`, CYRILLIC, e.message);
-    return true;
-  });
-  await assert.rejects(up({ dsn: ADMIN_DSN, schema: 'x', lang: 'fr' as never, quiet: true }), (e: LetopisError) => {
-    assert.equal(e.code, 'invalid_data');
-    assert.match(e.message, /up: lang — 'ru' или 'en', а не fr/);
+    assert.equal(e.key, 'boot.up_schema_name');
+    assert.ok(e.hint, 'есть подсказка');
     return true;
   });
   const dead = 'postgres://x:y@127.0.0.1:1/x';
-  await assert.rejects(up({ dsn: dead, schema: 'x', waitTimeoutMs: 1, lang: 'en', quiet: true }), text(/^letopis\.up: database 127\.0\.0\.1:1 is not ready within 0 s$/));
   await assert.rejects(up({ dsn: dead, schema: 'x', waitTimeoutMs: 1, quiet: true }), text(/^letopis\.up: база 127\.0\.0\.1:1 не готова за 0 с$/));
   // база не в UTF8
-  const ascii = 'letopis_up_ascii_en';
+  const ascii = 'letopis_up_ascii_texts';
   await sql.unsafe(`drop database if exists ${ascii} with (force)`);
   await sql.unsafe(`create database ${ascii} encoding 'SQL_ASCII' lc_collate 'C' lc_ctype 'C' template template0`);
   try {
-    await assert.rejects(up({ dsn: dsnFor(ascii), schema: 'x', lang: 'en', quiet: true }),
-      text(/^letopis\.up: the database is in encoding SQL_ASCII, UTF8 is required \(casefold and the pg_unicode_fast collation\)$/));
+    await assert.rejects(up({ dsn: dsnFor(ascii), schema: 'x', quiet: true }),
+      text(/^letopis\.up: база в кодировке SQL_ASCII, нужна UTF8 \(casefold и коллация pg_unicode_fast\)$/));
   } finally {
     await sql.unsafe(`drop database if exists ${ascii} with (force)`);
   }
   // ход установки в своей базе: создание базы, установка, роль приложения, повторный накат, fresh
-  const name = 'letopis_up_en';
-  const role = 'lt_up_en_app';
+  const name = 'letopis_up_texts';
+  const role = 'lt_up_texts_app';
   const S = 'v2.x';
   await sql.unsafe(`drop database if exists ${name} with (force)`);
   await sql.unsafe(`drop role if exists ${role}`);
   const db = postgres(dsnFor(name), { max: 1, onnotice: () => {} });
   try {
-    const first = await consoleOf(() => up({ dsn: dsnFor(name), schema: 'x', lang: 'en', login: { user: role, password: 'pw-en-1' } }));
+    const first = await consoleOf(() => up({ dsn: dsnFor(name), schema: 'x', login: { user: role, password: 'pw-texts-1' } }));
     assert.deepEqual(first.logs, [
-      `letopis.up: database ${name} created`,
-      `letopis.up: schema installed: ${S}, revision ${DDL_REVISION}`,
-      `letopis.up: application role ${role}: created`,
+      `letopis.up: база ${name} создана`,
+      `letopis.up: схема поставлена: ${S}, ревизия ${DDL_REVISION}`,
+      `letopis.up: роль приложения ${role}: заведена`,
     ]);
-    const again = await consoleOf(() => up({ dsn: dsnFor(name), schema: 'x', lang: 'en', login: { user: role, password: 'pw-en-2' } }));
-    assert.deepEqual(again.logs, [`letopis.up: re-apply: ${S}, revision ${DDL_REVISION}`, `letopis.up: application role ${role}: password updated`]);
-    const fresh = await consoleOf(() => up({ dsn: dsnFor(name), schema: 'x', lang: 'en', fresh: true }));
-    assert.deepEqual(fresh.logs, [`letopis.up: schema ${S} dropped and installed again (fresh)`, `letopis.up: schema installed: ${S}, revision ${DDL_REVISION}`]);
-    const ru = await consoleOf(() => up({ dsn: dsnFor(name), schema: 'x' }));
-    assert.deepEqual(ru.logs, [`letopis.up: повторный накат: ${S}, ревизия ${DDL_REVISION}`]);
-    for (const w of [...first.warns, ...again.warns, ...fresh.warns]) assert.doesNotMatch(w, CYRILLIC, w);
-    // ревизия схемы новее и старше пакета — по-английски, без lang — прежние тексты
+    const again = await consoleOf(() => up({ dsn: dsnFor(name), schema: 'x', login: { user: role, password: 'pw-texts-2' } }));
+    assert.deepEqual(again.logs, [`letopis.up: повторный накат: ${S}, ревизия ${DDL_REVISION}`, `letopis.up: роль приложения ${role}: пароль обновлён`]);
+    const fresh = await consoleOf(() => up({ dsn: dsnFor(name), schema: 'x', fresh: true }));
+    assert.deepEqual(fresh.logs, [`letopis.up: схема ${S} удалена и поставлена заново (fresh)`, `letopis.up: схема поставлена: ${S}, ревизия ${DDL_REVISION}`]);
+    // ревизия схемы новее и старше пакета
     const revision = async (rev: number) => db.unsafe(`comment on schema "${S}" is 'letopis ddl_revision=${rev}'`);
     await revision(DDL_REVISION + 1);
-    await assert.rejects(up({ dsn: dsnFor(name), schema: 'x', lang: 'en', quiet: true }),
-      text(new RegExp(`^letopis\\.up: schema v2\\.x is revision ${DDL_REVISION + 1}, but the library knows only ${DDL_REVISION} — update the package$`)));
     await assert.rejects(up({ dsn: dsnFor(name), schema: 'x', quiet: true }),
       text(new RegExp(`^letopis\\.up: схема v2\\.x ревизии ${DDL_REVISION + 1}, а библиотека знает только ${DDL_REVISION} — обновите пакет$`)));
     await revision(DDL_REVISION - 1);
-    await assert.rejects(up({ dsn: dsnFor(name), schema: 'x', lang: 'en', quiet: true }),
-      text(new RegExp(`^letopis\\.up: schema v2\\.x is revision ${DDL_REVISION - 1}, the library is ${DDL_REVISION}: upgrade it with up\\(\\{ schema: 'v2\\.x', upgrade: true \\}\\)$`)));
     await assert.rejects(up({ dsn: dsnFor(name), schema: 'x', quiet: true }),
       text(new RegExp(`^letopis\\.up: схема v2\\.x ревизии ${DDL_REVISION - 1}, библиотека — ${DDL_REVISION}: обновите её up\\(\\{ schema: 'v2\\.x', upgrade: true \\}\\)$`)));
-    // штамп движка другой версии: предупреждение connect({ lang: 'en' }) — тоже по-английски
+    // штамп движка другой версии: предупреждение connect()
     await db.unsafe(`comment on schema "${S}" is 'letopis ddl_revision=${DDL_REVISION} engine=1.3.9 sql=0123456789abcdef'`);
-    const stamp = await consoleOf(async () => (await connect({ dsn: dsnFor(name), schema: S, allowBypassRls: true, listen: false, max: 1, lang: 'en' })).close());
-    assert.ok(stamp.warns.some((w) => /^letopis: the functions of schema v2\.x were installed by letopis 1\.3\.9, the library is .+: upgrade the schema — call up\(\{ schema: 'v2\.x' \}\)$/.test(w)), stamp.warns.join('\n'));
-    for (const w of stamp.warns) assert.doesNotMatch(w, CYRILLIC, w);
+    const stamp = await consoleOf(async () => (await connect({ dsn: dsnFor(name), schema: S, allowBypassRls: true, listen: false, max: 1 })).close());
+    assert.ok(stamp.warns.some((w) => /^letopis: функции схемы v2\.x поставила letopis 1\.3\.9, библиотека — .+: обновите схему — вызовите up\(\{ schema: 'v2\.x' \}\)$/.test(w)), stamp.warns.join('\n'));
   } finally {
     await db.end({ timeout: 5 });
     await sql.unsafe(`drop database if exists ${name} with (force)`);
@@ -456,21 +442,14 @@ test('план 2.0, 7.5 №3: установка без ADMIN OPTION на гот
   u.username = inst;
   u.password = 'test';
   try {
-    for (const lang of [undefined, 'en'] as const) {
-      await assert.rejects(up({ dsn: u.toString(), schema, owner, app, quiet: true, ...(lang ? { lang } : {}) }), (e: LetopisError) => {
-        assert.ok(e instanceof LetopisError, String(e));
-        assert.equal(e.code, 'admin_required');
-        assert.equal((e.cause as { code?: string } | undefined)?.code, '42501', 'причина — отказ гранта');
-        if (lang) {
-          assert.match(e.message, /^letopis: admin_required: up: role lt_up_noadm_owner already exists, and the installer has no ADMIN OPTION on it/);
-          assert.doesNotMatch(`${e.message} ${e.hint}`, /[а-яё]/i);
-        } else {
-          assert.match(e.message, /^letopis: admin_required: up: роль lt_up_noadm_owner уже есть, а у установщика нет на неё ADMIN OPTION — установку ведёт роль, создавшая lt_up_noadm_owner/);
-          assert.match(e.hint ?? '', /grant <владелец> to <установщик> with admin option/);
-        }
-        return true;
-      });
-    }
+    await assert.rejects(up({ dsn: u.toString(), schema, owner, app, quiet: true }), (e: LetopisError) => {
+      assert.ok(e instanceof LetopisError, String(e));
+      assert.equal(e.code, 'admin_required');
+      assert.equal((e.cause as { code?: string } | undefined)?.code, '42501', 'причина — отказ гранта');
+      assert.match(e.message, /^letopis: admin_required: up: роль lt_up_noadm_owner уже есть, а у установщика нет на неё ADMIN OPTION — установку ведёт роль, создавшая lt_up_noadm_owner/);
+      assert.match(e.hint ?? '', /grant <владелец> to <установщик> with admin option/);
+      return true;
+    });
     const [{ n }] = await sql.unsafe(`select count(*)::int as n from pg_namespace where nspname = $1`, [schema]);
     assert.equal(n, 0, 'схема не создана');
   } finally {

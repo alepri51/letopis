@@ -7,8 +7,7 @@
 
 1. **Что можно читать** — только этот каталог:
    - этот файл `TASK.md`;
-   - документацию пакета: `node_modules/letopis/README.md`, `README.en.md`, `AGENT-CHEATSHEET.md`,
-     `AGENT-CHEATSHEET.en.md`, `llms.txt` и `llms-full.txt`, если он есть;
+   - документацию пакета: `node_modules/letopis/README.md`, `AGENT-CHEATSHEET.md` и `llms.txt`;
    - типы пакета: `node_modules/letopis/dist/**/*.d.ts`.
 
    Нельзя читать исходный код пакета (`dist/*.js`, `sql/`) и другие его файлы. Нельзя читать документацию других

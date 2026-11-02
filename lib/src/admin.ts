@@ -4,7 +4,7 @@
  * сами сверяют права (letopis.* — системный администратор или администраторское подключение).
  */
 import type postgres from 'postgres';
-import { checkLang, currentLang, findingsFromDb, fromDbError, lerr, lmsg, lwarn, type Lang, type MsgKey, type Params } from './errors.js';
+import { findingsFromDb, fromDbError, lerr, lmsg, lwarn, type MsgKey, type Params } from './errors.js';
 import type { JsonSchema } from './jsonschema.js';
 import type { AggregateInfo, ClassInfo, Registry } from './registry.js';
 import { accepts } from './sql.js';
@@ -14,7 +14,7 @@ import { CHAIN_METHODS, DB_METHODS } from './types.js';
 type Sql = postgres.Sql<Record<string, unknown>>;
 
 /**
- * Находка `verify()`: `id` и `rev` — объект и версия, `problem` — текст на языке подключения. Находка об устройстве
+ * Находка `verify()`: `id` и `rev` — объект и версия, `problem` — текст находки. Находка об устройстве
  * таблицы (колонку `hash` считает не выражение установки) — с id System и полями `table`, `column`, `expression`.
  */
 export interface VerifyIssue {
@@ -140,8 +140,8 @@ const one = async <T>(a: AdminCtx, text: string, params: unknown[] = []): Promis
 
 export async function verify(a: AdminCtx, opts: { data?: boolean } = {}): Promise<VerifyResult> {
   const r = await one<{ v: VerifyResult }>(a, `select ${a.S}.verify($1::boolean) as v`, [opts.data === true]);
-  // находка базы несёт ключ каталога и параметры (план 2.0, этап 3, п. 3): problem и сообщения нарушений — на языке
-  // подключения, key и params наружу не идут
+  // находка базы несёт ключ каталога и параметры (план 2.0, этап 3, п. 3): наружу они не идут, problem и сообщения
+  // нарушений — тексты базы
   return { ...r.v, issues: findingsFromDb(r.v.issues) };
 }
 
@@ -515,13 +515,9 @@ export function describe(a: AdminCtx): ModelDescription {
 /** Код в Markdown: обратная кавычка внутри — двойной разделитель. */
 const md = (s: string): string => (s.includes('`') ? `\`\` ${s} \`\`` : `\`${s}\``);
 
-/**
- * Описание модели текстом для языковых моделей. Подписи — на языке `opts.lang` (`'ru'` или `'en'`), без него — на
- * языке вокруг: `lang` подключения, сервера MCP или CLI (`--lang`), иначе ru.
- */
-export function describeText(d: ModelDescription, opts: { lang?: Lang } = {}): string {
-  const lang = checkLang(opts?.lang, 'describeText') ?? currentLang();
-  const t = (key: MsgKey, params?: Params): string => lmsg(key, params, lang);
+/** Описание модели текстом для языковых моделей. */
+export function describeText(d: ModelDescription): string {
+  const t = (key: MsgKey, params?: Params): string => lmsg(key, params);
   const out: string[] = [`# letopis: ${t('time.describe_title', { schema: d.schema })}`, '', t('time.describe_chain'), t('time.describe_examples'), ''];
   for (const c of d.classes) {
     const title = typeof c.meta.title === 'string' ? ` — ${c.meta.title}` : '';

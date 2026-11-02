@@ -1,9 +1,8 @@
 /**
  * docs — примеры документации исполняются. Блок ```ts, перед которым стоит `<!-- run -->` или `<!-- run: имя -->`,
  * входит в сценарий с этим именем (без имени — `main`); блоки сценария склеиваются по порядку и выполняются
- * против PostgreSQL 18: lib/README.md и README.en.md, lib/AGENT-CHEATSHEET.md и AGENT-CHEATSHEET.en.md, корневые
- * README.md и README.en.md. Каждый
- * сценарий — в своей свежей схеме v2.t_docs_<документ>[_<сценарий>]: строки `const ADMIN = …` и `const APP = …`
+ * против PostgreSQL 18: lib/README.md, lib/AGENT-CHEATSHEET.md и корневой README.md. Каждый сценарий — в своей свежей
+ * схеме v2.t_docs_<документ>[_<сценарий>]: строки `const ADMIN = …` и `const APP = …`
  * заменяются подключениями обвязки, имя схемы примеров — схемой теста, импорты 'letopis', 'letopis/model' и 'letopis/mcp' —
  * исходниками пакета, `import type` убирается. Блоки без пометки (командная строка, импорт из 0.21, PGlite, сброс)
  * не исполняются: их покрывают свои тесты.
@@ -31,7 +30,7 @@ interface Doc {
   /**
    * Проверки после сценария: результаты, обещанные комментариями примеров (`// { allow: false }` и т. п.).
    * Код дописывается в конец модуля и видит переменные сценария; `assert` и `__connect` (connect пакета) —
-   * в его импортах. Русская и английская версии — один код, поэтому и проверки общие.
+   * в его импортах.
    */
   expect?: Record<string, string>;
 }
@@ -170,12 +169,9 @@ assert.equal(typeof earlier, 'number')
 };
 
 const DOCS: Doc[] = [
-  { file: '../README.md', schema: 't_docs_root_ru', token: 'salon', minBlocks: 1, expect: ROOT_EXPECT },
-  { file: '../README.en.md', schema: 't_docs_root_en', token: 'salon', minBlocks: 1, expect: ROOT_EXPECT },
-  { file: 'README.md', schema: 't_docs_readme_ru', token: 'shop', minBlocks: 30, expect: README_EXPECT },
-  { file: 'README.en.md', schema: 't_docs_readme_en', token: 'shop', minBlocks: 30, expect: README_EXPECT },
-  { file: 'AGENT-CHEATSHEET.md', schema: 't_docs_cheat_ru', token: 'myapp', minBlocks: 10, expect: CHEAT_EXPECT },
-  { file: 'AGENT-CHEATSHEET.en.md', schema: 't_docs_cheat_en', token: 'myapp', minBlocks: 10, expect: CHEAT_EXPECT },
+  { file: '../README.md', schema: 't_docs_root', token: 'salon', minBlocks: 1, expect: ROOT_EXPECT },
+  { file: 'README.md', schema: 't_docs_readme', token: 'shop', minBlocks: 30, expect: README_EXPECT },
+  { file: 'AGENT-CHEATSHEET.md', schema: 't_docs_cheat', token: 'myapp', minBlocks: 10, expect: CHEAT_EXPECT },
 ];
 
 const BLOCK = /<!--\s*run(?::\s*([\w-]+))?\s*-->[ \t]*\r?\n```ts\r?\n([\s\S]*?)\r?\n```/g;

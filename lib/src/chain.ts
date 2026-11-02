@@ -12,7 +12,7 @@
  * исполняет весь план одной транзакцией (write.ts): продолжение идёт от результата глагола.
  * Этап 6: restore, purge, rekey; versions({ follow }); кэш результатов .cache() (cache.ts).
  */
-import { lerr, lwarn, removed, similar, wrapLang, type LangRun, type LetopisError } from './errors.js';
+import { lerr, lwarn, removed, similar, type LetopisError } from './errors.js';
 import { sessionTag, type ResultCache } from './cache.js';
 import type { ClassInfo, Registry } from './registry.js';
 import {
@@ -41,8 +41,6 @@ export interface ChainCtx {
   readonly txReason?: string;
   /** Кэш результатов подключения и тот, кто спрашивает (ключ ответа, §2.12). */
   readonly cache?: { store: ResultCache; who(): { token: string | null; account?: string; tenant?: string | null } };
-  /** Язык подключения не ru (план 2.0, этап 3, п. 3): шаги, методы и слоты цепочки исполняются на нём. */
-  readonly lang?: LangRun;
 }
 
 /** План в очереди батча; steps обновляется по мере роста цепочки. */
@@ -257,9 +255,6 @@ const stepNames = (reg: Registry): string[] => reg.all().flatMap((c) => [c.name,
 const unknownName = (reg: Registry, name: string): never => {
   throw lerr('api.unknown_step', { name, similar: similar(name, stepNames(reg)) });
 };
-
-/** StepFn, которые сами ставят язык подключения: их методы фасада и цепочки не оборачивают ещё раз. */
-const langSteps = new WeakSet<object>();
 
 const nodeOf = (steps: Step[], s: Step): Step =>
   s.pivotKey === undefined ? s : steps.find((x) => x.nodeKey === s.pivotKey) ?? s;
@@ -499,17 +494,12 @@ function classProp(ctx: ChainCtx, name: string, found: { cls: ClassInfo; role?: 
     if (ctx.batch?.entry) ctx.batch.entry.steps = next;
     return makeChain(ctx, next, mods, nodes);
   };
-  // язык подключения не ru: и сам шаг, и слоты — на нём (у ru обёрток нет)
-  const L = ctx.lang;
-  const fn = L ? (filter?: Filter): Chain => L(() => step(filter)) : step;
-  const proxy = new Proxy(fn, {
+  return new Proxy(step, {
     get(t, p, r) {
-      if (p === 'set' || p === 'unset' || p === 'add' || p === 'remove') return L ? wrapLang(L, slot(p)) : slot(p);
+      if (p === 'set' || p === 'unset' || p === 'add' || p === 'remove') return slot(p);
       return Reflect.get(t, p, r);
     },
   }) as StepFn;
-  if (L) langSteps.add(proxy);
-  return proxy;
 }
 
 export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: NodeMap = NO_NODES): Chain {
@@ -730,13 +720,7 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
     get(_t, prop) {
       if (prop === PLAN) return { steps, mods } satisfies PlanPeek;
       if (typeof prop === 'symbol') return undefined;
-      // язык подключения не ru (план 2.0, этап 3, п. 3): разбор имени и вызов метода — на нём; у ru обёрток нет
-      const L = ctx.lang;
-      if (!L) return member(prop);
-      return L(() => {
-        const v = member(prop);
-        return langSteps.has(v as object) ? v : wrapLang(L, v);
-      });
+      return member(prop);
     },
   };
   return new Proxy({}, handler) as Chain;
@@ -772,13 +756,7 @@ export function makeBatch(ctx: ChainCtx, queue: BatchEntry[]): Batch {
   return new Proxy({}, {
     get(_t, prop) {
       if (typeof prop === 'symbol' || prop === 'then') return undefined;
-      // язык подключения не ru: как у цепочки (makeChain)
-      const L = ctx.lang;
-      if (!L) return member(prop);
-      return L(() => {
-        const v = member(prop);
-        return langSteps.has(v as object) ? v : wrapLang(L, v);
-      });
+      return member(prop);
     },
   }) as Batch;
 }

@@ -19,7 +19,7 @@ import postgres from 'postgres';
 import { DDL_REVISION, RESERVED_CLASS_NAMES } from './types.js';
 import { startPglite, type PgliteOptions, type PgliteServer } from './pglite.js';
 import { hashPassword } from './auth.js';
-import { checkLang, checkOptions, langRun, lerr, lmsg, type Lang, type MsgKey, type Params } from './errors.js';
+import { checkOptions, lerr, lmsg, type MsgKey, type Params } from './errors.js';
 import { sqlCatalog } from './messages/index.js';
 import { v5Id } from './uuid.js';
 import { SIGNAL_MODES, type SignalMode } from './signals.js';
@@ -169,8 +169,8 @@ export async function stampDrift(schema: string, comment: string): Promise<strin
   const code = await engineStamp().catch(() => null); // файлов ядра рядом со сборкой нет — сверять не с чем
   if (!code || /\bsql=([0-9a-f]+)/.exec(comment)?.[1] === code.sql) return null;
   const was = /\bengine=(\S+)/.exec(comment)?.[1];
-  // текст — на языке вокруг: connect() зовёт stampDrift на языке подключения. Схему обновила версия новее пакета — или
-  // функции поставила версия до 1.4.0 (штампа нет), другая сборка той же версии, другая версия
+  // схему обновила версия новее пакета — или функции поставила версия до 1.4.0 (штампа нет), другая сборка той же версии,
+  // другая версия
   const key: MsgKey = was && compareVersions(was, code.version) > 0 ? 'boot.stamp_newer'
     : !was ? 'boot.stamp_before_140' : was === code.version ? 'boot.stamp_other_build' : 'boot.stamp_other_version';
   return 'letopis: ' + lmsg(key, { schema, version: code.version, ...(was ? { was } : {}) });
@@ -414,11 +414,6 @@ export interface UpOptions extends Omit<InstallOptions, 'schema' | 'upTo' | 'mig
    * одним процессом.
    */
   login?: LoginOptions;
-  /**
-   * Язык сообщений (план 2.0, этап 3, п. 3): `'ru'` (по умолчанию) или `'en'`. На этом языке — ошибки и предупреждения
-   * `up()`, в том числе заведения арендатора `tenant`, и ход установки в консоли.
-   */
-  lang?: Lang;
 }
 
 /** Роль приложения up({ login }). */
@@ -431,7 +426,7 @@ export interface LoginOptions {
 const UP_OPTIONS = {
   dsn: true, sql: true, schema: true, fresh: true, upgrade: true, quiet: true, waitTimeoutMs: true, pglite: true, tenant: true,
   login: true, owner: true, app: true, allowReset: true, history: true, seeds: true, migrationsDir: true, serviceKey: true,
-  signals: true, lang: true,
+  signals: true,
 } satisfies Record<keyof UpOptions, true>;
 
 export interface UpResult extends InstallResult {
@@ -506,7 +501,7 @@ export async function ensureDatabase(dsn: string, log: (m: string) => void = () 
  * иначе отказ. Возвращает предупреждения: с чем установка работает, но рискует.
  */
 export function checkServer(versionNum: number, encoding: string): string[] {
-  // обычный Error: подходящего кода нет; текст — на языке вокруг (up({ lang }))
+  // обычный Error: подходящего кода нет
   if (versionNum < 180000) throw new Error(`letopis.up: ${lmsg('boot.pg_version', { major: Math.floor(versionNum / 10000), num: versionNum })}`);
   if (encoding.toUpperCase() !== 'UTF8') throw new Error(`letopis.up: ${lmsg('boot.encoding', { encoding })}`);
   const warnings: string[] = [];
@@ -528,12 +523,6 @@ export async function schemaRevision(sql: Pick<postgres.Sql, 'unsafe'>, schema: 
  * Схему отставшей ревизии `up()` обновляет только с `upgrade: true`, а на схеме новее пакета отказывает.
  */
 export async function up(opts: UpOptions): Promise<UpResult> {
-  // lang (план 2.0, 7.9 №5): ошибки, предупреждения и ход установки — на языке опции, по умолчанию ru
-  const L = langRun(checkLang(opts?.lang, 'up'));
-  return L ? L(() => runUp(opts)) : runUp(opts);
-}
-
-async function runUp(opts: UpOptions): Promise<UpResult> {
   checkOptions('up', opts, UP_OPTIONS);
   const log = opts.quiet ? () => {} : (m: string) => console.log(`letopis.up: ${m}`);
   const schema = opts.schema.includes('.') ? opts.schema : `${SCHEMA_VERSION}.${opts.schema}`;
@@ -576,7 +565,7 @@ async function runUp(opts: UpOptions): Promise<UpResult> {
     if (before !== null && before < DDL_REVISION && !opts.upgrade) {
       throw new Error(`letopis.up: ${lmsg('boot.schema_older', { schema, rev: before, want: DDL_REVISION })}`);
     }
-    const { dsn: _d, sql: _s, schema: _sc, fresh: _f, upgrade: _u, quiet: _q, waitTimeoutMs: _w, pglite: _p, login: _l, lang: _lg, ...rest } = opts;
+    const { dsn: _d, sql: _s, schema: _sc, fresh: _f, upgrade: _u, quiet: _q, waitTimeoutMs: _w, pglite: _p, login: _l, ...rest } = opts;
     const { found, ...res } = await install(sql, {
       ...rest, schema, ...(opts.fresh ? { fresh: true } : {}), ...(before !== null && before < DDL_REVISION ? { migrateFrom: before } : {}),
     });

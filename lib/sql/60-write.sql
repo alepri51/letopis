@@ -607,7 +607,7 @@ return
 
 -- Строки семейства, которые не проходят текущие описания своих классов (после ужесточения).
 -- Не больше 100 строк; p_incoming — проверять ещё и входящие ссылки (смена родителя). У строки — problem (русский текст
--- по ключу каталога) и сами key и params: по ним библиотека собирает problem на языке подключения (fromDbError).
+-- по ключу каталога) и сами key и params: библиотека их убирает (fromDbError).
 create or replace function @SCHEMA@.family_conflicts(p_classes text[], p_tenant uuid, p_incoming boolean) returns jsonb
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -2085,8 +2085,8 @@ begin
       end if;
     end if;
   end if;
-  -- путь — параметр всех текстов, кроме inc_args; нарушение в detail.issues — тот же русский текст, а его key и params —
-  -- для текста на языке подключения (fromDbError)
+  -- путь — параметр всех текстов, кроме inc_args; нарушение в detail.issues — тот же русский текст с его key и params
+  -- (их убирает fromDbError)
   if fail <> 'sql-write.inc_args' then
     p := jsonb_build_object('path', array_to_string(path, '.'));
   end if;

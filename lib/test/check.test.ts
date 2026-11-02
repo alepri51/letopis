@@ -1,8 +1,8 @@
 /**
  * check — letopis check и letopis sync --check (план 2.0, этап 3, п. 8; тест-план 7.9 №10): у каждого правила
- * статической проверки — положительный и отрицательный случай; текст, --json, --models, --lang и коды выхода CLI;
- * коды выхода sync --check. Ещё CLI: --lang en — справка, отчёт sync и letopis types по-английски, types --system
- * (7.9 №5); letopis load --trust — понятная ошибка (7.5 №3).
+ * статической проверки — положительный и отрицательный случай; текст, --json, --models и коды выхода CLI; коды выхода
+ * sync --check. Ещё CLI: справка, отчёт sync и letopis types, types --system; letopis load --trust — понятная ошибка
+ * (7.5 №3).
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -203,7 +203,7 @@ await db.Account().rows();
   assert.deepEqual(good, []);
 });
 
-test('план 2.0, 7.9 №10: letopis check — текст и --json, --models, --lang; код 1 при ошибках, 0 без них, 2 без файлов', async () => {
+test('план 2.0, 7.9 №10: letopis check — текст и --json, --models; код 1 при ошибках, 0 без них, 2 без файлов', async () => {
   const bad = join(dir, 'cli-bad.ts');
   const good = join(dir, 'cli-good.ts');
   const models = join(dir, 'models.mjs');
@@ -223,9 +223,6 @@ test('план 2.0, 7.9 №10: letopis check — текст и --json, --models,
   const rep = JSON.parse(r.text) as { ok: boolean; files: number; models: boolean; problems: CheckProblem[] };
   assert.deepEqual([rep.ok, rep.files, rep.models], [false, 2, true]);
   assert.deepEqual(rep.problems.map((p) => [p.rule, p.line, p.similar]), [['unknown-name', 3, ['Shop']], ['no-filter', 3, undefined]]);
-  r = await cli(['check', bad, '--lang', 'en']);
-  assert.match(r.text, /no-filter: update\(\) without a filter/);
-  assert.match(r.text, /letopis check: files 1, errors 1$/);
   assert.equal((await cli(['check'])).code, 2);
 });
 
@@ -250,48 +247,36 @@ test('план 2.0, 7.9 №10: letopis sync --check — код 1, пока су�
   }
 });
 
-test('план 2.0, 7.9 №5: CLI --lang en — справка, отчёт sync и letopis types без кириллицы; letopis types --system — и классы арендатора System', async () => {
-  const CYRILLIC = /[а-яё]/i;
-  let r = await cli(['--help', '--lang', 'en']);
+test('CLI — справка, отчёт sync и letopis types; letopis types --system — и классы арендатора System', async () => {
+  let r = await cli(['--help']);
   assert.equal(r.code, 0);
-  assert.match(r.text, /^any command: --lang ru\|en — the language of help, reports and error messages/);
+  assert.match(r.text, /^letopis sync /);
   assert.match(r.text, /^letopis types .*\[--system\]$/m);
-  assert.doesNotMatch(r.text, CYRILLIC, r.text);
-  r = await cli(['--help']);
-  assert.match(r.text, /^у любой команды: --lang ru\|en — язык справки, отчётов и сообщений об ошибках/);
-  assert.match(r.text, /^letopis types .*\[--system\]$/m);
-  // неизвестная команда — справка с кодом 2 на языке команды, до подключения (порт 1 никто не слушает)
-  r = await cli(['bogus', '--lang', 'en', '--dsn', 'postgres://x:y@127.0.0.1:1/z', '--schema', 'v2.x']);
+  // неизвестная команда — справка с кодом 2 до подключения (порт 1 никто не слушает)
+  r = await cli(['bogus', '--dsn', 'postgres://x:y@127.0.0.1:1/z', '--schema', 'v2.x']);
   assert.equal(r.code, 2);
-  assert.doesNotMatch(r.text, CYRILLIC);
+  assert.match(r.text, /^letopis sync /);
   const e = await engine(import.meta.filename);
   try {
-    const t = await e.tenant('lang');
-    const file = join(dir, 'kiosk-en.mjs');
+    const t = await e.tenant('cli');
+    const file = join(dir, 'kiosk-cli.mjs');
     await writeFile(file, modelsModule(`export const Kiosk = hub('Kiosk', { name: z.string(), code: z.string().refine((s) => s.length > 1) }, { key: ['name'] });`));
     const base = ['--dsn', appDsn(), '--schema', e.schema, '--token', t.token];
-    r = await cli(['sync', file, ...base, '--lang', 'en']);
-    assert.equal(r.code, 0);
-    assert.equal(r.text, [
-      'dry run: create 1, update 0, unchanged 0, system 0',
-      '  create: Kiosk',
-      '  rule refine at Kiosk.code is checked only in the library — the database does not have it',
-    ].join('\n'));
     r = await cli(['sync', file, ...base]);
+    assert.equal(r.code, 0);
     assert.equal(r.text, [
       'сухой прогон: создать 1, изменить 0, без изменений 0, системных 0',
       '  создать: Kiosk',
       '  правило refine в Kiosk.code проверяется только в библиотеке — в базе его нет',
     ].join('\n'));
-    r = await cli(['sync', file, ...base, '--apply', '--lang', 'en']);
-    assert.match(r.text, /^applied: create 1, update 0, unchanged 0, system 0$/m);
+    r = await cli(['sync', file, ...base, '--apply']);
+    assert.match(r.text, /^применено: создать 1, изменить 0, без изменений 0, системных 0$/m);
     // letopis types: классы арендатора сессии; --system — ещё и классы арендатора System (системные, сиды пакета)
-    r = await cli(['types', ...base, '--lang', 'en']);
+    r = await cli(['types', ...base]);
     assert.equal(r.code, 0);
-    assert.match(r.text, /^\/\/ Generated by letopis types — do not edit by hand\.$/m);
+    assert.match(r.text, /^\/\/ Сгенерировано letopis types — не править руками\.$/m);
     assert.match(r.text, /^export interface KioskData \{/m);
     assert.doesNotMatch(r.text, /AccountData/);
-    assert.doesNotMatch(r.text, CYRILLIC, r.text);
     r = await cli(['types', ...base, '--system']);
     assert.equal(r.code, 0);
     assert.match(r.text, /^\/\/ Сгенерировано letopis types — не править руками\.$/m);
@@ -317,13 +302,6 @@ test('план 2.0, 7.5 №3: letopis load --trust — LetopisError removed с �
       assert.equal(err.code, 'removed');
       assert.match(err.message, /^letopis: removed: --trust снят в 1\.0\.0 — запрос по целям вне загрузки стоит 0,1–1,3 % её времени$/);
       assert.match(err.hint ?? '', /запускать letopis load без --trust/);
-      return true;
-    });
-    await assert.rejects(cli([...args, '--lang', 'en']), (err: unknown) => {
-      assert.ok(err instanceof LetopisError, String(err));
-      assert.equal(err.code, 'removed');
-      assert.match(err.message, /^letopis: removed: --trust was removed in 1\.0\.0/);
-      assert.doesNotMatch(`${err.message} ${err.hint}`, /[а-яё]/i);
       return true;
     });
   } finally {

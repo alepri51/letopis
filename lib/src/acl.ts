@@ -17,9 +17,8 @@
  * `revoke({ everyone: true, read: '*', write: '*', delete: '*' })` снимает «можно всё». Строк System арендатор не видит,
  * их id — `v5Id(System, 'Resource', [alias])`.
  */
-import { currentLang, lerr, lmsg, removed, wrapLang, type LangRun } from './errors.js';
+import { lerr, removed } from './errors.js';
 import { internalsOf } from './internal.js';
-import { msgOf } from './messages/index.js';
 import type { Executor } from './tx.js';
 import { v5Id } from './uuid.js';
 
@@ -245,9 +244,9 @@ type Facade = any;
 
 /**
  * db.acl фасада. db — сам фасад (корень, db.as(), db.begin()): запись правил идёт его цепочками, внутри db.begin() — в её
- * транзакции. lang — язык подключения, если не ru (план 2.0, этап 3, п. 3): методы исполняются на нём.
+ * транзакции.
  */
-export function makeAcl(S: string, exec: Executor, db?: () => unknown, lang?: LangRun): AclApi {
+export function makeAcl(S: string, exec: Executor, db?: () => unknown): AclApi {
   const facade = (): Facade => {
     const d = db?.();
     if (!d) throw lerr('access.no_facade');
@@ -290,20 +289,11 @@ export function makeAcl(S: string, exec: Executor, db?: () => unknown, lang?: La
   const sysId = (alias: string): string => v5Id(SYSTEM_ID, 'Resource', [alias]);
   const sys = new Map(SYSTEM_RESOURCES.map((a) => [sysId(a), a]));
   const AUTHENTICATED = sysId('authenticated:ACCOUNT');
-  /** Правило сида System «запрет по умолчанию» на эндпоинты: any:ACCOUNT → any:API, вес 0 (95-seed.system.sql). */
-  const SEED_DENY = v5Id(SYSTEM_ID, 'rule', [sysId('any:ACCOUNT'), sysId('any:API')]);
 
   const api: AclApi = {
     async check(endpoint) {
       const [r] = await exec.run((q) => q.unsafe(`select ${S}.acl_check($1) as d`, [endpoint]), { read: true });
-      const d = r.d as AclDecision;
-      // отказ без правила (lt_text в acl_api_for) и message правила сида — тексты библиотеки: на языке подключения;
-      // message правил арендатора и System, заведённых людьми, — их данные, как есть
-      if (d.message !== undefined && currentLang() !== 'ru') {
-        if (!d.rule) d.message = lmsg('sql-access.default_deny');
-        else if (d.rule.id === SEED_DENY && d.message === msgOf('access.seed_default_deny')?.ru) d.message = lmsg('access.seed_default_deny');
-      }
-      return d;
+      return r.d as AclDecision;
     },
     async checkData(className, op) {
       const [r] = await exec.run((q) => q.unsafe(`select ${S}.acl_check_data($1, $2) as d`, [className, op]), { read: true });
@@ -389,13 +379,10 @@ export function makeAcl(S: string, exec: Executor, db?: () => unknown, lang?: La
       return out.sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
     },
   };
-  const member = (t: AclApi, p: string | symbol, r: unknown): unknown => {
-    if (p === 'reload') throw removed('db.acl.reload()', 'access.replacement_acl_reload');
-    return Reflect.get(t, p, r);
-  };
   return new Proxy(api, {
     get(t, p, r) {
-      return lang ? lang(() => wrapLang(lang, member(t, p, r))) : member(t, p, r);
+      if (p === 'reload') throw removed('db.acl.reload()', 'access.replacement_acl_reload');
+      return Reflect.get(t, p, r);
     },
   });
 }

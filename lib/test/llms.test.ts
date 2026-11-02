@@ -1,9 +1,8 @@
 /**
- * llms — документы для агента из реестров кода (план 2.0, этап 3, пп. 4–5; тест-план 7.9 №7, №8): llms-full.txt полон —
- * каждый код ошибки со смыслом и «что делать», каждый нюанс, зарезервированные имена и операторы; реестр операторов
- * OPERATORS совпадает с фабриками пакета, с ключами JSON-фильтра letopis_query (тот же ответ, что у цепочки, на
- * PostgreSQL 18) и с таблицами README и шпаргалки, обе версии, и главы «Чтение» сайта. Свежесть файлов против генератора
- * сверяет check:docs.
+ * llms — один словарь фильтров (план 2.0, этап 3, п. 5; тест-план 7.9 №8): реестр операторов OPERATORS совпадает с
+ * фабриками пакета, с ключами JSON-фильтра letopis_query (тот же ответ, что у цепочки, на PostgreSQL 18) и с таблицами
+ * README, шпаргалки и главы «Чтение» сайта. Свежесть таблиц против генератора (scripts/gen-ops-tables.mjs) сверяет
+ * check:docs. Справочник для агента одним файлом (7.9 №7) снят редакцией 2 плана.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,22 +13,13 @@ import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { engine, type Engine, type Tenant } from './_engine.js';
 import { appDsn } from './_harness.js';
 import * as letopis from '../src/index.js';
-import { RESERVED_CLASS_NAMES, between, connect, ends, exists, gt, gte, has, hasAll, hasAny, ilike, inList, isNull, like, lt, lte, ne, not, or, starts, type Db, type Filter } from '../src/index.js';
+import { between, connect, ends, exists, gt, gte, has, hasAll, hasAny, ilike, inList, isNull, like, lt, lte, ne, not, or, starts, type Db, type Filter } from '../src/index.js';
 import { createMcpServer } from '../src/mcp.js';
 import * as opsModule from '../src/ops.js';
 import { OPERATORS, operatorTable } from '../src/ops.js';
-import { codes } from '../src/messages/codes.js';
-import nuances from '../../guide/coverage/nuances.js';
 
-/** Файл пакета с концами строк LF (в рабочей копии Windows шпаргалки — с CRLF). */
+/** Файл пакета с концами строк LF (в рабочей копии Windows — с CRLF). */
 const doc = (file: string) => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
-/** Раздел llms-full.txt от заголовка до следующего заголовка второго уровня. */
-function part(text: string, heading: string): string {
-  const at = text.indexOf(`\n${heading}\n`);
-  assert.ok(at >= 0, `в llms-full.txt нет раздела «${heading}»`);
-  const end = text.indexOf('\n## ', at + heading.length + 2);
-  return text.slice(at, end < 0 ? undefined : end);
-}
 
 let e: Engine;
 let t: Tenant;
@@ -61,39 +51,7 @@ after(async () => {
   await e?.close();
 });
 
-test('план 2.0, 7.9 №7: llms-full.txt — каждый код ошибки со смыслом и «что делать», каждый нюанс, зарезервированные имена и операторы; файл в пакете, llms.txt ссылается на него', () => {
-  const text = doc('llms-full.txt');
-  const cell = (s: string) => s.replaceAll('|', '\\|');
-
-  const errors = part(text, '## 3. Error codes');
-  const all = Object.values(codes);
-  assert.ok(all.length >= 40, `кодов в каталоге: ${all.length}`);
-  for (const m of all) {
-    assert.ok(errors.includes(`| \`${m.code}\` | ${cell(m.en)} | ${cell(m.hint.en)} |`), `код ${m.code}: нет строки «код — смысл — что делать» на английском`);
-  }
-
-  const nuance = part(text, '## 4. Nuances');
-  assert.equal(nuances.length, 78);
-  for (const n of nuances) {
-    assert.ok(n.en.trim() && !/[А-Яа-яЁё]/.test(n.en), `нюанс ${n.id}: нет английского текста`);
-    assert.ok(nuance.includes(`- \`${n.id}\`: ${n.en.trim()}`), `нюанс ${n.id}: нет в llms-full.txt`);
-  }
-
-  const reserved = part(text, '## 5. Reserved names');
-  for (const name of RESERVED_CLASS_NAMES) assert.ok(reserved.includes(`\`${name}\``), `зарезервированное имя ${name}: нет в llms-full.txt`);
-
-  const operators = part(text, '## 6. Filter operators');
-  assert.ok(operators.includes(operatorTable('en')), 'таблица операторов в llms-full.txt не совпадает с реестром');
-  for (const o of OPERATORS) assert.ok(operators.includes(`\`${o.ts}(`) && operators.includes(`"${o.mcp}"`), `оператор ${o.ts} / ${o.mcp}`);
-
-  for (const h of ['## 1. Agent cheatsheet', '## 2. Chain grammar']) assert.ok(text.includes(`\n${h}\n`), h);
-
-  const pkg = JSON.parse(doc('package.json')) as { files: string[] };
-  assert.ok(pkg.files.includes('llms-full.txt'), 'llms-full.txt — в поле files пакета');
-  assert.match(doc('llms.txt'), /\(llms-full\.txt\)/, 'llms.txt ссылается на llms-full.txt');
-});
-
-test('план 2.0, 7.9 №8: реестр операторов — фабрики пакета, ключи letopis_query с тем же ответом, что у цепочки, и таблицы README и шпаргалки, обе версии, и главы «Чтение» сайта', async () => {
+test('план 2.0, 7.9 №8: реестр операторов — фабрики пакета, ключи letopis_query с тем же ответом, что у цепочки, и таблицы README, шпаргалки и главы «Чтение» сайта', async () => {
   // 1. реестр == фабрики операторов, которые экспортирует letopis (без isOp и помощников таблиц)
   const pkg = letopis as unknown as Record<string, unknown>;
   const ops = opsModule as unknown as Record<string, unknown>;
@@ -155,12 +113,11 @@ test('план 2.0, 7.9 №8: реестр операторов — фабрик
     await handle.close();
   }
 
-  // 3. реестр == таблицы между метками <!-- ops --> в README и шпаргалке, обе версии, и в главе «Чтение» сайта (без MCP)
-  const tables: [file: string, lang: 'ru' | 'en', opts?: { mcp?: boolean }][] = [['README.md', 'ru'], ['README.en.md', 'en'],
-    ['AGENT-CHEATSHEET.md', 'ru'], ['AGENT-CHEATSHEET.en.md', 'en'], ['../guide/pages/read/index.md', 'ru', { mcp: false }]];
-  for (const [file, lang, opts] of tables) {
+  // 3. реестр == таблицы между метками <!-- ops --> в README, шпаргалке и в главе «Чтение» сайта (без MCP)
+  const tables: [file: string, opts?: { mcp?: boolean }][] = [['README.md'], ['AGENT-CHEATSHEET.md'], ['../guide/pages/read/index.md', { mcp: false }]];
+  for (const [file, opts] of tables) {
     const blocks = [...doc(file).matchAll(/<!-- ops -->\n([\s\S]*?)\n<!-- \/ops -->/g)];
     assert.equal(blocks.length, 1, `${file}: одна таблица операторов`);
-    assert.equal(blocks[0][1], operatorTable(lang, opts), `${file}: таблица операторов совпадает с реестром`);
+    assert.equal(blocks[0][1], operatorTable(opts), `${file}: таблица операторов совпадает с реестром`);
   }
 });

@@ -28,7 +28,7 @@ export async function startPglite(opts: PgliteOptions = {}): Promise<PgliteServe
     try {
       return await import(name) as Record<string, unknown>;
     } catch {
-      // обычный Error, как у up(): подходящего кода нет; текст — на языке вокруг (up({ lang }))
+      // обычный Error, как у up(): подходящего кода нет
       throw new Error(`letopis.up: ${lmsg('boot.pglite_package', { name })}`);
     }
   };

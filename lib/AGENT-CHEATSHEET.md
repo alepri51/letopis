@@ -2,8 +2,8 @@
 
 - Одна страница вместо [README.md](README.md) — для ИИ-агента, который пишет код поверх пакета; лежит в пакете рядом
   с README.
-- Английская версия — [AGENT-CHEATSHEET.en.md](AGENT-CHEATSHEET.en.md); переход с 0.21 — [MIGRATION.md](MIGRATION.md);
-  машинный каталог API и ошибок — `docs/api-contract.json` в репозитории.
+- Переход с 0.21 — [MIGRATION.md](MIGRATION.md); машинный каталог API и ошибок — `docs/api-contract.json` в
+  репозитории.
 - Примеры ниже идут по порядку и образуют одну программу; тест `docs` исполняет её против PostgreSQL 18, так что код
   сверен с пакетом.
 - Правила записаны строками «условие → поведение».
@@ -624,7 +624,6 @@ await adm.close(); await db.close(); await svc.close()
     - `err.code` — строчный код (`exists`, `conflict`, `invalid_data` …), текст — `letopis: <код>: …`;
     - ошибка данных (`ValidationError`) → `err.issues: [{ path, keyword, message }]`;
     - `err.hint` — что делать, `err.docs` — ссылка на код в разделе «Ошибки» README;
-    - `connect({ lang: 'en' })` (и `createMcpServer({ lang })`, `--lang en`) → тексты и подсказки по-английски;
     - неизвестный класс или роль → похожие имена в тексте и в `err.params.similar`;
     - опечатка в поле фильтра, `sort()`, агрегате или в опции → предупреждение с похожими.
 16. **Подписка с `'now'` — с момента ответа базы.**

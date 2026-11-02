@@ -72,8 +72,8 @@ const commitUnknown = (cause: unknown): LetopisError =>
   lerr('write.commit_unknown', undefined, { cause });
 
 /**
- * Взаимная блокировка в явной транзакции: повторить нужно весь блок (подсказка, как hintTxRetry 0.21). Хвост — на языке
- * вокруг (write.tx_retry_hint); в обоих языках он называет db.begin(), поэтому второй раз не дописывается.
+ * Взаимная блокировка в явной транзакции: повторить нужно весь блок (подсказка, как hintTxRetry 0.21). Хвост —
+ * запись write.tx_retry_hint; он называет db.begin(), поэтому второй раз не дописывается.
  */
 function hintTxRetry(e: unknown): unknown {
   if (isTransient(e) && e instanceof Error && !e.message.includes('db.begin()')) {

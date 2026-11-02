@@ -212,14 +212,8 @@ test('план 2.0, 7.9 №1: everyone — правила для всех акк
   }
 });
 
-test('план 2.0, 7.9 №5: check() с lang en — отказ правила сида «запрет по умолчанию» по-английски, с ru — прежний текст', async () => {
-  const en = await connect({ dsn: appDsn(), schema: e.schema, token: people.staff.token, max: 1, lang: 'en' });
-  try {
-    const d = await en.acl.check('nothing.matches');
-    assert.equal(d.allow, false);
-    assert.equal(d.message, 'Access denied by default');
-    assert.equal((await people.staff.db.acl.check('nothing.matches')).message, 'Доступ запрещён по умолчанию');
-  } finally {
-    await en.close();
-  }
+test('check() — отказ правила сида «запрет по умолчанию»: allow false и текст сида как есть', async () => {
+  const d = await people.staff.db.acl.check('nothing.matches');
+  assert.equal(d.allow, false);
+  assert.equal(d.message, 'Доступ запрещён по умолчанию');
 });

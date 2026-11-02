@@ -474,7 +474,7 @@ interface Section { title: string; intro?: string; ids: string[] }
 /** note — заметка после вступления: пункт covers без своего метода (якорь — как у пункта) и текст. */
 interface Page { file: string; title: string; intro: string; sections: Section[]; notes?: { id: string; title: string; text: string }[] }
 /** Таблица операторов — из реестра OPERATORS (lib/src/ops.ts; план 2.0, этап 3, п. 5), как в README и шпаргалке. */
-const OPS_INTRO = 'Оператор ставится значением поля в фильтре шага, простое значение — равенство. Колонка MCP — ключи JSON-фильтра инструмента `letopis_query`; `$or` ставится вместо всего фильтра.\n\n' + operatorTable('ru');
+const OPS_INTRO = 'Оператор ставится значением поля в фильтре шага, простое значение — равенство. Колонка MCP — ключи JSON-фильтра инструмента `letopis_query`; `$or` ставится вместо всего фильтра.\n\n' + operatorTable();
 
 const PAGES: Page[] = [
   {

@@ -353,8 +353,8 @@ end $$;
 
 -- Проверка данных: общий вызов jsonb_path_match; при отказе — список нарушений по правилам.
 -- Результат сравнивается через is true: ошибка внутри выражения даёт NULL, а не «да» (этап 1, п. 5).
--- Нарушение — { path, keyword, message, key, params }: message — русский текст по ключу каталога, а key и params —
--- для текста на языке подключения; библиотека собирает его и убирает key и params (fromDbError, загрузчик, verify).
+-- Нарушение — { path, keyword, message, key, params }: message — русский текст по ключу каталога, рядом его key и
+-- params; библиотека убирает key и params (fromDbError, загрузчик, verify).
 create or replace function @SCHEMA@.validate_data(p_rules jsonb, p_validator jsonpath, p_vars jsonb, p_data jsonb) returns jsonb
 language plpgsql stable
 as $$

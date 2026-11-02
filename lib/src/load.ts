@@ -923,7 +923,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     }
     for (const f of found.sort((a, b) => a.line - b.line)) {
       const { id, cls } = p1[f.line]!;
-      // нарушения базы — с ключом каталога: сообщения на языке подключения, key и params наружу не идут
+      // нарушения базы — с ключом каталога: key и params наружу не идут
       issues.add({ line: f.line + 1, code: 'invalid_data', message: lmsg('write.load_invalid_data', { cls: cls.name }), id, class: cls.name, issues: issuesFromDb(f.raw) });
     }
     if (capped) issues.unchecked.add(lmsg('write.load_db_check_limit', { limit: ISSUES_LIMIT }));

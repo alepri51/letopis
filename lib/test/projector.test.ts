@@ -517,41 +517,6 @@ test('ревью безопасности №2, Н1: ошибка данных �
   }
 });
 
-test('план 2.0, 7.9 №5: отметка выбывшего — по ключу каталога: status() и rebuild({ tenant }) на подключении с lang en — по-английски', async () => {
-  // у z итог дня не больше 0: первая же сумма отклоняется базой — z выбывает с invalid_data
-  const z = await e.tenant('proj-en');
-  await e.defineClass(z, { name: 'Sale', kind: 'hub', fields: { properties: { day: { type: 'string' }, amount: { type: 'integer' } }, required: ['day', 'amount'] } });
-  await e.defineDerived(z, { name: 'EnTotal', kind: 'hub', key: ['day'], derivedBy: 'enmark', history: false,
-    fields: { properties: { day: { type: 'string' }, total: { type: 'integer', maximum: 0 } }, required: ['day'] } });
-  const def: ProjectorOptions = { from: ['Sale'], into: ['EnTotal'], version: 1, tenants: [z.id],
-    handle(changes, out) {
-      for (const c of changes) if (c.op === 'create') out.inc('EnTotal', { day: 'd' }, { total: 1 }, { tenant: c.tenant });
-    } };
-  const cyr = /[а-яё]/i;
-  const p = adm.projector('enmark', def);
-  const en = await connect({ dsn: ADMIN_DSN, schema: e.schema, allowBypassRls: true, max: 1, listen: false, lang: 'en' });
-  const pe = en.projector('enmark', def);
-  try {
-    await insSale(z.token, { day: 'a', amount: 1 });
-    await p.run({ once: true });
-    const ru = (await p.status()).failed[z.id];
-    assert.equal(ru.code, 'invalid_data');
-    assert.match(ru.message, cyr, 'ru — прежний текст');
-    const f = (await pe.status()).failed[z.id];
-    assert.equal(f.code, 'invalid_data');
-    assert.doesNotMatch(f.message, cyr, f.message);
-    await assert.rejects(pe.rebuild({ tenant: z.id, chunked: true }), (err: Error & { code?: string }) => {
-      assert.equal(err.code, 'invalid_data');
-      assert.doesNotMatch(err.message, cyr, err.message);
-      return true;
-    });
-  } finally {
-    pe.close();
-    p.close();
-    await en.close();
-  }
-});
-
 test('ревью безопасности №2, Н1: арендатор, выбывший посреди перестройки, остаётся без производных строк, а не с их частью', async () => {
   // у z сумма дня не больше 0. batch: 1 — каждая строка источника в своей пачке перестройки (по возрастанию id):
   // первая строка проходит, вторая — нет

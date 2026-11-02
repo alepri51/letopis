@@ -1125,7 +1125,7 @@ begin
       select jsonb_build_object('id', r.id, 'class', r.class, 'key', 'sql-time.verify_class', 'params', '{}'::jsonb) as f
         from rows_ r where r.class <> 'Class' and (r.res is null or coalesce((r.res->>'abstract')::boolean, false))
       union all
-      -- нарушения — как у validate_data: с key и params, их тексты библиотека тоже собирает на языке подключения
+      -- нарушения — как у validate_data: с key и params, их библиотека тоже убирает
       select jsonb_build_object('id', r.id, 'class', r.class, 'key', 'sql-time.verify_data', 'params', '{}'::jsonb,
                                 'issues', @SCHEMA@.validate_data(r.res->'rules', r.vld, r.res->'vars', r.data))
         from rows_ r where r.class <> 'Class' and r.res is not null
@@ -1198,7 +1198,7 @@ begin
           and not exists (select 1 from @SCHEMA@.log z where z.id = l.id and z.rev > l.rev)
           and not exists (select 1 from @SCHEMA@.entity e where e.id = l.id)) h;
   -- текст находки — русский шаблон её ключа каталога с параметрами (план 2.0, этап 3, п. 3); key и params остаются в
-  -- находке: по ним verify() библиотеки собирает текст на языке подключения
+  -- находке, verify() библиотеки их убирает
   select coalesce(jsonb_agg(x.f || jsonb_build_object('problem', @SCHEMA@.lt_text(x.f->>'key', x.f->'params')) order by x.n), '[]'::jsonb)
     into issues
   from jsonb_array_elements(hash_issues || issues || data_issues) with ordinality x(f, n);

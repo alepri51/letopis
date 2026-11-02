@@ -11,7 +11,7 @@
  */
 import { createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
-import { lerr, removed, wrapLang, type LangRun } from './errors.js';
+import { lerr, removed } from './errors.js';
 import type { Executor } from './tx.js';
 
 const scryptAsync = promisify(scrypt) as (password: string, salt: Buffer, keylen: number,
@@ -219,19 +219,13 @@ export interface AuthApi {
   purgeAccount(account: AccountRef): Promise<{ account: string; rows: number; versions: number; memberships: number; owned: number }>;
 }
 
-/**
- * Фасад db.auth. onSwitch — подключение перечитывает арендатора, реестр и пропуска прав; lang — язык подключения, если
- * не ru (план 2.0, этап 3, п. 3): методы исполняются на нём.
- */
-export function makeAuth(S: string, exec: Executor, onSwitch: () => Promise<void>, canSwitch: boolean, lang?: LangRun): AuthApi {
+/** Фасад db.auth. onSwitch — подключение перечитывает арендатора, реестр и пропуска прав. */
+export function makeAuth(S: string, exec: Executor, onSwitch: () => Promise<void>, canSwitch: boolean): AuthApi {
   const api = makeAuthCore(S, exec, onSwitch, canSwitch);
-  const member = (t: AuthApi, p: string | symbol, r: unknown): unknown => {
-    if (p === 'sessions') throw removed('db.auth.sessions(store)', 'access.replacement_sessions');
-    return Reflect.get(t, p, r);
-  };
   return new Proxy(api, {
     get(t, p, r) {
-      return lang ? lang(() => wrapLang(lang, member(t, p, r))) : member(t, p, r);
+      if (p === 'sessions') throw removed('db.auth.sessions(store)', 'access.replacement_sessions');
+      return Reflect.get(t, p, r);
     },
   });
 }

@@ -1,10 +1,9 @@
 /**
- * Каталог сообщений letopis (план 2.0, этап 3, п. 3): ключ → код ошибки, шаблоны ru и en и, если нужно, своя подсказка
- * «что делать». Все тексты ошибок переводятся по опции lang (`connect()`, `createMcpServer()`, CLI `--lang`); по
- * умолчанию ru, и русские тексты не меняются. Здесь разделы сливаются в MESSAGES (префикс ключа — имя раздела, ключи не
- * повторяются), а render() подставляет параметры; ошибки и тексты строит errors.ts — lerr, lmsg, lwarn.
+ * Каталог сообщений letopis (план 2.0, этап 3, п. 3): ключ → код ошибки, шаблон текста и, если нужно, своя подсказка
+ * «что делать». Здесь разделы сливаются в MESSAGES (префикс ключа — имя раздела, ключи не повторяются), а render()
+ * подставляет параметры; ошибки и тексты строит errors.ts — lerr, lmsg, lwarn.
  *
- * Как перевести место — инструкция исполнителям (образцы: записи разделов api, query, access, sql-core, sql-write,
+ * Как перевести место на ключ каталога — инструкция исполнителям (образцы: записи разделов api, query, access, sql-core, sql-write,
  * sql-time и места, которые их бросают).
  *
  * 1. Раздел — по файлу, где брошена ошибка:
@@ -14,17 +13,16 @@
  *      sql-core — sql/10, 15, 20, 30, 40;  sql-write — sql/60;  sql-access — sql/50, 80;
  *      sql-time — sql/70, 75, 88, 90, 95, 99 и sql/migrate.
  *    codes.ts — запись на каждый код: заголовок и подсказка. Новый код — ещё ErrorCode (types.ts), для кода базы —
- *    LT_NAMES (errors.ts) и error_catalog(), и строка таблицы «Ошибки» README (обе версии) с якорем `<a id="код"></a>`.
+ *    LT_NAMES (errors.ts) и error_catalog(), и строка таблицы «Ошибки» README с якорем `<a id="код"></a>`.
  * 2. Ключ — `<раздел>.<snake_case>`: что случилось, а не где (api.unknown_step, query.sort_field). Одно место — один
  *    ключ; одинаковый текст в разных разделах — разные ключи (api.validation_failed и sql-write.invalid_data).
- * 3. Запись — { code, ru, en, hint? }, поля в этом порядке:
+ * 3. Запись — { code, ru, hint? }, поля в этом порядке:
  *    code — код, с которым место бросало ошибку: код не меняется (коды сверяет check:semver);
  *    ru — прежний текст буква в букву, без префикса «letopis: <код>: »; подстановка ${x} → параметр {имя};
- *    en — перевод того же смысла; имена API, классов, опций и параметры не переводятся;
  *    hint — только если подсказка кода из codes.ts к месту не подходит (образцы: api.connect_schema, sql-time.last_owner).
  *    Параметр печатается как `${x}` в шаблонной строке, поэтому прежний текст не меняется; лучше скаляры (строка,
- *    число). Похожие имена — params.similar (массив из similar() в errors.ts): «— похожие: a, b» / «— similar: a, b»
- *    lerr допишет сам, в шаблон их не пишут.
+ *    число). Похожие имена — params.similar (массив из similar() в errors.ts): «— похожие: a, b» lerr допишет сам, в
+ *    шаблон их не пишут.
  *    Текст с двумя формами (род, число) — две записи или параметр без грамматики, а не склейка слов в коде.
  * 4. Вызов в TS:
  *      throw lerr('api.unknown_step', { name, similar: similar(name, names) });
@@ -34,8 +32,8 @@
  *    параметры, { once }). Подкласс и помощник вида fail(текст) переходят на ключ так же (образец — ValidationError в
  *    errors.ts). Старый конструктор new LetopisError(код, текст) из переведённого места уходит целиком.
  * 5. Вызов в SQL — перегрузка lt_fail(p_key text, p_params jsonb default '{}', p_detail jsonb default null)
- *    (lib/sql/15-errors.sql): код ошибки — из записи, русский текст база собирает из шаблона ru (его видит сырой SQL),
- *    в DETAIL — поля p_detail и ещё key, params; по ним fromDbError собирает текст на языке подключения:
+ *    (lib/sql/15-errors.sql): код ошибки — из записи, текст база собирает из шаблона ru (его видит и сырой SQL), в
+ *    DETAIL — поля p_detail и ещё key, params; их fromDbError переносит в поля ошибки (key, params):
  *      perform @SCHEMA@.lt_fail('sql-core.no_membership');
  *      perform @SCHEMA@.lt_fail('sql-write.invalid_data', jsonb_build_object('cls', NEW.class), jsonb_build_object('issues', bad));
  *    Параметры — jsonb_build_object со скалярами (список — array_to_string); без параметров — один аргумент, а не null
@@ -52,10 +50,11 @@
  * 7. Особые места. Разделы каталога контракт API читает регэкспами: код — из поля code: в кавычках, охранник — из вызова
  *    removed с двумя литералами, текст ошибки — из строки с префиксом letopis и двоеточием; в комментариях их в таком виде
  *    не пишут. removed(имя, замена): охранники снятого API контракт собирает по литералам обоих аргументов
- *    (contract.mjs:removedOf) — форму вызова не менять; замена — ключ каталога (рендерится при броске на текущем языке,
- *    contract.mjs разворачивает его в русский шаблон) или текст без перевода ('paths()'); имя снятого API не менять — его
- *    сверяет check:semver. up.ts и pglite.ts бросают обычный Error('letopis.up: ' + lmsg(…)) — подходящего кода нет. Сообщения нарушений (issues[].message: validate.ts, 30-validate.sql) — lmsg и
- *    lt_text с кодом invalid_data. Описания инструментов MCP и instructions — по lang сервера (раздел mcp).
+ *    (contract.mjs:removedOf) — форму вызова не менять; замена — ключ каталога (рендерится при броске, contract.mjs
+ *    разворачивает его в шаблон записи) или текст ('paths()'); имя снятого API не менять — его сверяет check:semver.
+ *    up.ts и pglite.ts бросают обычный Error('letopis.up: ' + lmsg(…)) — подходящего кода нет. Сообщения нарушений
+ *    (issues[].message: validate.ts, 30-validate.sql) — lmsg и lt_text с кодом invalid_data. Описания инструментов MCP и
+ *    instructions — строки в mcp.ts рядом со схемами, тексты ответов — раздел mcp.
  */
 import { access } from './access.js';
 import { api } from './api.js';
@@ -71,9 +70,9 @@ import { sqlTime } from './sql-time.js';
 import { sqlWrite } from './sql-write.js';
 import { time } from './time.js';
 import { write } from './write.js';
-import type { ErrorCode, Msg, Params, Text } from './types.js';
+import type { ErrorCode, Msg, Params } from './types.js';
 
-export { LANGS, type ErrorCode, type Lang, type Msg, type Params, type Section, type Text } from './types.js';
+export type { ErrorCode, Msg, Params, Section } from './types.js';
 
 /** Разделы каталога: имя — префикс ключа и имя файла. */
 const SECTIONS = {
@@ -110,14 +109,14 @@ export function msgOf(key: string): Msg | undefined {
 }
 
 /** Подпись кода: заголовок и подсказка «что делать» (codes.ts). */
-export function codeOf(code: string): (Msg & { hint: Text }) | undefined {
-  return msgOf(`codes.${code}`) as (Msg & { hint: Text }) | undefined;
+export function codeOf(code: string): (Msg & { hint: string }) | undefined {
+  return msgOf(`codes.${code}`) as (Msg & { hint: string }) | undefined;
 }
 
 /** Суффикс похожих имён (params.similar) — его дописывает lerr. */
-export const SIMILAR: Text = { ru: ' — похожие: {similar}', en: ' — similar: {similar}' };
+export const SIMILAR = ' — похожие: {similar}';
 /** Хвост предупреждения, которое в 2.0 станет ошибкой (неизвестная опция, поле фильтра, sort, агрегата). */
-export const IN_2_0: Text = { ru: ' (в 2.0 — ошибка {code})', en: ' (an error {code} in 2.0)' };
+export const IN_2_0 = ' (в 2.0 — ошибка {code})';
 
 /**
  * Шаблон с параметрами: `{имя}` → значение, напечатанное как в шаблонной строке JS (`${x}`), поэтому перенос текста
