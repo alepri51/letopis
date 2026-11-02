@@ -567,6 +567,12 @@ export const sqlTime = {
     ru: 'колонка hash таблицы {table} не генерируемая или её выражение — не то, что ставит установка: подмену хэшей не выдадут ни цепочки, ни якорь',
     en: 'column hash of table {table} is not generated or its expression is not the one the installer sets: neither the chains nor the anchor would expose forged hashes',
   },
+  // 90-time.sql, verify(p_data): находка — хранимый хэш версии не равен пересчитанному (ревью: подмена тела функции хэша)
+  'sql-time.verify_hash_recomputed': {
+    code: 'invalid_data',
+    ru: 'хэш версии не равен пересчитанному из её содержимого: версию записали при подменённой функции хэша или выражении колонки hash',
+    en: 'the version hash does not equal the one recomputed from its content: the version was written with a substituted hash function or hash column expression',
+  },
   // 90-time.sql, watch_read()
   'sql-time.cursor_expired': {
     code: 'cursor_expired',

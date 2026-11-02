@@ -991,7 +991,8 @@ end $$;
 -- хранения — своя или умолчание установки (метка default_policy в строке ключа). p_data — ещё и все строки: данные по проверке класса, концы (цель существует, её
 -- арендатор — тот же или System, класс принимается концом), арендатор и владелец существуют, id
 -- класса с ключом — v5 от ключа, агрегатные поля равны итогу живых источников (план 1.1, §2.4; ремонт —
--- rebuild_aggregates). Возвращает находки и якорь — хэш всех голов цепочек: строк entity и последних версий удалённых
+-- rebuild_aggregates), хэш каждой версии журнала равен пересчитанному из её содержимого (ревью). Возвращает находки и
+-- якорь — хэш всех голов цепочек: строк entity и последних версий удалённых
 -- объектов. Только системный администратор (право letopis.verify) или администраторское подключение.
 create or replace function @SCHEMA@.verify(p_data boolean default false) returns jsonb
 language plpgsql stable security definer
@@ -1016,7 +1017,8 @@ begin
   -- функции без схемы — только если путь находит ту же функцию, то есть version_hash и snapshot этой схемы. Их тела verify
   -- не сверяет (у тела return … prosrc пуст, тело — в prosqlbody): значения считаются при записи, а up() при каждом
   -- накате ставит функции заново, и сверка видела бы лишь нынешнее тело, а не то, с которым писались строки. Хэши,
-  -- записанные при подменённой функции, выдаёт только пересчёт.
+  -- записанные при подменённой функции (подменил тело, переписал строки, вернул тело), выдаёт только пересчёт — его
+  -- делает verify(p_data) ниже.
   with recursive rel as (
     select c.oid from pg_class c where c.oid in ('@SCHEMA@.entity'::regclass, '@SCHEMA@.log'::regclass)
     union
@@ -1144,6 +1146,15 @@ begin
                'problem', format('агрегат %s не равен итогу живых источников: в строке %s, по источникам %s — ремонт rebuildAggregates',
                  a.field, coalesce(a.stored::text, 'нет значения'), a.expected::text))
         from @SCHEMA@.agg_issues() a
+      union all
+      -- хэш каждой версии журнала — заново из её содержимого той же функцией, что у колонки hash (ревью): владелец,
+      -- подменивший тело version_hash или snapshot, переписавший строки и вернувший тело, оставляет хэши, которых нынешняя
+      -- функция не даёт, а стыки и головы цепочек прежние — ни цепочки, ни якорь подмену не видят. Формула (10-core.sql) с
+      -- 1.0.0 не менялась: версии, записанные прежними выпусками, пересчёт не выдаёт (тест upgrade)
+      select jsonb_build_object('id', l.id, 'rev', l.rev, 'problem', @SCHEMA@.lt_text('sql-time.verify_hash_recomputed'))
+        from @SCHEMA@.log l
+        where l.hash is distinct from @SCHEMA@.version_hash(l.prev_hash,
+                @SCHEMA@.snapshot(l.id, l.rev, l.class, l.tenant, l.owner, l.links, l.data, l.tags, l.at, l.author, l.agent, l.op, l.reason, l.moved))
     )
     select coalesce(jsonb_agg(f), '[]'::jsonb) into data_issues from found;
   end if;

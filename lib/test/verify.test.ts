@@ -3,7 +3,8 @@
  * (purge, обрезка, reset) не находки, подмены — находки; verify({ data: true }) называет строку, не
  * проходящую описание класса, висячий конец, строку несуществующего арендатора и id не по ключу;
  * не администратор — отказ; letopis verify — ненулевой код при находках; колонку hash считает не выражение
- * установки (снято, у наследника своё) — находка (ревью).
+ * установки (снято, у наследника своё) — находка (ревью); версию, записанную при подменённом теле функции хэша,
+ * выдаёт пересчёт verify({ data: true }) (ревью).
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -189,4 +190,38 @@ test('ревью: снятое выражение колонки hash ловит
   });
   const restored = await adb.verify();
   assert.equal(restored.ok, true, JSON.stringify(restored.issues));
+});
+
+test('ревью: подмена тела функции хэша ловится verify({ data: true })', async () => {
+  const [f] = await db.Box().create({ code: 'F', n: 1 }).rows();
+  for (let i = 2; i <= 3; i++) await db.Box(f.id).update({ n: i }).rows();
+  const clean = await adb.verify({ data: true });
+  assert.equal(clean.ok, true, JSON.stringify(clean.issues));
+  const fn = `${e.S}.version_hash`;
+  const [{ body }] = await e.sql.unsafe(`select pg_get_functiondef($1::regprocedure) as body`, [`${fn}(bytea, bytea)`]);
+  const version = async () =>
+    (await e.sql.unsafe(`select encode(hash, 'hex') as hash, data from ${e.S}.log where id = $1 and rev = 2`, [f.id]))[0];
+  const was = await version();
+  // от владельца на схеме теста: 1) тело функции хэша отдаёт прежний хэш версии 2; 2) данные версии 2 — другие, а колонка
+  // hash, пересчитанная подменённой функцией, сошлась с хранимым; 3) тело возвращено
+  await e.asOwner(async (tx) => {
+    await tx.unsafe(`create or replace function ${fn}(prev_hash bytea, snap bytea) returns bytea
+      language sql immutable parallel safe return decode('${was.hash}', 'hex')`);
+    await tx.unsafe(`update ${e.S}.log set data = '{"code": "F", "n": 200}' where id = $1 and rev = 2`, [f.id]);
+    await tx.unsafe(body as string);
+  });
+  const forged = await version();
+  assert.deepEqual([forged.hash, forged.data], [was.hash, { code: 'F', n: 200 }], 'данные другие, хэш прежний');
+  // быстрый verify — как прежде: стыки, головы цепочек и выражение колонки прежние
+  const fast = await adb.verify();
+  assert.equal(fast.ok, true, JSON.stringify(fast.issues));
+  assert.equal(fast.anchor, clean.anchor);
+  const full = await adb.verify({ data: true });
+  assert.equal(full.ok, false);
+  assert.deepEqual(full.issues.map((i) => [i.id, i.rev]), [[f.id, 2]], JSON.stringify(full.issues));
+  assert.match(full.issues[0].problem, /^хэш версии не равен пересчитанному из её содержимого/);
+  // прежние данные — хэш нынешней функции снова равен хранимому
+  await e.asOwner((tx) => tx.unsafe(`update ${e.S}.log set data = $2::jsonb where id = $1 and rev = 2`, [f.id, was.data as never]));
+  const back = await adb.verify({ data: true });
+  assert.equal(back.ok, true, JSON.stringify(back.issues));
 });
