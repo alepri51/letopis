@@ -77,6 +77,11 @@ const FORMAT_RE: Record<string, RegExp> = {
   'date-time': /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$/,
   email: /^[^@\s]+@[^@\s]+\.[^@\s]+$/,
 };
+/**
+ * Предел длины адреса для format: 'email' — 254 символа (RFC 5321). Длиннее — нарушение без шаблона: на подобранной
+ * строке (много точек в домене и лишний символ в конце) шаблон email перебирает квадратично (ревью).
+ */
+const EMAIL_MAX = 254;
 
 /** Смысл даты и времени, как pg_input_is_valid(…, 'date' | 'timestamptz') для уже проверенной формы. */
 function validDate(s: string, withTime: boolean): boolean {
@@ -160,7 +165,8 @@ function compileNode(s: J, sel: Select, path: Path, inAny: boolean, out: Rule[])
   if (sch.format !== undefined) {
     const f = sch.format as string;
     const re = FORMAT_RE[f] ?? fail(path, 'model.validator_format_unsupported', { format: f });
-    out.push({ path, keyword: 'format', select: sel, test: (v) => typeof v !== 'string' || re.test(v) });
+    const max = f === 'email' ? EMAIL_MAX : Infinity;
+    out.push({ path, keyword: 'format', select: sel, test: (v) => typeof v !== 'string' || (v.length <= max && re.test(v)) });
     if (f === 'date' || f === 'date-time') {
       if (inAny) fail(path, 'model.validator_format_in_any_of', { format: f });
       out.push({ path, keyword: 'format', select: sel, test: () => true,

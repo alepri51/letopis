@@ -229,7 +229,7 @@ functions and the system seed. On the first installation, it issues a service ke
 | `tenant` | the first tenant and its user (see below) |
 | `seeds` | seeds after the core: `'booking'` is the salon demo domain; or paths to your own `.sql` files |
 | `history` | the history retention policy for classes without their own ([section 11](#11-history-and-point-in-time-reads)) |
-| `serviceKey` | your own service key instead of a random one: `lts_` and 32–128 hexadecimal characters |
+| `serviceKey` | your own service key instead of a random one: `lts_` and 32–128 lowercase hexadecimal characters (`/^lts_[0-9a-f]{32,128}$/`), otherwise `invalid_data` (["Service and API keys"](#service-and-api-keys)) |
 | `allowReset` | allow `db.reset()` ([section 13](#13-operations)); off by default |
 | `signals` | the signal mode: `'class'` (default), `'tenant'`, `'opaque'` or `'none'` (["Signals"](#signals)); the mode is stored in the schema — `up()` without the option keeps it |
 | `fresh` | drop the schema and install it again — **the schema data is lost** |
@@ -288,7 +288,8 @@ Permissions in letopis are always on and deny everything by default. So a new te
 `up({ tenant })` option and the `createTenant(sql, schema, opts)` function do this in one transaction:
 
 - the tenant: an account in System with an id from the name (`tenant:<name>`);
-- the rule "authenticated users may do everything" in this tenant (`grantAll`, on by default, weight 10);
+- the rule "authenticated users may do everything" in this tenant (`grantAll`, on by default, weight 10; permissions by
+  roles only — [below](#permissions-by-roles-only));
 - a user (id from the login) with a membership in the tenant with the roles `user.roles` (`['owner']` by default), a
   password and a session in the tenant.
 
@@ -1437,6 +1438,15 @@ and "key + secret" pairs itself, with a session opened by its own key (`connect(
 `verifyKeySecret`). Its other credentials and the keys of other services, of System and of system administrators are
 issued and revoked only by a system administrator; a new service key is also registered by `up({ serviceKey })`.
 
+`up()` issues the installation key itself: `lts_` and 64 lowercase hexadecimal characters. It hands the key out in
+`r.serviceKey` once — on the first installation or on a run where the schema has no unrevoked API key left; otherwise
+`r.serviceKey` is `null`. The database keeps only the sha256 of the key, so it cannot be shown again: keep the key in a
+secret store. To know the key in advance (for example, from an environment variable), pass your own:
+`up({ serviceKey: process.env.LETOPIS_SERVICE_KEY })`. The format is `lts_` and 32–128 lowercase hexadecimal
+characters, `/^lts_[0-9a-f]{32,128}$/`, otherwise `invalid_data`; `'lts_' + randomBytes(32).toString('hex')` from
+`node:crypto` fits. If there is no such unrevoked key yet, `up()` registers it for the installation service and returns
+it in `r.serviceKey`, otherwise `null` is there. The service signs in with the key: `connect({ dsn: APP, schema, apiKey })`.
+
 There can be several keys. A session opened by a key remembers it, and revoking a key revokes only its sessions:
 connections by other keys keep working. So rotation goes without downtime: the service issues itself a new key
 (`issueApiKey({ account: <service id> })`), moves its processes to it and revokes the old one (`revokeCredential(id)`).
@@ -1561,6 +1571,11 @@ const mine = await anna.auth.tenants()     // [{ tenant, roles }]: her own tenan
 await anna.auth.switch(SHOP)               // the session tenant is now the shop
 ```
 
+`auth.tenants()` also returns the user's own tenant: as the first element, with `tenant` equal to the id of their
+account and `roles: ['owner']`. The tenants by membership follow, with the roles of the membership. If you need only
+the tenants by membership, drop the element with the account id (`login.account` of `verifyPassword`, `user` of
+`createTenant`).
+
 ### Permissions
 
 Permissions are always on and deny by default. A rule connects a group with an object:
@@ -1664,6 +1679,48 @@ Fields of the system permission classes:
   and after `reset({ all })`; in an existing schema, the corrected matching works after `up()` is run again;
 - `rule`: the ends `Group` and `Object` (`Resource` rows), the fields `permission` (`allow` or `deny`), `weight`, and,
   for the endpoint's own denial, `code` and `message`.
+
+### Permissions by roles only
+
+`createTenant` and `up({ tenant })` give the tenant the rule "authenticated users may do everything" (weight 10).
+Denials of roles with a greater weight narrow the permissions, but everything no denial closes stays allowed to any
+member. For the permissions to be decided by roles only, remove this rule after the setup or do not create it at all.
+
+Removing it after the setup. "May do everything" is three rules, `READ`, `WRITE` and `DELETE`, of the System group
+`authenticated:ACCOUNT` on all classes; `db.acl.list()` shows them with `role: null`, `group: 'authenticated:ACCOUNT'`
+and `target: '*'`. `db.acl.revoke` does not remove them: it removes the rules of roles. Delete these `rule` rows by id.
+Grant the roles their permissions earlier, while the rule still works: after the removal, a member keeps only the
+permissions of their roles. If the application keeps editing permissions, give some role permissions on the permission
+rows as well (`Resource`, `rule`, `member`); otherwise only an administrative connection will write them.
+
+```ts
+await db.acl.grant({ role: 'manager', read: 'Product', write: 'Product', delete: 'Product' })
+await db.acl.grant({ role: 'staff', read: 'Product' })
+await db.acl.grant({ role: 'manager', read: ['Resource', 'rule', 'member'],      // keeps editing permissions
+  write: ['Resource', 'rule', 'member'], delete: ['rule', 'member'] })
+const all = (await db.acl.list()).filter((x) => x.group === 'authenticated:ACCOUNT')   // "may do everything"
+await db.rule(all.map((x) => x.id)).delete({ confirm: true }).rows()
+```
+
+Not creating it. `createTenant(sql, schema, { name, grantAll: false, user })` and `up({ tenant: { name, grantAll:
+false, user } })` create a tenant without rules. Its members, the first user included, have no permissions — neither
+on data nor on writing rules. The classes and rules of such a tenant are written by an administrative connection with
+the session of its user: RLS does not apply to it, and the rows go to the session tenant.
+
+```ts
+const pg = postgres(ADMIN)
+const t = await createTenant(pg, r.schema, { name: 'Stock', grantAll: false,
+  user: { name: 'Irina', login: 'irina@stock.example', password: 'Stock-2026!', roles: ['manager'] } })
+await pg.end()
+const adm = await connect({ dsn: ADMIN, schema: r.schema, token: t.token, allowBypassRls: true })
+await syncModels(adm, [Product], { apply: true })
+await adm.acl.grant({ role: 'manager', read: 'Product', write: 'Product', delete: 'Product' })
+await adm.close()
+```
+
+Reads on an administrative connection are not limited to a tenant, so `adm.acl.list()` there shows the rules of all
+tenants. Before 1.5.0, writing a rule on such a connection gave `target_not_found`: the database checked whether the
+session actor sees the targets of the rule, and the actor has no permissions yet.
 
 ### Deleting an account
 
@@ -2025,6 +2082,20 @@ sales.close()                                    // stop() after the current bat
   error drops the tenant with its code, without retries. The tier of a rebuilt tenant counts from the start of its
   rebuild until the cursor catches up with it: a lagging projector does not drop it again. A projector without new
   changes does not expire. `status().lag` is the age of the oldest unprocessed change in ms.
+- `run({ once: true })` reads the log up to the horizon — the oldest open transaction of the cluster — and returns when
+  there are no more changes before the horizon or another process is writing a batch (the `skipped` counter). Changes
+  committed after a still open transaction began wait for its end, so after `once` the projection may lag behind. To
+  catch up with the log completely, repeat the passes until `status().lag` is 0, with a time limit:
+
+  ```ts
+  const deadline = Date.now() + 60_000
+  for (;;) {
+    await sales.run({ once: true })
+    if ((await sales.status()).lag === 0) break                    // caught up: no unprocessed changes
+    if (Date.now() > deadline) throw new Error('the projector did not catch up')   // a long transaction holds the horizon
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  }
+  ```
 - A projector works with the tenants in which every `into` class is marked with its `derivedBy`; it skips the changes
   of other tenants, so a class with the same name and no mark in another tenant does not get in its way. No such tenant
   at all — `derived_class`. Only an administrator may mark the classes of a tenant, so it is the administrator who
@@ -2982,7 +3053,7 @@ order; the first red step stops the run. The same load for a day: `cd lib && npm
 # access-rest — the remaining rows of stage 5: loading on behalf of a user, balance No. 20, 22, 29, upsert and { rev } under ACL, inlining of acl_ok (stage 5)
 # aggregate — aggregates in the database: 20 writers of one wallet, raw SQL, a cascade, reclass, restore, the loader, account deletion, restore and rekey of the target, a description change under writes and race No. 18, aggregate_field, repair and verify, a System row (plan 1.1, stage 4b)
 # acl — ACL permissions: the 0.21 suite ported, row conditions, weight and default deny, cascade, deny on a descendant, deep, an invisible target, raw SQL versus the library; a change of parent and alias of a class only with permissions on all its rows, an alias is not the name of another class, a name is not another class's alias (stage 5; security review No. 2)
-# acl-grant — the db.acl wrapper: grant, deny, revoke, roles and list are idempotent, the database enforces them on top of "may do everything", deny wins on equal weight, the $actor condition, api, the db.begin() transaction, invalid_data before writing (plan 2.0, 7.9 No. 1)
+# acl-grant — the db.acl wrapper: grant, deny, revoke, roles and list are idempotent, the database enforces them on top of "may do everything", deny wins on equal weight, the $actor condition, api, the db.begin() transaction, invalid_data before writing (plan 2.0, 7.9 No. 1); an administrative connection writes the rules of a tenant without "may do everything" — no target_not_found (the agent run, stage 3, item 9)
 # acl-parity — 1000 random rule sets: the database permission plan and endpoint decisions versus decide from 0.21 (stage 5)
 # auth — credentials (password, key, key + secret, OTP, TOTP, identity), timing equalization, case, session revocation, recent sign-in (stage 5)
 # balance — top-up and debit: idempotency by opId, races, deadlock, connection drop (TCP proxy), adjustment under { rev } and forUpdate (stage 4)
@@ -3004,7 +3075,7 @@ order; the first red step stops the run. The same load for a day: `cd lib && npm
 # impersonation — impersonation: letopis.account only for a service with the permission, target restrictions, author and agent in the journal, sessionFor; the db.as() registry is one per tenant, does not empty, is re-read on a signal of its tenant (stage 5; the work after checkpoint B); the facade registry is not shared with the root, an empty registry is not cached (security review No. 3 leftovers)
 # install — the installer and roles: a repeated installation, two installations in one database, three tables (stage 1)
 # member — memberships: working in a tenant by roles, auth.switch, leaving with ownership transfer, system rows, tenant roles without System permissions (stage 5)
-# model — Zod models, the JSON Schema normalizer, pattern translation, agreement with the database metaschema (stage 2)
+# model — Zod models, the JSON Schema normalizer, pattern translation, agreement with the database metaschema (stage 2); a format email longer than 254 characters is a violation without the pattern (review)
 # load — the loader: several classes, cycles, $key and $ext, repeats, existing, portions, history mode, the query for targets outside the load, CLI (stage 4)
 # roles — roles and privileges: installation without a superuser, owner functions, triggers by catalog, the log without the changed column (stage 1; plan 1.1, checkpoint A)
 # write-races — write races: 20 concurrent edits of different fields without losses and strict rev, concurrent add/remove on a multiple end, the loader versus class tightening and versus a concurrent edit (existing: update) in both orders (stage 4)

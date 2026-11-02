@@ -271,6 +271,10 @@ end $$;
 -- При p_acl ({tenant, account, plan} — план READ актора) цель ещё и должна быть видна актору (этап 5,
 -- п. 6): строку, которую он не видит, нельзя использовать как цель — ответ тот же, что для
 -- несуществующей. Цели-аккаунты (Account) не проверяются: на них ссылаются членства и владельцы.
+-- Роль сеанса, к которой RLS не применяется (суперпользователь, BYPASSRLS, член владельца — как в watch_leaving),
+-- видит любую строку, а пишет и строки, которых план актора не показывает: прятать от неё цель незачем, и p_acl
+-- она не проверяет. До этого администраторское подключение с сессией без прав заводило ресурсы, а правило на них —
+-- нет: target_not_found (внедрение, агентский прогон плана 2.0).
 -- Возвращает роль первой непрошедшей цели или null; цель — строка производного класса: «!роль»
 -- (вызывающий отвечает derived_class).
 create or replace function @SCHEMA@.targets_bad(p_rows jsonb, p_lock boolean, p_acl jsonb default null) returns text
@@ -282,6 +286,11 @@ declare
 begin
   if p_rows is null or jsonb_array_length(p_rows) = 0 then
     return null;
+  end if;
+  if p_acl is not null
+     and (exists (select 1 from pg_roles r where r.rolname = @SCHEMA@.session_role() and (r.rolsuper or r.rolbypassrls))
+          or pg_has_role(@SCHEMA@.session_role(), '@OWNER_NAME@', 'USAGE')) then
+    p_acl := null;
   end if;
   if p_lock then
     perform 1 from @SCHEMA@.entity t

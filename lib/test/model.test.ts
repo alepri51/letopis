@@ -166,3 +166,16 @@ test('ревью: шаблон с катастрофическим перебо�
   const [row] = await insert({ code: 'a'.repeat(40), pick: evil });
   assert.equal(row.data.pick, evil);
 });
+
+test('ревью: format email длиннее 254 символов (предел адреса) — нарушение без шаблона, подобранная строка не перебирается', () => {
+  const v = compileValidator({ type: 'object', properties: { email: { type: 'string', format: 'email' } } } as JsonSchema);
+  const max = 'a'.repeat(64) + '@' + 'b'.repeat(186) + '.ru';
+  assert.equal(max.length, 254);
+  assert.deepEqual(v({ email: max }), []);
+  assert.deepEqual(v({ email: 'a' + max }).map((i) => [i.path, i.keyword]), [[['email'], 'format']]);
+  // много точек в домене и @ в конце: шаблону email — квадратичный перебор (на мегабайте — минуты)
+  const evil = 'a@' + 'a.'.repeat(500_000) + '@';
+  const t0 = performance.now();
+  assert.deepEqual(v({ email: evil }).map((i) => i.keyword), ['format']);
+  assert.ok(performance.now() - t0 < 2000, 'без перебора');
+});

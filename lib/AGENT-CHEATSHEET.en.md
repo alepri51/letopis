@@ -40,6 +40,9 @@ const r = await up({ dsn: ADMIN, schema: 'myapp',                  // schema 'v2
 // no API keys left except revoked ones). Save it.
 // r.tenant: { tenant, user, token, created } — the tenant "Salon" and its first user Olga
 ```
+- Your own service key → `up({ serviceKey })`: `lts_` and 32–128 lowercase hexadecimal characters
+  (`/^lts_[0-9a-f]{32,128}$/`), otherwise `invalid_data`; the key was registered by this call → it is in
+  `r.serviceKey`, it already existed → `null`.
 - `up()` → waits for the database, creates it, checks for PostgreSQL 18+ and UTF8, and installs the roles
   `letopis_owner` and `letopis_app`.
 - `up()` options:
@@ -133,7 +136,8 @@ db.tenant          // the session tenant: by default the account's own tenant (h
   - this is how a web service checks the session from a cookie at the start of every request: reading under a revoked
     session → no error, the answers are simply empty.
 - Working in another tenant through a membership: `await user.auth.tenants()` → `[{ tenant, roles }]`, then
-  `await user.auth.switch(tenant)` (only from the connection root).
+  `await user.auth.switch(tenant)` (only from the connection root). The first in the list is the user's own tenant:
+  `tenant` is the id of their account, `roles: ['owner']`.
 - Impersonation by a service: `const u = await svc.as(account, { tenant, owner })` — the database checks it; in the
   journal, `author` is the user and `agent` is the service. `db.as()` is **asynchronous**.
 
@@ -340,6 +344,12 @@ const canDelete = await olga.acl.checkData('Wallet', 'DELETE')    // { allow: fa
 - `db.acl.roles(account, ['staff'])` → replaces them (the membership is a `member` row with the key `[User, Tenant]`,
   created if missing); `db.acl.roles(account, null)` → removes the membership.
 - `db.acl.list()` → the tenant's rules, its own and "may do everything".
+- Permissions by roles only:
+  - remove "may do everything" → delete the rules from `db.acl.list()` with `group: 'authenticated:ACCOUNT'`
+    (`role: null`) by `db.rule(ids).delete({ confirm: true })`; `db.acl.revoke` does not remove them;
+  - grant the roles before the removal, including `Resource`, `rule`, `member` if the application edits permissions;
+  - or a tenant without it: `createTenant(…, { grantAll: false })` → classes and rules are written by an admin
+    connection with the tenant's session (`connect({ dsn: ADMIN, schema, token, allowBypassRls: true })`).
 - Directly with `Resource` and `rule` rows:
   - group → `{ categories: '{Staff}' }` (account categories) or `{ roles: '{staff}' }` (membership roles);
   - a mask (`categories`, `roles`, `endpoint`, `class`) is **a string only**: an array (`['staff']`), a number or
@@ -441,6 +451,9 @@ p.run().catch(report)         // run() without once needs a catch: after a proje
 ```
 - Not an admin connection → `admin_required`.
 - A batch → one transaction; every change is applied exactly once; there is one writer.
+- `run({ once: true })` → catches up with the journal only up to the horizon of the cluster's open transactions and
+  skips a pass if another process writes a batch; to catch up completely → repeat until `(await p.status()).lag` is 0,
+  with a time limit.
 - `rebuild()` while another process writes a batch → `projector_busy`.
 - The first start → rebuilds the projection from the current state, in batches.
 - `purge`, `trim` and `reset` → come as changes with `rev` 1, so check `op` first.

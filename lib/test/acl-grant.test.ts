@@ -7,7 +7,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { engine, type Engine, type Tenant } from './_engine.js';
-import { appDsn } from './_harness.js';
+import { ADMIN_DSN, appDsn } from './_harness.js';
 import { connect, type Db } from '../src/index.js';
 import { account } from './_access.js';
 
@@ -131,4 +131,22 @@ test('план 2.0, 7.9 №1: внутри db.begin() — в её транзак
   await assert.rejects(owner.acl.revoke({ role: 'staff', read: 'Product', weight: 5 } as never), code('invalid_data'));
   await assert.rejects(owner.acl.roles(people.staff.id, ['staff', 'staff']), code('invalid_data'));
   assert.deepEqual(await snapshot(), was, 'ничего не записано');
+});
+
+test('план 2.0, этап 3, п. 9: администраторское подключение пишет правила арендатора без «можно всё» — цели, скрытые от плана актора, не target_not_found (внедрение)', async () => {
+  // арендатор без «можно всё» (grantAll: false): у актора сессии прав нет, ресурсов и правил он не видит; RLS
+  // администраторского подключения не действует — оно пишет ресурсы, а значит, и правило на них
+  const bare = await e.tenant('acl-grant-bare', { bare: true });
+  const adm = await connect({ dsn: ADMIN_DSN, schema: e.schema, token: bare.token, allowBypassRls: true, max: 1, listen: false });
+  try {
+    const [granted] = await adm.acl.grant({ role: 'manager', read: '*' });
+    const [g] = await adm.Resource().create({ alias: 'bare:group', category: 'ACCOUNT', pattern: { roles: '{staff}' } }).rows();
+    const [o] = await adm.Resource().create({ alias: 'bare:object', category: 'READ', pattern: {} }).rows();
+    const [r] = await adm.rule().create({ permission: 'allow', weight: 20 }).Group.set(g.id).Object.set(o.id).rows();
+    const rules = await e.sql.unsafe(`select id from ${e.S}.entity where class = 'rule' and tenant = $1`, [bare.id]);
+    assert.deepEqual(rules.map((x) => x.id).sort(), [granted.id, r.id].sort());
+  } finally {
+    await adm.close();
+  }
+  // под RLS ссылка на цель, которую актор не видит, — по-прежнему target_not_found (acl.test.ts, 5.14)
 });
