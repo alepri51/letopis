@@ -1,6 +1,6 @@
 ---
 paths:
-  - 'lib/scripts/{check-docs,check-package,check-semver,contract,gen-api-contract,prerelease,release-notes}.mjs'
+  - 'lib/scripts/{check-docs,check-package,check-semver,contract,gen-api-contract,prerelease,release-notes,test-reporter}.mjs'
   - '.github/workflows/*.yml'
   - 'docs/api-contract.json'
 synced: f20b1cf
@@ -9,6 +9,7 @@ synced: f20b1cf
 
 **Инварианты и грабли**
 - Контур: push dev → `ci.yml` (typecheck, check:docs с check:semver, check:package без живого прогона; у сайта — typecheck, ER, покрытие, нюансы; сборки сайта нет — он не разворачивается). Тестов в CI нет — решение владельца 01.11.2026: `npm test`, примеры со снимками, песочница, сценарии сервисов, быстрый долгий прогон (шаг `soak`, 15 минут, M-BENCH) и живой прогон пакета идут локально до выкатки одной командой `npm run prerelease` (`prerelease.mjs`) | merge в main → `tag.yml` (аннотированный тег `v` + version) | publish Release → `release.yml` (заметки, `check:semver --release`, npm, проверка из реестра). На каждое событие ровно одно действие; на PR и main тесты не гоняются — допуск даёт зелёный ci последнего push в dev. Трасса — `docs/atlas/F-RELEASE.md`.
+- Шаг `npm test` в `prerelease.mjs` — команда `scripts.test` из package.json (`testCommands`; другой вид скрипта — отказ) со вторым репортёром `scripts/test-reporter.mjs`: события раннера построчно JSON в `<лог>.events.jsonl`, с кодом выхода процесса файла (spec его не печатает). Под Windows процесс тест-файла изредка падает за доли секунды без вывода (`'test failed'` у самого файла, тестов нет; код 0xC0000409 — fail-fast; отчёты WER в системе выключены). Воспроизводится без tsx и без postgres.js: процесс `node --test`, открывающий TCP-соединения к 15433 (`localhost`, `127.0.0.1`, без `autoSelectFamily` — одинаково), под нагрузкой падает в ~0,15 % запусков; без сокетов, с tsx и графом `src` — ни разу на тысячах запусков (02.11.2026). В коде проекта не устраняется. Если все отказы шага такие (`crashedFiles`), каждый файл перезапускается по одному один раз (`rerun` шага, подстановки `{file}` и `{report}`): зелёный повтор засчитан, в итоге шага и в таблице `docs/checkpoint-*.md` — «перезапущен: <файл> (код выхода N)»; есть красный тест или файл, где тесты шли, — не перезапускается ничего. Тест — `prerelease.test.ts` (план 2.0, 7.8 №3); вложенный `node --test` из теста — без `NODE_TEST_CONTEXT`, иначе он не запускает файлы.
 - Версия одна на трёх местах: `lib/package.json`, верхняя `## [x.y.z]` в `lib/CHANGELOG.md`, обе строки version в `lib/package-lock.json` — сверяет `check-docs.mjs:checkVersion`. Тег берётся из package.json; тег уже есть → `tag.yml` молча пропускает (забытый бамп = нет релиза).
 - Правила версий — README, «Версии и совместимость» (план 2.0): патч — только исправления без новой ревизии и новых отказов; минор — новое API и новая ревизия; мажор — удаление, переименование, новые отказы. `check-semver.mjs` строит контракт (`contract.mjs:buildContract`) и `DDL_REVISION` из текущего дерева и из тега прошлого выпуска (`git show`, `git ls-tree`) одним кодом и сравнивает: исчезли точка входа, экспорт, метод, код ошибки, появился охранник `removed`, сменились engines → мажор; появилось, выросла ревизия → минор; тексты ошибок → патч. Прошлый выпуск — наибольший тег `v*` меньше версии; тег текущей версии уже есть (версию ещё не подняли) — контракт обязан совпасть с ним (`--release` всегда берёт прошлый). Смену сигнатуры при том же имени скрипт не видит. Нужна полная история с тегами: в CI `fetch-depth: 0`, иначе выход 2.
 - Версия с дефисом уходит в npm под dist-tag `next` (`release.yml#«Publish to npm»`), без дефиса — `latest`. Выпуск — только по команде владельца.
@@ -47,6 +48,7 @@ synced: f20b1cf
 - `lib/scripts/gen-llms-full.mjs` — `llms-full.txt` и таблицы операторов в README и шпаргалке, `--check`
 - `lib/scripts/contract.mjs:buildContract` — сборка контракта из дерева (файлы или тег)
 - `lib/scripts/check-semver.mjs` — шаг версии против прошлого выпуска
-- `lib/scripts/prerelease.mjs` — полная локальная проверка
+- `lib/scripts/prerelease.mjs` — полная локальная проверка; `:crashedFiles`, `:rerunCrashed` — повтор файла, упавшего до первого теста
+- `lib/scripts/test-reporter.mjs` — репортёр событий раннера для шага `npm test`
 - `lib/scripts/release-notes.mjs:section` — секция CHANGELOG версии
 - `.github/workflows/release.yml#«Publish to npm»` — dist-tag `next` для предрелизов
