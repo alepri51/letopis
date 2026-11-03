@@ -52,6 +52,10 @@
 - Связь, переданная полем данных (`create({ …, Member: id })`), — `invalid_data` с новым ключом `write.link_in_data`
   вместо `api.validation_failed_end`: текст сам называет ключи и синтаксис `.Роль.set(id)`. Ключ находит и имя класса
   на конце, если роль называется иначе. Код ошибки прежний.
+- `connect({ apiKey | service | token })` со значением `null`, `''` (или не строкой) — отказ `invalid_data`, ключ
+  `api.connect_empty_credential`, до подключения (раньше — подключение без сессии и `no_session` на первой записи;
+  частый случай — повторный `up()` вернул `serviceKey: null`). Опция со значением `undefined` — как прежде, опции нет.
+  Источник: ревью.
 
 ### Логирование
 - Журнал событий: `connect({ log, logLevel, redact })` и `up({ log, logLevel, redact })`. `log` — функция
@@ -66,12 +70,40 @@
   `delete`, `restore`, `tx.begin`, `tx.commit`, `tx.rollback`, `tx.retry`, `auth.login`, `auth.logout`, `auth.revoke`,
   `auth.switch`, `watch.start`, `watch.stop`, `signal`, `maintain`, `warning`, `error`, `sql`. Уровни: `write`,
   `delete`, `restore`, `auth.*`, `up`, `migrate`, `sync`, `maintain` — `info`; `warning`, `tx.retry` — `warn`;
-  `error` — `error`; `read`, `cache.*`, `tx.begin`, `tx.commit`, `sql`, `delete.preview` — `debug`. Каталог событий —
+  `error` — `error`, а у штатного отказа — `warn` (ниже); `read`, `cache.*`, `tx.begin`, `tx.commit`, `sql`,
+  `delete.preview` — `debug` (`tx.commit` транзакции с записью — `info`, ниже). Каталог событий —
   `lib/src/messages/log.ts`, слой — `lib/src/log.ts`.
+- Ошибка PostgreSQL в событии `error` (сама или причиной ошибки letopis, поле `cause`) — только SQLSTATE и имена объектов
+  схемы (`constraint`, `table`, `column`, `schema`, `datatype`, `routine`); её текст, `DETAIL`, `WHERE`, `HINT` и
+  внутренний запрос в журнал не пишутся: в них бывают значения параметров и данных («Key (email)=(…)»,
+  «invalid input syntax for type uuid: "…"»). У ошибки letopis параметры шаблона `value` и `text` в `msg` — `***`
+  (`query.bad_uuid`, `api.db_bad_value`, курсоры), у строк в `detail` (превью удаления `write.preview_changed`, снимки
+  `restore`) поле `data` — `***`. Сама ошибка, которую получает приложение, не меняется. Те же правила — у предупреждений
+  `time.maintain_failed` и `log.notify_failed`. Источник: ревью.
+- Штатный отказ — событие `error` уровня `warn`: коды `exists`, `conflict`, `target_not_found`, `not_deleted`,
+  `delete_restricted`, `acl_denied`, `tenant_denied`, `no_session`, `duplicate`, `deleted`, `confirmation_required` и
+  `invalid_data` с нарушениями данных (`err.issues`); прочие — уровня `error`. Источник: ревью.
+- Фиксация в журнале: в `db.begin()` события записи (`write`, `delete`, `restore`, `raw`, `acl.change`, `auth.*` с
+  записью) несут поле `tx`; `tx.commit` такой транзакции — уровня `info` с `detail.writes` (число операций записи),
+  без записи — `debug`; `tx.rollback` — `info` с `detail.writes`. Событие записи с `tx` фиксацию не доказывает —
+  доказывает `tx.commit` с тем же `tx`; вне `db.begin()` событие записи пишется после `COMMIT`. `tx.commit` у
+  `db.transaction(fn)` (сырой SQL) — всегда `info`. Источник: ревью.
+- Событие `up` — `detail.schema` (фактическое имя схемы) и `detail.requested`, если имя передано без префикса версии
+  (`'salon'` → `'v2.salon'`); ответ `up()` — поле `schema`, как прежде. Источник: ревью.
 
 ### Добавлено
 - `delete({ confirm: true, all: true })` и `restore({ all: true })` — осознанное действие без сверки (см. «Переход на
   3.0»). Экспорт типов `DeleteOptions`, `RestoreOptions`.
+- `syncModels` до записи проверяет имена ролей концов: имя роли одно на арендатора, и роль, занятая системным классом
+  (`User`, `Tenant` — класс `member`, ведут на `Account`; `Group`, `Object` — класс `rule`, ведут на `Resource`), может
+  вести только туда же. Иначе `invalid_class`, ключ `model.end_role_system` «имя роли Group в классе Item занято
+  системным классом rule (там Group ведёт на Resource) — выберите другое имя роли, например Team»; роль, которая в другом
+  классе арендатора ведёт на другой класс, — `model.end_role_taken` (раньше — только отказ базы
+  `sql-write.end_other_class` «конец Group в классе rule ведёт на другой класс»). Источник: ревью.
+- `sort('code')` — имя поля данных без префикса — отказ с подсказкой «— может быть, data.code?» (ключ
+  `query.sort_field_data`); имя без `data.` не принимается: колонки `at`, `rev`, `id` и поле данных с тем же именем
+  разошлись бы. Источник: ревью.
+- `api-contract.json` (машинный контракт API и ошибок) входит в пакет. Источник: ревью.
 
 ### Изменено
 - `versions()` — по-прежнему терминал (промис строк), но метод цепочки на его результате (`versions().rows()`,
@@ -83,6 +115,10 @@
   (`{ confirm: true, all: true }`); поведение прежнее.
 - Подсказки об удалённом арендаторе, пользователе и членстве в `createTenant` (`boot.tenant_deleted` и соседние) и кода
   `not_deleted` называют `restore({ expect })` с надгробием из `withDeleted().rows()`.
+- Текст кода `conflict` в каталоге перечисляет все случаи: `update` с `{ rev }` (`write.rev_conflict`),
+  `delete({ confirm: true, expect })` с изменившимся превью или исчезнувшими целями (`write.preview_changed`,
+  `detail.preview: []`), `restore({ expect })` объекта, который меняли после удаления (`write.restore_stale`).
+  Подсказка `acl_denied` называет `db.acl.grant` (класс `rule`). Источник: ревью.
 - Описание пакета в `package.json` — по-русски; агенту — `AGENT-CHEATSHEET.md` и `llms.txt` в пакете, исходный код
   доступен (PolyForm Noncommercial 1.0.0).
 

@@ -407,7 +407,14 @@ export class ExplicitTx implements Executor {
       throw this.failure;
     }
     this.conn.release();
-    if (this.log.wants('tx.commit')) this.log.emit('tx.commit', { op: 'commit', ms: performance.now() - this.t0, ...(changed ? { detail: { signals: changed.split(',').filter(Boolean).length } } : {}) });
+    // транзакция с записью (write, delete, restore, db.sql, права, креды) — tx.commit уровня info: это и есть
+    // доказательство фиксации её событий записи (у них то же поле tx); без записи — debug, как прежде
+    const writes = this.log.writes ?? 0;
+    const level = writes > 0 ? 'info' : 'debug';
+    if (this.log.level(level)) {
+      this.log.emit('tx.commit', { op: 'commit', level, ms: performance.now() - this.t0,
+        detail: { writes, ...(changed ? { signals: changed.split(',').filter(Boolean).length } : {}) } });
+    }
     this.ctx.notifier?.add(changed);
     if (changed) this.ctx.onChanged?.(changedList(changed), this.raw);
     this.ctx.after?.();
@@ -420,7 +427,7 @@ export class ExplicitTx implements Executor {
     if (err !== undefined) log.error(err, { op: 'commit', ms: performance.now() - this.t0 });
     if (log.wants('tx.rollback')) {
       log.emit('tx.rollback', { op: reason === 'error' ? 'commit' : 'rollback', ms: performance.now() - this.t0,
-        detail: { reason, ...(this.broken ? { broken: true } : {}) } });
+        detail: { reason, writes: log.writes ?? 0, ...(this.broken ? { broken: true } : {}) } });
     }
   }
 

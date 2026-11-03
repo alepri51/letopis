@@ -491,6 +491,9 @@ function sortSpec(order: string, leaf: (path: string[]) => LeafType): SortSpec {
     const t = leaf(path);
     return { expr: (a) => (CAST[t] ? `(${accessor(path)(a)})${CAST[t]}` : accessor(path)(a)), pcast: PCAST[t], field: order, type: t, nullable: true };
   }
+  // имя поля данных без префикса (sort('code')) — подсказка «data.code?»: принять его молча нельзя — колонки at, rev, id
+  // и поле данных с тем же именем разошлись бы, а курсор cursorOf(строка, 'code') — с ними
+  if (/^[\p{L}_$][\p{L}\p{N}_$]*(\.[\p{L}\p{N}_$]+)*$/u.test(order)) throw lerr('query.sort_field_data', { field: order });
   throw lerr('query.sort_field', { field: order });
 }
 

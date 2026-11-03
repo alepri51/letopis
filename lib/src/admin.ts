@@ -3,7 +3,7 @@
  * 90-time.sql сама сверяет права (letopis.maintain — системный администратор или администраторское подключение).
  */
 import { lerr, lmsg, lwarn, warnText } from './errors.js';
-import type { Log } from './log.js';
+import { safeErrorText, type Log } from './log.js';
 import { runTx, type Executor, type TxContext } from './tx.js';
 
 export interface MaintainReport {
@@ -85,7 +85,7 @@ export function scheduleMaintain(run: () => Promise<unknown>, ms: number, log?: 
   const timer = setInterval(() => {
     if (current || stopped) return;
     current = run()
-      .then(() => {}, (e) => lwarn('time.maintain_failed', { message: (e as Error).message }, { log }))
+      .then(() => {}, (e) => lwarn('time.maintain_failed', { message: safeErrorText(e) }, { log }))
       .finally(() => (current = null));
   }, ms);
   timer.unref?.();

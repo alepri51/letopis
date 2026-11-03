@@ -514,7 +514,9 @@ export async function up(opts: UpOptions): Promise<UpResult> {
   const lg = makeLog({ log: opts.log, logLevel: opts.logLevel, redact: opts.redact });
   return traced(lg, 'up', { op: 'up' }, () => upCore(opts, lg), (r) => ({
     detail: {
-      schema: r.schema, created: r.created, upgraded: r.upgraded, revision: r.revision, signals: r.signals,
+      // schema — фактическое имя (имя без точки получает префикс версии: 'salon' → 'v2.salon'); requested — как передано
+      schema: r.schema, ...(opts.schema !== r.schema ? { requested: opts.schema } : {}),
+      created: r.created, upgraded: r.upgraded, revision: r.revision, signals: r.signals,
       ...(opts.dsn ? { dsn: maskDsn(opts.dsn) } : {}), ...(r.pglite ? { pglite: true } : {}), ...(opts.fresh ? { fresh: true } : {}),
       analyzed: r.analyzed.length, warnings: r.warnings.length, ...(r.serviceKey ? { issuedKey: true } : {}),
       ...(r.tenant ? { tenant: r.tenant.tenant } : {}), ...(r.login ? { login: r.login.user } : {}),

@@ -26,6 +26,12 @@ export const log = {
     ru: 'redact: ожидается массив имён полей (строк)',
     hint: "передать redact списком имён полей, например ['email', 'phone']",
   },
+  // log.ts, errorFields и causeOf: ошибка PostgreSQL в событии — только SQLSTATE и имена объектов схемы; её текст,
+  // DETAIL, WHERE и HINT могут нести значения параметров и данных и в журнал не идут (полный текст — у самой ошибки)
+  'log.db_error': {
+    code: 'internal',
+    ru: 'ошибка PostgreSQL {sqlstate} (текст, DETAIL, WHERE и HINT базы в журнал не пишутся — они у самой ошибки)',
+  },
   // log.ts, deliver: исключение в логгере приложения — один раз на процесс в stderr; операция не прерывается
   'log.logger_failed': {
     code: 'internal',
@@ -83,7 +89,7 @@ export const LOG_EVENTS = {
   'lock': { level: 'debug', ru: 'db.lock(): advisory-блокировка в транзакции' },
   // транзакции
   'tx.begin': { level: 'debug', ru: 'открыта транзакция: db.begin() или db.transaction()' },
-  'tx.commit': { level: 'debug', ru: 'транзакция зафиксирована' },
+  'tx.commit': { level: 'debug', ru: 'транзакция зафиксирована; с записью (db.begin()) и у db.transaction() — уровень info и detail.writes: доказательство фиксации событий с тем же tx' },
   'tx.rollback': { level: 'info', ru: 'транзакция откачена: явно или из-за ошибки' },
   'tx.retry': { level: 'warn', ru: 'повтор операции после конфликта (взаимная блокировка, сериализация, журнал)' },
   // вход и права
@@ -110,7 +116,7 @@ export const LOG_EVENTS = {
   'mcp.call': { level: 'info', ru: 'вызов инструмента MCP' },
   // общее
   'warning': { level: 'warn', ru: 'предупреждение letopis' },
-  'error': { level: 'error', ru: 'ошибка операции letopis: код, ключ каталога, подробности, причина' },
+  'error': { level: 'error', ru: 'ошибка операции letopis: код, ключ каталога, подробности, причина; штатный отказ (exists, conflict, target_not_found, нарушения данных и т. п.) — уровень warn; у ошибки PostgreSQL — только SQLSTATE и имена объектов схемы' },
   'sql': { level: 'debug', ru: 'SQL-запрос: текст без значений параметров, время, число строк' },
 } as const satisfies Record<string, LogEventInfo>;
 

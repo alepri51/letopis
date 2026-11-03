@@ -9,6 +9,12 @@ export const query = {
     code: 'invalid_query',
     ru: "sort: поле 'at', 'rev', 'id' или 'data.<путь>', а не '{field}'",
   },
+  // sql.ts, sortSpec: поле sort() похоже на имя поля данных без префикса data. (sort('code'))
+  'query.sort_field_data': {
+    code: 'invalid_query',
+    ru: "sort: поле 'at', 'rev', 'id' или 'data.<путь>', а не '{field}' — может быть, data.{field}?",
+    hint: "поле данных в sort() — с префиксом data.: sort('data.code'); колонки строки — 'at' (время версии), 'rev', 'id'",
+  },
   // sql.ts, checkField: поле фильтра, sort() или агрегата не описано ни в одном классе шага (в 1.5 — предупреждение, с 2.0 —
   // отказ); where — шаг или вызов, как в коде: Shop({ nmae }), sort('data.nmae'), sum('data.nmae')
   'query.unknown_field': {

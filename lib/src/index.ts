@@ -9,7 +9,7 @@
  */
 import postgres from 'postgres';
 import { LetopisError, checkOptions, fromDbError, lerr, lwarn, warnText } from './errors.js';
-import { guarded, instrument, makeLog, maskDsn, nextTx, sqlText, traceSql, traced, type Log } from './log.js';
+import { guarded, instrument, makeLog, maskDsn, nextTx, safeErrorText, sqlText, traceSql, traced, type Log } from './log.js';
 import { Registry } from './registry.js';
 import { AclPasses, ExplicitTx, Notifier, poolExecutor, runTx, type Executor, type Tx, type TxContext } from './tx.js';
 import { checkReason } from './write.js';
@@ -329,7 +329,8 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
       tl.emit('tx.begin', { op: 'transaction', detail: { isolation: 'read committed' } });
       const t0 = performance.now();
       return exec.run(fn).then((r) => {
-        tl.emit('tx.commit', { op: 'transaction', ms: performance.now() - t0 });
+        // сырой SQL: была ли запись, не знаем — фиксация такой транзакции всегда info (доказательство фиксации)
+        tl.emit('tx.commit', { op: 'transaction', ms: performance.now() - t0, level: 'info', detail: { raw: true } });
         return r;
       }, (e: unknown) => {
         tl.error(e, { op: 'transaction', ms: performance.now() - t0 });
@@ -407,7 +408,7 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
       if (tx) throw lerr('api.nested_begin');
       // причина блока ставится в начале транзакции (setupSql) и действует на все её операции; логгер — с меткой
       // транзакции: её события (tx.*) и все операции фасада db.begin() несут поле tx
-      const tl = log.enabled ? (txc.log ?? sh.log).child({ tx: nextTx('b') }) : undefined;
+      const tl = log.enabled ? (txc.log ?? sh.log).child({ tx: nextTx('b'), writes: { n: 0 } }) : undefined;
       const btx: TxContext = o?.reason !== undefined || tl
         ? { ...txc, ...(o?.reason !== undefined ? { reason: checkReason(o.reason, 'db.begin()') } : {}), ...(tl ? { log: tl } : {}) }
         : txc;
@@ -476,6 +477,14 @@ async function open(opts: ConnectOptions, base: Log, info: Record<string, unknow
   if (typeof opts.schema === 'string' && !opts.schema.includes('.')) opts = { ...opts, schema: `${SCHEMA_VERSION}.${opts.schema}` };
   if (!SCHEMA_NAME.test(opts.schema)) throw lerr('api.connect_schema', { schema: opts.schema });
   if (!opts.sql && !opts.dsn) throw lerr('api.connect_no_dsn');
+  // ключ сервиса или токен передан, но пуст (null, '', не строка — например, повторный up() вернул serviceKey: null):
+  // отказ сразу, а не подключение без сессии и no_session на первой записи. undefined — опции нет (CLI, необязательный токен)
+  for (const name of ['apiKey', 'service', 'token'] as const) {
+    const v: unknown = opts[name];
+    if (v !== undefined && (typeof v !== 'string' || v.trim() === '')) {
+      throw lerr('api.connect_empty_credential', { name, value: v === null ? 'null' : typeof v === 'string' ? `'${v}'` : typeof v });
+    }
+  }
   // интервал обслуживания — до пула и таймеров: неверный не оставляет за собой открытых соединений
   const maintainEvery = opts.maintain === undefined ? undefined : parseInterval(opts.maintain);
   if (opts.admin !== undefined && typeof opts.admin !== 'string' && typeof opts.admin !== 'function') {
@@ -549,7 +558,7 @@ async function open(opts: ConnectOptions, base: Log, info: Record<string, unknow
     const sig = new Signals(mode);
     // отправка сигналов не удалась — предупреждение только при заданном логгере (без него — молча, как прежде)
     const notifier = new Notifier(sql, opts.schema, opts.notifyIntervalMs ?? 100, (e) => {
-      if (base.active) lwarn('log.notify_failed', { message: (e as Error)?.message ?? String(e) }, { log: base });
+      if (base.active) lwarn('log.notify_failed', { message: safeErrorText(e) }, { log: base });
     }, base);
     const passes = new AclPasses(S);
     // режим none: сигналов нет — без LISTEN, кэш только по сроку (ttlOnly), подписка опрашивает журнал

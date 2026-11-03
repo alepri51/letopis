@@ -243,6 +243,12 @@ export const api = {
     ru: 'connect: нужен dsn или sql',
     hint: 'передать dsn — строку подключения — или sql — готовый пул postgres.js',
   },
+  // index.ts: connect({ apiKey | service | token }) передан, но пуст (null, '', не строка) — опция есть, а значения нет
+  'api.connect_empty_credential': {
+    code: 'invalid_data',
+    ru: 'connect: {name} передан, но пуст ({value}) — подключение без сессии не открывается',
+    hint: 'передать ключ сервиса или токен строкой (process.env.SERVICE_KEY не задана?) — либо убрать опцию, если сессия не нужна; ключ сервиса up() выдаёт один раз — храните его сами',
+  },
   // index.ts: connect({ admin }) — не строка и не пул
   'api.connect_admin_type': {
     code: 'invalid_data',

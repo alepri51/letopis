@@ -520,6 +520,8 @@ function termEvent(log: Log, steps: readonly Step[], mods: ChainMods, name: stri
   }
   const last = ops[ops.length - 1];
   const event: LogEventName = last.kind === 'delete' ? (last.confirm ? 'delete' : 'delete.preview') : last.kind === 'restore' ? 'restore' : 'write';
+  // запись в db.begin() — в счётчик транзакции: по нему её tx.commit идёт уровнем info
+  log.mark(event);
   if (!log.wants(event)) return;
   log.emit(event, { op: [...new Set(ops.map((o) => o.kind))].join(','), ms, rows: st.rows ? st.rows.length : rows,
     chain: chainText(log, steps, mods, name, args), detail: writeDetail(last, st.rows) });

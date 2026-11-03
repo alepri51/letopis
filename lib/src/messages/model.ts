@@ -222,6 +222,20 @@ export const model = {
     ru: 'syncModels: имя хаба {name} занято методом цепочки или корня db — шаг с таким именем до класса не дойдёт',
     hint: 'дать классу другое имя: зарезервированные имена — в README, «Справочник API → Зарезервированные имена»',
   },
+  // sync.ts, syncModels: роль конца модели занята системным классом (member: User, Tenant → Account; rule: Group,
+  // Object → Resource) и ведёт на другой класс — отказ до записи (база отклонила бы sql-write.end_other_class)
+  'model.end_role_system': {
+    code: 'invalid_class',
+    ru: 'syncModels: имя роли {end} в классе {model} занято системным классом {cls} (там {end} ведёт на {target}) — выберите другое имя роли, например Team вместо Group',
+    hint: 'переименовать роль конца: имена ролей User, Tenant (системный класс member, ведут на Account), Group, Object (системный класс rule, ведут на Resource) можно брать, только если конец ведёт туда же; список — в README, «Зарезервированные имена»',
+  },
+  // sync.ts, syncModels: роль конца модели уже ведёт на другой класс в другом классе арендатора (или в другой модели
+  // того же вызова) — отказ до записи (база отклонила бы sql-write.end_other_class)
+  'model.end_role_taken': {
+    code: 'invalid_class',
+    ru: 'syncModels: роль {end} в классе {model} ведёт на {mine}, а в классе {cls} — на {target}: имя роли одно на арендатора (это имя шага цепочки)',
+    hint: 'дать роли другое имя или направить её на тот же класс, что и в другом классе',
+  },
   // sync.ts, syncModels: родители замыкают круг; cycle — имена моделей через стрелку
   'model.models_cycle': {
     code: 'invalid_class',
