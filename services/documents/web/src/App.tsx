@@ -70,7 +70,7 @@ function Office({ me }: { me: Me }) {
         auth={{ login: { title: 'Документация', url: DOCS }, signup: { title: 'Выйти', url: '/logout' } }} />
       {stats && (
         <Stats8 className="mb-6 py-6" heading="Документы с полной историей"
-          description="Каждая правка — новая версия в журнале: кто, когда и почему. Любое прошлое состояние можно открыть, сравнить и проверить."
+          description="Каждая правка — новая версия в журнале: кто, когда и почему. Любое прошлое состояние можно открыть на дату, удалённое — вернуть из корзины."
           link={{ text: 'Как устроен сервис', url: DOCS }}
           stats={[
             { id: 'drafts', value: String(stats.drafts), label: 'черновиков' },
