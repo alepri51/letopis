@@ -1,0 +1,3 @@
+node_modules/
+# временные исходники песочницы сайта (_runner/sandbox.ts)
+.sandbox-*/

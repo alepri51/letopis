@@ -59,8 +59,13 @@ begin
       perform @SCHEMA@.lt_fail('sql-core.no_impersonate_right');
     end if;
     select e.id, e.data into a from @SCHEMA@.entity e where e.id = imp::uuid and e.class = 'Account' and e.tenant = '@SYSTEM@'::uuid;
+    -- аккаунта нет (не заводили или удалён) — «не найден», а не «нельзя» (3.0): сервис с правом имперсонации отличит
+    -- опечатку в id от запрета
+    if a.id is null then
+      perform @SCHEMA@.lt_fail('sql-core.impersonation_no_account', jsonb_build_object('id', imp));
+    end if;
     -- от имени System, сервисов, системных администраторов и отключённых аккаунтов действовать нельзя
-    if a.id is null or not coalesce((a.data->>'enabled')::boolean, true) or a.id = '@SYSTEM@'::uuid
+    if not coalesce((a.data->>'enabled')::boolean, true) or a.id = '@SYSTEM@'::uuid
        or coalesce(a.data->'categories' ?| array['System', 'Service'], false)
        or exists (select 1 from @SCHEMA@.entity x
                   where x.id = @SCHEMA@.v5_id('@SYSTEM@'::uuid, 'member', array[a.id::text, '@SYSTEM@']) and x.class = 'member') then
@@ -119,7 +124,7 @@ begin
 end $$;
 
 -- Вход по API-ключу (APIKEY): префикс ищется в ident, ключ сверяется по sha256. Сессия помнит ключ
--- (meta.cred): отзыв ключа гасит только его сессии.
+-- (meta.cred): отзыв ключа гасит только его сессии. Вход и отзыв синхронизированы по строке ключа (for share).
 create or replace function @SCHEMA@.login_apikey(p_key text) returns text
 language plpgsql volatile security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -135,7 +140,10 @@ begin
     and s.material = sha256(convert_to(p_key, 'UTF8'))
     and (s.expires_at is null or s.expires_at > clock_timestamp())
     and coalesce((s.meta->>'enabled')::boolean, true)
-    and coalesce((a.data->>'enabled')::boolean, true);
+    and coalesce((a.data->>'enabled')::boolean, true)
+  -- строка ключа — под блокировкой до конца транзакции входа: отзыв (auth_revoke_credential) ждёт её
+  -- фиксации и гасит открытую здесь сессию, а вход после отзыва ключа не находит
+  for share of s;
   if k.account is null then
     -- DETAIL не было и до каталога (raise без detail): p_detail => 'null' (15-errors.sql)
     perform @SCHEMA@.lt_fail('sql-core.bad_api_key', p_detail => 'null');

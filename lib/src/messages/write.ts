@@ -182,6 +182,69 @@ export const write = {
     code: 'not_deleted',
     ru: 'объект не удалён: {verb}() — только для удалённых',
   },
+  // restore() живого объекта, который уже удаляли: за последним надгробием — create (id занял новый объект с тем же
+  // ключом); ids — такие id; detail.ids, с expect — ещё detail.stale (все цели, которые не восстановить, с why)
+  'write.restore_id_taken': {
+    code: 'not_deleted',
+    ru: '{verb}(): id {ids} занят новым объектом с тем же ключом — create() по ключу удалённого берёт его id, восстанавливать нечего; ничего не восстановлено',
+    hint: 'объект с этим ключом уже живёт: прочитайте его (db.Класс(id).first()); перед create() по ключу удалённого проверьте db.Класс({ ключ }).withDeleted(); восстановить остальное — restore({ expect, partial: true })',
+  },
+  // restore() живого объекта, который уже восстановили: за последним надгробием — restore (второй раунд 2.1, A2: другой
+  // запрос успел первым); ids — такие id; detail.ids, с expect — ещё detail.stale
+  'write.restore_already': {
+    code: 'not_deleted',
+    ru: '{verb}(): {ids} уже восстановлены — объекты живые, восстанавливать нечего; ничего не восстановлено',
+    hint: 'их вернул другой запрос: прочитайте их (db.Класс(id).first()); восстановить остальное — restore({ expect, partial: true })',
+  },
+  // restore({ expect }): последняя версия id не та, что в expect, и это не «уже восстановлено» и не «id занят» — удалён
+  // снова, не удалялся, гонка; ничего не восстановлено. ids — такие id; detail.ids — они же, detail.stale — все цели,
+  // которые не восстановить: { id, rev, expected, after, deleted, live, why }
+  'write.restore_stale': {
+    code: 'conflict',
+    ru: 'restore({ expect }): {ids} уже не те, что удаляли — после этого удаления их меняли (что было — err.detail.stale: after, deleted, live); ничего не восстановлено',
+    hint: 'надгробия — из ответа delete() или withDeleted(), их { id, rev } — в expect; расхождение значит, что вещь уже у другого — сообщить пользователю, а не восстанавливать; восстановить то, что можно, — restore({ expect, partial: true })',
+  },
+  // restore({ partial: true }) без expect: пропускать не по чему
+  'write.partial_without_expect': {
+    code: 'invalid_query',
+    ru: 'restore({ partial: true }) — только с { expect }: пропуск считается по показанным надгробиям',
+  },
+  // restore({ expect }), delete({ expect }): expect — не список строк { id, rev }; verb — глагол
+  'write.bad_expect': {
+    code: 'invalid_query',
+    ru: '{verb}({ expect }): expect — список строк { id, rev } (строки ответа)',
+  },
+  // delete({ expect }) без confirm: превью сравнивать не с чем
+  'write.expect_without_confirm': {
+    code: 'invalid_query',
+    ru: 'delete({ expect }) — только с { confirm: true }: без него delete() и есть превью',
+  },
+  // delete({ confirm: true, expect }): превью в транзакции удаления не совпало с показанным; detail.preview — новое превью
+  'write.preview_changed': {
+    code: 'conflict',
+    ru: 'delete({ confirm: true, expect }): превью изменилось с тех пор, как его показали — ничего не удалено',
+    hint: 'показать пользователю новое превью (err.detail.preview) и удалить с ним: delete({ confirm: true, expect: err.detail.preview })',
+  },
+  // write.ts, checkFullData и checkPatchEnds (3.0, вместо api.validation_failed_end): лишний ключ данных — конец класса
+  // (имя роли или класса на конце); keys — такие ключи, role — роль первого из них. Нарушения ValidationError дописывает
+  // к тексту сам
+  'write.link_in_data': {
+    code: 'invalid_data',
+    ru: '{verb}() у {cls}: {keys} — связь, а не поле данных; конец задают путь цепочки или слот после глагола: .{role}.set(id)',
+    hint: 'конец (связь) — не поле данных: путь цепочки (db.Владелец(id).Класс().create(…)) или слот после глагола: db.Класс.create({ … }).Роль.set(id); у конца-списка — .Роль.add(id) / .Роль.remove(id), снять — .Роль.unset()',
+  },
+  // 3.0: delete({ confirm: true }) без expect и без all — удаление не сверено с показанным превью
+  'write.confirm_without_expect': {
+    code: 'invalid_query',
+    ru: 'delete({ confirm: true }) без { expect }: удаление не сверено с превью, которое видел пользователь — ничего не удалено',
+    hint: 'передайте expect из превью: const p = await db.Класс(id).delete().rows(); показать p пользователю; await db.Класс(id).delete({ confirm: true, expect: p }).rows(). Осознанно удалить текущий состав без сверки — delete({ confirm: true, all: true })',
+  },
+  // 3.0: restore() без expect и без all — и для явных id: последнее надгробие могло смениться с тех пор, как его видели
+  'write.restore_without_expect': {
+    code: 'invalid_query',
+    ru: 'restore() без { expect }: восстановление не сверено с надгробиями, которые видел пользователь — ничего не восстановлено',
+    hint: 'передайте expect — надгробия из ответа delete() или из db.Класс(id).withDeleted().rows(): restore({ expect }); восстановить то, что можно, — restore({ expect, partial: true }); осознанно вернуть все удалённые цели шага без сверки — restore({ all: true })',
+  },
   // tx.ts — tx.ts:commitUnknown: связь оборвалась во время commit
   'write.commit_unknown': {
     code: 'commit_unknown',

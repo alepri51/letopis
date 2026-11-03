@@ -20,6 +20,7 @@ import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import terms from '../coverage/terms.ts';
+import { exampleFiles } from './examples.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const rel = (f: string) => relative(ROOT, f).split(sep).join('/');
@@ -134,7 +135,7 @@ for (const f of walk(join(ROOT, 'pages'), '.md')) {
 
 // 2. тексты примеров, описания справочника, схемы-плееры
 let strings = 0;
-for (const f of walk(join(ROOT, 'examples'), '.ts')) strings += scanTs(f, hits, new Set(['title', 'summary', 'text']));
+for (const f of exampleFiles()) strings += scanTs(f, hits, new Set(['title', 'summary', 'text']));
 strings += scanTs(join(ROOT, 'coverage', 'api-docs.ts'), hits);
 strings += scanTs(join(ROOT, '.vitepress', 'theme', 'flows.ts'), hits);
 

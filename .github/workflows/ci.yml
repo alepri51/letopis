@@ -42,14 +42,14 @@ jobs:
         run: npm run typecheck
 
       # гвард против дрейфа документации: версии, мёртвые ссылки, список тестов,
-      # ревизия движка, актуальность docs/api-contract.json, шаг версии против прошлого выпуска
+      # ревизия движка, актуальность lib/api-contract.json, шаг версии против прошлого выпуска
       # (check:semver), зарезервированные имена. БД не нужна.
       - name: Check docs vs code
         working-directory: lib
         run: npm run check:docs
 
       # Тот же скрипт, что в release.yml: собирает тарбол, ставит его в чистую папку,
-      # импортирует каждый экспорт из docs/api-contract.json и сверяет состав с полем files.
+      # импортирует каждый экспорт из lib/api-contract.json и сверяет состав с полем files.
       # Живой прогон на базе (up, вход сервисом, загрузка, запись, чтение) — тест, поэтому здесь
       # он выключен (LETOPIS_PKG_LIVE=0) и идёт локально в prerelease; release.yml гоняет его
       # для опубликованного пакета.
@@ -59,10 +59,10 @@ jobs:
           LETOPIS_PKG_LIVE: '0'
         run: npm run check:package
 
-  # Документация для людей (guide/, только локально, решение владельца от 29.10.2026). Здесь —
-  # статические сверки: typecheck примеров, ER-схемы из реестра (нужна база — сервис postgres:18),
-  # матрица покрытия, страницы нюансов, ошибок и справочника. Примеры со снимками, песочница и сборка
-  # сайта — локально (prerelease). Идёт параллельно заданию test.
+  # Документация для людей (guide/, только локально, решение владельца от 29.10.2026) и её исполняемые примеры
+  # (examples/ в корне: сайт их только читает). Здесь — статические сверки: typecheck примеров и скриптов сайта,
+  # ER-схемы из реестра (нужна база — сервис postgres:18), матрица покрытия, страницы нюансов, ошибок и справочника.
+  # Примеры со снимками, песочница и сборка сайта — локально (prerelease). Идёт параллельно заданию test.
   guide:
     runs-on: ubuntu-latest
     services:
@@ -84,14 +84,20 @@ jobs:
           cache-dependency-path: |
             lib/package-lock.json
             guide/package-lock.json
+            examples/package-lock.json
 
-      # Примеры подключают letopis исходниками lib/src: нужны зависимости и библиотеки, и сайта.
+      # Примеры и скрипты сайта подключают letopis исходниками lib/src: нужны зависимости библиотеки, сайта и примеров.
       - name: Install
         run: |
           npm ci --prefix lib
           npm ci --prefix guide
+          npm ci --prefix examples
 
       - name: Typecheck examples
+        working-directory: examples
+        run: npm run typecheck
+
+      - name: Typecheck guide scripts
         working-directory: guide
         run: npm run typecheck
 

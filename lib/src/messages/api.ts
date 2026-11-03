@@ -13,6 +13,67 @@ export const api = {
   'api.unknown_step': {
     code: 'invalid_class',
     ru: 'класс или роль {name} не найдены',
+    hint: 'классы арендатора видны только в его сессии: арендаторы пользователя — db.auth.tenants(), переход — db.auth.switch(tenant) или db.as(аккаунт, { tenant }); имя — как в модели (классы записывает syncModels)',
+  },
+  // chain.ts: шаг не найден, а в реестре сессии нет ни одного класса, кроме классов System — сессия, похоже, в
+  // личном арендаторе (вход без switch); похожие имена — params.similar
+  // index.ts: connect({ token }) — токен не даёт сессии (погашен, истёк, неверен); chain.ts: шаг корня без сессии
+  // (сессия погасла после connect) — отказ терминала, а не синхронный
+  'api.token_not_active': {
+    code: 'no_session',
+    ru: 'нет действующей сессии: токен погашен, истёк или неверен',
+    hint: 'войти заново и подключиться с новым токеном; веб-сервису — одно подключение сервиса и svc.as(account, { tenant }) на запрос, а не connect({ token }) на каждый вход',
+  },
+  'api.unknown_step_no_classes': {
+    code: 'invalid_class',
+    ru: 'класс или роль {name} не найдены: в реестре сессии нет ни одного класса арендатора — сессия, похоже, в личном арендаторе',
+    hint: 'после входа сессия работает в личном арендаторе пользователя: найти нужного — db.auth.tenants(), перейти — db.auth.switch(tenant) или db.as(аккаунт, { tenant }); классы в арендатор записывает syncModels',
+  },
+  // chain.ts: у цепочки спросили свойство массива (length, map, filter, 0 …) или перебрали её — она не массив строк
+  'api.chain_not_rows': {
+    code: 'invalid_query',
+    ru: 'цепочка — не массив: {name} есть у строк ответа, а не у цепочки',
+    hint: 'получить строки терминалом с await: const rows = await db.Класс(…).rows(), одну строку — await ….first()',
+  },
+  // chain.ts, A13: шаг вызван с аргументом undefined — фильтра нет, шаг находит все строки класса (как без аргумента);
+  // предупреждение (lwarn), один раз на имя шага
+  'api.step_undefined_filter': {
+    code: 'invalid_query',
+    ru: '{name}(undefined) — фильтра нет: шаг находит все строки, как {name}(). Проверьте переменную с id',
+  },
+  // chain.ts, A13: шаг после sort() — сортировка относится к последнему шагу цепочки, а не к тому, после которого
+  // стоит; предупреждение (lwarn), один раз на пару
+  'api.sort_not_last': {
+    code: 'invalid_query',
+    ru: "sort('{field}') перед шагом {step} сортирует строки последнего шага ({step}), а не прежнего: ставьте sort() в конец цепочки",
+  },
+  // chain.ts, A9: withDeleted() не у последнего шага, а у последнего — нет; предупреждение (lwarn), один раз на пару:
+  // с 2.1 withDeleted() — модификатор своего шага
+  'api.with_deleted_step': {
+    code: 'invalid_query',
+    ru: 'withDeleted() у шага {step} относится к нему, а не к последнему шагу {last}: удалённые {last} — .{last}().withDeleted()',
+  },
+  // errors.ts, fromDbError: подстраховка — значение не того типа (SQLSTATE 22P02), которое не поймала проверка до
+  // запроса; text — текст сервера
+  'api.db_bad_value': {
+    code: 'invalid_query',
+    ru: 'значение не того типа: {text}',
+    hint: 'id — строка uuid, числа — числа, даты — строки ISO; проверьте значения фильтра, курсора и опций',
+  },
+  // errors.ts, ValidationError: первое нарушение в тексте ошибки — путь и сообщение; текст не для ошибки (lmsg)
+  'api.validation_issue': {
+    code: 'invalid_data',
+    ru: '{path} — {issue}',
+  },
+  // errors.ts, ValidationError: путь нарушения на верхнем уровне данных (пустой путь); текст не для ошибки (lmsg)
+  'api.validation_root': {
+    code: 'invalid_data',
+    ru: 'данные',
+  },
+  // errors.ts, ValidationError: число нарушений, если их больше одного; текст не для ошибки (lmsg)
+  'api.validation_more': {
+    code: 'invalid_data',
+    ru: ' (всего нарушений: {n}, все — err.issues)',
   },
   // index.ts: connect({ schema })
   'api.connect_schema': {
@@ -66,9 +127,11 @@ export const api = {
     ru: 'forUpdate() — только внутри db.begin(): вне явной транзакции блокировка снялась бы сразу',
   },
   // chain.ts, lockedRead: forUpdate() с другим терминалом, агрегатом, срезом, глаголом
+  // chain.ts, lockedRead: what — что мешает блокировке (терминал, asOf(), withDeleted(), deep(), глагол)
   'api.for_update_unsupported': {
     code: 'lock_unsupported',
-    ru: 'forUpdate() — с терминалами rows, first, ids, без агрегатов, asOf, versions, withDeleted, deep и глаголов',
+    ru: 'forUpdate() нельзя с {what}: блокировка — только у чтения rows(), first(), ids()',
+    hint: 'forUpdate() — в db.begin(), перед rows(), first() или ids(); без asOf(), versions(), withDeleted(), deep(), count(), paths(), агрегатов и глаголов. Правка — отдельной цепочкой после чтения: await tr.X(id).forUpdate().first(); await tr.X(id).update(…).rows()',
   },
   // chain.ts, lockedRead: строки видны, но политика правки не даёт их заблокировать; ids — через запятую (detail.ids — списком)
   'api.lock_denied': {
@@ -158,6 +221,13 @@ export const api = {
     hint: 'повторить вызов: между запросами db.as() сессия сменила арендатора или кончилась',
   },
   // index.ts: db.begin() внутри db.begin()
+  // index.ts: db.begin(аргумент) — не объект опций (функция, строка, число); функцию begin() не вызывает; type — typeof
+  // аргумента (array — массив)
+  'api.begin_arg': {
+    code: 'invalid_query',
+    ru: 'db.begin() принимает только опции { reason }, а не {type}: транзакцию открывает begin(), закрывают commit() и rollback()',
+    hint: 'const tr = await db.begin(); try { …; await tr.commit() } catch (e) { await tr.rollback(); throw e }',
+  },
   'api.nested_begin': {
     code: 'invalid_query',
     ru: 'вложенных транзакций нет: db.begin() внутри db.begin()',
@@ -172,6 +242,12 @@ export const api = {
     code: 'invalid_data',
     ru: 'connect: нужен dsn или sql',
     hint: 'передать dsn — строку подключения — или sql — готовый пул postgres.js',
+  },
+  // index.ts: connect({ apiKey | service | token }) передан, но пуст (null, '', не строка) — опция есть, а значения нет
+  'api.connect_empty_credential': {
+    code: 'invalid_data',
+    ru: 'connect: {name} передан, но пуст ({value}) — подключение без сессии не открывается',
+    hint: 'передать ключ сервиса или токен строкой (process.env.SERVICE_KEY не задана?) — либо убрать опцию, если сессия не нужна; ключ сервиса up() выдаёт один раз — храните его сами',
   },
   // index.ts: connect({ admin }) — не строка и не пул
   'api.connect_admin_type': {
@@ -217,5 +293,18 @@ export const api = {
   'api.schema_newer': {
     code: 'invalid_data',
     ru: 'движок схемы {schema} ревизии {rev} новее библиотеки (она знает {known}) — обновите пакет letopis',
+  },
+  // up.ts, createTenant(): первый аргумент — не пул postgres() (строка DSN, подключение connect(), объект без begin и
+  // unsafe); type — typeof значения или null
+  'api.create_tenant_admin': {
+    code: 'invalid_query',
+    ru: 'createTenant(admin, …): admin — пул postgres() с правами администратора, а не {type}',
+    hint: "const admin = postgres(dsnАдминистратора); await createTenant(admin, 'salon', { name }); await admin.end(). DSN-строку и подключение connect() letopis createTenant не принимает",
+  },
+  // chain.ts, versions(): у результата versions() вызвали метод цепочки (rows, first, sort…); method — его имя
+  'api.versions_terminal': {
+    code: 'invalid_query',
+    ru: 'versions() — терминал: отдаёт строки версий, у результата нет .{method}()',
+    hint: "const v = await db.Класс(id).versions(); модификаторы — до versions(): db.Класс(id).sort('at', 'desc').limit(10).versions()",
   },
 } satisfies Section<'api'>;

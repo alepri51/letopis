@@ -4,7 +4,7 @@
  *   npx tsx scripts/coverage.ts [--strict] [--list]
  *
  * Инвентарь собирается из кода, а не руками:
- * - экспорты точек входа, методы цепочки, `db` и батча — `docs/api-contract.json`;
+ * - экспорты точек входа, методы цепочки, `db` и батча — `lib/api-contract.json`;
  * - опции `connect`, `up`, `watch`, `load`, кэша, MCP, методы `db.auth`, свойства описания класса — члены интерфейсов
  *   в `lib/src`;
  * - коды ошибок — каталог базы (`LT_NAMES`), коды, которые бросает библиотека (`new LetopisError('…')`, `fail('…')`,
@@ -15,11 +15,12 @@
  * Пример объявляет, что покрывает, в `covers`. Неизвестный пункт в `covers` (опечатка) — всегда ошибка.
  * С `--strict` ошибка и непокрытый пункт (так будет к концу работы, этап 5).
  */
-import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import nuances from '../coverage/nuances.ts';
+import { EXAMPLES, exampleFiles } from './examples.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const LIB = join(ROOT, '..', 'lib');
@@ -34,7 +35,7 @@ const add = (group: string, prefix: string, names: Iterable<string>) => {
 };
 
 // ---------- контракт API ----------
-const contract = JSON.parse(readFileSync(join(ROOT, '..', 'docs', 'api-contract.json'), 'utf8'));
+const contract = JSON.parse(readFileSync(join(ROOT, '..', 'lib', 'api-contract.json'), 'utf8'));
 add('экспорты letopis', 'export', contract.exports['.'].values);
 add('экспорты letopis/model', 'model', contract.exports['./model'].values);
 add('экспорты letopis/mcp', 'mcp', contract.exports['./mcp'].values);
@@ -98,18 +99,11 @@ add('инструменты MCP', 'mcptool', new Set([...mcpTs.matchAll(/'(letop
 // ---------- нюансы ----------
 add('нюансы', 'nuance', nuances.map((n) => n.id));
 
-// ---------- что объявили примеры ----------
-function walk(dir: string): string[] {
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir).sort().flatMap((n) => {
-    const p = join(dir, n);
-    return statSync(p).isDirectory() ? walk(p) : n.endsWith('.ts') ? [p] : [];
-  });
-}
+// ---------- что объявили примеры (examples/<глава>/*.ts) ----------
 const covered = new Map<string, string[]>(); // пункт → примеры
 const unknown: string[] = [];
-for (const file of walk(join(ROOT, 'examples'))) {
-  const id = relative(join(ROOT, 'examples'), file).split(sep).join('/').replace(/\.ts$/, '');
+for (const file of exampleFiles()) {
+  const id = relative(EXAMPLES, file).split(sep).join('/').replace(/\.ts$/, '');
   const src = readFileSync(file, 'utf8');
   const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true);
   const visit = (node: ts.Node): void => {
@@ -125,7 +119,7 @@ for (const file of walk(join(ROOT, 'examples'))) {
   visit(sf);
 }
 // коды без примера — исключения с объяснением: примером не вызвать или сайт их не показывает
-// (их же примечания — на странице главы 15 «Ошибки»)
+// (их же примечания — на странице главы 16 «Ошибки»)
 const EXEMPT: Record<string, string> = {
   'error.internal': 'внутренняя ошибка letopis (строка-замок семейства не создана или не найдена): примером не вызвать — её воспроизводит тест messages библиотеки',
 };

@@ -1,0 +1,89 @@
+{
+  "id": "mcp/02-options",
+  "context": {
+    "schema": "v2.g_mcp_02_options",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_35f5b8a39a07f851a145171729e9181126cae3123333bedcb768c92ce07151a3",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "8904b6f2c6be6be266515303e17ba62fd6b8fb3162079375e8fc47a20423330c",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "строк": 2,
+        "more": true,
+        "курсор есть": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Category",
+        "Class",
+        "Customer",
+        "Order",
+        "Product",
+        "Shop",
+        "Vip",
+        "line"
+      ]
+    },
+    {
+      "result": {
+        "строк": 1,
+        "more": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "без опции": {
+          "ошибка": "acl_denied"
+        },
+        "с allowAclWrite": "создан"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Resource"
+      ]
+    },
+    {
+      "result": "сервер открыт",
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    }
+  ]
+}

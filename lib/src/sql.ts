@@ -22,6 +22,7 @@ import type { ClassDescription } from './model.js';
 import { isOp } from './ops.js';
 import type { ClassInfo, LeafType, Registry } from './registry.js';
 import { OP, type ChainMods, type Cursor, type Filter, type Op, type Path, type Row } from './types.js';
+import { PG_UUID_RE, UUID_RE } from './uuid.js';
 
 export interface Step {
   /** Имя, как вызвано в цепочке (класс, алиас или роль). */
@@ -41,6 +42,8 @@ export interface Step {
   tagsFilter?: unknown;
   ownerFilter?: string;
   deepMax?: number;
+  /** withDeleted(): узел шага — живые и надгробия удалённых (модификатор шага, план 2.1, A9). */
+  withDeleted?: true;
   /** Звено плана записи (этап 4): глагол на этом шаге; построитель чтения его не видит. */
   op?: import('./write.js').PlanOp;
   /** Модификаторы цепочки на момент глагола: limit и sort сужают цели записи. */
@@ -230,12 +233,35 @@ function leafOf(reg: Registry, classes: ClassInfo[], path: string[]): LeafType {
   return 'jsonb';
 }
 
-function compileOp(path: string[], leaf: LeafType, o: Op, p: Params): Frag {
+/**
+ * Тип поля у классов шага не один (потомок переопределил тип: Base.price — число, Child.price — строка; у другой цели
+ * полиморфного конца поля нет или оно другого типа): приведение к типу листа должно быть безопасным — значение, которое
+ * к нему не приводится, сравнивается и сортируется как null, а не роняет весь запрос ошибкой приведения.
+ */
+function leafMixed(reg: Registry, classes: ClassInfo[], path: string[], leaf: LeafType): boolean {
+  return !!CAST[leaf] && classes.some((c) => reg.leafType(c.name, path) !== leaf);
+}
+
+/** Имя типа для pg_input_is_valid по типу листа. */
+const PG_TYPE: Record<LeafType, string> = {
+  text: 'text', jsonb: 'jsonb', numeric: 'numeric', boolean: 'boolean', timestamptz: 'timestamptz', date: 'date', uuid: 'uuid',
+};
+
+/**
+ * Значение поля, приведённое к типу листа (скобки обязательны: '::' сильнее '->>'). safe — тип поля в семействе
+ * разный (leafMixed): то, что не приводится, — null.
+ */
+function castLeaf(expr: string, leaf: LeafType, safe: boolean): string {
+  const cast = CAST[leaf];
+  if (!cast) return expr;
+  return safe ? `(case when pg_input_is_valid(${expr}, ${lit(PG_TYPE[leaf])}) then (${expr})${cast} end)` : `(${expr})${cast}`;
+}
+
+function compileOp(path: string[], leaf: LeafType, o: Op, p: Params, safe = false): Frag {
   const lhs = accessor(path);
   const cast = CAST[leaf];
   const pc = PCAST[leaf];
-  // скобки обязательны: '::' сильнее '->>'
-  const L: Frag = cast ? (a) => `(${lhs(a)})${cast}` : lhs;
+  const L: Frag = cast ? (a) => castLeaf(lhs(a), leaf, safe) : lhs;
   const args = o.args;
   switch (o[OP]) {
     case 'ne':
@@ -293,10 +319,10 @@ function compileOp(path: string[], leaf: LeafType, o: Op, p: Params): Frag {
       return (a) => `${lhs(a)} is null`;
     case 'not': {
       if (isOp(args[0])) {
-        const inner = compileOp(path, leaf, args[0] as Op, p);
+        const inner = compileOp(path, leaf, args[0] as Op, p, safe);
         return (a) => `not coalesce(${inner(a)}, false)`;
       }
-      return compileOp(path, leaf, { [OP]: 'ne', args: [args[0]] } as Op, p);
+      return compileOp(path, leaf, { [OP]: 'ne', args: [args[0]] } as Op, p, safe);
     }
     default:
       throw lerr('query.unknown_op', { op: String(o[OP]) });
@@ -345,9 +371,20 @@ const isPlain = (v: unknown): v is Record<string, unknown> =>
 const idOfValue = (v: unknown): string | undefined =>
   typeof v === 'string' ? v : isPlain(v) && typeof v.id === 'string' ? v.id : undefined;
 
+/**
+ * id фильтра шага, `{ id }` или конца — uuid, который примет приведение базы (PG_UUID_RE): иначе invalid_query до запроса,
+ * а не сырая ошибка PostgreSQL 22P02 (у null — TypeError; план 2.1, A7).
+ */
+function idCheck(v: unknown, where: string): string {
+  if (typeof v === 'string' && PG_UUID_RE.test(v)) return v;
+  throw lerr('query.bad_uuid', { where, value: shown(v) });
+}
+
 function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | undefined, p: Params): CompiledFilter {
   const out: CompiledFilter = { ends: [], frags: [] };
   if (filter === undefined) return out;
+  const at = `${classes[0]?.name ?? ''}(…)`;
+  if (filter === null) idCheck(filter, at);
 
   // or(…): дизъюнкция под-фильтров — только перепроверка
   if (isOp(filter)) {
@@ -361,11 +398,11 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
     return out;
   }
   if (typeof filter === 'string') {
-    out.ids = [filter];
+    out.ids = [idCheck(filter, at)];
     return out;
   }
   if (Array.isArray(filter)) {
-    out.ids = filter.map((x) => idOfValue(x) ?? refuse('query.id_list'));
+    out.ids = filter.map((x) => idCheck(idOfValue(x) ?? refuse('query.id_list'), at));
     return out;
   }
 
@@ -382,7 +419,8 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
       if (v === undefined) continue;
       const at = [...path, k];
       if (isOp(v)) {
-        out.frags.push(compileOp(at, leafOf(reg, classes, at), v, p));
+        const t = leafOf(reg, classes, at);
+        out.frags.push(compileOp(at, t, v, p, leafMixed(reg, classes, at, t)));
         hadOps = true;
       } else if (isPlain(v)) {
         const nested = walk(at, v);
@@ -397,8 +435,9 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
   for (const [key, value] of Object.entries(filter)) {
     if (value === undefined) continue;
     if (key === 'id') {
-      if (typeof value === 'string') out.ids = [value];
-      else if (Array.isArray(value)) out.ids = value.map((x) => idOfValue(x) ?? refuse('query.filter_id_list'));
+      const w = `${classes[0]?.name ?? ''}({ id })`;
+      if (typeof value === 'string') out.ids = [idCheck(value, w)];
+      else if (Array.isArray(value)) out.ids = value.map((x) => idCheck(idOfValue(x) ?? refuse('query.filter_id_list'), w));
       else throw lerr('query.filter_id');
       continue;
     }
@@ -408,7 +447,7 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
         out.frags.push((a) => `coalesce(${a}.links->${role}, 'null'::jsonb) in ('null'::jsonb, '[]'::jsonb)`);
         continue;
       }
-      const id = idOfValue(value) ?? refuse('query.end_value', { role: key });
+      const id = idCheck(idOfValue(value) ?? refuse('query.end_value', { role: key }), `${classes[0]?.name ?? ''}({ ${key} })`);
       out.ends.push(id);
       const ph = p.push(id);
       out.frags.push((a) => `${SCHEMA_MARK}.role_has(${a}.links, array[${role}], ${ph}::uuid)`);
@@ -417,7 +456,8 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
     // поле данных: не описано ни в одном классе шага — invalid_query с похожими (план 2.0, этап 3, п. 3)
     checkField(classes, key, `${classes[0]?.name ?? ''}({ ${key} })`, true);
     if (isOp(value)) {
-      out.frags.push(compileOp([key], leafOf(reg, classes, [key]), value, p));
+      const t = leafOf(reg, classes, [key]);
+      out.frags.push(compileOp([key], t, value, p, leafMixed(reg, classes, [key], t)));
       continue;
     }
     if (isPlain(value)) {
@@ -463,9 +503,11 @@ interface SortSpec {
   type: LeafType | 'int';
   /** Поля данных может не быть (курсор null); колонки at, rev, id есть всегда. */
   nullable: boolean;
+  /** Тип поля в семействе разный (leafMixed): значение, которое не приводится к type, сортируется как null — и в курсоре. */
+  safe?: boolean;
 }
 
-function sortSpec(order: string, leaf: (path: string[]) => LeafType): SortSpec {
+function sortSpec(order: string, leaf: (path: string[]) => LeafType, mixed: (path: string[], t: LeafType) => boolean): SortSpec {
   const f = order === 'updated' ? 'at' : order;
   const col = { field: order, nullable: false };
   if (f === 'at') return { ...col, expr: (a) => `${a}.at`, pcast: '::text::timestamptz', type: 'timestamptz' };
@@ -474,13 +516,16 @@ function sortSpec(order: string, leaf: (path: string[]) => LeafType): SortSpec {
   if (f.startsWith('data.')) {
     const path = f.slice(5).split('.');
     const t = leaf(path);
-    return { expr: (a) => (CAST[t] ? `(${accessor(path)(a)})${CAST[t]}` : accessor(path)(a)), pcast: PCAST[t], field: order, type: t, nullable: true };
+    const safe = mixed(path, t);
+    return { expr: (a) => castLeaf(accessor(path)(a), t, safe), pcast: PCAST[t], field: order, type: t, nullable: true, safe };
   }
+  // имя поля данных без префикса (sort('code')) — подсказка «data.code?»: принять его молча нельзя — колонки at, rev, id
+  // и поле данных с тем же именем разошлись бы, а курсор cursorOf(строка, 'code') — с ними
+  if (/^[\p{L}_$][\p{L}\p{N}_$]*(\.[\p{L}\p{N}_$]+)*$/u.test(order)) throw lerr('query.sort_field_data', { field: order });
   throw lerr('query.sort_field', { field: order });
 }
 
-/** Формы значений курсора — как у форматов uuid, date и date-time валидатора (validate.ts). */
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Формы значений курсора — как у форматов uuid (UUID_RE, uuid.ts), date и date-time валидатора (validate.ts). */
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIME_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d{1,6})?(?:Z|[+-](\d{2}):(\d{2}))$/;
 
@@ -550,7 +595,9 @@ function cursorParams(c: unknown, sort: SortSpec): { v: unknown; id: string } {
   if (typeof c !== 'object' || c === null || (c as Partial<Cursor>).v === undefined) throw lerr('query.cursor_shape', { field: sort.field });
   const { v, id } = c as Cursor;
   if (typeof id !== 'string' || !UUID_RE.test(id)) throw lerr('query.cursor_id', { id: shown(id) });
-  const value = v === null && sort.nullable ? null : cursorValue(v, sort.type);
+  let value = v === null && sort.nullable ? null : cursorValue(v, sort.type);
+  // строка потомка с другим типом поля (курсор её значения) стоит среди null — как в castLeaf
+  if (value === undefined && sort.safe && v !== undefined && typeof v !== 'object') value = null;
   if (value === undefined) {
     // у поля данных подходит и курсор null — своя запись, а не склейка « или null»
     throw lerr(sort.nullable ? 'query.cursor_value_nullable' : 'query.cursor_value',
@@ -689,7 +736,9 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
     const dataP = lazy(() => (cf.eq ? `${p.push(cf.eq)}::jsonb` : 'null'));
     const endsP = lazy(() => (cf.ends.length ? `${p.push(cf.ends)}::uuid[]` : 'null'));
     const idsP = lazy(() => (cf.ids ? `${p.push(cf.ids)}::uuid[]` : 'null'));
-    const dead = mods.withDeleted === true && i === lastNode;
+    // надгробия узла: withDeleted() этого шага (план 2.1, A9) или versions() по явным id последнего шага — история
+    // удалённого объекта (план 2.1, A10)
+    const dead = step.withDeleted === true || (mode === 'versions' && i === lastNode && cf.ids !== undefined && step.deepMax === undefined);
     const dataCond = (v: string) => (cf.eq ? ` and ${v}.data @> ${dataP()}` : '');
     const endsCond = (col: string) => (cf.ends.length ? ` and ${col} @> ${endsP()}` : '');
     /** Версии журнала: последняя версия каждого id не позже момента. */
@@ -802,14 +851,17 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
   }
 
   // ключи шагов в путях
+  // повтор имени — суффикс _2, _3…, свободный среди всех уже выданных ключей: алиас x_2 и второй шаг x не
+  // совпадают (x, x_2, x → x, x_2, x_3), иначе узел терялся бы в jsonb_build_object
   const keyed: { key: string; node: number }[] = [];
-  const seen = new Map<string, number>();
+  const used = new Set<string>();
   steps.forEach((s, i) => {
     if (s.pivotKey !== undefined) return;
     const base = s.aliasKey ?? s.name;
-    const n = (seen.get(base) ?? 0) + 1;
-    seen.set(base, n);
-    keyed.push({ key: n === 1 ? base : `${base}_${n}`, node: i });
+    let key = base;
+    for (let n = 2; used.has(key); n++) key = `${base}_${n}`;
+    used.add(key);
+    keyed.push({ key, node: i });
   });
 
   const from = `from n0 h0${joins.length ? ' ' + joins.join(' ') : ''}`;
@@ -823,8 +875,9 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
   const single = tail.length === 0 && !steps.some((st) => st.pivotKey !== undefined);
   const ents = single ? `n${lastNode}` : `(select z0.* from n${lastNode} z0 where z0.id in (select h${lastNode}.id ${from}${whereOf(tail)}))`;
   const leaf = (path: string[]) => leafOf(reg, rowsNode(lastNode), path);
+  const mixed = (path: string[], t: LeafType) => leafMixed(reg, rowsNode(lastNode), path, t);
   if (mods.order?.startsWith('data.')) checkField(rowsNode(lastNode), topField(mods.order), `sort('${mods.order}')`, false);
-  const sort = mods.order ? sortSpec(mods.order, leaf) : undefined;
+  const sort = mods.order ? sortSpec(mods.order, leaf, mixed) : undefined;
   const dir = mods.desc ? ' desc' : '';
   /** Порядок: поле sort, id строки и разделители равных (id прочих узлов пути). */
   const orderBy = (a: string, more: string[] = []) => (sort ? ` order by ${[sort.expr(a), `${a}.id`, ...more].map((x) => `${x}${dir}`).join(', ')}` : '');
@@ -909,10 +962,11 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
         // limit и offset — группы по убыванию числа (самые частые значения), а не строки
         text = `${withClause}select ${acc} as k, count(*)::int as n from ${ents} z group by 1 order by 2 desc, 1${limitOffset()}`;
       } else {
-        const cast = agg!.fn === 'sum' || agg!.fn === 'avg' ? '::numeric' : CAST[aggLeaf];
+        const t: LeafType = agg!.fn === 'sum' || agg!.fn === 'avg' ? 'numeric' : aggLeaf;
         // у boolean в PostgreSQL нет min и max; false меньше true: наименьшее — «все ли true», наибольшее — «есть ли true»
         const fn = aggLeaf === 'boolean' && agg!.fn === 'min' ? 'bool_and' : aggLeaf === 'boolean' && agg!.fn === 'max' ? 'bool_or' : agg!.fn;
-        text = `${withClause}select ${fn}((${acc})${cast}) as v from ${ents} z`;
+        // тип поля в семействе разный — значения, которые не приводятся к типу листа, агрегат пропускает (как null)
+        text = `${withClause}select ${fn}(${castLeaf(acc, t, aggLeaf === t && mixed(path, t))}) as v from ${ents} z`;
       }
       break;
     }

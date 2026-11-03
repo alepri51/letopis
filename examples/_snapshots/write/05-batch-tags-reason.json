@@ -1,0 +1,2099 @@
+{
+  "id": "write/05-batch-tags-reason",
+  "title": "Батч, теги, владелец и причина изменения",
+  "summary": "Батч копит планы записи и выполняет их одной транзакцией. Теги и владелец задаются перед глаголом. Причина изменения (reason) попадает в журнал рядом с автором и временем.",
+  "covers": [
+    "db.batch",
+    "batch.run",
+    "batch.size",
+    "batch.discard",
+    "chain.tags",
+    "chain.owner",
+    "nuance.reason-in-log",
+    "nuance.batch-own-queue",
+    "nuance.mods-after-verb",
+    "nuance.tags-op-update",
+    "nuance.hasall-empty"
+  ],
+  "tables": [
+    "entity",
+    "log"
+  ],
+  "context": {
+    "schema": "v2.g_write_05_batch_tags_reason",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "‹токен 1›",
+      "tenant": {
+        "tenant": "Ромашка",
+        "user": "Анна",
+        "token": "‹токен 2›",
+        "created": true
+      }
+    }
+  },
+  "source": "import { has, hasAll, hasAny, inc } from 'letopis';\nimport { example } from '../_shared/example.ts';\nimport { syncShop } from '../_shared/shop.ts';\n\nlet shop: { id: string };\n\nexport default example({\n  title: 'Батч, теги, владелец и причина изменения',\n  summary:\n    'Батч копит планы записи и выполняет их одной транзакцией. Теги и владелец задаются перед глаголом. Причина ' +\n    'изменения (reason) попадает в журнал рядом с автором и временем.',\n  covers: ['db.batch', 'batch.run', 'batch.size', 'batch.discard','chain.tags', 'chain.owner', 'nuance.reason-in-log', 'nuance.batch-own-queue', 'nuance.mods-after-verb', 'nuance.tags-op-update', 'nuance.hasall-empty'],\n  steps: [\n    {\n      title: 'Магазин',\n      run: async ({ db }) => {\n        await syncShop(db); // скрыть\n        [shop] = await db.Shop().create({ name: 'Ромашка' }).rows();\n        return shop;\n      },\n    },\n    {\n      title: 'Батч: два товара одной транзакцией',\n      text:\n        'Планы копятся в очереди `витрина`; `size()` — сколько их; `run()` исполняет все одной транзакцией. ' +\n        'Подряд идущие простые `create` класса с ключом объединяются в один SQL-оператор на несколько строк.',\n      run: async ({ db }) => {\n        const b = db.batch('витрина', { reason: 'новая коллекция' });\n        b.Shop(shop).Product().create({ sku: 'C-1', title: 'Чашка', price: 300 });\n        b.Shop(shop).Product().create({ sku: 'C-2', title: 'Блюдце', price: 200 });\n        const queued = b.size();\n        const results = await b.run();\n        return { queued, created: results.map((rows) => rows.length) };\n      },\n    },\n    {\n      title: 'discard — очистить очередь',\n      run: async ({ db }) => {\n        const b = db.batch('черновик');\n        b.Shop(shop).Product().create({ sku: 'X-1', title: 'Не нужен', price: 1 });\n        b.discard();\n        return { size: b.size() };\n      },\n    },\n    {\n      title: 'Теги и причина',\n      text: 'Теги новой строки — `.tags([…])` перед глаголом. Причина — опция `reason` глагола: смотрите колонку «причина» в журнале.',\n      run: async ({ db }) => db.Shop(shop).Product().tags(['сезон', 'зима'])\n        .create({ sku: 'W-1', title: 'Варежки', price: 700 }, { reason: 'зимняя витрина' }).rows(),\n    },\n    {\n      title: 'Владелец строки',\n      text: 'По умолчанию владелец — арендатор. `.owner(id)` задаёт явного владельца (если права разрешают): здесь — сама Анна.',\n      run: async ({ db, up }) => db.Shop(shop).Product().owner(up.tenant!.user!)\n        .create({ sku: 'P-1', title: 'Личный заказ', price: 100 }).rows(),\n    },\n    {\n      title: 'Оператор в .tags() перед update только отбирает',\n      text:\n        \"`.tags(has('зима'))` находит варежки и поднимает им цену на 100. Теги `сезон` и `зима` остались: оператор \" +\n        '(`has`, `hasAny`, `hasAll`) только отбирает строки.',\n      run: async ({ db }) => db.Shop(shop).Product().tags(has('зима')).update({ price: inc(100) }).rows(),\n    },\n    {\n      title: 'Строка или список в .tags() перед update ещё и заменяют теги',\n      text:\n        \"Со строкой `'зима'` отбор тот же, но теги заменяются целиком: у варежек остался один тег `зима`, а `сезон` \" +\n        'пропал. Строкой или списком перед `update` теги задают, а не ищут.',\n      run: async ({ db }) => db.Shop(shop).Product().tags('зима').update({ price: inc(100) }).rows(),\n    },\n    {\n      title: 'Пустой список в hasAll подходит любой строке',\n      text:\n        'У каждой строки есть «все теги из пустого списка», поэтому `hasAll([])` находит все товары, а `hasAny([])` — ' +\n        'ни одного. Если список приходит от пользователя, проверяйте его до запроса: перед `update` или `delete` ' +\n        'пустой `hasAll` задел бы весь магазин.',\n      run: async ({ db }) => ({\n        'hasAll([])': await db.Shop(shop).Product().tags(hasAll([])).count(),\n        'hasAny([])': await db.Shop(shop).Product().tags(hasAny([])).count(),\n      }),\n    },\n    {\n      title: 'Батч: модификатор после глагола — отказ run()',\n      text:\n        'В батче терминала нет — план исполняет `run()`. Цепочка кончилась `limit(1)` после `update`: сузить уже нечего, ' +\n        'и `run()` отказывает `invalid_query` до записи. Цены не изменились.',\n      run: async ({ db }) => {\n        const b = db.batch('цены');\n        b.Shop(shop).Product().update({ price: inc(10) }).limit(1);\n        return b.run();\n      },\n      expect: { error: 'invalid_query' },\n    },\n  ],\n});\n",
+  "sourceHtml": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { has, hasAll, hasAny, inc } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'letopis'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { example } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> '../_shared/example.ts'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { syncShop } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> '../_shared/shop.ts'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">let</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> shop</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">id</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> };</span></span>\n<span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">export</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> default</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> example</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Батч, теги, владелец и причина изменения'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  summary:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'Батч копит планы записи и выполняет их одной транзакцией. Теги и владелец задаются перед глаголом. Причина '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'изменения (reason) попадает в журнал рядом с автором и временем.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  covers: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'db.batch'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'batch.run'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'batch.size'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'batch.discard'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'chain.tags'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'chain.owner'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.reason-in-log'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.batch-own-queue'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.mods-after-verb'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.tags-op-update'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.hasall-empty'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  steps: [</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Магазин'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncShop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db); </span><span style=\"color:#6A737D;--shiki-dark:#6A737D\">// скрыть</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        [shop] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> shop;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Батч: два товара одной транзакцией'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Планы копятся в очереди `витрина`; `size()` — сколько их; `run()` исполняет все одной транзакцией. '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Подряд идущие простые `create` класса с ключом объединяются в один SQL-оператор на несколько строк.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> b</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">batch</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'витрина'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'новая коллекция'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'C-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">300</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'C-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Блюдце'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">200</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> queued</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">size</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> results</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { queued, created: results.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> rows.</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) };</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'discard — очистить очередь'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> b</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">batch</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'черновик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'X-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Не нужен'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">discard</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { size: b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">size</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() };</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Теги и причина'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Теги новой строки — `.tags([…])` перед глаголом. Причина — опция `reason` глагола: смотрите колонку «причина» в журнале.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">tags</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">([</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'сезон'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'зима'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">])</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        .</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'W-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Варежки'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">700</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'зимняя витрина'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Владелец строки'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'По умолчанию владелец — арендатор. `.owner(id)` задаёт явного владельца (если права разрешают): здесь — сама Анна.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">owner</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        .</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'P-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Личный заказ'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">100</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Оператор в .tags() перед update только отбирает'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        \"`.tags(has('зима'))` находит варежки и поднимает им цену на 100. Теги `сезон` и `зима` остались: оператор \"</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '(`has`, `hasAny`, `hasAll`) только отбирает строки.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">tags</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">has</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'зима'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">inc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">100</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Строка или список в .tags() перед update ещё и заменяют теги'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        \"Со строкой `'зима'` отбор тот же, но теги заменяются целиком: у варежек остался один тег `зима`, а `сезон` \"</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'пропал. Строкой или списком перед `update` теги задают, а не ищут.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">tags</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'зима'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">inc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">100</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Пустой список в hasAll подходит любой строке'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'У каждой строки есть «все теги из пустого списка», поэтому `hasAll([])` находит все товары, а `hasAny([])` — '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'ни одного. Если список приходит от пользователя, проверяйте его до запроса: перед `update` или `delete` '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'пустой `hasAll` задел бы весь магазин.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'hasAll([])'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">tags</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">hasAll</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">([])).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'hasAny([])'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">tags</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">hasAny</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">([])).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      }),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Батч: модификатор после глагола — отказ run()'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'В батче терминала нет — план исполняет `run()`. Цепочка кончилась `limit(1)` после `update`: сузить уже нечего, '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'и `run()` отказывает `invalid_query` до записи. Цены не изменились.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> b</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">batch</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'цены'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">inc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">10</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">limit</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      expect: { error: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'invalid_query'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  ],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">});</span></span>\n<span class=\"line\"></span></code></pre>",
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": null
+  },
+  "steps": [
+    {
+      "title": "Магазин",
+      "text": null,
+      "code": "[shop] = await db.Shop().create({ name: 'Ромашка' }).rows();\nreturn shop;",
+      "params": [
+        "db"
+      ],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[shop] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> shop;</span></span></code></pre>",
+      "result": {
+        "at": "t1",
+        "id": "Shop «Ромашка»",
+        "op": "create",
+        "rev": 1,
+        "data": {
+          "name": "Ромашка"
+        },
+        "tags": [],
+        "class": "Shop",
+        "links": {},
+        "owner": "Ромашка",
+        "author": "Анна",
+        "tenant": "Ромашка",
+        "agent": "service"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": [
+            "*"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null,
+      "signals": [
+        "Class",
+        "Shop"
+      ]
+    },
+    {
+      "title": "Батч: два товара одной транзакцией",
+      "text": "Планы копятся в очереди `витрина`; `size()` — сколько их; `run()` исполняет все одной транзакцией. Подряд идущие простые `create` класса с ключом объединяются в один SQL-оператор на несколько строк.",
+      "code": "const b = db.batch('витрина', { reason: 'новая коллекция' });\nb.Shop(shop).Product().create({ sku: 'C-1', title: 'Чашка', price: 300 });\nb.Shop(shop).Product().create({ sku: 'C-2', title: 'Блюдце', price: 200 });\nconst queued = b.size();\nconst results = await b.run();\nreturn { queued, created: results.map((rows) => rows.length) };",
+      "params": [
+        "db"
+      ],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> b</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">batch</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'витрина'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'новая коллекция'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'C-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">300</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'C-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Блюдце'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">200</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> queued</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">size</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> results</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { queued, created: results.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> rows.</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) };</span></span></code></pre>",
+      "result": {
+        "queued": 2,
+        "created": [
+          1,
+          1
+        ]
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Product «Чашка»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-1",
+            "price": 300,
+            "title": "Чашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Product «Блюдце»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-2",
+            "price": 200,
+            "title": "Блюдце"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$changed": [
+            "*"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "42",
+          "id": "Product «Чашка»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-1",
+            "price": 300,
+            "title": "Чашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$new": true
+        },
+        {
+          "seq": "43",
+          "id": "Product «Блюдце»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-2",
+            "price": 200,
+            "title": "Блюдце"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null,
+      "signals": [
+        "Product"
+      ]
+    },
+    {
+      "title": "discard — очистить очередь",
+      "text": null,
+      "code": "const b = db.batch('черновик');\nb.Shop(shop).Product().create({ sku: 'X-1', title: 'Не нужен', price: 1 });\nb.discard();\nreturn { size: b.size() };",
+      "params": [
+        "db"
+      ],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> b</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">batch</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'черновик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'X-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Не нужен'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">discard</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { size: b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">size</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() };</span></span></code></pre>",
+      "result": {
+        "size": 0
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Product «Чашка»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-1",
+            "price": 300,
+            "title": "Чашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Product «Блюдце»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-2",
+            "price": 200,
+            "title": "Блюдце"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "42",
+          "id": "Product «Чашка»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-1",
+            "price": 300,
+            "title": "Чашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "43",
+          "id": "Product «Блюдце»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-2",
+            "price": 200,
+            "title": "Блюдце"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null,
+      "signals": []
+    },
+    {
+      "title": "Теги и причина",
+      "text": "Теги новой строки — `.tags([…])` перед глаголом. Причина — опция `reason` глагола: смотрите колонку «причина» в журнале.",
+      "code": "db.Shop(shop).Product().tags(['сезон', 'зима'])\n        .create({ sku: 'W-1', title: 'Варежки', price: 700 }, { reason: 'зимняя витрина' }).rows()",
+      "params": [
+        "db"
+      ],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">tags</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">([</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'сезон'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'зима'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">])</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        .</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'W-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Варежки'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">700</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'зимняя витрина'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "result": [
+        {
+          "at": "t3",
+          "id": "Product «Варежки»",
+          "op": "create",
+          "rev": 1,
+          "data": {
+            "sku": "W-1",
+            "price": 700,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "class": "Product",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "owner": "Ромашка",
+          "author": "Анна",
+          "tenant": "Ромашка",
+          "agent": "service",
+          "reason": "зимняя витрина"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Product «Чашка»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-1",
+            "price": 300,
+            "title": "Чашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Product «Блюдце»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-2",
+            "price": 200,
+            "title": "Блюдце"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Product «Варежки»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 700,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "зимняя витрина",
+          "at": "t3",
+          "$changed": [
+            "*"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "42",
+          "id": "Product «Чашка»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-1",
+            "price": 300,
+            "title": "Чашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "43",
+          "id": "Product «Блюдце»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-2",
+            "price": 200,
+            "title": "Блюдце"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "44",
+          "id": "Product «Варежки»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 700,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "зимняя витрина",
+          "at": "t3",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null,
+      "signals": [
+        "Product"
+      ]
+    },
+    {
+      "title": "Владелец строки",
+      "text": "По умолчанию владелец — арендатор. `.owner(id)` задаёт явного владельца (если права разрешают): здесь — сама Анна.",
+      "code": "db.Shop(shop).Product().owner(up.tenant!.user!)\n        .create({ sku: 'P-1', title: 'Личный заказ', price: 100 }).rows()",
+      "params": [
+        "db",
+        "up"
+      ],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">owner</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.user</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        .</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'P-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Личный заказ'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">100</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "result": [
+        {
+          "at": "t4",
+          "id": "Product «Личный заказ»",
+          "op": "create",
+          "rev": 1,
+          "data": {
+            "sku": "P-1",
+            "price": 100,
+            "title": "Личный заказ"
+          },
+          "tags": [],
+          "class": "Product",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "owner": "Анна",
+          "author": "Анна",
+          "tenant": "Ромашка",
+          "agent": "service"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Product «Чашка»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-1",
+            "price": 300,
+            "title": "Чашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Product «Блюдце»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-2",
+            "price": 200,
+            "title": "Блюдце"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Product «Варежки»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 700,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "зимняя витрина",
+          "at": "t3",
+          "$changed": []
+        },
+        {
+          "id": "Product «Личный заказ»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "P-1",
+            "price": 100,
+            "title": "Личный заказ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$changed": [
+            "*"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "42",
+          "id": "Product «Чашка»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-1",
+            "price": 300,
+            "title": "Чашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "43",
+          "id": "Product «Блюдце»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-2",
+            "price": 200,
+            "title": "Блюдце"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "44",
+          "id": "Product «Варежки»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 700,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "зимняя витрина",
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "45",
+          "id": "Product «Личный заказ»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "P-1",
+            "price": 100,
+            "title": "Личный заказ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null,
+      "signals": [
+        "Product"
+      ]
+    },
+    {
+      "title": "Оператор в .tags() перед update только отбирает",
+      "text": "`.tags(has('зима'))` находит варежки и поднимает им цену на 100. Теги `сезон` и `зима` остались: оператор (`has`, `hasAny`, `hasAll`) только отбирает строки.",
+      "code": "db.Shop(shop).Product().tags(has('зима')).update({ price: inc(100) }).rows()",
+      "params": [
+        "db"
+      ],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">tags</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">has</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'зима'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">inc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">100</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "result": [
+        {
+          "at": "t5",
+          "id": "Product «Варежки»",
+          "op": "update",
+          "rev": 2,
+          "data": {
+            "sku": "W-1",
+            "price": 800,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "class": "Product",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "owner": "Ромашка",
+          "author": "Анна",
+          "tenant": "Ромашка",
+          "agent": "service"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Product «Чашка»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-1",
+            "price": 300,
+            "title": "Чашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Product «Блюдце»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-2",
+            "price": 200,
+            "title": "Блюдце"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Product «Варежки»",
+          "class": "Product",
+          "rev": 2,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 800,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$changed": [
+            "rev",
+            "data.price",
+            "op",
+            "reason",
+            "at"
+          ]
+        },
+        {
+          "id": "Product «Личный заказ»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "P-1",
+            "price": 100,
+            "title": "Личный заказ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "42",
+          "id": "Product «Чашка»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-1",
+            "price": 300,
+            "title": "Чашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "43",
+          "id": "Product «Блюдце»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-2",
+            "price": 200,
+            "title": "Блюдце"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "44",
+          "id": "Product «Варежки»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 700,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "зимняя витрина",
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "45",
+          "id": "Product «Личный заказ»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "P-1",
+            "price": 100,
+            "title": "Личный заказ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$new": false
+        },
+        {
+          "seq": "46",
+          "id": "Product «Варежки»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 800,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null,
+      "signals": [
+        "Product"
+      ]
+    },
+    {
+      "title": "Строка или список в .tags() перед update ещё и заменяют теги",
+      "text": "Со строкой `'зима'` отбор тот же, но теги заменяются целиком: у варежек остался один тег `зима`, а `сезон` пропал. Строкой или списком перед `update` теги задают, а не ищут.",
+      "code": "db.Shop(shop).Product().tags('зима').update({ price: inc(100) }).rows()",
+      "params": [
+        "db"
+      ],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">tags</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'зима'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">inc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">100</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "result": [
+        {
+          "at": "t6",
+          "id": "Product «Варежки»",
+          "op": "update",
+          "rev": 3,
+          "data": {
+            "sku": "W-1",
+            "price": 900,
+            "title": "Варежки"
+          },
+          "tags": [
+            "зима"
+          ],
+          "class": "Product",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "owner": "Ромашка",
+          "author": "Анна",
+          "tenant": "Ромашка",
+          "agent": "service"
+        }
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Product «Чашка»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-1",
+            "price": 300,
+            "title": "Чашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Product «Блюдце»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-2",
+            "price": 200,
+            "title": "Блюдце"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Product «Варежки»",
+          "class": "Product",
+          "rev": 3,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 900,
+            "title": "Варежки"
+          },
+          "tags": [
+            "зима"
+          ],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t6",
+          "$changed": [
+            "rev",
+            "data.price",
+            "tags",
+            "at"
+          ]
+        },
+        {
+          "id": "Product «Личный заказ»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "P-1",
+            "price": 100,
+            "title": "Личный заказ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "42",
+          "id": "Product «Чашка»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-1",
+            "price": 300,
+            "title": "Чашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "43",
+          "id": "Product «Блюдце»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-2",
+            "price": 200,
+            "title": "Блюдце"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "44",
+          "id": "Product «Варежки»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 700,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "зимняя витрина",
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "45",
+          "id": "Product «Личный заказ»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "P-1",
+            "price": 100,
+            "title": "Личный заказ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$new": false
+        },
+        {
+          "seq": "46",
+          "id": "Product «Варежки»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 800,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$new": false
+        },
+        {
+          "seq": "47",
+          "id": "Product «Варежки»",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 900,
+            "title": "Варежки"
+          },
+          "tags": [
+            "зима"
+          ],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t6",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null,
+      "signals": [
+        "Product"
+      ]
+    },
+    {
+      "title": "Пустой список в hasAll подходит любой строке",
+      "text": "У каждой строки есть «все теги из пустого списка», поэтому `hasAll([])` находит все товары, а `hasAny([])` — ни одного. Если список приходит от пользователя, проверяйте его до запроса: перед `update` или `delete` пустой `hasAll` задел бы весь магазин.",
+      "code": "({\n        'hasAll([])': await db.Shop(shop).Product().tags(hasAll([])).count(),\n        'hasAny([])': await db.Shop(shop).Product().tags(hasAny([])).count(),\n      })",
+      "params": [
+        "db"
+      ],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'hasAll([])'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">tags</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">hasAll</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">([])).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'hasAny([])'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">tags</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">hasAny</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">([])).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      })</span></span></code></pre>",
+      "result": {
+        "hasAll([])": 4,
+        "hasAny([])": 0
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Product «Чашка»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-1",
+            "price": 300,
+            "title": "Чашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Product «Блюдце»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-2",
+            "price": 200,
+            "title": "Блюдце"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Product «Варежки»",
+          "class": "Product",
+          "rev": 3,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 900,
+            "title": "Варежки"
+          },
+          "tags": [
+            "зима"
+          ],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t6",
+          "$changed": []
+        },
+        {
+          "id": "Product «Личный заказ»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "P-1",
+            "price": 100,
+            "title": "Личный заказ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "42",
+          "id": "Product «Чашка»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-1",
+            "price": 300,
+            "title": "Чашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "43",
+          "id": "Product «Блюдце»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-2",
+            "price": 200,
+            "title": "Блюдце"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "44",
+          "id": "Product «Варежки»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 700,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "зимняя витрина",
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "45",
+          "id": "Product «Личный заказ»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "P-1",
+            "price": 100,
+            "title": "Личный заказ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$new": false
+        },
+        {
+          "seq": "46",
+          "id": "Product «Варежки»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 800,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$new": false
+        },
+        {
+          "seq": "47",
+          "id": "Product «Варежки»",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 900,
+            "title": "Варежки"
+          },
+          "tags": [
+            "зима"
+          ],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t6",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null,
+      "signals": []
+    },
+    {
+      "title": "Батч: модификатор после глагола — отказ run()",
+      "text": "В батче терминала нет — план исполняет `run()`. Цепочка кончилась `limit(1)` после `update`: сузить уже нечего, и `run()` отказывает `invalid_query` до записи. Цены не изменились.",
+      "code": "const b = db.batch('цены');\nb.Shop(shop).Product().update({ price: inc(10) }).limit(1);\nreturn b.run();",
+      "params": [
+        "db"
+      ],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> b</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">batch</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'цены'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">inc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">10</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">limit</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> b.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span></code></pre>",
+      "result": null,
+      "error": {
+        "code": "invalid_query",
+        "message": "letopis: invalid_query: limit() после update() ни на что не действует: глагол проходит по всем целям шага, а ответ — его строки. Цели сужают limit(), offset() и sort() до глагола: db.Класс(…).limit(n).update(…)",
+        "detail": null,
+        "expected": true
+      },
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Product «Чашка»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-1",
+            "price": 300,
+            "title": "Чашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Product «Блюдце»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-2",
+            "price": 200,
+            "title": "Блюдце"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Product «Варежки»",
+          "class": "Product",
+          "rev": 3,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 900,
+            "title": "Варежки"
+          },
+          "tags": [
+            "зима"
+          ],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t6",
+          "$changed": []
+        },
+        {
+          "id": "Product «Личный заказ»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "P-1",
+            "price": 100,
+            "title": "Личный заказ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "42",
+          "id": "Product «Чашка»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-1",
+            "price": 300,
+            "title": "Чашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "43",
+          "id": "Product «Блюдце»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "C-2",
+            "price": 200,
+            "title": "Блюдце"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "новая коллекция",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "44",
+          "id": "Product «Варежки»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 700,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "зимняя витрина",
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "45",
+          "id": "Product «Личный заказ»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "P-1",
+            "price": 100,
+            "title": "Личный заказ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$new": false
+        },
+        {
+          "seq": "46",
+          "id": "Product «Варежки»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 800,
+            "title": "Варежки"
+          },
+          "tags": [
+            "сезон",
+            "зима"
+          ],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$new": false
+        },
+        {
+          "seq": "47",
+          "id": "Product «Варежки»",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "W-1",
+            "price": 900,
+            "title": "Варежки"
+          },
+          "tags": [
+            "зима"
+          ],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t6",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null,
+      "signals": []
+    }
+  ]
+}

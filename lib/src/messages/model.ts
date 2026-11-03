@@ -176,15 +176,25 @@ export const model = {
   // validate.ts, compileValidator: сообщения нарушений issues[].message — тексты не для ошибки (lmsg), те же, что у базы
   'model.issue_enum': {
     code: 'invalid_data',
-    ru: 'значение не из перечисления',
+    ru: 'значение не из перечисления: допустимо {values}',
+  },
+  // лишний ключ объекта (additionalProperties: false); keys — имена лишних ключей через запятую
+  'model.issue_additional': {
+    code: 'invalid_data',
+    ru: 'лишний ключ {keys}',
   },
   'model.issue_date': {
     code: 'invalid_data',
     ru: 'такой даты не бывает',
   },
-  'model.issue_string_length': {
+  // minLength, maxLength: limit — граница из описания (длина в символах)
+  'model.issue_string_too_short': {
     code: 'invalid_data',
-    ru: 'длина строки вне границ',
+    ru: 'длина строки меньше {limit}',
+  },
+  'model.issue_string_too_long': {
+    code: 'invalid_data',
+    ru: 'длина строки больше {limit}',
   },
   'model.issue_unique_items': {
     code: 'invalid_data',
@@ -211,6 +221,20 @@ export const model = {
     code: 'invalid_class',
     ru: 'syncModels: имя хаба {name} занято методом цепочки или корня db — шаг с таким именем до класса не дойдёт',
     hint: 'дать классу другое имя: зарезервированные имена — в README, «Справочник API → Зарезервированные имена»',
+  },
+  // sync.ts, syncModels: роль конца модели занята системным классом (member: User, Tenant → Account; rule: Group,
+  // Object → Resource) и ведёт на другой класс — отказ до записи (база отклонила бы sql-write.end_other_class)
+  'model.end_role_system': {
+    code: 'invalid_class',
+    ru: 'syncModels: имя роли {end} в классе {model} занято системным классом {cls} (там {end} ведёт на {target}) — выберите другое имя роли, например Team вместо Group',
+    hint: 'переименовать роль конца: имена ролей User, Tenant (системный класс member, ведут на Account), Group, Object (системный класс rule, ведут на Resource) можно брать, только если конец ведёт туда же; список — в README, «Зарезервированные имена»',
+  },
+  // sync.ts, syncModels: роль конца модели уже ведёт на другой класс в другом классе арендатора (или в другой модели
+  // того же вызова) — отказ до записи (база отклонила бы sql-write.end_other_class)
+  'model.end_role_taken': {
+    code: 'invalid_class',
+    ru: 'syncModels: роль {end} в классе {model} ведёт на {mine}, а в классе {cls} — на {target}: имя роли одно на арендатора (это имя шага цепочки)',
+    hint: 'дать роли другое имя или направить её на тот же класс, что и в другом классе',
   },
   // sync.ts, syncModels: родители замыкают круг; cycle — имена моделей через стрелку
   'model.models_cycle': {
@@ -291,5 +315,12 @@ export const model = {
   'model.types_header': {
     code: 'invalid_query',
     ru: 'Сгенерировано letopis types — не править руками.',
+  },
+  // sync.ts, syncModels: в модели есть преобразование Zod (.trim(), .toLowerCase(), .transform(), z.preprocess …) — база
+  // и валидатор letopis его не исполняют, данные записались бы как есть; rules — пути и виды через запятую
+  'model.transform_unsupported': {
+    code: 'invalid_class',
+    ru: 'преобразования Zod не исполняются при записи: {rules}',
+    hint: 'привести значение до записи в коде сервиса (например, value.trim()) и убрать преобразование из модели; проверку без изменения значения дают .regex(), .min(), .refine()',
   },
 } satisfies Section<'model'>;

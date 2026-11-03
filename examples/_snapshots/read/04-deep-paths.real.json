@@ -1,0 +1,133 @@
+{
+  "id": "read/04-deep-paths",
+  "context": {
+    "schema": "v2.g_read_04_deep_paths",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_01affca0fbadf6de860755a264952cae0d504c6c7c68c4968c525e4a4ab66818",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "2c4e242cc717651263680d9572280c8718e152e584c569e7d18ad7301692e22d",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": [
+        {
+          "at": "2026-11-03T19:06:49.471274+00:00",
+          "id": "7174b492-be79-5307-bb74-060c11cc6dd5",
+          "op": "create",
+          "rev": 1,
+          "data": {
+            "name": "Улун"
+          },
+          "tags": [],
+          "class": "Category",
+          "links": {
+            "Parent": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+          },
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "0c83bc9f-b303-57c3-b28b-bd144223937f"
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Category",
+        "Class",
+        "Customer",
+        "Order",
+        "Product",
+        "Shop",
+        "Vip",
+        "line"
+      ]
+    },
+    {
+      "result": [
+        {
+          "name": "Зелёный чай",
+          "depth": 1
+        },
+        {
+          "name": "Улун",
+          "depth": 2
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": [
+        {
+          "qty": 2,
+          "product": "Сенча"
+        },
+        {
+          "qty": 1,
+          "product": "Чайник"
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": [
+        {
+          "qty": 2,
+          "product": "Сенча"
+        },
+        {
+          "qty": 1,
+          "product": "Чайник"
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "магазинов у заказов": 1,
+        "путей до них": 2
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    }
+  ]
+}

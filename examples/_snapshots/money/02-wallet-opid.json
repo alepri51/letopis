@@ -1,0 +1,948 @@
+{
+  "id": "money/02-wallet-opid",
+  "title": "Деньги без двойного списания: ключ операции и inc",
+  "summary": "Операция записывается с ключом [кошелёк, opId], баланс меняется приращением inc — всё одной транзакцией. Повтор операции после сбоя сети (тот же opId) база отклоняет как exists, и деньги не спишутся дважды.",
+  "covers": [
+    "nuance.opid-idempotency",
+    "nuance.commit-unknown-retry",
+    "export.LetopisError"
+  ],
+  "tables": [
+    "entity",
+    "log"
+  ],
+  "context": {
+    "schema": "v2.g_money_02_wallet_opid",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "‹токен 1›",
+      "tenant": {
+        "tenant": "Ромашка",
+        "user": "Анна",
+        "token": "‹токен 2›",
+        "created": true
+      }
+    }
+  },
+  "source": "import { syncModels, inc, LetopisError } from 'letopis';\nimport type { Db } from 'letopis';\nimport { hub, link } from 'letopis/model';\nimport { z } from 'zod';\nimport { example } from '../_shared/example.ts';\n\n// Кошелёк и его операции. Ключ операции — кошелёк и opId: одну и ту же операцию дважды не записать.\nconst Wallet = hub('Wallet', { number: z.string(), balance: z.number().int().min(0).default(0) }, { key: ['number'] });\nconst Movement = link('Movement', { opId: z.string(), kind: z.enum(['topup', 'debit']), amount: z.number().int() }, {\n  ends: { Wallet }, key: ['Wallet', 'opId'],\n});\nlet wallet: { id: string };\n\n/** Провести операцию: запись операции и приращение баланса — одной транзакцией. Повтор с тем же opId — без эффекта. */\nasync function apply(db: Db, opId: string, kind: 'topup' | 'debit', amount: number): Promise<'проведено' | 'уже было'> {\n  const tr = await db.begin({ reason: `${kind} ${opId}` });\n  try {\n    await tr.Wallet(wallet).Movement().create({ opId, kind, amount }).rows();\n    await tr.Wallet(wallet).update({ balance: inc(kind === 'topup' ? amount : -amount) }).rows();\n    await tr.commit();\n    return 'проведено';\n  } catch (e) {\n    await tr.rollback();\n    if (e instanceof LetopisError && e.code === 'exists') return 'уже было';\n    throw e;\n  }\n}\n\nexport default example({\n  title: 'Деньги без двойного списания: ключ операции и inc',\n  summary:\n    'Операция записывается с ключом [кошелёк, opId], баланс меняется приращением inc — всё одной транзакцией. ' +\n    'Повтор операции после сбоя сети (тот же opId) база отклоняет как exists, и деньги не спишутся дважды.',\n  tables: ['entity', 'log'],\n  covers: ['nuance.opid-idempotency', 'nuance.commit-unknown-retry', 'export.LetopisError'],\n  steps: [\n    {\n      title: 'Кошелёк',\n      run: async ({ db }) => {\n        await syncModels(db, [Wallet, Movement], { apply: true });\n        [wallet] = await db.Wallet().create({ number: 'W-1' }).rows();\n        return wallet;\n      },\n    },\n    {\n      title: 'Пополнение на 1000',\n      text: 'Операция `op-1` и баланс 0 → 1000 — в одной транзакции.',\n      run: async ({ db }) => apply(db, 'op-1', 'topup', 1000),\n    },\n    {\n      title: 'Ответ потерялся — повтор той же операции',\n      text:\n        'Клиент не получил ответ и прислал `op-1` снова. Операция с таким ключом уже есть — база отвечает `exists`, ' +\n        'транзакция откатывается, баланс остался 1000. Так же выясняют исход после `commit_unknown` (связь оборвалась ' +\n        'во время COMMIT): повтор той же операции — `exists` значит «уже записано».',\n      run: async ({ db }) => apply(db, 'op-1', 'topup', 1000),\n    },\n    {\n      title: 'Списание 300',\n      run: async ({ db }) => apply(db, 'op-2', 'debit', 300),\n    },\n    {\n      title: 'Списать больше, чем есть, — нельзя',\n      text: 'Баланс 700, списываем 5000: ограничение `min(0)` проверяется для получившегося значения — `invalid_data`, ничего не записано.',\n      run: async ({ db }) => apply(db, 'op-3', 'debit', 5000),\n      expect: { error: 'invalid_data' },\n    },\n    {\n      title: 'Итог',\n      run: async ({ db }) => ({ баланс: (await db.Wallet(wallet).first())?.data.balance, операций: await db.Wallet(wallet).Movement().count() }),\n    },\n  ],\n});\n",
+  "sourceHtml": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { syncModels, inc, LetopisError } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'letopis'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> type</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { Db } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'letopis'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { hub, link } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'letopis/model'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { z } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'zod'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { example } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> '../_shared/example.ts'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#6A737D;--shiki-dark:#6A737D\">// Кошелёк и его операции. Ключ операции — кошелёк и opId: одну и ту же операцию дважды не записать.</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> Wallet</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> hub</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Wallet'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { number: z.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(), balance: z.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">number</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">int</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">min</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">0</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">default</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">0</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) }, { key: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'number'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> Movement</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> link</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Movement'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { opId: z.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(), kind: z.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">enum</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">([</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'topup'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'debit'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">]), amount: z.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">number</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">int</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() }, {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  ends: { Wallet }, key: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Wallet'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'opId'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">});</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">let</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> wallet</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">id</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> };</span></span>\n<span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#6A737D;--shiki-dark:#6A737D\">/** Провести операцию: запись операции и приращение баланса — одной транзакцией. Повтор с тем же opId — без эффекта. */</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> function</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> Db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">opId</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">kind</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'topup'</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> |</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'debit'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">amount</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> number</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> Promise</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">&#x3C;</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'проведено'</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> |</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'уже было'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> tr</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">begin</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">kind</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} ${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">opId</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  try</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">    await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Wallet</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(wallet).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Movement</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ opId, kind, amount }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">    await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Wallet</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(wallet).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ balance: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">inc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kind </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'topup'</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> ?</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> amount </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> -</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">amount) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">    await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">commit</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">    return</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'проведено'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">catch</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (e) {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">    await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rollback</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">    if</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (e </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">instanceof</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> LetopisError</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> &#x26;&#x26;</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.code </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'exists'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'уже было'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">    throw</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  }</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">}</span></span>\n<span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">export</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> default</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> example</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Деньги без двойного списания: ключ операции и inc'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  summary:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'Операция записывается с ключом [кошелёк, opId], баланс меняется приращением inc — всё одной транзакцией. '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'Повтор операции после сбоя сети (тот же opId) база отклоняет как exists, и деньги не спишутся дважды.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  tables: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'entity'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'log'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  covers: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.opid-idempotency'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.commit-unknown-retry'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'export.LetopisError'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  steps: [</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Кошелёк'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, [Wallet, Movement], { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        [wallet] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Wallet</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'W-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> wallet;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Пополнение на 1000'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Операция `op-1` и баланс 0 → 1000 — в одной транзакции.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'topup'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ответ потерялся — повтор той же операции'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Клиент не получил ответ и прислал `op-1` снова. Операция с таким ключом уже есть — база отвечает `exists`, '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'транзакция откатывается, баланс остался 1000. Так же выясняют исход после `commit_unknown` (связь оборвалась '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'во время COMMIT): повтор той же операции — `exists` значит «уже записано».'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'topup'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Списание 300'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'debit'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">300</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Списать больше, чем есть, — нельзя'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Баланс 700, списываем 5000: ограничение `min(0)` проверяется для получившегося значения — `invalid_data`, ничего не записано.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-3'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'debit'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">5000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      expect: { error: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'invalid_data'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Итог'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ баланс: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Wallet</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(wallet).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())?.data.balance, операций: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Wallet</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(wallet).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Movement</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() }),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  ],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">});</span></span>\n<span class=\"line\"></span></code></pre>",
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": null
+  },
+  "steps": [
+    {
+      "title": "Кошелёк",
+      "text": null,
+      "code": "await syncModels(db, [Wallet, Movement], { apply: true });\n[wallet] = await db.Wallet().create({ number: 'W-1' }).rows();\nreturn wallet;",
+      "params": [
+        "db"
+      ],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, [Wallet, Movement], { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[wallet] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Wallet</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'W-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> wallet;</span></span></code></pre>",
+      "result": {
+        "at": "t1",
+        "id": "Wallet «W-1»",
+        "op": "create",
+        "rev": 1,
+        "data": {
+          "number": "W-1",
+          "balance": 0
+        },
+        "tags": [],
+        "class": "Wallet",
+        "links": {},
+        "owner": "Ромашка",
+        "author": "Анна",
+        "tenant": "Ромашка",
+        "agent": "service"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Wallet «W-1»",
+          "class": "Wallet",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 0
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": [
+            "*"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "36",
+          "id": "Wallet «W-1»",
+          "rev": 1,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 0
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null,
+      "signals": [
+        "Class",
+        "Wallet"
+      ]
+    },
+    {
+      "title": "Пополнение на 1000",
+      "text": "Операция `op-1` и баланс 0 → 1000 — в одной транзакции.",
+      "code": "apply(db, 'op-1', 'topup', 1000)",
+      "params": [
+        "db"
+      ],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'topup'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)</span></span></code></pre>",
+      "result": "проведено",
+      "error": null,
+      "entity": [
+        {
+          "id": "Wallet «W-1»",
+          "class": "Wallet",
+          "rev": 2,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 1000
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$changed": [
+            "rev",
+            "data.balance",
+            "op",
+            "reason",
+            "at"
+          ]
+        },
+        {
+          "id": "Movement·1",
+          "class": "Movement",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "topup",
+            "opId": "op-1",
+            "amount": 1000
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$changed": [
+            "*"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "36",
+          "id": "Wallet «W-1»",
+          "rev": 1,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 0
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "37",
+          "id": "Movement·1",
+          "rev": 1,
+          "class": "Movement",
+          "tenant": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "topup",
+            "opId": "op-1",
+            "amount": 1000
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$new": true
+        },
+        {
+          "seq": "38",
+          "id": "Wallet «W-1»",
+          "rev": 2,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 1000
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null,
+      "signals": [
+        "Movement",
+        "Wallet"
+      ]
+    },
+    {
+      "title": "Ответ потерялся — повтор той же операции",
+      "text": "Клиент не получил ответ и прислал `op-1` снова. Операция с таким ключом уже есть — база отвечает `exists`, транзакция откатывается, баланс остался 1000. Так же выясняют исход после `commit_unknown` (связь оборвалась во время COMMIT): повтор той же операции — `exists` значит «уже записано».",
+      "code": "apply(db, 'op-1', 'topup', 1000)",
+      "params": [
+        "db"
+      ],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'topup'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)</span></span></code></pre>",
+      "result": "уже было",
+      "error": null,
+      "entity": [
+        {
+          "id": "Wallet «W-1»",
+          "class": "Wallet",
+          "rev": 2,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 1000
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Movement·1",
+          "class": "Movement",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "topup",
+            "opId": "op-1",
+            "amount": 1000
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "36",
+          "id": "Wallet «W-1»",
+          "rev": 1,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 0
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "37",
+          "id": "Movement·1",
+          "rev": 1,
+          "class": "Movement",
+          "tenant": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "topup",
+            "opId": "op-1",
+            "amount": 1000
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "38",
+          "id": "Wallet «W-1»",
+          "rev": 2,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 1000
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null,
+      "signals": []
+    },
+    {
+      "title": "Списание 300",
+      "text": null,
+      "code": "apply(db, 'op-2', 'debit', 300)",
+      "params": [
+        "db"
+      ],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'debit'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">300</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)</span></span></code></pre>",
+      "result": "проведено",
+      "error": null,
+      "entity": [
+        {
+          "id": "Wallet «W-1»",
+          "class": "Wallet",
+          "rev": 3,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 700
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "debit op-2",
+          "at": "t3",
+          "$changed": [
+            "rev",
+            "data.balance",
+            "reason",
+            "at"
+          ]
+        },
+        {
+          "id": "Movement·1",
+          "class": "Movement",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "topup",
+            "opId": "op-1",
+            "amount": 1000
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Movement·2",
+          "class": "Movement",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "debit",
+            "opId": "op-2",
+            "amount": 300
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "debit op-2",
+          "at": "t3",
+          "$changed": [
+            "*"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "36",
+          "id": "Wallet «W-1»",
+          "rev": 1,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 0
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "37",
+          "id": "Movement·1",
+          "rev": 1,
+          "class": "Movement",
+          "tenant": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "topup",
+            "opId": "op-1",
+            "amount": 1000
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "38",
+          "id": "Wallet «W-1»",
+          "rev": 2,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 1000
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "39",
+          "id": "Movement·2",
+          "rev": 1,
+          "class": "Movement",
+          "tenant": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "debit",
+            "opId": "op-2",
+            "amount": 300
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "debit op-2",
+          "at": "t3",
+          "$new": true
+        },
+        {
+          "seq": "40",
+          "id": "Wallet «W-1»",
+          "rev": 3,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 700
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "debit op-2",
+          "at": "t3",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null,
+      "signals": [
+        "Movement",
+        "Wallet"
+      ]
+    },
+    {
+      "title": "Списать больше, чем есть, — нельзя",
+      "text": "Баланс 700, списываем 5000: ограничение `min(0)` проверяется для получившегося значения — `invalid_data`, ничего не записано.",
+      "code": "apply(db, 'op-3', 'debit', 5000)",
+      "params": [
+        "db"
+      ],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-3'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'debit'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">5000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)</span></span></code></pre>",
+      "result": null,
+      "error": {
+        "code": "invalid_data",
+        "message": "letopis: invalid_data: данные не проходят описание класса Wallet: balance — нарушено правило minimum",
+        "detail": [
+          {
+            "path": [
+              "balance"
+            ],
+            "keyword": "minimum",
+            "message": "нарушено правило minimum"
+          }
+        ],
+        "expected": true
+      },
+      "entity": [
+        {
+          "id": "Wallet «W-1»",
+          "class": "Wallet",
+          "rev": 3,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 700
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "debit op-2",
+          "at": "t3",
+          "$changed": []
+        },
+        {
+          "id": "Movement·1",
+          "class": "Movement",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "topup",
+            "opId": "op-1",
+            "amount": 1000
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Movement·2",
+          "class": "Movement",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "debit",
+            "opId": "op-2",
+            "amount": 300
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "debit op-2",
+          "at": "t3",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "36",
+          "id": "Wallet «W-1»",
+          "rev": 1,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 0
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "37",
+          "id": "Movement·1",
+          "rev": 1,
+          "class": "Movement",
+          "tenant": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "topup",
+            "opId": "op-1",
+            "amount": 1000
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "38",
+          "id": "Wallet «W-1»",
+          "rev": 2,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 1000
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "39",
+          "id": "Movement·2",
+          "rev": 1,
+          "class": "Movement",
+          "tenant": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "debit",
+            "opId": "op-2",
+            "amount": 300
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "debit op-2",
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "40",
+          "id": "Wallet «W-1»",
+          "rev": 3,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 700
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "debit op-2",
+          "at": "t3",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null,
+      "signals": []
+    },
+    {
+      "title": "Итог",
+      "text": null,
+      "code": "({ баланс: (await db.Wallet(wallet).first())?.data.balance, операций: await db.Wallet(wallet).Movement().count() })",
+      "params": [
+        "db"
+      ],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ баланс: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Wallet</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(wallet).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())?.data.balance, операций: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Wallet</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(wallet).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Movement</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() })</span></span></code></pre>",
+      "result": {
+        "баланс": 700,
+        "операций": 2
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Wallet «W-1»",
+          "class": "Wallet",
+          "rev": 3,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 700
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "debit op-2",
+          "at": "t3",
+          "$changed": []
+        },
+        {
+          "id": "Movement·1",
+          "class": "Movement",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "topup",
+            "opId": "op-1",
+            "amount": 1000
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Movement·2",
+          "class": "Movement",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "debit",
+            "opId": "op-2",
+            "amount": 300
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "debit op-2",
+          "at": "t3",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "36",
+          "id": "Wallet «W-1»",
+          "rev": 1,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 0
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "37",
+          "id": "Movement·1",
+          "rev": 1,
+          "class": "Movement",
+          "tenant": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "topup",
+            "opId": "op-1",
+            "amount": 1000
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "38",
+          "id": "Wallet «W-1»",
+          "rev": 2,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 1000
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "topup op-1",
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "39",
+          "id": "Movement·2",
+          "rev": 1,
+          "class": "Movement",
+          "tenant": "Ромашка",
+          "links": {
+            "Wallet": "Wallet «W-1»"
+          },
+          "data": {
+            "kind": "debit",
+            "opId": "op-2",
+            "amount": 300
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "debit op-2",
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "40",
+          "id": "Wallet «W-1»",
+          "rev": 3,
+          "class": "Wallet",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "number": "W-1",
+            "balance": 700
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "debit op-2",
+          "at": "t3",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null,
+      "signals": []
+    }
+  ]
+}

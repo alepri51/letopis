@@ -209,12 +209,32 @@ begin
   validator := c.validator;
 end $$;
 
+-- Нарушения данных строки класса по его описанию в базе, без записи (план 2.1, A8): валидатор на TypeScript не исполняет
+-- шаблоны pattern (ревью, ReDoS), и у класса с ними библиотека берёт полный список нарушений здесь. Класс — свой
+-- арендатора сессии или System, как у записи; умолчания подставляются, как перед проверкой при записи. Описание класса
+-- сессия и так видит (реестр), поэтому ответ ничего нового не открывает. Нет класса — null.
+create or replace function @SCHEMA@.validate_row(p_class text, p_data jsonb) returns jsonb
+language plpgsql stable security definer
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  cls @SCHEMA@.entity;
+begin
+  cls := @SCHEMA@.class_row(p_class, @SCHEMA@.ctx_tenant());
+  if cls.id is null or cls.validator is null then
+    return null;
+  end if;
+  return @SCHEMA@.validate_data(cls.data->'resolved'->'rules', cls.validator, cls.data->'resolved'->'vars',
+    @SCHEMA@.apply_defaults(cls.data->'resolved'->'schema', p_data));
+end $$;
+
 do $$
 declare f text;
 begin
   foreach f in array array['class_metaschema()', 'class_meta_validator()', 'class_row(text, uuid)',
-    'class_resolve(jsonb, uuid)', 'class_prepare(jsonb, uuid)'] loop
+    'class_resolve(jsonb, uuid)', 'class_prepare(jsonb, uuid)', 'validate_row(text, jsonb)'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);
     execute format('revoke all on function @SCHEMA@.%s from public', f);
   end loop;
 end $$;
+grant execute on function @SCHEMA@.validate_row(text, jsonb) to @APP@;

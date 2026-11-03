@@ -9,6 +9,12 @@ export const query = {
     code: 'invalid_query',
     ru: "sort: поле 'at', 'rev', 'id' или 'data.<путь>', а не '{field}'",
   },
+  // sql.ts, sortSpec: поле sort() похоже на имя поля данных без префикса data. (sort('code'))
+  'query.sort_field_data': {
+    code: 'invalid_query',
+    ru: "sort: поле 'at', 'rev', 'id' или 'data.<путь>', а не '{field}' — может быть, data.{field}?",
+    hint: "поле данных в sort() — с префиксом data.: sort('data.code'); колонки строки — 'at' (время версии), 'rev', 'id'",
+  },
   // sql.ts, checkField: поле фильтра, sort() или агрегата не описано ни в одном классе шага (в 1.5 — предупреждение, с 2.0 —
   // отказ); where — шаг или вызов, как в коде: Shop({ nmae }), sort('data.nmae'), sum('data.nmae')
   'query.unknown_field': {
@@ -154,6 +160,13 @@ export const query = {
   'query.after_without_sort': {
     code: 'invalid_query',
     ru: 'after(cursor) требует sort(поле)',
+  },
+  // sql.ts, compileFilter: id шага, фильтра { id } или конца — не uuid (раньше — сырая ошибка PostgreSQL 22P02, у
+  // null — TypeError); value — значение, как в коде
+  'query.bad_uuid': {
+    code: 'invalid_query',
+    ru: '{where}: {value} — не uuid',
+    hint: 'id — строка uuid (row.id из ответа или db.idOf(…)); проверьте переменную: undefined и null — не id',
   },
   // sql.ts, buildRead: агрегат не по полю данных
   'query.agg_field': {

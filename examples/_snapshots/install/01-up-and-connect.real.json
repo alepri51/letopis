@@ -1,0 +1,611 @@
+{
+  "id": "install/01-up-and-connect",
+  "context": {
+    "schema": "v2.g_install_01_up_and_connect",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": null
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "schema": "v2.g_install_01_up_and_connect",
+        "created": true,
+        "revision": 11,
+        "signals": "class",
+        "serviceKey": "lts_b51f4549488f33d94fc3ea1e9adb057be2e984c7773149a25e16f1b4b643443e"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 26,
+            "signals": "class"
+          },
+          "material": "27d58d1f509d90a730d3d1c607918f3f546b0b071b7c344db331edc2655e6f7b",
+          "expires_at": null,
+          "created_at": "2026-11-03 19:05:45.124874+00",
+          "deleted_at": null
+        },
+        {
+          "account": "365ac88f-6556-54ac-bda5-f3136e5f279c",
+          "kind": "APIKEY",
+          "ident": "lts_b51f4549",
+          "meta": {},
+          "material": "31060f38f805be6e2baeddde3cea060d0334cde7512ce4cbb04f89bccdae2297",
+          "expires_at": null,
+          "created_at": "2026-11-03 19:05:45.1871+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": []
+    },
+    {
+      "result": {
+        "created": false,
+        "serviceKey": null
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 26,
+            "signals": "class"
+          },
+          "material": "27d58d1f509d90a730d3d1c607918f3f546b0b071b7c344db331edc2655e6f7b",
+          "expires_at": null,
+          "created_at": "2026-11-03 19:05:45.124874+00",
+          "deleted_at": null
+        },
+        {
+          "account": "365ac88f-6556-54ac-bda5-f3136e5f279c",
+          "kind": "APIKEY",
+          "ident": "lts_b51f4549",
+          "meta": {},
+          "material": "31060f38f805be6e2baeddde3cea060d0334cde7512ce4cbb04f89bccdae2297",
+          "expires_at": null,
+          "created_at": "2026-11-03 19:05:45.1871+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": []
+    },
+    {
+      "result": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "6d77a36074312aa6194a143ba72e2d92c3b0dc5bffdf4057de93d54629a4a8ba",
+        "created": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 32,
+            "signals": "class"
+          },
+          "material": "27d58d1f509d90a730d3d1c607918f3f546b0b071b7c344db331edc2655e6f7b",
+          "expires_at": null,
+          "created_at": "2026-11-03 19:05:45.124874+00",
+          "deleted_at": null
+        },
+        {
+          "account": "365ac88f-6556-54ac-bda5-f3136e5f279c",
+          "kind": "APIKEY",
+          "ident": "lts_b51f4549",
+          "meta": {},
+          "material": "31060f38f805be6e2baeddde3cea060d0334cde7512ce4cbb04f89bccdae2297",
+          "expires_at": null,
+          "created_at": "2026-11-03 19:05:45.1871+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "PASSWORD",
+          "ident": "anna@romashka.ru",
+          "meta": {
+            "confirmed": true
+          },
+          "material": "73637279707424333237363824382431245554384976692f4e394c4d46725567447448697165673d3d243655694d5565324f342f6b76784669326d47364c4777324f5668764e665265553845626550562f7251674d3d",
+          "expires_at": null,
+          "created_at": "2026-11-03 19:05:46.668863+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+            "login_at": "2026-11-03T19:05:46.670337+00:00"
+          },
+          "material": "81d469c4b757c4ba5ad5011368d62fa9afd419293609d5cea60b8e1937e5a7bf",
+          "expires_at": "2026-11-10 19:05:46.670344+00",
+          "created_at": "2026-11-03 19:05:46.670346+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": []
+    },
+    {
+      "result": {
+        "password": "invalid_data",
+        "SESSION": "invalid_data"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 32,
+            "signals": "class"
+          },
+          "material": "27d58d1f509d90a730d3d1c607918f3f546b0b071b7c344db331edc2655e6f7b",
+          "expires_at": null,
+          "created_at": "2026-11-03 19:05:45.124874+00",
+          "deleted_at": null
+        },
+        {
+          "account": "365ac88f-6556-54ac-bda5-f3136e5f279c",
+          "kind": "APIKEY",
+          "ident": "lts_b51f4549",
+          "meta": {},
+          "material": "31060f38f805be6e2baeddde3cea060d0334cde7512ce4cbb04f89bccdae2297",
+          "expires_at": null,
+          "created_at": "2026-11-03 19:05:45.1871+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "PASSWORD",
+          "ident": "anna@romashka.ru",
+          "meta": {
+            "confirmed": true
+          },
+          "material": "73637279707424333237363824382431245554384976692f4e394c4d46725567447448697165673d3d243655694d5565324f342f6b76784669326d47364c4777324f5668764e665265553845626550562f7251674d3d",
+          "expires_at": null,
+          "created_at": "2026-11-03 19:05:46.668863+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+            "login_at": "2026-11-03T19:05:46.670337+00:00"
+          },
+          "material": "81d469c4b757c4ba5ad5011368d62fa9afd419293609d5cea60b8e1937e5a7bf",
+          "expires_at": "2026-11-10 19:05:46.670344+00",
+          "created_at": "2026-11-03 19:05:46.670346+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": []
+    },
+    {
+      "result": {
+        "schema": "v2.g_install_01_up_and_connect",
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "account": "3defbabb-a94d-5359-8463-dc947de193e1"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 32,
+            "signals": "class"
+          },
+          "material": "27d58d1f509d90a730d3d1c607918f3f546b0b071b7c344db331edc2655e6f7b",
+          "expires_at": null,
+          "created_at": "2026-11-03 19:05:45.124874+00",
+          "deleted_at": null
+        },
+        {
+          "account": "365ac88f-6556-54ac-bda5-f3136e5f279c",
+          "kind": "APIKEY",
+          "ident": "lts_b51f4549",
+          "meta": {},
+          "material": "31060f38f805be6e2baeddde3cea060d0334cde7512ce4cbb04f89bccdae2297",
+          "expires_at": null,
+          "created_at": "2026-11-03 19:05:45.1871+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "PASSWORD",
+          "ident": "anna@romashka.ru",
+          "meta": {
+            "confirmed": true
+          },
+          "material": "73637279707424333237363824382431245554384976692f4e394c4d46725567447448697165673d3d243655694d5565324f342f6b76784669326d47364c4777324f5668764e665265553845626550562f7251674d3d",
+          "expires_at": null,
+          "created_at": "2026-11-03 19:05:46.668863+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+            "login_at": "2026-11-03T19:05:46.670337+00:00"
+          },
+          "material": "81d469c4b757c4ba5ad5011368d62fa9afd419293609d5cea60b8e1937e5a7bf",
+          "expires_at": "2026-11-10 19:05:46.670344+00",
+          "created_at": "2026-11-03 19:05:46.670346+00",
+          "deleted_at": null
+        },
+        {
+          "account": "365ac88f-6556-54ac-bda5-f3136e5f279c",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "a2850bc2-9dea-4f8f-bb85-01725d2f3572",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-03T19:05:46.728074+00:00"
+          },
+          "material": "66491ab086b649beabb0d69ad909025881766b8238f574057ff7f03baf30740e",
+          "expires_at": "2026-11-10 19:05:46.728083+00",
+          "created_at": "2026-11-03 19:05:46.728085+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "365ac88f-6556-54ac-bda5-f3136e5f279c",
+            "login_at": "2026-11-03T19:05:46.857266+00:00"
+          },
+          "material": "c7fcd5069b9e3073b4d84f876daacff31a3edf8a9cdf7e7c3eeabd40a0e29fb3",
+          "expires_at": "2026-11-10 19:05:46.857273+00",
+          "created_at": "2026-11-03 19:05:46.857274+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": []
+    },
+    {
+      "result": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "token": "6d77a36074312aa6194a143ba72e2d92c3b0dc5bffdf4057de93d54629a4a8ba"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 32,
+            "signals": "class"
+          },
+          "material": "27d58d1f509d90a730d3d1c607918f3f546b0b071b7c344db331edc2655e6f7b",
+          "expires_at": null,
+          "created_at": "2026-11-03 19:05:45.124874+00",
+          "deleted_at": null
+        },
+        {
+          "account": "365ac88f-6556-54ac-bda5-f3136e5f279c",
+          "kind": "APIKEY",
+          "ident": "lts_b51f4549",
+          "meta": {},
+          "material": "31060f38f805be6e2baeddde3cea060d0334cde7512ce4cbb04f89bccdae2297",
+          "expires_at": null,
+          "created_at": "2026-11-03 19:05:45.1871+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "PASSWORD",
+          "ident": "anna@romashka.ru",
+          "meta": {
+            "confirmed": true
+          },
+          "material": "73637279707424333237363824382431245554384976692f4e394c4d46725567447448697165673d3d243655694d5565324f342f6b76784669326d47364c4777324f5668764e665265553845626550562f7251674d3d",
+          "expires_at": null,
+          "created_at": "2026-11-03 19:05:46.668863+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+            "login_at": "2026-11-03T19:05:46.670337+00:00"
+          },
+          "material": "81d469c4b757c4ba5ad5011368d62fa9afd419293609d5cea60b8e1937e5a7bf",
+          "expires_at": "2026-11-10 19:05:46.670344+00",
+          "created_at": "2026-11-03 19:05:46.670346+00",
+          "deleted_at": null
+        },
+        {
+          "account": "365ac88f-6556-54ac-bda5-f3136e5f279c",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "a2850bc2-9dea-4f8f-bb85-01725d2f3572",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-03T19:05:46.728074+00:00"
+          },
+          "material": "66491ab086b649beabb0d69ad909025881766b8238f574057ff7f03baf30740e",
+          "expires_at": "2026-11-10 19:05:46.728083+00",
+          "created_at": "2026-11-03 19:05:46.728085+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "365ac88f-6556-54ac-bda5-f3136e5f279c",
+            "login_at": "2026-11-03T19:05:46.857266+00:00"
+          },
+          "material": "c7fcd5069b9e3073b4d84f876daacff31a3edf8a9cdf7e7c3eeabd40a0e29fb3",
+          "expires_at": "2026-11-10 19:05:46.857273+00",
+          "created_at": "2026-11-03 19:05:46.857274+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "bypass_rls",
+        "message": "letopis: bypass_rls: роль подключения обходит RLS (суперпользователь, BYPASSRLS или член роли-владельца); администраторское подключение — только с опцией allowBypassRls",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 32,
+            "signals": "class"
+          },
+          "material": "27d58d1f509d90a730d3d1c607918f3f546b0b071b7c344db331edc2655e6f7b",
+          "expires_at": null,
+          "created_at": "2026-11-03 19:05:45.124874+00",
+          "deleted_at": null
+        },
+        {
+          "account": "365ac88f-6556-54ac-bda5-f3136e5f279c",
+          "kind": "APIKEY",
+          "ident": "lts_b51f4549",
+          "meta": {},
+          "material": "31060f38f805be6e2baeddde3cea060d0334cde7512ce4cbb04f89bccdae2297",
+          "expires_at": null,
+          "created_at": "2026-11-03 19:05:45.1871+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "PASSWORD",
+          "ident": "anna@romashka.ru",
+          "meta": {
+            "confirmed": true
+          },
+          "material": "73637279707424333237363824382431245554384976692f4e394c4d46725567447448697165673d3d243655694d5565324f342f6b76784669326d47364c4777324f5668764e665265553845626550562f7251674d3d",
+          "expires_at": null,
+          "created_at": "2026-11-03 19:05:46.668863+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+            "login_at": "2026-11-03T19:05:46.670337+00:00"
+          },
+          "material": "81d469c4b757c4ba5ad5011368d62fa9afd419293609d5cea60b8e1937e5a7bf",
+          "expires_at": "2026-11-10 19:05:46.670344+00",
+          "created_at": "2026-11-03 19:05:46.670346+00",
+          "deleted_at": null
+        },
+        {
+          "account": "365ac88f-6556-54ac-bda5-f3136e5f279c",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "a2850bc2-9dea-4f8f-bb85-01725d2f3572",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-03T19:05:46.728074+00:00"
+          },
+          "material": "66491ab086b649beabb0d69ad909025881766b8238f574057ff7f03baf30740e",
+          "expires_at": "2026-11-10 19:05:46.728083+00",
+          "created_at": "2026-11-03 19:05:46.728085+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "365ac88f-6556-54ac-bda5-f3136e5f279c",
+            "login_at": "2026-11-03T19:05:46.857266+00:00"
+          },
+          "material": "c7fcd5069b9e3073b4d84f876daacff31a3edf8a9cdf7e7c3eeabd40a0e29fb3",
+          "expires_at": "2026-11-10 19:05:46.857273+00",
+          "created_at": "2026-11-03 19:05:46.857274+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": []
+    },
+    {
+      "result": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "printed": [
+          "letopis: администраторское подключение — RLS не действует, данные всех арендаторов видны"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 32,
+            "signals": "class"
+          },
+          "material": "27d58d1f509d90a730d3d1c607918f3f546b0b071b7c344db331edc2655e6f7b",
+          "expires_at": null,
+          "created_at": "2026-11-03 19:05:45.124874+00",
+          "deleted_at": null
+        },
+        {
+          "account": "365ac88f-6556-54ac-bda5-f3136e5f279c",
+          "kind": "APIKEY",
+          "ident": "lts_b51f4549",
+          "meta": {},
+          "material": "31060f38f805be6e2baeddde3cea060d0334cde7512ce4cbb04f89bccdae2297",
+          "expires_at": null,
+          "created_at": "2026-11-03 19:05:45.1871+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "PASSWORD",
+          "ident": "anna@romashka.ru",
+          "meta": {
+            "confirmed": true
+          },
+          "material": "73637279707424333237363824382431245554384976692f4e394c4d46725567447448697165673d3d243655694d5565324f342f6b76784669326d47364c4777324f5668764e665265553845626550562f7251674d3d",
+          "expires_at": null,
+          "created_at": "2026-11-03 19:05:46.668863+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+            "login_at": "2026-11-03T19:05:46.670337+00:00"
+          },
+          "material": "81d469c4b757c4ba5ad5011368d62fa9afd419293609d5cea60b8e1937e5a7bf",
+          "expires_at": "2026-11-10 19:05:46.670344+00",
+          "created_at": "2026-11-03 19:05:46.670346+00",
+          "deleted_at": null
+        },
+        {
+          "account": "365ac88f-6556-54ac-bda5-f3136e5f279c",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "a2850bc2-9dea-4f8f-bb85-01725d2f3572",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-03T19:05:46.728074+00:00"
+          },
+          "material": "66491ab086b649beabb0d69ad909025881766b8238f574057ff7f03baf30740e",
+          "expires_at": "2026-11-10 19:05:46.728083+00",
+          "created_at": "2026-11-03 19:05:46.728085+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "365ac88f-6556-54ac-bda5-f3136e5f279c",
+            "login_at": "2026-11-03T19:05:46.857266+00:00"
+          },
+          "material": "c7fcd5069b9e3073b4d84f876daacff31a3edf8a9cdf7e7c3eeabd40a0e29fb3",
+          "expires_at": "2026-11-10 19:05:46.857273+00",
+          "created_at": "2026-11-03 19:05:46.857274+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": []
+    }
+  ]
+}

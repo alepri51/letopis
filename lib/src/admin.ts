@@ -2,7 +2,8 @@
  * Эксплуатация (план, этап 6, п. 7, 8): maintain и его запуск по расписанию. Всё проверяет база: функция владельца
  * 90-time.sql сама сверяет права (letopis.maintain — системный администратор или администраторское подключение).
  */
-import { lerr, lmsg, lwarn } from './errors.js';
+import { lerr, lmsg, lwarn, warnText } from './errors.js';
+import { safeErrorText, type Log } from './log.js';
 import { runTx, type Executor, type TxContext } from './tx.js';
 
 export interface MaintainReport {
@@ -41,7 +42,8 @@ export async function maintain(a: AdminCtx): Promise<MaintainReport> {
   const b = r as { sessions: number; codes: number; queue: number };
   const report: MaintainReport = { skipped: false, sessions: b.sessions, codes: b.codes, queue: Number(b.queue) };
   const warn = queueWarning(report.queue);
-  if (warn) console.warn(warn);
+  // логгер задан — событие warning (time.signal_queue), иначе console.warn, как прежде
+  if (warn) warnText(warn, 'time.signal_queue', a.txc.log, { queue: report.queue });
   return report;
 }
 
@@ -77,13 +79,13 @@ export function parseInterval(v: unknown): number {
  * следующий запуск не начинается, пока идёт прежний. Возвращает остановку: она снимает таймер и ждёт конца идущего
  * запуска — close() закрывает пул после него, а не посреди транзакции.
  */
-export function scheduleMaintain(run: () => Promise<unknown>, ms: number): () => Promise<void> {
+export function scheduleMaintain(run: () => Promise<unknown>, ms: number, log?: Log): () => Promise<void> {
   let stopped = false;
   let current: Promise<void> | null = null;
   const timer = setInterval(() => {
     if (current || stopped) return;
     current = run()
-      .then(() => {}, (e) => lwarn('time.maintain_failed', { message: (e as Error).message }))
+      .then(() => {}, (e) => lwarn('time.maintain_failed', { message: safeErrorText(e) }, { log }))
       .finally(() => (current = null));
   }, ms);
   timer.unref?.();

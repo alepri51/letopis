@@ -43,17 +43,45 @@ export function lmsg(key: MsgKey, params?: Params): string {
 }
 
 const warned = new Set<string>();
+/** Логгер, в который уходит предупреждение (lib/src/log.ts, Log): только то, что нужно lwarn. */
+interface WarnSink {
+  readonly active: boolean;
+  warning(key: string | undefined, msg: string, detail?: Record<string, unknown>): void;
+}
+/** Логгер по LETOPIS_LOG для предупреждений без подключения — ставит log.ts (без цикла импорта значений). */
+let envSink: (() => WarnSink) | null = null;
+export function setEnvWarnSink(fn: () => WarnSink): void {
+  envSink = fn;
+}
 /**
  * Предупреждение по записи каталога — «letopis: <текст>» в console.warn; once — ключ «один раз на процесс». Неизвестное
  * поле фильтра, sort() и агрегата с 2.0 — уже не предупреждение, а отказ query.unknown_field (sql.ts, checkField).
+ * Логирование 3.0: задан логгер (opts.log подключения или LETOPIS_LOG) — событие warning в него вместо console.warn.
  */
-export function lwarn(key: MsgKey, params?: Params, opts: { once?: string } = {}): void {
+export function lwarn(key: MsgKey, params?: Params, opts: { once?: string; log?: WarnSink } = {}): void {
   if (opts.once !== undefined) {
     if (warned.has(opts.once)) return;
     if (warned.size >= 1000) warned.clear();
     warned.add(opts.once);
   }
-  console.warn(`letopis: ${textOf(key, params)}`);
+  warnText(`letopis: ${textOf(key, params)}`, key, opts.log, params);
+}
+
+/**
+ * Готовый текст предупреждения: в логгер (событие warning с ключом и параметрами), если он задан, иначе console.warn.
+ * Ошибка логгера предупреждение не теряет и операцию не прерывает.
+ */
+export function warnText(text: string, key?: string, log?: WarnSink, params?: Params): void {
+  const sink = log?.active ? log : envSink?.();
+  if (sink?.active) {
+    try {
+      sink.warning(key, text, params && Object.keys(params).length ? { ...params } : undefined);
+      return;
+    } catch {
+      // логгер не принял — как без него
+    }
+  }
+  console.warn(text);
 }
 
 export class LetopisError extends Error {
@@ -136,12 +164,24 @@ export function checkOptions(where: string, opts: unknown, known: Readonly<Recor
   }
 }
 
-/** Данные не проходят описание класса (`invalid_data`); текст — по ключу (по умолчанию api.validation_failed). */
+/**
+ * Первое нарушение для текста ошибки (план 2.1, A8): «: <путь> — <сообщение>», при нескольких — ещё их число. Полный
+ * список — err.issues.
+ */
+export function issuesSuffix(issues: readonly Issue[]): string {
+  const first = issues[0];
+  if (!first) return '';
+  const path = Array.isArray(first.path) && first.path.length ? first.path.join('.') : textOf('api.validation_root', undefined);
+  const more = issues.length > 1 ? textOf('api.validation_more', { n: issues.length }) : '';
+  return `: ${textOf('api.validation_issue', { path, issue: first.message })}${more}`;
+}
+
+/** Данные не проходят описание класса (`invalid_data`); текст — по ключу (по умолчанию api.validation_failed) и первое нарушение. */
 export class ValidationError extends LetopisError {
   readonly issues: Issue[];
   constructor(cls: string, issues: Issue[], msg?: { key: string; params?: Params }) {
     const m = msg ?? { key: 'api.validation_failed', params: { cls } };
-    super('invalid_data', textOf(m.key, m.params), { issues }, m);
+    super('invalid_data', textOf(m.key, m.params) + issuesSuffix(issues), { issues }, m);
     this.name = 'ValidationError';
     this.issues = issues;
   }
@@ -209,6 +249,9 @@ export function fromDbError(e: unknown): unknown {
   if (err.code === '42501' && err.routine === 'ExecWithCheckOptions' && !/USING/.test(err.message ?? '')) {
     return lerr('api.row_check_denied', undefined, { cause: e });
   }
+  // значение не того типа (22P02: «invalid input syntax for type uuid» и т. п.), которое не поймала проверка до запроса,
+  // — ошибка letopis, а не сырая ошибка PostgreSQL (план 2.1, A7); 40001 и 40P01 остаются как есть — на них держатся повторы
+  if (err.code === '22P02') return lerr('api.db_bad_value', { text: err.message ?? '' }, { cause: e });
   let name: string | undefined;
   let detail: unknown;
   if (err.code === 'XX000') {
@@ -237,9 +280,10 @@ export function fromDbError(e: unknown): unknown {
   const issues = (detail as { issues?: Issue[] } | undefined)?.issues;
   if (name === 'invalid_data' && Array.isArray(issues)) {
     const cls = msg ? String(msg.params.cls ?? '?') : /класса (\S+)/.exec(text)?.[1] ?? '?';
-    const v = new ValidationError(cls, issuesFromDb(issues), msg);
-    // текст целиком — тот, что собрала база по шаблону записи
-    return Object.assign(v, { cause: e, ...(text ? { message: `letopis: invalid_data: ${text}` } : {}) });
+    const list = issuesFromDb(issues);
+    const v = new ValidationError(cls, list, msg);
+    // текст — тот, что собрала база по шаблону записи, и первое нарушение (план 2.1, A8)
+    return Object.assign(v, { cause: e, ...(text ? { message: `letopis: invalid_data: ${text}${issuesSuffix(list)}` } : {}) });
   }
   return Object.assign(new LetopisError(name, text, detail, msg), { cause: e });
 }

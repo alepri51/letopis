@@ -1,0 +1,85 @@
+{
+  "id": "install/05-engine-stamp",
+  "context": {
+    "schema": "v2.g_install_05_engine_stamp",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_1452493c2569dd68e6b448b8aa47937166ed5993df6ed57fe794d3b26906bf9a",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "3fb6d74af4be4c02d0f1bd70070144c2f2889643cb1cc0d32b055b04fbc60438",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": "letopis ddl_revision=11 engine=3.0.0 sql=77bbd56005c80169",
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": [
+        "letopis: функции схемы v2.g_install_05_engine_stamp поставила неизвестная версия letopis (в штампе нет версии движка), библиотека — 3.0.0: обновите схему — вызовите up({ schema: 'v2.g_install_05_engine_stamp' })"
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": [],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "connect() предупредил": [
+          "letopis: движок схемы v2.g_install_05_engine_stamp ревизии 12 новее библиотеки (она знает 11) — обновите пакет letopis"
+        ],
+        "up() отказал": "letopis.up: схема v2.g_install_05_engine_stamp ревизии 12, а библиотека знает только 11 — обновите пакет"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "connect()": "letopis: invalid_data: схема v2.g_install_05_engine_stamp ревизии 7, а 2.0 — с ревизии 8: это схема letopis 1.x (или схема без штампа ревизии), 2.0 ставится только заново — up({ schema: 'v2.g_install_05_engine_stamp', fresh: true }) пересоздаст схему, данные 1.x не переносятся",
+        "up()": "letopis: invalid_data: схема v2.g_install_05_engine_stamp ревизии 7, а 2.0 — с ревизии 8: это схема letopis 1.x (или схема без штампа ревизии), 2.0 ставится только заново — up({ schema: 'v2.g_install_05_engine_stamp', fresh: true }) пересоздаст схему, данные 1.x не переносятся"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    }
+  ]
+}

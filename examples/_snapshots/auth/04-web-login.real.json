@@ -1,0 +1,77 @@
+{
+  "id": "auth/04-web-login",
+  "context": {
+    "schema": "v2.g_auth_04_web_login",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_7908d4d3398a9daa1192835b4474e9f229cee4680e04b8ed8ed3094cbb783dac",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "ea7c5a72382ad87d948a83114fda50dbd47322ad0f57dcc17518dda432ec24fb",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "клуб": "Ромашка",
+        "серверная сессия": {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a"
+        },
+        "чужой клуб по имени": "вы не состоите в этом клубе"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Class",
+        "Item",
+        "session:404f7538be8b4b1a"
+      ]
+    },
+    {
+      "result": {
+        "вещей в клубе": 1,
+        "сейчас": "клуб из серверной сессии"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "revoke(token)": true,
+        "запрос с этим cookie": "войдите заново",
+        "connect({ token })": "no_session (api.token_not_active)"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "session:c3a607dee8b50074"
+      ]
+    }
+  ]
+}

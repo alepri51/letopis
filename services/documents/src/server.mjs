@@ -235,8 +235,8 @@ export async function createApp() {
       try {
         lines.push(`tr.Contract().create({ …данные черновика, signedBy: '${s.name}' }).Party.set(контрагент) — договор: новый объект, id из класса и номера`);
         const [row] = await tr.Contract().create({ ...data, signedBy: s.name }).Party.set(cur.links.Party).rows();
-        lines.push('tr.Draft(id).delete({ confirm: true }) — черновик удалён: надгробие, история остаётся');
-        await tr.Draft(cur.id).delete({ confirm: true }).rows();
+        lines.push('tr.Draft(id).delete({ confirm: true, all: true }) — черновик удалён осознанно, без превью: надгробие, история остаётся');
+        await tr.Draft(cur.id).delete({ confirm: true, all: true }).rows();
         await tr.commit();
         lines.push('tr.commit()');
         return row;
@@ -259,13 +259,16 @@ export async function createApp() {
     res.json({ doc: d ? view(d, await partyMap(s.db)) : null });
   }));
 
+  // удаление — ровно то превью, которое видел пользователь: клиент возвращает его в expect; превью изменилось — conflict
   app.post('/api/docs/:id/delete', auth, route(async (req, res) => {
     const s = req.s, confirm = !!req.body?.confirm;
+    const expect = Array.isArray(req.body?.expect) ? req.body.expect.map((p) => ({ id: String(p?.id), rev: Number(p?.rev), $action: p?.action })) : undefined;
+    if (confirm && !expect) throw new HttpError(400, 'Удаление — только по показанному превью (expect)');
     const out = await act(s, confirm ? 'Удаление' : 'Превью удаления', async (lines) => {
-      lines.push(confirm ? 'db.Doc(id).delete({ confirm: true, reason })' : 'db.Doc(id).delete() — без confirm: только превью, ничего не удалено');
-      return confirm ? s.db.Doc(req.params.id).delete({ confirm: true, reason: `удалил ${s.name}` }).rows() : s.db.Doc(req.params.id).delete().rows();
+      lines.push(confirm ? 'db.Doc(id).delete({ confirm: true, expect: превью, reason }) — удаляется ровно показанное' : 'db.Doc(id).delete() — без confirm: только превью, ничего не удалено');
+      return confirm ? s.db.Doc(req.params.id).delete({ confirm: true, expect, reason: `удалил ${s.name}` }).rows() : s.db.Doc(req.params.id).delete().rows();
     });
-    res.json(confirm ? { deleted: out.length } : { preview: out.map((p) => ({ id: p.id, class: p.class, action: p.$action ?? 'delete', depth: p.$depth ?? 0 })) });
+    res.json(confirm ? { deleted: out.length } : { preview: out.map((p) => ({ id: p.id, rev: p.rev, class: p.class, action: p.$action ?? 'delete', depth: p.$depth ?? 0 })) });
   }));
 
   app.get('/api/trash', auth, route(async (req, res) => {
@@ -276,10 +279,11 @@ export async function createApp() {
     const s = req.s;
     // надгробие подписанного черновика restore оживил бы рядом с договором — стало бы два документа с одним номером
     const [was] = await s.db.Doc(req.params.id).withDeleted().rows();
-    if (was?.$deleted && was.class === 'Draft' && (await s.db.Contract({ number: was.data.number }).withDeleted().count())) throw new HttpError(409, SIGNED, 'signed');
+    if (!was) throw new HttpError(404, 'Документ не найден');
+    if (was.$deleted && was.class === 'Draft' && (await s.db.Contract({ number: was.data.number }).withDeleted().count())) throw new HttpError(409, SIGNED, 'signed');
     await act(s, 'Восстановление', async (lines) => {
-      lines.push('db.Doc(id).restore() — прежний id, новая версия restore');
-      await s.db.Doc(req.params.id).restore({ reason: `восстановил ${s.name}` }).rows();
+      lines.push('db.Doc(id).restore({ expect: [надгробие] }) — прежний id, новая версия restore; вернётся ровно то надгробие, что показала корзина');
+      await s.db.Doc(req.params.id).restore({ expect: [was], reason: `восстановил ${s.name}` }).rows();
     });
     res.json({ ok: true });
   }));

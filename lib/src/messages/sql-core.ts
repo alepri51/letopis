@@ -21,6 +21,12 @@ export const sqlCore = {
     code: 'acl_denied',
     ru: 'нет права auth.impersonate',
   },
+  // 20-context.sql, ctx(): имперсонация аккаунта, которого нет (не заводили или удалён); id — значение letopis.account
+  'sql-core.impersonation_no_account': {
+    code: 'target_not_found',
+    ru: 'аккаунт {id} не найден',
+    hint: 'id аккаунта — из ответа verifyPassword(), createTenant() или db.auth.tenants(); удалённый аккаунт через as() не вернуть',
+  },
   // 20-context.sql, ctx(): имперсонация System, сервиса или системного администратора не системным администратором
   'sql-core.impersonation_denied': {
     code: 'acl_denied',
@@ -35,6 +41,7 @@ export const sqlCore = {
   'sql-core.bad_api_key': {
     code: 'no_session',
     ru: 'неверный ключ',
+    hint: 'ключ сервиса перевыпускает up({ fresh: true }): возьмите новый serviceKey из ответа up() или задайте свой — up({ serviceKey })',
   },
 
   // 30-validate.sql, jp_pattern(): pattern JSON Schema не переводится в регулярное выражение PostgreSQL
@@ -113,9 +120,14 @@ export const sqlCore = {
     ru: 'minProperties внутри anyOf не поддерживается (узел {node})',
   },
   // 30-validate.sql, validate_data(): сообщения нарушений issues[].message — тексты не для ошибки (lt_text)
-  'sql-core.issue_string_length': {
+  // minLength, maxLength: limit — граница из описания (длина в символах)
+  'sql-core.issue_string_too_short': {
     code: 'invalid_data',
-    ru: 'длина строки вне границ',
+    ru: 'длина строки меньше {limit}',
+  },
+  'sql-core.issue_string_too_long': {
+    code: 'invalid_data',
+    ru: 'длина строки больше {limit}',
   },
   'sql-core.issue_unique_items': {
     code: 'invalid_data',
@@ -131,7 +143,12 @@ export const sqlCore = {
   },
   'sql-core.issue_enum': {
     code: 'invalid_data',
-    ru: 'значение не из перечисления',
+    ru: 'значение не из перечисления: допустимо {values}',
+  },
+  // лишний ключ объекта (additionalProperties: false); keys — имена лишних ключей через запятую
+  'sql-core.issue_additional': {
+    code: 'invalid_data',
+    ru: 'лишний ключ {keys}',
   },
   'sql-core.issue_rule': {
     code: 'invalid_data',

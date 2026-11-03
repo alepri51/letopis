@@ -17,14 +17,14 @@
  * строка видна, но править нельзя — acl_denied; строки уже нет — target_not_found; номер версии
  * разошёлся со { rev } — conflict.
  */
-import { lerr, ValidationError, type LetopisError } from './errors.js';
+import { fromDbError, issuesFromDb, lerr, lmsg, LetopisError, ValidationError, type Params } from './errors.js';
 import { isOp } from './ops.js';
 import type { ClassInfo, Registry } from './registry.js';
 import { accepts, buildRead, nextNodeKey, precheckStep, resolveHop, stepClasses, toRow, type AggSpec, type BuiltQuery, type ReadMode, type Step } from './sql.js';
-import type { Tx } from './tx.js';
+import type { Executor, Tx } from './tx.js';
 import type { ChainMods, Row } from './types.js';
 import { idOf } from './uuid.js';
-import { applyDefaults } from './validate.js';
+import { applyDefaults, leavesToDb } from './validate.js';
 
 // ---------------------------------------------------------------------------
 // Приращение: маркер, которого не получить из JSON (§2.5)
@@ -55,14 +55,66 @@ export const isInc = (v: unknown): v is IncMarker =>
 // Модель плана
 // ---------------------------------------------------------------------------
 
+/**
+ * Ожидаемая строка `expect` у `restore()` и `delete({ confirm: true })` (план 2.1, A1, A2): строка ответа или её `id`,
+ * `rev` (и `$action` превью удаления). Лишние поля строки не мешают.
+ */
+export interface Expected {
+  id: string;
+  rev: number;
+  /** У строки превью — что с ней будет; строку ответа (с любым $action) можно передать как есть. */
+  $action?: Row['$action'];
+}
+
+/**
+ * Опции delete() (3.0): без confirm — превью; `{ confirm: true, expect }` — удалить ровно показанное превью;
+ * `{ confirm: true, all: true }` — осознанно удалить текущий состав целей без сверки (и без фильтра). `{ confirm: true }`
+ * без expect и all — invalid_query (write.confirm_without_expect).
+ */
+export type DeleteOptions =
+  | { confirm?: false; all?: boolean; expect?: undefined; reason?: string }
+  | { confirm: true; expect: readonly Expected[]; all?: boolean; reason?: string }
+  | { confirm: true; all: true; expect?: readonly Expected[]; reason?: string };
+
+/**
+ * Опции restore() (3.0): `{ expect }` — надгробия, которые видел пользователь (ответ delete() или withDeleted()), с
+ * `partial: true` — что можно; `{ all: true }` — осознанно вернуть все удалённые цели шага без сверки. Без expect и all —
+ * invalid_query (write.restore_without_expect), и для явных id.
+ */
+export type RestoreOptions =
+  | { expect: readonly Expected[]; partial?: boolean; all?: boolean; reason?: string }
+  | { all: true; expect?: undefined; partial?: false; reason?: string };
+
 /** Глагол плана; reason — причина изменения этого глагола (план 1.1, §2.1). */
 export type PlanOp = (
   | { kind: 'create'; data: Record<string, unknown> }
   | { kind: 'update'; data: Record<string, unknown>; rev?: number; all?: true }
   | { kind: 'upsert'; data: Record<string, unknown> }
-  | { kind: 'delete'; confirm: boolean; all?: true }
-  | { kind: 'restore' }
+  | { kind: 'delete'; confirm: boolean; all?: true; expect?: readonly Expected[] }
+  | { kind: 'restore'; all?: true; expect?: readonly Expected[]; partial?: true }
 ) & { reason?: string };
+
+/**
+ * Данные create() и upsert() без ключей со значением undefined — как у патча update() (splitPatch): ключ undefined JSON
+ * не передаёт, а валидатор на TypeScript принимал его за поле не того типа (план 2.1, A12). Вложенные объекты — тоже;
+ * массивы, даты, маркеры и операторы — как есть.
+ */
+export function dropUndefined(data: Record<string, unknown>): Record<string, unknown> {
+  if (!isPlain(data)) return data;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (v === undefined) continue;
+    out[k] = isPlain(v) ? dropUndefined(v) : v;
+  }
+  return out;
+}
+
+/** expect — список строк { id, rev } (и $action у превью удаления): иначе invalid_query до записи. */
+function checkExpect(expect: unknown, verb: string): void {
+  const ok = Array.isArray(expect) && expect.every((x) => x !== null && typeof x === 'object' && typeof (x as Expected).id === 'string'
+    && Number.isInteger((x as Expected).rev) && (x as Expected).rev >= 1);
+  if (!ok) throw lerr('write.bad_expect', { verb });
+}
 
 /** Причина изменения: строка до 1000 символов без NUL (её не принимает set_config). */
 export function checkReason(v: unknown, where: string): string {
@@ -87,8 +139,9 @@ export type WriteRow = Row;
 
 
 const asList = (v: string | string[]): string[] => (Array.isArray(v) ? v : [v]);
-const isPlain = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v) && !(v instanceof Date) && !isInc(v) && !isOp(v);
+function isPlain(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v) && !(v instanceof Date) && !isInc(v) && !isOp(v);
+}
 
 // ---------------------------------------------------------------------------
 // Разбор патча: маркеры inc вынимаются, опустевшие объекты убираются (§2.5)
@@ -141,6 +194,48 @@ export function splitPatch(patch: Record<string, unknown>): { rest: Record<strin
 // Проверки до отправки (precheckPlan)
 // ---------------------------------------------------------------------------
 
+/**
+ * Нарушения, найденные валидатором на TypeScript у класса с правилами только для базы (`pattern`): полный список даст
+ * база (completeIssues). Ключ — сама ошибка.
+ */
+const PENDING = new WeakMap<ValidationError, { cls: string; data: unknown }>();
+
+/**
+ * Ключи данных, которые не поля класса, а его концы (связи): имя роли конца или имя класса на конце (у роли с другим
+ * именем). Пары [ключ, роль] — для текста «задайте .Роль.set(id)» (write.link_in_data, 3.0): подсказка в самом тексте
+ * ошибки, а не только в err.hint.
+ */
+function endsAsFields(cls: ClassInfo, data: Record<string, unknown>, skip?: string): [string, string][] {
+  const props = (cls.schema.properties ?? {}) as Record<string, unknown>;
+  const out: [string, string][] = [];
+  for (const k of Object.keys(data)) {
+    if (data[k] === undefined || k in props || k === skip) continue;
+    if (cls.ends[k] !== undefined) { out.push([k, k]); continue; }
+    const role = Object.entries(cls.ends).find(([, e]) => (Array.isArray(e.class) ? e.class : [e.class]).includes(k))?.[0];
+    if (role !== undefined) out.push([k, role]);
+  }
+  return out;
+}
+
+/** Ключ и параметры ошибки «конец передан полем данных» (write.link_in_data). */
+function linkInData(cls: ClassInfo, verb: string, found: [string, string][]): { key: string; params: Params } {
+  return { key: 'write.link_in_data', params: { verb, cls: cls.name, keys: found.map(([k]) => k).join(', '), role: found[0][1] } };
+}
+
+/**
+ * Патч update() с ключом — именем конца класса, которого нет среди полей: база отклонила бы его (лишний ключ верхнего
+ * уровня) — отказ до записи с подсказкой «конец — из пути или .Роль.set()» (план 2.1, A8). data.id цели — не данные.
+ */
+function checkPatchEnds(s: Step, patch: Record<string, unknown>): void {
+  const cls = s.cls;
+  if (cls.name === 'Class' || cls.abstract || cls.schema.additionalProperties !== false) return;
+  const useDataId = s.filter === undefined && typeof patch.id === 'string';
+  const found = endsAsFields(cls, patch, useDataId ? 'id' : undefined);
+  if (!found.length) return;
+  const issue = { path: [], keyword: 'additionalProperties', message: lmsg('model.issue_additional', { keys: found.map(([k]) => k).join(', ') }) };
+  throw new ValidationError(cls.name, [issue], linkInData(cls, 'update', found));
+}
+
 /** Данные create/upsert: объект без маркеров; ранняя проверка валидатором на TypeScript. */
 function checkFullData(cls: ClassInfo, data: unknown, verb: string): void {
   if (!isPlain(data)) throw lerr('write.data_not_object', { verb });
@@ -153,8 +248,53 @@ function checkFullData(cls: ClassInfo, data: unknown, verb: string): void {
   scan(data, []);
   // описания системных классов проверяет только база (метасхема Class, class_admit)
   if (cls.name === 'Class' || cls.abstract) return;
-  const issues = cls.validator()(applyDefaults(cls.schema, data as Record<string, unknown>));
-  if (issues.length) throw new ValidationError(cls.name, issues);
+  const v = cls.validator();
+  const full = applyDefaults(cls.schema, data as Record<string, unknown>);
+  const issues = v(full);
+  if (!issues.length) return;
+  const found = endsAsFields(cls, data as Record<string, unknown>);
+  const e = new ValidationError(cls.name, issues, found.length ? linkInData(cls, verb, found) : undefined);
+  if (leavesToDb(v)) PENDING.set(e, { cls: cls.name, data: full });
+  throw e;
+}
+
+/**
+ * Ошибка данных до записи у класса с правилами только для базы (`pattern`): валидатор на TypeScript нашёл не всё — полный
+ * список нарушений даёт база одним запросом (`validate_row`, план 2.1, A8), под точкой сохранения: неудача запроса
+ * (схема прежней ревизии) не ломает db.begin(), остаётся прежняя ошибка. Прочие ошибки — как есть.
+ */
+export async function completeIssues(ctx: { schema: string; exec: Executor }, e: unknown): Promise<unknown> {
+  const p = e instanceof ValidationError ? PENDING.get(e) : undefined;
+  if (!p) return e;
+  const S = quoteId(ctx.schema);
+  let raw: unknown;
+  try {
+    raw = await ctx.exec.run(async (q) => {
+      await q.unsafe('savepoint letopis_issues');
+      try {
+        const [r] = (await q.unsafe(`select ${S}.validate_row($1::text, $2::jsonb) as v`, [p.cls, p.data] as never[])) as unknown as { v: unknown }[];
+        await q.unsafe('release savepoint letopis_issues');
+        return r?.v;
+      } catch {
+        await q.unsafe('rollback to savepoint letopis_issues');
+        return null;
+      }
+    }, { read: true });
+  } catch {
+    return e;
+  }
+  if (!Array.isArray(raw) || !raw.length) return e;
+  const v = e as ValidationError;
+  return Object.assign(new ValidationError(p.cls, issuesFromDb(raw), v.key ? { key: v.key, params: v.params } : undefined), { cause: e });
+}
+
+/**
+ * Блокировка строк в порядке id (lockedRead, updateOp — for no key update; deleteOp с expect — for update): id, которые
+ * удалось заблокировать.
+ */
+export async function lockIds(q: Tx, S: string, ids: string[], mode: 'no key update' | 'update' = 'no key update'): Promise<Set<string>> {
+  const rows = (await q.unsafe(`select id from ${S}.entity where id = any ($1::uuid[]) order by id for ${mode}`, [ids] as never[], { prepare: true })) as unknown as { id: string }[];
+  return new Set(rows.map((r) => r.id));
 }
 
 /** Фильтр шага сужает цели: id, список id, оператор, строка ответа, объект хотя бы с одним заданным полем. */
@@ -174,6 +314,13 @@ function narrowed(steps: Step[], i: number): boolean {
     if (j < i && (s.op?.kind === 'create' || s.op?.kind === 'upsert')) return true;
   }
   return false;
+}
+
+/** Шаги сегмента глагола шага i: от шага после прежнего глагола до него самого. */
+function segmentOf(steps: Step[], i: number): Step[] {
+  let j = i - 1;
+  while (j >= 0 && !steps[j].op) j--;
+  return steps.slice(j + 1, i + 1);
 }
 
 /**
@@ -196,8 +343,9 @@ export function precheckPlan(reg: Registry, steps: Step[], order?: string, agg?:
     if (op.reason !== undefined) checkReason(op.reason, `${verb}()`);
     const m = s.opMods ?? {};
     if (m.asOf !== undefined) throw lerr('write.as_of_write', { verb });
-    // restore сам ищет удалённые объекты шага
-    if (m.withDeleted && verb !== 'restore') throw lerr('write.with_deleted_write', { verb });
+    // restore сам ищет удалённые объекты шага; withDeleted() — модификатор шага (план 2.1, A9): у шага глагола или шага
+    // до него в сегменте — отказ, как прежде у модификатора цепочки
+    if (verb !== 'restore' && segmentOf(steps, i).some((x) => x.withDeleted)) throw lerr('write.with_deleted_write', { verb });
     switch (op.kind) {
       case 'create':
       case 'upsert':
@@ -215,6 +363,7 @@ export function precheckPlan(reg: Registry, steps: Step[], order?: string, agg?:
       case 'update':
         if (!isPlain(op.data)) throw lerr('write.patch_not_object');
         splitPatch(op.data);
+        checkPatchEnds(s, op.data);
         if (op.rev !== undefined && (!Number.isInteger(op.rev) || op.rev < 1)) throw lerr('write.bad_rev');
         // строгий режим (план 2.0, этап 4, п. 2; 7.10 №2): правка без сужения целей — отказ до записи, все строки —
         // { all: true }; data.id у шага без фильтра — тоже цель (updateOp)
@@ -223,10 +372,22 @@ export function precheckPlan(reg: Registry, steps: Step[], order?: string, agg?:
         }
         break;
       case 'delete':
-        // превью (без confirm) ничего не удаляет — его не сужают
-        if (op.confirm && !op.all && !narrowed(steps, i)) throw lerr('write.no_filter', { call: 'delete({ confirm: true })', cls: s.cls.name });
+        // превью (без confirm) ничего не удаляет — его не сужают и не сверяют
+        if (op.expect !== undefined) {
+          if (!op.confirm) throw lerr('write.expect_without_confirm');
+          checkExpect(op.expect, verb);
+        }
+        // 3.0: удаление сверяется с превью, которое видел пользователь (expect); без сверки — только осознанно, { all: true }
+        if (op.confirm && op.expect === undefined && !op.all) throw lerr('write.confirm_without_expect');
+        if (op.confirm && !op.all && !narrowed(steps, i)) throw lerr('write.no_filter', { call: 'delete({ confirm: true, expect })', cls: s.cls.name });
         break;
       case 'restore':
+        // partial (второй раунд 2.1, A3) — только с expect: пропуск считается по показанным надгробиям
+        if (op.partial && op.expect === undefined) throw lerr('write.partial_without_expect');
+        if (op.expect !== undefined) checkExpect(op.expect, verb);
+        // 3.0: без expect — отказ, и для явных id тоже: restore вернул бы последнее надгробие, а не то, что видел
+        // пользователь (объект могли восстановить, поменять и удалить снова); вернуть всё без сверки — { all: true }
+        else if (!op.all) throw lerr('write.restore_without_expect');
         break;
     }
     for (const sl of s.slots ?? []) {
@@ -390,7 +551,8 @@ async function slotIds(w: WriteCtx, v: SlotValue): Promise<string[]> {
       // отдаёт строки чтения (план 2.0, 7.2 №3: раньше — TypeError)
       precheckPlan(w.reg, v.plan);
       const r = await execPlan(w, v.plan, v.mods, 'rows');
-      rows = r.kind === 'rows' ? r.rows : (r.res as Row[]);
+      // чтение хвоста отдаёт строки в обёртке { row } (readIn, режим 'rows') — как в батче, распаковать
+      rows = r.kind === 'rows' ? r.rows : (r.res as { row: Record<string, unknown> }[]).map((x) => toRow(x.row));
     } else {
       rows = await readRows(w, v.plan, v.mods);
     }
@@ -507,6 +669,12 @@ function inTargetOrder<T extends { id?: unknown }>(ids: string[], rows: T[]): T[
   return rows.sort((a, b) => (pos.get(a.id as string) ?? 0) - (pos.get(b.id as string) ?? 0));
 }
 
+/** Шаги сужены только по id: фильтр — id или список id, без tags(), owner() и обхода deep(). */
+function idsOnly(steps: Step[]): boolean {
+  return steps.every((s) => (s.filter === undefined || typeof s.filter === 'string' || (Array.isArray(s.filter) && s.filter.every((x) => typeof x === 'string')))
+    && s.tagsFilter === undefined && s.ownerFilter === undefined);
+}
+
 /** Цели update и delete: id из пути (limit и sort сужают); data.id — если у шага нет фильтра. */
 async function targetIds(w: WriteCtx, steps: Step[], opStep: Step, dataId?: string): Promise<string[]> {
   const path = steps.map(bare);
@@ -523,7 +691,15 @@ async function updateOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<Write
   // data.id — цель, только если у шага нет своего фильтра (write.ts:461-466 в 0.21); тогда id не данные
   const useDataId = opStep.filter === undefined && typeof op.data.id === 'string';
   const { id: dataId, ...data } = op.data;
-  const ids = await targetIds(w, steps, opStep, useDataId ? (dataId as string) : undefined);
+  let ids = await targetIds(w, steps, opStep, useDataId ? (dataId as string) : undefined);
+  // цели сужены не только по id (данные, концы, tags(), owner()): как lockedRead — блокировка целей и то же чтение заново;
+  // правятся только строки, которые и после ожидания блокировки подходят под условия (план 2.1, A4). Без гонки — те же
+  // цели; строка, которую не дала заблокировать RLS, остаётся в целях — её объяснит explainMissing
+  if (ids.length && !idsOnly(steps)) {
+    const locked = await lockIds(w.q, S, ids);
+    const fresh = new Set(await targetIds(w, steps, opStep, useDataId ? (dataId as string) : undefined));
+    ids = ids.filter((id) => fresh.has(id) || !locked.has(id));
+  }
   if (op.rev !== undefined) {
     if (ids.length > 1) throw lerr('write.rev_many_targets', { step: opStep.name, count: ids.length });
     if (!ids.length) throw lerr('write.rev_no_target', { step: opStep.name });
@@ -549,23 +725,51 @@ async function updateOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<Write
   return inTargetOrder(ids, res.map((r) => toRow(r.row)));
 }
 
+/** Превью удаления целей: то же замыкание, что у триггера удаления (ref_action), база не меняется. */
+async function previewOf(w: WriteCtx, ids: string[]): Promise<WriteRow[]> {
+  const S = quoteId(w.schema);
+  const res = await query<{ row: Record<string, unknown>; action: WriteRow['$action']; depth: number | null }>(w,
+    `select ${rowJson('e')} as row, p.action, p.depth from ${S}.delete_preview($1::uuid[]) p `
+    + `join ${S}.entity e on e.id = p.id order by p.depth nulls last, p.action, e.id`, [ids]);
+  return res.map((r) => {
+    const row = toRow(r.row) as WriteRow;
+    row.$action = r.action;
+    if (r.depth !== null) row.$depth = r.depth;
+    return row;
+  });
+}
+
+/** Превью совпадает с показанным: те же строки по id, с теми же rev и $action (порядок не важен). */
+function samePreview(now: WriteRow[], expect: readonly Expected[]): boolean {
+  if (now.length !== expect.length) return false;
+  const want = new Map(expect.map((x) => [x.id.toLowerCase(), x]));
+  return now.every((r) => {
+    const x = want.get(r.id.toLowerCase());
+    return x !== undefined && x.rev === r.rev && (x.$action === undefined || x.$action === r.$action);
+  });
+}
+
 async function deleteOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {
-  const op = opStep.op as { kind: 'delete'; confirm: boolean };
+  const op = opStep.op as { kind: 'delete'; confirm: boolean; expect?: readonly Expected[] };
   const S = quoteId(w.schema);
   const ids = await targetIds(w, steps, opStep);
-  if (!ids.length) return [];
-  if (!op.confirm) {
-    // превью: то же замыкание, что у триггера удаления (ref_action), база не меняется
-    const res = await query<{ row: Record<string, unknown>; action: WriteRow['$action']; depth: number | null }>(w,
-      `select ${rowJson('e')} as row, p.action, p.depth from ${S}.delete_preview($1::uuid[]) p `
-      + `join ${S}.entity e on e.id = p.id order by p.depth nulls last, p.action, e.id`, [ids]);
-    return res.map((r) => {
-      const row = toRow(r.row) as WriteRow;
-      row.$action = r.action;
-      if (r.depth !== null) row.$depth = r.depth;
-      return row;
-    });
+  if (!op.confirm) return ids.length ? previewOf(w, ids) : [];
+  // delete({ confirm: true, expect }): удалить ровно показанное (план 2.1, A2) — превью заново в той же транзакции.
+  // Атомарно (второй раунд 2.1, A1): всё замыкание каскада (строки превью с $action 'delete') блокируется for update в
+  // порядке id, и превью строится ещё раз уже под блокировкой. Вставка связи берёт на своих концах for key share
+  // (60-write.sql, targets_bad): с for update она конфликтует, с for no key update — нет. Вставщик успел первым —
+  // пересчёт видит его строку (preview_changed); мы первые — он получает end_target_missing. Взаимоблокировку при росте
+  // замыкания повторяет runTx (40P01)
+  if (op.expect !== undefined) {
+    let now = ids.length ? await previewOf(w, ids) : [];
+    const closure = now.filter((r) => r.$action === 'delete').map((r) => r.id);
+    if (closure.length) {
+      await lockIds(w.q, S, closure, 'update');
+      now = await previewOf(w, ids);
+    }
+    if (!samePreview(now, op.expect)) throw lerr('write.preview_changed', undefined, { detail: { preview: now } });
   }
+  if (!ids.length) return [];
   // результат — надгробия этой транзакции после метки: delete … returning не видит каскад триггера
   const [{ mark }] = await query<{ mark: string }>(w, `select coalesce(max(seq), 0)::text as mark from ${S}.log where tx = pg_current_xact_id()`, []);
   const gone = await query<{ row: Record<string, unknown> }>(w, `delete from ${S}.entity e where e.id = any ($1::uuid[]) returning ${rowJson('e')} as row`, [ids]);
@@ -590,24 +794,177 @@ async function deleteOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<Write
   return out;
 }
 
-/** Удалённые объекты шага (restore): живые цели без удалённых — not_deleted. */
-async function deletedTargets(w: WriteCtx, steps: Step[], opStep: Step, verb: string): Promise<Row[]> {
-  const rows = await readRows(w, steps.map(bare), { ...(opStep.opMods ?? {}), withDeleted: true });
-  const dead = rows.filter((r) => r.$deleted);
-  if (!dead.length && rows.length) throw lerr('write.not_deleted', { verb }, { detail: { ids: rows.map((r) => r.id) } });
-  // без явного порядка — по id: restore пишет журнал по очереди целей
-  return opStep.opMods?.order ? dead : [...dead].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+/**
+ * Почему цель restore не восстановить (второй раунд 2.1, A2, A3) — по записи журнала, которая идёт за последним
+ * надгробием: `restored` — за ним restore (объект уже восстановлен), `reissued` — create (id занял новый объект с тем же
+ * ключом), `changed` — прочее: удалён снова с другим номером версии, не удалялся вовсе, гонка.
+ */
+export type RestoreWhy = 'restored' | 'reissued' | 'changed';
+
+/**
+ * Цель restore, которую не восстановить: rev — номер последней версии сейчас, expected — из expect (без expect — null),
+ * after — вид записи журнала сразу за expected (что было после того удаления; null — ничего), deleted — последняя версия
+ * надгробие, live — объект с этим id живёт.
+ */
+interface Refused {
+  id: string;
+  rev: number;
+  expected: number | null;
+  after: string | null;
+  deleted: boolean;
+  live: boolean;
+  why: RestoreWhy;
 }
 
-/** Восстановление (этап 6, п. 2): последний снимок новой версией; база перепроверяет его по текущему описанию. */
+/** Причины отказа для строк шага restore (живых или надгробий не той версии): одним запросом к журналу. */
+async function refusals(w: WriteCtx, rows: Row[], want: Map<string, number> | null): Promise<Refused[]> {
+  if (!rows.length) return [];
+  const S = quoteId(w.schema);
+  const exp = rows.map((r) => want?.get(r.id.toLowerCase()) ?? null);
+  const log = await query<{ id: string; after: string | null; after_last: string | null }>(w,
+    `select x.id::text as id, `
+    + `(select l.op from ${S}.log l where l.id = x.id and l.rev > x.exp order by l.rev limit 1) as after, `
+    + `(select l.op from ${S}.log l where l.id = x.id and l.rev > (select max(t.rev) from ${S}.log t where t.id = x.id and t.op = 'delete') `
+    + `order by l.rev limit 1) as after_last from unnest($1::uuid[], $2::int[]) as x(id, exp)`, [rows.map((r) => r.id), exp]);
+  const by = new Map(log.map((r) => [r.id.toLowerCase(), r]));
+  return rows.map((r, i) => {
+    const l = by.get(r.id.toLowerCase());
+    const live = r.$deleted !== true;
+    const last = l?.after_last ?? null;
+    const why: RestoreWhy = live && last === 'restore' ? 'restored' : live && last === 'create' ? 'reissued' : 'changed';
+    return { id: r.id, rev: r.rev, expected: exp[i], after: l?.after ?? null, deleted: !live, live, why };
+  });
+}
+
+/**
+ * Отказ restore по смыслу (второй раунд 2.1, A2): есть `changed` — restore_stale (conflict), иначе есть `reissued` —
+ * restore_id_taken, иначе restore_already (оба — not_deleted). detail.ids — цели этого ключа; с expect (и всегда у
+ * restore_stale) detail.stale — все цели, которые не восстановить, с причиной.
+ */
+function restoreRefusal(verb: string, list: Refused[], withExpect: boolean, cause?: unknown): LetopisError {
+  const of = (why: RestoreWhy) => list.filter((x) => x.why === why).map((x) => x.id);
+  const extra = (detail: unknown) => ({ detail, ...(cause !== undefined ? { cause } : {}) });
+  const stale = withExpect ? { stale: list } : {};
+  const changed = of('changed');
+  if (changed.length) return lerr('write.restore_stale', { ids: changed.join(', ') }, extra({ ids: changed, stale: list }));
+  const taken = of('reissued');
+  if (taken.length) return lerr('write.restore_id_taken', { verb, ids: taken.join(', ') }, extra({ ids: taken, ...stale }));
+  const done = of('restored');
+  return lerr('write.restore_already', { verb, ids: done.join(', ') }, extra({ ids: done, ...stale }));
+}
+
+/** Строка ответа restore({ expect, partial: true }) для цели, которую не восстановить (второй раунд 2.1, A3). */
+const skipRow = (r: Row, why: RestoreWhy): WriteRow => ({ ...r, $action: 'skip', $why: why });
+
+/** Цели restore: что восстанавливать и (partial) строки-пропуски. */
+interface RestoreTargets {
+  dead: Row[];
+  skip: WriteRow[];
+  /** id целей в порядке ответа: по sort() до глагола, иначе по id. */
+  order: string[];
+}
+
+const byIdOrder = (a: { id: string }, b: { id: string }): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+/**
+ * Удалённые объекты шага (restore). Шаг цели читается с надгробиями; у шагов до него withDeleted() — свой (план 2.1, A9).
+ * Без expect: восстанавливаются удалённые цели; если удалённых нет, а живые есть — отказ по смыслу (restoreRefusal: уже
+ * восстановлен, id занят новым объектом) или not_deleted (не удалялся). С expect — только цели из expect, и последняя
+ * версия каждой — то же надгробие; иначе отказ по смыслу и ничего не восстановлено, а с partial — строка-пропуск.
+ */
+async function deletedTargets(w: WriteCtx, steps: Step[], opStep: Step, verb: string, expect?: readonly Expected[], partial?: boolean): Promise<RestoreTargets> {
+  const path = steps.map(bare);
+  path[path.length - 1] = { ...path[path.length - 1], withDeleted: true };
+  const rows = await readRows(w, path, opStep.opMods ?? {});
+  // без явного порядка — по id: restore пишет журнал по очереди целей
+  const ordered = (xs: Row[]): Row[] => (opStep.opMods?.order ? xs : [...xs].sort(byIdOrder));
+  if (expect !== undefined) {
+    const want = new Map(expect.map((x) => [x.id.toLowerCase(), x.rev]));
+    const mine = rows.filter((r) => want.has(r.id.toLowerCase()));
+    const good = (r: Row): boolean => r.$deleted === true && r.rev === want.get(r.id.toLowerCase());
+    const bad = await refusals(w, mine.filter((r) => !good(r)), want);
+    if (bad.length && !partial) throw restoreRefusal(verb, bad, true);
+    const why = new Map(bad.map((x) => [x.id, x.why]));
+    const all = ordered(mine);
+    return { dead: all.filter(good), skip: all.filter((r) => !good(r)).map((r) => skipRow(r, why.get(r.id) ?? 'changed')), order: all.map((r) => r.id) };
+  }
+  const dead = rows.filter((r) => r.$deleted);
+  if (!dead.length && rows.length) {
+    const live = await refusals(w, rows, null);
+    if (live.some((x) => x.why !== 'changed')) throw restoreRefusal(verb, live.filter((x) => x.why !== 'changed'), false);
+    throw lerr('write.not_deleted', { verb }, { detail: { ids: rows.map((r) => r.id) } });
+  }
+  const all = ordered(dead);
+  return { dead: all, skip: [], order: all.map((r) => r.id) };
+}
+
+/** Отказ функции базы restore() по смыслу (уже восстановлен, id занят, версия не та) — причина и подробности; иначе null. */
+function dbRefusal(e: unknown): Refused | null {
+  const le = fromDbError(e);
+  if (!(le instanceof LetopisError)) return null;
+  const why: RestoreWhy | undefined = le.key === 'sql-time.restore_already' ? 'restored' : le.key === 'sql-time.restore_id_taken' ? 'reissued'
+    : le.key === 'sql-time.restore_stale' ? 'changed' : undefined;
+  if (!why) return null;
+  const d = (le.detail ?? {}) as Partial<Refused>;
+  const p = le.params ?? {};
+  return {
+    id: String(d.id ?? p.id ?? ''), rev: Number(d.rev ?? p.rev ?? 0), expected: d.expected ?? (typeof p.expected === 'number' ? p.expected : null),
+    after: d.after ?? null, deleted: d.deleted ?? false, live: d.live ?? why !== 'changed', why,
+  };
+}
+
+/**
+ * Восстановление (этап 6, п. 2): последний снимок новой версией; база перепроверяет его по текущему описанию. С expect
+ * база ещё раз сверяет номер последней версии под блокировкой записи журнала (restore(id, rev), план 2.1, A1): гонку
+ * между чтением и восстановлением ловит она, и её отказ — по смыслу, как у проверки до записи (второй раунд 2.1, A2).
+ * partial (A3): цели, которые не восстановить, — строки-пропуски { …строка, $action: 'skip', $why }, остальные
+ * восстанавливаются; каждая цель — под своей точкой сохранения, проигранная гонка тоже становится пропуском.
+ */
 async function restoreOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {
   const S = quoteId(w.schema);
-  const dead = await deletedTargets(w, steps, opStep, 'restore');
-  if (!dead.length) return [];
-  const ids = dead.map((r) => r.id);
-  await query(w, `select ${S}.restore(x) from unnest($1::uuid[]) with ordinality as u(x, i) order by u.i`, [ids]);
-  const res = await query<{ row: Record<string, unknown> }>(w, `select ${rowJson('e')} as row from ${S}.entity e where e.id = any ($1::uuid[])`, [ids]);
-  return inTargetOrder(ids, res.map((r) => toRow(r.row)));
+  const { expect, partial } = opStep.op as { expect?: readonly Expected[]; partial?: true };
+  const { dead, skip, order } = await deletedTargets(w, steps, opStep, 'restore', expect, partial);
+  if (!dead.length) return inTargetOrder(order, skip);
+  let ids = dead.map((r) => r.id);
+  if (expect === undefined) {
+    // прежний вызов restore(id): работает и со схемой прежней ревизии
+    try {
+      await query(w, `select ${S}.restore(x) from unnest($1::uuid[]) with ordinality as u(x, i) order by u.i`, [ids]);
+    } catch (e) {
+      const r = dbRefusal(e);
+      if (r && r.why !== 'changed') throw restoreRefusal('restore', [r], false, e);
+      throw e;
+    }
+  } else if (!partial) {
+    try {
+      await query(w, `select ${S}.restore(u.x, u.r) from unnest($1::uuid[], $2::int[]) with ordinality as u(x, r, i) order by u.i`,
+        [ids, dead.map((r) => r.rev)]);
+    } catch (e) {
+      const r = dbRefusal(e);
+      if (r) throw restoreRefusal('restore', [r], true, e);
+      throw e;
+    }
+  } else {
+    const lost = new Set<string>();
+    for (const r of dead) {
+      await w.q.unsafe('savepoint letopis_restore');
+      try {
+        await query(w, `select ${S}.restore($1::uuid, $2::int)`, [r.id, r.rev]);
+        await w.q.unsafe('release savepoint letopis_restore');
+      } catch (e) {
+        await w.q.unsafe('rollback to savepoint letopis_restore');
+        const why = dbRefusal(e)?.why;
+        if (!why) throw e;
+        lost.add(r.id);
+        skip.push(skipRow(r, why));
+      }
+    }
+    ids = ids.filter((id) => !lost.has(id));
+  }
+  const res = ids.length
+    ? await query<{ row: Record<string, unknown> }>(w, `select ${rowJson('e')} as row from ${S}.entity e where e.id = any ($1::uuid[])`, [ids])
+    : [];
+  return inTargetOrder(order, [...res.map((r) => toRow(r.row) as WriteRow), ...skip]);
 }
 
 async function opCall(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {
@@ -683,10 +1040,11 @@ export async function execPlan(w: WriteCtx, steps: Step[], mods: ChainMods, mode
     } else {
       last = await opCall(w, [fromRows(prevOp!, start.map((r) => r.id)), ...seg.steps], opStep);
     }
-    // после удаления продолжение — от удалённых строк класса цели (замыкание каскада шире)
+    // после удаления продолжение — от удалённых строк класса цели (замыкание каскада шире); после restore — от
+    // восстановленных, без строк-пропусков partial
     start = kind === 'delete' && (opStep.op as { confirm: boolean }).confirm
       ? last.filter((r) => stepClasses(w.reg, opStep).includes(r.class))
-      : last;
+      : kind === 'restore' ? last.filter((r) => r.$action !== 'skip') : last;
     prevOp = opStep;
   }
   // причина глагола не переходит на следующие операторы транзакции

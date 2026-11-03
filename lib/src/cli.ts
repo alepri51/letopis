@@ -13,6 +13,8 @@
  *   letopis maintain --dsn … --schema v2.x [--token … | --api-key …]
  *   letopis mcp --dsn … --schema v2.x --token … [--write]   — сервер MCP по stdio (план 1.1, §2.5); dsn, schema и
  *     token — ещё из LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; только токен пользователя: --api-key — отказ
+ *   --log[=уровень] — у любой команды (логирование 3.0): события JSON-строками в stderr, уровень debug|info|warn|error|off,
+ *     без значения — info; без флага действует LETOPIS_LOG
  *   справка — USAGE (её же читает справочник сайта, guide/scripts/gen-api.ts)
  */
 import { parseArgs } from 'node:util';
@@ -24,6 +26,8 @@ import { connect } from './index.js';
 import { syncModels, generateTypes } from './sync.js';
 import type { AnyModel } from './model.js';
 import { lerr, lmsg } from './errors.js';
+import { stderrLog } from './log.js';
+import type { LogLevel, LogOptions } from './types.js';
 
 const USAGE = `letopis sync <модуль> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--apply | --check]
 letopis types --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--out <файл>] [--system]
@@ -31,7 +35,8 @@ letopis load <файлы…> --dsn <строка> --schema <v2.имя> (--token 
   [--duplicates error|first|last] [--existing error|skip|update] [--commit-every <N>] [--initial]
 letopis maintain --dsn <строка> --schema <v2.имя> [--token <токен> | --api-key <ключ>]
 letopis mcp --dsn <строка> --schema <v2.имя> --token <токен пользователя> [--write]
-  (или LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; ключ сервиса --api-key не принимается)`;
+  (или LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; ключ сервиса --api-key не принимается)
+у любой команды: --log[=debug|info|warn|error|off] — события JSON-строками в stderr (без значения — info)`;
 
 /** Команды CLI: остальное — USAGE с кодом 2 ещё до подключения. */
 const COMMANDS = new Set(['sync', 'types', 'load', 'maintain', 'mcp']);
@@ -44,9 +49,25 @@ async function loadModels(path: string): Promise<AnyModel[]> {
   return [...new Set(Object.values(mod).flatMap((v) => (Array.isArray(v) ? v : [v])).filter(isModel))];
 }
 
+/**
+ * Флаг --log[=уровень] (логирование 3.0): вынимается из аргументов до parseArgs — у строкового флага parseArgs требует
+ * значение, а --log без него значит info.
+ */
+function logFlag(argv: string[]): { args: string[]; log: LogOptions } {
+  let level: LogLevel | undefined;
+  const args: string[] = [];
+  for (const a of argv) {
+    if (a === '--log') level = 'info';
+    else if (a.startsWith('--log=')) level = (a.slice('--log='.length) || 'info') as LogLevel;
+    else args.push(a);
+  }
+  return { args, log: level === undefined ? {} : { log: stderrLog, logLevel: level } };
+}
+
 export async function main(argv: string[]): Promise<number> {
+  const { args, log } = logFlag(argv);
   const { values, positionals } = parseArgs({
-    args: argv,
+    args,
     allowPositionals: true,
     options: {
       dsn: { type: 'string' }, schema: { type: 'string' }, token: { type: 'string' }, 'api-key': { type: 'string' },
@@ -72,9 +93,9 @@ export async function main(argv: string[]): Promise<number> {
     console.log(USAGE);
     return cmd ? 2 : 0;
   }
-  if (cmd === 'mcp') return mcp(values);
+  if (cmd === 'mcp') return mcp(values, log);
   // загрузчику нужно администраторское подключение (§2.6, п. 1)
-  const db = await connect({ dsn: values.dsn, schema: values.schema, token: values.token, apiKey: values['api-key'], max: 2,
+  const db = await connect({ dsn: values.dsn, schema: values.schema, token: values.token, apiKey: values['api-key'], max: 2, ...log,
     // maintain работает и на администраторском подключении без сессии; классы со строками синхронизирует
     // администраторское подключение с сессией арендатора
     ...(cmd === 'load' || cmd === 'maintain' || cmd === 'sync' ? { allowBypassRls: true } : {}) });
@@ -138,7 +159,7 @@ export async function main(argv: string[]): Promise<number> {
  * грузятся только здесь: letopis --help и прочие команды работают без SDK. В stdout — только протокол (предупреждения
  * connect() идут в stderr); процесс живёт, пока клиент не закроет stdin.
  */
-async function mcp(v: { dsn?: string; schema?: string; token?: string; 'api-key'?: string; write?: boolean }): Promise<number> {
+async function mcp(v: { dsn?: string; schema?: string; token?: string; 'api-key'?: string; write?: boolean }, log: LogOptions = {}): Promise<number> {
   if (v['api-key'] !== undefined) {
     console.error(lerr('model.mcp_api_key_refused').message);
     return 2;
@@ -148,7 +169,7 @@ async function mcp(v: { dsn?: string; schema?: string; token?: string; 'api-key'
     return 2;
   }
   const { createMcpServer } = await import('./mcp.js');
-  const db = await connect({ dsn: v.dsn!, schema: v.schema!, token: v.token, max: 4 });
+  const db = await connect({ dsn: v.dsn!, schema: v.schema!, token: v.token, max: 4, ...log });
   try {
     const opts = { write: v.write === true };
     // учётные данные — до начала протокола: отказ виден кодом выхода и текстом в stderr

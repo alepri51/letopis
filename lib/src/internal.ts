@@ -15,6 +15,8 @@ export interface DbInternals {
    * Только у корня подключения с опцией admin.
    */
   readonly adminTx?: <T>(fn: (tx: import('./tx.js').Tx) => Promise<T>) => Promise<T>;
+  /** Логгер фасада (lib/src/log.ts): им пишут syncModels и инструменты MCP. */
+  readonly log?: import('./log.js').Log;
 }
 
 const facades = new WeakMap<object, DbInternals>();

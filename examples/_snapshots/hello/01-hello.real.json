@@ -1,0 +1,3213 @@
+{
+  "id": "hello/01-hello",
+  "context": {
+    "schema": "v2.g_hello_01_hello",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": null
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "text": "Hello, world!",
+        "id": "296a8b46-4b1c-535a-a71f-d9dc98464c25",
+        "rev": 1
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "class": "Account",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "name": "System",
+            "enabled": true,
+            "categories": [
+              "System"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.810089+00"
+        },
+        {
+          "id": "8377cd73-5caa-5d11-8540-03388e4e92bf",
+          "class": "Class",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "key": [
+              "name"
+            ],
+            "kind": "hub",
+            "name": "Class",
+            "fields": {
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [
+                "name"
+              ],
+              "ends": {},
+              "kind": "hub",
+              "meta": {},
+              "name": "Class",
+              "vars": {},
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"name\")))",
+                  "path": [
+                    "name"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "name"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"name\").value"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"name\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "Class"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.81546+00"
+        },
+        {
+          "id": "ddf164b8-cc60-5500-a377-c4fd4b7a6817",
+          "class": "Class",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "key": [],
+            "kind": "hub",
+            "name": "Account",
+            "fields": {
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "categories": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "uniqueItems": true
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [],
+              "ends": {},
+              "kind": "hub",
+              "meta": {},
+              "name": "Account",
+              "vars": {},
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"name\")))",
+                  "path": [
+                    "name"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "name"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"name\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
+                    "enabled"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"enabled\").value"
+                },
+                {
+                  "cond": "@.type() == \"array\"",
+                  "path": [
+                    "categories"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                },
+                {
+                  "cond": "true",
+                  "path": [
+                    "categories"
+                  ],
+                  "vars": {},
+                  "extra": {
+                    "kind": "unique"
+                  },
+                  "keyword": "uniqueItems",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "categories",
+                    "*"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value ? (@.type() == \"array\")[*]"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"name\" || @.key == \"enabled\" || @.key == \"categories\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "categories": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "uniqueItems": true
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "Account"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.829517+00"
+        },
+        {
+          "id": "4e09c113-fbc8-5cc0-8795-27e521aece0a",
+          "class": "Class",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "key": [
+              "User",
+              "Tenant"
+            ],
+            "ends": {
+              "User": {
+                "class": "Account",
+                "onDelete": "cascade",
+                "required": true
+              },
+              "Tenant": {
+                "class": "Account",
+                "onDelete": "cascade",
+                "required": true
+              }
+            },
+            "kind": "link",
+            "name": "member",
+            "fields": {
+              "properties": {
+                "roles": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": [],
+                  "uniqueItems": true
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [
+                "User",
+                "Tenant"
+              ],
+              "ends": {
+                "User": {
+                  "class": "Account",
+                  "onDelete": "cascade",
+                  "required": true
+                },
+                "Tenant": {
+                  "class": "Account",
+                  "onDelete": "cascade",
+                  "required": true
+                }
+              },
+              "kind": "link",
+              "meta": {},
+              "name": "member",
+              "vars": {},
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"array\"",
+                  "path": [
+                    "roles"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"roles\").value"
+                },
+                {
+                  "cond": "true",
+                  "path": [
+                    "roles"
+                  ],
+                  "vars": {},
+                  "extra": {
+                    "kind": "unique"
+                  },
+                  "keyword": "uniqueItems",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"roles\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "roles",
+                    "*"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"roles\").value ? (@.type() == \"array\")[*]"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"roles\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [],
+                "properties": {
+                  "roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "default": [],
+                    "uniqueItems": true
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "member"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.834638+00"
+        },
+        {
+          "id": "73bf3192-9d1c-55cd-a85c-ddecce5bedb8",
+          "class": "Class",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "key": [
+              "alias"
+            ],
+            "kind": "hub",
+            "name": "Resource",
+            "fields": {
+              "required": [
+                "alias",
+                "category"
+              ],
+              "properties": {
+                "alias": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "pattern": {
+                  "type": "object",
+                  "properties": {
+                    "class": {
+                      "type": "string"
+                    },
+                    "roles": {
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "type": "string"
+                    },
+                    "categories": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "category": {
+                  "enum": [
+                    "ACCOUNT",
+                    "API",
+                    "READ",
+                    "WRITE",
+                    "DELETE"
+                  ],
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [
+                "alias"
+              ],
+              "ends": {},
+              "kind": "hub",
+              "meta": {},
+              "name": "Resource",
+              "vars": {
+                "v1": "ACCOUNT",
+                "v2": "API",
+                "v3": "READ",
+                "v4": "WRITE",
+                "v5": "DELETE"
+              },
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"alias\")))",
+                  "path": [
+                    "alias"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"category\")))",
+                  "path": [
+                    "category"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "alias"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"alias\").value"
+                },
+                {
+                  "cond": "true",
+                  "path": [
+                    "alias"
+                  ],
+                  "vars": {},
+                  "extra": {
+                    "max": null,
+                    "min": 1,
+                    "kind": "length"
+                  },
+                  "keyword": "minLength",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"alias\").value"
+                },
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [
+                    "pattern"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "class"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"class\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "roles"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"roles\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "endpoint"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"endpoint\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "categories"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "category"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
+                },
+                {
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4) || (@.type() == \"string\" && @ == $v5))",
+                  "path": [
+                    "category"
+                  ],
+                  "vars": {
+                    "v1": "ACCOUNT",
+                    "v2": "API",
+                    "v3": "READ",
+                    "v4": "WRITE",
+                    "v5": "DELETE"
+                  },
+                  "keyword": "enum",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "description"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"description\").value"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"alias\" || @.key == \"pattern\" || @.key == \"category\" || @.key == \"description\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [
+                  "alias",
+                  "category"
+                ],
+                "properties": {
+                  "alias": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "pattern": {
+                    "type": "object",
+                    "properties": {
+                      "class": {
+                        "type": "string"
+                      },
+                      "roles": {
+                        "type": "string"
+                      },
+                      "endpoint": {
+                        "type": "string"
+                      },
+                      "categories": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "category": {
+                    "enum": [
+                      "ACCOUNT",
+                      "API",
+                      "READ",
+                      "WRITE",
+                      "DELETE"
+                    ],
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "Resource"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.838352+00"
+        },
+        {
+          "id": "f8ea2a20-5167-5daa-be31-f27111d0adcb",
+          "class": "Class",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "key": [
+              "Group",
+              "Object"
+            ],
+            "ends": {
+              "Group": {
+                "class": "Resource",
+                "onDelete": "cascade",
+                "required": true
+              },
+              "Object": {
+                "class": "Resource",
+                "onDelete": "cascade",
+                "required": true
+              }
+            },
+            "kind": "link",
+            "name": "rule",
+            "fields": {
+              "required": [
+                "permission"
+              ],
+              "properties": {
+                "code": {
+                  "type": "integer"
+                },
+                "weight": {
+                  "type": "integer",
+                  "default": 0
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "message": {
+                  "type": "string"
+                },
+                "permission": {
+                  "enum": [
+                    "allow",
+                    "deny"
+                  ],
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [
+                "Group",
+                "Object"
+              ],
+              "ends": {
+                "Group": {
+                  "class": "Resource",
+                  "onDelete": "cascade",
+                  "required": true
+                },
+                "Object": {
+                  "class": "Resource",
+                  "onDelete": "cascade",
+                  "required": true
+                }
+              },
+              "kind": "link",
+              "meta": {},
+              "name": "rule",
+              "vars": {
+                "v1": "allow",
+                "v2": "deny"
+              },
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"permission\")))",
+                  "path": [
+                    "permission"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() == \"number\" && @ == @.floor())",
+                  "path": [
+                    "code"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"code\").value"
+                },
+                {
+                  "cond": "(@.type() == \"number\" && @ == @.floor())",
+                  "path": [
+                    "weight"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"weight\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
+                    "enabled"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"enabled\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "message"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"message\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "permission"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"permission\").value"
+                },
+                {
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2))",
+                  "path": [
+                    "permission"
+                  ],
+                  "vars": {
+                    "v1": "allow",
+                    "v2": "deny"
+                  },
+                  "keyword": "enum",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"permission\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "description"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"description\").value"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"code\" || @.key == \"weight\" || @.key == \"enabled\" || @.key == \"message\" || @.key == \"permission\" || @.key == \"description\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [
+                  "permission"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "integer"
+                  },
+                  "weight": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "permission": {
+                    "enum": [
+                      "allow",
+                      "deny"
+                    ],
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "rule"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.842054+00"
+        },
+        {
+          "id": "119dfcbb-59e0-5d0a-bc27-84e12f080e26",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "anonymous:ACCOUNT",
+            "pattern": {
+              "categories": "{Anonymous,Shadow}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.847182+00"
+        },
+        {
+          "id": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "authenticated:ACCOUNT",
+            "pattern": {
+              "categories": "!{Anonymous,Shadow}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.84741+00"
+        },
+        {
+          "id": "8480ebe7-78c5-5bb1-af92-d3f7345e5e31",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "any:ACCOUNT",
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.847605+00"
+        },
+        {
+          "id": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "service:ACCOUNT",
+            "pattern": {
+              "categories": "{Service}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.84782+00"
+        },
+        {
+          "id": "3dc680e8-f312-52e4-89de-f7713757ce16",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "admin:ACCOUNT",
+            "pattern": {
+              "roles": "{admin}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.848001+00"
+        },
+        {
+          "id": "ad9e1531-ea24-527b-85f6-931ff9e00720",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "any:API",
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.848212+00"
+        },
+        {
+          "id": "9af9baec-4209-5387-9fb7-b85d9b205453",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "auth:API",
+            "pattern": {
+              "endpoint": "auth.*"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.848385+00"
+        },
+        {
+          "id": "f3b9fd80-8cef-575e-abb9-c8b5b1170c43",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "letopis:API",
+            "pattern": {
+              "endpoint": "letopis.*"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.848726+00"
+        },
+        {
+          "id": "d176df5c-a823-56b3-b6d4-d145c52a45b2",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "signals:API",
+            "pattern": {
+              "endpoint": "letopis.signals"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.848898+00"
+        },
+        {
+          "id": "3490678a-6711-56d2-9d5d-9f0d23928bd0",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "8480ebe7-78c5-5bb1-af92-d3f7345e5e31",
+            "Object": "ad9e1531-ea24-527b-85f6-931ff9e00720"
+          },
+          "data": {
+            "code": 403,
+            "weight": 0,
+            "enabled": true,
+            "message": "Доступ запрещён по умолчанию",
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.849389+00"
+        },
+        {
+          "id": "4ecea0ae-3813-5c73-9ca6-e35faf0c227a",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "9af9baec-4209-5387-9fb7-b85d9b205453"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.850335+00"
+        },
+        {
+          "id": "5646a5e0-0298-5f40-9fce-59d27211a0fa",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "d176df5c-a823-56b3-b6d4-d145c52a45b2"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.851152+00"
+        },
+        {
+          "id": "1d8fc7f0-053d-5495-8bbe-ae85feaf290c",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "9af9baec-4209-5387-9fb7-b85d9b205453"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.851384+00"
+        },
+        {
+          "id": "52acc9d2-b850-59bd-980b-59717be1c8b9",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "f3b9fd80-8cef-575e-abb9-c8b5b1170c43"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.851588+00"
+        },
+        {
+          "id": "9e1249cc-5986-5314-81ae-6dd4154b5970",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:READ",
+            "category": "READ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.851791+00"
+        },
+        {
+          "id": "40fd537a-d2f9-52df-9f6b-d970b68da1cd",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.852005+00"
+        },
+        {
+          "id": "682403e8-c9ca-55f2-a8ea-62786cd83758",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:WRITE",
+            "category": "WRITE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.852169+00"
+        },
+        {
+          "id": "0342fcd5-4d89-51ac-a388-43bf77b7446e",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.852307+00"
+        },
+        {
+          "id": "42495a98-5543-51d5-a60c-5525c21b7a05",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:DELETE",
+            "category": "DELETE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.852459+00"
+        },
+        {
+          "id": "4777d615-8e88-54a2-9763-30b8a25da7e4",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.852591+00"
+        },
+        {
+          "id": "80861110-8657-5318-ae92-1421b868ad2a",
+          "class": "Account",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "name": "service",
+            "enabled": true,
+            "categories": [
+              "Service"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.858686+00"
+        },
+        {
+          "id": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
+          "class": "Account",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "name": "Мир",
+            "enabled": true,
+            "categories": []
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:42.456716+00"
+        },
+        {
+          "id": "13382de7-4d8f-5958-b804-0a6a24125fce",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
+          "owner": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
+          "links": {
+            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:42.45952+00"
+        },
+        {
+          "id": "4cc91c6d-8f4a-5878-b079-151330452d4d",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
+          "owner": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
+          "links": {
+            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+            "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:42.459968+00"
+        },
+        {
+          "id": "948c7e43-ba25-5af0-92c6-ebf21439bbdd",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
+          "owner": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
+          "links": {
+            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+            "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:42.46034+00"
+        },
+        {
+          "id": "b4bf3a6e-62ba-5668-812e-480c2b7a1558",
+          "class": "Account",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "name": "Аня",
+            "enabled": true,
+            "categories": [
+              "User"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:42.462572+00"
+        },
+        {
+          "id": "f7808007-6dc6-5659-85e7-11c35b497ef0",
+          "class": "member",
+          "rev": 1,
+          "tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
+          "owner": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
+          "links": {
+            "User": "b4bf3a6e-62ba-5668-812e-480c2b7a1558",
+            "Tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d"
+          },
+          "data": {
+            "roles": [
+              "owner"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:42.465791+00"
+        },
+        {
+          "id": "37ec5623-51c3-5885-bb0d-1aa57d1d1ec5",
+          "class": "Class",
+          "rev": 1,
+          "tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
+          "owner": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
+          "links": {},
+          "data": {
+            "kind": "hub",
+            "name": "Greeting",
+            "fields": {
+              "required": [
+                "text"
+              ],
+              "properties": {
+                "text": {
+                  "type": "string"
+                }
+              }
+            },
+            "resolved": {
+              "key": [],
+              "ends": {},
+              "kind": "hub",
+              "meta": {},
+              "name": "Greeting",
+              "vars": {},
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"text\")))",
+                  "path": [
+                    "text"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "text"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"text\").value"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"text\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [
+                  "text"
+                ],
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "Greeting"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "b4bf3a6e-62ba-5668-812e-480c2b7a1558",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:42.58975+00"
+        },
+        {
+          "id": "296a8b46-4b1c-535a-a71f-d9dc98464c25",
+          "class": "Greeting",
+          "rev": 1,
+          "tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
+          "owner": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
+          "links": {},
+          "data": {
+            "text": "Hello, world!"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "b4bf3a6e-62ba-5668-812e-480c2b7a1558",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:42.607035+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "1",
+          "id": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "rev": 1,
+          "class": "Account",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "name": "System",
+            "enabled": true,
+            "categories": [
+              "System"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.810089+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "2",
+          "id": "8377cd73-5caa-5d11-8540-03388e4e92bf",
+          "rev": 1,
+          "class": "Class",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "key": [
+              "name"
+            ],
+            "kind": "hub",
+            "name": "Class",
+            "fields": {
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [
+                "name"
+              ],
+              "ends": {},
+              "kind": "hub",
+              "meta": {},
+              "name": "Class",
+              "vars": {},
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"name\")))",
+                  "path": [
+                    "name"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "name"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"name\").value"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"name\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "Class"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.81546+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "3",
+          "id": "ddf164b8-cc60-5500-a377-c4fd4b7a6817",
+          "rev": 1,
+          "class": "Class",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "key": [],
+            "kind": "hub",
+            "name": "Account",
+            "fields": {
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "categories": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "uniqueItems": true
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [],
+              "ends": {},
+              "kind": "hub",
+              "meta": {},
+              "name": "Account",
+              "vars": {},
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"name\")))",
+                  "path": [
+                    "name"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "name"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"name\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
+                    "enabled"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"enabled\").value"
+                },
+                {
+                  "cond": "@.type() == \"array\"",
+                  "path": [
+                    "categories"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                },
+                {
+                  "cond": "true",
+                  "path": [
+                    "categories"
+                  ],
+                  "vars": {},
+                  "extra": {
+                    "kind": "unique"
+                  },
+                  "keyword": "uniqueItems",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "categories",
+                    "*"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value ? (@.type() == \"array\")[*]"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"name\" || @.key == \"enabled\" || @.key == \"categories\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "categories": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "uniqueItems": true
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "Account"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.829517+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "4",
+          "id": "4e09c113-fbc8-5cc0-8795-27e521aece0a",
+          "rev": 1,
+          "class": "Class",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "key": [
+              "User",
+              "Tenant"
+            ],
+            "ends": {
+              "User": {
+                "class": "Account",
+                "onDelete": "cascade",
+                "required": true
+              },
+              "Tenant": {
+                "class": "Account",
+                "onDelete": "cascade",
+                "required": true
+              }
+            },
+            "kind": "link",
+            "name": "member",
+            "fields": {
+              "properties": {
+                "roles": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": [],
+                  "uniqueItems": true
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [
+                "User",
+                "Tenant"
+              ],
+              "ends": {
+                "User": {
+                  "class": "Account",
+                  "onDelete": "cascade",
+                  "required": true
+                },
+                "Tenant": {
+                  "class": "Account",
+                  "onDelete": "cascade",
+                  "required": true
+                }
+              },
+              "kind": "link",
+              "meta": {},
+              "name": "member",
+              "vars": {},
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"array\"",
+                  "path": [
+                    "roles"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"roles\").value"
+                },
+                {
+                  "cond": "true",
+                  "path": [
+                    "roles"
+                  ],
+                  "vars": {},
+                  "extra": {
+                    "kind": "unique"
+                  },
+                  "keyword": "uniqueItems",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"roles\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "roles",
+                    "*"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"roles\").value ? (@.type() == \"array\")[*]"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"roles\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [],
+                "properties": {
+                  "roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "default": [],
+                    "uniqueItems": true
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "member"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.834638+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "5",
+          "id": "73bf3192-9d1c-55cd-a85c-ddecce5bedb8",
+          "rev": 1,
+          "class": "Class",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "key": [
+              "alias"
+            ],
+            "kind": "hub",
+            "name": "Resource",
+            "fields": {
+              "required": [
+                "alias",
+                "category"
+              ],
+              "properties": {
+                "alias": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "pattern": {
+                  "type": "object",
+                  "properties": {
+                    "class": {
+                      "type": "string"
+                    },
+                    "roles": {
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "type": "string"
+                    },
+                    "categories": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "category": {
+                  "enum": [
+                    "ACCOUNT",
+                    "API",
+                    "READ",
+                    "WRITE",
+                    "DELETE"
+                  ],
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [
+                "alias"
+              ],
+              "ends": {},
+              "kind": "hub",
+              "meta": {},
+              "name": "Resource",
+              "vars": {
+                "v1": "ACCOUNT",
+                "v2": "API",
+                "v3": "READ",
+                "v4": "WRITE",
+                "v5": "DELETE"
+              },
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"alias\")))",
+                  "path": [
+                    "alias"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"category\")))",
+                  "path": [
+                    "category"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "alias"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"alias\").value"
+                },
+                {
+                  "cond": "true",
+                  "path": [
+                    "alias"
+                  ],
+                  "vars": {},
+                  "extra": {
+                    "max": null,
+                    "min": 1,
+                    "kind": "length"
+                  },
+                  "keyword": "minLength",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"alias\").value"
+                },
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [
+                    "pattern"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "class"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"class\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "roles"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"roles\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "endpoint"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"endpoint\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "categories"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "category"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
+                },
+                {
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4) || (@.type() == \"string\" && @ == $v5))",
+                  "path": [
+                    "category"
+                  ],
+                  "vars": {
+                    "v1": "ACCOUNT",
+                    "v2": "API",
+                    "v3": "READ",
+                    "v4": "WRITE",
+                    "v5": "DELETE"
+                  },
+                  "keyword": "enum",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "description"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"description\").value"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"alias\" || @.key == \"pattern\" || @.key == \"category\" || @.key == \"description\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [
+                  "alias",
+                  "category"
+                ],
+                "properties": {
+                  "alias": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "pattern": {
+                    "type": "object",
+                    "properties": {
+                      "class": {
+                        "type": "string"
+                      },
+                      "roles": {
+                        "type": "string"
+                      },
+                      "endpoint": {
+                        "type": "string"
+                      },
+                      "categories": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "category": {
+                    "enum": [
+                      "ACCOUNT",
+                      "API",
+                      "READ",
+                      "WRITE",
+                      "DELETE"
+                    ],
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "Resource"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.838352+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "6",
+          "id": "f8ea2a20-5167-5daa-be31-f27111d0adcb",
+          "rev": 1,
+          "class": "Class",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "key": [
+              "Group",
+              "Object"
+            ],
+            "ends": {
+              "Group": {
+                "class": "Resource",
+                "onDelete": "cascade",
+                "required": true
+              },
+              "Object": {
+                "class": "Resource",
+                "onDelete": "cascade",
+                "required": true
+              }
+            },
+            "kind": "link",
+            "name": "rule",
+            "fields": {
+              "required": [
+                "permission"
+              ],
+              "properties": {
+                "code": {
+                  "type": "integer"
+                },
+                "weight": {
+                  "type": "integer",
+                  "default": 0
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "message": {
+                  "type": "string"
+                },
+                "permission": {
+                  "enum": [
+                    "allow",
+                    "deny"
+                  ],
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [
+                "Group",
+                "Object"
+              ],
+              "ends": {
+                "Group": {
+                  "class": "Resource",
+                  "onDelete": "cascade",
+                  "required": true
+                },
+                "Object": {
+                  "class": "Resource",
+                  "onDelete": "cascade",
+                  "required": true
+                }
+              },
+              "kind": "link",
+              "meta": {},
+              "name": "rule",
+              "vars": {
+                "v1": "allow",
+                "v2": "deny"
+              },
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"permission\")))",
+                  "path": [
+                    "permission"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() == \"number\" && @ == @.floor())",
+                  "path": [
+                    "code"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"code\").value"
+                },
+                {
+                  "cond": "(@.type() == \"number\" && @ == @.floor())",
+                  "path": [
+                    "weight"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"weight\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
+                    "enabled"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"enabled\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "message"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"message\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "permission"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"permission\").value"
+                },
+                {
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2))",
+                  "path": [
+                    "permission"
+                  ],
+                  "vars": {
+                    "v1": "allow",
+                    "v2": "deny"
+                  },
+                  "keyword": "enum",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"permission\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "description"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"description\").value"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"code\" || @.key == \"weight\" || @.key == \"enabled\" || @.key == \"message\" || @.key == \"permission\" || @.key == \"description\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [
+                  "permission"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "integer"
+                  },
+                  "weight": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "permission": {
+                    "enum": [
+                      "allow",
+                      "deny"
+                    ],
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "rule"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.842054+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "7",
+          "id": "119dfcbb-59e0-5d0a-bc27-84e12f080e26",
+          "rev": 1,
+          "class": "Resource",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "anonymous:ACCOUNT",
+            "pattern": {
+              "categories": "{Anonymous,Shadow}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.847182+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "8",
+          "id": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+          "rev": 1,
+          "class": "Resource",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "authenticated:ACCOUNT",
+            "pattern": {
+              "categories": "!{Anonymous,Shadow}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.84741+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "9",
+          "id": "8480ebe7-78c5-5bb1-af92-d3f7345e5e31",
+          "rev": 1,
+          "class": "Resource",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "any:ACCOUNT",
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.847605+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "10",
+          "id": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+          "rev": 1,
+          "class": "Resource",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "service:ACCOUNT",
+            "pattern": {
+              "categories": "{Service}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.84782+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "11",
+          "id": "3dc680e8-f312-52e4-89de-f7713757ce16",
+          "rev": 1,
+          "class": "Resource",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "admin:ACCOUNT",
+            "pattern": {
+              "roles": "{admin}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.848001+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "12",
+          "id": "ad9e1531-ea24-527b-85f6-931ff9e00720",
+          "rev": 1,
+          "class": "Resource",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "any:API",
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.848212+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "13",
+          "id": "9af9baec-4209-5387-9fb7-b85d9b205453",
+          "rev": 1,
+          "class": "Resource",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "auth:API",
+            "pattern": {
+              "endpoint": "auth.*"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.848385+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "14",
+          "id": "f3b9fd80-8cef-575e-abb9-c8b5b1170c43",
+          "rev": 1,
+          "class": "Resource",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "letopis:API",
+            "pattern": {
+              "endpoint": "letopis.*"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.848726+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "15",
+          "id": "d176df5c-a823-56b3-b6d4-d145c52a45b2",
+          "rev": 1,
+          "class": "Resource",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "signals:API",
+            "pattern": {
+              "endpoint": "letopis.signals"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.848898+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "16",
+          "id": "3490678a-6711-56d2-9d5d-9f0d23928bd0",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "8480ebe7-78c5-5bb1-af92-d3f7345e5e31",
+            "Object": "ad9e1531-ea24-527b-85f6-931ff9e00720"
+          },
+          "data": {
+            "code": 403,
+            "weight": 0,
+            "enabled": true,
+            "message": "Доступ запрещён по умолчанию",
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.849389+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "17",
+          "id": "4ecea0ae-3813-5c73-9ca6-e35faf0c227a",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "9af9baec-4209-5387-9fb7-b85d9b205453"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.850335+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "18",
+          "id": "5646a5e0-0298-5f40-9fce-59d27211a0fa",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "d176df5c-a823-56b3-b6d4-d145c52a45b2"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.851152+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "19",
+          "id": "1d8fc7f0-053d-5495-8bbe-ae85feaf290c",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "9af9baec-4209-5387-9fb7-b85d9b205453"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.851384+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "20",
+          "id": "52acc9d2-b850-59bd-980b-59717be1c8b9",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "f3b9fd80-8cef-575e-abb9-c8b5b1170c43"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.851588+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "21",
+          "id": "9e1249cc-5986-5314-81ae-6dd4154b5970",
+          "rev": 1,
+          "class": "Resource",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:READ",
+            "category": "READ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.851791+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "22",
+          "id": "40fd537a-d2f9-52df-9f6b-d970b68da1cd",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.852005+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "23",
+          "id": "682403e8-c9ca-55f2-a8ea-62786cd83758",
+          "rev": 1,
+          "class": "Resource",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:WRITE",
+            "category": "WRITE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.852169+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "24",
+          "id": "0342fcd5-4d89-51ac-a388-43bf77b7446e",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.852307+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "25",
+          "id": "42495a98-5543-51d5-a60c-5525c21b7a05",
+          "rev": 1,
+          "class": "Resource",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:DELETE",
+            "category": "DELETE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.852459+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "26",
+          "id": "4777d615-8e88-54a2-9763-30b8a25da7e4",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.852591+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "27",
+          "id": "80861110-8657-5318-ae92-1421b868ad2a",
+          "rev": 1,
+          "class": "Account",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "name": "service",
+            "enabled": true,
+            "categories": [
+              "Service"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:41.858686+00",
+          "tx": "3880726"
+        },
+        {
+          "seq": "28",
+          "id": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
+          "rev": 1,
+          "class": "Account",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "name": "Мир",
+            "enabled": true,
+            "categories": []
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:42.456716+00",
+          "tx": "3880728"
+        },
+        {
+          "seq": "29",
+          "id": "13382de7-4d8f-5958-b804-0a6a24125fce",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
+          "links": {
+            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:42.45952+00",
+          "tx": "3880728"
+        },
+        {
+          "seq": "30",
+          "id": "4cc91c6d-8f4a-5878-b079-151330452d4d",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
+          "links": {
+            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+            "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:42.459968+00",
+          "tx": "3880728"
+        },
+        {
+          "seq": "31",
+          "id": "948c7e43-ba25-5af0-92c6-ebf21439bbdd",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
+          "links": {
+            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
+            "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
+          },
+          "data": {
+            "weight": 10,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:42.46034+00",
+          "tx": "3880728"
+        },
+        {
+          "seq": "32",
+          "id": "b4bf3a6e-62ba-5668-812e-480c2b7a1558",
+          "rev": 1,
+          "class": "Account",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "name": "Аня",
+            "enabled": true,
+            "categories": [
+              "User"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:42.462572+00",
+          "tx": "3880728"
+        },
+        {
+          "seq": "33",
+          "id": "f7808007-6dc6-5659-85e7-11c35b497ef0",
+          "rev": 1,
+          "class": "member",
+          "tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
+          "links": {
+            "User": "b4bf3a6e-62ba-5668-812e-480c2b7a1558",
+            "Tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d"
+          },
+          "data": {
+            "roles": [
+              "owner"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:42.465791+00",
+          "tx": "3880728"
+        },
+        {
+          "seq": "34",
+          "id": "37ec5623-51c3-5885-bb0d-1aa57d1d1ec5",
+          "rev": 1,
+          "class": "Class",
+          "tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
+          "links": {},
+          "data": {
+            "kind": "hub",
+            "name": "Greeting",
+            "fields": {
+              "required": [
+                "text"
+              ],
+              "properties": {
+                "text": {
+                  "type": "string"
+                }
+              }
+            },
+            "resolved": {
+              "key": [],
+              "ends": {},
+              "kind": "hub",
+              "meta": {},
+              "name": "Greeting",
+              "vars": {},
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"text\")))",
+                  "path": [
+                    "text"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "text"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"text\").value"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"text\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [
+                  "text"
+                ],
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "Greeting"
+              ],
+              "ownerDefault": "tenant"
+            }
+          },
+          "tags": [],
+          "op": "create",
+          "author": "b4bf3a6e-62ba-5668-812e-480c2b7a1558",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:42.58975+00",
+          "tx": "3880730"
+        },
+        {
+          "seq": "35",
+          "id": "296a8b46-4b1c-535a-a71f-d9dc98464c25",
+          "rev": 1,
+          "class": "Greeting",
+          "tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
+          "links": {},
+          "data": {
+            "text": "Hello, world!"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "b4bf3a6e-62ba-5668-812e-480c2b7a1558",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 19:05:42.607035+00",
+          "tx": "3880732"
+        }
+      ],
+      "secret": [],
+      "signals": [
+        "Class",
+        "Greeting"
+      ]
+    }
+  ]
+}

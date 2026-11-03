@@ -4,6 +4,320 @@
 «Версии и совместимость» в README; шаг версии сверяет `npm run check:semver`. С 1.4.2 у правки ядра (библиотеки и SQL)
 в конце пункта указан источник находки: «Источник: тест», «пример», «сервис», «ревью», «soak» или «внедрение».
 
+## [3.0.0] — 2026-11-03
+
+Мажор: безопасность по умолчанию и журнал событий. Удаление и восстановление без сверки с тем, что видел пользователь,
+теперь отказ, а не молчаливое действие; `createTenant` проверяет свой первый аргумент; вместо голых `TypeError` и
+вводящих в заблуждение отказов — ошибки letopis с подсказкой. Ревизия движка 9 → 11: схему 2.x обновляет
+`up({ schema, upgrade: true })` (миграции `sql/migrate/0010-impersonation-no-account.sql` — новое тело `ctx()`, и
+`sql/migrate/0011-key-lock.otp-enabled.sql` — новые тела функций входа по ключу, отзыва креда, OTP и TOTP; раздел
+«Исправления»).
+
+### Переход на 3.0
+Что ломается и как переписать:
+
+- **`delete({ confirm: true })` без `expect`** — отказ `invalid_query`, ключ `write.confirm_without_expect`, ничего не
+  удалено. Удаляйте ровно показанное превью:
+
+  ```ts
+  const preview = await db.Item(id).delete().rows();          // показать пользователю
+  await db.Item(id).delete({ confirm: true, expect: preview }).rows();
+  ```
+
+  Где удаление без превью — осознанный замысел (служебная чистка, удаление, подтверждённое в окне без показа
+  каскада), — `delete({ confirm: true, all: true })`: удалить текущий состав целей без сверки (без фильтра — все
+  строки класса, как прежде `all: true`). Правило одно для цепочек, `db.begin()`, `db.batch()` и `db.as()`.
+- **`restore()` без `expect`** — отказ `invalid_query`, ключ `write.restore_without_expect`, ничего не восстановлено, и
+  для явных id тоже (`db.Item(id).restore()`): между удалением и восстановлением объект могли вернуть, изменить и удалить
+  снова — `restore()` вернул бы надгробие, которого пользователь не видел. Передавайте надгробия:
+
+  ```ts
+  const gone = await db.Item(id).delete({ confirm: true, expect: preview }).rows();
+  await db.Item(id).restore({ expect: gone }).rows();
+  // или по корзине: const tomb = await db.Item(id).withDeleted().rows(); restore({ expect: tomb })
+  ```
+
+  Вернуть то, что можно, — `restore({ expect, partial: true })`; осознанно вернуть все удалённые цели шага без сверки —
+  `restore({ all: true })`. Предупреждение `write.restore_no_filter` снято: без `expect` и `all` теперь отказ.
+- **`createTenant(admin, …)`** — `admin` обязан быть пулом `postgres()` (функция с `begin` и `unsafe`); строка DSN,
+  подключение `connect()` letopis, `undefined` или другой объект — отказ `invalid_query`, ключ
+  `api.create_tenant_admin` (раньше — `TypeError: sql.begin is not a function`). Имя схемы нормализуется как в
+  `connect()` и `up()`: `createTenant(admin, 'salon', …)` работает со схемой `v2.salon` (раньше — сырая ошибка
+  PostgreSQL `42P01`).
+- Типы опций: `delete(opts?: DeleteOptions)` и `restore(opts: RestoreOptions)` (новые экспортируемые типы) —
+  `delete({ confirm: true })` без `expect` и `all`, а также `restore()` без аргумента TypeScript отклоняет при
+  компиляции. `confirm` — литерал `true`, а не `boolean`.
+- `svc.as(id)` с id аккаунта, которого нет (не заводили или удалён), — `target_not_found`, ключ
+  `sql-core.impersonation_no_account` «аккаунт … не найден» (раньше — `acl_denied` «действовать от имени этого аккаунта
+  нельзя», как запрет прав). Запрет (System, сервис, системный администратор, выключенный аккаунт) — как прежде
+  `acl_denied`.
+- Связь, переданная полем данных (`create({ …, Member: id })`), — `invalid_data` с новым ключом `write.link_in_data`
+  вместо `api.validation_failed_end`: текст сам называет ключи и синтаксис `.Роль.set(id)`. Ключ находит и имя класса
+  на конце, если роль называется иначе. Код ошибки прежний.
+- `connect({ apiKey | service | token })` со значением `null`, `''` (или не строкой) — отказ `invalid_data`, ключ
+  `api.connect_empty_credential`, до подключения (раньше — подключение без сессии и `no_session` на первой записи;
+  частый случай — повторный `up()` вернул `serviceKey: null`). Опция со значением `undefined` — как прежде, опции нет.
+  Источник: ревью.
+
+### Логирование
+- Журнал событий: `connect({ log, logLevel, redact })` и `up({ log, logLevel, redact })`. `log` — функция
+  `(event) => void` или объект с методами `debug`/`info`/`warn`/`error` (pino, `console`): вызов
+  `logger[level](event, event.event)`. `logLevel` — `'debug' | 'info' | 'warn' | 'error' | 'off'`, по умолчанию
+  `'info'`; ниже порога событие не собирается. `LETOPIS_LOG=<уровень>` — если `log` не передан, события пишутся
+  JSON-строками в stderr. CLI: `letopis <команда> --log[=уровень]`.
+- Событие: `{ ts, level, event, op, ms, tenant, account, tx, chain, rows, code, key, detail }`, у ошибок ещё `cause`.
+  Секреты (пароли, токены, ключ сервиса, пароль в DSN, значения секретов) маскируются всегда; `redact: string[]` —
+  дополнительные имена полей. `onQuery` остаётся; каждый SQL — ещё и событие `sql` уровня `debug`.
+- События: `connect`, `close`, `up`, `migrate`, `sync`, `read`, `cache.hit`, `cache.miss`, `write`, `delete.preview`,
+  `delete`, `restore`, `tx.begin`, `tx.commit`, `tx.rollback`, `tx.retry`, `auth.login`, `auth.logout`, `auth.revoke`,
+  `auth.switch`, `watch.start`, `watch.stop`, `signal`, `maintain`, `warning`, `error`, `sql`. Уровни: `write`,
+  `delete`, `restore`, `auth.*`, `up`, `migrate`, `sync`, `maintain` — `info`; `warning`, `tx.retry` — `warn`;
+  `error` — `error`, а у штатного отказа — `warn` (ниже); `read`, `cache.*`, `tx.begin`, `tx.commit`, `sql`,
+  `delete.preview` — `debug` (`tx.commit` транзакции с записью — `info`, ниже). Каталог событий —
+  `lib/src/messages/log.ts`, слой — `lib/src/log.ts`.
+- Ошибка PostgreSQL в событии `error` (сама или причиной ошибки letopis, поле `cause`) — только SQLSTATE и имена объектов
+  схемы (`constraint`, `table`, `column`, `schema`, `datatype`, `routine`); её текст, `DETAIL`, `WHERE`, `HINT` и
+  внутренний запрос в журнал не пишутся: в них бывают значения параметров и данных («Key (email)=(…)»,
+  «invalid input syntax for type uuid: "…"»). У ошибки letopis параметры шаблона `value` и `text` в `msg` — `***`
+  (`query.bad_uuid`, `api.db_bad_value`, курсоры), у строк в `detail` (превью удаления `write.preview_changed`, снимки
+  `restore`) поле `data` — `***`. Сама ошибка, которую получает приложение, не меняется. Те же правила — у предупреждений
+  `time.maintain_failed` и `log.notify_failed`. Источник: ревью.
+- Штатный отказ — событие `error` уровня `warn`: коды `exists`, `conflict`, `target_not_found`, `not_deleted`,
+  `delete_restricted`, `acl_denied`, `tenant_denied`, `no_session`, `duplicate`, `deleted`, `confirmation_required` и
+  `invalid_data` с нарушениями данных (`err.issues`); прочие — уровня `error`. Источник: ревью.
+- Фиксация в журнале: в `db.begin()` события записи (`write`, `delete`, `restore`, `raw`, `acl.change`, `auth.*` с
+  записью) несут поле `tx`; `tx.commit` такой транзакции — уровня `info` с `detail.writes` (число операций записи),
+  без записи — `debug`; `tx.rollback` — `info` с `detail.writes`. Событие записи с `tx` фиксацию не доказывает —
+  доказывает `tx.commit` с тем же `tx`; вне `db.begin()` событие записи пишется после `COMMIT`. `tx.commit` у
+  `db.transaction(fn)` (сырой SQL) — всегда `info`. Источник: ревью.
+- Событие `up` — `detail.schema` (фактическое имя схемы) и `detail.requested`, если имя передано без префикса версии
+  (`'salon'` → `'v2.salon'`); ответ `up()` — поле `schema`, как прежде. Источник: ревью.
+
+### Добавлено
+- `delete({ confirm: true, all: true })` и `restore({ all: true })` — осознанное действие без сверки (см. «Переход на
+  3.0»). Экспорт типов `DeleteOptions`, `RestoreOptions`.
+- `syncModels` до записи проверяет имена ролей концов: имя роли одно на арендатора, и роль, занятая системным классом
+  (`User`, `Tenant` — класс `member`, ведут на `Account`; `Group`, `Object` — класс `rule`, ведут на `Resource`), может
+  вести только туда же. Иначе `invalid_class`, ключ `model.end_role_system` «имя роли Group в классе Item занято
+  системным классом rule (там Group ведёт на Resource) — выберите другое имя роли, например Team»; роль, которая в другом
+  классе арендатора ведёт на другой класс, — `model.end_role_taken` (раньше — только отказ базы
+  `sql-write.end_other_class` «конец Group в классе rule ведёт на другой класс»). Источник: ревью.
+- `sort('code')` — имя поля данных без префикса — отказ с подсказкой «— может быть, data.code?» (ключ
+  `query.sort_field_data`); имя без `data.` не принимается: колонки `at`, `rev`, `id` и поле данных с тем же именем
+  разошлись бы. Источник: ревью.
+- `api-contract.json` (машинный контракт API и ошибок) входит в пакет. Источник: ревью.
+
+### Изменено
+- `versions()` — по-прежнему терминал (промис строк), но метод цепочки на его результате (`versions().rows()`,
+  `versions().sort(…)`) — `invalid_query`, ключ `api.versions_terminal`, с подсказкой «модификаторы — до
+  `versions()`» вместо `TypeError: … rows is not a function`. Источник: внедрение.
+- Инструмент MCP `letopis_write` (op `delete`) удаляет с `expect` — превью, которое подтвердил человек; расхождение под
+  блокировкой — `conflict` (`write.preview_changed`), ничего не удалено. Параметры инструмента прежние.
+- `db.acl.revoke()` и `db.acl.roles(account, null)` удаляют правила и членство как осознанное действие
+  (`{ confirm: true, all: true }`); поведение прежнее.
+- Подсказки об удалённом арендаторе, пользователе и членстве в `createTenant` (`boot.tenant_deleted` и соседние) и кода
+  `not_deleted` называют `restore({ expect })` с надгробием из `withDeleted().rows()`.
+- Текст кода `conflict` в каталоге перечисляет все случаи: `update` с `{ rev }` (`write.rev_conflict`),
+  `delete({ confirm: true, expect })` с изменившимся превью или исчезнувшими целями (`write.preview_changed`,
+  `detail.preview: []`), `restore({ expect })` объекта, который меняли после удаления (`write.restore_stale`).
+  Подсказка `acl_denied` называет `db.acl.grant` (класс `rule`). Источник: ревью.
+- Описание пакета в `package.json` — по-русски; агенту — `AGENT-CHEATSHEET.md` и `llms.txt` в пакете, исходный код
+  доступен (PolyForm Noncommercial 1.0.0).
+
+### Удалено
+- Ключ каталога `api.validation_failed_end` (заменён `write.link_in_data`) и предупреждение `write.restore_no_filter`.
+
+### Исправления
+- Вход по ключу (`connect({ apiKey })`, `db.auth.verifyApiKey`, `db.auth.verifyKeySecret`) и отзыв ключа
+  (`db.auth.revokeCredential`) синхронизированы по строке ключа: вход берёт её `for share`, отзыв — `for update`. Раньше
+  сессия, открытая входом параллельно с отзывом, переживала отзыв: её токен оставался действующим. Теперь отзыв ждёт
+  фиксации такого входа и гасит его сессию, а вход после отзыва ключа не находит. Источник: ревью.
+- Код OTP и фактор TOTP, отключённые `setFlags(id, { enabled: false })`, не принимаются: `verifyOtp` — `null`,
+  `verifyTotp` и вход с `totp` — отказ, `totpEnabled` — `false`, и для смены своих кредов отключённый TOTP не требуется.
+  Раньше проверка кодов флаг не учитывала, и верный код отключённого OTP выдавал сессию. Источник: ревью.
+- Загрузчик сверяет цель вне загрузки со всеми ролями, где встречается её id: id объекта `Org` в ролях `OrgRef → Org`
+  и `StaffRef → Staff` — `target_not_found` по второй роли. Раньше проверялась только первая ссылка на id, неверная
+  вторая записывалась (триггеры загрузку не страхуют). Источник: ревью.
+- Загрузчик: класс строки, удалённый между первым чтением реестра и блокировкой семейства, — отказ `invalid_class`
+  (`write.load_class_not_found`), ничего не записано. Раньше строки писались по прежнему описанию удалённого класса.
+  Источник: ревью.
+- Слот со вложенной цепочкой с глаголом и читающим хвостом (`.OrgRef.set(db.Org(id).Ref().create(…).Org())`) получал
+  у непустого результата id `undefined` — конец не ставился. Теперь — id строк хвоста. Источник: ревью.
+- Чтение семейства, где потомок переопределил тип поля (`Item.price` — число, `Gift.price` — строка `'free'`):
+  `sort('data.price')`, сравнения (`gt`, `between`, `inList` …) и агрегаты `min`, `max`, `sum`, `avg` больше не падают
+  ошибкой приведения. Если у классов шага тип поля разный, значение, которое не приводится к типу поля класса шага, —
+  `null`: при сортировке по возрастанию стоит после прочих, условию сравнения не отвечает, агрегат его пропускает;
+  приводимое (`'7'`) сравнивается как число. Курсор `after()` такой строки — как курсор `null`. Источник: ревью.
+- `lostRules()` и `syncModels().lost` сообщают о проверках `z.object(…).refine()`, `.superRefine()`, `.check()` на
+  уровне объекта (путь — имя класса, `kind: 'refine'`); раньше они терялись молча. Источник: ревью.
+- `paths()`: ключ повторного шага — первый свободный суффикс среди всех выданных ключей (алиасы `x`, `x_2`, `x` →
+  `x`, `x_2`, `x_3`). Раньше третий узел получал ключ `x_2` и затирал второй. Источник: ревью.
+
+## [2.1.0] — 2026-11-03
+
+Правки по прогонам первых пользователей и агентов. Новые опции необязательны. Что меняется для работающего кода —
+три места, каждое ниже отдельной строкой: **смысл `withDeleted()` не у последнего шага** (теперь — модификатор своего
+шага), **ошибка PostgreSQL `22P02` приходит `LetopisError` с кодом `invalid_query`** (раньше — сырая ошибка
+postgres.js, в том числе у `db.sql`) и **`syncModels` отклоняет преобразования Zod**. Прочие новые отказы — там, где
+раньше была сырая ошибка PostgreSQL, `TypeError` или молчаливая ошибка (`db.begin(fn)` и неизвестная опция
+`db.begin()`, гонка `delete({ confirm, expect })`). Ревизия движка 8 → 9: схему 2.0 обновляет
+`up({ schema, upgrade: true })` (миграция `sql/migrate/0009-restore-rev.tenants-name.sql`).
+
+### Добавлено
+- `restore({ expect })` — восстановить ровно то, что ушло удалением: `expect` — надгробия `{ id, rev }` из ответа
+  `delete()` или `withDeleted()`. Восстанавливаются только цели из `expect`, и только если последняя версия каждой — то
+  же надгробие; иначе ничего не восстановлено, а отказ называет причину (строка ниже). Номер версии база сверяет ещё
+  раз под блокировкой записи журнала: `restore(id, rev)` в SQL. Источник: внедрение.
+- `restore({ expect, partial: true })` — вернуть удаление целиком, насколько можно: восстанавливаются цели, у которых
+  совпал `rev`, а остальные не роняют операцию и приходят в ответе строками `{ …строка, $action: 'skip', $why }`,
+  `$why` — `'restored'` (уже восстановлена), `'reissued'` (id занял новый объект с тем же ключом) или `'changed'`
+  (после показанного удаления её меняли: удалили снова и т. п.); строка-пропуск — последняя версия цели (живая или
+  надгробие). Проигранная гонка с другим `restore()` тоже становится пропуском. `partial` без `expect` — `invalid_query`
+  (`write.partial_without_expect`). Продолжение цепочки после `restore()` идёт только от восстановленных. Источник:
+  агенты.
+- Отказы `restore()` — по смыслу, по записи журнала за последним надгробием цели (и в проверке до записи, и в базе под
+  блокировкой — проигравший гонку видит версию победителя):
+  - за надгробием `restore` — объект уже восстановлен: `not_deleted`, новый ключ `write.restore_already` (в базе
+    `sql-time.restore_already`);
+  - за надгробием `create` — id занял новый объект с тем же ключом (`create()` по ключу удалённого): `not_deleted`,
+    `write.restore_id_taken` (в базе `sql-time.restore_id_taken`);
+  - прочее (удалён снова с другим `rev`, не удалялся, гонка) — `conflict`, `write.restore_stale`.
+
+  У всех трёх `err.detail.ids` — id этого вида; с `expect` `err.detail.stale` — все цели, которые не восстановить:
+  `{ id, rev, expected, after, deleted, live, why }` (`rev` — последняя версия сейчас, `after` — вид записи журнала
+  сразу за `expected`, `null` — её нет; `deleted` — последняя версия — надгробие; `live` — объект живёт; `why` — как
+  `$why`). Несколько целей разного вида — `restore_stale`, если есть `changed`, иначе `restore_id_taken`, если есть
+  `reissued`. Источник: внедрение, агенты.
+- `delete({ confirm: true, expect: превью })` — удалить ровно показанное: превью строится заново в транзакции удаления и
+  сравнивается с `expect` по `id`, `rev` и `$action`; расхождение — `conflict` (`write.preview_changed`, новое превью —
+  `err.detail.preview`). Атомарно под гонкой: всё замыкание каскада (строки превью с `$action: 'delete'`) блокируется
+  `for update` в порядке id, превью пересчитывается уже под блокировкой. Связь к удаляемой цели, вставленная раньше,
+  попадает в новое превью (`preview_changed`); вставленная позже ждёт удаления и получает `end_target_missing` —
+  непоказанное больше не уходит каскадом. Пустые цели: `expect: []` и целей нет — пустой ответ; `expect` непуст, а целей
+  нет (удалены, невидимы) — `conflict` с пустым `err.detail.preview`. `expect` без `confirm` — `invalid_query`.
+  Взаимоблокировку двух удалений повторяет операция из пула (`40P01`), в `db.begin()` — вызывающий. Источник:
+  внедрение.
+- `db.auth.revoke(token)` — выход пользователя по токену его сессии (право `auth.session`, как у `session(token)`);
+  без аргумента — как прежде, выход подключения. Функция базы `auth_logout_token(text)`. Источник: внедрение.
+- `db.auth.tenants()` — у арендатора ещё `name` (имя аккаунта арендатора) и `personal` (собственный арендатор).
+  Источник: внедрение.
+- Путь через удалённый узел одной цепочкой: `db.Member(id).withDeleted().Loan().withDeleted()` — удалённые выдачи
+  удалённого участника (`withDeleted()` — модификатор своего шага, см. «Изменено»). Источник: внедрение.
+- `versions()` шага с явными id отдаёт и историю удалённого объекта. Источник: внедрение.
+- `connect({ schema: 'salon' })` — имя без точки дополняется до `v2.salon`, как у `up()`. Источник: агенты.
+- Экспорт типа `Expected` (`{ id, rev, $action? }`) — строка `expect`.
+
+### Изменено
+- **Изменение смысла: `withDeleted()` — модификатор своего шага, а не всей выборки.** У последнего шага — как прежде:
+  `db.Order(o).line().withDeleted()` — живые и удалённые строки живого заказа. Не у последнего — другой ответ:
+  - было: `db.Order(o).withDeleted().line()` — живые и удалённые **строки** живого заказа (флаг относился к последнему
+    шагу, где бы ни стоял);
+  - стало: тот же вызов — заказ с удалёнными, а **строки только живые**; на такой вызов выводится предупреждение
+    `api.with_deleted_step` (один раз на пару шагов).
+  - Код, который ставил `withDeleted()` раньше последнего шага, переносят в конец: `db.Order(o).line().withDeleted()`;
+    удалённые строки удалённого заказа — `db.Order(o).withDeleted().line().withDeleted()`. Опция `withDeleted`
+    инструмента MCP `letopis_query` — по-прежнему последнему шагу. В цепочке записи `withDeleted()` любого шага, кроме
+    шагов `restore()`, — `invalid_query`, как прежде у модификатора цепочки. Источник: внедрение.
+- **Ошибка PostgreSQL `22P02` (значение не того типа) — `LetopisError` с кодом `invalid_query`.** Где бы она ни
+  возникла — в цепочке, в `db.sql`, `db.transaction(fn)` или `tr.sql` в `db.begin()`:
+  - было: сырая ошибка postgres.js, `err.code === '22P02'`, текст PostgreSQL (`invalid input syntax for type uuid:
+    "42"`);
+  - стало: `err instanceof LetopisError`, `err.code === 'invalid_query'`, `err.key === 'api.db_bad_value'`, текст —
+    `letopis: invalid_query: значение не того типа: invalid input syntax for type uuid: "42"`; исходная ошибка
+    PostgreSQL — в `err.cause` (`err.cause.code === '22P02'`).
+  - Проверку `err.code === '22P02'` меняют на `err.code === 'invalid_query'` (SQLSTATE — из `err.cause.code`). Неверный
+    id шага, фильтра `{ id }` или конца в цепочке до базы больше не доходит — строка о `query.bad_uuid` ниже. `40001` и `40P01`
+    приходят как прежде. Источник: агенты.
+- Фильтр `update()`, суженный не только по id (данные, концы, `tags()`, `owner()`), перепроверяется: цели
+  блокируются (`for no key update`) и читаются заново, правятся только строки, которые после ожидания блокировки ещё
+  подходят. Без гонки — те же цели. Источник: внедрение.
+- `syncModels` (и `letopis sync`) отклоняет преобразования Zod — `.trim()`, `.toLowerCase()`, `.transform()`,
+  `z.preprocess()`, `.pipe()`: база и валидатор их не исполняют, данные записались бы как есть (`invalid_class`,
+  `model.transform_unsupported`). `refine` по-прежнему в отчёте `lost`. Источник: агенты.
+- Неверный id шага, фильтра `{ id }` или конца — `invalid_query` (`query.bad_uuid`) до запроса вместо сырой ошибки
+  PostgreSQL 22P02, `null` как id — тот же отказ вместо `TypeError`; id в любом виде, который принимает PostgreSQL,
+  проходит как прежде. Источник: агенты.
+- Текст `invalid_data` называет первое нарушение («путь — сообщение») и число нарушений; сообщение нарушения
+  перечисления называет допустимые значения, лишнего ключа — сам ключ (`sql-core.issue_additional`,
+  `model.issue_additional`); лишний ключ — имя конца класса — подсказка «конец — из пути или `.Роль.set()`»
+  (`api.validation_failed_end`, в `update()` — до записи). У класса с правилами только для базы (`pattern`) ошибка до
+  записи несёт полный список нарушений — его даёт база (`validate_row`). Путь и ключевое слово нарушений не менялись.
+  Источник: агенты.
+- Неизвестный шаг: подсказка о классах арендатора (`auth.tenants()` → `auth.switch()` / `db.as(…, { tenant })`); если в
+  реестре сессии нет ни одного класса арендатора — свой ключ `api.unknown_step_no_classes`; системные классы в
+  «похожие» не идут. `.length`, `.map()`, `[0]` и другие свойства массива у цепочки и её перебор — `invalid_query`
+  (`api.chain_not_rows`). Источник: агенты.
+- Предупреждения (не отказы, `console.warn` один раз на место): шаг с аргументом `undefined`
+  (`api.step_undefined_filter`), шаг после `sort()` (`api.sort_not_last`), `restore()` без сужения и `expect`
+  (`write.restore_no_filter`), `withDeleted()` не у последнего шага (`api.with_deleted_step`). Источник: агенты.
+- `undefined` в данных `create()` и `upsert()` отбрасывается, как в патче `update()`. Источник: агенты.
+- `close()` у фасада `db.as()` ничего не закрывает: пул общий с корнем. Источник: агенты.
+- Логин без крайних пробелов в `auth.setPassword()`, `auth.verifyPassword()` и `createTenant({ user })`; кред,
+  записанный раньше с пробелами, находится по логину как есть. Источник: агенты.
+- Подсказка `no_session` неверного ключа сервиса: ключ перевыпускает `up({ fresh: true })`. Источник: агенты.
+- `connect({ token })` с токеном, который не даёт сессии (погашен `auth.revoke`, истёк, неверен), — отклонённый промис
+  `no_session` (`api.token_not_active`), а не подключение, где первый же шаг давал `invalid_class` про личный арендатор.
+  Если сессия погасла после `connect()`, неизвестный шаг у фасада с токеном без арендатора сессии — тот же отказ, но
+  терминалом (отклонённым промисом), а не синхронным выбросом. Источник: внедрение.
+- `db.begin(аргумент)` — только опции `{ reason }`: функция, строка, число, массив — `invalid_query`
+  (`api.begin_arg`, подсказка — форма `begin()` / `commit()` / `rollback()`); раньше `begin(fn)` функцию не вызывал,
+  а транзакция оставалась открытой. Неизвестная опция — `invalid_data` с похожими (`api.unknown_option`). Источник:
+  внедрение.
+- Нарушение `minLength` / `maxLength` называет границу: «длина строки меньше {limit}» / «больше {limit}» (ключи
+  `model.issue_string_too_short`, `model.issue_string_too_long`, в базе `sql-core.issue_string_too_short`,
+  `sql-core.issue_string_too_long` вместо `*.issue_string_length`); путь и ключевое слово нарушения не менялись.
+  Источник: внедрение, агенты.
+- `forUpdate()` с тем, что блокировать нельзя (`lock_unsupported`, `api.for_update_unsupported`), называет помеху —
+  терминал (`count()`, `paths()`, `versions()`, агрегат), `asOf()`, `withDeleted()`, `deep()` или глагол, — а подсказка
+  перечисляет допустимое и форму «прочитать с блокировкой, затем править». Источник: агенты.
+
+### Лицензия
+- **Смена лицензии: MIT → PolyForm Noncommercial License 1.0.0** (SPDX `PolyForm-Noncommercial-1.0.0`, поле
+  `license` в `package.json`): исходный код открыт, некоммерческое использование бесплатно, коммерческое — по
+  разрешению владельца (`LICENSE-COMMERCIAL.md` в пакете: что считается коммерческим использованием и как получить
+  лицензию — issue на https://github.com/alepri51/letopis/issues). Новая лицензия действует с 2.1.0; версии до 2.0.0
+  включительно выпущены под MIT и остаются под ней. `LICENSE` в корне и в пакете — полный текст PolyForm
+  Noncommercial 1.0.0 со строкой `Required Notice: Copyright 2026 alepri51 (https://github.com/alepri51)`; раздел
+  «Лицензия» в README, строки в шпаргалке и `llms.txt`. `check:docs` узнаёт лицензию по заголовку текста.
+
+### Документация
+- `README.md`, `AGENT-CHEATSHEET.md`, `llms.txt` — под поведение 2.1: `restore({ expect })` и
+  `delete({ confirm, expect })`, выход по токену `auth.revoke(token)` с рецептом веб-сервиса, `auth.tenants()` с
+  `name` и `personal` и рецепт «арендаторы пользователя для сервиса», `withDeleted()` по шагу (таблица цепочек),
+  `versions()` удалённого и форма версии (`op`, `links`, `data`, `$deleted`, порядок без `sort()`), перепроверка
+  фильтра `update()`, `connect({ schema: 'имя' })`, отказ преобразований Zod, предупреждения, новые ключи ошибок,
+  `22P02` — `invalid_query` (раздел «Ошибки» и «Сырой SQL»). Удалено «id не uuid — сырая ошибка 22P02».
+- Удаление и восстановление (README, раздел 7): занятость держит ключ связи; `create()` по ключу удалённого занимает
+  его id — перед `create()` проверка `X({ ключ }).withDeleted()`; надгробия для `expect` — из ответа `delete()` или
+  `withDeleted()` (строки `asOf` — живые версии); цель и каскад — в одной `db.begin()`; причина удаления — своя у
+  каждого удаления; таблица штатных ответов `restore()` (`not_deleted`, `restore_stale`, `target_not_found`, пустой)
+  с сообщением пользователю «вещь уже у другого».
+- Рецепты: `syncModels` в нескольких арендаторах, текст для пользователя из `err.issues`.
+- Шпаргалка (`AGENT-CHEATSHEET.md`), раздел 6 — готовый рецепт «одна открытая выдача на вещь (ключ связи по вещи),
+  удаление участника по превью `delete({ confirm, expect })`, возврат `restore({ expect, partial: true })` с показом
+  пропусков `$why`» и вариант без `partial` с разбором `err.detail.stale`; форма превью и `err.detail.preview`, форма
+  `expect`; новый раздел «Веб-сервис безопасно»: арендатор только из серверной сессии, одно подключение сервиса и
+  `svc.as(account, { tenant })` на запрос вместо `connect({ token })` на каждый вход, экранирование `& < > " '` без
+  обработчиков из данных, ключ сервиса — файл с правами владельца вне репозитория (то же — README, раздел 10, и
+  `llms.txt`).
+- `versions()` по пути — только живые объекты (шпаргалка, раздел 10), история вещи, пока участник удалён, и что видно
+  через `withDeleted()`, когда id надгробия занят новой записью; `createTenant` — аргументы и ответ; `db.idOf` по концу
+  связи; `syncModels` через `svc.as()` без администраторского подключения; «Грабли» — `.nullable()`: `null`, а не
+  `undefined`.
+- Отказы второго раунда описаны в README («Восстановить: `restore`», «Строгий режим», «Ошибки»), шпаргалке и
+  `llms.txt`: `write.restore_already`, `write.restore_id_taken` и `write.restore_stale` по смыслу с `err.detail.stale`
+  (`after`, `live`, `why`), `write.partial_without_expect`, `api.begin_arg`, `api.token_not_active` у `connect({ token })`,
+  граница длины строки в тексте нарушения, `api.for_update_unsupported` с помехой; атомарность
+  `delete({ confirm, expect })` под гонкой.
+
+### Ревизия движка 9
+- `restore(uuid, int default null)` вместо `restore(uuid)`; `auth_tenants()` — ещё `name`, `personal`; новые
+  `auth_logout_token(text)`, `validate_row(text, jsonb)`, `issue_values(jsonb)`; `validate_data` — сообщения с
+  допустимыми значениями и лишними ключами, граница длины строки.
+- `restore()`: последняя запись журнала перечитывается после ожидания блокировки; отказы `sql-time.restore_already`
+  (новый), `sql-time.restore_id_taken` (`detail` — `{ id, rev }`), `sql-time.restore_stale` (`detail` —
+  `{ id, rev, expected, after, deleted, live }`).
+
 ## [2.0.0] — 2026-11-03
 
 План 2.0, редакция 2 (`reports/PLAN-LETOPIS-2.0.md`, §2.1): 1.5.0 не выпускается — его работа (этап 3: права, один

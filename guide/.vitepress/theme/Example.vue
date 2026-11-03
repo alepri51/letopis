@@ -1,12 +1,14 @@
 <script setup lang="ts">
 /**
- * Пошаговый плеер исполняемого примера.
- * Данные — снимок прогона на настоящей базе (`snapshots/<id>.json`, пишет `npm run examples`):
- * код шага, его результат или ошибка и таблицы entity, log, secret после шага с подсветкой изменений.
+ * Исполняемый пример: самостоятельная программа и, по клику, пошаговый показ того, что она делает в базе.
+ * Программа — слот компонента: её HTML собирает при сборке `.vitepress/preview.ts` (заголовок, полный скрипт с кнопкой
+ * «Копировать», как запустить, ожидаемый вывод). Пошаговый плеер свёрнут: снимок прогона на настоящей базе
+ * (`examples/_snapshots/<id>.json`, пишет `cd examples && npm run snapshots`) грузится только по кнопке «Пошагово: что
+ * происходит в базе» — код шага, его результат или ошибка и таблицы entity, log, secret после шага с подсветкой изменений.
  * В снимке вместо uuid, времени и токенов — метки; настоящие значения того же прогона лежат рядом
- * (`snapshots/<id>.real.json`) и показываются на вкладке «Реальная таблица». Файла может не быть — тогда вкладки нет.
+ * (`examples/_snapshots/<id>.real.json`) и показываются на вкладке «Реальная таблица». Файла может не быть — тогда вкладки нет.
  */
-import { computed, nextTick, onMounted, ref, shallowRef, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, shallowRef, useSlots, watch } from 'vue';
 import Sandbox from './Sandbox.vue';
 import { players, report } from './sync';
 import { keepHash } from './anchor';
@@ -59,49 +61,103 @@ interface Real {
 
 // sandbox — открыть редактор песочницы сразу (страница «Песочница»)
 const props = defineProps<{ id: string; sandbox?: boolean }>();
+const slots = useSlots();
 // снимки с метками; *.real.json грузятся отдельно, иначе каждый попал бы и в этот список
-const files = import.meta.glob<{ default: Snapshot }>(['../../snapshots/**/*.json', '!../../snapshots/**/*.real.json']);
-const realFiles = import.meta.glob<{ default: Real }>('../../snapshots/**/*.real.json');
+const files = import.meta.glob<{ default: Snapshot }>(['../../../examples/_snapshots/**/*.json', '!../../../examples/_snapshots/**/*.real.json']);
+const realFiles = import.meta.glob<{ default: Real }>('../../../examples/_snapshots/**/*.real.json');
+const snapKey = `../../../examples/_snapshots/${props.id}.json`;
+// снимок есть — есть и пошаговый показ (без снимка — только программа)
+const hasSnap = !!files[snapKey];
 const snap = shallowRef<Snapshot | null>(null);
 // настоящие значения показанного снимка (null — их нет: старый снимок или песочница их не прислала)
 const real = shallowRef<Real | null>(null);
 // записанный снимок; в плеере может быть и снимок прогона из песочницы (mine)
 const recorded = shallowRef<Snapshot | null>(null);
 const recordedReal = shallowRef<Real | null>(null);
+// пошаговый показ раскрыт (по кнопке, по запросу схемы процесса <Flow> или сразу — в песочнице и без программы в слоте)
+const stepsOpen = ref(false);
 const opened = ref(false);
 const editing = ref(false);
 const mine = ref(false);
 const missing = ref(false);
 const i = ref(0);
 const showAllResult = ref(false);
+// файл примера сайта как есть (для раннера сайта: example({ steps }) и ctx) — по кнопке в плеере
 const showSource = ref(false);
 // вкладка данных шага: «Метки» или «Реальная таблица»; выбор живёт при листании шагов и смене снимка
 const tab = ref<'labels' | 'real'>('labels');
+// узкий экран (телефон): таблицы базы свёрнуты, пока их не откроют; на широком — открыты
+const narrow = ref(false);
+const tablesOpen = ref<boolean | null>(null);
+const tablesShown = computed(() => tablesOpen.value ?? !narrow.value);
 
 /** Настоящие значения подходят снимку: тот же пример, столько же шагов; иначе null. */
 const fits = (s: Snapshot, r: Real | null | undefined): Real | null =>
   r && r.id === s.id && Array.isArray(r.steps) && r.steps.length === s.steps.length ? r : null;
 
-onMounted(async () => {
-  const load = files[`../../snapshots/${props.id}.json`];
-  if (!load) {
-    missing.value = true;
+// Снимок грузится лениво — только когда читатель раскрыл пошаговый показ; настоящие значения (*.real.json) — только
+// когда он открыл вкладку «Реальная таблица». Программа (слот) уже в HTML страницы и от снимка не зависит.
+const root = ref<HTMLElement | null>(null);
+const anchorId = `ex-${props.id.replace(/[^a-z0-9]+/gi, '-')}`;
+const realKey = `../../../examples/_snapshots/${props.id}.real.json`;
+const hasReal = !!realFiles[realKey];
+let loading: Promise<void> | null = null;
+
+function loadSnap(): Promise<void> {
+  loading ??= (async () => {
+    const s = await files[snapKey]().then((m) => m.default);
+    recorded.value = s;
+    snap.value = s;
+    if (tab.value === 'real') void loadRecordedReal();
+    if (props.sandbox) opened.value = editing.value = true;
+    void nextTick(keepHash); // плеер вырос — якорь адреса мог уехать вниз
+  })();
+  return loading;
+}
+async function loadRecordedReal() {
+  const load = realFiles[realKey];
+  if (!load || recordedReal.value || !recorded.value) return;
+  const r = await load().then((m) => m.default, () => null);
+  recordedReal.value = r;
+  if (!mine.value && snap.value === recorded.value) real.value = fits(recorded.value, r);
+}
+watch(tab, (t) => { if (t === 'real') void loadRecordedReal(); });
+
+/** Раскрыть пошаговый показ и дождаться снимка. */
+async function openSteps(): Promise<void> {
+  if (!hasSnap) return;
+  stepsOpen.value = true;
+  await loadSnap();
+}
+function toggleSteps() {
+  if (stepsOpen.value) stepsOpen.value = false;
+  else void openSteps();
+}
+
+onMounted(() => {
+  narrow.value = window.matchMedia('(max-width: 640px)').matches;
+  if (!hasSnap) {
+    missing.value = !slots.default;
     return;
   }
-  const loadReal = realFiles[`../../snapshots/${props.id}.real.json`];
-  const [s, r] = await Promise.all([
-    load().then((m) => m.default),
-    loadReal ? loadReal().then((m) => m.default, () => null) : Promise.resolve(null),
-  ]);
-  recorded.value = s;
-  recordedReal.value = r;
-  real.value = fits(s, r);
-  snap.value = s;
-  if (props.sandbox) opened.value = editing.value = true;
-  void nextTick(keepHash); // плеер вырос — якорь адреса мог уехать вниз
+  // песочница открывает редактор сразу; без программы в слоте (пример вставлен не из разметки страницы) показывать
+  // больше нечего — плеер раскрыт
+  if (props.sandbox || !slots.default) void openSteps();
 });
 
-function toggleEditor() {
+// «Копировать» в программе: кнопка — в статическом HTML слота (preview.ts), поэтому обработчик — на корне примера
+async function onRootClick(e: MouseEvent) {
+  const btn = (e.target as HTMLElement | null)?.closest<HTMLButtonElement>('.lt-ex-copy');
+  if (!btn) return;
+  const text = btn.closest('.lt-ex-pre')?.querySelector('.lt-ex-script')?.textContent;
+  if (!text) return;
+  await navigator.clipboard?.writeText(text);
+  btn.textContent = 'Скопировано';
+  setTimeout(() => (btn.textContent = 'Копировать'), 1500);
+}
+
+async function toggleEditor() {
+  await openSteps();
   opened.value = true;
   editing.value = !editing.value;
 }
@@ -111,6 +167,7 @@ function display(s: Snapshot, own: boolean, r: Real | null) {
   mine.value = own;
   open.value = new Set();
   go(0);
+  if (!own && tab.value === 'real') void loadRecordedReal();
 }
 const onResult = (s: unknown, r?: unknown) => display(s as Snapshot, true, (r as Real | null | undefined) ?? null);
 const onReset = () => recorded.value && display(recorded.value, false, recordedReal.value);
@@ -125,10 +182,11 @@ const go = (n: number) => {
 watch(i, (n) => report(props.id, n), { immediate: true });
 watch(
   () => players[props.id]?.want,
-  (n) => {
+  async (n) => {
     if (n === null || n === undefined) return;
-    go(n);
     players[props.id].want = null;
+    await openSteps();
+    go(n);
   },
 );
 
@@ -181,10 +239,17 @@ const given = computed(() => {
 // Результат { $mermaid } — схема (например, ER-схема модели из db.registry.all()).
 const mermaidOf = (r: unknown) => (r && typeof r === 'object' && typeof (r as Rec).$mermaid === 'string' ? ((r as Rec).$mermaid as string) : null);
 const resultMermaid = computed(() => mermaidOf(step.value?.result));
-// Результат-строки (то, что вернул .rows(), versions() и т. п.) показываем таблицей, остальное — JSON.
+// Результат-строки (то, что вернул .rows(), versions() и т. п.) показываем таблицей, остальное — JSON целиком.
+// Строка letopis — только объект с id, rev и data-объектом, все поля которого — поля строки (Row) или служебные `$…`:
+// произвольный результат шага (например, { text, id, rev }) в таблицу не превращается — иначе его поля пропали бы.
+const ROW_KEYS = new Set(['id', 'class', 'rev', 'tenant', 'owner', 'links', 'data', 'tags', 'at', 'author', 'agent', 'op', 'reason']);
+const isRow = (x: unknown): x is Rec =>
+  !!x && typeof x === 'object' && !Array.isArray(x) && 'id' in x && 'rev' in x &&
+  !!(x as Rec).data && typeof (x as Rec).data === 'object' && !Array.isArray((x as Rec).data) &&
+  Object.keys(x).every((k) => k.startsWith('$') || ROW_KEYS.has(k));
 const asRows = (r: unknown): Rec[] | null => {
-  const arr = Array.isArray(r) ? r : r && typeof r === 'object' && 'id' in (r as Rec) && 'rev' in (r as Rec) ? [r] : null;
-  if (!arr || !arr.length || !arr.every((x) => x && typeof x === 'object' && 'id' in x && 'rev' in x)) return null;
+  const arr = Array.isArray(r) ? r : isRow(r) ? [r] : null;
+  if (!arr || !arr.length || !arr.every(isRow)) return null;
   return arr as Rec[];
 };
 const resultRows = computed(() => asRows(step.value?.result));
@@ -226,8 +291,22 @@ const isNew = (row: Rec) => row.$changed?.includes('*');
 const showOld = ref(false);
 const initialIds = computed(() => new Set((snap.value?.initial.entity ?? []).map((r) => r.id)));
 const quiet = (row: Rec) => initialIds.value.has(row.id) && !row.$changed?.length;
-const entityRows = computed(() => (step.value?.entity ?? []).filter((r) => showOld.value || !quiet(r)));
-const hiddenOld = computed(() => (step.value?.entity ?? []).filter(quiet).length);
+// Служебные строки установки — их пишет up() от имени System (классы Class, Resource, rule, member, системные
+// аккаунты): десятки строк, среди которых тонут данные примера. Свёрнуты, пока их не покажут.
+const showSys = ref(false);
+const isSys = (row: Rec | undefined) => row?.author === 'System';
+const rowKind = (row: Rec) => (quiet(row) ? 'old' : isSys(row) ? 'sys' : 'own');
+const visible = (row: Rec) => {
+  const k = rowKind(row);
+  return k === 'own' || (k === 'old' && showOld.value) || (k === 'sys' && showSys.value);
+};
+const entityRows = computed(() => (step.value?.entity ?? []).filter(visible));
+const hiddenOld = computed(() => (step.value?.entity ?? []).filter((r) => rowKind(r) === 'old').length);
+const hiddenSys = computed(() => (step.value?.entity ?? []).filter((r) => rowKind(r) === 'sys').length);
+const logRows = computed(() => (step.value?.log ?? []).map((row, k) => ({ row, n: k + 1 })).filter((x) => showSys.value || !isSys(x.row)));
+const hiddenSysLog = computed(() => (step.value?.log ?? []).filter(isSys).length);
+const sysText = (n: number) =>
+  showSys.value ? 'свернуть служебные строки установки' : `ещё ${n} — служебные строки установки: классы, ресурсы и правила прав, системные аккаунты (показать)`;
 const changed = (row: Rec, key: string) => !isNew(row) && row.$changed?.includes(key);
 const dataKeys = (row: Rec) => Object.keys(row.data ?? {});
 const fmt = (v: unknown) => (v === null || v === undefined ? '—' : typeof v === 'object' ? JSON.stringify(v) : String(v));
@@ -248,6 +327,17 @@ const realTab = computed(() => tab.value === 'real' && !!real.value);
 const realStep = computed<RealStep | null>(() => real.value?.steps[i.value] ?? null);
 const realMermaid = computed(() => mermaidOf(realStep.value?.result));
 const realResultRows = computed(() => (step.value?.error || realMermaid.value ? null : asRows(realStep.value?.result)));
+// сводка строк таблиц для кнопки «Таблицы базы после шага»
+const tablesSummary = computed(() => {
+  const st = step.value;
+  if (!st) return '';
+  const parts: string[] = [];
+  if (show('entity')) parts.push(`entity — ${st.entity.length + st.removed.length}`);
+  if (show('log')) parts.push(`log — ${st.log.length}`);
+  if (show('secret')) parts.push(`secret — ${st.secret.length}`);
+  return parts.join(', ');
+});
+const hasTables = computed(() => ['entity', 'log', 'secret', 'counts'].some((t) => show(t)));
 const realResultText = computed(() => {
   const r = realStep.value?.result;
   return r === null || r === undefined ? '' : JSON.stringify(r, null, 2);
@@ -257,13 +347,13 @@ const rowsWord = (n: number) => (n === 1 ? 'строка' : n < 5 ? 'строк�
 // колонки — ключи строк в порядке появления
 const columns = (rows: Rec[]) => [...new Set(rows.flatMap((r) => Object.keys(r ?? {})))];
 interface RealRow { key: string; row: Rec; mark: string }
-interface RealBlock { table: string; title: string; rows: RealRow[]; cols: string[]; empty: string; old: number }
+interface RealBlock { table: string; title: string; rows: RealRow[]; cols: string[]; empty: string; old: number; sys: number }
 const realBlocks = computed<RealBlock[]>(() => {
   const st = step.value, rs = realStep.value;
   if (!st || !rs) return [];
   const blocks: RealBlock[] = [];
-  const add = (table: string, title: string, rows: RealRow[], empty: string, old = 0) =>
-    blocks.push({ table, title, rows, cols: columns(rows.map((r) => r.row)), empty, old });
+  const add = (table: string, title: string, rows: RealRow[], empty: string, old = 0, sys = 0) =>
+    blocks.push({ table, title, rows, cols: columns(rows.map((r) => r.row)), empty, old, sys });
   // строки обоих снимков идут в одном порядке: отсюда отметка «новая» и свёрнутые строки, что были до начала примера
   const twins = (rows: Rec[] | undefined, labeled: Rec[]) =>
     (rows ?? []).map((row, k) => ({ row, lab: rows!.length === labeled.length ? labeled[k] : undefined }));
@@ -272,15 +362,19 @@ const realBlocks = computed<RealBlock[]>(() => {
   if (show('entity')) {
     const all = twins(rs.entity, st.entity);
     const rows = all
-      .filter((p) => showOld.value || !p.lab || !quiet(p.lab))
+      .filter((p) => !p.lab || visible(p.lab))
       .map((p) => ({ key: String(p.row.id), row: p.row, mark: p.lab && isNew(p.lab) ? 'new' : '' }));
     for (const row of rs.removed ?? []) rows.push({ key: `x-${row.id}`, row, mark: 'removed' });
-    const old = all.filter((p) => p.lab && quiet(p.lab)).length;
-    add('entity', 'Таблица `entity` как в базе — объекты сейчас; зачёркнуты строки, которые ушли на этом шаге', rows, 'пусто', old);
+    const old = all.filter((p) => p.lab && rowKind(p.lab) === 'old').length;
+    const sys = all.filter((p) => p.lab && rowKind(p.lab) === 'sys').length;
+    add('entity', 'Таблица `entity` как в базе — объекты сейчас; зачёркнуты строки, которые ушли на этом шаге', rows, 'пусто', old, sys);
   }
   if (show('log')) {
-    const rows = twins(rs.log, st.log).map((p) => ({ key: String(p.row.seq), row: p.row, mark: p.lab?.$new ? 'new' : '' }));
-    add('log', 'Журнал `log` как в базе — все версии; `tx` — номер транзакции', rows, 'пока ни одной версии');
+    const all = twins(rs.log, st.log);
+    const rows = all
+      .filter((p) => showSys.value || !isSys(p.lab))
+      .map((p) => ({ key: String(p.row.seq), row: p.row, mark: p.lab?.$new ? 'new' : '' }));
+    add('log', 'Журнал `log` как в базе — все версии; `tx` — номер транзакции', rows, 'пока ни одной версии', 0, all.filter((p) => isSys(p.lab)).length);
   }
   if (show('secret')) {
     const rows = twins(rs.secret, st.secret).map((p, k) => ({ key: `s${k}`, row: p.row, mark: p.lab?.$new ? 'new' : '' }));
@@ -296,28 +390,48 @@ function onKey(e: KeyboardEvent) {
 </script>
 
 <template>
-  <div :id="`ex-${id.replace(/[^a-z0-9]+/gi, '-')}`" class="lt-ex" tabindex="0" @keydown="onKey">
+  <div :id="anchorId" ref="root" class="lt-ex" tabindex="0" @keydown="onKey" @click="onRootClick">
+    <!-- программа: заголовок, скрипт, как запустить, ожидаемый вывод — статический HTML из preview.ts -->
+    <slot />
     <div v-if="missing" class="lt-ex-missing">Снимка примера «{{ id }}» нет: запустите <code>npm run examples</code>.</div>
-    <template v-else-if="snap && step">
+    <div v-if="hasSnap" class="lt-ex-bar">
+      <button class="lt-btn" :class="{ primary: !stepsOpen }" :aria-expanded="stepsOpen" @click="toggleSteps">
+        {{ stepsOpen ? '▾ Свернуть пошаговый показ' : '▸ Пошагово: что происходит в базе' }}
+      </button>
+      <button class="lt-btn ghost" @click="toggleEditor">{{ editing ? 'Скрыть редактор' : 'Изменить код и запустить' }}</button>
+    </div>
+    <div v-if="stepsOpen && !(snap && step)" class="lt-ex-loading">Загружаю пошаговый показ: результаты шагов и таблицы базы…</div>
+    <template v-else-if="stepsOpen && snap && step">
       <div class="lt-ex-head">
         <div class="lt-ex-top">
-          <div class="lt-ex-badge" :class="{ mine }">{{ mine ? 'Ваш прогон в песочнице' : 'Пример на настоящей базе' }}</div>
+          <div class="lt-ex-badge" :class="{ mine }">{{ mine ? 'Ваш прогон в песочнице' : 'Пошагово: прогон на настоящей базе' }}</div>
           <div class="lt-ex-actions">
             <button v-if="snap.sourceHtml || snap.source" class="lt-link" :aria-expanded="showSource" @click="showSource = !showSource">
-              {{ showSource ? 'Скрыть весь код' : 'Весь код примера' }}
+              {{ showSource ? 'Скрыть файл' : mine ? 'Код вашего прогона' : 'Файл примера сайта' }}
             </button>
-            <button class="lt-link" @click="toggleEditor">{{ editing ? 'Скрыть редактор' : 'Изменить код и запустить' }}</button>
           </div>
         </div>
-        <div class="lt-ex-title">{{ snap.title }}</div>
-        <p v-if="snap.summary" class="lt-ex-summary">{{ snap.summary }}</p>
+        <template v-if="!slots.default">
+          <div class="lt-ex-title">{{ snap.title }}</div>
+          <p v-if="snap.summary" class="lt-ex-summary">{{ snap.summary }}</p>
+        </template>
+        <p class="lt-ex-source-note">
+          Те же шаги, что в программе выше: код шага, его результат и что после него лежит в таблицах <code>entity</code>, <code>log</code> и <code>secret</code>.
+          Здесь шаги выполняет раннер сайта и передаёт им <code>ctx</code> (<code>db</code>, <code>svc</code>, <code>dsn</code>…; что чему равно — в блоке «Дано»).
+        </p>
         <div v-if="showSource && (snap.sourceHtml || snap.source)" class="lt-ex-source">
-          <div class="lt-ex-label">
-            <template v-if="mine">Код вашего прогона целиком</template>
-            <template v-else>Файл <code>examples/{{ id }}.ts</code> целиком: модели, помощники и все шаги</template>
-          </div>
-          <div v-if="snap.sourceHtml" class="lt-ex-code" v-html="snap.sourceHtml" />
-          <pre v-else class="lt-ex-plain">{{ snap.source }}</pre>
+          <template v-if="mine">
+            <div class="lt-ex-label">Код вашего прогона целиком</div>
+            <pre class="lt-ex-plain">{{ snap.source }}</pre>
+          </template>
+          <template v-else>
+            <p class="lt-ex-source-note">
+              Файл <code>examples/{{ id }}.ts</code> целиком — для раннера сайта: <code>example({ steps })</code> из <code>_shared/example.ts</code> — только каркас,
+              каждый шаг — функция <code>run</code>, которой раннер передаёт <code>ctx</code>. Для своего проекта — программа выше.
+            </p>
+            <div v-if="snap.sourceHtml" class="lt-ex-code" v-html="snap.sourceHtml" />
+            <pre v-else class="lt-ex-plain">{{ snap.source }}</pre>
+          </template>
         </div>
       </div>
       <Sandbox v-if="opened" v-show="editing" :id="id" @result="onResult" @reset="onReset" />
@@ -358,10 +472,10 @@ function onKey(e: KeyboardEvent) {
         </div>
         <div class="lt-ex-code" v-html="step.html" />
 
-        <div v-if="real" class="lt-ex-tabs" role="tablist" aria-label="Как показать данные шага">
+        <div v-if="real || (hasReal && !mine)" class="lt-ex-tabs" role="tablist" aria-label="Как показать данные шага">
           <button role="tab" class="lt-tab" :class="{ active: !realTab }" :aria-selected="!realTab" @click="tab = 'labels'">Метки</button>
           <button role="tab" class="lt-tab" :class="{ active: realTab }" :aria-selected="realTab" @click="tab = 'real'">Реальная таблица</button>
-          <span class="lt-ex-tabs-hint">{{ realTab ? 'uuid, время, токены и хэши — как в базе в этом прогоне' : 'вместо uuid, времени и токенов — метки, чтобы снимок читался' }}</span>
+          <span class="lt-ex-tabs-hint">{{ realTab ? 'uuid, время, токены и хэши — как в базе в этом прогоне' : tab === 'real' ? 'загружаю значения как в базе…' : 'вместо uuid, времени и токенов — метки, чтобы снимок читался' }}</span>
         </div>
 
         <template v-if="!realTab">
@@ -378,7 +492,7 @@ function onKey(e: KeyboardEvent) {
           <div v-else-if="resultRows" class="lt-ex-result lt-ex-table">
             <div class="lt-ex-label">Результат: {{ resultRows.length }} {{ resultRows.length === 1 ? 'строка' : resultRows.length < 5 ? 'строки' : 'строк' }}</div>
             <div class="lt-scroll">
-              <table>
+              <table class="lt-cards">
                 <thead>
                   <tr>
                     <th>id</th><th>rev</th><th>действие</th><th>данные</th>
@@ -389,16 +503,16 @@ function onKey(e: KeyboardEvent) {
                 </thead>
                 <tbody>
                   <tr v-for="(row, k) in resultRows" :key="k">
-                    <td class="lt-id">{{ row.id }}</td>
-                    <td>{{ row.rev }}</td>
-                    <td><span class="lt-op" :class="`op-${row.op}`">{{ row.op }}</span></td>
-                    <td class="lt-data">
+                    <td class="lt-id" data-label="id">{{ row.id }}</td>
+                    <td data-label="rev">{{ row.rev }}</td>
+                    <td data-label="действие"><span class="lt-op" :class="`op-${row.op}`">{{ row.op }}</span></td>
+                    <td class="lt-data" data-label="данные">
                       <div v-for="kk in Object.keys(row.data ?? {})" :key="kk"><span class="lt-key">{{ kk }}:</span> {{ isLong(row.data[kk]) ? short(row.data[kk]) : fmt(row.data[kk]) }}</div>
                     </td>
-                    <td v-if="hasLinks(resultRows)">{{ linksText(row.links) }}</td>
-                    <td v-for="kk in extraKeys" :key="kk"><code>{{ fmt(row[kk]) }}</code></td>
-                    <td>{{ fmt(row.author) }}</td>
-                    <td>{{ fmt(row.at) }}</td>
+                    <td v-if="hasLinks(resultRows)" data-label="концы">{{ linksText(row.links) }}</td>
+                    <td v-for="kk in extraKeys" :key="kk" :data-label="kk"><code>{{ fmt(row[kk]) }}</code></td>
+                    <td data-label="автор">{{ fmt(row.author) }}</td>
+                    <td data-label="когда">{{ fmt(row.at) }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -431,15 +545,20 @@ function onKey(e: KeyboardEvent) {
               {{ showAllResult ? 'свернуть' : `показать всё (${realResultLines.length} строк)` }}
             </button>
           </div>
-          <div v-for="b in realBlocks" :key="b.table" class="lt-ex-table lt-ex-real">
+          <div v-for="b in realBlocks" v-show="b.table === 'result' || tablesShown" :key="b.table" class="lt-ex-table lt-ex-real">
             <div class="lt-ex-label" v-html="md(b.title)" />
             <div class="lt-scroll">
-              <table>
+              <table class="lt-cards">
                 <thead>
                   <tr><th v-for="c in b.cols" :key="c">{{ c }}</th></tr>
                 </thead>
                 <tbody>
-                  <tr v-if="!b.rows.length && !b.old"><td :colspan="Math.max(b.cols.length, 1)" class="lt-empty">{{ b.empty }}</td></tr>
+                  <tr v-if="!b.rows.length && !b.old && !b.sys"><td :colspan="Math.max(b.cols.length, 1)" class="lt-empty">{{ b.empty }}</td></tr>
+                  <tr v-if="b.sys">
+                    <td :colspan="Math.max(b.cols.length, 1)" class="lt-empty">
+                      <button class="lt-link" @click="showSys = !showSys">{{ sysText(b.sys) }}</button>
+                    </td>
+                  </tr>
                   <tr v-if="b.old">
                     <td :colspan="Math.max(b.cols.length, 1)" class="lt-empty">
                       <button class="lt-link" @click="showOld = !showOld">
@@ -448,7 +567,7 @@ function onKey(e: KeyboardEvent) {
                     </td>
                   </tr>
                   <tr v-for="r in b.rows" :key="r.key" :class="{ 'lt-new': r.mark === 'new', 'lt-removed': r.mark === 'removed' }">
-                    <td v-for="c in b.cols" :key="c">
+                    <td v-for="c in b.cols" :key="c" :data-label="c">
                       <template v-if="isLong(r.row[c]) && !open.has(`${i}|r|${b.table}|${r.key}|${c}`)">
                         {{ short(r.row[c]) }} <button class="lt-link" @click="toggle(`${i}|r|${b.table}|${r.key}|${c}`)">ещё</button>
                       </template>
@@ -466,6 +585,12 @@ function onKey(e: KeyboardEvent) {
         </template>
       </div>
 
+      <div v-if="hasTables" class="lt-ex-tables-toggle">
+        <button class="lt-link" :aria-expanded="tablesShown" @click="tablesOpen = !tablesShown">
+          {{ tablesShown ? 'Скрыть таблицы базы' : 'Показать таблицы базы после шага' }}<template v-if="tablesSummary"> ({{ tablesSummary }} строк)</template>
+        </button>
+      </div>
+      <template v-if="tablesShown">
 <div v-if="show('counts') && countsNow" class="lt-ex-table">
         <div class="lt-ex-label">Сводка по таблицам после шага (в скобках — сколько добавилось на этом шаге)</div>
         <div class="lt-counts">
@@ -488,7 +613,7 @@ function onKey(e: KeyboardEvent) {
       <div v-if="show('entity')" class="lt-ex-table">
         <div class="lt-ex-label">Таблица <code>entity</code> — объекты сейчас</div>
         <div class="lt-scroll">
-          <table>
+          <table class="lt-cards">
             <thead>
               <tr>
                 <th>id</th><th>класс</th><th>rev</th><th>данные</th>
@@ -498,6 +623,11 @@ function onKey(e: KeyboardEvent) {
             </thead>
             <tbody>
               <tr v-if="!step.entity.length && !step.removed.length"><td :colspan="entLinks ? 8 : 7" class="lt-empty">пусто</td></tr>
+              <tr v-if="hiddenSys">
+                <td :colspan="entLinks ? 8 : 7" class="lt-empty">
+                  <button class="lt-link" @click="showSys = !showSys">{{ sysText(hiddenSys) }}</button>
+                </td>
+              </tr>
               <tr v-if="hiddenOld">
                 <td :colspan="entLinks ? 8 : 7" class="lt-empty">
                   <button class="lt-link" @click="showOld = !showOld">
@@ -506,10 +636,10 @@ function onKey(e: KeyboardEvent) {
                 </td>
               </tr>
               <tr v-for="row in entityRows" :key="row.id" :class="{ 'lt-new': isNew(row) }">
-                <td class="lt-id">{{ row.id }}</td>
-                <td>{{ row.class }}</td>
-                <td :class="{ 'lt-chg': changed(row, 'rev') }">{{ row.rev }}</td>
-                <td class="lt-data">
+                <td class="lt-id" data-label="id">{{ row.id }}</td>
+                <td data-label="класс">{{ row.class }}</td>
+                <td :class="{ 'lt-chg': changed(row, 'rev') }" data-label="rev">{{ row.rev }}</td>
+                <td class="lt-data" data-label="данные">
                   <div v-for="k in dataKeys(row)" :key="k" :class="{ 'lt-chg': changed(row, `data.${k}`) }">
                     <span class="lt-key">{{ k }}:</span>
                     <template v-if="isLong(row.data[k]) && !open.has(`${i}|e|${row.id}|${k}`)">
@@ -521,17 +651,17 @@ function onKey(e: KeyboardEvent) {
                     </template>
                   </div>
                 </td>
-                <td v-if="entLinks" :class="{ 'lt-chg': row.$changed?.some((c: string) => c.startsWith('links.')) }">{{ linksText(row.links) }}</td>
-                <td :class="{ 'lt-chg': changed(row, 'op') }">{{ row.op }}</td>
-                <td>{{ row.author }}</td>
-                <td :class="{ 'lt-chg': changed(row, 'at') }">{{ row.at }}</td>
+                <td v-if="entLinks" :class="{ 'lt-chg': row.$changed?.some((c: string) => c.startsWith('links.')) }" data-label="концы">{{ linksText(row.links) }}</td>
+                <td :class="{ 'lt-chg': changed(row, 'op') }" data-label="действие">{{ row.op }}</td>
+                <td data-label="автор">{{ row.author }}</td>
+                <td :class="{ 'lt-chg': changed(row, 'at') }" data-label="когда">{{ row.at }}</td>
               </tr>
               <tr v-for="row in step.removed" :key="`x-${row.id}`" class="lt-removed">
-                <td class="lt-id">{{ row.id }}</td>
-                <td>{{ row.class }}</td>
-                <td>{{ row.rev }}</td>
-                <td class="lt-data"><div v-for="k in dataKeys(row)" :key="k"><span class="lt-key">{{ k }}:</span> {{ isLong(row.data[k]) ? short(row.data[k]) : fmt(row.data[k]) }}</div></td>
-                <td v-if="entLinks">{{ linksText(row.links) }}</td>
+                <td class="lt-id" data-label="id">{{ row.id }}</td>
+                <td data-label="класс">{{ row.class }}</td>
+                <td data-label="rev">{{ row.rev }}</td>
+                <td class="lt-data" data-label="данные"><div v-for="k in dataKeys(row)" :key="k"><span class="lt-key">{{ k }}:</span> {{ isLong(row.data[k]) ? short(row.data[k]) : fmt(row.data[k]) }}</div></td>
+                <td v-if="entLinks" data-label="концы">{{ linksText(row.links) }}</td>
                 <td colspan="3">строка ушла из entity</td>
               </tr>
             </tbody>
@@ -542,7 +672,7 @@ function onKey(e: KeyboardEvent) {
       <div v-if="show('log')" class="lt-ex-table">
         <div class="lt-ex-label">Журнал <code>log</code> — все версии (только растёт)</div>
         <div class="lt-scroll">
-          <table>
+          <table class="lt-cards">
             <thead>
               <tr>
                 <th>№</th><th>id</th><th>rev</th><th>действие</th><th>данные версии</th><th>автор</th>
@@ -552,12 +682,17 @@ function onKey(e: KeyboardEvent) {
             </thead>
             <tbody>
               <tr v-if="!step.log.length"><td colspan="8" class="lt-empty">пока ни одной версии</td></tr>
-              <tr v-for="(row, k) in step.log" :key="row.seq" :class="{ 'lt-new': row.$new }">
-                <td>{{ k + 1 }}</td>
-                <td class="lt-id">{{ row.id }}</td>
-                <td>{{ row.rev }}</td>
-                <td><span class="lt-op" :class="`op-${row.op}`">{{ row.op }}</span></td>
-                <td class="lt-data">
+              <tr v-if="hiddenSysLog">
+                <td colspan="8" class="lt-empty">
+                  <button class="lt-link" @click="showSys = !showSys">{{ sysText(hiddenSysLog) }}</button>
+                </td>
+              </tr>
+              <tr v-for="{ row, n } in logRows" :key="row.seq" :class="{ 'lt-new': row.$new }">
+                <td data-label="№">{{ n }}</td>
+                <td class="lt-id" data-label="id">{{ row.id }}</td>
+                <td data-label="rev">{{ row.rev }}</td>
+                <td data-label="действие"><span class="lt-op" :class="`op-${row.op}`">{{ row.op }}</span></td>
+                <td class="lt-data" data-label="данные версии">
                   <div v-for="kk in Object.keys(row.data ?? {})" :key="kk">
                     <span class="lt-key">{{ kk }}:</span>
                     <template v-if="isLong(row.data[kk]) && !open.has(`${i}|l|${row.seq}|${kk}`)">
@@ -567,9 +702,9 @@ function onKey(e: KeyboardEvent) {
                   </div>
                   <span v-if="!row.data">—</span>
                 </td>
-                <td>{{ row.author }}</td>
-                <td v-if="logReason">{{ fmt(row.reason) }}</td>
-                <td>{{ row.at }}</td>
+                <td data-label="автор">{{ row.author }}</td>
+                <td v-if="logReason" data-label="причина">{{ fmt(row.reason) }}</td>
+                <td data-label="когда">{{ row.at }}</td>
               </tr>
             </tbody>
           </table>
@@ -579,25 +714,26 @@ function onKey(e: KeyboardEvent) {
       <div v-if="show('secret')" class="lt-ex-table">
         <div class="lt-ex-label">Таблица <code>secret</code> — пароли, ключи, сессии (сам секрет не показывается и в базе хранится хэшем)</div>
         <div class="lt-scroll">
-          <table>
+          <table class="lt-cards">
             <thead>
               <tr><th>аккаунт</th><th>вид</th><th>идентификатор</th><th>подробности</th><th>создан</th><th>истекает</th><th>погашен</th></tr>
             </thead>
             <tbody>
               <tr v-if="!step.secret.length"><td colspan="7" class="lt-empty">новых строк нет</td></tr>
               <tr v-for="(row, k) in step.secret" :key="k" :class="{ 'lt-new': row.$new }">
-                <td>{{ row.account }}</td>
-                <td><code>{{ row.kind }}</code></td>
-                <td>{{ fmt(row.ident) }}</td>
-                <td class="lt-data">{{ fmt(row.meta) }}</td>
-                <td>{{ row.created_at }}</td>
-                <td>{{ fmt(row.expires_at) }}</td>
-                <td>{{ fmt(row.deleted_at) }}</td>
+                <td data-label="аккаунт">{{ row.account }}</td>
+                <td data-label="вид"><code>{{ row.kind }}</code></td>
+                <td data-label="идентификатор">{{ fmt(row.ident) }}</td>
+                <td class="lt-data" data-label="подробности">{{ fmt(row.meta) }}</td>
+                <td data-label="создан">{{ row.created_at }}</td>
+                <td data-label="истекает">{{ fmt(row.expires_at) }}</td>
+                <td data-label="погашен">{{ fmt(row.deleted_at) }}</td>
               </tr>
             </tbody>
           </table>
         </div>
       </div>
+      </template>
       </template>
 
       <div v-if="step?.signals" class="lt-ex-signals">
@@ -617,7 +753,6 @@ function onKey(e: KeyboardEvent) {
         <span>← → — листать шаги с клавиатуры</span>
       </div>
     </template>
-    <div v-else class="lt-ex-loading">Загружаю пример…</div>
   </div>
 </template>
 
@@ -782,4 +917,31 @@ function onKey(e: KeyboardEvent) {
 .sw.chg { background: var(--vp-c-warning-soft); border: 1px solid var(--vp-c-warning-2); }
 .sw.del { background: var(--vp-c-danger-soft); border: 1px solid var(--vp-c-danger-2); }
 .lt-ex-missing, .lt-ex-loading { color: var(--vp-c-text-2); }
+.lt-ex-loading { margin-top: 12px; font-size: 14px; }
+/* кнопки под программой: пошаговый показ и песочница */
+.lt-ex-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--vp-c-divider); }
+.lt-ex-head { margin-top: 14px; }
+.lt-ex-source-note { margin: 10px 0 8px; font-size: 13px; line-height: 1.55; color: var(--vp-c-text-2); }
+.lt-ex-tables-toggle { margin-top: 14px; }
+/* Телефон: строки таблиц — карточки «поле: значение», без прокрутки вбок */
+@media (max-width: 640px) {
+  .lt-ex { padding: 12px 10px; }
+  .lt-ex-table table.lt-cards,
+  .lt-ex-table table.lt-cards tbody,
+  .lt-ex-table table.lt-cards tr,
+  .lt-ex-table table.lt-cards td { display: block; width: 100%; }
+  .lt-ex-table table.lt-cards thead { display: none; }
+  .lt-ex-table table.lt-cards tr { border: 1px solid var(--vp-c-divider); border-radius: 8px; margin: 0 0 8px; padding: 4px 8px; }
+  .lt-ex-table table.lt-cards td { border: 0; padding: 2px 0; white-space: normal; overflow-wrap: anywhere; min-width: 0; }
+  .lt-ex-table table.lt-cards td[data-label]::before { content: attr(data-label) ': '; color: var(--vp-c-text-3); font-weight: 600; }
+  .lt-ex-table table.lt-cards td.lt-data > div { padding-left: 10px; }
+  .lt-ex-real td { white-space: normal; }
+  .lt-wrap { min-width: 0; }
+  .lt-ex-tabs-hint { display: block; margin: 4px 0 5px; }
+  /* код и результат — строки как в редакторе, с прокруткой вбок и по высоте: перенос по ширине растягивал скрипт на
+     десятки экранов */
+  .lt-ex-code :deep(pre), .lt-ex-plain, .lt-ex-result pre { white-space: pre; overflow: auto; max-height: 60vh; }
+  .lt-ex-code :deep(pre) { font-size: 12.5px; }
+  .lt-ex-bar .lt-btn { flex: 1 1 100%; }
+}
 </style>

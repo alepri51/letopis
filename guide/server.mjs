@@ -4,7 +4,8 @@
  * `basics/what-is.html`. Только локально: руками слушает 127.0.0.1, compose открывает порт на 127.0.0.1.
  *
  * Песочница (`SANDBOX=1`): `POST /api/run` прогоняет присланный со страницы пример на живой базе в свежей схеме
- * (`scripts/sandbox-run.ts` в отдельном процессе) и возвращает снимок для плеера. Это исполнение любого кода на
+ * (`examples/_runner/sandbox.ts` в отдельном процессе с рабочим каталогом examples/: примеры, их помощники и пакеты —
+ * там, сайт их только читает) и возвращает снимок для плеера. Это исполнение любого кода на
  * вашей машине, поэтому:
  * - запрос принимается только со страниц самого сайта: заголовки Host и Origin — 127.0.0.1 или localhost с портом
  *   сайта (`PUBLIC_PORT`, по умолчанию `PORT`) или dev-сервера VitePress (5173); так чужая страница в том же
@@ -19,6 +20,8 @@ import { join, extname, normalize, sep } from 'node:path';
 
 const ROOT = import.meta.dirname;
 const DIST = join(ROOT, '.vitepress', 'dist');
+// исполняемые примеры — корневой каталог examples/ (свои package.json, tsconfig.json и node_modules)
+const EXAMPLES = join(ROOT, '..', 'examples');
 const PORT = Number(process.env.PORT ?? 8080);
 // вне контейнера — только своя машина; в контейнере HOST=0.0.0.0, а compose публикует порт на 127.0.0.1
 const HOST = process.env.HOST ?? '127.0.0.1';
@@ -70,8 +73,9 @@ let busy = false;
 /** Один прогон в отдельном процессе: зависший или упавший пример не уронит сервер. */
 function runSandbox(body) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, ['--import', 'tsx', join('scripts', 'sandbox-run.ts')], {
-      cwd: ROOT,
+    // tsx — из examples/node_modules, tsconfig — examples/tsconfig.json (letopis исходниками ../lib/src)
+    const child = spawn(process.execPath, ['--import', 'tsx', join('_runner', 'sandbox.ts')], {
+      cwd: EXAMPLES,
       env: process.env,
       stdio: ['pipe', 'pipe', 'pipe'],
     });

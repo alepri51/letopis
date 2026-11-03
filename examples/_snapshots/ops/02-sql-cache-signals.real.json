@@ -1,0 +1,128 @@
+{
+  "id": "ops/02-sql-cache-signals",
+  "context": {
+    "schema": "v2.g_ops_02_sql_cache_signals",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_bed616ccb690ced767c73db25d5b372f034d43c7cecebd63a746440fcbc1548f",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "9628bcd8a572f2b2cae5a68c42a95fd79e09ed9b37f2eb1023344ce9c0df30be",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "has Product / Нет": [
+          true,
+          false
+        ],
+        "find Нет": "undefined",
+        "ключ Product (resolve)": [
+          "Shop",
+          "sku"
+        ],
+        "семейство Customer": [
+          "Customer",
+          "Vip"
+        ],
+        "классов всего (all)": 12,
+        "leafType Product.price / title": [
+          "numeric",
+          "text"
+        ],
+        "свой реестр после load: столько же классов": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Category",
+        "Class",
+        "Customer",
+        "Order",
+        "Product",
+        "Shop",
+        "Vip",
+        "line"
+      ]
+    },
+    {
+      "result": {
+        "db.sql": [
+          {
+            "tenant_name": "Ромашка",
+            "reason": ""
+          }
+        ],
+        "db.transaction — только свой арендатор": [
+          {
+            "class": "Product",
+            "n": 4
+          },
+          {
+            "class": "Shop",
+            "n": 2
+          }
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "stats": {
+          "size": 1,
+          "hits": 1,
+          "misses": 1,
+          "stores": 1,
+          "raced": 0,
+          "signals": 0,
+          "listens": 0,
+          "enabled": true
+        },
+        "режим сигналов": "class",
+        "ответов в кэше после clear()": 0
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "op": "create",
+        "class": "Shop"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    }
+  ]
+}

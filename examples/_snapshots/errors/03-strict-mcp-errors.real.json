@@ -1,0 +1,160 @@
+{
+  "id": "errors/03-strict-mcp-errors",
+  "context": {
+    "schema": "v2.g_errors_03_strict_mcp_errors",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_72970968cd1220f14a1e47660951fabc11131db0f11755e2ed2dedc7b871e4c2",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "8134c0f34ff23fc444a55c525aef9a3b30af5da1349742085919785a67ce6f45",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": null,
+      "error": {
+        "code": "invalid_query",
+        "message": "letopis: invalid_query: update() без фильтра (Product): ни у шага глагола, ни у шагов до него нет фильтра, id, непустого tags(), owner() или limit(), и раньше в цепочке нет create() или upsert() — правка прошла бы по всем строкам",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Category",
+        "Class",
+        "Customer",
+        "Order",
+        "Product",
+        "Shop",
+        "Vip",
+        "line"
+      ]
+    },
+    {
+      "result": [
+        "Чайник: 0",
+        "Кружка: 0",
+        "Сенча: 0",
+        "Пуэр: 0"
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Product"
+      ]
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "invalid_query",
+        "message": "letopis: invalid_query: delete({ confirm: true, expect }) без фильтра (Category): ни у шага глагола, ни у шагов до него нет фильтра, id, непустого tags(), owner() или limit(), и раньше в цепочке нет create() или upsert() — правка прошла бы по всем строкам",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "invalid_query",
+        "message": "letopis: invalid_query: delete({ confirm: true }) без { expect }: удаление не сверено с превью, которое видел пользователь — ничего не удалено",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "invalid_data",
+        "message": "letopis: invalid_data: неизвестная опция connect({ maxx }) — похожие: max",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "invalid_query",
+        "message": "letopis: invalid_query: Product({ titel }): поле titel не описано в классе Product — похожие: title",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "invalid_query",
+        "message": "letopis: invalid_query: count() не листается: after() сдвигает начало страницы rows(), ids(), versions() и paths(), а count() считает по всем объектам шага",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "код": "confirmation_required",
+        "покупатель на месте": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Customer"
+      ]
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "tenant_denied",
+        "message": "letopis: tenant_denied: нет членства в арендаторе",
+        "detail": {}
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    }
+  ]
+}

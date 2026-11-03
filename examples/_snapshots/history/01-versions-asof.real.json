@@ -1,0 +1,750 @@
+{
+  "id": "history/01-versions-asof",
+  "context": {
+    "schema": "v2.g_history_01_versions_asof",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_7535a204965dbed9ac26707d51a72d5405af3a971bd51b0bfd2cef52f4b530dc",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "b8cf6a77e87ee8c21309a75eeb4c9516812ffb10fd34288c4fcf34ba32aab60c",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": [
+        {
+          "at": "2026-11-03T19:05:44.307235+00:00",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "op": "update",
+          "rev": 4,
+          "data": {
+            "sku": "K-1",
+            "price": 2400,
+            "title": "Чайник стеклянный"
+          },
+          "tags": [],
+          "class": "Product",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": "скидка кончилась"
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": null,
+          "at": "2026-11-03 19:05:44.244835+00",
+          "tx": "3880748"
+        },
+        {
+          "seq": "42",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": "новый товар",
+          "at": "2026-11-03 19:05:44.253685+00",
+          "tx": "3880750"
+        },
+        {
+          "seq": "43",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2200,
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": "осенняя скидка",
+          "at": "2026-11-03 19:05:44.274818+00",
+          "tx": "3880752"
+        },
+        {
+          "seq": "44",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2200,
+            "title": "Чайник стеклянный"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": "уточнили название",
+          "at": "2026-11-03 19:05:44.291518+00",
+          "tx": "3880754"
+        },
+        {
+          "seq": "45",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2400,
+            "title": "Чайник стеклянный"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": "скидка кончилась",
+          "at": "2026-11-03 19:05:44.307235+00",
+          "tx": "3880756"
+        }
+      ],
+      "secret": [],
+      "signals": [
+        "Class",
+        "Product",
+        "Shop"
+      ]
+    },
+    {
+      "result": [
+        {
+          "rev": 1,
+          "op": "create",
+          "title": "Чайник",
+          "price": 2500,
+          "reason": "новый товар"
+        },
+        {
+          "rev": 2,
+          "op": "update",
+          "title": "Чайник",
+          "price": 2200,
+          "reason": "осенняя скидка"
+        },
+        {
+          "rev": 3,
+          "op": "update",
+          "title": "Чайник стеклянный",
+          "price": 2200,
+          "reason": "уточнили название"
+        },
+        {
+          "rev": 4,
+          "op": "update",
+          "title": "Чайник стеклянный",
+          "price": 2400,
+          "reason": "скидка кончилась"
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": null,
+          "at": "2026-11-03 19:05:44.244835+00",
+          "tx": "3880748"
+        },
+        {
+          "seq": "42",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": "новый товар",
+          "at": "2026-11-03 19:05:44.253685+00",
+          "tx": "3880750"
+        },
+        {
+          "seq": "43",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2200,
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": "осенняя скидка",
+          "at": "2026-11-03 19:05:44.274818+00",
+          "tx": "3880752"
+        },
+        {
+          "seq": "44",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2200,
+            "title": "Чайник стеклянный"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": "уточнили название",
+          "at": "2026-11-03 19:05:44.291518+00",
+          "tx": "3880754"
+        },
+        {
+          "seq": "45",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2400,
+            "title": "Чайник стеклянный"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": "скидка кончилась",
+          "at": "2026-11-03 19:05:44.307235+00",
+          "tx": "3880756"
+        }
+      ],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "title": "Чайник",
+        "price": 2500,
+        "rev": 1
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": null,
+          "at": "2026-11-03 19:05:44.244835+00",
+          "tx": "3880748"
+        },
+        {
+          "seq": "42",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": "новый товар",
+          "at": "2026-11-03 19:05:44.253685+00",
+          "tx": "3880750"
+        },
+        {
+          "seq": "43",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2200,
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": "осенняя скидка",
+          "at": "2026-11-03 19:05:44.274818+00",
+          "tx": "3880752"
+        },
+        {
+          "seq": "44",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2200,
+            "title": "Чайник стеклянный"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": "уточнили название",
+          "at": "2026-11-03 19:05:44.291518+00",
+          "tx": "3880754"
+        },
+        {
+          "seq": "45",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2400,
+            "title": "Чайник стеклянный"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": "скидка кончилась",
+          "at": "2026-11-03 19:05:44.307235+00",
+          "tx": "3880756"
+        }
+      ],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": [
+        {
+          "rev": 4,
+          "price": 2400,
+          "reason": "скидка кончилась"
+        },
+        {
+          "rev": 3,
+          "price": 2200,
+          "reason": "уточнили название"
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": null,
+          "at": "2026-11-03 19:05:44.244835+00",
+          "tx": "3880748"
+        },
+        {
+          "seq": "42",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": "новый товар",
+          "at": "2026-11-03 19:05:44.253685+00",
+          "tx": "3880750"
+        },
+        {
+          "seq": "43",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2200,
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": "осенняя скидка",
+          "at": "2026-11-03 19:05:44.274818+00",
+          "tx": "3880752"
+        },
+        {
+          "seq": "44",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2200,
+            "title": "Чайник стеклянный"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": "уточнили название",
+          "at": "2026-11-03 19:05:44.291518+00",
+          "tx": "3880754"
+        },
+        {
+          "seq": "45",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2400,
+            "title": "Чайник стеклянный"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": "скидка кончилась",
+          "at": "2026-11-03 19:05:44.307235+00",
+          "tx": "3880756"
+        }
+      ],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "строк сейчас": 1,
+        "строк в срезе asOf": 1,
+        "count() в срезе": 1,
+        "путей в срезе": 2
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": null,
+          "at": "2026-11-03 19:05:44.244835+00",
+          "tx": "3880748"
+        },
+        {
+          "seq": "42",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": "новый товар",
+          "at": "2026-11-03 19:05:44.253685+00",
+          "tx": "3880750"
+        },
+        {
+          "seq": "43",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2200,
+            "title": "Чайник"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": "осенняя скидка",
+          "at": "2026-11-03 19:05:44.274818+00",
+          "tx": "3880752"
+        },
+        {
+          "seq": "44",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2200,
+            "title": "Чайник стеклянный"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": "уточнили название",
+          "at": "2026-11-03 19:05:44.291518+00",
+          "tx": "3880754"
+        },
+        {
+          "seq": "45",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2400,
+            "title": "Чайник стеклянный"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": "скидка кончилась",
+          "at": "2026-11-03 19:05:44.307235+00",
+          "tx": "3880756"
+        },
+        {
+          "seq": "46",
+          "id": "28f32bfe-6434-566d-9bfb-5dffd33d7c4e",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Чай и кофе"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": null,
+          "at": "2026-11-03 19:05:44.399479+00",
+          "tx": "3880763"
+        },
+        {
+          "seq": "47",
+          "id": "1f88c837-a39c-5c94-802f-df6ce272198c",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": null,
+          "at": "2026-11-03 19:05:44.40845+00",
+          "tx": "3880765"
+        },
+        {
+          "seq": "48",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "rev": 5,
+          "class": "Product",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Category": [
+              "28f32bfe-6434-566d-9bfb-5dffd33d7c4e",
+              "1f88c837-a39c-5c94-802f-df6ce272198c"
+            ]
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2400,
+            "title": "Чайник стеклянный"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "db9be90d-6af4-5e21-ba2e-3f686e9ee182",
+          "reason": null,
+          "at": "2026-11-03 19:05:44.426511+00",
+          "tx": "3880767"
+        }
+      ],
+      "secret": [],
+      "signals": [
+        "Category",
+        "Product"
+      ]
+    }
+  ]
+}

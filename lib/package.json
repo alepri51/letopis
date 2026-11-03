@@ -1,7 +1,7 @@
 {
   "name": "letopis",
-  "version": "2.0.0",
-  "description": "Letopis (летопись): versioned entity store on PostgreSQL 18 — integrity, history, tenants and access control enforced by the database itself, dot-notation chains on top",
+  "version": "3.0.0",
+  "description": "Letopis (летопись): хранилище версионированных сущностей на PostgreSQL 18 — целостность, история, арендаторы и права проверяет сама база, поверх — цепочки через точку. ИИ-агенту — AGENT-CHEATSHEET.md и llms.txt в пакете; исходный код доступен (PolyForm Noncommercial 1.0.0)",
   "keywords": [
     "postgres",
     "postgresql",
@@ -14,9 +14,12 @@
     "jsonb",
     "multi-tenant",
     "acl",
-    "uuidv5"
+    "uuidv5",
+    "llms-txt",
+    "ai-agents",
+    "agent-cheatsheet"
   ],
-  "license": "MIT",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/alepri51/letopis.git",
@@ -53,8 +56,10 @@
     "README.md",
     "AGENT-CHEATSHEET.md",
     "llms.txt",
+    "api-contract.json",
     "CHANGELOG.md",
-    "LICENSE"
+    "LICENSE",
+    "LICENSE-COMMERCIAL.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

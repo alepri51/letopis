@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * Песочница примера: исходник примера в редакторе, «Запустить на базе» — прогон на живой базе в свежей схеме
- * (`POST /api/run`, `server.mjs` → `scripts/sandbox-run.ts`). Снимок прогона уходит в тот же плеер (`result`).
+ * (`POST /api/run`, `server.mjs` → `examples/_runner/sandbox.ts`). Снимок прогона уходит в тот же плеер (`result`).
  * Работает, когда сайт открыт с сервера guide с включённой песочницей: контейнер (compose) или `npm run sandbox`.
  */
 import { onMounted, ref } from 'vue';
@@ -10,7 +10,7 @@ import { withBase } from 'vitepress';
 const props = defineProps<{ id: string }>();
 // result: снимок с метками и тот же прогон с настоящими значениями (вкладка «Реальная таблица»; null — сервер их не прислал)
 const emit = defineEmits<{ result: [snapshot: unknown, real: unknown]; reset: [] }>();
-const sources = import.meta.glob<string>('../../examples/**/*.ts', { query: '?raw', import: 'default' });
+const sources = import.meta.glob<string>(['../../../examples/*/*.ts', '!../../../examples/_*/**'], { query: '?raw', import: 'default' });
 
 const original = ref('');
 const code = ref('');
@@ -22,7 +22,7 @@ const failures = ref<string[]>([]);
 const logs = ref('');
 
 onMounted(async () => {
-  const load = sources[`../../examples/${props.id}.ts`];
+  const load = sources[`../../../examples/${props.id}.ts`];
   original.value = code.value = load ? await load() : '';
   try {
     const r = await fetch(withBase('/api/sandbox'));

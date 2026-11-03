@@ -1,0 +1,99 @@
+{
+  "id": "watch/02-quiet-cursor",
+  "context": {
+    "schema": "v2.g_watch_02_quiet_cursor",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_7aeeb4d918be00bc7ddb048d5c793873a651c5c5724b9230953f151b74b88a11",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "7085732b40d7cd87d068e03cc27832eb6a0884ce9aa4b439783d9ca26b4ffac9",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "класс Gauge в реестре Анны": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Class"
+      ]
+    },
+    {
+      "result": {
+        "op": "create",
+        "датчик": "Давление",
+        "время события": "2025-01-01T00:00:00+00:00"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Gauge"
+      ]
+    },
+    {
+      "result": {
+        "op": "create",
+        "датчик": "Влажность"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Gauge"
+      ]
+    },
+    {
+      "result": {
+        "op": "create",
+        "датчик": "Влажность"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "op": "update",
+        "датчик": "Влажность",
+        "значение": 42
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Gauge"
+      ]
+    }
+  ]
+}

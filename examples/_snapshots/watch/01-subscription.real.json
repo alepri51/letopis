@@ -1,0 +1,126 @@
+{
+  "id": "watch/01-subscription",
+  "context": {
+    "schema": "v2.g_watch_01_subscription",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_1587f813bbdd3bb6e2a86c37d1db9e02efd2654a3d238ca67a6f580a33533a65",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "7152fcf5e1a30de6ea7f75b7bd8222f5198f4b921baef5a76a6a0dcfbda6ef16",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": "готово",
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Class",
+        "Product",
+        "Shop"
+      ]
+    },
+    {
+      "result": [
+        {
+          "op": "create",
+          "title": "Чайник",
+          "rev": 1
+        },
+        {
+          "op": "create",
+          "title": "Кружка",
+          "rev": 1
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": [
+        {
+          "at": "2026-11-03T19:06:54.734203+00:00",
+          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "op": "update",
+          "rev": 2,
+          "data": {
+            "sku": "K-1",
+            "price": 1990,
+            "title": "Чайник"
+          },
+          "tags": [],
+          "class": "Product",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "agent": "76ea99e5-502d-565e-b4a2-e3268120cafb"
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Product"
+      ]
+    },
+    {
+      "result": {
+        "op": "update",
+        "title": "Чайник",
+        "price": 1990,
+        "rev": 2
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "события": [
+          "create Чайник",
+          "create Кружка",
+          "update Чайник"
+        ],
+        "ждать нечего (lag = 0)": true,
+        "после break: done": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    }
+  ]
+}

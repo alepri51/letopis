@@ -9,6 +9,7 @@
 import type { DbCore } from './index.js';
 import { lerr, lmsg } from './errors.js';
 import { internalsOf } from './internal.js';
+import { NOLOG, traced } from './log.js';
 import type { Tx } from './tx.js';
 import type { AnyModel, LostRule } from './model.js';
 import type { JsonSchema } from './jsonschema.js';
@@ -22,7 +23,7 @@ export interface SyncResult {
   unchanged: string[];
   /** Классы системного арендатора: их меняет только установка. */
   skipped: string[];
-  /** Правила refine, которых нет в базе. */
+  /** Правила refine, которых нет в базе (преобразования Zod syncModels отклоняет — model.transform_unsupported). */
   lost: LostRule[];
 }
 
@@ -36,12 +37,28 @@ function canon(v: unknown): string {
 }
 
 export async function syncModels(db: DbCore, models: readonly AnyModel[], opts: { apply?: boolean } = {}): Promise<SyncResult> {
+  // событие sync (логирование 3.0): логгер — фасада, которым пишут классы
+  return traced(internalsOf(db)?.log ?? NOLOG, 'sync', { op: 'syncModels' }, () => syncCore(db, models, opts), (r) => ({
+    rows: r.created.length + r.updated.length,
+    detail: { applied: r.applied, models: models.length, created: r.created, updated: r.updated, unchanged: r.unchanged.length,
+      skipped: r.skipped, lost: r.lost.length },
+  }));
+}
+
+async function syncCore(db: DbCore, models: readonly AnyModel[], opts: { apply?: boolean }): Promise<SyncResult> {
   // хаб с именем метода цепочки или корня db (модель собрана мимо hub()) — отказ до записи (план 2.0, этап 4, п. 2;
   // 7.10 №3); связь с таким именем отклоняет база
   for (const m of models) {
     if (m.kind === 'hub' && RESERVED_CLASS_NAMES.includes(m.name)) throw lerr('model.sync_hub_name_reserved', { name: m.name });
   }
   const res: SyncResult = { applied: Boolean(opts.apply), created: [], updated: [], unchanged: [], skipped: [], lost: models.flatMap((m) => m.lostRules()) };
+  // преобразования Zod (.trim(), .toLowerCase(), .transform(), z.preprocess …) база и валидатор letopis не исполняют —
+  // данные записались бы как есть: отказ до записи (план 2.1, A11); refine остаётся в отчёте lost
+  const transforms = res.lost.filter((l) => l.kind !== 'refine');
+  if (transforms.length) {
+    throw lerr('model.transform_unsupported', { rules: transforms.map((l) => `${l.path} (${l.kind})`).join(', ') }, { detail: { rules: transforms } });
+  }
+  checkEndRoles(db.registry, models);
   const S = `"${db.schema.replace(/"/g, '""')}"`;
   // предок раньше потомка: потомка класса, которого ещё нет, база отклоняет. Круг родителей (модель, собранная мимо
   // hub()) так не упорядочить — отказ до записи с самим кругом (хвост ревью доработок после 1.2.0: раньше обход молча
@@ -89,6 +106,39 @@ export async function syncModels(db: DbCore, models: readonly AnyModel[], opts: 
   }
   if (opts.apply) await db.refresh();
   return res;
+}
+
+const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
+
+/** Набор классов конца — как class_set() базы: список без повторов по порядку. */
+const classSet = (c: string | readonly string[]): string => [...new Set(typeof c === 'string' ? [c] : c)].sort().join(', ');
+
+/**
+ * Имя роли конца — одно на арендатора: в любом другом классе (своём или системном) роль с тем же именем обязана вести
+ * на тот же набор классов (база: sql-write.end_other_class в 60-write.sql, проверка ends при записи Class). Системные
+ * классы занимают роли User и Tenant (member → Account), Group и Object (rule → Resource). Проверка — до записи, по
+ * реестру и самим моделям, с понятным текстом; база проверяет всё равно.
+ */
+function checkEndRoles(reg: Registry, models: readonly AnyModel[]): void {
+  const names = new Set(models.map((m) => m.name));
+  const seen = new Map<string, { cls: string; set: string; system: boolean }>();
+  for (const c of reg.all()) {
+    if (names.has(c.name)) continue;
+    for (const [role, e] of Object.entries(c.ends)) {
+      if (!seen.has(role) || c.tenant === SYSTEM_ID) seen.set(role, { cls: c.name, set: classSet(e.class), system: c.tenant === SYSTEM_ID });
+    }
+  }
+  for (const m of models) {
+    for (const [role, e] of Object.entries(m.describe().ends ?? {})) {
+      const mine = classSet(e.class);
+      const other = seen.get(role);
+      if (other && other.set !== mine) {
+        if (other.system) throw lerr('model.end_role_system', { end: role, model: m.name, cls: other.cls, target: other.set });
+        throw lerr('model.end_role_taken', { end: role, model: m.name, mine, cls: other.cls, target: other.set });
+      }
+      if (!other) seen.set(role, { cls: m.name, set: mine, system: false });
+    }
+  }
 }
 
 /** Тип TypeScript по JSON Schema подмножества. */

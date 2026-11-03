@@ -336,9 +336,9 @@ export async function createApp() {
     let blockers = 0;
     try {
       await act(req.s, 'Удаление счёта', async (lines) => {
-        lines.push('db.Wallet(счёт).delete({ confirm: true }) — конец Wallet у Movement: restrict (по умолчанию)');
+        lines.push('db.Wallet(счёт).delete({ confirm: true, all: true }) — закрытие одного счёта без превью; конец Wallet у Movement: restrict (по умолчанию)');
         try {
-          await req.s.db.Wallet(req.params.id).delete({ confirm: true, reason: 'закрытие счёта' }).rows();
+          await req.s.db.Wallet(req.params.id).delete({ confirm: true, all: true, reason: 'закрытие счёта' }).rows();
           lines.push('счёт удалён: операций у него не было');
         } catch (e) {
           if (!(e instanceof LetopisError) || e.code !== 'delete_restricted') throw e;

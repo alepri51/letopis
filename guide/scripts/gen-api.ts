@@ -7,10 +7,10 @@
  *
  * Инвентарь — из кода, как у scripts/coverage.ts: методы цепочки, корня и батча (CHAIN_METHODS, DB_METHODS,
  * BATCH_METHODS; объявления — ChainCore, StepFn, DbCore, Batch), члены AuthApi, AclApi, Subscription, Registry, End,
- * опции (ConnectOptions, UpOptions, …), экспорты точек входа (docs/api-contract.json), команды CLI (USAGE в
+ * опции (ConnectOptions, UpOptions, …), экспорты точек входа (lib/api-contract.json), команды CLI (USAGE в
  * lib/src/cli.ts), инструменты MCP (lib/src/mcp.ts). Сигнатуры и типы — TypeScript Compiler API, описания — JSDoc; чего
  * в JSDoc нет — coverage/api-docs.ts (ключ — id пункта, как в covers примеров). Ссылки на примеры — по covers примеров
- * guide/examples/**.
+ * examples/<глава>/*.ts.
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import docs, { type ApiDoc, type ParamDoc } from '../coverage/api-docs.ts';
 import { operatorTable } from '../../lib/src/ops.ts';
+import { EXAMPLES, exampleFiles } from './examples.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const LIB = join(ROOT, '..', 'lib');
@@ -192,10 +193,44 @@ function paramsOf(node: ts.SignatureDeclaration): Param[] {
           def: md.def,
         });
       }
+    } else if (type && ts.isTypeReferenceNode(type) && EXPAND_OPTIONS.has(type.typeName.getText())) {
+      // Именованный тип опций (объединение форм) — поля всех форм, как у литерала типа. Тип поля — объединение его
+      // типов по ВСЕМ формам (у delete(): confirm — false | undefined в превью и true в подтверждении → boolean), а не
+      // тип из первой формы; поле обязательно, только если оно есть и не может быть undefined в каждой форме.
+      const t = checker.getTypeAtLocation(type);
+      const parts = t.isUnion() ? t.types : [t];
+      const fields = new Map<string, { sym: ts.Symbol; types: Set<string>; optional: boolean }>();
+      for (const part of parts) {
+        for (const sym of checker.getPropertiesOfType(part)) {
+          const f = fields.get(sym.name) ?? { sym, types: new Set<string>(), optional: false };
+          fields.set(sym.name, f);
+          if (sym.flags & ts.SymbolFlags.Optional) f.optional = true;
+          const ft = checker.getTypeOfSymbolAtLocation(sym, p);
+          for (const x of ft.isUnion() ? ft.types : [ft]) f.types.add(checker.typeToString(x));
+        }
+      }
+      for (const [field, f] of fields) {
+        if (parts.some((part) => !checker.getPropertyOfType(part, field))) f.optional = true;
+        if (f.types.has('undefined')) f.optional = true;
+        const types = [...f.types];
+        const shown = (types.includes('true') && types.includes('false') ? ['boolean', ...types.filter((x) => x !== 'true' && x !== 'false')] : types)
+          .filter((x) => x !== 'undefined');
+        const decl = f.sym.declarations?.[0];
+        const md = decl ? jsdocOf(decl) : { text: '', params: {} as Record<string, string> };
+        out.push({
+          name: `${name}.${field}`,
+          type: [...shown, ...(f.optional ? ['undefined'] : [])].join(' | ') || 'undefined',
+          optional: f.optional,
+          doc: md.text || undefined,
+          def: (md as { def?: string }).def,
+        });
+      }
     }
   }
   return out;
 }
+/** Именованные типы опций, поля которых раскрываются в параметры (`opts.confirm` и т.д.). */
+const EXPAND_OPTIONS = new Set(['DeleteOptions', 'RestoreOptions']);
 /** Член интерфейса, литерала типа или класса → пункт. */
 function memberItem(id: string, title: string, m: ts.Node): Item {
   const name = (m as ts.NamedDeclaration).name!.getText();
@@ -277,7 +312,7 @@ for (const m of classMembers('registry.ts', 'Registry')) add(memberItem(`registr
 for (const m of classMembers('model.ts', 'End')) add(memberItem(`end.${m.name!.getText()}`, `конец.${m.name!.getText()}${ts.isMethodDeclaration(m) ? '()' : ''}`, m));
 
 // экспорты точек входа
-const contract = JSON.parse(readFileSync(join(ROOT, '..', 'docs', 'api-contract.json'), 'utf8'));
+const contract = JSON.parse(readFileSync(join(ROOT, '..', 'lib', 'api-contract.json'), 'utf8'));
 const ENTRIES: [string, string, string][] = [['.', 'export', 'index.ts'], ['./model', 'model', 'model.ts'], ['./mcp', 'mcp', 'mcp.ts']];
 const exportedTypes = new Map<string, ts.Declaration>();
 for (const [entry, prefix, file] of ENTRIES) {
@@ -455,8 +490,8 @@ for (const file of walk(join(ROOT, 'pages'), '.md')) {
   }
 }
 const examples = new Map<string, { title: string; link: string }[]>(); // пункт covers → примеры
-for (const file of walk(join(ROOT, 'examples'), '.ts')) {
-  const exId = norm(relative(join(ROOT, 'examples'), file)).replace(/\.ts$/, '');
+for (const file of exampleFiles()) {
+  const exId = norm(relative(EXAMPLES, file)).replace(/\.ts$/, '');
   const sf = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
   let title = exId;
   const covers: string[] = [];
@@ -494,7 +529,7 @@ const PAGES: Page[] = [
       { title: 'Шаг', ids: ['chain.step'] },
       { title: 'Модификаторы', intro: 'Модификатор уточняет цепочку и возвращает её продолжение: сколько строк, в каком порядке, на какой момент.', ids: ['chain.limit', 'chain.offset', 'chain.sort', 'chain.after', 'chain.asOf', 'chain.withDeleted', 'chain.deep', 'chain.exact', 'chain.alias', 'chain.tags', 'chain.owner', 'chain.entity', 'chain.forUpdate', 'chain.cache'] },
       { title: 'Терминалы', intro: 'Терминал исполняет цепочку и возвращает результат. После глагола записи терминал исполняет план записи и возвращает записанные строки.', ids: ['chain.rows', 'chain.first', 'chain.ids', 'chain.count', 'chain.paths', 'chain.versions', 'chain.sum', 'chain.avg', 'chain.min', 'chain.max', 'chain.countBy'] },
-      { title: 'Глаголы записи', intro: 'Глагол ставит запись в план. Исполняет план терминал (`rows()`, `first()`, `ids()`, `count()`). `update()` и `delete({ confirm: true })` правят только цели, которые сузили фильтр, id, `tags()`, `owner()` или `limit()` хотя бы одного шага; все строки шага — явно, опцией `{ all: true }`, иначе `invalid_query` до записи.', ids: ['chain.create', 'chain.update', 'chain.upsert', 'chain.delete', 'chain.restore'] },
+      { title: 'Глаголы записи', intro: 'Глагол ставит запись в план. Исполняет план терминал (`rows()`, `first()`, `ids()`, `count()`). `update()` и `delete({ confirm: true, expect })` правят только цели, которые сузили фильтр, id, `tags()`, `owner()` или `limit()` хотя бы одного шага; все строки шага — явно, опцией `{ all: true }`, иначе `invalid_query` до записи. Подтверждённое удаление идёт только с `expect` — предпросмотром, который видел пользователь, а `restore()` — только с `expect` (надгробиями); без сверки — осознанно, `{ all: true }`.', ids: ['chain.create', 'chain.update', 'chain.upsert', 'chain.delete', 'chain.restore'] },
       { title: 'Шаги ролей', intro: 'После глагола записи шаг роли без вызова задаёт конец: `.Роль.set(…)`, `.Роль.unset()`, у множественного конца ещё `.add(…)` и `.remove(…)`.', ids: ['chain.set', 'chain.unset', 'chain.add', 'chain.remove'] },
     ],
   },
@@ -572,6 +607,7 @@ const PAGES: Page[] = [
       { title: 'Проверка данных', ids: ['export.compileValidator', 'export.applyDefaults'] },
       { title: 'Реестр классов', ids: ['export.Registry', 'registry.*'] },
       { title: 'Пароли и коды', ids: ['export.hashPassword', 'export.verifyHash', 'export.totpCode'] },
+      { title: 'Логирование', intro: 'Каталог событий журнала: имя, уровень, описание. Как включить журнал — `connect({ log, logLevel })`, `LETOPIS_LOG`, `--log`; глава «Логирование».', ids: ['export.LOG_EVENTS'] },
       { title: 'Константы', ids: ['export.DDL_REVISION', 'export.RESERVED_CLASS_NAMES', 'export.CHAIN_METHODS', 'export.DB_METHODS'] },
     ],
   },
@@ -717,9 +753,15 @@ function renderItem(it: Item, page: string): string[] {
   return out;
 }
 const HEADER = '<!-- Страница собрана scripts/gen-api.ts из lib/src и coverage/api-docs.ts — не править руками. -->';
+/** Якорь заголовка, как его ставит VitePress (slugify из @mdit-vue/shared): по нему — оглавление «Что здесь». */
+const slug = (t: string) => slugify(plain(t));
+/** «Что здесь» в начале страницы справочника: разделы и как устроен пункт. */
+const whatsHere = (p: Page) =>
+  `**Что здесь:** ${p.sections.map((s) => `[${md(s.title)}](#${slug(s.title)})`).join(' · ')}. У каждого пункта — сигнатура с типами, что делает, ` +
+  'параметры и опции (тип, значение по умолчанию), что возвращает, коды ошибок и ссылки на живые примеры сайта.';
 const pages = new Map<string, string>();
 for (const p of PAGES) {
-  const out = ['---', 'outline: [2, 3]', '---', '', HEADER, '', `# ${p.title}`, '', md(p.intro), ''];
+  const out = ['---', 'outline: [2, 3]', '---', '', HEADER, '', `# ${p.title}`, '', md(p.intro), '', whatsHere(p), ''];
   for (const n of p.notes ?? []) {
     const ex = (examples.get(n.id) ?? []).map((e) => `[${md(e.title)}](${e.link})`).join(' · ');
     out.push(`::: info ${md(n.title)}`, `<span id="${anchorOf(n.id)}"></span>${md(n.text)}${ex ? ` Пример: ${ex}.` : ''}`, ':::', '');

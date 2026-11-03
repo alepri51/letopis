@@ -1,4 +1,14 @@
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitepress';
+import { withPreviews } from './preview';
+import { standalonePlugin } from './standalone';
+import { deadAnchors } from './anchors';
+
+// каталог guide/; примеры и их снимки (превью в разметке, самостоятельный вариант) — в корневом examples/, сайт их
+// только читает
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const EXAMPLES = join(ROOT, '..', 'examples');
 
 // Сайт только на русском и только локально (решение владельца от 29.10.2026).
 export default defineConfig({
@@ -10,8 +20,19 @@ export default defineConfig({
   head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }]],
   cleanUrls: true,
   lastUpdated: false,
+  // мёртвые якоря (`#…` на переименованный заголовок) — ошибка сборки: VitePress сам проверяет только страницы
+  buildEnd(site) {
+    const dead = deadAnchors(site.outDir);
+    if (dead.length) throw new Error(`мёртвые якоря (${dead.length}):\n${dead.join('\n')}`);
+  },
   // песочница: dev-сервер (5173) отправляет /api на сервер сайта с включённой песочницей (`npm run sandbox`, 8080)
-  vite: { server: { proxy: { '/api': { target: 'http://127.0.0.1:8080', changeOrigin: true } } } },
+  // ?standalone — самостоятельный вариант примера модулем (.vitepress/standalone.ts); программу примера в HTML страницы
+  // вставляет preview.ts при сборке
+  vite: {
+    // dev-сервер отдаёт файлы вне guide/ только из разрешённых каталогов: примеры и снимки — в ../examples
+    server: { proxy: { '/api': { target: 'http://127.0.0.1:8080', changeOrigin: true } }, fs: { allow: [ROOT, EXAMPLES] } },
+    plugins: [standalonePlugin(ROOT)],
+  },
   markdown: {
     // ```mermaid → компонент <Mermaid>: схема рисуется в браузере
     config(md) {
@@ -21,6 +42,12 @@ export default defineConfig({
         if (t.info.trim() === 'mermaid') return `<Mermaid code="${encodeURIComponent(t.content)}" />`;
         return fence(tokens, idx, options, env, self);
       };
+      // <Example id="…" /> → с превью внутри: заголовок и код первого шага видны, пока плеер грузит снимок
+      md.core.ruler.push('lt-example-preview', (state) => {
+        for (const t of state.tokens) {
+          if ((t.type === 'html_block' || t.type === 'html_inline') && t.content.includes('<Example')) t.content = withPreviews(t.content, ROOT);
+        }
+      });
     },
   },
   themeConfig: {
@@ -31,10 +58,15 @@ export default defineConfig({
     ],
     sidebar: [
       {
-        text: 'Основы',
+        text: 'Начать',
         items: [
-          { text: 'Первые 15 минут', link: '/first/' },
-          { text: 'Старт с нуля', link: '/start/' },
+          { text: 'Первые 15 минут: один процесс', link: '/first/' },
+          { text: 'Старт с нуля: сервис по ключу', link: '/start/' },
+        ],
+      },
+      {
+        text: 'Главы',
+        items: [
           { text: '1. Что такое letopis', link: '/basics/what-is' },
           { text: '2. Установка и подключение', link: '/install/' },
           { text: '3. Модели', link: '/models/' },
@@ -48,12 +80,14 @@ export default defineConfig({
           { text: '11. Подписка, кэш, сигналы', link: '/watch/' },
           { text: '12. Массовая загрузка', link: '/load/' },
           { text: '13. Эксплуатация', link: '/ops/' },
-          { text: '14. ИИ-агенты: MCP', link: '/mcp/' },
-          { text: '15. Ошибки', link: '/errors/' },
-          { text: '16. Все нюансы', link: '/nuances/' },
+          { text: '14. Логирование', link: '/logging/' },
+          { text: '15. ИИ-агенты: MCP', link: '/mcp/' },
+          { text: '16. Ошибки', link: '/errors/' },
+          { text: '17. Все нюансы', link: '/nuances/' },
           { text: 'Карта понятий', link: '/concepts/' },
           { text: 'Глоссарий', link: '/glossary/' },
           { text: 'Песочница', link: '/sandbox' },
+          { text: 'Лицензия', link: '/license/' },
         ],
       },
       {
@@ -67,6 +101,7 @@ export default defineConfig({
           { text: 'Подписка и кэш', link: '/reference/watch' },
           { text: 'Загрузка', link: '/reference/load' },
           { text: 'Установка и подключение', link: '/reference/setup' },
+          { text: 'createTenant: арендатор', link: '/reference/setup#export-createtenant' },
           { text: 'Модели: letopis/model', link: '/reference/model' },
           { text: 'Служебные экспорты', link: '/reference/utils' },
           { text: 'MCP: letopis/mcp', link: '/reference/mcp' },
@@ -85,12 +120,17 @@ export default defineConfig({
         ],
       },
     ],
+    // подвал на всех страницах (на страницах с боковой панелью его показывает theme/style.css)
+    footer: {
+      message: 'Исходный код доступен; некоммерческое использование бесплатно: <a href="/license/">PolyForm Noncommercial 1.0.0</a>, коммерческое — по разрешению владельца. Версии до 2.0.0 включительно — MIT.',
+      copyright: 'Copyright 2026 <a href="https://github.com/alepri51">alepri51</a> · <a href="https://github.com/alepri51/letopis">исходники на GitHub</a>',
+    },
     outline: { level: [2, 3], label: 'На странице' },
     docFooter: { prev: 'Назад', next: 'Дальше' },
     darkModeSwitchLabel: 'Тема',
     lightModeSwitchTitle: 'Светлая тема',
     darkModeSwitchTitle: 'Тёмная тема',
-    sidebarMenuLabel: 'Меню',
+    sidebarMenuLabel: 'Главы',
     returnToTopLabel: 'Наверх',
     notFound: { title: 'Страница не найдена', quote: 'Такой страницы нет.', linkText: 'На главную' },
     search: {

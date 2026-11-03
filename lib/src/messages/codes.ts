@@ -36,7 +36,7 @@ export const codes = {
   'codes.acl_denied': {
     code: 'acl_denied',
     ru: 'правила доступа запрещают это действие',
-    hint: 'добавить правило доступа (`Rule`) или выполнить действие от пользователя, которому оно разрешено; проверить заранее — `db.acl.checkData`, `db.acl.check`',
+    hint: 'выдать право `db.acl.grant` (правила — класс `rule`) или выполнить действие от пользователя, которому оно разрешено; проверить заранее — `db.acl.checkData`, `db.acl.check`',
   },
   'codes.id_mismatch': {
     code: 'id_mismatch',
@@ -81,7 +81,7 @@ export const codes = {
   'codes.not_deleted': {
     code: 'not_deleted',
     ru: '`restore` работает только для удалённых объектов',
-    hint: 'сначала `delete()`, потом `restore()`',
+    hint: 'сначала `delete({ confirm: true, expect })`, потом `restore({ expect })` с надгробиями из ответа `delete()` или `withDeleted().rows()`',
   },
   'codes.exists': {
     code: 'exists',
@@ -100,8 +100,8 @@ export const codes = {
   },
   'codes.conflict': {
     code: 'conflict',
-    ru: '`update` с `{ rev }`: строку уже изменили после того, как вы её прочли',
-    hint: 'перечитать строку и повторить правку с новым `rev`; для чисел — `inc` вместо записи итога',
+    ru: 'то, что вы видели, уже изменилось — ничего не записано: `update` с `{ rev }` (строку изменили после чтения, `write.rev_conflict`), `delete({ confirm: true, expect })` (превью изменилось, `write.preview_changed`; в том числе цели уже удалены или не найдены — `detail.preview: []`), `restore({ expect })` (объект меняли после удаления, `write.restore_stale`)',
+    hint: 'перечитать и повторить с новыми данными: `update` — с новым `rev` (для чисел — `inc` вместо записи итога); `delete` — показать новое превью `err.detail.preview` и удалить с ним; `restore` — сообщить пользователю (вещь уже у другого) или `restore({ expect, partial: true })`',
   },
   'codes.rev_ambiguous': {
     code: 'rev_ambiguous',

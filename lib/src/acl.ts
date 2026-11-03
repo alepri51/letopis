@@ -20,6 +20,7 @@
 import { lerr } from './errors.js';
 import { internalsOf } from './internal.js';
 import type { Executor } from './tx.js';
+import type { CallSpec } from './log.js';
 import { v5Id } from './uuid.js';
 
 const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
@@ -314,7 +315,8 @@ export function makeAcl(S: string, exec: Executor, db?: () => unknown): AclApi {
           if (it.op !== 'API' && it.target === '*' && !it.condition) objects.push(sysId(`all:${it.op}`));
           for (const g of groups) {
             for (const o of objects) {
-              if (g && o) n += (await tr.rule({ Group: g, Object: o }).delete({ confirm: true }).rows()).length;
+              // снять правило — замысел вызова, превью некому показывать: { all: true } (3.0) — без сверки, цели сужает фильтр
+              if (g && o) n += (await tr.rule({ Group: g, Object: o }).delete({ confirm: true, all: true }).rows()).length;
             }
           }
         }
@@ -332,7 +334,8 @@ export function makeAcl(S: string, exec: Executor, db?: () => unknown): AclApi {
         return m ? [...((m.data.roles as string[] | undefined) ?? [])] : null;
       }
       if (roles === null) {
-        await inTx('roles', (tr) => tr.member({ User: acc, Tenant: tenant }).delete({ confirm: true }).rows());
+        // roles(account, null) — снять членство: замысел вызова, без сверки с превью (3.0)
+        await inTx('roles', (tr) => tr.member({ User: acc, Tenant: tenant }).delete({ confirm: true, all: true }).rows());
         return null;
       }
       if (!Array.isArray(roles)) throw lerr('access.roles_not_array');
@@ -381,3 +384,21 @@ export function makeAcl(S: string, exec: Executor, db?: () => unknown): AclApi {
   };
   return api;
 }
+
+// ---------------------------------------------------------------------------
+// Логирование (3.0): события db.acl — обёртка instrument (log.ts)
+// ---------------------------------------------------------------------------
+
+const accountOf = (a: unknown): unknown => (a !== null && typeof a === 'object' ? (a as { id?: unknown }).id : a);
+
+/** Что пишет в лог каждый метод db.acl: правка прав — acl.change, проверки и список — acl.check. */
+export const ACL_LOG: Readonly<Record<string, CallSpec>> = {
+  check: (args, r) => ({ event: 'acl.check', detail: { endpoint: args[0], decision: r } }),
+  checkData: (args, r) => ({ event: 'acl.check', detail: { class: args[0], access: args[1], decision: r } }),
+  grant: (args, r) => ({ event: 'acl.change', rows: Array.isArray(r) ? r.length : undefined, detail: { action: 'grant', spec: args[0] } }),
+  deny: (args, r) => ({ event: 'acl.change', rows: Array.isArray(r) ? r.length : undefined, detail: { action: 'deny', spec: args[0] } }),
+  revoke: (args, n) => ({ event: 'acl.change', rows: typeof n === 'number' ? n : undefined, detail: { action: 'revoke', spec: args[0] } }),
+  roles: (args, r) => ({ event: args.length > 1 && args[1] !== undefined ? 'acl.change' : 'acl.check',
+    detail: { action: 'roles', account: accountOf(args[0]), roles: r } }),
+  list: (_args, r) => ({ event: 'acl.check', rows: Array.isArray(r) ? r.length : undefined, detail: { action: 'list' } }),
+};

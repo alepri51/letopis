@@ -13,6 +13,7 @@ import { createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { lerr } from './errors.js';
 import type { Executor } from './tx.js';
+import type { CallSpec } from './log.js';
 
 const scryptAsync = promisify(scrypt) as (password: string, salt: Buffer, keylen: number,
   opts: { N: number; r: number; p: number; maxmem: number }) => Promise<Buffer>;
@@ -96,6 +97,8 @@ export function totpCode(secretBase32: string, atMs = Date.now()): string {
 
 type AccountRef = string | { id: string };
 const accId = (a: AccountRef): string => (typeof a === 'object' ? a.id : a);
+/** Логин без крайних пробелов (план 2.1, A12): « anna » и «anna» — один логин; не строка — как есть (отказ даст база). */
+const trimLogin = (v: unknown): string => (typeof v === 'string' ? v.trim() : (v as string));
 const ttlOf = (sec: number | undefined): string | null => (sec === undefined ? null : `${Math.round(sec)} seconds`);
 
 /** Успешный вход: аккаунт и токен новой сессии. */
@@ -202,14 +205,24 @@ export interface AuthApi {
   session(token: string): Promise<SessionInfo | null>;
   /** Продлить текущую сессию; новый срок — от сейчас. */
   refresh(opts?: { ttl?: number }): Promise<string>;
-  /** Выход: погасить текущую сессию. */
-  revoke(): Promise<boolean>;
+  /**
+   * Выход. Без аргумента — погасить сессию этого подключения. С токеном — погасить сессию пользователя по её токену
+   * (например, из cookie веб-сервиса): так сервис выводит пользователя, не подключаясь по его токену; нужно право
+   * `auth.session`, как у `session(token)`.
+   * @returns true — сессия погашена; false — токен неверный, сессия уже погашена или истекла (причина не различается).
+   * @throws LetopisError `acl_denied` — с токеном, а у вызывающего нет права `auth.session`; `no_session` — у подключения
+   * нет действующей сессии.
+   */
+  revoke(token?: string): Promise<boolean>;
   /** Выход везде: все сессии аккаунта (чужого — с правом `auth.session`). */
   revokeAll(account?: AccountRef): Promise<number>;
   /** Переключить арендатора сессии: собственный или по членству. */
   switch(tenant: string): Promise<void>;
-  /** Арендаторы, доступные аккаунту сессии: собственный (`owner`) и по членству. */
-  tenants(): Promise<{ tenant: string; roles: string[] }[]>;
+  /**
+   * Арендаторы, доступные аккаунту сессии: собственный (`roles: ['owner']`, `personal: true`) и по членству. `name` — имя
+   * аккаунта арендатора (`createTenant({ name })`, у личного — имя пользователя).
+   */
+  tenants(): Promise<{ tenant: string; roles: string[]; name: string | null; personal: boolean }[]>;
   /**
    * Удалить аккаунт: системный администратор или владелец его
    * арендатора; себя и последнего владельца арендатора — нельзя. Данные арендатора стираются,
@@ -244,12 +257,15 @@ export function makeAuth(S: string, exec: Executor, onSwitch: () => Promise<void
     async setPassword(a) {
       const hash = await hashPassword(a.password);
       const r = await one<{ id: string }>(`select ${S}.auth_set_password($1::uuid, $2, $3, $4, $5, $6) as id`,
-        [accId(a.account), a.identifier, hash, a.kind ?? 'PASSWORD', a.confirmed ?? null, a.keepCurrent ?? true]);
+        [accId(a.account), trimLogin(a.identifier), hash, a.kind ?? 'PASSWORD', a.confirmed ?? null, a.keepCurrent ?? true]);
       return r.id;
     },
     async verifyPassword(a) {
-      const rows = await exec.run((q) => q.unsafe(`select account, hash, confirmed from ${S}.auth_password_get($1, $2)`, [a.identifier, a.kind ?? 'PASSWORD']));
-      const cred = rows[0] as unknown as { account: string; hash: string; confirmed: boolean } | undefined;
+      const get = async (ident: unknown) => (await exec.run((q) => q.unsafe(`select account, hash, confirmed from ${S}.auth_password_get($1, $2)`,
+        [ident as string, a.kind ?? 'PASSWORD'])))[0] as unknown as { account: string; hash: string; confirmed: boolean } | undefined;
+      // логин без крайних пробелов (план 2.1, A12); кред, записанный до 2.1 с пробелами, находится по логину как есть
+      const ident = trimLogin(a.identifier);
+      const cred = (await get(ident)) ?? (ident !== a.identifier ? await get(a.identifier) : undefined);
       if (!cred) return dummyVerify(a.password).then(() => null);
       if (!(await verifyHash(a.password, cred.hash))) return null;
       if (!cred.confirmed && a.requireConfirmed !== false) return null;
@@ -316,7 +332,9 @@ export function makeAuth(S: string, exec: Executor, onSwitch: () => Promise<void
     async refresh(opts) {
       return (await one<{ e: string }>(`select ${S}.auth_refresh(coalesce($1::interval, interval '7 days')) as e`, [ttlOf(opts?.ttl)])).e;
     },
-    async revoke() {
+    async revoke(token) {
+      // с токеном — выход пользователя по токену (план 2.1, A3): право auth.session, как у session(token)
+      if (token !== undefined) return (await one<{ ok: boolean }>(`select ${S}.auth_logout_token($1) as ok`, [token])).ok;
       return (await one<{ ok: boolean }>(`select ${S}.auth_logout() as ok`)).ok;
     },
     async revokeAll(account) {
@@ -328,8 +346,9 @@ export function makeAuth(S: string, exec: Executor, onSwitch: () => Promise<void
       await onSwitch();
     },
     async tenants() {
-      const rows = await exec.run((q) => q.unsafe(`select tenant, roles from ${S}.auth_tenants()`));
-      return rows.map((r) => ({ tenant: r.tenant as string, roles: r.roles as string[] }));
+      // name и personal — с ревизии 9 (план 2.1, A5): personal — собственный арендатор аккаунта сессии (tenant = account)
+      const rows = await exec.run((q) => q.unsafe(`select tenant, roles, name, personal from ${S}.auth_tenants()`));
+      return rows.map((r) => ({ tenant: r.tenant as string, roles: r.roles as string[], name: (r.name as string | null) ?? null, personal: r.personal === true }));
     },
     async purgeAccount(account) {
       const r = (await one<{ r: { account: string; rows: number; versions: number; memberships: number; owned: number } }>(
@@ -340,3 +359,75 @@ export function makeAuth(S: string, exec: Executor, onSwitch: () => Promise<void
     },
   };
 }
+
+// ---------------------------------------------------------------------------
+// Логирование (3.0): события db.auth — обёртка instrument (log.ts). Пароли, ключи, секреты, коды и токены в события не
+// идут никогда: только способ входа, логин, аккаунт и id креда
+// ---------------------------------------------------------------------------
+
+type Spec = NonNullable<ReturnType<CallSpec>>;
+type A = Record<string, unknown>;
+const argOf = (args: unknown[], i = 0): A => (args[i] !== null && typeof args[i] === 'object' ? (args[i] as A) : {});
+/** Аккаунт аргумента: id или { id }. */
+const accOf = (a: unknown): string | undefined =>
+  (typeof a === 'string' ? a : a !== null && typeof a === 'object' && typeof (a as A).id === 'string' ? ((a as A).id as string) : undefined);
+const loginOf = (v: unknown): A => (typeof v === 'string' ? { login: v.trim() } : {});
+
+/** Вход: успех — auth.login (account — вошедший), отказ — auth.fail. */
+function loginEvent(r: unknown, method: string, extra: A = {}): Spec {
+  const res = r as LoginResult | null;
+  const detail = { method, ...extra };
+  return res && typeof res === 'object' ? { event: 'auth.login', account: res.account, detail } : { event: 'auth.fail', detail };
+}
+const credential = (action: string, detail: A): Spec => ({ event: 'auth.credential', detail: { action, ...detail } });
+const call = (method: string, detail: A = {}): Spec => ({ event: 'auth.call', detail: { method, ...detail } });
+
+/** Что пишет в лог каждый метод db.auth. */
+export const AUTH_LOG: Readonly<Record<string, CallSpec>> = {
+  setPassword: (args, id) => {
+    const a = argOf(args);
+    return credential('setPassword', { account: accOf(a.account), kind: a.kind ?? 'PASSWORD', ...loginOf(a.identifier), id });
+  },
+  verifyPassword: (args, r) => {
+    const a = argOf(args);
+    return loginEvent(r, String(a.kind ?? 'PASSWORD'), { ...loginOf(a.identifier), ...(a.totp != null ? { totp: true } : {}) });
+  },
+  issueApiKey: (args, r) => credential('issueApiKey', { account: accOf(argOf(args).account), name: argOf(args).name, id: (r as A | null)?.id }),
+  verifyApiKey: (_args, r) => loginEvent(r, 'APIKEY'),
+  issueKeySecret: (args, r) => credential('issueKeySecret', { account: accOf(argOf(args).account), name: argOf(args).name, id: (r as A | null)?.id }),
+  verifyKeySecret: (_args, r) => loginEvent(r, 'KEYSECRET'),
+  enrollTotp: (args) => credential('enrollTotp', { account: accOf(argOf(args).account) }),
+  verifyTotp: (args, ok) => (ok === true
+    ? call('verifyTotp', { account: accOf(argOf(args).account), ok: true })
+    : { event: 'auth.fail', detail: { method: 'TOTP', account: accOf(argOf(args).account) } }),
+  totpEnabled: (args, r) => call('totpEnabled', { account: accOf(args[0]), enabled: r }),
+  issueOtp: (args) => {
+    const a = argOf(args);
+    return credential('issueOtp', { account: accOf(a.account), kind: a.kind ?? 'OTP', ...loginOf(a.identifier) });
+  },
+  verifyOtp: (args, r) => {
+    const a = argOf(args);
+    return loginEvent(r, String(a.kind ?? 'OTP'), loginOf(a.identifier));
+  },
+  link: (args, id) => {
+    const a = argOf(args);
+    return credential('link', { account: accOf(a.account), kind: a.kind, ...loginOf(a.identifier), id });
+  },
+  lookup: (args, r) => {
+    const a = argOf(args);
+    return loginEvent(r, String(a.kind), { ...loginOf(a.identifier), ...(a.totp != null ? { totp: true } : {}) });
+  },
+  credentials: (args, r) => ({ ...call('credentials', { account: accOf(args[0]) }), rows: Array.isArray(r) ? r.length : undefined }),
+  revokeCredential: (args, ok) => ({ event: 'auth.revoke', detail: { target: 'credential', id: args[0], ok } }),
+  setFlags: (args, ok) => credential('setFlags', { id: args[0], ...argOf(args, 1), ok }),
+  sessionFor: (args) => ({ event: 'auth.session', detail: { account: accOf(args[0]), method: 'SERVICE' } }),
+  session: (_args, r) => call('session', { found: r !== null }),
+  refresh: () => call('refresh'),
+  revoke: (args, ok) => (args[0] !== undefined
+    ? { event: 'auth.revoke', detail: { target: 'token', ok } }
+    : { event: 'auth.logout', detail: { ok } }),
+  revokeAll: (args, n) => ({ event: 'auth.revoke', detail: { target: 'all', account: accOf(args[0]), n } }),
+  switch: (args, _r, before) => ({ event: 'auth.switch', tenant: String(args[0]), detail: { from: before } }),
+  tenants: (_args, r) => ({ ...call('tenants'), rows: Array.isArray(r) ? r.length : undefined }),
+  purgeAccount: (args, r) => ({ event: 'account.purge', detail: { account: accOf(args[0]), ...(r as A) } }),
+};

@@ -28,6 +28,8 @@ interface Rule {
   /** Условие на узел; для дополнительной проверки — возвращает сообщение нарушения или null. */
   test: (node: J) => boolean;
   extra?: (node: J) => string | null;
+  /** Сообщение нарушения по первому узлу, который нарушил правило (без него — «нарушено правило …»). */
+  explain?: (node: J) => string;
   /** Правило проверяет только база (`pattern` и `anyOf`/`oneOf` с ним): в процессе приложения не исполняется. */
   db?: true;
 }
@@ -117,6 +119,12 @@ const items = (sel: Select): Select => (root) => sel(root).flatMap((n) => (Array
 const others = (sel: Select, known: string[]): Select => (root) => sel(root).flatMap((n) => (isObj(n) ? Object.keys(n).filter((k) => !known.includes(k)).map((k) => n[k]) : []));
 const keys = (sel: Select): Select => (root) => sel(root).flatMap((n) => (isObj(n) ? Object.keys(n) : []));
 
+/** Допустимые значения перечисления для сообщения нарушения — как у базы (validate_data): JSON через запятую, до 20. */
+function enumValues(values: readonly J[]): string {
+  const shown = values.slice(0, 20).map((v) => JSON.stringify(v)).join(', ');
+  return values.length > 20 ? `${shown}, …` : shown;
+}
+
 /** Описание не компилируется (`invalid_class`): ключ каталога и параметры; путь узла — параметр node. */
 function fail(path: Path, key: MsgKey, params?: Params): never {
   throw lerr(key, { ...params, node: JSON.stringify(path) });
@@ -138,11 +146,13 @@ function compileNode(s: J, sel: Select, path: Path, inAny: boolean, out: Rule[])
   if (sch.enum !== undefined || sch.const !== undefined) {
     const keyword = sch.enum !== undefined ? 'enum' : 'const';
     const values = (sch.enum ?? [sch.const]) as J[];
+    // сообщение называет допустимые значения (план 2.1, A8)
+    const msg = lmsg('model.issue_enum', { values: enumValues(values) });
     if (values.some((v) => typeof v === 'object' && v !== null)) {
       if (inAny) fail(path, 'model.validator_enum_objects_in_any_of');
-      out.push({ path, keyword, select: sel, test: () => true, extra: (v) => (values.some((x) => jsonEqual(x, v)) ? null : lmsg('model.issue_enum')) });
+      out.push({ path, keyword, select: sel, test: () => true, extra: (v) => (values.some((x) => jsonEqual(x, v)) ? null : msg) });
     } else {
-      out.push({ path, keyword, select: sel, test: (v) => values.some((x) => typeOf(x) === typeOf(v) && jsonEqual(x, v)) });
+      out.push({ path, keyword, select: sel, test: (v) => values.some((x) => typeOf(x) === typeOf(v) && jsonEqual(x, v)), explain: () => msg });
     }
   }
   const num = (f: (v: number, b: number) => boolean, b: number) => (v: J) => typeof v !== 'number' || f(v, b);
@@ -178,7 +188,12 @@ function compileNode(s: J, sel: Select, path: Path, inAny: boolean, out: Rule[])
     const min = (sch.minLength as number | undefined) ?? 0;
     const max = (sch.maxLength as number | undefined) ?? Infinity;
     out.push({ path, keyword: sch.minLength !== undefined ? 'minLength' : 'maxLength', select: sel, test: () => true,
-      extra: (v) => { if (typeof v !== 'string') return null; const n = [...v].length; return n < min || n > max ? lmsg('model.issue_string_length') : null; } });
+      // текст называет границу (второй раунд 2.1, A6), как у базы (30-validate.sql, validate_data)
+      extra: (v) => {
+        if (typeof v !== 'string') return null;
+        const n = [...v].length;
+        return n < min ? lmsg('model.issue_string_too_short', { limit: min }) : n > max ? lmsg('model.issue_string_too_long', { limit: max }) : null;
+      } });
   }
   if (sch.minItems !== undefined) out.push({ path, keyword: 'minItems', select: sel, test: (v) => !Array.isArray(v) || v.length >= (sch.minItems as number) });
   if (sch.maxItems !== undefined) out.push({ path, keyword: 'maxItems', select: sel, test: (v) => !Array.isArray(v) || v.length <= (sch.maxItems as number) });
@@ -203,7 +218,9 @@ function compileNode(s: J, sel: Select, path: Path, inAny: boolean, out: Rule[])
     for (const [k, v] of Object.entries(sch.properties)) compileNode(v, prop(sel, k), [...path, k], inAny, out);
   }
   if (sch.additionalProperties === false) {
-    out.push({ path, keyword: 'additionalProperties', select: sel, test: (v) => !isObj(v) || Object.keys(v).every((k) => known.includes(k)) });
+    // сообщение называет лишние ключи (план 2.1, A8)
+    out.push({ path, keyword: 'additionalProperties', select: sel, test: (v) => !isObj(v) || Object.keys(v).every((k) => known.includes(k)),
+      explain: (v) => lmsg('model.issue_additional', { keys: Object.keys(v as object).filter((k) => !known.includes(k)).slice(0, 20).join(', ') }) });
   } else if (isObj(sch.additionalProperties)) {
     compileNode(sch.additionalProperties, others(sel, known), [...path, '*'], inAny, out);
   }
@@ -252,8 +269,11 @@ export function compileValidator(schema: JsonSchema): Validator {
           const msg = r.extra(n);
           if (msg) issues.push({ path: r.path, keyword: r.keyword, message: msg });
         }
-      } else if (!nodes.every((n) => r.test(n))) {
-        issues.push({ path: r.path, keyword: r.keyword, message: lmsg('model.issue_rule', { keyword: r.keyword }) });
+      } else {
+        const at = nodes.findIndex((n) => !r.test(n));
+        if (at >= 0) {
+          issues.push({ path: r.path, keyword: r.keyword, message: r.explain ? r.explain(nodes[at]) : lmsg('model.issue_rule', { keyword: r.keyword }) });
+        }
       }
     }
     return issues;

@@ -1,0 +1,200 @@
+{
+  "id": "auth/03-delete-account",
+  "context": {
+    "schema": "v2.g_auth_03_delete_account",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_c8006ce399c01897ef3dcdbd50261178e804ae816208068a5227bb73c803ef7e",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "d7a65caa6e30b72b71c2a7c743a068ea5301cf9b2dda1a46cc9dfa4ae10d61cc",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "Анна работает в": "System"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "4105bcea-fb9b-5721-8209-7938dc27346b",
+            "login_at": "2026-11-03T19:05:23.344451+00:00"
+          },
+          "material": "00db67544804d4b74d0a9e196c3bec69fa7362e3f11c70cd3eb338ce827397f1",
+          "expires_at": "2026-11-10 19:05:23.344457+00",
+          "created_at": "2026-11-03 19:05:23.344459+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": [
+        "member"
+      ]
+    },
+    {
+      "result": {
+        "правил в кэше": 3,
+        "кэш": 1
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "4105bcea-fb9b-5721-8209-7938dc27346b",
+            "login_at": "2026-11-03T19:05:23.344451+00:00"
+          },
+          "material": "00db67544804d4b74d0a9e196c3bec69fa7362e3f11c70cd3eb338ce827397f1",
+          "expires_at": "2026-11-10 19:05:23.344457+00",
+          "created_at": "2026-11-03 19:05:23.344459+00",
+          "deleted_at": null
+        },
+        {
+          "account": "23dc6878-f3af-5ecf-a062-e5329b9f1638",
+          "kind": "PASSWORD",
+          "ident": "boris@lutik.ru",
+          "meta": {
+            "confirmed": true
+          },
+          "material": "736372797074243332373638243824312457586f2b54694e376337674f716837765648626e73673d3d2474645677724f6a664f3437674e526a674b6c6e7950717532465355546f366e693046522b61556f4c54566b3d",
+          "expires_at": null,
+          "created_at": "2026-11-03 19:05:23.823356+00",
+          "deleted_at": null
+        },
+        {
+          "account": "23dc6878-f3af-5ecf-a062-e5329b9f1638",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "68466b9a-4722-5a50-ba68-378a96b6beb8",
+            "login_at": "2026-11-03T19:05:23.824756+00:00"
+          },
+          "material": "b5ffec84a784a530560d5f512de25cc0ebacb73ef1f960a566594f901e25ee73",
+          "expires_at": "2026-11-10 19:05:23.824763+00",
+          "created_at": "2026-11-03 19:05:23.824765+00",
+          "deleted_at": null
+        },
+        {
+          "account": "23dc6878-f3af-5ecf-a062-e5329b9f1638",
+          "kind": "KEYSECRET",
+          "ident": "e911ece0bc0523b5",
+          "meta": {
+            "name": "касса",
+            "confirmed": true
+          },
+          "material": "6607bf3f043c8a50b3d7fcb03afc2384dcca8d01b1472333411685c75165dbbd",
+          "expires_at": null,
+          "created_at": "2026-11-03 19:05:23.831167+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": []
+    },
+    {
+      "result": {
+        "строк Бориса в secret": 0,
+        "правил по кэшированному запросу": 0,
+        "сессия по токену": null
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "4105bcea-fb9b-5721-8209-7938dc27346b",
+            "login_at": "2026-11-03T19:05:23.344451+00:00"
+          },
+          "material": "00db67544804d4b74d0a9e196c3bec69fa7362e3f11c70cd3eb338ce827397f1",
+          "expires_at": "2026-11-10 19:05:23.344457+00",
+          "created_at": "2026-11-03 19:05:23.344459+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": [
+        "Account",
+        "member",
+        "session:b5ffec84a784a530"
+      ]
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "acl_denied",
+        "message": "letopis: acl_denied: аккаунт System не удаляется: ему принадлежат служебные строки установки",
+        "detail": {}
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "4105bcea-fb9b-5721-8209-7938dc27346b",
+            "login_at": "2026-11-03T19:05:23.344451+00:00"
+          },
+          "material": "00db67544804d4b74d0a9e196c3bec69fa7362e3f11c70cd3eb338ce827397f1",
+          "expires_at": "2026-11-10 19:05:23.344457+00",
+          "created_at": "2026-11-03 19:05:23.344459+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": []
+    }
+  ]
+}

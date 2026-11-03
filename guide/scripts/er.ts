@@ -1,7 +1,7 @@
 /**
  * ER-схемы сервисов-примеров — из реестра, а не руками. Для каждого сервиса — свежая схема на базе примеров
  * (ENTITY_DSN), его модель (services/<имя>/src/models.mjs; у салона — сид booking), описания классов из реестра
- * подключения (`db.registry.all()`) и Mermaid erDiagram (kit/diagram.ts). Схема вставляется в страницу сервиса между метками
+ * подключения (`db.registry.all()`) и Mermaid erDiagram (examples/_shared/diagram.ts). Схема вставляется в страницу сервиса между метками
  * `<!-- er:<имя> -->` и `<!-- /er -->`; временные схемы удаляются.
  *   cd guide && npx tsx scripts/er.ts        (--check — только сверить, код 1 при расхождении)
  */
@@ -12,7 +12,7 @@ import postgres from 'postgres';
 import { up, connect, syncModels } from 'letopis';
 import * as model from 'letopis/model';
 import { z } from 'zod';
-import { erDiagram } from '../kit/diagram.ts';
+import { erDiagram } from '../../examples/_shared/diagram.ts';
 
 const ROOT = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 const SERVICES = join(ROOT, '..', 'services');

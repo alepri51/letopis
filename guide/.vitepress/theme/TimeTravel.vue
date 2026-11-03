@@ -9,13 +9,13 @@ import { computed, onMounted, ref, shallowRef } from 'vue';
 
 type Rec = Record<string, any>;
 const props = defineProps<{ id: string; object: string }>();
-const files = import.meta.glob<{ default: { steps: { log: Rec[] }[] } }>(['../../snapshots/**/*.json', '!../../snapshots/**/*.real.json']);
+const files = import.meta.glob<{ default: { steps: { log: Rec[] }[] } }>(['../../../examples/_snapshots/**/*.json', '!../../../examples/_snapshots/**/*.real.json']);
 const versions = shallowRef<Rec[]>([]);
 const missing = ref(false);
 const k = ref(0);
 
 onMounted(async () => {
-  const load = files[`../../snapshots/${props.id}.json`];
+  const load = files[`../../../examples/_snapshots/${props.id}.json`];
   const snap = load ? (await load()).default : null;
   const log = snap?.steps.at(-1)?.log ?? [];
   versions.value = log.filter((r) => r.id === props.object);

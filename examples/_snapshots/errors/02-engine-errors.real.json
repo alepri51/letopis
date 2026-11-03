@@ -1,0 +1,104 @@
+{
+  "id": "errors/02-engine-errors",
+  "context": {
+    "schema": "v2.g_errors_02_engine_errors",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_9a04818063d47f7fb3e93ab860ca59518cc1e6ca902f9dd6893ba8850f140412",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "ddc08618f16b16837246f5028b9d2401ae8eddb746e8cf1a44c85f925b73731e",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": null,
+      "error": {
+        "code": "undeclared_end",
+        "message": "letopis: undeclared_end: конец Stranger не объявлен в классе Customer",
+        "detail": {}
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Category",
+        "Class",
+        "Customer",
+        "Order",
+        "Product",
+        "Shop",
+        "Vip",
+        "line"
+      ]
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "id_from_db",
+        "message": "letopis: id_from_db: id класса без ключа Customer выдаёт база",
+        "detail": {}
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "immutable_key",
+        "message": "letopis: immutable_key: класс строки Shop неизменен: объект другого класса — новый объект",
+        "detail": {}
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "recreated_in_statement",
+        "message": "letopis: recreated_in_statement: id удалён и создан заново одним оператором",
+        "detail": {}
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "isolation_level",
+        "message": "letopis: isolation_level: удаление разрешено только в read committed",
+        "detail": {}
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    }
+  ]
+}

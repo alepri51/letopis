@@ -57,3 +57,105 @@ html.dark .lt-ex-code pre {
    «На этой странице» (.aside) или полосу навигации: они не двигаются вместе с текстом, и когда плеер выше по странице
    догружает снимок, текст уезжает вниз из-под глаз. */
 .aside, .VPLocalNav, .VPNav, .VPSidebar { overflow-anchor: none; }
+
+/* Пример как самостоятельная программа (.vitepress/preview.ts) — в HTML страницы, до загрузки скриптов. */
+.lt-ex-pre { color: var(--vp-c-text-1); }
+.lt-ex-pre-badge {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vp-c-green-1);
+  background: var(--vp-c-green-soft);
+  border-radius: 999px;
+  padding: 2px 10px;
+  margin-bottom: 6px;
+}
+.lt-ex-pre-title { font-size: 18px; font-weight: 700; line-height: 1.4; }
+.vp-doc .lt-ex-pre-summary { margin: 6px 0 0; color: var(--vp-c-text-2); }
+.lt-ex-pre-step { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--vp-c-divider); font-weight: 700; font-size: 16px; }
+.vp-doc .lt-ex-pre-text { margin: 6px 0 10px; }
+.lt-ex-pre .lt-ex-code pre {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.lt-ex-pre .lt-ex-code code { background: transparent; padding: 0; }
+
+/* Программа примера (preview.ts): скрипт с кнопкой «Копировать», как запустить, ожидаемый вывод */
+.lt-ex-prog-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 14px 0 6px; }
+.lt-ex-prog-file { font-family: var(--vp-font-family-mono); font-size: 13px; font-weight: 600; color: var(--vp-c-text-2); }
+.lt-ex-pre .lt-btn {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  padding: 4px 12px;
+  font-size: 14px;
+  background: var(--vp-c-bg-soft);
+  cursor: pointer;
+}
+.lt-ex-run, .lt-ex-out { margin-top: 14px; }
+.lt-ex-run-title { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+.vp-doc .lt-ex-pre-note { margin: 6px 0; font-size: 13px; line-height: 1.55; color: var(--vp-c-text-2); }
+.vp-doc .lt-ex-warn { color: var(--vp-c-warning-1); }
+.lt-ex-pre-plain {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--vp-code-block-bg);
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre;
+  max-height: 560px;
+  overflow: auto;
+}
+.lt-ex-output { max-height: 420px; }
+
+/* Телефон: код — строками как в редакторе, с прокруткой вбок; длинный скрипт — в окне по высоте, а не на десятки
+   экранов переносов */
+@media (max-width: 640px) {
+  .lt-ex-pre-plain { font-size: 12.5px; max-height: 60vh; }
+}
+
+/* Подвал с лицензией (themeConfig.footer) — на всех страницах: тема прячет его на страницах с боковой панелью,
+   здесь он остаётся и сдвинут вправо от неё, как текст страницы. */
+html .VPFooter.has-sidebar { display: block !important; }
+@media (min-width: 960px) {
+  html .VPFooter.has-sidebar { padding-left: calc(var(--vp-sidebar-width) + 32px); }
+}
+@media (min-width: 1440px) {
+  html .VPFooter.has-sidebar {
+    padding-right: calc((100vw - var(--vp-layout-max-width)) / 2 + 32px);
+    padding-left: calc((100vw - var(--vp-layout-max-width)) / 2 + var(--vp-sidebar-width) + 32px);
+  }
+}
+
+/* Главная (pages/index.md): сразу к делу — «Hello, world!», карточки основных действий, потом описание. */
+.lt-home { max-width: 1040px; margin: 0 auto; padding-top: 32px; }
+.lt-home h1 { margin-bottom: 8px; }
+.lt-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
+  gap: 16px;
+  margin: 16px 0 8px;
+}
+.lt-action {
+  min-width: 0;
+  padding: 4px 16px 12px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  background: var(--vp-c-bg-soft);
+}
+.vp-doc .lt-action h3 { margin: 12px 0 8px; padding-top: 0; border-top: 0; font-size: 17px; }
+.vp-doc .lt-action div[class*='language-'] { margin: 8px 0; }
+.vp-doc .lt-action div[class*='language-'] pre { padding: 12px 0; }
+.vp-doc .lt-action div[class*='language-'] code { font-size: 12.5px; }
+.vp-doc .lt-action p { margin: 6px 0 0; font-size: 14px; }
+@media (max-width: 640px) {
+  .lt-home { padding-top: 16px; }
+  .lt-action { padding: 2px 10px 10px; }
+}
+
+/* Сворачиваемые второстепенные блоки глав (::: details): на телефоне страница короче, а подробности — по нажатию. */
+.vp-doc .details summary { font-weight: 600; }

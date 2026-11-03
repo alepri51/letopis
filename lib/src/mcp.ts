@@ -29,11 +29,13 @@ import { lookupStep, type Chain, type StepFn } from './chain.js';
 import { describeModel } from './describe.js';
 import { LetopisError, checkOptions, lerr, lmsg, similar } from './errors.js';
 import { internalsOf } from './internal.js';
+import { NOLOG } from './log.js';
 import { OPERATORS, opHint, or, type OpArg } from './ops.js';
 import type { Registry } from './registry.js';
 import { cursorOf } from './sql.js';
 import { ACL_CLASS_NAMES, RESERVED_CLASS_NAMES, type Cursor, type FieldFilter, type Filter, type Op, type Row, type Scalar } from './types.js';
 import type { Db, DbCore } from './index.js';
+import { UUID_RE } from './uuid.js';
 
 export interface McpOptions {
   /** Инструмент letopis_write (create, update, upsert, delete); по умолчанию сервер только читает. */
@@ -81,7 +83,7 @@ const STATE_KEY = randomBytes(32);
 const CONFIRM_TTL_MS = 10 * 60_000;
 const RESERVED = new Set(RESERVED_CLASS_NAMES);
 const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID = UUID_RE;
 const TERMINALS = ['rows', 'first', 'ids', 'count', 'sum', 'avg', 'min', 'max', 'countBy'] as const;
 const PAGED = new Set(['rows', 'first', 'ids']);
 /** Шагов цепочки и условий $or в одном фильтре не больше (ревью безопасности №2): запрос растёт с каждым. */
@@ -412,6 +414,8 @@ function stepFilter(a: Args, where: string): Filter | undefined {
 }
 
 const step = (x: Db | Chain, name: string): StepFn => (x as unknown as Record<string, StepFn>)[name];
+/** Шаг с фильтром или без: без фильтра — вызов без аргумента (X(undefined) цепочка отмечает предупреждением, A13). */
+const stepWith = (fn: StepFn, f: Filter | undefined): Chain => (f === undefined ? fn() : fn(f));
 
 // ---------------------------------------------------------------------------
 // Курсор letopis_query: сортировка, значение поля и id последней строки
@@ -469,7 +473,7 @@ async function query(db: Db, a: Args, o: Limits): Promise<CallToolResult> {
   if (typeof terminal !== 'string' || !(TERMINALS as readonly string[]).includes(terminal)) {
     throw lerr('mcp.unknown_terminal', { terminal: String(terminal), similar: similar(String(terminal), TERMINALS) });
   }
-  let chain: Chain = step(db, stepName(reg, a.class, 'letopis_query.class'))(stepFilter(a, 'letopis_query'));
+  let chain: Chain = stepWith(step(db, stepName(reg, a.class, 'letopis_query.class')), stepFilter(a, 'letopis_query'));
   if (a.steps !== undefined) {
     if (!Array.isArray(a.steps)) throw lerr('mcp.steps_not_list');
     if (a.steps.length > MAX_STEPS) throw lerr('mcp.steps_too_many', { max: MAX_STEPS, count: a.steps.length });
@@ -477,7 +481,7 @@ async function query(db: Db, a: Args, o: Limits): Promise<CallToolResult> {
       const where = `letopis_query.steps[${i}]`;
       if (!isObj(s)) throw lerr('mcp.step_not_object', { where });
       checkKeys(s, ['step', 'id', 'ids', 'filter'], where);
-      chain = step(chain, stepName(reg, s.step, `${where}.step`))(stepFilter(s, where));
+      chain = stepWith(step(chain, stepName(reg, s.step, `${where}.step`)), stepFilter(s, where));
     });
   }
   if (a.asOf !== undefined) {
@@ -697,12 +701,13 @@ async function write(db: Db, a: Args, ctx: ServerContext, sdk: Sdk, server: McpS
   const c = await confirmDelete(sdk, server, ctx, op, message, who);
   if ('ask' in c) return c.ask;
   if (!c.granted) throw lerr(c.reason);
-  // превью и удаление — одной транзакцией: подтверждено ровно то, что удаляется
+  // превью и удаление — одной транзакцией: подтверждено ровно то, что удаляется; delete сверяет превью сам (expect,
+  // 3.0) — под блокировкой замыкания каскада
   const tx = await db.begin();
   try {
     const again = await step(tx, cls)(targets).delete(opts).rows();
     if (operationOf(db, cls, targets, again) !== op) throw lerr('mcp.delete_data_changed');
-    const rows = await step(tx, cls)(targets).delete({ confirm: true, ...opts }).rows();
+    const rows = await step(tx, cls)(targets).delete({ confirm: true, expect: again, ...opts }).rows();
     await tx.commit();
     return ok({ deleted: rows, operation: op });
   } catch (e) {
@@ -766,22 +771,31 @@ async function serve(db: Db, opts: McpOptions): Promise<McpServer> {
   const who = await checkCredentials(db, o);
   const sdk = await loadSdk();
   const server = new sdk.McpServer({ name: 'letopis', version: VERSION }, { instructions: instructions(o), capabilities: { tools: {} } });
-  const guard = (fn: (a: Args, ctx: ServerContext) => ToolResult | Promise<ToolResult>) => async (args: unknown, ctx: ServerContext): Promise<ToolResult> => {
+  // логирование 3.0: вызов инструмента — mcp.call (имя, время, исход), отказ — ещё error; логгер — фасада db
+  const log = internalsOf(db)?.log ?? NOLOG;
+  const guard = (tool: string, fn: (a: Args, ctx: ServerContext) => ToolResult | Promise<ToolResult>) => async (args: unknown, ctx: ServerContext): Promise<ToolResult> => {
+    const t0 = performance.now();
     try {
-      return await fn(isObj(args) ? args : {}, ctx);
+      const r = await fn(isObj(args) ? args : {}, ctx);
+      if (log.wants('mcp.call')) {
+        log.emit('mcp.call', { op: tool, ms: performance.now() - t0, detail: { ok: !(r as unknown as { isError?: boolean }).isError } });
+      }
+      return r;
     } catch (e) {
+      log.error(e, { op: tool, ms: performance.now() - t0 });
+      if (log.wants('mcp.call')) log.emit('mcp.call', { op: tool, ms: performance.now() - t0, detail: { ok: false } });
       return failure(e);
     }
   };
   server.registerTool('letopis_model', { title: 'Модель letopis', description: DESCRIBE_MODEL, inputSchema: sdk.fromJsonSchema(MODEL_SCHEMA), annotations: READ_ONLY },
-    guard((a) => model(db, a, o)));
+    guard('letopis_model', (a) => model(db, a, o)));
   server.registerTool('letopis_query', { title: 'Чтение letopis', description: describeQuery(o), inputSchema: sdk.fromJsonSchema(QUERY_SCHEMA), annotations: READ_ONLY },
-    guard((a) => query(db, a, o)));
+    guard('letopis_query', (a) => query(db, a, o)));
   server.registerTool('letopis_history', { title: 'История letopis', description: describeHistory(o), inputSchema: sdk.fromJsonSchema(HISTORY_SCHEMA), annotations: READ_ONLY },
-    guard((a) => history(db, a, o)));
+    guard('letopis_history', (a) => history(db, a, o)));
   if (o.write) {
     server.registerTool('letopis_write', { title: 'Запись letopis', description: describeWrite(o), inputSchema: sdk.fromJsonSchema(WRITE_SCHEMA), annotations: DESTRUCTIVE },
-      guard((a, ctx) => write(db, a, ctx, sdk, server, o, who)));
+      guard('letopis_write', (a, ctx) => write(db, a, ctx, sdk, server, o, who)));
   }
   return server;
 }
