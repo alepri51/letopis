@@ -1,4 +1,4 @@
-import { syncModels, up as install } from 'letopis';
+import { syncModels, up as install, type LogEvent } from 'letopis';
 import { hub } from 'letopis/model';
 import { z } from 'zod';
 import { example } from '../_shared/example.ts';
@@ -52,7 +52,7 @@ export default example({
         'вторую, учебную схему — только чтобы показать его события.',
       run: async ({ connect, dsn, schema, up }) => {
         const events: Record<string, unknown>[] = [];
-        const log = (e: Record<string, unknown>) => void events.push({ ...e });
+        const log = (e: LogEvent) => void events.push({ ...e });
         await install({ dsn: dsn.admin, schema: `${schema}_up`, quiet: true, log, logLevel: 'info', redact: ['passport'] });
         const app = await connect({ dsn: dsn.app, schema, token: up.tenant!.token!, log, logLevel: 'info', redact: ['passport'] });
         await app.Note().create({ text: 'с маскировкой' }).rows();
