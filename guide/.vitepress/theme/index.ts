@@ -5,11 +5,12 @@ import Example from './Example.vue';
 import Flow from './Flow.vue';
 import Mermaid from './Mermaid.vue';
 import TimeTravel from './TimeTravel.vue';
+import NavChapters from './NavChapters.vue';
 import { annotate } from './glossary';
 import { resetTouch } from './anchor';
 import './style.css';
 
-/** Обычная разметка темы и подсказки глоссария в тексте каждой страницы (кроме самого глоссария). */
+/** Обычная разметка темы, главы в меню-гамбургере и подсказки глоссария в тексте каждой страницы (кроме самого глоссария). */
 const Layout = defineComponent({
   setup() {
     const route = useRoute();
@@ -22,7 +23,8 @@ const Layout = defineComponent({
       resetTouch();
       run();
     });
-    return () => h(DefaultTheme.Layout);
+    // в меню-гамбургере узкого экрана — ещё и главы (иначе они только за кнопкой «Главы» под шапкой)
+    return () => h(DefaultTheme.Layout, null, { 'nav-screen-content-after': () => h(NavChapters) });
   },
 });
 

@@ -1,4 +1,11 @@
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitepress';
+import { withPreviews } from './preview';
+import { standalonePlugin } from './standalone';
+
+// каталог guide/: снимки примеров (превью в разметке) и исходники примеров (самостоятельный вариант)
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 // Сайт только на русском и только локально (решение владельца от 29.10.2026).
 export default defineConfig({
@@ -11,7 +18,11 @@ export default defineConfig({
   cleanUrls: true,
   lastUpdated: false,
   // песочница: dev-сервер (5173) отправляет /api на сервер сайта с включённой песочницей (`npm run sandbox`, 8080)
-  vite: { server: { proxy: { '/api': { target: 'http://127.0.0.1:8080', changeOrigin: true } } } },
+  // ?standalone — самостоятельный вариант примера для кнопки «Весь код примера» (.vitepress/standalone.ts)
+  vite: {
+    server: { proxy: { '/api': { target: 'http://127.0.0.1:8080', changeOrigin: true } } },
+    plugins: [standalonePlugin(ROOT)],
+  },
   markdown: {
     // ```mermaid → компонент <Mermaid>: схема рисуется в браузере
     config(md) {
@@ -21,6 +32,12 @@ export default defineConfig({
         if (t.info.trim() === 'mermaid') return `<Mermaid code="${encodeURIComponent(t.content)}" />`;
         return fence(tokens, idx, options, env, self);
       };
+      // <Example id="…" /> → с превью внутри: заголовок и код первого шага видны, пока плеер грузит снимок
+      md.core.ruler.push('lt-example-preview', (state) => {
+        for (const t of state.tokens) {
+          if ((t.type === 'html_block' || t.type === 'html_inline') && t.content.includes('<Example')) t.content = withPreviews(t.content, ROOT);
+        }
+      });
     },
   },
   themeConfig: {
@@ -90,7 +107,7 @@ export default defineConfig({
     darkModeSwitchLabel: 'Тема',
     lightModeSwitchTitle: 'Светлая тема',
     darkModeSwitchTitle: 'Тёмная тема',
-    sidebarMenuLabel: 'Меню',
+    sidebarMenuLabel: 'Главы',
     returnToTopLabel: 'Наверх',
     notFound: { title: 'Страница не найдена', quote: 'Такой страницы нет.', linkText: 'На главную' },
     search: {

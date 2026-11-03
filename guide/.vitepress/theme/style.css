@@ -57,3 +57,29 @@ html.dark .lt-ex-code pre {
    «На этой странице» (.aside) или полосу навигации: они не двигаются вместе с текстом, и когда плеер выше по странице
    догружает снимок, текст уезжает вниз из-под глаз. */
 .aside, .VPLocalNav, .VPNav, .VPSidebar { overflow-anchor: none; }
+
+/* Превью примера (.vitepress/preview.ts): заголовок и код первого шага в HTML страницы — видны, пока плеер грузит снимок. */
+.lt-ex-pre { color: var(--vp-c-text-1); }
+.lt-ex-pre-badge {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vp-c-green-1);
+  background: var(--vp-c-green-soft);
+  border-radius: 999px;
+  padding: 2px 10px;
+  margin-bottom: 6px;
+}
+.lt-ex-pre-title { font-size: 18px; font-weight: 700; line-height: 1.4; }
+.vp-doc .lt-ex-pre-summary { margin: 6px 0 0; color: var(--vp-c-text-2); }
+.lt-ex-pre-step { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--vp-c-divider); font-weight: 700; font-size: 16px; }
+.vp-doc .lt-ex-pre-text { margin: 6px 0 10px; }
+.lt-ex-pre .lt-ex-code pre {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.lt-ex-pre .lt-ex-code code { background: transparent; padding: 0; }

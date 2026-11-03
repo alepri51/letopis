@@ -1,0 +1,512 @@
+{
+  "id": "money/05-one-open",
+  "context": {
+    "schema": "v2.g_money_05_one_open",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_883199597e8588f1bfb84b8c2221cbf1f165a8a1a44219deaf71d5404e27b5fb",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "6ac27c91a84af1d98f043d0173e62500ca455742f01ce459e0f4d5b172da2968",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "at": "2026-11-03T12:00:29.559608+00:00",
+        "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+        "op": "create",
+        "rev": 1,
+        "data": {
+          "code": "B-1",
+          "status": "free"
+        },
+        "tags": [],
+        "class": "Item",
+        "links": {},
+        "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "agent": "7e33bade-37d7-55f4-ba6f-4ddd22a7c2e5"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "class": "Item",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "code": "B-1",
+            "status": "free"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7e33bade-37d7-55f4-ba6f-4ddd22a7c2e5",
+          "reason": null,
+          "at": "2026-11-03 12:00:29.559608+00"
+        },
+        {
+          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "class": "Member",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "card": "C-1",
+            "name": "Анна"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7e33bade-37d7-55f4-ba6f-4ddd22a7c2e5",
+          "reason": null,
+          "at": "2026-11-03 12:00:29.568892+00"
+        },
+        {
+          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "class": "Member",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "card": "C-2",
+            "name": "Пётр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7e33bade-37d7-55f4-ba6f-4ddd22a7c2e5",
+          "reason": null,
+          "at": "2026-11-03 12:00:29.57603+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Class",
+        "Item",
+        "Member"
+      ]
+    },
+    {
+      "result": {
+        "вторая ждала строку": true,
+        "первая выдача, строк": 1,
+        "вторая выдача, строк": 1,
+        "у кого мяч": "Пётр"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "class": "Item",
+          "rev": 3,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "code": "B-1",
+            "holder": "Пётр",
+            "status": "out"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-03 12:00:29.706037+00"
+        },
+        {
+          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "class": "Member",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "card": "C-1",
+            "name": "Анна"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7e33bade-37d7-55f4-ba6f-4ddd22a7c2e5",
+          "reason": null,
+          "at": "2026-11-03 12:00:29.568892+00"
+        },
+        {
+          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "class": "Member",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "card": "C-2",
+            "name": "Пётр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7e33bade-37d7-55f4-ba6f-4ddd22a7c2e5",
+          "reason": null,
+          "at": "2026-11-03 12:00:29.57603+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Item"
+      ]
+    },
+    {
+      "result": {
+        "вторая ждала строку": true,
+        "первая": "выдана: Анна",
+        "вторая": "отказ: вещь уже выдана"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "class": "Item",
+          "rev": 5,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "code": "B-1",
+            "holder": "Анна",
+            "status": "out"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7e33bade-37d7-55f4-ba6f-4ddd22a7c2e5",
+          "reason": "выдача: Анна",
+          "at": "2026-11-03 12:00:29.841984+00"
+        },
+        {
+          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "class": "Member",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "card": "C-1",
+            "name": "Анна"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7e33bade-37d7-55f4-ba6f-4ddd22a7c2e5",
+          "reason": null,
+          "at": "2026-11-03 12:00:29.568892+00"
+        },
+        {
+          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "class": "Member",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "card": "C-2",
+            "name": "Пётр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7e33bade-37d7-55f4-ba6f-4ddd22a7c2e5",
+          "reason": null,
+          "at": "2026-11-03 12:00:29.57603+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Item"
+      ]
+    },
+    {
+      "result": {
+        "прочли версию": [
+          6,
+          6
+        ],
+        "первая": "записано",
+        "вторая": "conflict"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "class": "Item",
+          "rev": 7,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "code": "B-1",
+            "holder": "Анна",
+            "status": "out"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7e33bade-37d7-55f4-ba6f-4ddd22a7c2e5",
+          "reason": null,
+          "at": "2026-11-03 12:00:29.976511+00"
+        },
+        {
+          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "class": "Member",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "card": "C-1",
+            "name": "Анна"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7e33bade-37d7-55f4-ba6f-4ddd22a7c2e5",
+          "reason": null,
+          "at": "2026-11-03 12:00:29.568892+00"
+        },
+        {
+          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "class": "Member",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "card": "C-2",
+            "name": "Пётр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7e33bade-37d7-55f4-ba6f-4ddd22a7c2e5",
+          "reason": null,
+          "at": "2026-11-03 12:00:29.57603+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Item"
+      ]
+    },
+    {
+      "result": {
+        "первая выдача": "Анна",
+        "вторая выдача": "exists"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "class": "Item",
+          "rev": 7,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "code": "B-1",
+            "holder": "Анна",
+            "status": "out"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7e33bade-37d7-55f4-ba6f-4ddd22a7c2e5",
+          "reason": null,
+          "at": "2026-11-03 12:00:29.976511+00"
+        },
+        {
+          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "class": "Member",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "card": "C-1",
+            "name": "Анна"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7e33bade-37d7-55f4-ba6f-4ddd22a7c2e5",
+          "reason": null,
+          "at": "2026-11-03 12:00:29.568892+00"
+        },
+        {
+          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "class": "Member",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "card": "C-2",
+            "name": "Пётр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7e33bade-37d7-55f4-ba6f-4ddd22a7c2e5",
+          "reason": null,
+          "at": "2026-11-03 12:00:29.57603+00"
+        },
+        {
+          "id": "09a365a1-6694-5e8f-8d7e-26d755429093",
+          "class": "OpenLoan",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Item": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+            "Member": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315"
+          },
+          "data": {
+            "since": "2026-11-03"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7e33bade-37d7-55f4-ba6f-4ddd22a7c2e5",
+          "reason": null,
+          "at": "2026-11-03 12:00:30.000558+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "OpenLoan"
+      ]
+    },
+    {
+      "result": [
+        "v1 create — Анна",
+        "v2 delete — Анна",
+        "v3 create — Пётр"
+      ],
+      "error": null,
+      "entity": [
+        {
+          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "class": "Item",
+          "rev": 7,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "code": "B-1",
+            "holder": "Анна",
+            "status": "out"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7e33bade-37d7-55f4-ba6f-4ddd22a7c2e5",
+          "reason": null,
+          "at": "2026-11-03 12:00:29.976511+00"
+        },
+        {
+          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "class": "Member",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "card": "C-1",
+            "name": "Анна"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7e33bade-37d7-55f4-ba6f-4ddd22a7c2e5",
+          "reason": null,
+          "at": "2026-11-03 12:00:29.568892+00"
+        },
+        {
+          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "class": "Member",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "card": "C-2",
+            "name": "Пётр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7e33bade-37d7-55f4-ba6f-4ddd22a7c2e5",
+          "reason": null,
+          "at": "2026-11-03 12:00:29.57603+00"
+        },
+        {
+          "id": "09a365a1-6694-5e8f-8d7e-26d755429093",
+          "class": "OpenLoan",
+          "rev": 3,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Item": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+            "Member": "f2f14e35-dfe8-555d-87fe-44f512267f33"
+          },
+          "data": {
+            "since": "2026-11-04"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "7e33bade-37d7-55f4-ba6f-4ddd22a7c2e5",
+          "reason": null,
+          "at": "2026-11-03 12:00:30.05341+00"
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "OpenLoan"
+      ]
+    }
+  ]
+}

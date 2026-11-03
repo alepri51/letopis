@@ -14,6 +14,11 @@
 
 <Example id="errors/03-strict-mcp-errors" />
 
+## Частые причины `invalid_data`
+
+- **Конец связи передан полем данных.** `db.Item(item).Loan().create({ issuedAt, Member: id })` — для базы `Member` лишнее поле: в `issues` правило `additionalProperties` с пустым путём. Конец задают вызовом роли после глагола: `create({ issuedAt }).Member.set(id)` — [пример](../write/#ex-write-02-ends-and-slots).
+- **Значение не подходит под правило поля** (`enum`, `minLength`, `pattern` и другие) — путь к полю в `issues[].path`, правило в `issues[].keyword`.
+
 ## Все коды
 
 В таблице — все коды ошибок letopis и что делать, получив код. Ссылка в колонке «Где показан» ведёт на главу, где живой пример вызывает эту ошибку.

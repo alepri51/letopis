@@ -170,8 +170,8 @@ const nuances: Nuance[] = [
     id: 'update-empty-target',
     topic: 'write',
     top: 7,
-    text: 'update без найденных строк возвращает пустой список без ошибки — проверяйте длину ответа.',
-    source: 'lib/README.md, раздел 5',
+    text: 'update без найденных строк возвращает пустой список без ошибки — проверяйте длину ответа. От гонки это не защищает: условие фильтра при параллельной записи не перепроверяется — берите forUpdate(), { rev } или ключ.',
+    source: 'lib/README.md, раздел 5; lib/src/write.ts:updateOp',
   },
   {
     id: 'upsert-replaces',
@@ -191,6 +191,12 @@ const nuances: Nuance[] = [
     topic: 'write',
     text: 'Шаги ролей .Роль.set/unset/add/remove меняют links атомарно, без чтения списка.',
     source: 'lib/README.md, раздел 5',
+  },
+  {
+    id: 'end-not-in-data',
+    topic: 'write',
+    text: 'Конец связи не передают полем данных create(): для базы это лишнее поле — invalid_data (в issues — additionalProperties с пустым путём). Конец задают вызовом роли после глагола: create({ … }).Роль.set(id).',
+    source: 'lib/README.md, раздел 5 «Концы: из пути и слоты»; пример write/02-ends-and-slots',
   },
   {
     id: 'inc-min-check',
@@ -289,6 +295,36 @@ const nuances: Nuance[] = [
     source: 'lib/README.md, раздел 7',
   },
   {
+    id: 'preview-depth',
+    topic: 'delete',
+    text: 'В предпросмотре удаления у строк каскада $action тоже delete: цель от каскада отличает $depth — 0 у самой цели, 1 и дальше у строк каскада; у строк unset и restrict $depth нет.',
+    source: 'lib/README.md, раздел 7; пример delete/01-delete-cascade',
+  },
+  {
+    id: 'delete-as-shown',
+    topic: 'delete',
+    text: 'Предпросмотр — снимок на момент вызова, а delete({ confirm: true }) удаляет то, что есть при подтверждении. Удалить ровно показанное: в db.begin() взять цель forUpdate(), пересчитать предпросмотр, сверить отпечаток (id, rev, $action) и только тогда удалять; кто добавляет строки в этот каскад, берёт тот же замок.',
+    source: 'lib/src/write.ts:deleteOp; пример delete/01-delete-cascade',
+  },
+  {
+    id: 'restore-cascade-by-reason',
+    topic: 'delete',
+    text: 'withDeleted().restore() возвращает все удалённые строки шага — и те, что удалили раньше и отдельно. Строки одного удаления отличает причина: надгробия цели и её каскада получают reason этого удаления — отберите их по ней.',
+    source: 'lib/sql/60-write.sql (надгробия каскада с letopis.reason); пример delete/02-restore',
+  },
+  {
+    id: 'empty-target-delete-restore',
+    topic: 'delete',
+    text: 'restore() и delete({ confirm: true }) по несуществующему или невидимому id возвращают пустой список без ошибки — проверяйте длину ответа.',
+    source: 'lib/src/write.ts:restoreOp, deleteOp; пример delete/02-restore',
+  },
+  {
+    id: 'create-revives-deleted',
+    topic: 'delete',
+    text: 'create с ключом удалённого объекта не ошибка: id тот же, история продолжается версией create, надгробие уходит из корзины. Нужен «новый» объект — проверьте ключ через withDeleted().first() до create.',
+    source: 'lib/sql/60-write.sql:trg_entity_bi; пример delete/02-restore',
+  },
+  {
     id: 'tx-all-or-nothing',
     topic: 'money',
     text: 'db.begin(): записи фиксируются вместе commit(); ошибка — rollback(), не записано ничего.',
@@ -323,6 +359,18 @@ const nuances: Nuance[] = [
     topic: 'money',
     text: 'Запись итога «прочитал — посчитал — записал» без защиты теряет параллельную правку. lock() и forUpdate() ставят второго писателя в очередь, но только если их берут все, кто правит эти данные; для сумм проще inc — база сама сложит приращения.',
     source: 'lib/test/balance.test.ts №17; пример money/04-race',
+  },
+  {
+    id: 'update-filter-race',
+    topic: 'money',
+    text: 'Условие фильтра update() проверяется до записи и при параллельной записи не перепроверяется: два одновременных db.Item({ id, status: "free" }).update(…) пройдут оба. Защищают forUpdate() в db.begin() (строку, переставшую подходить, ответ не включает), { rev } (conflict) или ключ.',
+    source: 'lib/src/write.ts:updateOp, lib/src/chain.ts:lockedRead; пример money/05-one-open',
+  },
+  {
+    id: 'one-open-by-key',
+    topic: 'money',
+    text: 'Уникальность даёт только ключ: «одна открытая выдача на вещь» — отдельный класс (связь) с ключом по концу вещи; вторая такая строка — exists, и при одновременных запросах тоже.',
+    source: 'lib/README.md, раздел 4 «Ключ и id»; пример money/05-one-open',
   },
   {
     id: 'registry-refresh',

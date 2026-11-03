@@ -47,6 +47,21 @@ sequenceDiagram
 
 <Example id="auth/02-sessions-tenants" />
 
+### После входа: в каком арендаторе работать
+
+`verifyPassword` возвращает `{ account, token }` — кто вошёл и токен его сессии, но не компанию: свежая сессия работает в личном арендаторе аккаунта (его id равен `account`). В каких арендаторах пользователь состоит, сервис спрашивает у базы — `auth.tenants()` на подключении с этим токеном (шаг 1 примера выше), — а переводит сессию `auth.switch()` (шаг 2):
+
+```ts
+const ok = await svc.auth.verifyPassword({ identifier, password })
+if (!ok) return 'неверный логин или пароль'
+const u = await connect({ dsn: appDsn, schema, token: ok.token })
+const clubs = (await u.auth.tenants()).filter((t) => t.tenant !== ok.account)   // без личного арендатора
+if (!clubs.length) return 'вы не состоите ни в одном клубе'
+await u.auth.switch(clubs[0].tenant)   // арендаторов несколько — дайте пользователю выбрать
+```
+
+Свою таблицу «логин → арендатор» держать не нужно: членство хранит база, и в арендатор без членства она не пустит — `tenant_denied`. Сервис, который работает от имени пользователя через `svc.as(ok.account, { tenant })`, берёт `tenant` из того же списка `auth.tenants()`.
+
 ### Что внутри: жизнь сессии
 
 ```mermaid
