@@ -1,4 +1,4 @@
-import { connect, createTenant, cursorOf } from 'letopis';
+import { connect, createTenant, cursorOf, loose } from 'letopis';
 import { createMcpServer } from 'letopis/mcp';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
 import { Client } from '@modelcontextprotocol/client';
@@ -8,11 +8,11 @@ import { seedShop } from '../../kit/shop.ts';
 export default example({
   title: 'Ошибки строгого режима, MCP и чужого арендатора',
   summary:
-    'Строгий режим ловит ошибки до обращения к базе: правку и удаление без условия, неизвестную опцию, курсор у ' +
-    'счёта. Здесь же — подтверждение удаления через MCP и работа в арендаторе без членства.',
+    'Строгий режим ловит ошибки до обращения к базе: правку и удаление без условия, неизвестную опцию и поле, курсор ' +
+    'у счёта. Здесь же — подтверждение удаления через MCP и работа в арендаторе без членства.',
   tables: [],
   covers: ['error.invalid_query', 'error.invalid_data', 'error.confirmation_required', 'error.tenant_denied',
-    'nuance.update-needs-filter', 'nuance.unknown-option', 'nuance.after-before-count'],
+    'nuance.update-needs-filter', 'nuance.unknown-option', 'nuance.unknown-field', 'nuance.after-before-count'],
   steps: [
     {
       title: 'invalid_query — правка без условия',
@@ -44,6 +44,15 @@ export default example({
         'с похожими именами в тексте и в `err.params.similar`. Что делать: исправить имя опции.',
       run: async ({ dsn, schema, up }) => connect({ dsn: dsn.app, schema, token: up.tenant!.token!, maxx: 2 } as never),
       expect: { error: 'invalid_data' },
+    },
+    {
+      title: 'invalid_query — неизвестное поле фильтра',
+      text:
+        'Поле фильтра, `sort()` или итога, которого нет в описании класса шага, — отказ до запроса, с похожими именами в ' +
+        'тексте и в `err.params.similar`: такое условие ничего бы не нашло. С моделями опечатку ловит ещё компилятор, а имя, ' +
+        'известное только во время выполнения (`loose(db)`), проверяет библиотека. Что делать: исправить имя поля.',
+      run: async ({ db }) => loose(db).Product({ titel: 'Чай' }).rows(),
+      expect: { error: 'invalid_query' },
     },
     {
       title: 'invalid_query — after() перед count()',

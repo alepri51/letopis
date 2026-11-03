@@ -10,7 +10,7 @@
  * findingsFromDb.
  */
 import { createRequire } from 'node:module';
-import { IN_2_0, SIMILAR, codeOf, msgOf, render, type MsgKey, type Params } from './messages/index.js';
+import { SIMILAR, codeOf, msgOf, render, type MsgKey, type Params } from './messages/index.js';
 
 export type { MsgKey, Params } from './messages/index.js';
 
@@ -44,17 +44,16 @@ export function lmsg(key: MsgKey, params?: Params): string {
 
 const warned = new Set<string>();
 /**
- * Предупреждение по записи каталога — «letopis: <текст>» в console.warn. once — ключ «один раз на процесс»; future —
- * хвост «в 2.0 — ошибка <код>»: так предупреждают о том, что станет отказом (неизвестное поле фильтра, sort, агрегата).
+ * Предупреждение по записи каталога — «letopis: <текст>» в console.warn; once — ключ «один раз на процесс». Неизвестное
+ * поле фильтра, sort() и агрегата с 2.0 — уже не предупреждение, а отказ query.unknown_field (sql.ts, checkField).
  */
-export function lwarn(key: MsgKey, params?: Params, opts: { once?: string; future?: boolean } = {}): void {
+export function lwarn(key: MsgKey, params?: Params, opts: { once?: string } = {}): void {
   if (opts.once !== undefined) {
     if (warned.has(opts.once)) return;
     if (warned.size >= 1000) warned.clear();
     warned.add(opts.once);
   }
-  const code = msgOf(key)?.code ?? 'invalid_query';
-  console.warn(`letopis: ${textOf(key, params)}${opts.future ? render(IN_2_0, { code }) : ''}`);
+  console.warn(`letopis: ${textOf(key, params)}`);
 }
 
 export class LetopisError extends Error {

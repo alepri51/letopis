@@ -470,6 +470,13 @@ const nuances: Nuance[] = [
     source: 'lib/README.md, раздел 4 «Строгий режим»; пример errors/03-strict-mcp-errors',
   },
   {
+    id: 'unknown-field',
+    topic: 'read',
+    caught: 'invalid_query',
+    text: 'Поле фильтра, sort() или итога, которого нет в описании ни одного класса шага (с потомками, если шаг не exact()), — отказ до запроса, с похожими именами в тексте и в err.params.similar: такое условие ничего бы не нашло. Сверяется только первый ключ пути: опечатку внутри поля-объекта ({ specs: { colr } }) библиотека не видит, условие просто ничего не найдёт.',
+    source: 'lib/README.md, раздел 4 «Строгий режим», раздел 15 «Ошибки»; пример errors/03-strict-mcp-errors',
+  },
+  {
     id: 'after-before-count',
     topic: 'read',
     caught: 'invalid_query',

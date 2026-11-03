@@ -9,8 +9,8 @@ export const query = {
     code: 'invalid_query',
     ru: "sort: поле 'at', 'rev', 'id' или 'data.<путь>', а не '{field}'",
   },
-  // sql.ts: поле фильтра, sort() или агрегата не описано ни в одном классе шага — в 1.5 предупреждение (lwarn), в 2.0 —
-  // ошибка; where — шаг или вызов, как в коде: Shop({ nmae }), sort('data.nmae'), sum('data.nmae')
+  // sql.ts, checkField: поле фильтра, sort() или агрегата не описано ни в одном классе шага (в 1.5 — предупреждение, с 2.0 —
+  // отказ); where — шаг или вызов, как в коде: Shop({ nmae }), sort('data.nmae'), sum('data.nmae')
   'query.unknown_field': {
     code: 'invalid_query',
     ru: '{where}: поле {field} не описано в классе {cls}',

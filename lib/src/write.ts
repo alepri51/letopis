@@ -20,7 +20,7 @@
 import { lerr, ValidationError, type LetopisError } from './errors.js';
 import { isOp } from './ops.js';
 import type { ClassInfo, Registry } from './registry.js';
-import { accepts, buildRead, nextNodeKey, resolveHop, stepClasses, toRow, type AggSpec, type BuiltQuery, type ReadMode, type Step } from './sql.js';
+import { accepts, buildRead, nextNodeKey, precheckStep, resolveHop, stepClasses, toRow, type AggSpec, type BuiltQuery, type ReadMode, type Step } from './sql.js';
 import type { Tx } from './tx.js';
 import type { ChainMods, Row } from './types.js';
 import { idOf } from './uuid.js';
@@ -176,13 +176,19 @@ function narrowed(steps: Step[], i: number): boolean {
   return false;
 }
 
-/** Всё, что проверяется без базы, — до отправки первого оператора (§2.5). */
-export function precheckPlan(reg: Registry, steps: Step[]): void {
+/**
+ * Всё, что проверяется без базы, — до отправки первого оператора (§2.5). Фильтры шагов и поля sort() и агрегатов
+ * (неизвестное поле — invalid_query, план 2.0, этап 3, п. 3) — precheckStep построителя; order и agg — модификатор и
+ * агрегат чтения за последним глаголом (терминал цепочки).
+ */
+export function precheckPlan(reg: Registry, steps: Step[], order?: string, agg?: AggSpec): void {
   let prevOp: PlanOp | undefined;
   for (let i = 0; i < steps.length; i++) {
     const s = steps[i];
     const op = s.op;
+    const tail = i === steps.length - 1;
     if (!op) {
+      precheckStep(reg, s, tail ? order : undefined, tail ? agg : undefined);
       prevOp = undefined;
       continue;
     }
@@ -226,6 +232,8 @@ export function precheckPlan(reg: Registry, steps: Step[]): void {
     for (const sl of s.slots ?? []) {
       if (op.kind !== 'create' && op.kind !== 'update' && op.kind !== 'upsert') throw lerr('write.slot_bad_verb', { role: sl.role, verb });
     }
+    precheckStep(reg, s, s.opMods?.order);
+    if (tail && (order !== undefined || agg !== undefined)) precheckStep(reg, s, order, agg);
     prevOp = op;
   }
 }

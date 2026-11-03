@@ -355,7 +355,7 @@ function checkAfterVerb(steps: Step[], mods: ChainMods): void {
  * чтения (строки rows/paths, id, n, агрегаты), чтобы терминалы разбирали его одинаково.
  */
 async function plan(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMode, agg?: AggSpec): Promise<{ q: BuiltQuery | null; res: unknown[] }> {
-  precheckPlan(ctx.reg, steps);
+  precheckPlan(ctx.reg, steps, mods.order, agg);
   const t0 = performance.now();
   const r: PlanResult = await ctx.exec.run((q) => execPlan({ reg: ctx.reg, schema: ctx.schema, q, tenant: ctx.tenant(), owner: ctx.owner, ...reasons(ctx) }, steps, mods, mode, agg));
   if (r.kind === 'read') {

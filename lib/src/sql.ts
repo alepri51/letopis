@@ -17,7 +17,8 @@
  * Значения всегда уходят параметрами, поэтому текст запроса зависит только от формы цепочки: его
  * кэширует план (chain.ts), а postgres.js готовит оператор один раз на соединение.
  */
-import { lerr, lmsg, lwarn, similar, type MsgKey, type Params as MsgParams } from './errors.js';
+import { lerr, lmsg, similar, type MsgKey, type Params as MsgParams } from './errors.js';
+import type { ClassDescription } from './model.js';
 import { isOp } from './ops.js';
 import type { ClassInfo, LeafType, Registry } from './registry.js';
 import { OP, type ChainMods, type Cursor, type Filter, type Op, type Path, type Row } from './types.js';
@@ -76,18 +77,34 @@ const refuse = (key: MsgKey, params?: MsgParams): never => {
 };
 
 /**
- * Поле фильтра, sort() или агрегата не описано ни в одном классе шага (верхний уровень data закрыт: в нём только поля
- * описания, 40-class.sql) — такое условие ничего не найдёт. В 1.5 — предупреждение с похожими именами, один раз на класс
- * и поле, в 2.0 — invalid_query (план 2.0, 7.9 №6). ends — роли концов тоже годятся (фильтр).
+ * Поля data строк системного класса Class — свойства метасхемы описания класса (class_metaschema() в 40-class.sql): строки
+ * Class проверяет она, а в описании самого класса Class только name. Ключи — свойства описания (ClassDescription) и
+ * служебные system и resolved: новое свойство описания без строки здесь — ошибка типов.
  */
-function warnField(classes: ClassInfo[], field: string, where: string, ends: boolean): void {
+const CLASS_ROW_FIELDS = Object.keys({
+  name: true, kind: true, parent: true, abstract: true, alias: true, system: true, fields: true, ends: true, key: true,
+  history: true, ownerDefault: true, cache: true, meta: true, resolved: true,
+} satisfies Record<keyof ClassDescription | 'system' | 'resolved', true>);
+
+/** Поля верхнего уровня data строк класса: он закрыт (class_resolve, 40-class.sql) — в нём только поля описания. */
+const dataFields = (c: ClassInfo): string[] =>
+  c.name === 'Class' ? CLASS_ROW_FIELDS : Object.keys((c.schema.properties ?? {}) as Record<string, unknown>);
+
+/**
+ * Поле фильтра, sort() или агрегата не описано ни в одном классе шага — такое условие ничего не найдёт: invalid_query с
+ * похожими именами (план 2.0, этап 3, п. 3; в 1.5 было предупреждение, 7.9 №6). Проверяется только верхний уровень:
+ * путь внутрь поля-объекта не сверяется. classes — класс шага и все классы, которые он матчит (потомки, если не exact(),
+ * у роли — её цели); ends — роли концов тоже годятся (фильтр).
+ */
+function checkField(classes: ClassInfo[], field: string, where: string, ends: boolean): void {
   if (!classes.length) return;
-  const fields = (c: ClassInfo) => Object.keys((c.schema.properties ?? {}) as Record<string, unknown>);
-  if (classes.some((c) => fields(c).includes(field) || (ends && c.ends[field] !== undefined))) return;
-  const names = classes.flatMap((c) => [...fields(c), ...(ends ? Object.keys(c.ends) : [])]);
-  lwarn('query.unknown_field', { where, field, cls: classes[0].name, similar: similar(field, names) },
-    { once: `${classes[0].name}\u0000${field}`, future: true });
+  if (classes.some((c) => dataFields(c).includes(field) || (ends && c.ends[field] !== undefined))) return;
+  const names = classes.flatMap((c) => [...dataFields(c), ...(ends ? Object.keys(c.ends) : [])]);
+  throw lerr('query.unknown_field', { where, field, cls: classes[0].name, similar: similar(field, names) });
 }
+
+/** Поле sort('data.<путь>') или агрегата: первый ключ пути. */
+const topField = (field: string): string => field.slice(5).split('.')[0];
 
 // ---------------------------------------------------------------------------
 // Классы шага и правила переходов
@@ -112,6 +129,24 @@ export function stepClasses(reg: Registry, step: Step): string[] {
   const base = step.role ? roleTargets(reg, step.role) : [step.cls.name];
   if (step.exact) return base;
   return uniq(base.flatMap((b) => (reg.has(b) ? reg.family(b).map((c) => c.name) : [b])));
+}
+
+/** Классы шага для типов листьев и сверки полей: класс шага первым, затем прочие классы, которые шаг матчит. */
+function typingOf(reg: Registry, step: Step, names = stepClasses(reg, step)): ClassInfo[] {
+  const infos = names.map((n) => reg.find(n)).filter((c): c is ClassInfo => !!c);
+  return [step.cls, ...infos.filter((c) => c !== step.cls)];
+}
+
+/**
+ * Отказы построителя, которым не нужны база и путь, — фильтр шага (в том числе неизвестное поле) и поле sort('data.…') или
+ * агрегата по классам шага: план записи проверяет их до первого оператора (write.ts:precheckPlan, §2.5), поэтому
+ * опечатка в фильтре цели не ломает db.begin(). Построитель при чтении проверяет то же самое ещё раз.
+ */
+export function precheckStep(reg: Registry, step: Step, order?: string, agg?: AggSpec): void {
+  const typing = typingOf(reg, step);
+  compileFilter(reg, typing, step.filter, new Params());
+  if (order?.startsWith('data.')) checkField(typing, topField(order), `sort('${order}')`, false);
+  if (agg?.field.startsWith('data.')) checkField(typing, topField(agg.field), `${agg.fn}('${agg.field}')`, false);
 }
 
 /** Принимает ли список классов конца класс cls (с учётом его предков). */
@@ -379,8 +414,8 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
       out.frags.push((a) => `${SCHEMA_MARK}.role_has(${a}.links, array[${role}], ${ph}::uuid)`);
       continue;
     }
-    // поле данных: не описано ни в одном классе шага — предупреждение с похожими (план 2.0, 7.9 №6)
-    warnField(classes, key, `${classes[0]?.name ?? ''}({ ${key} })`, true);
+    // поле данных: не описано ни в одном классе шага — invalid_query с похожими (план 2.0, этап 3, п. 3)
+    checkField(classes, key, `${classes[0]?.name ?? ''}({ ${key} })`, true);
     if (isOp(value)) {
       out.frags.push(compileOp([key], leafOf(reg, classes, [key]), value, p));
       continue;
@@ -624,8 +659,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
     const names = stepClasses(reg, step);
-    const infos = names.map((n) => reg.find(n)).filter((c): c is ClassInfo => !!c);
-    const typing = [step.cls, ...infos.filter((c) => c !== step.cls)];
+    const typing = typingOf(reg, step, names);
 
     // возврат к узлу: только дофильтры
     if (step.pivotKey !== undefined) {
@@ -789,7 +823,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
   const single = tail.length === 0 && !steps.some((st) => st.pivotKey !== undefined);
   const ents = single ? `n${lastNode}` : `(select z0.* from n${lastNode} z0 where z0.id in (select h${lastNode}.id ${from}${whereOf(tail)}))`;
   const leaf = (path: string[]) => leafOf(reg, rowsNode(lastNode), path);
-  if (mods.order?.startsWith('data.')) warnField(rowsNode(lastNode), mods.order.slice(5).split('.')[0], `sort('${mods.order}')`, false);
+  if (mods.order?.startsWith('data.')) checkField(rowsNode(lastNode), topField(mods.order), `sort('${mods.order}')`, false);
   const sort = mods.order ? sortSpec(mods.order, leaf) : undefined;
   const dir = mods.desc ? ' desc' : '';
   /** Порядок: поле sort, id строки и разделители равных (id прочих узлов пути). */
@@ -868,7 +902,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
     case 'agg': {
       if (!agg || !agg.field.startsWith('data.')) throw lerr('query.agg_field');
       const path = agg!.field.slice(5).split('.');
-      warnField(rowsNode(lastNode), path[0], `${agg!.fn}('${agg!.field}')`, false);
+      checkField(rowsNode(lastNode), path[0], `${agg!.fn}('${agg!.field}')`, false);
       const acc = accessor(path)('z');
       aggLeaf = leaf(path);
       if (agg!.fn === 'countBy') {
