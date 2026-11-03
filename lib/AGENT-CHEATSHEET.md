@@ -198,9 +198,7 @@ await db.Wallet(w).update({ balance: 0 }, { rev: cur.rev }).first()           //
 // слоты концов после create / update / upsert: .Роль.set(x) .unset() и для many — .add(x) .remove(x)
 const [west] = await db.Shop().create({ name: 'Запад' }).rows()
 await db.Wallet(w).update({}).Shop.set(west).rows()
-const [w2] = await db.Shop(shop).Wallet().create({ number: 'W-2' }).rows()
-const [w200] = await db.Wallet(w2).rekey({ number: 'W-200' }).rows()          // новый ключ → новый id, ссылки переведены
-await db.Note(n.id).anonymize(['text']).rows()
+await db.Shop(shop).Wallet().create({ number: 'W-2' }).rows()
 const b = db.batch('init'); b.Shop().create({ name: 'А' }); b.Shop().create({ name: 'Б' })
 const batchRows = await b.run()                                              // Row[][] одной транзакцией; b.size(), b.discard()
 ```
@@ -221,7 +219,7 @@ await db.Wallet(w).first()                                     // Row | null
 const page = await db.Wallet().sort('data.number', 'desc').limit(20).rows()
 const next = await db.Wallet().sort('data.number', 'desc').after(cursorOf(page.at(-1)!, 'data.number')).limit(20).rows()   // keyset
 await db.Note().withDeleted().rows()                           // с удалёнными ($deleted: true)
-await db.Wallet(or({ number: 'W-1' }, { number: 'W-200' })).ids()
+await db.Wallet(or({ number: 'W-1' }, { number: 'W-2' })).ids()
 ```
 - Фильтр шага: id, список id, строка ответа, объект полей любой глубины, `or(…)`, операторы (таблица ниже), роли
   концов `{ Shop: id }`, `{ Shop: null }`. Поля — в `row.data`, не в корне строки.
@@ -268,8 +266,6 @@ const preview = await db.Shop(shop).delete().rows()     // ничего не у�
 // с onDelete по умолчанию 'restrict' — в превью он с $action 'restrict', а delete({ confirm: true }) даст delete_restricted
 await db.Note(n.id).delete({ confirm: true }).rows()   // надгробия (row.$deleted); каскад — по onDelete концов
 await db.Note(n.id).restore().rows()                   // вернуть удалённое (id прежний); живое — not_deleted
-await db.Note(n.id).delete({ confirm: true }).rows()
-await db.Note(n.id).purge({ confirm: true }).rows()    // стереть историю удалённого; без confirm — превью
 ```
 
 ### 7. Загрузчик
@@ -375,11 +371,10 @@ db.cache.stats(); db.cache.clear()
 const was = await db.Wallet(w).asOf('2026-10-01T00:00:00Z').first()   // как было на момент (строка ISO или Date)
 await db.Shop(shop).Wallet().asOf(new Date('2026-10-01')).rows()
 const history = await db.Wallet(w).versions()                         // все версии; версия удаления — $deleted
-await db.Wallet(w200).versions({ follow: true })                      // и через смену id (reclass, rekey)
 ```
 - Версия → `{ rev, op, at, author, agent?, reason? }`: причина — опция `reason` глагола, `db.begin({ reason })`,
   `db.batch(имя, { reason })`; пустые `agent` и `reason` → опускаются.
-- Журнал хранит каждую версию: прореживания, обрезки истории и проверки хэшей нет.
+- Журнал хранит каждую версию: прореживания, обрезки и стирания истории объекта нет.
 - Класс с `history: false` → не даёт `versions`, `asOf`, `restore` и событий подписки.
 
 ### 11. Агенты и MCP
@@ -440,7 +435,7 @@ await adm.close(); await db.close(); await svc.close()
 3. **Глаголы возвращают цепочку.**
    - без терминала (`.rows()`, `.first()` …) → ничего не исполнится;
    - `delete()` без `{ confirm: true }` → только превью;
-   - `purge` → только для удалённых (иначе `not_deleted`).
+   - `restore` → только для удалённых (иначе `not_deleted`).
 4. **Деньги и счётчики** — `update({ balance: inc(n) })`: база прибавляет внутри оператора, без чтения и потерянных
    обновлений.
    - уход в минус → ловит проверка `minimum` в схеме;
@@ -468,11 +463,10 @@ await adm.close(); await db.close(); await svc.close()
    - чужая или невидимая строка → неотличима от несуществующей: шаг её не находит, а ссылка на неё — `target_not_found`;
    - без права → пусто или `acl_denied`;
    - `` db.sql`…` `` и сырой SQL → тоже под сессией и RLS.
-10. **Ключ неизменен.**
-    - правка ключевого поля, id, арендатора, владельца → `immutable_key`;
-    - новый ключ → `rekey(patch)` (или `db.rekeyClass(класс, ключ)`), это новый id;
-    - смена класса → `reclass(класс, данные)`, не `update` (`use_reclass`);
-    - удаление, `reclass` и `rekey` → только в `read committed` (иначе `isolation_level`).
+10. **Ключ и класс неизменны.**
+    - правка ключевого поля, класса, id, арендатора, владельца → `immutable_key` (и у сырого `UPDATE … SET class`);
+    - другой ключ или класс → новый объект: `create` нового, ссылки — правкой, прежний — `delete`;
+    - удаление → только в `read committed` (иначе `isolation_level`).
 11. **Классы — в арендаторе сессии.**
     - `letopis sync` с токеном арендатора → пишет классы ему; другие арендаторы их не видят;
     - общие для всех классы → в System (сид установки).

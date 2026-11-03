@@ -31,7 +31,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 Набор 1.0 (план §4) и модули плана 1.1 (§4 плана 1.1). Карточка — `.claude/rules/atlas/<ID>.md`.
 | ID | Суть | Вход | Этапы |
 |---|---|---|---|
-| M-ENGINE | таблицы, роли, триггеры, классы, `merge`, `inc`, каскад, `reclass`, журнал, коды ошибок, ревизия движка | `lib/sql/10-core.sql`, `lib/sql/15-errors.sql`, `lib/sql/40-class.sql`, `lib/sql/60-write.sql`, `lib/sql/99-revision.sql` | 1 |
+| M-ENGINE | таблицы, роли, триггеры, классы, `merge`, `inc`, каскад, неизменный класс строки, журнал, коды ошибок, ревизия движка | `lib/sql/10-core.sql`, `lib/sql/15-errors.sql`, `lib/sql/40-class.sql`, `lib/sql/60-write.sql`, `lib/sql/99-revision.sql` | 1 |
 | M-VALIDATE | v5, JSON Schema → jsonpath в базе (валидатор на TypeScript — M-MODEL) | `lib/sql/30-validate.sql` | 1, 2 |
 | M-ACCESS | контекст, сессии, RLS, ACL, креды, вход | `lib/sql/20-context.sql`, `lib/sql/50-acl.sql`, `lib/sql/80-auth.sql`, `lib/src/auth.ts`, `lib/src/acl.ts` | 1, 5 |
 | M-MODEL | `letopis/model`, реестр, CLI, валидатор и JSON Schema на TypeScript | `lib/src/model.ts`, `lib/src/registry.ts`, `lib/src/sync.ts`, `lib/src/cli.ts`, `lib/src/validate.ts`, `lib/src/jsonschema.ts` | 2 |
@@ -49,8 +49,8 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 ## Омонимы
 Слова, сменившие смысл в 1.0 (в 0.21 и старых отчётах — прежний).
 - `count()` — число сущностей последнего шага; число путей — `count({ paths: true })` (`lib/src/chain.ts:ChainCore`).
-- `history` — свойство класса: только `true`/`false` — вести ли журнал (`lib/sql/40-class.sql`); политики хранения, прореживания и `db.trimHistory` с 2.0.0 нет.
-- `purge()` — глагол цепочки: стирание истории уже удалённой сущности (сначала `delete()`, иначе `not_deleted`; удалённые цепочка находит сама — `lib/src/write.ts:deletedTargets`, `:purgeOp`); удаление аккаунта — `db.auth.purgeAccount`.
+- `history` — свойство класса: только `true`/`false` — вести ли журнал (`lib/sql/40-class.sql`); политик хранения, прореживания и ручной обрезки истории с 2.0.0 нет.
+- `purge` — в 0.21 удаление аккаунта (`accounts.purge`), в 1.x ещё и глагол цепочки (стирание истории удалённой сущности) — снят в 2.0.0 вместе со сменой ключа и класса: история объекта не стирается. Удаление аккаунта с данными его арендатора — `db.auth.purgeAccount` (`lib/sql/90-time.sql:account_purge`).
 - `account` — арендатор сессии (вход и `auth.switch()`); шага цепочки `.account()` нет — это имя ищется среди классов и ролей.
 - `LOCK`, замок — строки-замки `secret` вида `LOCK` (семейство класса, `maintain`: `lib/sql/60-write.sql:lock_row`, `:lock_try`); `lock()` цепочки — пользовательская advisory-блокировка.
 - Новое: `db.load()` — массовая загрузка (`lib/src/load.ts`); `upsert()` — создать или заменить целиком по ключу; `cache` — кэш результатов (`.cache()` в цепочке, `connect({ cache })`, `db.cache`, свойство класса `cache { ttl }`); `meta` — свободные метаданные класса и связи в реестре, база их не толкует.

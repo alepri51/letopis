@@ -7,10 +7,10 @@
  * узлу (pivot): от него ветвится следующий шаг. Модификаторы возвращают новую цепочку; терминалы
  * строят один запрос (sql.ts) и исполняют его транзакцией под сессией (tx.ts).
  *
- * Запись (этап 4): глаголы create, update, upsert, delete, anonymize, reclass — звенья плана; слоты
+ * Запись (этап 4): глаголы create, update, upsert, delete — звенья плана; слоты
  * `.Роль.set/unset/add/remove` правят концы записываемой версии. Терминал цепочки с глаголами
  * исполняет весь план одной транзакцией (write.ts): продолжение идёт от результата глагола.
- * Этап 6: restore, purge, rekey; versions({ follow }); кэш результатов .cache() (cache.ts).
+ * Этап 6: restore; versions(); кэш результатов .cache() (cache.ts).
  */
 import { lerr, lwarn, similar, type LetopisError } from './errors.js';
 import { sessionTag, type ResultCache } from './cache.js';
@@ -74,11 +74,8 @@ export interface ChainCore {
   ids(): Promise<string[]>;
   /** Число сущностей последнего шага; { paths: true } — число путей. */
   count(opts?: { paths?: boolean }): Promise<number>;
-  /**
-   * Все версии сущностей последнего шага (надгробия — $deleted), по id и номеру версии;
-   * { follow: true } — и через смену id при reclass и rekey, по времени.
-   */
-  versions(opts?: { follow?: boolean }): Promise<Row[]>;
+  /** Все версии сущностей последнего шага (надгробия — $deleted), по id и номеру версии. */
+  versions(): Promise<Row[]>;
   /**
    * Сумма поля `'data.<путь>'` по объектам последнего шага: значения приводятся к числу, складывает база. `limit()` и
    * `offset()` на итог не влияют; нет ни одного значения — `null`.
@@ -177,25 +174,10 @@ export interface ChainCore {
    * `{ confirm: true, all: true }`.
    */
   delete(opts?: { confirm?: boolean; all?: boolean; reason?: string }): Chain;
-  /** Затереть строковые поля ('[erased]') и пометить тегом anonymized. */
-  anonymize(fields: string[], opts?: { reason?: string }): Chain;
-  /** Сменить класс: у класса с ключом — новый id и перевод ссылок. */
-  reclass(cls: string, data?: Record<string, unknown>, opts?: { reason?: string }): Chain;
   /** Чтение с блокировкой строк последнего шага до конца db.begin() (rows, first, ids). */
   forUpdate(): Chain;
   /** Восстановить удалённые объекты шага: последний снимок новой версией (id прежний). */
   restore(opts?: { reason?: string }): Chain;
-  /**
-   * Стирает историю удалённых объектов шага: все их версии в журнале, от каждого остаётся одна запись `purge`. Удалённые
-   * объекты шаг находит сам, без `withDeleted()`. Без `{ confirm: true }` — предпросмотр: ничего не стирается, терминал
-   * вернёт надгробия с `$versions` — сколько версий сотрётся.
-   */
-  purge(opts?: { confirm?: boolean; reason?: string }): Chain;
-  /**
-   * Новое значение ключа объектов шага. id вычисляется из ключа, поэтому объект получает новый id: ссылки других строк
-   * на него переводятся на новый id, а журнал связывает старый id с новым.
-   */
-  rekey(patch: Record<string, unknown>, opts?: { reason?: string }): Chain;
   /** Кэш результатов (§2.12): ответ хранится в памяти процесса ttl секунд (по умолчанию 60). */
   cache(opts?: { ttl?: number }): Chain;
 }
@@ -598,10 +580,9 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
           return (await read<{ n: number }>(ctx, steps, mods, opts?.paths ? 'countPaths' : 'count')).res[0].n;
         };
       case 'versions':
-        return async (opts?: { follow?: boolean }) => {
+        return async () => {
           warnNoHistory(steps, 'versions');
-          const m = opts?.follow ? { ...mods, follow: true } : mods;
-          return (await read<{ row: Record<string, unknown> }>(ctx, steps, m, 'versions')).res.map((r) => toRow(r.row));
+          return (await read<{ row: Record<string, unknown> }>(ctx, steps, mods, 'versions')).res.map((r) => toRow(r.row));
         };
       case 'sum':
       case 'avg':
@@ -644,21 +625,12 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
         return (data: Record<string, unknown> = {}, opts?: { reason?: string }) => withOp({ kind: 'upsert', data, ...reasonOf(opts) });
       case 'delete':
         return (opts?: { confirm?: boolean; all?: boolean; reason?: string }) => withOp({ kind: 'delete', confirm: opts?.confirm === true, ...allOf(opts), ...reasonOf(opts) });
-      case 'anonymize':
-        return (fields: string[], opts?: { reason?: string }) => withOp({ kind: 'anonymize', fields, ...reasonOf(opts) });
-      case 'reclass':
-        return (cls: string, data?: Record<string, unknown>, opts?: { reason?: string }) =>
-          withOp({ kind: 'reclass', cls, ...(data !== undefined ? { data } : {}), ...reasonOf(opts) });
       case 'set': case 'unset': case 'add': case 'remove':
         throw lerr('api.slot_method', { method: prop });
       case 'forUpdate':
         return () => withMods({ forUpdate: true });
       case 'restore':
         return (opts?: { reason?: string }) => withOp({ kind: 'restore', ...reasonOf(opts) });
-      case 'purge':
-        return (opts?: { confirm?: boolean; reason?: string }) => withOp({ kind: 'purge', confirm: opts?.confirm === true, ...reasonOf(opts) });
-      case 'rekey':
-        return (patch: Record<string, unknown>, opts?: { reason?: string }) => withOp({ kind: 'rekey', data: patch ?? {}, ...reasonOf(opts) });
       case 'cache':
         return (opts?: { ttl?: number }) => {
           if (opts?.ttl !== undefined && !(opts.ttl > 0)) throw lerr('api.cache_ttl');

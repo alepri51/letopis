@@ -1,6 +1,6 @@
 # F-DELETE — Удаление и каскад (letopis 1.0, этап 4)
 Процессы: [N] Node-процесс приложения · [P] PostgreSQL
-Триггер: `await db.Member(m).delete().rows()` (превью) → `await db.Member(m).delete({ confirm: true }).rows()`; сырой `delete from entity where id in (…)`. Стирание истории (`purge`) — этап 6.
+Триггер: `await db.Member(m).delete().rows()` (превью) → `await db.Member(m).delete({ confirm: true }).rows()`; сырой `delete from entity where id in (…)`. История удалённого объекта остаётся в журнале: стирания истории объекта с 2.0.0 нет.
 
 ## Превью (без изменений)
 1. [N] `lib/src/write.ts:deleteOp` — цели `targetIds` (путь и модификаторы до глагола).

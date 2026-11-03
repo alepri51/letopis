@@ -1,6 +1,7 @@
 /**
  * engine-write — конвейер записи сырым SQL (план, §2.5, этап 1, п. 7–8; тест-план §7.3.3); строка entity — последняя
- * версия журнала (§7.3.7 №7) и страж тела link_ids (из снятого в 2.0.0 теста hash).
+ * версия журнала (§7.3.7 №7), страж тела link_ids (из снятого в 2.0.0 теста hash) и неизменный класс строки (план 2.0,
+ * редакция 2).
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -296,6 +297,22 @@ test('7.3.3 №17: приращение inc', async () => {
   assert.equal(d.data.balance, 400);
 });
 
+test('план 2.0, редакция 2: смена класса правкой — immutable_key у строки без ключа, с ключом и строки Class; строка и журнал прежние', async () => {
+  const note = await ins('Note', { text: 'n' });
+  const org = await ins('Org', { name: 'Fixed' });
+  const [cls] = await q(`select id from ${S}.entity where class = 'Class' and data->>'name' = 'Note'`);
+  const cases: [string, string, string][] = [[note.id, 'Folder', 'Note'], [org.id, 'Wallet', 'Org'], [cls.id, 'Note', 'Class']];
+  for (const [id, to, from] of cases) {
+    await assert.rejects(q(`update ${S}.entity set class = $2 where id = $1`, [id, to]), (err: Error) =>
+      lt('immutable_key')(err) && new RegExp(`класс строки ${from} неизменен`).test(err.message));
+  }
+  // вместе с данными — та же ошибка: строка и журнал прежние
+  await assert.rejects(q(`update ${S}.entity set class = 'Folder', data = '{"title": "x"}' where id = $1`, [note.id]), lt('immutable_key'));
+  const [row] = await q(`select class, rev from ${S}.entity where id = $1`, [note.id]);
+  assert.deepEqual([row.class, row.rev], ['Note', 1]);
+  assert.deepEqual((await logOf(note.id)).map((r) => [r.rev, r.class, r.op]), [[1, 'Note', 'create']]);
+});
+
 test('решение 9: отложенный сигнал — NOTIFY нет, классы (и каскада) копятся в letopis.changed', async () => {
   const org = await ins('Org', { name: 'Deferred' });
   await ins('Master', { name: 'm' }, { Org: org.id });
@@ -318,8 +335,8 @@ test('решение 9: отложенный сигнал — NOTIFY нет, к�
 test('7.3.7 №7: строка entity совпадает с последней версией журнала', async () => {
   const rows = await e.sql.unsafe(`select e.id from ${S}.entity e
     join lateral (select * from ${S}.log l where l.id = e.id order by l.rev desc limit 1) l on true
-    where (e.rev, e.class, e.tenant, e.owner, e.links, e.data, e.tags, e.at, e.author, e.agent, e.op, e.reason, e.moved)
-      is distinct from (l.rev, l.class, l.tenant, l.owner, l.links, l.data, l.tags, l.at, l.author, l.agent, l.op, l.reason, l.moved)`);
+    where (e.rev, e.class, e.tenant, e.owner, e.links, e.data, e.tags, e.at, e.author, e.agent, e.op, e.reason)
+      is distinct from (l.rev, l.class, l.tenant, l.owner, l.links, l.data, l.tags, l.at, l.author, l.agent, l.op, l.reason)`);
   assert.deepEqual([...rows], []);
 });
 

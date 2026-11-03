@@ -1,8 +1,9 @@
 /**
- * chain-write — запись цепочками (план, этап 4; тест-план §7.6 №4.1–4.8, 4.13, 4.17, 4.19).
+ * chain-write — запись цепочками (план, этап 4; тест-план §7.6 №4.1–4.7, 4.13, 4.17, 4.19).
  * Эталон — планы записи 0.21 (plan, core, idgen, api-full, wave2): звенья плана, продолжение от
- * результата, fan-out, self-update, превью и удаление, откат плана целиком, слоты, хвост-чтение,
- * anonymize. Объявленное отличие: create занятого ключа — ошибка exists, замена — upsert.
+ * результата, fan-out, self-update, превью и удаление, откат плана целиком, слоты, хвост-чтение.
+ * Объявленное отличие: create занятого ключа — ошибка exists, замена — upsert. Смена класса (4.8) и обезличивание
+ * сняты в 2.0.0.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -160,8 +161,8 @@ test('4.1 слоты: перевес конца при update; повтор сл
   const [a] = await db.Team(team.id).Member().create({ name: 'А' }).rows();
   const [b] = await db.Team(team.id).Member().create({ name: 'Б' }).rows();
   const [d] = await db.Member(a.id).duty().create({ day: 'ср' }).rows();
-  const [moved] = await db.duty(d.id).update({}).Backup.set(b.id).rows();
-  assert.equal(moved.links.Backup, b.id);
+  const [shifted] = await db.duty(d.id).update({}).Backup.set(b.id).rows();
+  assert.equal(shifted.links.Backup, b.id);
   const [cleared] = await db.duty(d.id).update({}).Backup.unset().rows();
   assert.equal(cleared.links.Backup, undefined);
   // имя роли — сама роль; класс, который не принимает ни одна роль, — ошибка
@@ -201,23 +202,6 @@ test('4.7 правка на полиморфном шаге: каждая стр
   assert.deepEqual(new Set(rows.map((r) => r.class)), new Set(['Staff', 'Customer']));
   // поле потомка проходит только у своего класса
   await assert.rejects(db.Org(s.org).Person().update({ specialization: 'все' }).rows(), code('invalid_data'));
-});
-
-test('4.8 смена класса: без ключа id тот же; с ключом — новый id, ссылки переведены', async () => {
-  const [c] = await db.Org(s.org).Customer().create({ name: 'Стажёр', phone: '+7 77' }).rows();
-  // данные заменяются целиком: у мастера нет поля клиента preferred_contact
-  await assert.rejects(db.Customer(c.id).reclass('Staff').rows(), code('invalid_data'));
-  const [st] = await db.Customer(c.id).reclass('Staff', { name: 'Стажёр', phone: '+7 77' }).rows();
-  assert.equal(st.id, c.id);
-  assert.equal(st.class, 'Staff');
-  const [svc] = await db.Org(s.org).Service().create({ name: 'Массаж', duration: 30 }).rows();
-  const [pr] = await db.Org(s.org).Service(svc.id).price().create({ amounts: { RUB: 900 } }).rows();
-  const [prod] = await db.Service(svc.id).reclass('Product', { name: 'Массаж' }).rows();
-  assert.notEqual(prod.id, svc.id);
-  assert.equal(prod.id, db.idOf('Product', { Org: s.org, name: 'Массаж' }));
-  const price = await db.price(pr.id).first();
-  assert.equal(price, null, 'цена с ключом [Item, note] переехала на новый id');
-  assert.equal(await db.Product(prod.id).price().count(), 1);
 });
 
 test('4.17 приращение: маркер, а не данные; путь, старт, ошибки до отправки', async () => {
@@ -281,17 +265,6 @@ test('4.13 upsert: created, updated, unchanged; класс без ключа —
   const [d] = await db.Team().upsert({ name: 'Омега' }).rows();
   assert.equal(d.data.city, undefined);
   await assert.rejects(db.Org(s.org).Customer().upsert({ name: 'X', phone: '1' }).rows(), code('no_key'));
-});
-
-test('4.1 anonymize: строковые поля затираются, тег anonymized, история сохраняется', async () => {
-  const [c] = await db.Org(s.org).Customer().create({ name: 'Иван', phone: '+7 123', notes: 'VIP' }).rows();
-  const [a] = await db.Customer(c.id).anonymize(['name', 'notes']).rows();
-  assert.equal(a.data.name, '[erased]');
-  assert.equal(a.data.notes, '[erased]');
-  assert.equal(a.data.phone, '+7 123');
-  assert.ok(a.tags.includes('anonymized'));
-  assert.equal((await db.Customer(c.id).versions()).length, 2);
-  await assert.rejects(db.Org(s.org).anonymize(['active']).rows(), code('invalid_query'));
 });
 
 test('цели записи сужаются limit и sort; data.id — цель без фильтра шага', async () => {

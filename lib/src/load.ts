@@ -169,8 +169,8 @@ const esc = (v: unknown): string => {
   const s = String(v);
   return ESCAPED.test(s) ? s.replace(/\\/g, '\\\\').replace(/\t/g, '\\t').replace(/\n/g, '\\n').replace(/\r/g, '\\r') : s;
 };
-const ENTITY_COLS = 'id, rev, class, cv, tenant, owner, links, data, tags, at, created_at, author, agent, op, reason, moved, validator';
-const LOG_COLS = 'id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, tx';
+const ENTITY_COLS = 'id, rev, class, cv, tenant, owner, links, data, tags, at, created_at, author, agent, op, reason, validator';
+const LOG_COLS = 'id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, tx';
 const asList = (v: string | string[]): string[] => (Array.isArray(v) ? v : [v]);
 /** Теги → литерал text[] для COPY (экранирование COPY — потом, в esc). */
 const pgArray = (tags: readonly string[]): string => `{${tags.map((t) => `"${t.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`).join(',')}}`;
@@ -961,7 +961,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       }
       if (!sh || issues.any) continue;
       if (live.has(id)) {
-        // строка с тем же id, но другого класса (класс без ключа после reclass, повторный импорт по $ext): правка
+        // строка с тем же id, но другого класса (класс строки сменили мимо триггеров): правка
         // прошла бы мимо триггеров с данными, проверенными по чужой схеме, — exists (план 2.0, 7.2 №4)
         const was = live.get(id)!;
         if (was !== cls.name) {
@@ -982,8 +982,8 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       if (acl) rowsAcl.push({ i, class: cls.name, id, owner, tags, data: sh.data, links: sh.links });
       // общая голова строк entity и log — одной сборкой и одним экранированием
       const head = [id, rev, cls.name, cur.rev, tenant, owner, JSON.stringify(sh.links), JSON.stringify(sh.data), pgArray(tags), atv].map(esc).join('\t');
-      ent.push(`${head}\t${esc(atv)}\t${esc(author)}\t${esc(agent)}\tcreate\t\\N\t\\N\t\\N\n`);
-      if (cur.history !== false) log.push(`${head}\t${esc(author)}\t${esc(agent)}\tcreate\t\\N\t\\N\t${esc(xid)}\n`);
+      ent.push(`${head}\t${esc(atv)}\t${esc(author)}\t${esc(agent)}\tcreate\t\\N\t\\N\n`);
+      if (cur.history !== false) log.push(`${head}\t${esc(author)}\t${esc(agent)}\tcreate\t\\N\t${esc(xid)}\n`);
       report.loaded++;
       report.byClass[cls.name] = (report.byClass[cls.name] ?? 0) + 1;
       touched.add(cls.name);
@@ -1032,13 +1032,13 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
           up as (
             update ${S}.entity e set data = u.data, links = u.links, tags = coalesce(u.tags, e.tags), rev = e.rev + 1,
               at = greatest($2::timestamptz, e.at + interval '1 microsecond'), author = $3::uuid, agent = $4::text, op = 'update',
-              reason = null, moved = null, cv = coalesce((${S}.class_row(e.class, e.tenant)).rev, e.cv)
+              reason = null, cv = coalesce((${S}.class_row(e.class, e.tenant)).rev, e.cv)
             from u where e.id = u.id and (e.data is distinct from u.data or e.links is distinct from u.links
               or e.tags is distinct from coalesce(u.tags, e.tags))
             returning e.*),
           lg as (
-            insert into ${S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved)
-            select id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved from up
+            insert into ${S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason)
+            select id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason from up
             where ${S}.history_on(up.class, up.tenant) order by up.id)
         select up.id, up.class from up`, [updates.map((u) => ({ id: u.id, data: u.data, links: u.links, tags: u.tags })), ts, author, agent]);
       report.updated += res.length;
@@ -1085,7 +1085,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     const flush = async (): Promise<void> => {
       if (!items.length) return;
       await conn.unsafe(`insert into ${S}.log (${LOG_COLS})
-        select x.id, x.rev, x.class, x.cv, x.tenant, x.owner, x.links, x.data, x.tags, x.at, x.author, x.agent, x.op, null, null, x.tx::xid8
+        select x.id, x.rev, x.class, x.cv, x.tenant, x.owner, x.links, x.data, x.tags, x.at, x.author, x.agent, x.op, null, x.tx::xid8
         from jsonb_to_recordset($1::jsonb) as x(id uuid, rev int, class text, cv int, tenant uuid, owner uuid, tags text[], links jsonb,
                data jsonb, at timestamptz, author uuid, agent text, op text, tx text)`, [items.splice(0) as never]);
     };
@@ -1117,7 +1117,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       const sh = shaped.get(last)!;
       const op = typeof r.$op === 'string' ? r.$op : l.length === 1 ? 'create' : 'update';
       ent.push([id, l.length, cls.name, cur.rev, tenant, sh.owner ?? tenant, JSON.stringify(sh.links), JSON.stringify(sh.data), pgArray(sh.tags ?? []), r.$at,
-        rows[l[0]].$at, SYSTEM_ID, agent, op, null, null, null].map(esc).join('\t') + '\n');
+        rows[l[0]].$at, SYSTEM_ID, agent, op, null, null].map(esc).join('\t') + '\n');
       report.loaded++;
       report.byClass[cls.name] = (report.byClass[cls.name] ?? 0) + 1;
     }

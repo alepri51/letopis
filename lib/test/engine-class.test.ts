@@ -221,15 +221,13 @@ test('класс со строками или потомками не удаля
   await q(`delete from ${S}.entity where id = $1`, [(await cls('Del2')).id]);
 });
 
-test('доработки после точки Б: класс с историей строк не удаляется, пока её не стёр purge()', async () => {
+test('доработки после точки Б: класс с историей строк не удаляется; класс без журнала — удаляется', async () => {
   await def(hub('Hist1'));
   const [r] = await q(`insert into ${S}.entity (class, data) values ('Hist1', '{}') returning id`);
   await q(`delete from ${S}.entity where id = $1`, [r.id]);
   const row = await cls('Hist1');
   await assert.rejects(q(`delete from ${S}.entity where id = $1`, [row.id]), /есть история строк/);
-  await q(`select ${S}.purge($1::uuid, true)`, [r.id]);
-  await q(`delete from ${S}.entity where id = $1`, [row.id]);
-  assert.equal((await q(`select id from ${S}.entity where id = $1`, [row.id])).length, 0);
+  assert.equal((await q(`select id from ${S}.entity where id = $1`, [row.id])).length, 1, 'строка Class на месте');
   // класс без журнала (history: false) удаляется сразу
   await def({ ...hub('Hist2'), history: false });
   const [r2] = await q(`insert into ${S}.entity (class, data) values ('Hist2', '{}') returning id`);

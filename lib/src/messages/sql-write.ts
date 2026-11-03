@@ -1,5 +1,5 @@
 /**
- * Раздел sql-write: lib/sql/60-write.sql — триггеры записи, merge, inc, каскад, reclass. Русский текст собирает база из
+ * Раздел sql-write: lib/sql/60-write.sql — триггеры записи, merge, inc, каскад. Русский текст собирает база из
  * этих же записей: установщик кладёт разделы sql-* в message_catalog() (lib/sql/15-errors.sql), ключ и параметры уходят
  * в DETAIL.
  */
@@ -21,7 +21,7 @@ export const sqlWrite = {
     code: 'invalid_data',
     ru: 'данные не проходят описание класса {cls}',
   },
-  // links_shape(): разбор концов строки (триггеры вставки и правки; check_links — reclass, restore, rekey)
+  // links_shape(): разбор концов строки (триггеры вставки и правки; check_links — restore)
   'sql-write.links_not_object': {
     code: 'invalid_data',
     ru: 'links — не объект',
@@ -60,7 +60,7 @@ export const sqlWrite = {
     ru: 'цель конца {end} не найдена',
   },
   // family_conflicts(): чем строка семейства не проходит новое описание — поле problem в detail.rows отказа
-  // tightening_conflict (ужесточение класса, rekeyClass); у строки ещё key и params — fromDbError их убирает
+  // tightening_conflict (ужесточение класса); у строки ещё key и params — fromDbError их убирает
   'sql-write.problem_abstract': {
     code: 'tightening_conflict',
     ru: 'класс абстрактный',
@@ -84,7 +84,7 @@ export const sqlWrite = {
     ru: 'на строку ссылается строка, которой актор не видит, и она не принимает класс',
   },
   // class_rows_admit(): нет права без условий на все строки класса {target} (сам класс {cls} или его потомок); что
-  // меняется — p_what: reparent, history, tighten, rekey; иной p_what — прежний готовый текст {what}
+  // меняется — p_what: reparent, history, tighten; иной p_what — прежний готовый текст {what}
   'sql-write.reparent_needs_all': {
     code: 'acl_denied',
     ru: 'класс {cls} меняет предков или алиас: нужно право {op} на все строки класса {target}',
@@ -96,10 +96,6 @@ export const sqlWrite = {
   'sql-write.tighten_needs_all': {
     code: 'acl_denied',
     ru: 'ужесточение класса {cls}: нужно право {op} на все строки класса {target}',
-  },
-  'sql-write.rekey_needs_all': {
-    code: 'acl_denied',
-    ru: 'смена ключа класса {cls}: нужно право {op} на все строки класса {target}',
   },
   'sql-write.change_needs_all': {
     code: 'acl_denied',
@@ -138,13 +134,13 @@ export const sqlWrite = {
   },
   'sql-write.alias_orphan_history': {
     code: 'invalid_class',
-    ru: 'удалённые потомки класса {cls} хранят историю строк: алиас меняется после purge() их строк',
+    ru: 'удалённые потомки класса {cls} хранят историю строк: алиас не меняется',
   },
   'sql-write.end_other_class': {
     code: 'invalid_class',
     ru: 'конец {end} в классе {cls} ведёт на другой класс',
   },
-  // триггеры вставки и правки, reclass()
+  // триггеры вставки и правки
   'sql-write.no_session': {
     code: 'no_session',
     ru: 'нет действующей сессии',
@@ -185,7 +181,7 @@ export const sqlWrite = {
   },
   'sql-write.history_recreate': {
     code: 'invalid_class',
-    ru: 'журнал хранит историю строк класса {cls} или его удалённых потомков: создать его можно только заново и с прежними parent, alias и history (или сначала стереть её purge())',
+    ru: 'журнал хранит историю строк класса {cls} или его удалённых потомков: создать его можно только заново и с прежними parent, alias и history',
   },
   'sql-write.owner_not_found': {
     code: 'target_not_found',
@@ -195,34 +191,14 @@ export const sqlWrite = {
     code: 'immutable_key',
     ru: 'id, арендатора, владельца и время создания менять нельзя',
   },
-  'sql-write.class_row_kind': {
-    code: 'invalid_class',
-    ru: 'строку Class нельзя превратить в данные и наоборот',
-  },
-  'sql-write.system_row_reclass': {
-    code: 'reclass_denied',
-    ru: 'класс системной строки не меняется',
-  },
-  'sql-write.reclass_isolation': {
-    code: 'isolation_level',
-    ru: 'смена класса разрешена только в read committed',
-  },
-  'sql-write.use_reclass': {
-    code: 'use_reclass',
-    ru: 'у класса {from} или {to} есть ключ: id меняется, используйте reclass()',
-  },
-  'sql-write.reclass_delete_denied': {
-    code: 'acl_denied',
-    ru: 'нет права DELETE на строку класса {cls}: смена класса убирает её из класса',
-  },
-  // detail — видимые актору ссылающиеся строки и число остальных (visible_detail)
-  'sql-write.reclass_refs': {
-    code: 'reclass_denied',
-    ru: 'роли ссылающихся строк не принимают класс {cls}',
+  // класс строки неизменен (план 2.0, редакция 2): смены класса нет
+  'sql-write.class_immutable': {
+    code: 'immutable_key',
+    ru: 'класс строки {cls} неизменен: объект другого класса — новый объект',
   },
   'sql-write.key_changed': {
     code: 'immutable_key',
-    ru: 'ключевое поле класса {cls} менять нельзя: id изменился бы (rekey)',
+    ru: 'ключевое поле класса {cls} менять нельзя: id изменился бы',
   },
   // class_evolve(): detail — видимые нарушающие строки и число остальных (visible_detail)
   'sql-write.tightening_mismatch': {
@@ -248,7 +224,7 @@ export const sqlWrite = {
   },
   'sql-write.class_has_history': {
     code: 'invalid_class',
-    ru: 'у класса {cls} есть история строк в журнале: сначала стереть её purge() удалённых строк',
+    ru: 'у класса {cls} есть история строк в журнале: класс с историей строк не удаляется',
   },
   // каскад и снятие конца: класс отказавшей строки — только если актор её видит (visible_class)
   'sql-write.cascade_delete_denied': {
@@ -271,28 +247,6 @@ export const sqlWrite = {
   'sql-write.delete_restricted': {
     code: 'delete_restricted',
     ru: 'на удаляемые строки ссылаются другие строки (onDelete: restrict)',
-  },
-  // move_row(), reclass(): перевод ссылок; класс ссылающейся строки — только если актор её видит
-  'sql-write.refs_write_denied': {
-    code: 'acl_denied',
-    ru: 'нет права WRITE на ссылающиеся строки',
-  },
-  'sql-write.refs_class_write_denied': {
-    code: 'acl_denied',
-    ru: 'нет права WRITE на ссылающиеся строки класса {cls}',
-  },
-  // reclass()
-  'sql-write.target_not_found': {
-    code: 'target_not_found',
-    ru: 'цель не найдена',
-  },
-  'sql-write.row_write_denied': {
-    code: 'acl_denied',
-    ru: 'нет права WRITE на строку класса {cls}',
-  },
-  'sql-write.class_write_denied': {
-    code: 'acl_denied',
-    ru: 'нет права WRITE на класс {cls}',
   },
   // links_patch() и inc() исполняет приложение: raise с lt_text(), в detail — key и params
   'sql-write.links_patch_op': {

@@ -12,12 +12,12 @@ export const sqlTime = {
     code: 'acl_denied',
     ru: 'нет права letopis.signals',
   },
-  // 90-time.sql, last_version_visible(), rekey()
+  // 90-time.sql, last_version_visible()
   'sql-time.target_not_found': {
     code: 'target_not_found',
     ru: 'цель не найдена',
   },
-  // 90-time.sql, restore(), purge(), rekey(), rekey_class(), account_purge()
+  // 90-time.sql, restore(), account_purge()
   'sql-time.no_session': {
     code: 'no_session',
     ru: 'нет действующей сессии',
@@ -37,7 +37,7 @@ export const sqlTime = {
     code: 'invalid_class',
     ru: 'класс {cls} не найден',
   },
-  // 90-time.sql, restore(), rekey()
+  // 90-time.sql, restore()
   'sql-time.class_deleted': {
     code: 'invalid_class',
     ru: 'класс {cls} удалён',
@@ -47,7 +47,7 @@ export const sqlTime = {
     code: 'invalid_class',
     ru: 'класс {cls} абстрактный',
   },
-  // 90-time.sql, restore(), rekey()
+  // 90-time.sql, restore()
   'sql-time.invalid_data': {
     code: 'invalid_data',
     ru: 'данные не проходят описание класса {cls}',
@@ -57,80 +57,10 @@ export const sqlTime = {
     code: 'id_mismatch',
     ru: 'ключ класса {cls} изменился: id объекта не равен v5 от ключа',
   },
-  // 90-time.sql, restore(), rekey(), rekey_class()
+  // 90-time.sql, restore()
   'sql-time.no_write_row': {
     code: 'acl_denied',
     ru: 'нет права WRITE на строку класса {cls}',
-  },
-  // 90-time.sql, purge()
-  'sql-time.purge_not_deleted': {
-    code: 'not_deleted',
-    ru: 'объект не удалён: purge — только для удалённых, сначала delete()',
-  },
-  // 90-time.sql, purge()
-  'sql-time.purge_system': {
-    code: 'invalid_class',
-    ru: 'история системных классов — аудит прав и схемы: purge недоступен',
-  },
-  // 90-time.sql, purge()
-  'sql-time.no_delete_class': {
-    code: 'acl_denied',
-    ru: 'нет права DELETE на класс {cls}',
-  },
-  // 90-time.sql, purge()
-  'sql-time.purge_restored': {
-    code: 'not_deleted',
-    ru: 'объект восстановлен во время purge',
-  },
-  // 90-time.sql, rekey(), rekey_class()
-  'sql-time.rekey_isolation': {
-    code: 'isolation_level',
-    ru: 'смена ключа разрешена только в read committed',
-  },
-  // 90-time.sql, rekey()
-  'sql-time.rekey_system_row': {
-    code: 'invalid_class',
-    ru: 'ключ системной строки не меняется',
-  },
-  // 90-time.sql, rekey()
-  'sql-time.rekey_no_key': {
-    code: 'invalid_class',
-    ru: 'у класса {cls} нет ключа: id выдаёт база, менять нечего',
-  },
-  // 90-time.sql, rekey()
-  'sql-time.no_write_class': {
-    code: 'acl_denied',
-    ru: 'нет права WRITE на класс {cls}',
-  },
-  // 90-time.sql, rekey()
-  'sql-time.refs_denied_class': {
-    code: 'acl_denied',
-    ru: 'нет права WRITE на ссылающиеся строки класса {cls}',
-  },
-  // 90-time.sql, rekey()
-  'sql-time.refs_denied': {
-    code: 'acl_denied',
-    ru: 'нет права WRITE на ссылающиеся строки',
-  },
-  // 90-time.sql, rekey_class()
-  'sql-time.rekey_class_not_found': {
-    code: 'invalid_class',
-    ru: 'класс {cls} не найден среди классов арендатора',
-  },
-  // 90-time.sql, rekey_class()
-  'sql-time.rekey_system_class': {
-    code: 'invalid_class',
-    ru: 'ключ системного класса не меняется',
-  },
-  // 90-time.sql, rekey_class()
-  'sql-time.rekey_class_denied': {
-    code: 'acl_denied',
-    ru: 'нет права WRITE на класс Class',
-  },
-  // 90-time.sql, rekey_class()
-  'sql-time.rekey_conflict': {
-    code: 'tightening_conflict',
-    ru: 'новому ключу класса {cls} не соответствуют строки',
   },
   // 90-time.sql, account_purge()
   'sql-time.purge_self': {

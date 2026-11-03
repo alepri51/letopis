@@ -4,7 +4,8 @@
  * публичного API (CHAIN_METHODS, DB_METHODS, BATCH_METHODS — последний тест файла).
  *
  * Открытие салона → каталог и мастера → расписание → записи клиентов (гонки, переносы, отмены) →
- * отчёты → подписка → приватность → вход и сессии → права → изоляция арендаторов → охранники.
+ * отчёты → подписка → вход и сессии → права → изоляция арендаторов → охранники. Акт 16 (приватность: затирание полей
+ * и стирание истории) снят в 2.0.0 вместе с ними; номера остальных актов прежние.
  * Каждый акт в шапке перечисляет методы API, которые он задевает.
  *
  * Отличия 1.0, учтённые при переносе (по смыслу, а не дословно):
@@ -496,11 +497,11 @@ test('Акт 12. Отчёты: операторы фильтра на катал
 });
 
 // ===========================================================================
-// АКТ 13. Аналитика — агрегации, keyset-пагинация, alias, tags, кэш, reclass и rekey
+// АКТ 13. Аналитика — агрегации, keyset-пагинация, alias, tags, кэш
 // покрывает: sum avg min max countBy sort offset after cursorOf ids alias paths tags(create и фильтр)
-//            cache (цепочка и db.cache), rekey, reclass
+//            cache (цепочка и db.cache)
 // ===========================================================================
-test('Акт 13. Аналитика: агрегации, keyset, alias, tags, кэш; товар-хит переименован и переведён', async () => {
+test('Акт 13. Аналитика: агрегации, keyset, alias, tags, кэш', async () => {
   assert.equal(await db.цена().sum('data.amounts.RUB'), 1500 + 900 + 800);
   assert.ok(Math.abs((await db.цена().avg('data.amounts.RUB'))! - 1066.67) < 1);
   assert.equal(await db.Услуга().min('data.duration'), 30);
@@ -537,15 +538,10 @@ test('Акт 13. Аналитика: агрегации, keyset, alias, tags, к
   assert.deepEqual(поТегу.map((r) => r.id), [хит.id]);
   assert.equal((await db.Услуга().cache().rows()).length, 4, 'своя запись сбросила кэш класса');
 
-  // ключ услуги — (Org, name): переименование — rekey (новый id), затем перевод в товары — reclass
-  const [переим] = await db.Услуга(хит.id).rekey({ name: 'Хит года' }).rows();
-  assert.notEqual(переим.id, хит.id);
-  assert.equal(переим.moved, хит.id);
-  assert.equal(await db.Услуга(хит.id).count(), 0);
-  const [товар] = await db.Услуга(переим.id).reclass('Product', { name: 'Хит года', sku: 'HIT-1' }).rows();
-  assert.equal(товар.class, 'Product');
+  // хит снят с продажи: удалённой услуги нет ни в классе, ни в поиске по тегу
+  await db.Услуга(хит.id).delete({ confirm: true }).rows();
   assert.equal(await db.Услуга().tags('топ').count(), 0);
-  await db.Товар(товар.id).delete({ confirm: true }).rows();
+  assert.equal(await db.Услуга().count(), 3);
 });
 
 // ===========================================================================
@@ -604,31 +600,6 @@ test('Акт 15. Подписка: watch ловит новые версии; п�
     клиенты.close();
     продолжение?.close();
   }
-});
-
-// ===========================================================================
-// АКТ 16. Приватность — anonymize (история цела) и purge (право на забвение)
-// покрывает: anonymize, purge (превью и confirm)
-// ===========================================================================
-test('Акт 16. GDPR: anonymize клиента, история сохранена; удалённый клиент стёрт целиком', async () => {
-  const { org } = S;
-  const [клиент] = await db.Организация(org).Клиент().create({ name: 'Пётр Удаляев', phone: '+7 917 005' }).rows();
-  const [аноним] = await db.Клиент(клиент.id).anonymize(['name', 'phone']).rows();
-  assert.equal(аноним.data.name, '[erased]');
-  assert.equal(аноним.data.phone, '[erased]');
-  assert.ok(аноним.tags.includes('anonymized'));
-  const версии = await db.Клиент(клиент.id).versions();
-  assert.equal(версии[0].data.name, 'Пётр Удаляев', 'первая версия хранит настоящее имя');
-
-  // право на забвение: клиент удалён, затем история стёрта
-  const [ушла] = await db.Организация(org).Клиент().create({ name: 'Мария Забвенная', phone: '+7 917 006' }).rows();
-  await fails(() => db.Клиент(ушла.id).purge({ confirm: true }).rows(), 'not_deleted');
-  await db.Клиент(ушла.id).delete({ confirm: true }).rows();
-  const [превью] = await db.Клиент(ушла.id).purge().rows();
-  assert.equal(превью.$versions, 2);
-  const [стёрто] = await db.Клиент(ушла.id).purge({ confirm: true }).rows();
-  assert.equal(стёрто.$purged, true);
-  assert.deepEqual(await db.Клиент(ушла.id).withDeleted().versions(), []);
 });
 
 // ===========================================================================
@@ -802,8 +773,7 @@ test('Акт 20. Аренда и наблюдаемость: изоляция а
 
 // ===========================================================================
 // АКТ 21. Охранники и ошибки — валидация, пути, глаголы, слоты, служебные отказы
-// покрывает: ValidationError, set/unset/add/remove вне слота, commit/rollback/lock вне транзакции, load, verify,
-//            maintain, rekeyClass
+// покрывает: ValidationError, set/unset/add/remove вне слота, commit/rollback/lock вне транзакции, load, maintain
 // ===========================================================================
 test('Акт 21. Охранники: валидация, пути, слоты, служебные права', async () => {
   // строгая валидация данных
@@ -832,8 +802,6 @@ test('Акт 21. Охранники: валидация, пути, слоты, �
   // служебные операции: загрузчик — только администраторское подключение; maintain — системный администратор
   await fails(() => db.load([]), 'admin_required');
   await fails(() => db.maintain(), 'acl_denied');
-  // ключ меняют только у собственных классов арендатора; Service — системный класс демо-домена
-  await fails(() => db.rekeyClass('Услуга', ['name']), 'invalid_class');
   const m = await adb.maintain();
   assert.equal(m.skipped, false);
 });
@@ -845,17 +813,16 @@ test('Акт 21. Охранники: валидация, пути, слоты, �
 const COVERED: Record<string, string> = {
   // цепочка
   entity: 'А11', paths: 'А11 А13', rows: 'везде', first: 'А6', ids: 'А4 А13', count: 'А3 А8', limit: 'А5', offset: 'А13',
-  sort: 'А5 А13', asOf: 'А14', withDeleted: 'А10 А16', deep: 'А3', exact: 'А5', sum: 'А13', avg: 'А13', min: 'А13',
+  sort: 'А5 А13', asOf: 'А14', withDeleted: 'А10', deep: 'А3', exact: 'А5', sum: 'А13', avg: 'А13', min: 'А13',
   max: 'А13', countBy: 'А13', after: 'А13', versions: 'А9 А10 А14', create: 'везде', update: 'А9 А14', upsert: 'А4',
   set: 'А3 А9 (слот), А21 (вне слота)', unset: 'А9 (слот), А21', add: 'А21 (охранник одиночного конца)',
-  remove: 'А21 (охранник одиночного конца)', delete: 'А9 А10 А19', anonymize: 'А16', reclass: 'А13', restore: 'А10',
-  purge: 'А16', alias: 'А13', tags: 'А13 А20', owner: 'А20', forUpdate: 'А6', cache: 'А13', rekey: 'А13',
+  remove: 'А21 (охранник одиночного конца)', delete: 'А9 А10 А13 А19', restore: 'А10',
+  alias: 'А13', tags: 'А13 А20', owner: 'А20', forUpdate: 'А6', cache: 'А13',
   // db
   as: 'А20', begin: 'А6 А7 А9', commit: 'А6 А7 А21', rollback: 'А7 А21', lock: 'А6 А7 А21', batch: 'А1 А5',
   watch: 'А15', close: 'везде', registry: 'А1', sql: 'А1', load: 'А21 (admin_required)',
   maintain: 'А21', auth: 'А17 А18', acl: 'А19', idOf: 'А5 А6',
   refresh: 'А15', transaction: 'А1', flushSignals: 'А15', schema: 'А1', token: 'А1', tenant: 'А1 А17',
-  rekeyClass: 'А21 (invalid_class: системный класс арендатору не перекодировать)',
   // батч
   run: 'А1', discard: 'А1', size: 'А1',
 };

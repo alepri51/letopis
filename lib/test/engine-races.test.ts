@@ -1,7 +1,7 @@
 /**
  * engine-races — гонки на двух соединениях (план, §7.3.2, строки этапа 1; порядок §7.1:
  * A держит транзакцию, B ждёт блокировку — обвязка видит это в pg_stat_activity — затем A
- * фиксирует или откатывает).
+ * фиксирует или откатывает). №5 (смена класса и ссылка) снят в 2.0.0 вместе со сменой класса.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -21,10 +21,6 @@ const CLASSES: Record<string, unknown>[] = [
     ends: { Staff: { class: 'Master', required: true, onDelete: 'cascade' } } },
   { name: 'Base', kind: 'hub', fields: { properties: { a: { type: 'string' }, b: { type: 'string' } } } },
   { name: 'Child', kind: 'hub', parent: 'Base' },
-  { name: 'Pet', kind: 'hub', abstract: true, fields: { properties: { name: { type: 'string' } } } },
-  { name: 'Cat', kind: 'hub', parent: 'Pet' },
-  { name: 'Dog', kind: 'hub', parent: 'Pet' },
-  { name: 'Holder', kind: 'hub', ends: { CatRef: { class: 'Cat' } } },
   { name: 'Folder', kind: 'hub', fields: { properties: { title: { type: 'string' } } },
     ends: { Parent: { class: 'Folder', onDelete: 'cascade' } } },
 ];
@@ -172,23 +168,6 @@ test('№4: два создания одного ключа — одно про�
   await waitForLock(e.sql);
   await A.finish(true);
   await assert.rejects(B, lt('23505'));
-});
-
-test('№5: смена класса и ссылка ролью, которая принимает только старый класс', async () => {
-  // A первым: B ждёт и получает target_not_found
-  const c1 = await ins('Cat', { name: 'c1' });
-  const A1 = await e.hold(t.token, (tx) => tx.unsafe(`update ${S}.entity set class = 'Dog' where id = $1`, [c1.id]));
-  const B1 = q(insSql, ['Holder', {}, { CatRef: c1.id }]);
-  await waitForLock(e.sql);
-  await A1.finish(true);
-  await assert.rejects(B1, lt('target_not_found'));
-  // B первым: смена класса ждёт B (for update) и отклоняется
-  const c2 = await ins('Cat', { name: 'c2' });
-  const B2 = await e.hold(t.token, (tx) => tx.unsafe(insSql, ['Holder', {}, { CatRef: c2.id }] as never[]));
-  const A2 = q(`update ${S}.entity set class = 'Dog' where id = $1`, [c2.id]);
-  await waitForLock(e.sql);
-  await B2.finish(true);
-  await assert.rejects(A2, lt('reclass_denied'));
 });
 
 test('№6: удаление и создание объекта с тем же ключом', async () => {

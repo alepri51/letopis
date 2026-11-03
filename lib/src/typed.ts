@@ -204,8 +204,8 @@ type HopsOf<C, M extends readonly AnyModelLike[], All = AllOf<M>> = {
 };
 
 type Retyped = 'paths' | 'rows' | 'first' | 'versions' | 'limit' | 'offset' | 'sort' | 'asOf' | 'after' | 'withDeleted' | 'deep' | 'exact'
-  | 'alias' | 'tags' | 'owner' | 'create' | 'update' | 'upsert' | 'delete' | 'anonymize' | 'reclass' | 'forUpdate'
-  | 'restore' | 'purge' | 'rekey' | 'cache' | 'sum' | 'avg' | 'min' | 'max' | 'countBy';
+  | 'alias' | 'tags' | 'owner' | 'create' | 'update' | 'upsert' | 'delete' | 'forUpdate' | 'restore' | 'cache' | 'sum'
+  | 'avg' | 'min' | 'max' | 'countBy';
 
 /**
  * Цепочка с текущим классом C (у шага-роли с несколькими целями — их союз): терминалы отдают RowOf<C>, шаги — переходы
@@ -215,7 +215,7 @@ export type TypedChain<C, M extends readonly AnyModelLike[]> = Omit<ChainCore, R
   paths(): Promise<Path[]>;
   rows(): Promise<RowOf<C>[]>;
   first(): Promise<RowOf<C> | null>;
-  versions(opts?: { follow?: boolean }): Promise<RowOf<C>[]>;
+  versions(): Promise<RowOf<C>[]>;
   /** Сумма числового поля `'data.<путь>'` класса; нет ни одного значения — `null`. */
   sum(field: NumberField<C>): Promise<number | null>;
   /** Среднее числового поля `'data.<путь>'` класса; нет ни одного значения — `null`. */
@@ -243,15 +243,7 @@ export type TypedChain<C, M extends readonly AnyModelLike[]> = Omit<ChainCore, R
   upsert(data: Partial<DataOf<C>>, opts?: { reason?: string }): TypedChain<C, M>;
   /** С `{ confirm: true }` без фильтра, id, `tags()`, `owner()` и `limit()` у шагов — `invalid_query`; всех — `{ all: true }`. */
   delete(opts?: { confirm?: boolean; all?: boolean; reason?: string }): TypedChain<C, M>;
-  anonymize(fields: (keyof DataOf<C> & string)[], opts?: { reason?: string }): TypedChain<C, M>;
-  /** Сменить класс: цепочка продолжается классом `cls` (имя или алиас; класса нет среди моделей — строки без типов). */
-  reclass<N extends string>(cls: N, data?: Record<string, unknown>, opts?: { reason?: string }): TypedChain<ReclassTo<N, AllOf<M>>, M>;
   forUpdate(): TypedChain<C, M>;
   restore(opts?: { reason?: string }): TypedChain<C, M>;
-  purge(opts?: { confirm?: boolean; reason?: string }): TypedChain<C, M>;
-  rekey(patch: Partial<DataOf<C>> & Partial<Record<keyof LinksOf<C>, string | { id: string }>>, opts?: { reason?: string }): TypedChain<C, M>;
   cache(opts?: { ttl?: number }): TypedChain<C, M>;
 } & HopsOf<C, M>;
-
-/** Класс после reclass(): модель по имени или алиасу, иначе — только имя. */
-type ReclassTo<N extends string, All> = [ByStepName<N, All>] extends [never] ? { readonly name: N } : ByStepName<N, All>;

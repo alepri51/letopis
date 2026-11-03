@@ -9,7 +9,7 @@ export const write = {
     code: 'invalid_query',
     ru: '{where}: reason — строка до 1000 символов',
   },
-  // данные create(), upsert(), rekey(): inc() внутри массива
+  // данные create(), upsert(): inc() внутри массива
   'write.inc_in_array': {
     code: 'invalid_data',
     ru: 'inc() внутри массива ({path}) не поддерживается',
@@ -34,7 +34,7 @@ export const write = {
     code: 'invalid_data',
     ru: 'оператор фильтра в патче ({path}) — update записывает значения',
   },
-  // данные create(), upsert(), rekey() — не объект
+  // данные create(), upsert() — не объект
   'write.data_not_object': {
     code: 'invalid_data',
     ru: '{verb}(): данные — объект',
@@ -54,7 +54,7 @@ export const write = {
     code: 'invalid_query',
     ru: '{verb}(): asOf описывает прошлое — записывать в него нельзя',
   },
-  // глагол после withDeleted(), кроме restore() и purge()
+  // глагол после withDeleted(), кроме restore()
   'write.with_deleted_write': {
     code: 'invalid_query',
     ru: '{verb}(): withDeleted описывает удалённые — записывать в них нельзя',
@@ -100,26 +100,6 @@ export const write = {
     code: 'invalid_query',
     ru: '{call} без фильтра ({cls}): ни у одного шага нет фильтра, id или limit() — правка прошла бы по всем строкам',
     hint: 'сузить цели фильтром, id или limit(); правка всех строк — опция глагола { all: true }',
-  },
-  // anonymize() без полей
-  'write.anonymize_no_fields': {
-    code: 'invalid_query',
-    ru: 'anonymize(поля): нужен список полей',
-  },
-  // anonymize(): поля нет в классе (план 2.0, 7.5 №3)
-  'write.anonymize_unknown_field': {
-    code: 'invalid_query',
-    ru: 'anonymize(): поля {field} нет в классе {cls}',
-  },
-  // anonymize(): поле не строковое; type — тип листа
-  'write.anonymize_not_text': {
-    code: 'invalid_query',
-    ru: 'anonymize() затирает только строковые поля; {field} — {type}',
-  },
-  // rekey() у класса без ключа
-  'write.rekey_no_key': {
-    code: 'no_key',
-    ru: 'rekey(): у класса {cls} нет ключа — id выдаёт база, менять нечего',
   },
   // слот после глагола, который слотов не принимает
   'write.slot_bad_verb': {
@@ -200,16 +180,6 @@ export const write = {
   'write.not_deleted': {
     code: 'not_deleted',
     ru: 'объект не удалён: {verb}() — только для удалённых',
-  },
-  // purge() живого объекта
-  'write.not_deleted_purge': {
-    code: 'not_deleted',
-    ru: 'объект не удалён: purge() — только для удалённых, сначала delete()',
-  },
-  // rekey(): объект с новым ключом уже есть
-  'write.rekey_exists': {
-    code: 'exists',
-    ru: 'rekey(): объект класса {cls} с таким ключом уже существует',
   },
   // tx.ts — tx.ts:commitUnknown: связь оборвалась во время commit
   'write.commit_unknown': {

@@ -1,6 +1,6 @@
 /**
- * time — история (план, этап 6, п. 1–3; тест-план §7.8 №6.1–6.3, №6.9): versions и versions({ follow }) через смену id,
- * withDeleted, restore, purge, удаление аккаунта.
+ * time — история (план, этап 6, п. 1–3; тест-план §7.8 №6.1, №6.2, №6.9): versions, withDeleted, restore, удаление
+ * аккаунта. История через смену id и стирание истории (6.3) сняты в 2.0.0.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -25,11 +25,6 @@ before(async () => {
     fields: { properties: { text: { type: 'string' }, n: { type: 'integer' } }, required: ['text'] } });
   await e.defineClass(t, { name: 'Doc', kind: 'hub', key: ['code'],
     fields: { properties: { code: { type: 'string' }, title: { type: 'string' } }, required: ['code'] } });
-  await e.defineClass(t, { name: 'Paper', kind: 'hub', key: ['code'],
-    fields: { properties: { code: { type: 'string' }, title: { type: 'string' } }, required: ['code'] } });
-  await e.defineClass(t, { name: 'ref', kind: 'link',
-    fields: { properties: { note: { type: 'string' } } },
-    ends: { Doc: { class: ['Doc', 'Paper'], required: true, onDelete: 'cascade' } } });
   db = await connect({ dsn: appDsn(), schema: e.schema, token: t.token, max: 4 });
 });
 
@@ -49,32 +44,6 @@ test('6.1 versions: автор, вид операции, надгробие; wit
   const wd = await db.Note(n.id).withDeleted().rows();
   assert.equal(wd.length, 1);
   assert.equal(wd[0].$deleted, true);
-});
-
-test('6.1 versions({ follow: true }) проходит историю через reclass() класса с ключом и rekey', async () => {
-  const [d] = await db.Doc().create({ code: 'D-1', title: 'первая' }).rows();
-  await db.Doc(d.id).update({ title: 'вторая' }).rows();
-  const [r] = await db.Doc(d.id).ref().create({ note: 'ссылка' }).rows();
-  const [p] = await db.Doc(d.id).reclass('Paper').rows();
-  assert.notEqual(p.id, d.id, 'у класса с ключом id меняется');
-  assert.equal(p.moved, d.id);
-  const [p2] = await db.Paper(p.id).rekey({ code: 'P-2' }).rows();
-  assert.notEqual(p2.id, p.id);
-  assert.equal(p2.op, 'rekey');
-  // ссылка переведена на новый id
-  const [rr] = await db.ref(r.id).rows();
-  assert.equal(rr.links.Doc, p2.id);
-  const plain = await db.Paper(p2.id).versions();
-  assert.deepEqual(plain.map((x) => x.op), ['rekey'], 'без follow — только свой id');
-  const all = await db.Paper(p2.id).versions({ follow: true });
-  assert.deepEqual(new Set(all.map((x) => `${x.id}:${x.op}`)), new Set([
-    `${d.id}:create`, `${d.id}:update`, `${d.id}:delete`, `${p.id}:reclass`, `${p.id}:delete`, `${p2.id}:rekey`,
-  ]));
-  assert.deepEqual(new Set(all.map((x) => x.id)), new Set([d.id, p.id, p2.id]));
-  for (let i = 1; i < all.length; i++) assert.ok(all[i - 1].at <= all[i].at, 'по времени');
-  // и от старого id — тоже насквозь
-  const fromOld = await db.Doc(d.id).withDeleted().versions({ follow: true });
-  assert.equal(fromOld.length, all.length);
 });
 
 test('6.2 restore: класс без ключа и с ключом — id тот же, снимок перепроверен по текущему описанию', async () => {
@@ -98,34 +67,6 @@ test('6.2 restore: класс без ключа и с ключом — id тот
     where class = 'Class' and tenant = $1 and data->>'name' = 'Note'`, [t.id]));
   await db.refresh();
   await assert.rejects(db.Note(n2.id).restore().rows(), code('invalid_data'));
-});
-
-test('6.3 purge: живой — отказ; удалённый без confirm — превью; с confirm — версии стёрты, запись purge под номером 1', async () => {
-  const [n] = await db.Note().create({ text: 'p' }).rows();
-  await db.Note(n.id).update({ text: 'pp' }).rows();
-  await assert.rejects(db.Note(n.id).purge({ confirm: true }).rows(), code('not_deleted'));
-  await db.Note(n.id).delete({ confirm: true }).rows();
-  const [pre] = await db.Note(n.id).purge().rows();
-  assert.equal(pre.$versions, 3);
-  assert.equal(pre.$purged, undefined);
-  assert.equal((await db.Note(n.id).withDeleted().versions()).length, 3, 'превью ничего не меняет');
-  const [done] = await db.Note(n.id).purge({ confirm: true }).rows();
-  assert.equal(done.$purged, true);
-  const log = await e.sql.unsafe(`select rev, op, data from ${e.S}.log where id = $1 order by rev`, [n.id]);
-  assert.equal(log.length, 1);
-  assert.equal(log[0].rev, 1);
-  assert.equal(log[0].op, 'purge');
-  assert.equal(log[0].data.$purged, 3);
-  assert.equal((await db.Note(n.id).withDeleted().rows()).length, 0, 'после purge объект не виден и среди удалённых');
-});
-
-test('6.3 purge освобождает id, но номер 1 занят: воскрешение продолжает цепочку от записи purge', async () => {
-  const [d] = await db.Doc().create({ code: 'PG-1' }).rows();
-  await db.Doc(d.id).delete({ confirm: true }).rows();
-  await db.Doc(d.id).purge({ confirm: true }).rows();
-  const [again] = await db.Doc().create({ code: 'PG-1' }).rows();
-  assert.equal(again.id, d.id);
-  assert.equal(again.rev, 2);
 });
 
 test('6.9 удаление аккаунта: себя и последнего владельца — нельзя; данные арендатора стёрты, владение в чужих арендаторах перешло им', async () => {

@@ -578,10 +578,10 @@ export function cursorOf(row: Row | Path, field: string): Cursor {
  */
 const SCHEMA_MARK = '\u0000S\u0000';
 
-const COLS = ['id', 'rev', 'class', 'tenant', 'owner', 'links', 'data', 'tags', 'at', 'author', 'agent', 'op', 'reason', 'moved'];
+const COLS = ['id', 'rev', 'class', 'tenant', 'owner', 'links', 'data', 'tags', 'at', 'author', 'agent', 'op', 'reason'];
 /** Колонки журнала (выданные приложению — 10-core.sql). */
-const LOG_COLS = ['seq', 'tx', 'id', 'rev', 'class', 'cv', 'tenant', 'owner', 'links', 'data', 'tags', 'at', 'author', 'agent', 'op', 'reason',
-  'moved'].map((c) => 'l.' + c).join(', ');
+const LOG_COLS = ['seq', 'tx', 'id', 'rev', 'class', 'cv', 'tenant', 'owner', 'links', 'data', 'tags', 'at', 'author', 'agent', 'op', 'reason']
+  .map((c) => 'l.' + c).join(', ');
 const colsOf = (a: string): string => COLS.map((c) => `${a}.${c}`).join(', ');
 
 export interface BuildOptions {
@@ -671,7 +671,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
       }
       // по классу: id-кандидаты классов шага, последняя версия — любого класса (как find_ids, план 2.0, 7.1 №1)
       return `(select v.id, v.rev from ${versionsAt(at, ids ? `l.id = any (${ids})` : `l.id in (select c.id from ${S}.log c where c.class = any (${clsPh}))`)} v `
-        + `where v.class = any (${clsPh}) and (v.op = 'delete') = ${isDead} and v.op <> 'purge'${dataCond('v')}${endsCond(`${S}.link_ids(v.links)`)})`;
+        + `where v.class = any (${clsPh}) and (v.op = 'delete') = ${isDead}${dataCond('v')}${endsCond(`${S}.link_ids(v.links)`)})`;
     };
     const entityPart = (src: string | undefined, depth = 'null::int', from = `${S}.entity x`) =>
       `select ${colsOf('x')}, ${depth} as depth from ${from} where ${where('x', src)}`;
@@ -718,7 +718,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
       let deepSrc = `${S}.find_deep(${clsPh}, ${rolesPh}, ${srcArr}, ${maxPh}, ${atPh})`;
       if (opts.direct) {
         // тот же обход под RLS: невидимый узел обрывает поддерево политикой
-        const node = cur ? `${S}.entity` : `(select w.id, w.rev, w.links from ${versionsAt(atPh, `l.class = any (${clsPh})`)} w where w.op not in ('delete', 'purge'))`;
+        const node = cur ? `${S}.entity` : `(select w.id, w.rev, w.links from ${versionsAt(atPh, `l.class = any (${clsPh})`)} w where w.op <> 'delete')`;
         const hasSrc = (v: string, src: string) => (cur ? `${v}.ends @> array[${src}]` : `${S}.link_ids(${v}.links) @> array[${src}]`);
         const cls = (v: string) => (cur ? ` and ${v}.class = any (${clsPh})` : '');
         deepSrc = `(with recursive d(src, id, rev, depth, seen) as (`
@@ -748,7 +748,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
         }
         return `(select s.src, v.id, v.rev from ${versionsAt(at, `l.class = any (${clsPh})`)} v `
           + `cross join lateral unnest(${S}.link_ids(v.links)) t(x) join ${srcs} on s.src = t.x `
-          + `where (v.op = 'delete') = ${isDead} and v.op <> 'purge'${dataCond('v')}${endsCond(`${S}.link_ids(v.links)`)}${rolesCond('v', 's.src')})`;
+          + `where (v.op = 'delete') = ${isDead}${dataCond('v')}${endsCond(`${S}.link_ids(v.links)`)}${rolesCond('v', 's.src')})`;
       };
       ctes.push(`p${i}a as (select q.src, q.id, q.rev from ${hopCall(atPh, false)} q)`);
       // пары переходов — по одной на (источник, цель): объект, который ссылается на несколько объектов прошлого шага,
@@ -826,28 +826,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
   const pathKeys = [...others, ...keyed.filter((k) => k.node === lastNode)].map((k) => k.key);
   const limitOffset = () =>
     (mods.limit !== undefined ? ` limit ${p.push(mods.limit)}::bigint` : '') + (mods.offset !== undefined ? ` offset ${p.push(mods.offset)}::bigint` : '');
-  // versions({ follow: true }): отрезки истории объектов шага по переносам id (reclass, rekey) в обе стороны — версии
-  // id с номерами (lo, hi]. Надгробие переноса кончает отрезок, первая версия на новом id начинает: объект, заведённый
-  // на прежнем id после переноса, в историю не попадает (план 2.0, 7.1 №2).
-  if (mode === 'versions' && mods.follow) {
-    // границы отрезка с версией r: строки переноса id — через парную строку по индексу log_moved (moved друг на друга),
-    // без прохода по версиям id
-    const bounds = (i: string, r: string) =>
-      `cross join lateral (select greatest(coalesce(max(x.rev) filter (where x.op = 'delete' and x.rev < ${r}), 0), `
-      + `coalesce(max(x.rev - 1) filter (where x.op <> 'delete' and x.rev <= ${r}), 0)) as lo, `
-      + `least(min(x.rev) filter (where x.op = 'delete' and x.rev >= ${r}), min(x.rev - 1) filter (where x.op <> 'delete' and x.rev > ${r})) as hi `
-      + `from ${S}.log m join ${S}.log x on x.moved = m.id and x.id = ${i} where m.moved = ${i}) b`;
-    ctes.push(`f(id, lo, hi, n) as (select z.id, b.lo, b.hi, 0 from ${ents} z ${bounds('z.id', 'z.rev')} `
-      + `union select g.id, b.lo, b.hi, g.n from f cross join lateral (`
-      + `select a.moved as id, (select t.rev from ${S}.log t where t.id = a.moved and t.op = 'delete' and t.moved = f.id `
-      + `order by abs(t.seq - a.seq) limit 1) as r, f.n - 1 as n from ${S}.log a `
-      + `where f.n <= 0 and a.id = f.id and a.rev = f.lo + 1 and a.moved is not null and a.op <> 'delete' `
-      + `union all select t.moved, (select a.rev from ${S}.log a where a.id = t.moved and a.op <> 'delete' and a.moved = f.id `
-      + `order by abs(a.seq - t.seq) limit 1), f.n + 1 from ${S}.log t `
-      + `where f.n >= 0 and t.id = f.id and t.rev = f.hi and t.op = 'delete' and t.moved is not null) g ${bounds('g.id', 'g.r')} `
-      + `where g.r is not null and abs(g.n) <= 1000)`);
-  }
-  const withClause = `with ${mode === 'versions' && mods.follow ? 'recursive ' : ''}${ctes.join(',\n')}\n`;
+  const withClause = `with ${ctes.join(',\n')}\n`;
 
   let text: string;
   let aggLeaf: LeafType | undefined;
@@ -875,19 +854,15 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
       break;
     case 'versions': {
       // с sort — по полю и направлению (последние версии первыми — sort('at', 'desc'), с limit — в самом запросе);
-      // без sort: с follow — по времени через все связанные id, без follow — по id и номеру версии
-      const order = sort ? `${sort.expr('v')}${dir}, v.id${dir}, v.rev${dir}` : mods.follow ? 'v.at, v.id, v.rev' : 'v.id, v.rev';
+      // без sort — по id и номеру версии
+      const order = sort ? `${sort.expr('v')}${dir}, v.id${dir}, v.rev${dir}` : 'v.id, v.rev';
       // курсор — поле sort, id и номер версии: версии одного объекта с равным полем не теряются (план 2.0, 7.1 №4)
       const cond = whereOf([after('v', (c) => {
         const rev = cursorRev(c);
         return rev === undefined ? [] : [{ col: 'v.rev', val: rev, cast: '::int' }];
       })]);
-      text = mods.follow
-        ? `${withClause}select to_jsonb(v) as row from (select ${colsOf('l')}, null::int as depth from (select distinct f.id, f.lo, f.hi from f) s `
-          + `cross join lateral (select ${colsOf('l')} from ${S}.log l where l.id = s.id and l.rev > s.lo and l.rev <= coalesce(s.hi, 2147483647)) l) v`
-          + `${cond} order by ${order}${limitOffset()}`
-        : `${withClause}select to_jsonb(v) as row from (select ${colsOf('l')}, null::int as depth from ${S}.log l `
-          + `where l.id in (select z.id from ${ents} z)) v${cond} order by ${order}${limitOffset()}`;
+      text = `${withClause}select to_jsonb(v) as row from (select ${colsOf('l')}, null::int as depth from ${S}.log l `
+        + `where l.id in (select z.id from ${ents} z)) v${cond} order by ${order}${limitOffset()}`;
       break;
     }
     case 'agg': {
@@ -913,11 +888,10 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
 
 /** Строка из to_jsonb(узла): служебные поля в $deleted / $depth, пустые необязательные — без ключа. */
 export function toRow(raw: Record<string, unknown>): Row {
-  const { depth, agent, reason, moved, ...rest } = raw;
+  const { depth, agent, reason, ...rest } = raw;
   const row = rest as unknown as Row;
   if (agent != null) row.agent = agent as string;
   if (reason != null) row.reason = reason as string;
-  if (moved != null) row.moved = moved as string;
   if (row.op === 'delete') row.$deleted = true;
   if (depth != null) row.$depth = depth as number;
   return row;

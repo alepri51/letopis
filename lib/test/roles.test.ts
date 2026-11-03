@@ -171,16 +171,12 @@ test('7.3.8 №4: перечень функций владельца — search_
     delete_preview: async () => {
       assert.deepEqual([...await e.as(null, (tx) => tx.unsafe(`select * from ${S}.delete_preview(array[$1::uuid])`, [t.id]))], []);
     },
-    reclass: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.reclass(gen_random_uuid(), 'Doc')`)), lt('no_session')),
     // этап 6: история и эксплуатация
     session_expires: async () => {
       const [r] = await e.as(null, (tx) => tx.unsafe(`select ${S}.session_expires() as x`));
       assert.equal(r.x, null);
     },
     restore: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.restore(gen_random_uuid())`)), lt('no_session')),
-    purge: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.purge(gen_random_uuid(), true)`)), lt('no_session')),
-    rekey: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.rekey(gen_random_uuid(), '{}')`)), lt('no_session')),
-    rekey_class: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.rekey_class('Doc', '[]')`)), lt('no_session')),
     account_purge: async () => {
       const other = await e.tenant('roles-other');
       await assert.rejects(q(`select ${S}.account_purge($1)`, [other.id]), lt('acl_denied'));
@@ -188,11 +184,6 @@ test('7.3.8 №4: перечень функций владельца — search_
     maintain: () => assert.rejects(q(`select ${S}.maintain()`), lt('acl_denied')),
     // ключ сигналов (план 1.1, этап 2): только с правом letopis.signals по правилам System
     signal_key: () => assert.rejects(q(`select ${S}.signal_key()`), lt('acl_denied')),
-    // уход строки из классов подписки (хвост ревью №3): без сессии — ничего
-    watch_leaving: async () => {
-      const r = await e.as(null, (tx) => tx.unsafe(`select * from ${S}.watch_leaving('0'::xid8, 0, array['Note'], 10)`));
-      assert.equal(r.length, 0);
-    },
     trg_entity_bi: () => assert.rejects(q(`select ${S}.trg_entity_bi()`), lt('42501')),
     trg_entity_bu: () => assert.rejects(q(`select ${S}.trg_entity_bu()`), lt('42501')),
     trg_entity_ai: () => assert.rejects(q(`select ${S}.trg_entity_ai()`), lt('42501')),
@@ -262,9 +253,9 @@ test('права по каталогу: функции приложения — 
     'auth_refresh', 'auth_revoke_credential', 'auth_session_info', 'auth_set_flags', 'auth_set_password', 'auth_switch', 'auth_tenants', 'auth_totp_enabled',
     'auth_verify_totp', 'class_stamp', 'ctx', 'ctx_account', 'ctx_tenant', 'delete_preview', 'error_catalog', 'find_deep', 'find_hop', 'find_ids',
     'inc', 'issue_session', 'link_ids', 'links_patch', 'login_apikey', 'login_keysecret',
-    'login_otp', 'lt_text', 'maintain', 'merge', 'message_catalog', 'purge', 'reclass', 'rekey', 'rekey_class', 'reserved_names', 'restore', 'role_has', 'role_ids',
+    'login_otp', 'lt_text', 'maintain', 'merge', 'message_catalog', 'reserved_names', 'restore', 'role_has', 'role_ids',
     'session_expires', 'signal_key', 'signal_mode', 'uuid_v5', 'v5_id', 'v5_name',
-    'watch_head', 'watch_leaving', 'watch_read',
+    'watch_head', 'watch_read',
   ]);
   const pubFns = await e.sql.unsafe(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = $1 and has_function_privilege('public', p.oid, 'execute')`, [e.schema]);

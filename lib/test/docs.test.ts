@@ -46,17 +46,14 @@ assert.equal(plan.applied, false)
 assert.equal(applied.applied, true)
 assert.deepEqual([...applied.created].sort(), ['Category', 'Customer', 'Movement', 'Order', 'Product', 'Shop', 'Vip', 'Wallet', 'line'])
 assert.equal(kept.$upsert, 'unchanged')
-assert.equal(moved.$upsert, 'updated')
-assert.notEqual(mug2.id, mug.id)                  // rekey: новый id
-assert.equal(vip.id, olga.id)                     // reclass класса без ключа: id прежний
-assert.equal(vip.class, 'Vip')
+assert.equal(replaced.$upsert, 'updated')
 assert.equal(l1.class, 'line')                    // терминал плана — строки последнего шага
-assert.equal(products.length, 3)                  // чайник, сенча, кружка после rekey
+assert.equal(products.length, 3)                  // чайник, сенча, кружка
 assert.equal(shopOf!.id, shop.id)
 assert.equal(inOrder.length, 2)
 assert.equal(parent!.id, tea.id)
-assert.equal(allCustomers.length, 1)              // Ольга — теперь Vip, шаг Customer её находит
-assert.equal(onlyCustomer.length, 0)              // exact(): без потомков
+assert.equal(allCustomers.length, 2)              // Ольга и Вера: шаг Customer находит и потомка Vip
+assert.equal(onlyCustomer.length, 1)              // exact(): без потомков — только Ольга
 assert.equal(cheap.length, 2)
 assert.equal(twoIds.length, 2)
 assert.equal(active.length, 1)
@@ -72,7 +69,6 @@ assert.equal(orderPaths.length, 2)
 assert.equal(preview.length, 3)                   // заказ и две его строки
 assert.ok(preview.every((x) => x.$action === 'delete'))
 assert.equal(blockers.length, 3)                  // товары не дают удалить магазин
-assert.equal(before[0].$versions, 2)              // создание и удаление
 assert.deepEqual(results.map((x) => x.length), [1, 1])
 assert.equal(rep.loaded, 4)
 assert.deepEqual(rep.byClass, { Shop: 1, Product: 2, Customer: 1 })
@@ -134,7 +130,6 @@ assert.ok(login)
 assert.equal(db.tenant, SALON)
 assert.deepEqual([...synced.created].sort(), ['Note', 'Payment', 'Shop', 'Wallet'])
 assert.equal(up1.$upsert, 'updated')
-assert.notEqual(w200.id, w2.id)                   // rekey: новый id
 assert.deepEqual(batchRows.map((x) => x.length), [1, 1])
 assert.equal(paid, 500)
 assert.equal(page.length, 2)

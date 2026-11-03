@@ -2,7 +2,7 @@
  * signals — режимы сигналов NOTIFY (план 1.1, §2.2, этап 2; тест-план §7.3 №1–9, №12–17): нагрузка у
  * посторонней роли в каждом режиме, точность до арендатора, строки System, классы прав, процесс без
  * ключа, один путь у библиотеки и сырого SQL, загрузчик, подписка, ключ, режим none, склейка, версия
- * сервера, смена класса, повтор отправки, режим после повторного up().
+ * сервера, повтор отправки, режим после повторного up(). №16 (смена класса) снят в 2.0.0 вместе со сменой класса.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -87,8 +87,6 @@ before(async () => {
   tB = await e.tenant('signals-b');
   for (const t of [tA, tB]) await e.defineClass(t, { name: 'Item', kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
   await e.defineClass(tA, { name: 'Note', kind: 'hub', fields: { properties: { text: { type: 'string' } } } });
-  await e.defineClass(tA, { name: 'Old', kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
-  await e.defineClass(tA, { name: 'New', kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
   // общий класс System: строки арендаторов и строки самого System
   await e.asOwner((tx) => tx.unsafe(`select ${e.S}.sys_create(${e.S}.v5_id($1::uuid, 'Class', array['Common']), 'Class', $1::uuid, '{}', $2::jsonb)`,
     [SYSTEM_ID, { name: 'Common', kind: 'hub', fields: { properties: { n: { type: 'integer' } } } } as never]));
@@ -358,28 +356,6 @@ test('7.3 №15: версия сервера — до 18.2 предупрежд�
   assert.match(w[0], /18\.2/);
   assert.deepEqual(checkServer(180002, 'UTF8'), []);
   assert.deepEqual(checkServer(180006, 'UTF8'), []);
-});
-
-test('7.3 №16: смена класса без ключа сбрасывает в других процессах ответы прежнего класса', async () => {
-  await setMode('class');
-  const w = await appDb(tA.token);
-  const r = await appDb(tA.token);
-  try {
-    await until(() => r.cache.stats().enabled);
-    const s0 = r.cache.stats().signals;
-    const [row] = await w.Old().create({ n: 160 }).rows();
-    await w.flushSignals();
-    await until(() => r.cache.stats().signals > s0);
-    assert.ok((await r.Old().cache().rows()).some((x) => x.id === row.id));
-    const s1 = r.cache.stats().signals;
-    await e.as(tA.token, (tx) => tx.unsafe(`update ${e.S}.entity set class = 'New' where id = $1`, [row.id]));
-    await until(() => r.cache.stats().signals >= s1 + 2);
-    assert.ok(!(await r.Old().cache().rows()).some((x) => x.id === row.id), 'ответ прежнего класса сброшен');
-    assert.ok((await r.New().cache().rows()).some((x) => x.id === row.id));
-  } finally {
-    await w.close();
-    await r.close();
-  }
 });
 
 test('7.3 №17: отправка сигнала нотификатором упала — нагрузка уходит повтором', async () => {

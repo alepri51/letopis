@@ -167,7 +167,6 @@
     "add",
     "after",
     "alias",
-    "anonymize",
     "asOf",
     "avg",
     "cache",
@@ -187,9 +186,6 @@
     "offset",
     "owner",
     "paths",
-    "purge",
-    "reclass",
-    "rekey",
     "remove",
     "restore",
     "rows",
@@ -220,7 +216,6 @@
     "maintain",
     "refresh",
     "registry",
-    "rekeyClass",
     "rollback",
     "schema",
     "sql",
@@ -260,7 +255,6 @@
     "no_session",
     "not_deleted",
     "not_empty",
-    "reclass_denied",
     "recreated_in_statement",
     "rev_ambiguous",
     "target_not_found",
@@ -269,7 +263,6 @@
     "tx_required",
     "tx_rolled_back",
     "undeclared_end",
-    "use_reclass",
     "user_session_required"
   ],
   "errors": [
@@ -311,11 +304,7 @@
     },
     {
       "module": "15-errors",
-      "message": "letopis: not_deleted: объект не удалён — restore и purge только для удалённых"
-    },
-    {
-      "module": "15-errors",
-      "message": "letopis: reclass_denied: смена класса отклонена"
+      "message": "letopis: not_deleted: объект не удалён — restore только для удалённых"
     },
     {
       "module": "15-errors",
@@ -336,10 +325,6 @@
     {
       "module": "15-errors",
       "message": "letopis: undeclared_end: конец не объявлен в классе"
-    },
-    {
-      "module": "15-errors",
-      "message": "letopis: use_reclass: класс с ключом меняется функцией reclass()"
     },
     {
       "module": "60-write",

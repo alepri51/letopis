@@ -34,7 +34,6 @@ create table if not exists @SCHEMA@.entity (
   agent      text,
   op         text not null,
   reason     text,
-  moved      uuid,
   validator  jsonpath
 );
 create index if not exists entity_class_tenant on @SCHEMA@.entity (class, tenant);
@@ -62,15 +61,12 @@ create table if not exists @SCHEMA@.log (
   agent      text,
   op         text not null,
   reason     text,
-  moved      uuid,
   constraint log_id_rev unique (id, rev)
 );
 -- срез журнала по классу (asOf, withDeleted) — по арендатору (доработки после точки Б): цена запроса не растёт с
 -- журналом других арендаторов с тем же именем класса
 create index if not exists log_class_tenant_at on @SCHEMA@.log (class, tenant, at);
 create index if not exists log_tx_seq on @SCHEMA@.log (tx, seq);
--- versions({ follow: true }): переход по связи старого и нового id при reclass и rekey (этап 6)
-create index if not exists log_moved on @SCHEMA@.log (moved) where moved is not null;
 -- срез asOf и withDeleted по переходу и deep (ревизия 5): версии, ссылавшиеся на id, — как entity_ends у
 -- текущего состояния; без него поиск в журнале перебирал все версии класса (бенч этапа 7)
 create index if not exists log_ends on @SCHEMA@.log using gin (@SCHEMA@.link_ids(links));
@@ -105,7 +101,7 @@ revoke all on @SCHEMA@.entity, @SCHEMA@.log, @SCHEMA@.secret from public, @APP@;
 grant select, delete on @SCHEMA@.entity to @APP@;
 grant insert (id, tenant, class, links, data, tags, owner) on @SCHEMA@.entity to @APP@;
 grant update (class, links, data, tags) on @SCHEMA@.entity to @APP@;
-grant select (seq, tx, id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved)
+grant select (seq, tx, id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason)
   on @SCHEMA@.log to @APP@;
 alter table @SCHEMA@.entity enable row level security;
 alter table @SCHEMA@.log enable row level security;

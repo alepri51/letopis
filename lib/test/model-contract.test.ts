@@ -53,10 +53,9 @@ test('план 2.0, 7.5 №2: hub(имя, { fields: z.object(…) }) — пол�
   assert.deepEqual(props, ['text']);
 });
 
-test('план 2.0, 7.5 №3: понятные ошибки — роль владельца без роли и anonymize() поля, которого нет', async () => {
+test('план 2.0, 7.5 №3: понятные ошибки — роль владельца без роли', async () => {
   await assert.rejects(connect({ dsn: appDsn(), schema: e.schema, token: t.token, owner: 'нет_такой_роли', max: 1 }),
     code('invalid_data', /роли владельца нет_такой_роли в базе нет/));
-  await assert.rejects(db.Заказ().anonymize(['опечатка']).rows(), code('invalid_query', /поля опечатка нет в классе Заказ/));
 });
 
 test('план 2.0, 7.5 №4: CLI — --help с командой даёт код 0, неизвестная команда — USAGE с кодом 2 до подключения', async () => {

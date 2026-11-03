@@ -137,7 +137,7 @@ const describeQuery = (o: Limits): string => [
 
 const describeHistory = (o: Limits): string => [
   'История одного объекта (class, id): его версии — последние, не больше ' + o.maxRows + ', от старых к новым, с автором, временем,',
-  'видом операции и причиной. follow — через смену id (reclass, rekey). Только чтение.',
+  'видом операции и причиной. Только чтение.',
 ].join(' ');
 
 const describeWrite = (o: Limits): string => [
@@ -199,7 +199,6 @@ const HISTORY_SCHEMA = {
     class: { type: 'string', description: 'Класс или алиас объекта' },
     id: { type: 'string', description: 'id объекта' },
     kind: { type: 'string', enum: ['versions'], description: 'versions — версии объекта (по умолчанию)' },
-    follow: { type: 'boolean', description: 'Через смену id (reclass, rekey)' },
   },
   required: ['class', 'id'],
 };
@@ -538,15 +537,14 @@ async function query(db: Db, a: Args, o: Limits): Promise<CallToolResult> {
 }
 
 async function history(db: Db, a: Args, o: Limits): Promise<CallToolResult> {
-  checkKeys(a, ['class', 'id', 'kind', 'follow'], 'letopis_history');
+  checkKeys(a, ['class', 'id', 'kind'], 'letopis_history');
   const target = step(db, stepName(db.registry, a.class, 'letopis_history.class', false))(uuid(a.id, 'letopis_history.id'));
-  if (a.follow !== undefined && typeof a.follow !== 'boolean') throw lerr('mcp.not_boolean', { where: 'letopis_history.follow' });
   if (a.kind !== undefined && a.kind !== 'versions') {
     throw lerr('mcp.unknown_kind', { kind: String(a.kind), similar: similar(String(a.kind), ['versions']) });
   }
   // последние версии — уже в запросе: от новых к старым, не больше maxRows + 1, лишняя говорит, что есть ещё (ревью
   // безопасности №2); в ответе — по порядку
-  const got = await target.sort('at', 'desc').limit(o.maxRows + 1).versions({ follow: a.follow === true });
+  const got = await target.sort('at', 'desc').limit(o.maxRows + 1).versions();
   const n = fit(got, o);
   return ok({ versions: got.slice(0, n).reverse(), more: n < got.length });
 }

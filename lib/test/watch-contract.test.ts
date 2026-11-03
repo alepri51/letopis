@@ -1,8 +1,8 @@
 /**
  * watch-contract — обещания README о подписке, сигналах и подключении, которые нашло ревью плана 2.0 (тест-план §7.4):
- * опрос молчащей подписки, закрытие подписок вместе с подключением, сигнал прежнего класса при reclass, подписка на
- * потомка, заведённого после watch(), предел реестров db.as(). Новый участник проектора и проектор без LISTEN (7.4 №5,
- * №6) сняты вместе с проекторами в 2.0.0.
+ * опрос молчащей подписки, закрытие подписок вместе с подключением, подписка на потомка, заведённого после watch(),
+ * предел реестров db.as(). Новый участник проектора и проектор без LISTEN (7.4 №5, №6) сняты вместе с проекторами, сигнал
+ * прежнего класса при его смене (7.4 №4) — вместе со сменой класса в 2.0.0.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -20,8 +20,6 @@ let db: Db;
 before(async () => {
   e = await engine(import.meta.filename);
   t = await e.tenant('watch-contract');
-  await e.defineClass(t, { name: 'Lead', kind: 'hub', fields: { properties: { name: { type: 'string' } } } });
-  await e.defineClass(t, { name: 'Client', kind: 'hub', fields: { properties: { name: { type: 'string' } } } });
   db = await connect({ dsn: appDsn(), schema: e.schema, token: t.token, max: 3 });
 });
 
@@ -96,18 +94,6 @@ test('план 2.0, 7.4 №8: close() подписки, пока идёт её �
     conn.release();
     sub.close();
   }
-});
-
-test('план 2.0, 7.4 №4: reclass класса без ключа сбрасывает кэш и прежнего класса', async () => {
-  const [x] = await db.Lead().create({ name: 'Анна' }).rows();
-  // сигнал своей записи приходит не сразу: пока он не пришёл, ответ в кэш не кладётся — читаем, пока не ляжет
-  const stored = db.cache.stats().stores;
-  for (let i = 0; i < 200 && db.cache.stats().stores === stored; i++) await db.Lead().cache().rows();
-  assert.ok(db.cache.stats().stores > stored, 'ответ Lead лёг в кэш');
-  await db.Lead(x.id).reclass('Client').rows();
-  const leads = await db.Lead().cache().rows();
-  assert.equal(leads.some((r) => r.id === x.id), false, 'строка ушла из Lead — прежний ответ кэша сброшен');
-  assert.equal((await db.Client(x.id).rows()).length, 1);
 });
 
 test('план 2.0, 7.4 №2: подписка на класс получает события потомка, заведённого после watch()', async () => {

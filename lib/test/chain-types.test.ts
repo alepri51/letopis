@@ -187,8 +187,7 @@ export function typeChecks(): void {
   // @ts-expect-error — duration — число
   void db.Service(or({ name: 'a' }, { duration: 'долго' }));
 
-  // строки типизированы и после reclass() и entity()
-  void db.Service('id').reclass('Product').rows().then((r) => r[0]?.data.unit);
+  // строки типизированы и после entity()
   void db.Org('id').entity(db.Service('id')).rows();
   const row = null as unknown as RowOf<typeof Org>;
   void db.entity(row).rows();

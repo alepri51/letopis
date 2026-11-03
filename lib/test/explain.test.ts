@@ -31,8 +31,8 @@ before(async () => {
            jsonb_build_object('name', 'м' || g, 'phone', '+7', 'specialization', 'стажёр-' || g), now(), now(), $1, 'create'
     from generate_series(1, 5000) g`, [t.id, s.org2]));
   // и их версии в журнал: срез на дату ищет в журнале (log_ends против перебора версий класса)
-  await e.asOwner((tx) => tx.unsafe(`insert into ${e.S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved)
-    select id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved from ${e.S}.entity
+  await e.asOwner((tx) => tx.unsafe(`insert into ${e.S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason)
+    select id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason from ${e.S}.entity
     where class = 'Staff' and data->>'specialization' like 'стажёр-%'`));
   await e.sql.unsafe(`analyze ${e.S}.entity; analyze ${e.S}.log`);
 });
@@ -117,8 +117,8 @@ test('доработки после точки Б: срез asOf по класс
     await tx.unsafe(`insert into ${e.S}.entity (id, rev, class, tenant, owner, links, data, at, created_at, author, op)
       select gen_random_uuid(), 1, 'Staff', $1, $1, '{}'::jsonb, jsonb_build_object('name', 'у' || g, 'phone', '+7'), now(), now(), $1, 'create'
       from generate_series(1, 20) g`, [u.id]);
-    await tx.unsafe(`insert into ${e.S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved)
-      select id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved from ${e.S}.entity
+    await tx.unsafe(`insert into ${e.S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason)
+      select id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason from ${e.S}.entity
       where class = 'Staff' and tenant = $1`, [u.id]);
   });
   await e.sql.unsafe(`analyze ${e.S}.log`);

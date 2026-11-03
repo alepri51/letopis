@@ -22,8 +22,9 @@
 ## Колонки версии
 
 Одинаковы в `entity` и `log` (§2.2): `id`, `rev`, `class`, `cv`, `tenant`, `owner`, `links`, `data`, `tags`, `at` (время
-версии), `author`, `agent`, `op`, `reason`, `moved`. У `entity` ещё `ends` (генерируемая: все цели концов),
-`created_at` и `validator` (у строк `Class`), у `log` — `seq` и `tx` (курсор подписки). Хэшей версий нет с 2.0.0.
+версии), `author`, `agent`, `op`, `reason`. У `entity` ещё `ends` (генерируемая: все цели концов),
+`created_at` и `validator` (у строк `Class`), у `log` — `seq` и `tx` (курсор подписки). Хэшей версий и служебных колонок
+истории (пути изменения, связь прежнего и нового id) нет с 2.0.0: класс, ключ и id строки неизменны.
 
 ## Коды ошибок
 
@@ -53,15 +54,13 @@
 | LT006 | `acl_denied` | отказ по правилам доступа |
 | LT007 | `id_mismatch` | id не равен v5 от ключа; в деталях `expected` |
 | LT008 | `id_from_db` | id класса без ключа выдаёт база |
-| LT009 | `immutable_key` | ключевое поле, id, арендатор, владелец менять нельзя |
+| LT009 | `immutable_key` | ключевое поле, класс, id, арендатор, владелец менять нельзя |
 | LT010 | `invalid_class` | описание класса отклонено, класс не найден или абстрактный |
-| LT011 | `use_reclass` | класс с ключом меняется функцией `reclass()` |
-| LT012 | `reclass_denied` | роли ссылающихся строк не принимают новый класс; в деталях `rows`, `others` |
 | LT013 | `tightening_conflict` | ужесточению мешают строки; в деталях `rows`, `others` |
-| LT014 | `isolation_level` | удаление и смена класса — только в `read committed` |
+| LT014 | `isolation_level` | удаление — только в `read committed` |
 | LT015 | `recreated_in_statement` | id удалён и создан заново одним оператором |
 | LT017 | `delete_restricted` | удалению мешают ссылающиеся строки (`onDelete: restrict`); в деталях `rows`, `others` |
-| LT018 | `not_deleted` | `restore` и `purge` — только для удалённых объектов (этап 6) |
+| LT018 | `not_deleted` | `restore` — только для удалённых объектов (этап 6) |
 
 ## Порядок файлов
 

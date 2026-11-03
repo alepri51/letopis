@@ -153,7 +153,7 @@ export class ValidationError extends LetopisError {
 const LT_NAMES: Record<string, string> = {
   LT001: 'no_session', LT002: 'target_not_found', LT003: 'invalid_data', LT004: 'undeclared_end', LT005: 'tenant_denied',
   LT006: 'acl_denied', LT007: 'id_mismatch', LT008: 'id_from_db', LT009: 'immutable_key', LT010: 'invalid_class',
-  LT011: 'use_reclass', LT012: 'reclass_denied', LT013: 'tightening_conflict', LT014: 'isolation_level',
+  LT013: 'tightening_conflict', LT014: 'isolation_level',
   LT015: 'recreated_in_statement', LT017: 'delete_restricted', LT018: 'not_deleted',
 };
 
@@ -234,7 +234,7 @@ export function fromDbError(e: unknown): unknown {
   }
   // текст база собрала по ключу и параметрам из того же русского шаблона — он остаётся как есть
   const text = (err.message ?? '').replace(/^letopis: [a-z_]+: /, '');
-  // строки отказа с находками (ужесточение, rekeyClass: problem по ключу) — без key и params
+  // строки отказа с находками (ужесточение: problem по ключу) — без key и params
   if (isObj(detail) && Array.isArray(detail.rows)) detail = { ...detail, rows: findingsFromDb(detail.rows) };
   const issues = (detail as { issues?: Issue[] } | undefined)?.issues;
   if (name === 'invalid_data' && Array.isArray(issues)) {

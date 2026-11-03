@@ -5,7 +5,7 @@
  * Этап 2: connect() — подключение под сессией, реестр классов, отложенный сигнал, db.sql.
  * Этап 3: цепочки чтения t.Класс(…).Связь().rows(); этап 4 — запись цепочками и загрузчик.
  * Этап 5: db.auth (креды, вход, сессии), db.acl, db.as(аккаунт, { tenant }) — имперсонация.
- * Этап 6: история (restore, purge, rekey), maintain, watch, кэш результатов.
+ * Этап 6: история (versions, asOf, restore), maintain, watch, кэш результатов.
  */
 import postgres from 'postgres';
 import { LetopisError, checkOptions, fromDbError, lerr, lwarn } from './errors.js';
@@ -25,7 +25,7 @@ import { ACL_CLASSES, ResultCache, type CacheOptions, type CacheStats } from './
 import { Subscription, type WatchOptions } from './watch.js';
 import { SIGNAL_MODES, Signals, bucket, throttle, type Signal, type SignalMode } from './signals.js';
 import {
-  maintain as runMaintain, rekeyClass as runRekeyClass, parseInterval, scheduleMaintain, type AdminCtx, type MaintainReport,
+  maintain as runMaintain, parseInterval, scheduleMaintain, type AdminCtx, type MaintainReport,
 } from './admin.js';
 import type { AnyModelLike, OrOp, StepsOf } from './typed.js';
 import { refuse1x, stampDrift } from './up.js';
@@ -159,11 +159,6 @@ export interface DbCore {
    * право `letopis.maintain` (по умолчанию оно у системного администратора) или администраторское подключение.
    */
   maintain(): Promise<MaintainReport>;
-  /**
-   * Меняет ключ класса. Объекты его семейства (сам класс и потомки), у которых по новому ключу выходит другой id,
-   * переезжают на новый id, а ссылки на них переводятся.
-   */
-  rekeyClass(cls: string, key: string[]): Promise<number>;
   /** Подписка по курсору: `for await (const ev of db.watch({ from })) …`; `sub.cursor` — откуда продолжить. */
   watch(opts?: WatchOptions): Subscription;
   /** Кэш результатов подключения. */
@@ -295,14 +290,14 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
   }, scope.root && !tx);
   // запись правил (grant, deny, revoke, roles) идёт цепочками самого фасада — он объявлен ниже, берётся при вызове
   const acl = makeAcl(sh.S, exec, () => facade);
-  const adm: AdminCtx = { sql: sh.sql, schema: sh.schema, S: sh.S, txc, exec, registry: scope.registry, tenant: scope.tenant };
+  const adm: AdminCtx = { S: sh.S, txc, exec };
   // один процесс (план 2.0, 7.9 №3): у корня с connect({ admin }) администраторские вызовы идут вторым пулом с той же
   // сессией, а цепочки и db.sql — пулом приложения под RLS; db.as() и db.begin() администраторский пул не берут
   const viaAdmin = scope.root && !tx && sh.adminSql ? sh.adminSql : null;
   const adminReady = sh.adminReady ?? (async () => {});
   const admCtx = (): AdminCtx => {
     const t: TxContext = { ...txc, sql: viaAdmin! };
-    return { ...adm, sql: viaAdmin!, txc: t, exec: poolExecutor(t) };
+    return { ...adm, txc: t, exec: poolExecutor(t) };
   };
   const core: DbCore = {
     schema: sh.schema,
@@ -322,7 +317,6 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
     refresh: sh.refresh,
     flushSignals: () => sh.notifier.flush(),
     maintain: () => (viaAdmin ? adminReady().then(() => runMaintain(admCtx())) : runMaintain(adm)),
-    rekeyClass: (cls, key) => runRekeyClass(adm, cls, key),
     watch: (o = {}) => {
       checkOptions('watch', o, WATCH_OPTIONS);
       const reg = scope.registry();

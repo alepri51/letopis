@@ -1,14 +1,9 @@
 /**
- * Эксплуатация (план, этап 6, п. 7, 8): maintain и его запуск по расписанию, новый ключ класса. Всё проверяет база:
- * функции владельца 90-time.sql сами сверяют права (letopis.* — системный администратор или администраторское
- * подключение).
+ * Эксплуатация (план, этап 6, п. 7, 8): maintain и его запуск по расписанию. Всё проверяет база: функция владельца
+ * 90-time.sql сама сверяет права (letopis.maintain — системный администратор или администраторское подключение).
  */
-import type postgres from 'postgres';
 import { lerr, lmsg, lwarn } from './errors.js';
-import type { Registry } from './registry.js';
 import { runTx, type Executor, type TxContext } from './tx.js';
-
-type Sql = postgres.Sql<Record<string, unknown>>;
 
 export interface MaintainReport {
   /** Другой процесс уже обслуживает установку (держит строку-замок обслуживания): этот вызов ничего не делал. */
@@ -25,18 +20,11 @@ export interface MaintainReport {
 }
 
 export interface AdminCtx {
-  sql: Sql;
-  schema: string;
   /** Схема в кавычках. */
   S: string;
   txc: TxContext;
   exec: Executor;
-  registry: () => Registry;
-  tenant: () => string | null;
 }
-
-const one = async <T>(a: AdminCtx, text: string, params: unknown[] = []): Promise<T> =>
-  a.exec.run(async (q) => ((await q.unsafe(text, params as never[])) as unknown as T[])[0]);
 
 /**
  * Обслуживание: истёкшие и погашенные сессии, одноразовые коды, строки-замки удалённых семейств и заполнение очереди
@@ -104,11 +92,4 @@ export function scheduleMaintain(run: () => Promise<unknown>, ms: number): () =>
     clearInterval(timer);
     await current;
   };
-}
-
-/** Новый ключ класса (этап 6, п. 7): строки семейства переносятся на новые id. Возвращает их число. */
-export async function rekeyClass(a: AdminCtx, cls: string, key: string[]): Promise<number> {
-  const name = a.registry().resolve(cls).name;
-  const r = await one<{ n: number }>(a, `select ${a.S}.rekey_class($1, $2::jsonb) as n`, [name, key]);
-  return r.n;
 }

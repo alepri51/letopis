@@ -111,7 +111,7 @@ export const mcp = {
     code: 'invalid_query',
     ru: '{where}: [от, до]',
   },
-  // mcp.ts: $exists, withDeleted, follow, confirm — не true и не false
+  // mcp.ts: $exists, withDeleted, confirm — не true и не false
   'mcp.not_boolean': {
     code: 'invalid_query',
     ru: '{where}: true или false',

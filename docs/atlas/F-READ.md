@@ -22,13 +22,13 @@
 ## Исполнение
 14. [N] `lib/src/chain.ts:exec` — с кэшем (`cacheTtl`) — F-WATCH «Кэш результатов»; иначе `ctx.exec.run(…, { read: true })`.
 15. [P] `lib/src/tx.ts:runTx` — транзакция `read committed`: `begin`, `set_config` (токен, пропуск прав, UTC) и запрос (`prepare: true`) одним конвейером; чтение фиксируется без опроса `letopis.changed`; 40P01/40001 — до 3 повторов. В `db.begin()` — `ExplicitTx.run`, без повторов. `onQuery {mode, classes, ms, rows, slow}`.
-16. [N] `lib/src/sql.ts:toRow` — `op = 'delete'` → `$deleted`, глубина → `$depth`, пустые `agent/reason/moved` без ключа.
+16. [N] `lib/src/sql.ts:toRow` — `op = 'delete'` → `$deleted`, глубина → `$depth`, пустые `agent/reason` без ключа.
 
 Состояние: БД не меняется.
 Сбои: `invalid_class` (имя), `no_path` (переход) — при построении; `invalid_query` — `deep()` на первом шаге или не к тому же классу, `deep()` с `withDeleted()`, `after()` без `sort()`, неизвестное поле сортировки, курсор `after()` со значением не того типа, что поле `sort`, без `v` или с `id` не uuid (`lib/src/sql.ts:cursorParams`, до запроса); `forUpdate()` вне `db.begin()` — `tx_required`, с asOf/withDeleted/deep/агрегатами — `lock_unsupported`; без сессии — пустой ответ (политики и find_* видят только с сессией).
 Логи: `letopis: медленный запрос {ms} мс — {mode} A→B` (slowMs без onQuery); `.versions()/.asOf() у класса … без журнала` — `lib/src/chain.ts:warnNoHistory`.
 Варианты режима:
-- `asOf(t)` — все шаги из журнала: последняя версия ≤ t, не надгробие и не запись `purge`;
+- `asOf(t)` — все шаги из журнала: последняя версия ≤ t, не надгробие;
 - `withDeleted()` — последний узел ещё и из надгробий журнала;
 - `forUpdate()` — `lockedRead`: id, `for no key update`, повторное чтение (F-WRITE);
 - `count({ paths: true })` — число путей, `count()` — сущностей.

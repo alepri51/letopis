@@ -50,23 +50,13 @@ export const codes = {
   },
   'codes.immutable_key': {
     code: 'immutable_key',
-    ru: 'ключевые поля, id, арендатора и владельца правкой не изменить (новый ключ — `rekey`)',
-    hint: 'новый ключ — `rekey()`; id, арендатор и владелец строки не меняются',
+    ru: 'ключевые поля, класс, id, арендатора и владельца правкой не изменить',
+    hint: 'ключ, класс, id, арендатор и владелец строки неизменны: объект с другим ключом или классом — новый объект (`create`)',
   },
   'codes.invalid_class': {
     code: 'invalid_class',
     ru: 'описание класса отклонено, класс не найден или абстрактный, либо удаляют класс, у которого есть строки, потомки или история',
     hint: 'проверить имя (`db.registry.has`) и описание класса (`syncModels` без `apply` покажет план); удалить класс можно только без строк, потомков и истории',
-  },
-  'codes.use_reclass': {
-    code: 'use_reclass',
-    ru: 'класс объекта с ключом меняют не `update`, а `reclass()`: id при этом меняется',
-    hint: 'сменить класс через `reclass()`: у объекта будет новый id, ссылки переведутся сами',
-  },
-  'codes.reclass_denied': {
-    code: 'reclass_denied',
-    ru: 'ссылки других строк не допускают новый класс',
-    hint: 'сначала перевести ссылки других строк — или выбрать класс, который их роли принимают',
   },
   'codes.tightening_conflict': {
     code: 'tightening_conflict',
@@ -75,8 +65,8 @@ export const codes = {
   },
   'codes.isolation_level': {
     code: 'isolation_level',
-    ru: 'удаление и смена класса или ключа работают только на уровне `read committed`',
-    hint: 'удалять, менять класс и ключ в транзакции уровня `read committed` — он стоит по умолчанию',
+    ru: 'удаление работает только на уровне `read committed`',
+    hint: 'удалять в транзакции уровня `read committed` — он стоит по умолчанию',
   },
   'codes.recreated_in_statement': {
     code: 'recreated_in_statement',
@@ -90,8 +80,8 @@ export const codes = {
   },
   'codes.not_deleted': {
     code: 'not_deleted',
-    ru: '`restore` и `purge` работают только для удалённых объектов',
-    hint: 'сначала `delete()`, потом `restore()` или `purge()`',
+    ru: '`restore` работает только для удалённых объектов',
+    hint: 'сначала `delete()`, потом `restore()`',
   },
   'codes.exists': {
     code: 'exists',
@@ -140,7 +130,7 @@ export const codes = {
   },
   'codes.no_key': {
     code: 'no_key',
-    ru: 'у класса нет ключа, а `upsert`, `rekey` и `idOf` без ключа не работают',
+    ru: 'у класса нет ключа, а `upsert` и `idOf` без ключа не работают',
     hint: 'дать классу ключ (`key` в модели) или работать по id: `update` вместо `upsert`',
   },
   'codes.no_path': {

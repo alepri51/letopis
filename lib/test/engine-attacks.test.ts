@@ -4,8 +4,9 @@
  * №35 — агент через инструменты MCP (letopis/mcp); №36 — ревью безопасности №2 (смена parent, alias); №37 —
  * агент через MCP пишет классы прав, сессия системного администратора (О5); №40–46 — доработки после точки Б; №47 и
  * дальше — хвост ревью безопасности №3 (доработки после 1.2.0). Атаки на производные классы и агрегаты в базе (№33, №34,
- * №38, №39, №44, №50, №52, №53, №55, №57) сняты вместе с ними в 2.0.0, правка в обход триггеров, которую находил verify()
- * (№19), — вместе с хэшами и verify(); номера остальных прежние.
+ * №38, №39, №44, №50, №52, №53, №55, №57) сняты вместе с ними в 2.0.0, правка в обход триггеров, которую находила
+ * проверка целостности (№19), — вместе с хэшами версий и проверкой, смена класса без права DELETE (№42) — вместе со
+ * сменой класса; номера остальных прежние. №5 — смена класса: класс строки неизменен (план 2.0, редакция 2).
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -92,37 +93,17 @@ test('№4: сменить арендатора или владельца; вс�
   await assert.rejects(as(a, `insert into ${S}.entity (class, tenant, data) values ('Org', $1, '{"name": "x"}')`, [b.id]), lt('tenant_denied'));
 });
 
-test('№5: смена класса — без ключа проходит, с ключом — reclass(), роли ссылок проверяются', async () => {
+test('№5: смена класса — immutable_key у класса без ключа и с ключом, со ссылкой и без', async () => {
   const cat = await ins(a, 'Cat', { name: 'Мурка' });
-  const [dog] = await as(a, `update ${S}.entity set class = 'Dog' where id = $1 returning *`, [cat.id]);
-  assert.equal(dog.id, cat.id);
-  assert.equal(dog.op, 'reclass');
-  assert.equal(dog.rev, 2);
-  // роль CatRef принимает только Cat: обратно в Dog после ссылки нельзя
-  const [back] = await as(a, `update ${S}.entity set class = 'Cat' where id = $1 returning *`, [cat.id]);
-  const h = await ins(a, 'Holder', {}, { CatRef: back.id });
-  const err = await as(a, `update ${S}.entity set class = 'Dog' where id = $1`, [cat.id]).then(() => null, (x) => x);
-  assert.ok(err);
-  lt('reclass_denied')(err);
-  assert.deepEqual(JSON.parse(err.detail).rows.map((r: { id: string }) => r.id), [h.id]);
-  // класс с ключом: сырой update — отказ с подсказкой; reclass() — новый id, ссылки переведены
+  await assert.rejects(as(a, `update ${S}.entity set class = 'Dog' where id = $1`, [cat.id]), lt('immutable_key'));
+  // ссылка ролью, которая принимает только Cat, — та же ошибка: до проверки ролей дело не доходит
+  await ins(a, 'Holder', {}, { CatRef: cat.id });
+  await assert.rejects(as(a, `update ${S}.entity set class = 'Dog' where id = $1`, [cat.id]), lt('immutable_key'));
   const c1 = await ins(a, 'Coded', { code: 'X1' });
-  await assert.rejects(as(a, `update ${S}.entity set class = 'Coded2' where id = $1`, [c1.id]), lt('use_reclass'));
-  const use = await ins(a, 'Use', {}, { What: c1.id });
-  const [{ nid }] = await as(a, `select ${S}.reclass($1, 'Coded2') as nid`, [c1.id]);
-  assert.notEqual(nid, c1.id);
-  const [{ expected }] = await e.sql.unsafe(`select ${S}.v5_id($1::uuid, 'Coded2', array['X1']) as expected`, [a.id]);
-  assert.equal(nid, expected);
-  // Use: конец What входит в ключ — id связи тоже сменился, ссылка на новый id
-  const uses = await e.sql.unsafe(`select * from ${S}.entity where class = 'Use' and tenant = $1`, [a.id]);
-  assert.equal(uses.length, 1);
-  assert.equal(uses[0].links.What, nid);
-  assert.notEqual(uses[0].id, use.id);
-  const oldLog = await e.sql.unsafe(`select op, moved from ${S}.log where id = $1 order by rev`, [c1.id]);
-  // надгробие старого id — всегда вид delete; moved ведёт на новый id
-  assert.deepEqual(oldLog.at(-1), { op: 'delete', moved: nid });
-  const newLog = await e.sql.unsafe(`select op, moved from ${S}.log where id = $1 order by rev`, [nid]);
-  assert.deepEqual(newLog[0], { op: 'reclass', moved: c1.id });
+  await ins(a, 'Use', {}, { What: c1.id });
+  await assert.rejects(as(a, `update ${S}.entity set class = 'Coded2' where id = $1`, [c1.id]), lt('immutable_key'));
+  const rows = await e.sql.unsafe(`select id, class, rev from ${S}.entity where id = any ($1::uuid[]) order by class`, [[cat.id, c1.id]]);
+  assert.deepEqual(rows.map((r) => [r.class, r.rev]), [['Cat', 1], ['Coded', 1]], 'строки и версии прежние');
 });
 
 test('№6: id не по ключу, id классу без ключа, второй объект с тем же ключом', async () => {
@@ -246,13 +227,10 @@ test('№25: триггерную функцию напрямую не вызв�
   await assert.rejects(as(a, `select ${S}.sys_update(gen_random_uuid(), '{}', '{}', null, 'update')`), lt('42501'));
 });
 
-test('№26: удаление и смена класса только в read committed', async () => {
+test('№26: удаление только в read committed', async () => {
   const cat = await ins(a, 'Cat', { name: 'RR' });
-  const c = await ins(a, 'Coded', { code: 'RR' });
   const rr = (text: string, params: unknown[] = []) => e.as(a.token, (tx) => tx.unsafe(text, params as never[]), { isolation: 'repeatable read' });
   await assert.rejects(rr(`delete from ${S}.entity where id = $1`, [cat.id]), lt('isolation_level'));
-  await assert.rejects(rr(`update ${S}.entity set class = 'Dog' where id = $1`, [cat.id]), lt('isolation_level'));
-  await assert.rejects(rr(`select ${S}.reclass($1, 'Coded2')`, [c.id]), lt('isolation_level'));
 });
 
 test('№27: find_*() напрямую — только id строк, которые пользователь и так видит', async () => {
@@ -626,8 +604,6 @@ test('№41 (доработки после точки Б): ужесточени�
   lt('acl_denied')(err);
   assert.match(err.message, /ужесточение класса Org: нужно право READ на все строки класса Org/);
   assert.ok(!/rows|others/.test(err.detail ?? ''), `ни строк, ни их числа: ${err.detail}`);
-  // смена ключа проверяет строки так же
-  await assert.rejects(as(user, `select ${S}.rekey_class('Org', '["name", "city"]'::jsonb)`), /смена ключа класса Org: нужно право READ на все строки класса Org/);
   // READ без условий — обычный отказ с перечнем, невидимых строк нет
   await rule(e, org, g, await resource(e, org, 'org41:READ', 'READ', { class: 'Org' }), 'allow', 10);
   const err2 = await tighten(1).then(() => null, (x) => x);
@@ -635,39 +611,6 @@ test('№41 (доработки после точки Б): ужесточени�
   const d = JSON.parse(err2.detail);
   assert.equal(d.others, 0);
   assert.ok(d.rows.length >= 1 && d.rows.every((r: { class: string }) => r.class === 'Org'), 'строки перечислены — все видны');
-});
-
-test('№42 (доработки после точки Б): reclass без права DELETE на прежнюю строку — отказ; ссылки глубже первого уровня — только с WRITE; имя невидимого класса не в тексте', async () => {
-  const x = await e.tenant('x42');
-  const { resource, rule, sysRes } = await import('./_access.js');
-  const g = await sysRes(e, 'authenticated:ACCOUNT');
-  const q = (sql: string, p: unknown[] = []) => e.as(x.token, (tx) => tx.unsafe(sql, p as never[]));
-  for (const c of [
-    { name: 'NoDel', kind: 'hub', fields: { properties: { v: { type: 'string' } } } },
-    { name: 'Bin', kind: 'hub', fields: { properties: { v: { type: 'string' } } } },
-    { name: 'KA', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' } }, required: ['code'] } },
-    { name: 'KA2', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' } }, required: ['code'] } },
-    { name: 'KS', kind: 'hub', key: ['A', 'n'], fields: { properties: { n: { type: 'string' } }, required: ['n'] },
-      ends: { A: { class: ['KA', 'KA2'], required: true, onDelete: 'cascade' } } },
-    { name: 'KHidden', kind: 'hub', fields: { properties: {} }, ends: { S: { class: 'KS', onDelete: 'unset' } } },
-  ]) await e.defineClass(x, c);
-  const [nd] = await q(`insert into ${S}.entity (class, data) values ('NoDel', '{"v": "x"}') returning id`);
-  const [ka] = await q(`insert into ${S}.entity (class, data) values ('KA', '{"code": "r"}') returning id`);
-  const [ks] = await q(`insert into ${S}.entity (class, data, links) values ('KS', '{"n": "1"}', $1::jsonb) returning id`, [{ A: ka.id }]);
-  const [kh] = await q(`insert into ${S}.entity (class, data, links) values ('KHidden', '{}', $1::jsonb) returning id`, [{ S: ks.id }]);
-  // NoDel удалять нельзя, KHidden не видно и не правится
-  await rule(e, x.id, g, await resource(e, x.id, 'nodel:DELETE', 'DELETE', { class: 'NoDel' }), 'deny', 20);
-  await rule(e, x.id, g, await resource(e, x.id, 'hidden:READ', 'READ', { class: 'KHidden' }), 'deny', 20);
-  await rule(e, x.id, g, await resource(e, x.id, 'hidden:WRITE', 'WRITE', { class: 'KHidden' }), 'deny', 20);
-  await assert.rejects(q(`select ${S}.reclass($1::uuid, 'Bin')`, [nd.id]), /нет права DELETE на строку класса NoDel/);
-  await assert.rejects(q(`update ${S}.entity set class = 'Bin' where id = $1`, [nd.id]), /нет права DELETE на строку класса NoDel/);
-  assert.equal((await e.sql.unsafe(`select class from ${S}.entity where id = $1`, [nd.id]))[0].class, 'NoDel');
-  // KA → KA2: id меняется, KS (конец в ключе) переезжает, KHidden ссылается на KS — третий уровень
-  const err = await q(`select ${S}.reclass($1::uuid, 'KA2')`, [ka.id]).then(() => null, (x2) => x2);
-  lt('acl_denied')(err);
-  assert.ok(!err.message.includes('KHidden'), err.message);
-  const [h] = await e.sql.unsafe(`select links from ${S}.entity where id = $1`, [kh.id]);
-  assert.equal(h.links.S, ks.id, 'невидимая строка не переписана');
 });
 
 test('№43 (доработки после точки Б): журнал класса (history) не выключить одним правом WRITE на Class — чужой аудит не остановить', async () => {
@@ -828,11 +771,9 @@ test('№49 (ревью безопасности №3): надгробие кл�
   await dropClass('Base49');
   await assert.rejects(create({ ...base, alias: 'Основа49' }), /журнал хранит историю строк класса Base49/);
   await create(base);
-  // история потомка стёрта: прежний Kid49 пересоздан, его удалённая строка стёрта purge(), класс удалён — алиас меняется
+  // историю строк не стереть (purge снят в 2.0.0): пересозданный Kid49 с историей строк не удаляется
   await create(kid);
-  await q(`select ${S}.purge($1::uuid, true)`, [k]);
-  await dropClass('Kid49');
-  await realias('Основа49');
+  await assert.rejects(dropClass('Kid49'), /есть история строк/);
 });
 
 test('№51 (ревью безопасности №3): конфликт смены parent называет роль и id ссылающейся строки, только если актор её видит; видимая — первой', async () => {
@@ -898,9 +839,8 @@ test('№54 (хвост ревью доработок после 1.2.0): стр�
 test('№56 (автоматическое ревью коммита 1734d21): привилегированный вход с ролью приложения (SET ROLE) — не администратор и не подключение в обход RLS', async () => {
   const x = await e.tenant('x56', { bare: true });
   const y = await e.tenant('y56');
-  for (const name of ['Box56', 'Bin56']) await e.defineClass(y, { name, kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
+  await e.defineClass(y, { name: 'Box56', kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
   const [r] = await e.as(y.token, (tx) => tx.unsafe(`insert into ${S}.entity (class, data) values ('Box56', '{"n": 1}') returning id`));
-  await e.as(y.token, (tx) => tx.unsafe(`update ${S}.entity set class = 'Bin56' where id = $1`, [r.id]));
   // суперпользователь входит и ставит роль приложения — так делает пул с одной привилегированной ролью входа
   const priv = (sql: string, p: unknown[] = []) => e.sql.begin(async (tx) => {
     await tx.unsafe('set local role letopis_app');
@@ -909,10 +849,10 @@ test('№56 (автоматическое ревью коммита 1734d21): п
   });
   // maintain — право letopis.maintain или администраторская роль: администратором делает действующая роль, а не роль входа
   await assert.rejects(priv(`select ${S}.maintain()`), lt('acl_denied'));
-  const leaving = await priv(`select l.id from ${S}.watch_leaving('0'::xid8, 0, array['Box56'], 1000) l`);
-  assert.deepEqual(leaving.map((v) => v.id), [], 'уход строки чужого арендатора подписке арендатора не отдаётся');
-  // без роли приложения тот же вход — администраторский: в обход RLS и с событиями ухода всех арендаторов
+  const events = await priv(`select l.id from ${S}.watch_read('0'::xid8, 0, array['Box56'], 1000) l`);
+  assert.deepEqual(events.map((v) => v.id), [], 'события чужого арендатора подписке арендатора не отдаются');
+  // без роли приложения тот же вход — администраторский: в обход RLS и с событиями всех арендаторов
   const [{ a }] = await e.sql.unsafe(`select ${S}.admin_role() as a`);
   assert.equal(a, true);
-  assert.deepEqual((await e.sql.unsafe(`select l.id from ${S}.watch_leaving('0'::xid8, 0, array['Box56'], 1000) l`)).map((v) => v.id), [r.id]);
+  assert.deepEqual((await e.sql.unsafe(`select l.id from ${S}.watch_read('0'::xid8, 0, array['Box56'], 1000) l`)).map((v) => v.id), [r.id]);
 });

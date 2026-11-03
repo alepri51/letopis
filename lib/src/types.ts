@@ -27,15 +27,13 @@ export const ACL_CLASS_NAMES: readonly string[] = ['rule', 'Resource', 'member',
 export const CHAIN_METHODS = [
   'then', 'entity', 'paths', 'rows', 'first', 'ids', 'count', 'limit', 'offset', 'sort', 'asOf', 'withDeleted',
   'deep', 'exact', 'sum', 'avg', 'min', 'max', 'countBy', 'after', 'versions', 'create', 'update', 'upsert', 'set',
-  'unset', 'add', 'remove', 'delete', 'anonymize', 'reclass', 'restore', 'purge', 'alias', 'tags', 'owner',
-  'forUpdate', 'cache', 'rekey',
+  'unset', 'add', 'remove', 'delete', 'restore', 'alias', 'tags', 'owner', 'forUpdate', 'cache',
 ] as const;
 
 /** Свойства корня db (и транзакции db.begin()). */
 export const DB_METHODS = [
   'as', 'begin', 'commit', 'rollback', 'lock', 'batch', 'watch', 'close', 'registry', 'sql', 'load',
-  'maintain', 'auth', 'acl', 'idOf', 'refresh', 'transaction', 'flushSignals', 'schema', 'token', 'tenant',
-  'rekeyClass', 'cache',
+  'maintain', 'auth', 'acl', 'idOf', 'refresh', 'transaction', 'flushSignals', 'schema', 'token', 'tenant', 'cache',
 ] as const;
 
 /** Свойства батча db.batch(name). */
@@ -67,11 +65,9 @@ export interface Row<D = Record<string, unknown>, L = Record<string, string | st
   at: string;
   author: string;
   agent?: string;
-  /** Вид операции версии: create, update, delete, reclass, … */
+  /** Вид операции версии: create, update, delete, restore, … */
   op: string;
   reason?: string;
-  /** Связь со старым или новым id при reclass и rekey. */
-  moved?: string;
   /** Надгробие: удалённая сущность (withDeleted) или версия удаления (versions). */
   $deleted?: true;
   /** Глубина узла при deep() (1 — прямой потомок); в превью удаления — уровень каскада (0 — цель). */
@@ -80,10 +76,6 @@ export interface Row<D = Record<string, unknown>, L = Record<string, string | st
   $upsert?: 'created' | 'updated' | 'unchanged';
   /** Превью удаления (delete() без confirm): удалится, снимется конец или помешает (restrict). */
   $action?: 'delete' | 'unset' | 'restrict';
-  /** purge(): число версий в журнале (превью) или стёртых. */
-  $versions?: number;
-  /** purge({ confirm: true }): история стёрта. */
-  $purged?: true;
 }
 
 /** Путь paths(): узел на каждый шаг цепочки. */
@@ -135,8 +127,6 @@ export interface ChainMods {
   withDeleted?: boolean;
   /** Чтение с блокировкой строк последнего шага (только в db.begin()). */
   forUpdate?: boolean;
-  /** versions({ follow: true }): история и через смену id (reclass, rekey) по колонке moved. */
-  follow?: boolean;
   /** Кэш результатов (§2.12): .cache() — срок по умолчанию, .cache({ ttl }) — свой, секунды. */
   cache?: { ttl?: number };
 }

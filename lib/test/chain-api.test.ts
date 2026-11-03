@@ -32,7 +32,7 @@ after(async () => {
 
 test('зарезервированные имена: методы раньше классов; база отклоняет связь с таким именем', async () => {
   const chain = db.Staff() as unknown as Record<string, unknown>;
-  for (const m of ['create', 'update', 'upsert', 'delete', 'anonymize', 'reclass', 'restore', 'purge', 'rekey', 'cache']) {
+  for (const m of ['create', 'update', 'upsert', 'delete', 'restore', 'cache']) {
     assert.equal(typeof chain[m], 'function', m);
   }
   // слот — только после глагола записи

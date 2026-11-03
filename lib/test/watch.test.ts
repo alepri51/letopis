@@ -1,12 +1,13 @@
 /**
  * watch — подписка по курсору (план, этап 6, п. 5; тест-план §7.8 №6.5, §7.3.2 №12): обрыв
  * соединения, фиксация транзакций не по порядку, долгая пишущая транзакция, два арендатора; поток
- * возобновляется по курсору без потерь и повторов.
+ * возобновляется по курсору без потерь и повторов. События ухода строки из классов подписки сменой класса сняты в
+ * 2.0.0 вместе со сменой класса.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { engine, type Engine, type Tenant } from './_engine.js';
-import { ADMIN_DSN, appDsn } from './_harness.js';
+import { appDsn } from './_harness.js';
 import { connect, type Db, type WatchEvent } from '../src/index.js';
 
 let e: Engine;
@@ -173,76 +174,4 @@ test('доработки после точки Б: sub.ready() — началь�
   const waiting = [sub.next(), sub.next()];
   sub.close();
   for (const w of await Promise.all(waiting)) assert.equal(w.done, true);
-});
-
-test('хвост ревью безопасности №3: уход строки из классов подписки сменой класса без смены id — событие удаления в прежнем классе; уход в чужом арендаторе — без события', async () => {
-  const x = await e.tenant('watch-leave');
-  const { account, member, resource, rule, session } = await import('./_access.js');
-  for (const name of ['Inbox', 'Archive', 'Vault']) await e.defineClass(x, { name, kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
-  // подписчик — читатель арендатора: Vault ему не виден; пишет владелец арендатора
-  const reader = await account(e, 'watch-reader');
-  await member(e, reader.id, x.id, ['reader']);
-  const grp = await resource(e, x.id, 'reader:ACCOUNT', 'ACCOUNT', { roles: '{reader}' });
-  await rule(e, x.id, grp, await resource(e, x.id, 'vault:READ', 'READ', { class: 'Vault' }), 'deny', 20);
-  const q = (sql: string, p: unknown[] = []) => e.as(x.token, (tx) => tx.unsafe(sql, p as never[]));
-  const ins = async (cls: string, n: number) => (await q(`insert into ${e.S}.entity (class, data) values ($1, $2::jsonb) returning id`, [cls, { n }]))[0].id as string;
-  const move = (id: string, cls: string) => q(`update ${e.S}.entity set class = $2 where id = $1`, [id, cls]);
-  const xdb = await connect({ dsn: appDsn(), schema: e.schema, token: await session(e, reader.id, { tenant: x.id }), max: 2, notifyIntervalMs: 10 });
-  const sub = xdb.watch({ from: 'now', classes: ['Inbox'], pollMs: 20 });
-  // новый класс входит в подписку, но подписчику не виден — тоже надгробие (иначе перебором классов он узнал бы класс)
-  const sub2 = xdb.watch({ from: 'now', classes: ['Inbox', 'Vault'], pollMs: 20 });
-  try {
-    await sub.ready();
-    await sub2.ready();
-    const a = await ins('Inbox', 1);
-    const b = await ins('Inbox', 2);
-    await move(a, 'Archive');
-    await move(b, 'Vault');
-    const evs = await take(sub, 4);
-    assert.deepEqual(evs.map((v) => [v.id, v.op, v.class]), [[a, 'create', 'Inbox'], [b, 'create', 'Inbox'], [a, 'delete', 'Inbox'], [b, 'delete', 'Inbox']],
-      'уход — событием удаления в прежнем классе, и когда новый класс подписчику не виден');
-    assert.deepEqual((await take(sub2, 4)).map((v) => [v.id, v.op, v.class]), evs.map((v) => [v.id, v.op, v.class]));
-    assert.equal(evs[3].row.author ?? null, null, 'автор невидимой версии смены класса не отдаётся');
-    assert.equal(evs[2].row.$deleted, true);
-    assert.equal((evs[2].row.data as { n: number }).n, 1, 'прежние данные');
-    // уход строки в чужом арендаторе (прежнюю версию подписчик не видит) — события нет; вход строки в класс — обычное
-    const y = await e.tenant('watch-leave-y');
-    for (const name of ['Inbox', 'Archive']) await e.defineClass(y, { name, kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
-    const [yr] = await e.as(y.token, (tx) => tx.unsafe(`insert into ${e.S}.entity (class, data) values ('Inbox', '{"n": 3}') returning id`));
-    await e.as(y.token, (tx) => tx.unsafe(`update ${e.S}.entity set class = 'Archive' where id = $1`, [yr.id]));
-    const d = await ins('Archive', 4);
-    await move(d, 'Inbox');
-    const [next] = await take(sub, 1);
-    assert.deepEqual([next.id, next.op, next.class], [d, 'reclass', 'Inbox']);
-  } finally {
-    await sub.close();
-    await sub2.close();
-    await xdb.close();
-  }
-});
-
-test('хвост ревью доработок после 1.2.0: подключение в обход RLS получает события ухода строки из классов подписки', async () => {
-  const { sysadmin } = await import('./_access.js');
-  const admin = await sysadmin(e, 'watch-admin');
-  // классы System: их видит реестр подключения без сессии; строки пишет арендатор
-  for (const name of ['Tray', 'Shelf']) {
-    await e.as(admin.token, (tx) => tx.unsafe(`insert into ${e.S}.entity (class, data) values ('Class', $1::jsonb)`,
-      [{ name, kind: 'hub', fields: { properties: { n: { type: 'integer' } } } }] as never[]));
-  }
-  const x = await e.tenant('watch-leave-adm');
-  const q = (sql: string, p: unknown[] = []) => e.as(x.token, (tx) => tx.unsafe(sql, p as never[]));
-  // сессии нет (acl_actor — null), а watch_read видит журнал всех арендаторов — события ухода тоже все, с автором
-  const adm = await connect({ dsn: ADMIN_DSN, schema: e.schema, allowBypassRls: true, max: 2, notifyIntervalMs: 10 });
-  const sub = adm.watch({ from: 'now', classes: ['Tray'], pollMs: 20 });
-  try {
-    await sub.ready();
-    const [{ id }] = await q(`insert into ${e.S}.entity (class, data) values ('Tray', '{"n": 1}') returning id`);
-    await q(`update ${e.S}.entity set class = 'Shelf' where id = $1`, [id]);
-    const evs = await take(sub, 2);
-    assert.deepEqual(evs.map((v) => [v.id, v.op, v.class]), [[id, 'create', 'Tray'], [id, 'delete', 'Tray']]);
-    assert.equal(evs[1].row.author, x.id, 'автор версии смены класса');
-  } finally {
-    await sub.close();
-    await adm.close();
-  }
 });

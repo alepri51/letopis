@@ -1,7 +1,8 @@
 /**
  * load — загрузчик (план, §2.6, этап 4, п. 11; тест-план §7.6.1). Строка 20 (скорость — бенч этапа 7) здесь не
- * проверяется; 16 (as) — в access-rest; 18 (verify: true и db.verify) снята в 2.0.0 вместе с verify; 23 и 24 (режим
- * доверия, as с ним) сняты вместе с режимом (решение 2 точки А), охранник режима — в 2.0.0.
+ * проверяется; 16 (as) — в access-rest; 18 (verify: true и db.verify) снята в 2.0.0 вместе с verify, случай №9 после
+ * purge — вместе с purge; 23 и 24 (режим доверия, as с ним) сняты вместе с режимом (решение 2 точки А), охранник
+ * режима — в 2.0.0.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -330,20 +331,6 @@ test('гонки 9, 13: загрузчик и create одного ключа; з
   await waitForLock(e.sql);
   await del.commit();
   assert.equal(((await p2) as { code?: string })?.code, 'target_not_found');
-});
-
-test('7.6.1 №9 (этап 6): объект после purge — отказ без запросов на пачку (deleted)', async () => {
-  await adm.load([{ $class: 'Org', name: 'pg-1' }]);
-  const [pg] = await db.Org({ name: 'pg-1' }).rows();
-  await db.Org(pg.id).delete({ confirm: true }).rows();
-  await db.Org(pg.id).purge({ confirm: true }).rows();
-  let err: unknown;
-  try {
-    await adm.load([{ $class: 'Org', name: 'pg-1' }]);
-  } catch (x) {
-    err = x;
-  }
-  assert.deepEqual(rowsOf(err).map((r) => [r.line, r.code]), [[1, 'deleted']], 'версия 1 занята записью purge');
 });
 
 test('этап 7: $tags и $owner строки; режим истории с existing: skip пропускает объект со всей историей', async () => {

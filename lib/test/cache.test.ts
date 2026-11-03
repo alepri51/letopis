@@ -275,7 +275,7 @@ test('№18 (план 2.0, 7.7 — находка долгого прогона)
   assert.equal(m.sessionEpoch.size, 1);
 });
 
-test('№14 каскад и смена класса: сразу после фиксации сброшены ответы всех задетых классов', async () => {
+test('№14 каскад: сразу после фиксации сброшены ответы всех задетых классов', async () => {
   const [it] = await db.Item().create({ n: 140 }).rows();
   await db.Item(it.id).Part().create({ n: 1 }).rows();
   db.cache.clear();
@@ -284,12 +284,6 @@ test('№14 каскад и смена класса: сразу после фи�
   await db.Item(it.id).delete({ confirm: true }).rows();
   assert.equal(db.cache.stats().size, 0, 'каскад удалил Part — его ответы сброшены');
   assert.ok(!(await db.Part().cache().rows()).some((r) => r.links.Item === it.id));
-  await e.defineClass(t, { name: 'Item2', kind: 'hub', fields: { properties: { n: { type: 'integer' }, kind: { type: 'string' } } } });
-  await db.refresh();
-  const [x] = await db.Item().create({ n: 141 }).rows();
-  await db.Item2().cache().rows();
-  await db.Item(x.id).reclass('Item2').rows();
-  assert.ok((await db.Item2().cache().rows()).some((r) => r.id === x.id));
 });
 
 /** Сырой SQL через db.sql с готовым текстом (имя схемы — не значение, а часть текста). */

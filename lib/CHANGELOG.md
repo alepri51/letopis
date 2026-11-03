@@ -85,10 +85,9 @@
   `Projector`, `ProjectorOptions`, `ProjectorChange`, `ProjectorOut`, `ProjectorRow`, `ProjectorReport`,
   `ProjectorStatus`, `ProjectorFailure`, опция класса `derivedBy` (производные классы; поле `derivedBy` у `ClassInfo`),
   чекпоинты — строки `secret` вида `PROJECTOR`, функции `projector_state`, `projector_advance`, `derived_*`,
-  `projector_unread` и параметр `p_leaving` у `watch_read` (уход строки из классов подписки по-прежнему отдаёт
-  `watch_leaving`). Сняты файлы `sql/88-derived.sql`, `src/project.ts` и раздел каталога сообщений `derived`. Коды
-  ошибок `derived_class` (LT021), `aggregate_field` (LT022), `projector_pending` (LT023), `rebuild_required` и
-  `projector_busy`: `purge` и `trimHistory` больше не ждут проекторов. Метасхема `Class` не принимает `derivedBy` и
+  `projector_unread` и параметр `p_leaving` у `watch_read`. Сняты файлы `sql/88-derived.sql`, `src/project.ts` и
+  раздел каталога сообщений `derived`. Коды ошибок `derived_class` (LT021), `aggregate_field` (LT022),
+  `projector_pending` (LT023), `rebuild_required` и `projector_busy`. Метасхема `Class` не принимает `derivedBy` и
   `aggregate` (`invalid_data`); описание модели в `letopis_model` — без них. Вид креда `PROJECTOR` больше не служебный.
   `targets_bad` больше не отличает цель производного класса, `class_admit` не берёт блокировку семейств классов-целей
   концов (её брали только ради пометки `derivedBy`), `syncModels` упорядочивает модели только по родителям. Имена
@@ -109,7 +108,7 @@
   всеми колонками: `select * from log` под RLS работает. Инструмент MCP `letopis_history` отдаёт только версии:
   `kind` стал необязательным и принимает только `versions`, параметров `from`, `to`, `at`, `limit` нет (записи
   `mcp.history_param`, `mcp.blame_follow`); причину записи агента показывают версии. Тест `history` — только причина
-  изменения (7.2 №5 и №8), `read-contract` 7.1 №2 — только `versions({ follow })`, `mcp` №9 — причина в версиях; бенч
+  изменения (7.2 №5 и №8), `mcp` №9 — причина в версиях; бенч
   `bench/history.bench.mjs` с итогом снят. Имена `diff` и `blame` больше не зарезервированы.
 - Политика хранения истории и прореживание журнала (§2.11): у класса `history` — только `true` или `false` (объект —
   `invalid_data` метасхемы `Class`), тип `HistoryPolicy` (`letopis`, `letopis/model`), опция `up({ history })` и
@@ -120,8 +119,8 @@
   limit })`, тип `MaintainOptions`, поля отчёта `thinned`, `batches` и `more`, флаг `--batches` у `letopis maintain`,
   параметры `maintain()` базы и запись `sql-time.maintain_now` сняты. Обрезка истории: `db.trimHistory()`, функция базы
   `trim_history` и служебная запись журнала вида `trim` (записи `sql-time.trim_*`). Код ошибки `cursor_expired` (LT016):
-  курсор подписки больше не устаревает — журнал теряет версии только при `purge` и удалении аккаунта, а они
-  `cursor_expired` не давали; время в курсоре не нужно, курсор — `tx:seq[~снимок]`; параметр `p_at` у `watch_read`
+  курсор подписки больше не устаревает — версии журнала стирает только удаление аккаунта, а оно `cursor_expired` не
+  давало; время в курсоре не нужно, курсор — `tx:seq[~снимок]`; параметр `p_at` у `watch_read`
   снят. Отказ смены `history` без права на все строки — «класс … включает или выключает журнал (history)». Настройки
   `autovacuum_*_scale_factor = 0.02` у журнала сняты вместе с прореживанием. Сняты тест `retention`, тесты `maintain`
   7.3 №4 (очистка в первой пачке), `time` 6.4 (обрезка), обрезка в `load` (7.6.1 №9), `security-final` и акте 14
@@ -135,6 +134,32 @@
   `engine-attacks` №19 (правку в обход триггеров находил `verify()`; номер заново не занимается); вместо `verify()` в
   тестах гонок и сценариях журнал сверяет помощник обвязки `journalIssues` (номера версий подряд, строка — последняя
   версия). Бенч `bench/gencols.bench.mjs` мерит только `link_ids`. Имя `verify` больше не зарезервировано.
+- Смена ключа и класса, затирание полей и стирание истории объекта: глаголы цепочки `rekey()`, `reclass()`,
+  `anonymize()` и `purge()` (с полями строки ответа `moved`, `$versions` и `$purged`), `db.rekeyClass()`,
+  `versions({ follow })` и параметр `follow` у `letopis_history`; функции базы `rekey`, `rekey_class`, `reclass`,
+  `move_row`, `links_replace`, `purge` и `watch_leaving`, колонка `moved` у `entity` и `log` с индексом `log_moved`,
+  служебная запись журнала вида `purge`. Класс, ключ и id строки неизменны: смена класса правкой — сырым
+  `UPDATE … SET class`, в том числе у строк `Class` и строк прав, — `immutable_key` («класс строки … неизменен», запись
+  `sql-write.class_immutable`); объект другого класса или с другим ключом — новый объект. Коды ошибок `use_reclass`
+  (LT011) и `reclass_denied` (LT012) сняты, номера заново не заняты; `isolation_level` — только у удаления,
+  `not_deleted` — только у `restore`. Записи каталога `write.anonymize_*`, `write.rekey_*`, `write.not_deleted_purge`,
+  `sql-write.class_row_kind`, `sql-write.system_row_reclass`, `sql-write.reclass_*`, `sql-write.use_reclass`,
+  `sql-write.rekey_needs_all`, `sql-write.refs_*`, `sql-write.target_not_found`, `sql-write.row_write_denied`,
+  `sql-write.class_write_denied`, `sql-time.purge_*`, `sql-time.rekey_*`, `sql-time.no_delete_class`,
+  `sql-time.no_write_class` и `sql-time.refs_denied*` сняты. Подписка читает журнал одной функцией `watch_read`:
+  событий ухода строки из классов подписки сменой класса больше нет. Историю строк не стереть: класс, у которого она
+  есть, не удаляется (класс, который придётся удалять, заводят с `history: false`), алиас предка удалённых потомков с
+  историей строк не меняется; версии журнала стирает только удаление аккаунта (`db.auth.purgeAccount`). Тексты отказов
+  удаления и пересоздания класса — без совета стереть историю. Сняты тест `rekey`, тесты `time` 6.1 (через смену id) и
+  6.3, `chain-write` 4.8 и обезличивание, `read-contract` 7.1 №1 и №2, `watch-contract` 7.4 №4, `signals` 7.3 №16,
+  гонка `engine-races` №5, атака `engine-attacks` №42 (номер заново не занимается), события ухода в `watch`, «находка 1»
+  о `rekeyClass` в `security-final`, акт 16 `scenario-salon` и случай `load` 7.6.1 №9 после стирания истории; без смены
+  ключа и класса — `write-contract` 7.2 №2, `cache` №14, акт 13 `scenario-salon`, `chain-api`. Атака №5 и новый тест
+  `engine-write` — смена класса правкой даёт `immutable_key` у строки без ключа, с ключом и строки `Class`;
+  `write-contract` 7.2 №4 переводит строку в другой класс от роли владельца. README — без глав «Сменить ключ или класс»
+  (вместо неё — «Ключ и класс неизменны»), «Обезличить» и «Стереть историю»; шпаргалка — без смены ключа,
+  обезличивания, стирания истории и `follow`. Имена `rekey`, `reclass`, `anonymize`, `purge` и `rekeyClass` больше не
+  зарезервированы.
 
 ### Этап 3 (бывший 1.5.0)
 
@@ -181,11 +206,11 @@
   остатке ниже). `check:docs` сверяет полноту каталога (`messages`) и литеральные тексты ошибок (`literals`; список
   `PENDING_LITERALS` пуст). Код `deleted` загрузчика вошёл в контракт API.
 - Каталог сообщений, остаток: ключи каталога и у нарушений данных из базы — запись (`validate_data`, `inc`),
-  ужесточение класса и `rekeyClass` (`err.detail.rows[].problem`), загрузчик (строки классов с `pattern`). Нарушение
-  базы несёт ключ каталога и параметры (`key`, `params`): библиотека их убирает, форма прежняя —
-  `{ path, keyword, message }` и `problem`; сырой SQL видит прежний русский текст и рядом ключ. Повторяемый конфликт с ключом (`40001`, `40P01`) остаётся ошибкой базы с тем же SQLSTATE — на
-  нём держатся повторы. `check:docs` (`literals`) ловит в `lib/sql` ещё `raise` с литеральным текстом и литерал в
-  `problem`. Источник: ревью.
+  ужесточение класса (`err.detail.rows[].problem`), загрузчик (строки классов с `pattern`). Нарушение базы несёт
+  ключ каталога и параметры (`key`, `params`): библиотека их убирает, форма прежняя — `{ path, keyword, message }`
+  и `problem`; сырой SQL видит прежний русский текст и рядом ключ. Повторяемый конфликт с ключом (`40001`, `40P01`)
+  остаётся ошибкой базы с тем же SQLSTATE — на нём держатся повторы. `check:docs` (`literals`) ловит в `lib/sql`
+  ещё `raise` с литеральным текстом и литерал в `problem`. Источник: ревью.
 - Новый код `internal`: строка-замок семейства не создана или не найдена (`lock_row`, `family_lock`). Раньше — голый
   `XX000` с русским текстом без префикса, теперь `letopis: internal: строка-замок … не создана` с ключом в `DETAIL`, а
   в библиотеке — `LetopisError` с кодом `internal` и подсказкой «сообщите о ней». Голые
@@ -230,7 +255,7 @@
   них и `db.acl.grant` отвечали `target_not_found`. База проверяла, видит ли цели концов актор сессии, хотя роль
   подключения видит любую строку. Так было у арендатора без «можно всё» (`grantAll: false`) и после снятия этого
   правила. Теперь видимость целей по правам актора проверяется только у роли сеанса под RLS; суперпользователь, роль с
-  `BYPASSRLS` и член роли-владельца её пропускают, как уже пропускала подписка (`watch_leaving`). Существование цели,
+  `BYPASSRLS` и член роли-владельца её пропускают. Существование цели,
   её арендатор и класс проверяются, как прежде. Функцию обновляет обычный `up()`, новой ревизии нет. Рецепт — раздел
   README «Права только по ролям» (агентский прогон плана 2.0, этап 3, п. 9). Источник: внедрение.
 - Валидатор на TypeScript проверял `format: 'email'` шаблоном, который на подобранной строке (много точек в домене

@@ -1,6 +1,7 @@
 /**
- * read-contract — обещания README о чтении и истории, которые нашло ревью плана 2.0 (тест-план §7.1): срез asOf по
- * классу и по концам после смены класса без смены id, история с follow после rekey, курсор after() в versions() и в paths().
+ * read-contract — обещания README о чтении и истории, которые нашло ревью плана 2.0 (тест-план §7.1): курсор after() в
+ * versions() и в paths(), имя поля с @S@. Срез asOf после смены класса (7.1 №1) и история через смену ключа (7.1 №2) сняты
+ * в 2.0.0 вместе со сменой класса и ключа.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -17,16 +18,10 @@ before(async () => {
   e = await engine(import.meta.filename);
   t = await e.tenant('read-contract');
   for (const c of [
-    { name: 'Lead', kind: 'hub', fields: NAME },
-    { name: 'Vip', kind: 'hub', fields: NAME },
-    { name: 'Shop', kind: 'hub', fields: NAME },
-    { name: 'Item', kind: 'hub', fields: NAME, ends: { Shop: { class: 'Shop' } } },
-    { name: 'Item2', kind: 'hub', fields: NAME, ends: { Shop: { class: 'Shop' } } },
     { name: 'Odd', kind: 'hub', fields: { properties: { 'a@S@b': { type: 'integer' } } } },
     { name: 'Note', kind: 'hub', fields: { properties: { name: { type: 'string' }, n: { type: 'integer' } } } },
     { name: 'Mall', kind: 'hub', fields: NAME },
     { name: 'Gadget', kind: 'hub', fields: NAME, ends: { Mall: { class: 'Mall' } } },
-    { name: 'Sku', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' }, v: { type: 'integer' } }, required: ['code'] } },
   ]) await e.defineClass(t, c);
   db = await connect({ dsn: appDsn(), schema: e.schema, token: t.token, max: 3 });
 });
@@ -34,22 +29,6 @@ before(async () => {
 after(async () => {
   await db?.close();
   await e?.close();
-});
-
-test('план 2.0, 7.1 №1: asOf по классу и по концам показывает объект только в классе, где он был в этот момент', async () => {
-  const [o] = await db.Lead().create({ name: 'Ольга' }).rows();
-  const [vip] = await db.Lead(o.id).reclass('Vip').rows(); // класс без ключа: id тот же
-  const at = vip.at as string;
-  assert.equal((await db.Lead().asOf(at).ids()).includes(o.id), false, 'по классу: после reclass её нет в Lead');
-  assert.equal((await db.Vip().asOf(at).ids()).includes(o.id), true, 'по классу: она в Vip');
-  assert.equal((await db.Lead(o.id).asOf(at).ids()).length, 0, 'ветка по id отвечает так же');
-
-  const [s] = await db.Shop().create({ name: 'Ромашка' }).rows();
-  const [i] = await db.Shop(s.id).Item().create({ name: 'Чайник' }).rows();
-  const [moved] = await db.Item(i.id).reclass('Item2').rows();
-  const at2 = moved.at as string;
-  assert.equal((await db.Shop(s.id).Item().asOf(at2).ids()).includes(i.id), false, 'по концам: после reclass его нет среди Item');
-  assert.equal((await db.Shop(s.id).Item2().asOf(at2).ids()).includes(i.id), true, 'по концам: он среди Item2');
 });
 
 const invalid = (re: RegExp) => (err: unknown) => err instanceof LetopisError && err.code === 'invalid_query' && re.test(err.message);
@@ -97,21 +76,6 @@ test('план 2.0, 7.1 №3: paths() с after() не теряет пути с �
     assert.equal(new Set(names).size, 5, `${dir}: без повторов`);
     assert.deepEqual(names.map((x) => x[0]), dir === 'asc' ? ['А', 'А', 'А', 'Б', 'Б'] : ['Б', 'Б', 'А', 'А', 'А'], `${dir}: порядок по полю последнего узла`);
   }
-});
-
-test('план 2.0, 7.1 №2: versions с follow после rekey — история только этого объекта, без нового объекта на старом id', async () => {
-  const [a] = await db.Sku().create({ code: 'K-1', v: 1 }).rows();
-  await db.Sku(a.id).update({ v: 2 }).rows();
-  const [a2] = await db.Sku(a.id).rekey({ code: 'K-2' }).rows(); // a.id — надгробие переноса, объект живёт на a2.id
-  // новый объект с прежним ключом — на прежнем id; его версии пишутся раньше последней версии перенесённого
-  const [c] = await db.Sku().create({ code: 'K-1', v: 100 }).rows();
-  assert.equal(c.id, a.id, 'ключ тот же — id тот же');
-  await db.Sku(c.id).update({ v: 101 }).rows();
-  await db.Sku(a2.id).update({ v: 3 }).rows();
-
-  const vs = (rows: Row[]) => rows.filter((r) => !r.$deleted).map((r) => r.data.v);
-  assert.deepEqual(vs(await db.Sku(a2.id).versions({ follow: true })), [1, 2, 2, 3], 'перенесённый: свои версии на обоих id, без нового объекта');
-  assert.deepEqual(vs(await db.Sku(c.id).versions({ follow: true })), [100, 101], 'новый на прежнем id: только свои версии');
 });
 
 test('план 2.0, 7.1 №5: имя поля с @S@ в фильтре не портится', async () => {
