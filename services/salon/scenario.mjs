@@ -66,26 +66,31 @@ try {
   check(hist.every((v) => String(v.at).length > 19 && !Number.isNaN(Date.parse(v.at))), `история: at — полный момент версии (${tail[1]?.at})`);
   await call(cookie, `/api/bookings/${mine.id}/restore`, {});
   const back = (await call(cookie, `/api/schedule?day=${day}`)).data;
-  // в отменённых дня может лежать перенесённая бронь прошлого прогона — сверяем свою
+  // в отменённых дня могут лежать брони прошлого прогона — сверяем свою
   check(back.bookings.some((b) => b.id === mine.id) && !back.cancelled.some((b) => b.id === mine.id), 'возврат брони');
 
-  // перенос: id брони — из ключа (мастер, время начала), поэтому перенос — rekey: новый id, у прежнего — надгробие
+  // перенос: id брони — из ключа (мастер, время начала), а ключ не меняется — перенос создаёт новую бронь на новом слоте
+  // и удаляет прежнюю одной транзакцией: новый id, у прежнего — надгробие с причиной «перенос брони»
   const moved = await call(cookie, `/api/bookings/${mine.id}/move`, { day, hour: 17, staff: slot.staff });
   const afterMove = (await call(cookie, `/api/schedule?day=${day}`)).data;
   const there = afterMove.bookings.find((b) => b.customer === 'Клиент сценария');
   check(moved.status === 200 && there?.hour === 17 && there.id === moved.data.id && there.id !== mine.id
-    && !afterMove.bookings.some((b) => b.id === mine.id) && !afterMove.cancelled.some((b) => b.id === mine.id), 'перенос на 17:00 — rekey: новый id, прежний слот свободен и не в отменённых');
+    && !afterMove.bookings.some((b) => b.id === mine.id) && !afterMove.cancelled.some((b) => b.id === mine.id), 'перенос на 17:00 — новая бронь с новым id, прежний слот свободен и не в отменённых');
   const hoodMove = (await call(cookie, '/api/trace')).data?.[0];
-  check(hoodMove?.title === 'Перенести бронь' && hoodMove.versions.some((v) => v.class === 'booking' && v.op === 'rekey' && v.label === '17:00')
-    && hoodMove.versions.some((v) => v.class === 'booking' && v.op === 'delete' && v.label === '15:00') && hoodMove.signals.includes('booking'),
-  'под капотом: перенос — версия rekey на 17:00 и надгробие 15:00, сигнал booking');
+  check(hoodMove?.title === 'Перенести бронь' && hoodMove.versions.some((v) => v.class === 'booking' && v.op === 'create' && v.label === '17:00' && v.reason === 'перенос брони')
+    && hoodMove.versions.some((v) => v.class === 'booking' && v.op === 'delete' && v.label === '15:00' && v.reason === 'перенос брони') && hoodMove.signals.includes('booking'),
+  'под капотом: перенос — create новой брони на 17:00 и delete прежней на 15:00 с причиной «перенос брони», сигнал booking');
   const taken = await call(cookie, `/api/bookings/${there.id}/move`, { day, hour: 16, staff: slot.staff });
   check(taken.status === 409 && /занят/.test(taken.data?.error ?? '') && (await call(cookie, `/api/schedule?day=${day}`)).data.bookings.some((b) => b.id === there.id && b.hour === 17),
     'перенос на занятый слот 16:00 — 409, бронь осталась на 17:00');
+  // история — версии одного id: у новой брони своя, у прежнего слота своя (её последняя версия — удаление переносом)
   const movedHist = (await call(cookie, `/api/bookings/${there.id}/history`)).data;
-  check(movedHist.some((v) => v.id === mine.id && v.op === 'create' && v.start === '15:00') && movedHist.some((v) => v.id === there.id && v.op === 'rekey' && v.start === '17:00')
-    && movedHist.some((v) => v.id === mine.id && v.op === 'delete' && v.reason === 'перенос брони'), 'история перенесённой брони — versions({ follow: true }): создание на 15:00, rekey на 17:00, надгробие прежнего id');
-  check((await call(cookie, `/api/bookings/${mine.id}/restore`, {})).status === 409, 'надгробие переноса не возвращается — 409 (иначе у клиента две брони)');
+  const oldHist = (await call(cookie, `/api/bookings/${mine.id}/history`)).data;
+  check(movedHist.length > 0 && movedHist.every((v) => v.id === there.id) && movedHist.at(-1).op === 'create' && movedHist.at(-1).start === '17:00' && movedHist.at(-1).reason === 'перенос брони'
+    && oldHist.every((v) => v.id === mine.id) && oldHist.at(-1)?.op === 'delete' && oldHist.at(-1).start === '15:00' && oldHist.at(-1).reason === 'перенос брони',
+  'история: у новой брони — создание на 17:00 с причиной «перенос брони», у прежнего слота своя — последняя версия: удаление с той же причиной');
+  const back409 = await call(cookie, `/api/bookings/${mine.id}/restore`, {});
+  check(back409.status === 409 && /перенесена/.test(back409.data?.error ?? ''), 'надгробие переноса не возвращается — 409 (иначе у клиента две брони)');
 
   // отчёт дня — report(): брони дня по мастерам
   const rep = (await call(cookie, `/api/report?day=${day}`)).data;

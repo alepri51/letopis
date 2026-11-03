@@ -191,7 +191,7 @@ function Salon({ me }: { me: Me; onLogout?: () => void }) {
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>История брони</DialogTitle>
-            <DialogDescription>Все версии из журнала letopis: что, когда и почему. Перенос меняет id брони — история идёт через смену id (<code>versions({'{'} follow: true {'}'})</code>).</DialogDescription>
+            <DialogDescription>Все версии этой брони из журнала letopis: что, когда и почему. Перенос — новая бронь на новом слоте (новый id: время начала в ключе) и удаление прежней одной транзакцией: у прежнего слота своя история — с версией удаления «перенос брони».</DialogDescription>
           </DialogHeader>
           <Table>
             <TableHeader><TableRow><TableHead>id</TableHead><TableHead>rev</TableHead><TableHead>действие</TableHead><TableHead>мастер, начало</TableHead><TableHead>причина</TableHead><TableHead>когда</TableHead></TableRow></TableHeader>
@@ -253,8 +253,8 @@ function BookDialog({ slot, day, services, onClose, onDone }: {
 }
 
 /**
- * Перенос брони: мастер и свободный час того же дня. id брони — из ключа (мастер, время начала), поэтому сервер
- * переносит её rekey — новый id, история идёт через смену id. Слот заняли раньше — 409.
+ * Перенос брони: мастер и свободный час того же дня. id брони — из ключа (мастер, время начала), а ключ не меняется:
+ * сервер создаёт новую бронь на новом слоте и удаляет прежнюю одной транзакцией — новый id. Слот заняли раньше — 409.
  * Диалог создаётся заново на каждую бронь (key): выбор — тот же мастер и его первый свободный час; перечитанное
  * расписание выбор не сбрасывает.
  */
@@ -283,7 +283,7 @@ function MoveDialog({ booking, data, onClose, onDone }: {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Перенос брони: {booking?.customer}, {booking?.hour}:00</DialogTitle>
-          <DialogDescription>Время начала — в ключе брони: перенос даёт ей новый id (<code>rekey</code>), история идёт через смену id. Под блокировкой мастера, как запись.</DialogDescription>
+          <DialogDescription>Время начала — в ключе брони, а ключ не меняется: перенос создаёт новую бронь (<code>create</code>, новый id) и удаляет прежнюю (<code>delete</code>) одной транзакцией, под блокировкой мастера, как запись.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="grid gap-4">
           <div className="grid gap-2"><Label htmlFor="move-staff">Мастер</Label>

@@ -15,7 +15,7 @@ export type Me = { salon: string; name: string };
 export type Staff = { id: string; name: string; specialization: string };
 export type Booking = { id: string; staff: string; hour: number; customer: string; service: string };
 export type Schedule = { day: string; hours: number[]; staff: Staff[]; services: { id: string; name: string }[]; bookings: Booking[]; cancelled: Booking[]; total: number };
-/** Версия брони из истории: id — у переноса новый (rekey), мастер и время — из самой версии. */
+/** Версия брони из истории: id этой брони, мастер и время — из самой версии. */
 export type Version = { id: string; rev: number; op: string; staff: string; start: string; reason: string; at: string };
 /** Отчёт дня: брони по мастерам (все мастера салона, у кого броней нет — 0). */
 export type Report = { day: string; total: number; staff: (Staff & { count: number })[] };

@@ -6,8 +6,8 @@
  * - Вход по паролю (db.auth.verifyPassword). Токен letopis в cookie не попадает: веб-сессия живёт на сервере,
  *   cookie несёт только её случайный номер. Запросы идут от имени вошедшего: svc.as(account, { tenant }).
  * - Бронь — одной транзакцией под блокировкой мастера (domain.mjs); двойная бронь невозможна.
- * - Перенос брони — rekey под той же блокировкой: id брони из ключа (мастер, начало), у переноса — новый id; история
- *   идёт через смену id (versions({ follow: true })).
+ * - Перенос брони — под той же блокировкой: id брони из ключа (мастер, начало), а ключ не меняется, поэтому перенос —
+ *   новая бронь на новом слоте и удаление прежней одной транзакцией; у новой брони — новый id и своя история.
  * - Прайс — класс price сида (ключ [Item, note]): правка цены — upsert, список — db.load({ existing: 'update' })
  *   администраторским подключением letopis от имени вошедшего. Отчёт дня — брони по мастерам (report()).
  * - Живое расписание: db.watch() по классу booking → SSE → вторая вкладка обновляется сама.
@@ -19,7 +19,7 @@ import postgres from 'postgres';
 import { fileURLToPath } from 'node:url';
 import { up, connect, createTenant } from 'letopis';
 import {
-  HOURS, today, directory, dayBookings, book, cancel, restore, move, history, report, priceList, setPrice, parsePriceList, loadPrices,
+  HOURS, MOVE_REASON, today, directory, dayBookings, book, cancel, restore, move, history, report, priceList, setPrice, parsePriceList, loadPrices,
 } from './domain.mjs';
 // общее у четырёх сервисов-примеров: журнал «под капотом», веб-сессии по cookie, подписка → SSE
 import { createTrace } from '../../shared/trace.mjs';
@@ -127,9 +127,9 @@ export async function createApp() {
     const view = (b) => ({ id: b.id, staff: b.links.Staff, hour: Number(String(b.data.start_datetime).slice(11, 13)),
       customer: customers.get(b.links.Customer) ?? 'клиент', service: serviceName.get(b.links.Item) ?? '' });
     const bookings = (await dayBookings(db, day)).map(view);
-    // перенос (rekey) оставляет у прежнего id надгробие с moved → новый id: это не отмена
+    // перенос удаляет прежнюю бронь с причиной MOVE_REASON: это надгробие переноса, а не отмена
     const cancelled = (await db.booking().withDeleted().rows())
-      .filter((b) => b.$deleted && !b.moved && String(b.data.start_datetime).startsWith(day)).map(view);
+      .filter((b) => b.$deleted && b.reason !== MOVE_REASON && String(b.data.start_datetime).startsWith(day)).map(view);
     return {
       day, hours: HOURS, bookings, cancelled, total: bookings.length,
       staff: dir.staff.map((m) => ({ id: m.id, name: m.data.name, specialization: m.data.specialization ?? '' })),
@@ -160,7 +160,8 @@ export async function createApp() {
       await act(req.s, 'Вернуть бронь', (lines) => restore(userDb(req.s), req.params.id, lines));
       res.json({ ok: true });
     } catch (e) {
-      res.status(e.code === 'moved' ? 409 : 400).json({ error: `Не удалось вернуть: ${e.code ?? ''} ${e.message}` });
+      // e.status — отказ сервиса (надгробие переноса — 409), остальное — ошибки letopis
+      res.status(e.status ?? 400).json({ error: `Не удалось вернуть: ${e.status ? e.message : `${e.code ?? ''} ${e.message}`}` });
     }
   });
   // перенос: мастер (по умолчанию тот же), день (по умолчанию тот же) и час; занятый слот — 409
@@ -179,7 +180,7 @@ export async function createApp() {
       });
     }
   });
-  // история — и через перенос: у версий разные id (прежний и новый), мастер и время — из самой версии
+  // история — версии этой брони (одного id); мастер и время — из самой версии
   app.get('/api/bookings/:id/history', auth, async (req, res) => {
     const db = userDb(req.s);
     const versions = await act(req.s, 'История брони', (lines) => history(db, req.params.id, lines));
