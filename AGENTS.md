@@ -3,13 +3,12 @@
 > Карта говорит, где смотреть; истина — код.
 
 ## Паспорт
-**letopis 1.4.2 выпущена** (1 ноября 2026 года: тег `v1.4.2`, GitHub Release, npm `latest` — исправления плана 2.0, этапы 1–2; 1.4.1 — тоже 1 ноября, тег `v1.4.1`; 1.4.0 — 29 октября, тег `v1.4.0`): `main` — последний выпуск (тег `v` + версия из `lib/package.json`, npm `latest`); разработка — в ветке `dev`. Версия — в `lib/package.json` (= верхняя запись `lib/CHANGELOG.md`); версии с дефисом (`1.1.0-rc.1`) уходят в npm под dist-tag `next`. Выпуск — только по команде владельца. Спецификация 1.0 — `reports/PLAN-LETOPIS-1.0.md` (редакция 8, выполнена): девять этапов, контрольные точки А, Б, В. План 1.1 и 1.2 (раздел 13 плана 1.0, пункты 2, 4, 5, 7–9) — `reports/PLAN-LETOPIS-1.1.md` (редакция 5), утверждён владельцем 10 октября 2026 года, выполнен; совместимость с 1.0 не требуется. Этапы 0–3 и точка А — выпуск 1.1.0 (11 октября; решения — в шапке плана, материалы — `docs/checkpoint-1.1.md`); этапы 4–6, точка Б и доработки после неё — выпуск 1.2.0 (28 октября; материалы — `docs/checkpoint-1.2.md`). Доработки после 1.2.0 (хвост ревью безопасности №3, тест обновления схемы (снят в 2.0.0), первая заливка) — выпуск 1.3.0 в тот же день (материалы — `docs/checkpoint-1.3.md`). Доработки после 1.3.0 (хвост ревью безопасности доработок после 1.2.0, штамп движка в схеме, опция проектора `lockRetries`) — выпуск 1.4.0 (29 октября; материалы — `lib/CHANGELOG.md`, `BACKLOG.md`). Текущая работа — план 2.0 `reports/PLAN-LETOPIS-2.0.md` (редакция 2 от 3 ноября 2026 года, §2.1): 1.4.2 выпущена; 1.5.0 не выпускается — её работа (права, один процесс, ошибки и агент) входит в 2.0.0; 2.0.0 — вырезка редких фич (`rekey`/`reclass`, `anonymize`/`purge`, `diff`/`blame`, ярусы, хэши и `verify`, агрегаты, проекторы, английский, импорт 0.21, `describe`/`check`, `reset`) и строгий режим; совместимости с 1.x нет; правила версий и проверка перед выпуском, долгий прогон (быстрый режим — шаг prerelease; суточный отложен владельцем); тесты ссылаются на его тест-план §7 («план 2.0, 7.N №M»). Выпуск — по команде владельца.
-npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) — хранилище версионированных сущностей на PostgreSQL 18: три таблицы (`entity`, `log`, `secret`), целостность, арендаторы и права проверяет база (триггеры и RLS), поверх — цепочки `t.Класс(фильтр).Связь().rows()`. Рантайм-зависимость одна — `postgres`; необязательные peer-зависимости: Zod 4 (`letopis/model`), `@electric-sql/pglite` и `@electric-sql/pglite-socket` (`up({ pglite })` для разработки без PostgreSQL), `@modelcontextprotocol/server` (`letopis/mcp`). CLI `letopis`: `sync`, `types`, `load`, `maintain`, `mcp` (`lib/src/cli.ts`).
-Эталоны 0.21 для дифференциальных тестов прав и слияния — `lib/test/oracle/` (код 0.21 — по тегу: `git show v0.21.0:lib/src/sql.ts`).
+**letopis 2.0.0** — план `reports/PLAN-LETOPIS-2.0.md` (редакция 2): `main` — последний выпуск (тег `v` + версия из `lib/package.json`, npm `latest`; версии с дефисом — dist-tag `next`), разработка — ветка `dev`. Версия — `lib/package.json` = верхняя запись `lib/CHANGELOG.md`. Выпуск — только по команде владельца. Тесты ссылаются на пункты тест-планов («план 2.0, 7.N №M»).
+npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) — хранилище версионированных сущностей на PostgreSQL 18: три таблицы (`entity`, `log`, `secret`), целостность, арендаторы и права проверяет база (триггеры и RLS), поверх — цепочки `t.Класс(фильтр).Связь().rows()`; строгий режим: неизвестное имя (класс, поле, опция) и массовая правка без `{ all: true }` — отказ. Рантайм-зависимость одна — `postgres`; необязательные peer-зависимости: Zod 4 (`letopis/model`), `@electric-sql/pglite` и `@electric-sql/pglite-socket` (`up({ pglite })` для разработки без PostgreSQL), `@modelcontextprotocol/server` (`letopis/mcp`). CLI `letopis`: `sync`, `types`, `load`, `maintain`, `mcp` (`lib/src/cli.ts`).
 
 ## Протокол
 1. Модуль — по таблице «Модули»; входные файлы — сразу в Read, без обхода каталогов.
-2. «Как работает X» — сначала трасса `docs/atlas/F-*.md` (якоря сверены на `f20b1cf`; MCP — только в карточке), затем код; решения и их причины — план (§2 решения, этап в §5).
+2. «Как работает X» — сначала трасса `docs/atlas/F-*.md` (якоря сверены на `447fae7`; MCP — только в карточке), затем код; решения и их причины — план (§2 решения, этап в §5).
 3. Карточка модуля подмешивается сама при Read его файла: инварианты, «что ещё менять», побочки, проверка.
 4. Поиск — субагентом `atlas-scout`. Если всё же Explore/Plan — вставь в промпт нужные строки «Модули» и «Омонимы»: встроенные агенты не видят CLAUDE.md.
 5. Ответ — со ссылками `путь:символ`, проверенными в этой сессии; поведение кода отделяй от планов в документах.
@@ -19,41 +18,42 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 ## Процессы и режимы
 | Процесс | Где | Режим | Вход |
 |---|---|---|---|
-| Тесты | `cd lib && npm test` (concurrency 1) | обвязка сама поднимает контейнер `letopis-pg18` (`postgres:18`, порт 15433); `ENTITY_DSN`, `ENTITY_APP_DSN`; схема `v2.t_<файл>` на тестовый файл | `lib/test/_harness.ts` |
-| Сверка документов | `cd lib && npm run check:docs` | без БД: версия, ссылки и якоря, управляющие символы, раздел «Тесты» README, ревизия, бенч, контракт API, зарезервированные имена, структура README, пути в чекпоинтах, `ops` (таблицы операторов в README, шпаргалке и главе «Чтение» сайта == реестр `lib/src/ops.ts`; обновить — `npm run ops:tables`), `literals` (нет литеральных текстов ошибок — тексты только ключи каталога `lib/src/messages`), `messages` (у записей каталога есть текст, у кодов — подпись и якорь в README) | `lib/scripts/check-docs.mjs` |
-| Шаг версии | `cd lib && npm run check:semver` (`-- --release` — в release.yml) | без БД, нужна полная история git с тегами: контракт API и ревизия движка против тега прошлого выпуска; шаг версии не меньше нужного (README, «Версии и совместимость»); входит в `check:docs` | `lib/scripts/check-semver.mjs` |
-| Проверка перед выпуском | `cd lib && npm run prerelease` (`-- --skip=шаг`, `-- --only=шаг`) | всё, что проверяет поведение, — по очереди: typecheck, check:docs, весь `npm test`, примеры сайта со снимками, ER, покрытие, сборка сайта, песочница, сценарии четырёх сервисов, быстрый долгий прогон (`soak`, 15 минут), `check:package` с живым прогоном; прогресс раз в минуту; итог — `docs/checkpoint-<x.y.z>.md` (таблица копится: при `--only`/`--skip` строки прочих шагов остаются из прежних прогонов с датой и коммитом); первый красный шаг останавливает прогон; в `npm test` файл, процесс которого упал до первого теста (отказ уровня файла, ни одного теста), перезапускается один раз — в итоге «перезапущен: <файл>», красный тест не перезапускается | `lib/scripts/prerelease.mjs` |
-| Долгий прогон | `cd lib && npm run soak` (`SOAK_HOURS=24` по умолчанию; `SOAK_HOURS=0.25` — быстрый, он же шаг `soak` в prerelease) | смешанная нагрузка одного процесса (план 2.0, этап 2): писатели с агрегатом и `inc`, читатели, подписки, проектор, `maintain` с прореживанием и `trimHistory`, вход и выход, `db.as()`, заведение и удаление классов, в конце `verify` (агрегаты в базе, проектор, прореживание, `trimHistory` и `verify` сняты в 2.0.0 — сценарий перепишет срез S9 плана 2.0, до того он не проходит); база — `ENTITY_DSN`, схема `v2.b_soak` (остаётся для разбора); замер раз в `SOAK_SAMPLE_MIN` минут → `results/soak.csv`, в конце критерии §7.7 → `results/soak.md` (`SOAK_OUT` — другой каталог); код 1 — критерий нарушен | `lib/bench/soak.mjs` |
-| Проверка пакета | `cd lib && npm run check:package` | собирает тарбол, ставит в чистую папку, импортирует экспорты из контракта, живой прогон на `ENTITY_DSN` (`LETOPIS_PKG_LIVE=1` — обязателен) | `lib/scripts/check-package.mjs` |
-| GitHub Actions | `.github/workflows/` | ci — push в dev (typecheck, check:docs с check:semver, check:package без живого прогона; сайт — typecheck, ER, покрытие, нюансы; сборку сайта CI не делает — он не разворачивается). Тестов в CI нет (решение владельца 01.11.2026): тесты библиотеки, примеры со снимками, песочница и сценарии сервисов — локально до выкатки (`npm run prerelease`); tag — push в main; release — published (check:semver, npm, dist-tag `next` для версий с дефисом, проверка пакета из реестра) | `docs/atlas/F-RELEASE.md` |
+| Тесты | `lib/test` | unit-тесты не пишутся и не запускаются — правило владельца (CLAUDE.md); обвязка и наборы — M-TESTS | `lib/test/_harness.ts` |
+| Сверка документов | `cd lib && npm run check:docs` | без БД: версия, ссылки и якоря, контракт API, шаг версии, ревизия, структура и раздел «Тесты» README, `ops` (таблицы операторов == `lib/src/ops.ts`; обновить — `npm run ops:tables`), `literals` и `messages` (тексты ошибок — только ключи каталога `lib/src/messages`); полный список — M-RELEASE | `lib/scripts/check-docs.mjs` |
+| Шаг версии | `cd lib && npm run check:semver` (`-- --release` — в release.yml) | контракт API и ревизия движка против тега прошлого выпуска; шаг не меньше нужного (README, «Версии и совместимость»); входит в `check:docs` | `lib/scripts/check-semver.mjs` |
+| Проверка перед выпуском | `cd lib && node scripts/prerelease.mjs "--skip=npm test"` | шаги по очереди: typecheck, check:docs, `npm test` (пропускается; `--skip=test` его не пропускает — шаг называется `npm test`), примеры сайта со снимками, ER, покрытие, сборка сайта, песочница, сборка `lib`, сценарии четырёх сервисов, `soak` 15 минут, `check:package` с живым прогоном; первый красный шаг останавливает прогон (`--only=шаг` — повтор); итог — таблица в `docs/checkpoint-<x.y.z>.md` | `lib/scripts/prerelease.mjs` |
+| Долгий прогон | `cd lib && npm run soak` (`SOAK_HOURS`, по умолчанию 24; `0.25` — шаг prerelease) | смешанная нагрузка одного процесса: заказ и `inc` суммы магазина одним планом, `inc` счётчиков, читатели, подписки, `maintain()` раз в минуту, вход и выход, `db.as()`, заведение и удаление классов; в конце сверка журнала запросом; база — `ENTITY_DSN`, схема `v2.b_soak`; замеры → results/soak.csv, критерии §7.7 → results/soak.md (каталог — `SOAK_OUT`); код 1 — критерий нарушен | `lib/bench/soak.mjs` |
+| Проверка пакета | `cd lib && npm run check:package` | тарбол → чистая папка → импорт экспортов из контракта; живой прогон на `ENTITY_DSN` (`LETOPIS_PKG_LIVE=1` — обязателен) | `lib/scripts/check-package.mjs` |
+| GitHub Actions | `.github/workflows/` | ci — push в dev (typecheck, check:docs с check:semver, check:package без живого прогона; сайт — typecheck, ER, покрытие, нюансы); тестов в CI нет; tag — push в main; release — published (check:semver, npm, dist-tag `next` для версий с дефисом, проверка пакета из реестра) | `docs/atlas/F-RELEASE.md` |
 
 ## Модули
-Набор 1.0 (план §4) и модули плана 1.1 (§4 плана 1.1). Карточка — `.claude/rules/atlas/<ID>.md`.
-| ID | Суть | Вход | Этапы |
-|---|---|---|---|
-| M-ENGINE | таблицы, роли, триггеры, классы, `merge`, `inc`, каскад, неизменный класс строки, журнал, коды ошибок, ревизия движка | `lib/sql/10-core.sql`, `lib/sql/15-errors.sql`, `lib/sql/40-class.sql`, `lib/sql/60-write.sql`, `lib/sql/99-revision.sql` | 1 |
-| M-VALIDATE | v5, JSON Schema → jsonpath в базе (валидатор на TypeScript — M-MODEL) | `lib/sql/30-validate.sql` | 1, 2 |
-| M-ACCESS | контекст, сессии, RLS, ACL, креды, вход | `lib/sql/20-context.sql`, `lib/sql/50-acl.sql`, `lib/sql/80-auth.sql`, `lib/src/auth.ts`, `lib/src/acl.ts` | 1, 5 |
-| M-MODEL | `letopis/model`, реестр, CLI, валидатор и JSON Schema на TypeScript | `lib/src/model.ts`, `lib/src/registry.ts`, `lib/src/sync.ts`, `lib/src/cli.ts`, `lib/src/validate.ts`, `lib/src/jsonschema.ts` | 2 |
-| M-QUERY | `find_ids()`, срез `log_refs_at`, построитель чтения, `versions` | `lib/sql/70-read.sql`, `lib/src/sql.ts`, `lib/src/ops.ts` | 3, 6 |
-| M-WRITE | планы, батч, транзакции, загрузчик | `lib/src/write.ts`, `lib/src/tx.ts`, `lib/src/load.ts` | 4 |
-| M-API | `connect`, Proxy цепочек, ошибки, типы цепочек | `lib/src/index.ts`, `lib/src/chain.ts`, `lib/src/errors.ts`, `lib/src/typed.ts` | 2–4 |
-| M-TIME | история, подписка, кэш результатов, режимы сигналов, `maintain` | `lib/sql/90-time.sql`, `lib/src/watch.ts`, `lib/src/admin.ts`, `lib/src/cache.ts`, `lib/src/signals.ts` | 6; план 1.1: 2 |
-| M-BOOTSTRAP | установщик, `up()`, PGlite, штамп движка в схеме | `lib/src/up.ts`, `lib/src/pglite.ts` | 1, 6 |
-| M-SEEDS | системный сид, демо-домен | `lib/sql/95-seed.system.sql`, `lib/src/demo/booking.ts`, `lib/sql/seed.booking.sql`, `lib/scripts/gen-seed-booking.mjs` | 1, 2, 5 |
-| M-RELEASE | CI, тег, релиз, check-docs, check-package, контракт API | `lib/scripts/check-docs.mjs`, `lib/scripts/check-package.mjs`, `lib/scripts/gen-api-contract.mjs`, `.github/workflows/` | 0, 8 |
-| M-TESTS | обвязка и наборы | `lib/test/_harness.ts`, `lib/test/_engine.ts` | все |
-| M-BENCH | замеры: точка А, первая заливка, сигналы | `lib/bench/` | 1, 7; план 1.1: 0–4 |
-| M-MCP | инструменты MCP: `letopis/mcp`, `letopis mcp` (план 1.1, §2.5), описание модели `letopis_model` | `lib/src/mcp.ts`, `lib/src/describe.ts` | план 1.1: 5 |
+Карточка — `.claude/rules/atlas/<ID>.md`.
+| ID | Суть | Вход |
+|---|---|---|
+| M-ENGINE | таблицы, роли, триггеры, классы, `merge`, `inc`, каскад, неизменный ключ и класс строки, журнал, коды ошибок, ревизия движка | `lib/sql/10-core.sql`, `lib/sql/15-errors.sql`, `lib/sql/40-class.sql`, `lib/sql/60-write.sql`, `lib/sql/99-revision.sql` |
+| M-VALIDATE | v5, JSON Schema → jsonpath в базе (валидатор на TypeScript — M-MODEL) | `lib/sql/30-validate.sql` |
+| M-ACCESS | контекст, сессии, RLS, ACL, креды, вход | `lib/sql/20-context.sql`, `lib/sql/50-acl.sql`, `lib/sql/80-auth.sql`, `lib/src/auth.ts`, `lib/src/acl.ts` |
+| M-MODEL | `letopis/model`, реестр, CLI, валидатор и JSON Schema на TypeScript | `lib/src/model.ts`, `lib/src/registry.ts`, `lib/src/sync.ts`, `lib/src/cli.ts`, `lib/src/validate.ts`, `lib/src/jsonschema.ts` |
+| M-QUERY | `find_ids()`, срез `log_refs_at`, построитель чтения, проверка имён полей, `versions` | `lib/sql/70-read.sql`, `lib/src/sql.ts`, `lib/src/ops.ts` |
+| M-WRITE | планы, батч, транзакции, отказы строгого режима, загрузчик | `lib/src/write.ts`, `lib/src/tx.ts`, `lib/src/load.ts` |
+| M-API | `connect`, Proxy цепочек, ошибки, строгие типы цепочек, `loose` | `lib/src/index.ts`, `lib/src/chain.ts`, `lib/src/errors.ts`, `lib/src/typed.ts` |
+| M-TIME | история, подписка, кэш результатов, режимы сигналов, `maintain` | `lib/sql/90-time.sql`, `lib/src/watch.ts`, `lib/src/admin.ts`, `lib/src/cache.ts`, `lib/src/signals.ts` |
+| M-BOOTSTRAP | установщик, `up()`, PGlite, штамп движка в схеме | `lib/src/up.ts`, `lib/src/pglite.ts` |
+| M-SEEDS | системный сид, демо-домен | `lib/sql/95-seed.system.sql`, `lib/src/demo/booking.ts`, `lib/sql/seed.booking.sql`, `lib/scripts/gen-seed-booking.mjs` |
+| M-RELEASE | CI, тег, релиз, check-docs, check-package, контракт API | `lib/scripts/check-docs.mjs`, `lib/scripts/check-package.mjs`, `lib/scripts/gen-api-contract.mjs`, `.github/workflows/` |
+| M-TESTS | обвязка и наборы | `lib/test/_harness.ts`, `lib/test/_engine.ts` |
+| M-BENCH | замеры, долгий прогон | `lib/bench/` |
+| M-MCP | инструменты MCP: `letopis/mcp`, `letopis mcp`, описание модели `letopis_model` | `lib/src/mcp.ts`, `lib/src/describe.ts` |
+
+Без карточек (решение владельца): сайт-руководство `guide/` (страницы, примеры со снимками, покрытие и генераторы — `guide/scripts/`) и демо-сервисы `services/` (устройство — `services/<имя>/README.md`, стенд — `services/compose.yaml`).
 
 ## Омонимы
-Слова, сменившие смысл в 1.0 (в 0.21 и старых отчётах — прежний).
 - `count()` — число сущностей последнего шага; число путей — `count({ paths: true })` (`lib/src/chain.ts:ChainCore`).
-- `history` — свойство класса: только `true`/`false` — вести ли журнал (`lib/sql/40-class.sql`); политик хранения, прореживания и ручной обрезки истории с 2.0.0 нет.
-- `purge` — в 0.21 удаление аккаунта (`accounts.purge`), в 1.x ещё и глагол цепочки (стирание истории удалённой сущности) — снят в 2.0.0 вместе со сменой ключа и класса: история объекта не стирается. Удаление аккаунта с данными его арендатора — `db.auth.purgeAccount` (`lib/sql/90-time.sql:account_purge`).
+- `history` — свойство класса `true`/`false`: вести ли журнал (`lib/sql/40-class.sql`); чтение истории — `versions()`, `asOf()`.
+- `purge` — только удаление аккаунта с данными его арендатора: `db.auth.purgeAccount` (`lib/sql/90-time.sql:account_purge`); глагола цепочки `purge()` нет.
 - `account` — арендатор сессии (вход и `auth.switch()`); шага цепочки `.account()` нет — это имя ищется среди классов и ролей.
 - `LOCK`, замок — строки-замки `secret` вида `LOCK` (семейство класса, `maintain`: `lib/sql/60-write.sql:lock_row`, `:lock_try`); `lock()` цепочки — пользовательская advisory-блокировка.
-- Новое: `db.load()` — массовая загрузка (`lib/src/load.ts`); `upsert()` — создать или заменить целиком по ключу; `cache` — кэш результатов (`.cache()` в цепочке, `connect({ cache })`, `db.cache`, свойство класса `cache { ttl }`); `meta` — свободные метаданные класса и связи в реестре, база их не толкует.
+- `cache` — кэш результатов: `.cache()` в цепочке, `connect({ cache })`, `db.cache`, свойство класса `cache { ttl }`; `meta` — свободные метаданные класса и связи в реестре, база их не толкует.
 
 ## Общие файлы
 - `lib/src/types.ts` — общие типы, списки методов цепочки, корня и батча (`CHAIN_METHODS`, `DB_METHODS`, `BATCH_METHODS`), `DDL_REVISION`; правит один исполнитель.
@@ -62,30 +62,24 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 
 ## Сквозные правила
 - Деплой (CLAUDE.md): пуш только в dev → PR dev→main → merge → тег (tag.yml) → публикация Release → npm. Выпуск — только по команде владельца.
-- Утверждения о поведении — только по коду и тестам; планы — в `reports/PLAN-LETOPIS-1.0.md`, `reports/PLAN-LETOPIS-1.1.md` и `reports/PLAN-LETOPIS-2.0.md`.
-- В одном коммите с кодом обновляются карточка модуля, трасса, список тестов в разделе «Тесты» `lib/README.md` и контракт API (`cd lib && npm run api:contract`), если изменились экспорты, методы или тексты ошибок; связность ловит `cd lib && npm run check:docs`.
-- Документация пакета — только на русском (`lib/README.md`, `lib/AGENT-CHEATSHEET.md`, `lib/llms.txt`); помеченные примеры (`<!-- run -->`) исполняет тест `docs`.
+- Утверждения о поведении — только по коду; планы — в `reports/PLAN-LETOPIS-2.0.md` (и планы 1.0, 1.1 — на их §7 ссылаются имена тестов).
+- Атлас (карточки, трассы, этот файл) обновляет только скилл `atlas-sync` по команде владельца. В одном коммите с кодом — контракт API (`cd lib && npm run api:contract`), если изменились экспорты, методы или тексты ошибок; связность ловит `cd lib && npm run check:docs`.
+- Документация пакета — `lib/README.md`, `lib/AGENT-CHEATSHEET.md`, `lib/llms.txt`, только на русском и только о нынешней версии: прошлые версии и совместимость с ними не описываются (история — `lib/CHANGELOG.md`).
 
 ## Трассы
-`docs/atlas/F-*.md` — устройство 1.1 и поздние правки в шагах, якоря сверены на `f20b1cf`: F-READ (чтение), F-WRITE и F-DELETE (запись и удаление), F-ACCESS и F-AUTH (права и вход), F-WATCH (подписка, кэш), F-BOOT (установка и `up()`), F-RELEASE (от коммита до npm).
+`docs/atlas/F-*.md`, якоря сверены на `447fae7`: F-READ (чтение), F-WRITE и F-DELETE (запись и удаление), F-ACCESS и F-AUTH (права и вход), F-WATCH (подписка, кэш), F-BOOT (установка и `up()`), F-RELEASE (от коммита до npm).
 
 ## Документы
 | Документ | Что это | Как читать |
 |---|---|---|
-| `reports/PLAN-LETOPIS-1.0.md` | план и спецификация 1.0, редакция 8 (решения точки А — в шапке) | по разделам: §2 решения, §5 этапы, §7 тест-планы |
-| `reports/PLAN-LETOPIS-1.1.md` | план 1.1 и 1.2: diff/blame, сигналы, первая заливка, производные представления, MCP; редакция 5, утверждён | по разделам: §2 решения со сравнением с другими системами, §5 этапы, §6 контрольные точки, §7 тест-планы |
-| `reports/PLAN-LETOPIS-2.0.md` | план 2.0: зрелость — исправления (1.4.2), правила версий, долгий прогон, права, один процесс, ошибки и агент (1.5.0), строгий режим (2.0.0); редакция 1, утверждён | по разделам: §2 решения владельца, §5 этапы, §7 тест-план |
+| `reports/PLAN-LETOPIS-2.0.md` | план 2.0, редакция 2: правила версий, долгий прогон, вырезка и строгий режим 2.0.0 | §2 решения владельца, §5 этапы, §7 тест-план |
 | `reports/PROPOSAL-SVOD.md` | предложение «Свод», основание плана | по разделам |
-| `lib/README.md` | руководство 1.1 по задачам | по оглавлению; «Справочник API» (в нём «Зарезервированные имена»), «Ошибки», «Тесты» |
-| `lib/AGENT-CHEATSHEET.md` | шпаргалка для агента-пользователя пакета (входит в пакет) | целиком |
-| `lib/llms.txt` | указатель пакета для языковых моделей (входит в пакет) | целиком |
-| `lib/CHANGELOG.md` | решения по версиям; версия = `lib/package.json` | grep `## \[` |
+| `lib/README.md` | руководство по задачам | по оглавлению; «Справочник API» (в нём «Зарезервированные имена»), «Ошибки», «Тесты» |
+| `lib/AGENT-CHEATSHEET.md`, `lib/llms.txt` | шпаргалка и указатель для агента-пользователя пакета (входят в пакет) | целиком |
+| `lib/CHANGELOG.md` | история версий; версия = `lib/package.json` | grep `## \[` |
 | `docs/api-contract.json` | машинный контракт API, генерируется | grep имени |
-| `docs/checkpoint-a.md` | замеры точки А | по серии |
-| `docs/checkpoint-1.1.md` | замеры плана 1.1: `blame` и `diff` (этап 1), режимы сигналов (этап 2), первая заливка (этап 3); точка А — бенч против 1.0.1, ревью безопасности №1, конвейер первой заливки, решения владельца | по этапу |
-| `docs/checkpoint-1.2.md` | точка Б и выпуск 1.2: замеры этапа 4 (агрегаты, проекторы), бенч против 1.0.1, ревью безопасности №2 и №3, `/security-review`, проверка понятности, решения владельца, доработки после точки Б (первая заливка, бенч кругами, цена строк-замков) | по разделу |
-| `docs/checkpoint-1.3.md` | доработки после 1.2.0: тест обновления схемы (снят в 2.0.0 вместе с совместимостью с 1.x), хвост ревью безопасности №3, генерируемые колонки и первая заливка, ревью безопасности | по разделу |
-| `BACKLOG.md`, `COMPARISON.md` | бэклог и сравнение с аналогами (0.19–0.21) | по заголовку |
+| `docs/checkpoint-2.0.0.md` | итог проверки перед выпуском: таблица шагов prerelease, критерии soak | целиком |
+| `BACKLOG.md` | бэклог | по заголовку |
 
 ## Не читать
 `lib/node_modules/`, `lib/dist/` (сборка), `lib/package-lock.json`, `reports/` кроме `PLAN-LETOPIS-1.0.md`, `PLAN-LETOPIS-1.1.md`, `PLAN-LETOPIS-2.0.md`, `PROPOSAL-SVOD.md`, `PROPOSAL-SVITOK.md`, `ZAPIS-CONCEPT.md` (остальное — снимок оценки от 2026-09-24, не источник истины), `.env` (секреты другого проекта), `RESEARCH.md` (исторический, проект под старым именем entity-chain).
