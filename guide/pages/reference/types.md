@@ -137,41 +137,16 @@ interface AclRuleSpec {
 type AclTarget = string | ({ class: string } & { [column: string]: unknown });
 ```
 
-## AggregateDef {#type-aggregatedef}
-
-```ts
-/** Описание одного агрегатного поля: `sum` или `count: true`; `of` — класс-источник (имя или модель). */
-type AggregateDef =
-  | { sum: string; count?: never; of: string | { readonly name: string }; via: string; where?: JsonSchema }
-  | { count: true; sum?: never; of: string | { readonly name: string }; via: string; where?: JsonSchema };
-```
-
-## AggregateInfo {#type-aggregateinfo}
-
-```ts
-/**
- * Агрегат в базе: поле — сумма поля sum или число (count) живых строк класса of с потомками того же
- * арендатора, чей одиночный конец via ведёт на строку; where — JSON Schema над данными строки-источника.
- */
-interface AggregateInfo {
-  sum?: string;
-  count?: true;
-  of: string;
-  via: string;
-  where?: JsonSchema;
-}
-```
-
 ## AnyModel {#type-anymodel}
 
 ```ts
-type AnyModel = Model<string, any, any, any>;
+type AnyModel = Model<string, any, any, any, any, any>;
 ```
 
 ## AnyModelLike {#type-anymodellike}
 
 ```ts
-type AnyModelLike = ModelLike<string, any, any, any>;
+type AnyModelLike = ModelLike<string, any, any, any, any, any>;
 ```
 
 ## AuthApi {#type-authapi}
@@ -279,50 +254,6 @@ interface BatchEntry {
 }
 ```
 
-## BlameField {#type-blamefield}
-
-```ts
-/** Кто и почему последним изменил лист версии (blame()). */
-interface BlameField {
-  path: string[];
-  rev: number;
-  at: string;
-  author: string;
-  agent?: string;
-  op: string;
-  reason?: string;
-  /** Другой id (история прошла через смену id при reclass или rekey). */
-  id?: string;
-  /** false — до найденной версии история неполная: изменение могло быть раньше. */
-  exact: boolean;
-}
-```
-
-## BlameOptions {#type-blameoptions}
-
-```ts
-/** blame(): версия на момент at (по умолчанию текущая); limit — сколько версий просматривать (1000). */
-interface BlameOptions {
-  at?: string | Date;
-  limit?: number;
-}
-```
-
-## BlameResult {#type-blameresult}
-
-```ts
-/** Поля версии объекта с версиями, которые их изменили (blame()). */
-interface BlameResult {
-  id: string;
-  class: string;
-  rev: number;
-  deleted?: true;
-  /** История просмотрена целиком и без пропусков. */
-  complete: boolean;
-  fields: BlameField[];
-}
-```
-
 ## CacheOptions {#type-cacheoptions}
 
 ```ts
@@ -384,15 +315,8 @@ interface ChainCore {
   ids(): Promise<string[]>;
   /** Число сущностей последнего шага; { paths: true } — число путей. */
   count(opts?: { paths?: boolean }): Promise<number>;
-  /**
-   * Все версии сущностей последнего шага (надгробия — $deleted), по id и номеру версии;
-   * { follow: true } — и через смену id при reclass и rekey, по времени.
-   */
-  versions(opts?: { follow?: boolean }): Promise<Row[]>;
-  /** Что изменилось между двумя версиями или моментами (по умолчанию — предыдущая версия → последняя). */
-  diff(opts?: DiffOptions): Promise<DiffResult[]>;
-  /** Кто, когда и почему последним изменил каждое поле версии (по умолчанию текущей). */
-  blame(opts?: BlameOptions): Promise<BlameResult[]>;
+  /** Все версии сущностей последнего шага (надгробия — $deleted), по id и номеру версии. */
+  versions(): Promise<Row[]>;
   /**
    * Сумма поля `'data.<путь>'` по объектам последнего шага: значения приводятся к числу, складывает база. `limit()` и
    * `offset()` на итог не влияют; нет ни одного значения — `null`.
@@ -436,7 +360,7 @@ interface ChainCore {
    * Постраничный вывод по курсору: ответ начинается строго после строки, на которой кончилась прошлая страница, в
    * порядке `sort()` (без `sort()` — ошибка `invalid_query`). Курсор этой строки даёт `cursorOf(строка, поле)` с тем же
    * полем, что в `sort()`. Листает `rows()`, `ids()`, `versions()` и `paths()` (курсор пути — `cursorOf(путь, поле)`);
-   * `count()`, агрегаты, `diff()` и `blame()` курсор не учитывают.
+   * перед `count()` и агрегатами (`sum`, `avg`, `min`, `max`, `countBy`) — `invalid_query`: они считают по всем объектам.
    */
   after(cursor: Cursor): Chain;
   /**
@@ -472,38 +396,29 @@ interface ChainCore {
    * же цепочка (та же переменная) второй раз в одном пути шагов не добавляет, а возвращает к своему последнему шагу:
    * следующий шаг пойдёт от него.
    */
-  entity(x: Chain | Row): Chain;
+  entity(x: ChainRef | Row): Chain;
   /** Создать объект: концы — из пути и слотов; занятый ключ — ошибка exists с id. */
   create(data?: Record<string, unknown>, opts?: { reason?: string }): Chain;
-  /** Новая версия каждой цели шага: слияние патча в базе; inc(n) — приращение; { rev } — с проверкой версии. */
-  update(patch?: Record<string, unknown>, opts?: { rev?: number; reason?: string }): Chain;
+  /**
+   * Новая версия каждой цели шага: слияние патча в базе; inc(n) — приращение; { rev } — с проверкой версии. Цели сужают
+   * фильтр, id, `tags()`, `owner()` или `limit()` хотя бы у одного шага, иначе `invalid_query`; правка всех строк —
+   * `{ all: true }`.
+   */
+  update(patch?: Record<string, unknown>, opts?: { rev?: number; all?: boolean; reason?: string }): Chain;
   /** Создать или заменить целиком (класс с ключом); строка ответа несёт $upsert. */
   upsert(data: Record<string, unknown>, opts?: { reason?: string }): Chain;
   /**
    * Удаляет цели шага; строки, которые на них ссылаются, база удаляет вместе с ними, отвязывает или не даёт удалить цель —
    * как задано в `onDelete` их ссылок. Без `{ confirm: true }` — предпросмотр удаления: ничего не удаляется, терминал
-   * вернёт все строки, которых оно коснулось бы, у каждой `$action` — что с ней будет.
+   * вернёт все строки, которых оно коснулось бы, у каждой `$action` — что с ней будет. С `{ confirm: true }` цели сужают
+   * фильтр, id, `tags()`, `owner()` или `limit()` хотя бы у одного шага, иначе `invalid_query`; удаление всех строк —
+   * `{ confirm: true, all: true }`.
    */
-  delete(opts?: { confirm?: boolean; reason?: string }): Chain;
-  /** Затереть строковые поля ('[erased]') и пометить тегом anonymized. */
-  anonymize(fields: string[], opts?: { reason?: string }): Chain;
-  /** Сменить класс: у класса с ключом — новый id и перевод ссылок. */
-  reclass(cls: string, data?: Record<string, unknown>, opts?: { reason?: string }): Chain;
+  delete(opts?: { confirm?: boolean; all?: boolean; reason?: string }): Chain;
   /** Чтение с блокировкой строк последнего шага до конца db.begin() (rows, first, ids). */
   forUpdate(): Chain;
   /** Восстановить удалённые объекты шага: последний снимок новой версией (id прежний). */
   restore(opts?: { reason?: string }): Chain;
-  /**
-   * Стирает историю удалённых объектов шага: все их версии в журнале, от каждого остаётся одна запись `purge`. Удалённые
-   * объекты шаг находит сам, без `withDeleted()`. Без `{ confirm: true }` — предпросмотр: ничего не стирается, терминал
-   * вернёт надгробия с `$versions` — сколько версий сотрётся.
-   */
-  purge(opts?: { confirm?: boolean; reason?: string }): Chain;
-  /**
-   * Новое значение ключа объектов шага. id вычисляется из ключа, поэтому объект получает новый id: ссылки других строк
-   * на него переводятся на новый id, а журнал связывает старый id с новым.
-   */
-  rekey(patch: Record<string, unknown>, opts?: { reason?: string }): Chain;
   /** Кэш результатов: ответ хранится в памяти процесса ttl секунд (по умолчанию 60). */
   cache(opts?: { ttl?: number }): Chain;
 }
@@ -526,13 +441,16 @@ interface ChainMods {
   withDeleted?: boolean;
   /** Чтение с блокировкой строк последнего шага (только в db.begin()). */
   forUpdate?: boolean;
-  /** versions({ follow: true }): история и через смену id (reclass, rekey) по колонке moved. */
-  follow?: boolean;
   /** Кэш результатов: .cache() — срок по умолчанию, .cache({ ttl }) — свой, секунды. */
   cache?: { ttl?: number };
-  /** Параметры терминалов diff() и blame(): номера версий или моменты (ISO). */
-  hist?: { from?: number | string; to?: number | string; at?: string; follow?: boolean; limit?: number };
 }
+```
+
+## ChainRef {#type-chainref}
+
+```ts
+/** Любая цепочка — с типами по моделям (`TypedChain`) или без них (`Chain`): аргумент `entity()` и значение слота. */
+type ChainRef = Pick<ChainCore, 'ids'>;
 ```
 
 ## ClassDef {#type-classdef}
@@ -547,18 +465,11 @@ interface ClassDef<S extends z.ZodRawShape = z.ZodRawShape, E extends EndsInput 
   fields?: z.ZodObject<S> | S;
   key?: readonly string[];
   onDelete?: Partial<Record<keyof E & string, OnDelete>>;
-  history?: boolean | HistoryPolicy;
+  /** Вести ли журнал версий (по умолчанию да). */
+  history?: boolean;
   ownerDefault?: 'tenant' | 'actor';
   cache?: { ttl?: number };
   meta?: ClassMeta;
-  /** Производный класс: строки пишет только проектор с этим именем; наследуется. */
-  derivedBy?: string;
-  /**
-   * Агрегаты в базе: поле — сумма поля (`sum`) или число (`count: true`) живых строк класса `of` того
-   * же арендатора, чей одиночный конец `via` ведёт на строку; `where` — JSON Schema над данными строки-источника.
-   * Поле считает база, приложение его не пишет. Наследуется, потомок заменяет целиком.
-   */
-  aggregate?: Record<string, AggregateDef>;
 }
 ```
 
@@ -575,12 +486,10 @@ interface ClassDescription {
   fields: { properties: Record<string, JsonSchema>; required?: string[] };
   ends?: Record<string, { class: string | string[]; many?: boolean; required?: boolean; min?: number; max?: number; onDelete?: OnDelete; meta?: Record<string, unknown> }>;
   key?: string[];
-  history?: boolean | HistoryPolicy;
+  history?: boolean;
   ownerDefault?: 'tenant' | 'actor';
   cache?: { ttl?: number };
   meta?: ClassMeta;
-  derivedBy?: string;
-  aggregate?: Record<string, { sum?: string; count?: true; of: string; via: string; where?: JsonSchema }>;
 }
 ```
 
@@ -599,14 +508,11 @@ interface ClassInfo {
   schema: JsonSchema;
   ends: Record<string, EndInfo>;
   key: string[];
-  history: unknown;
+  /** Ведёт ли класс журнал версий (`history: false` — нет). */
+  history: boolean;
   ownerDefault: 'tenant' | 'actor';
   cache?: { ttl?: number };
   meta: Record<string, unknown>;
-  /** Производный класс: строки пишет только проектор с этим именем. */
-  derivedBy?: string;
-  /** Агрегатные поля: их считает база, приложение не пишет. */
-  aggregate?: Record<string, AggregateInfo>;
   /** Валидатор на TypeScript (компилируется при первом обращении). */
   validator(): Validator;
 }
@@ -644,7 +550,7 @@ interface ConnectOptions {
   /**
    * Один процесс малого приложения: строка подключения администратора (или пул postgres.js). Второй
    * пул — не больше двух соединений — открывается при первой надобности и служит только администраторским вызовам корня
-   * подключения: `load`, `projector`, `rebuildAggregates`, `verify`, `maintain` и `syncModels`, с той же сессией.
+   * подключения: `load`, `maintain` и `syncModels`, с той же сессией.
    * Цепочки и `db.sql` идут через пул приложения (`dsn`) под RLS. Роль строки — суперпользователь или роль с `SET` на
    * роль-владельца, иначе `admin_required`. Пароль администратора в процессе приложения — только для малых приложений.
    */
@@ -674,15 +580,9 @@ interface ConnectOptions {
    * Запускать `maintain()` по расписанию: интервал — число миллисекунд или строка вроде `'15m'`, `'1h'`, от 1 мс до
    * 2³¹−1 мс (около 24 суток); иначе `connect()` отказывает с `invalid_data`, не открывая соединений. Если обслуживание в
    * этот момент уже ведёт другой процесс или ещё идёт прошлый запуск, запуск пропускается. `close()` ждёт, пока идущий
-   * запуск доделает текущую пачку.
+   * запуск закончится.
    */
   maintain?: string | number;
-  /**
-   * Язык сообщений об ошибках: `'ru'` (по умолчанию) или `'en'`. На этом языке — текст и
-   * подсказка `hint` ошибок самого `connect()`, методов `db`, цепочек, батчей, `db.auth`, `db.acl`, подписок и проекторов
-   * подключения; у ошибок базы с ключом каталога — тоже. Сырой SQL мимо библиотеки получает русский текст базы.
-   */
-  lang?: Lang;
 }
 ```
 
@@ -758,41 +658,16 @@ interface DbCore {
   /** Отправить накопленные сигналы сейчас. */
   flushSignals(): Promise<void>;
   /**
-   * Проверяет целостность журнала всей установки: сходится ли хэш каждой версии с хэшем предыдущей и текущая строка
-   * объекта — с его последней версией; с `{ data: true }` проверяет ещё каждую строку. Якорь в ответе — один хэш текущих
-   * версий всех объектов: храните его вне базы, тогда заметна и подмена самых свежих версий. Нужно право `letopis.verify`
-   * (по умолчанию оно у системного администратора) или администраторское подключение.
+   * Обслуживание: истёкшие и погашенные сессии, одноразовые коды, строки-замки удалённых классов, очередь сигналов. Нужно
+   * право `letopis.maintain` (по умолчанию оно у системного администратора) или администраторское подключение.
    */
-  verify(opts?: { data?: boolean }): Promise<VerifyResult>;
-  /** Обслуживание: истёкшие сессии и коды, прореживание журнала по политике хранения, очередь сигналов. */
-  maintain(opts?: MaintainOptions): Promise<MaintainReport>;
-  /**
-   * Сбрасывает тестовую установку: сессии, данные одного арендатора или всё — смотря по `level`. Работает, только если
-   * установка поставлена с `up({ allowReset: true })`, у вызывающего есть право `letopis.reset` (или подключение
-   * администраторское), а `confirm` совпадает с именем схемы.
-   */
-  reset(opts: ResetOptions): Promise<ResetResult>;
-  /**
-   * Стирает версии, сделанные раньше момента `before`; текущая версия остаётся всегда. Вместо стёртого начала истории
-   * остаётся служебная запись `trim` со временем появления объекта.
-   */
-  trimHistory(target: string | string[] | Row | Row[], before: string | Date): Promise<number>;
-  /**
-   * Меняет ключ класса. Объекты его семейства (сам класс и потомки), у которых по новому ключу выходит другой id,
-   * переезжают на новый id, а ссылки на них переводятся.
-   */
-  rekeyClass(cls: string, key: string[]): Promise<number>;
-  /**
-   * Описание модели для программ и языковых моделей: классы арендатора сессии и общие классы System с полями, ключом,
-   * ссылками и метаданными `meta`. `describeText(db.describe())` превращает его в текст.
-   */
-  describe(): ModelDescription;
+  maintain(): Promise<MaintainReport>;
   /** Подписка по курсору: `for await (const ev of db.watch({ from })) …`; `sub.cursor` — откуда продолжить. */
   watch(opts?: WatchOptions): Subscription;
   /** Кэш результатов подключения. */
   readonly cache: { clear(): void; stats(): CacheStats };
   /** Начать путь с готового узла: `db.entity(row | цепочка)`. */
-  entity(x: Chain | Row): Chain;
+  entity(x: ChainRef | Row): Chain;
   /**
    * Подключение на том же пуле от имени другого аккаунта: запросы идут с его правами и в его арендаторе. Журнал
    * записывает автором версий этот аккаунт, а исполнителем (`agent`) — аккаунт сессии, например сервис. Нужно право
@@ -808,18 +683,6 @@ interface DbCore {
    * от имени пользователя (опция `as`). Работает только на администраторском подключении, иначе `admin_required`.
    */
   load(input: LoadInput, opts?: LoadOptions): Promise<LoadReport>;
-  /**
-   * Проектор из журнала: строит строки производных классов (`derivedBy: имя`) из изменений
-   * классов `from`; `run()` — догнать журнал и следовать за ним, `rebuild()` — перестроить с текущего состояния.
-   * Только на администраторском подключении (иначе `admin_required`).
-   */
-  projector(name: string, opts: ProjectorOptions): Projector;
-  /**
-   * Ремонт агрегатов в базе: поля класса (с потомками) во всех арендаторах — заново из живых строк
-   * источников, под исключительными блокировками; версия — только у исправленных. Возвращает их число. Только на
-   * администраторском подключении (иначе `admin_required`).
-   */
-  rebuildAggregates(cls: string): Promise<number>;
   /**
    * Именованная очередь планов фасада: `batch.Класс(…).create(…)`; `batch.run()` — одной транзакцией. У корня,
    * у каждого `db.as()` и у каждой `db.begin()` очереди свои: план исполняется от имени фасада, который его поставил.
@@ -840,43 +703,6 @@ interface DbCore {
 ```ts
 /** Явная транзакция `db.begin()`: тот же API; ошибка любого запроса её ломает. */
 type DbTx = Db;
-```
-
-## DiffChange {#type-diffchange}
-
-```ts
-/** Изменение пути: added — не было, removed — не стало, changed — другое значение. */
-interface DiffChange {
-  /** Путь: первый сегмент — раздел строки (data, links, tags, owner, class). */
-  path: string[];
-  kind: 'added' | 'removed' | 'changed';
-  before?: unknown;
-  after?: unknown;
-}
-```
-
-## DiffOptions {#type-diffoptions}
-
-```ts
-/** diff(): «до» и «после» — номер версии или момент (ISO-строка, Date); follow — через смену id. */
-interface DiffOptions {
-  from?: number | string | Date;
-  to?: number | string | Date;
-  follow?: boolean;
-}
-```
-
-## DiffResult {#type-diffresult}
-
-```ts
-/** Различия объекта между двумя версиями (diff()). */
-interface DiffResult {
-  id: string;
-  class: string | null;
-  from: { rev: number; at: string; id?: string } | null;
-  to: { rev: number; at: string; id?: string; deleted?: true } | null;
-  changes: DiffChange[];
-}
 ```
 
 ## EndInfo {#type-endinfo}
@@ -922,28 +748,8 @@ type Filter = string | string[] | Op | { id: string; class: string } | { [field:
 ## FilterOf {#type-filterof}
 
 ```ts
-/** Фильтр шага класса C: id, список id, строка ответа, or(…) или объект полей и ролей. */
-type FilterOf<C> =
-  | string
-  | string[]
-  | Op
-  | { id: string; class: string }
-  | ({ [P in keyof DataOf<C>]?: FieldFilterOf<DataOf<C>[P]> } & { [R in keyof LinksOf<C>]?: string | { id: string } | null } & { id?: string | string[] });
-```
-
-## HistoryPolicy {#type-historypolicy}
-
-```ts
-/** Политика хранения истории: сроки ярусов по возрастанию, 'forever' — бессрочно. */
-interface HistoryPolicy {
-  all: string;
-  daily?: string;
-  weekly?: string;
-  monthly?: string;
-  yearly?: string;
-  /** Часовой пояс границ периодов (по умолчанию UTC). */
-  tz?: string;
-}
+/** Фильтр шага класса C: id, список id, строка ответа, or(…) из фильтров класса или объект полей и ролей. */
+type FilterOf<C> = string | string[] | { id: string; class: string } | OrOp<ObjectFilterOf<C>> | ObjectFilterOf<C>;
 ```
 
 ## IncMarker {#type-incmarker}
@@ -999,13 +805,6 @@ interface KeyedClass {
 }
 ```
 
-## Lang {#type-lang}
-
-```ts
-/** Язык сообщений: опция `lang` у `connect()`, `createMcpServer()` и CLI (`--lang`); по умолчанию `ru`. */
-type Lang = 'ru' | 'en';
-```
-
 ## LeafType {#type-leaftype}
 
 ```ts
@@ -1050,8 +849,6 @@ interface LoadOptions {
    * переносят историю объектов из другой системы.
    */
   withHistory?: boolean;
-  /** В конце перепроверить загруженные строки проверкой базы. */
-  verify?: boolean;
   /** Класс строк без $class (CLI --class). */
   class?: string;
   /** Арендатор строк (по умолчанию — арендатор сессии). */
@@ -1130,19 +927,6 @@ interface LostRule {
 }
 ```
 
-## MaintainOptions {#type-maintainoptions}
-
-```ts
-interface MaintainOptions {
-  /** Момент «сейчас» для прореживания — только в установке с `allowReset` (тесты). */
-  now?: string | Date;
-  /** Сколько пачек прореживания журнала самое большее сделать за один вызов; каждая пачка — своя транзакция. */
-  batches?: number;
-  /** Сколько версий самое большее удалить в одной пачке прореживания. */
-  limit?: number;
-}
-```
-
 ## MaintainReport {#type-maintainreport}
 
 ```ts
@@ -1156,11 +940,6 @@ interface MaintainReport {
    * заменённых новым и исчерпавших попытки.
    */
   codes: number;
-  /** Прорежено версий журнала. */
-  thinned: number;
-  batches: number;
-  /** Прореживание не дошло до конца журнала — следующий вызов продолжит. */
-  more: boolean;
   /** Заполнение очереди сигналов PostgreSQL (0…1); больше половины — предупреждение. */
   queue: number;
 }
@@ -1174,8 +953,7 @@ interface McpOptions {
   write?: boolean;
   /**
    * Предел строк в одном ответе (по умолчанию 100). Остальные строки `letopis_query` отдаёт на следующих страницах по
-   * курсору, а версии, группы `countBy` и изменения `diff` и `blame` сверх предела обрезаются с пометкой `more` или
-   * `truncated`.
+   * курсору, а версии и группы `countBy` сверх предела обрезаются с пометкой `more` или `truncated`.
    */
   maxRows?: number;
   /**
@@ -1196,18 +974,17 @@ interface McpOptions {
    * умолчанию такая сессия — отказ `user_session_required`.
    */
   allowSystemAdmin?: boolean;
-  /**
-   * Язык: `'ru'` (по умолчанию) или `'en'`. На нём — описания инструментов, их параметров и
-   * instructions, а ошибки letopis в вызовах инструментов и в самом `createMcpServer` — с подсказкой `hint`.
-   */
-  lang?: Lang;
 }
 ```
 
 ## Model {#type-model}
 
 ```ts
-interface Model<N extends string = string, D = unknown, L = unknown, A extends string = string> {
+/**
+ * Модель класса. `N` — имя, `D` — данные строки, `L` — концы строки, `A` — алиас, `E` — концы класса (роль → классы
+ * целей, множественный ли, обязательный ли), `P` — имя класса и его предков: всё это — для строгих типов цепочек.
+ */
+interface Model<N extends string = string, D = unknown, L = unknown, A extends string = string, E = unknown, P extends string = N> {
   readonly name: N;
   readonly kind: 'hub' | 'link';
   readonly alias?: A;
@@ -1229,63 +1006,22 @@ interface Model<N extends string = string, D = unknown, L = unknown, A extends s
   /** Правила refine, которых нет в JSON Schema и в базе. */
   lostRules(): LostRule[];
   /** Только для вывода типов. */
-  readonly __types?: { data: D; links: L };
-}
-```
-
-## ModelDescription {#type-modeldescription}
-
-```ts
-/** Машинное описание модели (`db.describe()`). */
-interface ModelDescription {
-  schema: string;
-  tenant: string | null;
-  classes: {
-    name: string;
-    kind: 'hub' | 'link';
-    alias?: string;
-    abstract: boolean;
-    parent?: string;
-    ancestors: string[];
-    system: boolean;
-    fields: Record<string, unknown>;
-    required: string[];
-    /** Условия по нескольким полям (`fields.anyOf` описания с учётом наследования): хотя бы одно должно выполняться. */
-    anyOf?: unknown[];
-    /** Условия по нескольким полям (`fields.oneOf`): ровно одно должно выполняться. */
-    oneOf?: unknown[];
-    ends: Record<string, unknown>;
-    key: string[];
-    history: unknown;
-    ownerDefault: string;
-    cache?: { ttl?: number };
-    meta: Record<string, unknown>;
-    /** Производный класс: строки пишет только проектор с этим именем. */
-    derivedBy?: string;
-    /** Агрегатные поля: сумма или число живых строк класса-источника, их считает база. */
-    aggregate?: Record<string, AggregateInfo>;
-    /**
-     * Рабочие цепочки из реестра, текст TypeScript. `create` — создать: поля ключа и
-     * обязательные поля без умолчания с образцами значений (`examples` из JSON Schema поля, `const`, `default`, первое
-     * из `enum`, иначе по типу), обязательные концы и концы ключа — слотами; у абстрактного, производного и
-     * системного класса его нет. `find` — найти: по ключу — `first()`, иначе по обязательному полю — `rows()`.
-     * `neighbors` — перейти к соседям: по каждому концу класса и к классам, чьи концы ведут на него. `'<id Класс>'` —
-     * место для id объекта этого класса или его потомка (`'<id A|B>'` — любого из них, `'<id Класс #2>'` — второго).
-     */
-    examples: { create?: string; find: string; neighbors: string[] };
-  }[];
-  methods: { chain: readonly string[]; db: readonly string[] };
+  readonly __types?: { data: D; links: L; ends: E; ancestors: P };
 }
 ```
 
 ## ModelLike {#type-modellike}
 
 ```ts
-/** То, что цепочкам нужно от модели: имя, алиас и выведенные типы данных и концов. */
-interface ModelLike<N extends string = string, D = unknown, L = unknown, A extends string = string> {
+/**
+ * То, что цепочкам нужно от модели: имя, алиас и типы для вывода — данные строки, концы строки, концы класса (роль →
+ * `{ targets: имена классов целей; many; required }`) и имена класса и его предков. Модели letopis/model и объявления
+ * `letopis types` ему соответствуют.
+ */
+interface ModelLike<N extends string = string, D = unknown, L = unknown, A extends string = string, E = unknown, P extends string = never> {
   readonly name: N;
   readonly alias?: A;
-  readonly __types?: { data: D; links: L };
+  readonly __types?: { data: D; links: L; ends?: E; ancestors?: P };
 }
 ```
 
@@ -1302,6 +1038,16 @@ interface Op {
   [OP]: string;
   args: unknown[];
 }
+```
+
+## OrOp {#type-orop}
+
+```ts
+/**
+ * Результат `or(…)` (index.ts): оператор `or` и фильтры, которыми он типизирован; `F` — только для типов. В шаге класса C
+ * фильтры внутри `or()` — фильтры-объекты класса C.
+ */
+type OrOp<F = Record<string, unknown>> = Op & { readonly [K in typeof OP]: 'or' } & { readonly __filters?: F };
 ```
 
 ## PatchOf {#type-patchof}
@@ -1322,271 +1068,18 @@ type PatchOf<T> = {
 type Path = Record<string, Row>;
 ```
 
-## Projector {#type-projector}
-
-```ts
-class Projector {
-  readonly name: string;
-  /**
-   * Догнать журнал и следовать за ним до stop(); { once: true } — только догнать: всё, что зафиксировано до вызова.
-   * Проектор читает журнал ниже горизонта — самой старой открытой транзакции кластера, иначе потерял бы события
-   * транзакций, зафиксированных позже; поэтому once ждёт транзакции, открытые в момент вызова, до wait мс (по умолчанию
-   * 5000, 0 — не ждать) и отвечает caughtUp: true, если догнал. Первый запуск (проекции ещё нет) начинается с
-   * перестройки пачками, прерванная перестройка пачками продолжается; так же, пачками, перестраивает onExpired:
-   * 'rebuild' (горизонт подписок кластера стоит не дольше пачки).
-   */
-  run(opts?: { once?: boolean; wait?: number }): Promise<ProjectorReport>;
-  /**
-   * Перестроить проекцию с текущего состояния: атомарно (одна транзакция: до фиксации читатели видят
-   * прежние строки, но горизонт подписок стоит) или { chunked: true } — пачками: производные строки
-   * удаляются сразу, до конца перестройки данные неполные (status() — rebuilding); прерванную перестройку
-   * продолжает следующий запуск. Полная перестройка начинает всех участников заново: отметки выбывших снимаются,
-   * а чьи данные снова не проходят — выбывают снова. { tenant: id } — только этот арендатор, одной транзакцией:
-   * его производные строки удаляются и строятся из его текущих строк источников, отметка выбывшего снимается.
-   * { tenant, chunked: true } — этот арендатор пачками, пока хвост журнала идёт для всех:
-   * его производные строки удаляются сразу и до конца перестройки неполны; блокировку, занятую run() другого процесса,
-   * перестройка пережидает.
-   */
-  rebuild(opts?: { chunked?: boolean; tenant?: string }): Promise<ProjectorReport>;
-  status(): Promise<ProjectorStatus>;
-  /** Остановить run() после текущей пачки. */
-  stop(): void;
-  /** stop() и отписка от сигналов. */
-  close(): void;
-  /**
-   * Входит ли класс `cls` в классы `into` проектора у арендатора `tenant` — сами эти классы или их потомки. Служебный
-   * метод: им `out` проверяет, что `handle` пишет только в эти классы.
-   */
-  intoOf(tenant: string, cls: string): boolean;
-  /** Поля ключа класса into арендатора (пусто — класс без ключа). */
-  keyOf(tenant: string, cls: string): string[];
-  /**
-   * Ключ свёртки inc: класс и строка из одних полей ключа класса или одного $id; иначе null. Строку с другими полями
-   * (данные, $tags, $owner) inc не складывает: её поля правят строку, и порядок таких правок важен.
-   */
-  foldKey(tenant: string, cls: string, row: ProjectorRow): string | null;
-}
-```
-
-## ProjectorChange {#type-projectorchange}
-
-```ts
-/** Изменение для handle: версия журнала (как событие подписки) и, по withBefore, прошлая версия. */
-interface ProjectorChange {
-  /** Курсор события в журнале (при перестройке — пустая строка). */
-  cursor: string;
-  id: string;
-  class: string;
-  tenant: string;
-  /** create, update, delete, restore, reclass, rekey, …; служебные — purge, trim, reset (их rev — 1). */
-  op: string;
-  rev: number;
-  at: string;
-  author: string;
-  agent?: string;
-  reason?: string;
-  moved?: string;
-  /** Версия из журнала (надгробие — $deleted); при перестройке — текущая строка. */
-  row: Row;
-  /**
-   * withBefore: прошлая версия того же id; null — её нет. У первой версии нового id после reclass и rekey — null:
-   * прежние данные вычитает надгробие прежнего id (его before — последняя версия прежнего id). Строка вошла в семейство
-   * from сменой класса без смены id — тоже null: прошлая версия была вне семейства.
-   */
-  before?: Row | null;
-  /** Строка текущего состояния при перестройке (op — create). */
-  rebuild?: true;
-}
-```
-
-## ProjectorFailure {#type-projectorfailure}
-
-```ts
-/** Выбывший арендатор: база отклонила запись его результатов. */
-interface ProjectorFailure {
-  /** Курсор первого неприменённого изменения арендатора (ошибка при перестройке — курсор её начала). */
-  cursor: string;
-  /**
-   * Код ошибки letopis (invalid_data, target_not_found, …) или SQLSTATE; cursor_expired — истёк ярус all источников
-   * арендатора, invalid_class — его источники не ведут журнал (history: false).
-   */
-  code: string;
-  /** Текст ошибки: проектор, арендатор и id строки — на языке подключения, если отметка несёт ключ каталога. */
-  message: string;
-  /** Ключ каталога сообщений и параметры текста: по ним status() и rebuild({ tenant }) собирают message на языке подключения. */
-  key?: string;
-  params?: Record<string, unknown>;
-}
-```
-
-## ProjectorOptions {#type-projectoroptions}
-
-```ts
-interface ProjectorOptions {
-  /** Классы-источники (с потомками); должны вести журнал. */
-  from: string[];
-  /** Производные классы (с потомками): описание каждого — derivedBy: имя проектора. */
-  into: string[];
-  /**
-   * Версия логики проектора — целое число от 1. Вместе с позицией в журнале проектор хранит в базе версию, которой
-   * построена проекция: если она другая, `run()` и `rebuild({ tenant })` отклоняются с `rebuild_required`, а полная
-   * перестройка `rebuild()` строит проекцию заново и запоминает новую версию.
-   */
-  version: number;
-  /**
-   * Функция `handle(changes, out)`: получает изменения одного арендатора и пишет его результаты через `out`. Пачку журнала
-   * проектор делит по арендаторам и вызывает `handle` для каждого по очереди.
-   */
-  handle(changes: ProjectorChange[], out: ProjectorOut): void | Promise<void>;
-  /** Подавать прошлую версию объекта (before). */
-  withBefore?: boolean;
-  /**
-   * Курсор старше яруса all политики хранения источников (cursor_expired): 'rebuild' — перестроить самому, пачками.
-   * Ярус — по арендатору: истёк у части участников — выбывают они (с 'rebuild' — перестраиваются сами, по одному, пачками), у
-   * всех — вся проекция.
-   */
-  onExpired?: 'rebuild' | 'error';
-  /** Изменений в пачке (по умолчанию 500). */
-  batch?: number;
-  /** Как часто проектор сам проверяет журнал, если сигнал не пришёл, мс (по умолчанию 1000); сигналы источников будят его раньше. */
-  pollMs?: number;
-  /**
-   * Сколько транзакция проектора ждёт чужую блокировку строки, мс (по умолчанию 5000; 0 — без предела). Дольше —
-   * пачка откатывается, курсор остаётся, run() не отклоняется, а пропускает проход и повторяет его.
-   */
-  lockTimeout?: number;
-  /**
-   * Сколько проходов подряд запись одного арендатора может упираться в lockTimeout, прежде чем он выбудет (код 55P03,
-   * дальше — rebuild({ tenant })), а пачка пойдёт для остальных; по умолчанию 0 — не выбывает, проход повторяется для всех.
-   * Счёт — в процессе, удачная запись арендатора его сбрасывает.
-   */
-  lockRetries?: number;
-  /**
-   * Явный список арендаторов проектора: участники — только они (и только те, у кого каждый класс into помечен
-   * derivedBy). Без списка участник — любой арендатор с такими классами.
-   */
-  tenants?: string[];
-}
-```
-
-## ProjectorOut {#type-projectorout}
-
-```ts
-/** Запись результатов: handle получает изменения одного арендатора, out пишет только классы into этого арендатора. */
-interface ProjectorOut {
-  /** Создать или заменить целиком по ключу класса (у класса без ключа — по $id). */
-  upsert(cls: string, row: ProjectorRow, opts: { tenant: string }): void;
-  /**
-   * Прибавляет к полям строки числа из `deltas`: читать строку не нужно, и итог не зависит от порядка приращений. Поле
-   * приращения, которого в строке нет, считается от 0, а если нет самой строки, она создаётся; поля `row` дописываются в
-   * её данные. Приращения одной строки, заданной только полями ключа (или только `$id`), до отправки в базу складываются
-   * в одну правку, пока между ними нет `upsert`, `delete` или `get`.
-   */
-  inc(cls: string, row: ProjectorRow, deltas: Record<string, number>, opts: { tenant: string }): void;
-  /**
-   * Удалить строку: у класса с ключом — по полям ключа, у класса без ключа — по id (строкой или { $id }); строки нет —
-   * ничего. Один id у класса с ключом — invalid_data.
-   */
-  delete(cls: string, keyOrId: string | ProjectorRow, opts: { tenant: string }): void;
-  /**
-   * Текущая строка внутри пачки (с записями пачки, сделанными до вызова); нет — null. Строку называют, как в delete: у
-   * класса с ключом — полями ключа, у класса без ключа — id; один id у класса с ключом — invalid_data.
-   */
-  get(cls: string, keyOrId: string | ProjectorRow, opts: { tenant: string }): Promise<Row | null>;
-}
-```
-
-## ProjectorReport {#type-projectorreport}
-
-```ts
-interface ProjectorReport {
-  /** Пачек журнала, записанных проектором. */
-  batches: number;
-  /** Изменений, переданных в handle (при перестройке — строк источников). */
-  changes: number;
-  created: number;
-  updated: number;
-  deleted: number;
-  unchanged: number;
-  /** Пачек, пропущенных из-за блокировки: проектор работает в другом процессе или строку держит чужая транзакция. */
-  skipped: number;
-  /** Перестроек. */
-  rebuilds: number;
-  /** Арендаторы, чья запись упиралась в чужую блокировку строки дольше lockTimeout (по порядку, без повторов). */
-  locked: string[];
-  /**
-   * Только у run({ once: true }): догнал ли запуск всё, что было зафиксировано до вызова. false — транзакция, открытая в
-   * момент вызова, держала горизонт дольше wait, блокировку проектора держит другой процесс (skipped) или вызван stop().
-   */
-  caughtUp?: boolean;
-}
-```
-
-## ProjectorRow {#type-projectorrow}
-
-```ts
-/** Строка результата в формате загрузчика: поля и роли концов на верхнем уровне, служебные $tags, $owner, $id. */
-type ProjectorRow = Record<string, unknown>;
-```
-
-## ProjectorStatus {#type-projectorstatus}
-
-```ts
-interface ProjectorStatus {
-  name: string;
-  /** new — проекции ещё нет; rebuilding — идёт (или прервана) перестройка пачками. */
-  state: 'new' | 'running' | 'rebuilding';
-  version: number | null;
-  cursor: string | null;
-  /** Время последнего прохода (события или пустой пачки). */
-  at: string | null;
-  /** Отставание, мс: возраст самого старого необработанного изменения источников; 0 — догнал. */
-  lag: number;
-  /** Выбывшие арендаторы (id → ошибка): их изменения пропускаются до rebuild({ tenant }) или полной перестройки. */
-  failed: Record<string, ProjectorFailure>;
-  /** Арендаторы, которых перестраивают пачками по одному (rebuild({ tenant, chunked: true }), onExpired: 'rebuild'). */
-  rebuildingTenants: string[];
-}
-```
-
 ## QueryEvent {#type-queryevent}
 
 ```ts
 /** Событие хука onQuery: один запрос цепочки. */
 interface QueryEvent {
-  mode: 'paths' | 'rows' | 'ids' | 'count' | 'versions' | 'agg' | 'diff' | 'blame';
+  mode: 'paths' | 'rows' | 'ids' | 'count' | 'versions' | 'agg';
   /** Классы шагов цепочки. */
   classes: string[];
   ms: number;
   rows: number;
   /** ms > slowMs. */
   slow: boolean;
-}
-```
-
-## ResetOptions {#type-resetoptions}
-
-```ts
-interface ResetOptions {
-  level: 'sessions' | 'tenant' | 'all';
-  /** Подтверждение — имя схемы установки. */
-  confirm: string;
-  /** Какого арендатора сбросить при `level: 'tenant'` — его id; на других уровнях не учитывается. */
-  tenant?: string;
-}
-```
-
-## ResetResult {#type-resetresult}
-
-```ts
-interface ResetResult {
-  level: string;
-  sessions?: number;
-  tenant?: string;
-  rows?: number;
-  versions?: number;
-  /** `level: 'all'` — новый ключ сервиса: прежние сессии и ключи больше не действуют. */
-  serviceKey?: string;
 }
 ```
 
@@ -1608,11 +1101,9 @@ interface Row<D = Record<string, unknown>, L = Record<string, string | string[]>
   at: string;
   author: string;
   agent?: string;
-  /** Вид операции версии: create, update, delete, reclass, … */
+  /** Вид операции версии: create, update, delete, restore, … */
   op: string;
   reason?: string;
-  /** Связь со старым или новым id при reclass и rekey. */
-  moved?: string;
   /** Надгробие: удалённая сущность (withDeleted) или версия удаления (versions). */
   $deleted?: true;
   /** Глубина узла при deep() (1 — прямой потомок); в превью удаления — уровень каскада (0 — цель). */
@@ -1621,10 +1112,6 @@ interface Row<D = Record<string, unknown>, L = Record<string, string | string[]>
   $upsert?: 'created' | 'updated' | 'unchanged';
   /** Превью удаления (delete() без confirm): удалится, снимется конец или помешает (restrict). */
   $action?: 'delete' | 'unset' | 'restrict';
-  /** purge(): число версий в журнале (превью) или стёртых. */
-  $versions?: number;
-  /** purge({ confirm: true }): история стёрта. */
-  $purged?: true;
 }
 ```
 
@@ -1632,7 +1119,7 @@ interface Row<D = Record<string, unknown>, L = Record<string, string | string[]>
 
 ```ts
 /** Строка ответа класса C. */
-type RowOf<C> = Row<DataOf<C>, LinksOf<C>>;
+type RowOf<C> = C extends unknown ? Row<Plain<DataOf<C>>, Plain<LinksOf<C>>> : never;
 ```
 
 ## Scalar {#type-scalar}
@@ -1690,22 +1177,17 @@ type StepFn = ((filter?: Filter) => Chain) & {
 ## StepsOf {#type-stepsof}
 
 ```ts
-/** Шаги по именам и алиасам моделей M. */
+/** Шаги корня: имена и алиасы моделей подключения и системных классов. */
 type StepsOf<M extends readonly AnyModelLike[]> =
-  { [K in M[number] as K['name']]: (filter?: FilterOf<K>) => TypedChain<K, M> } &
-  { [K in M[number] as K extends ModelLike<string, unknown, unknown, infer A> ? (string extends A ? never : A) : never]: (filter?: FilterOf<K>) => TypedChain<K, M> };
+  { [K in AllOf<M> as NameOf<K>]: StepFnOf<K, M> } &
+  { [K in AllOf<M> as AliasOf<K>]: StepFnOf<K, M> };
 ```
 
 ## Subscription {#type-subscription}
 
 ```ts
 class Subscription implements AsyncIterable<WatchEvent> {
-  /**
-   * Курсор подписки: позиция после последнего выданного события (или начальная точка). Догнав журнал, подписка обновляет
-   * в нём время и на пустых опросах, поэтому его, а не курсор события, сохраняют, чтобы продолжить после перезапуска:
-   * курсор события хранит время события, и когда оно выйдет за ярус all политики хранения, продолжение с него —
-   * cursor_expired.
-   */
+  /** Курсор подписки: позиция после последнего выданного события (или начальная точка) — с неё продолжают после перезапуска. */
   readonly cursor: string | null;
   /**
    * Промис выполняется, когда подписка запомнила начальную точку: запись, сделанная после этого, придёт в поток
@@ -1744,6 +1226,34 @@ interface SyncResult {
 }
 ```
 
+## SystemModels {#type-systemmodels}
+
+```ts
+/**
+ * Встроенный набор моделей системных классов (lib/sql/95-seed.system.sql): шаги Class, Account, member, Resource, rule
+ * есть у любого TypedDb. Модель с тем же именем в `models` (например, из `letopis types --system`) — вместо встроенной.
+ */
+type SystemModels = readonly [
+  ModelLike<'Class', { name: string }, NoKeys, never, NoKeys>,
+  ModelLike<'Account', { name: string; enabled?: boolean; categories?: string[] }, NoKeys, never, NoKeys>,
+  ModelLike<'member', { roles?: string[] }, { User: string; Tenant: string }, never, { User: One<'Account'>; Tenant: One<'Account'> }>,
+  ModelLike<'Resource', {
+    alias: string;
+    category: 'ACCOUNT' | 'API' | 'READ' | 'WRITE' | 'DELETE';
+    pattern?: { categories?: string; roles?: string; endpoint?: string; class?: string };
+    description?: string;
+  }, NoKeys, never, NoKeys>,
+  ModelLike<'rule', {
+    permission: 'allow' | 'deny';
+    weight?: number;
+    enabled?: boolean;
+    code?: number;
+    message?: string;
+    description?: string;
+  }, { Group: string; Object: string }, never, { Group: One<'Resource'>; Object: One<'Resource'> }>,
+];
+```
+
 ## TenantOptions {#type-tenantoptions}
 
 ```ts
@@ -1762,7 +1272,7 @@ interface TenantOptions {
     password: string;
     /**
      * Вид пароля (по умолчанию PASSWORD) — как у auth.setPassword: `^[A-Z][A-Z0-9_]{1,31}$`, не служебный вид (SESSION,
-     * APIKEY, KEYSECRET, OTP, TOTP, KEY, PROJECTOR, LOCK); иначе invalid_data.
+     * APIKEY, KEYSECRET, OTP, TOTP, KEY, LOCK); иначе invalid_data.
      */
     kind?: string;
     ttl?: string;
@@ -1790,12 +1300,25 @@ interface TenantResult {
 ## TypedChain {#type-typedchain}
 
 ```ts
-/** Цепочка с текущим классом C: терминалы отдают RowOf<C>, шаги — по моделям M; роли и прочие классы — без типов. */
+/**
+ * Цепочка с текущим классом C (у шага-роли с несколькими целями — их союз): терминалы отдают RowOf<C>, шаги — переходы
+ * из концов, слоты — роли C, агрегаты — поля C.
+ */
 type TypedChain<C, M extends readonly AnyModelLike[]> = Omit<ChainCore, Retyped> & {
   paths(): Promise<Path[]>;
   rows(): Promise<RowOf<C>[]>;
   first(): Promise<RowOf<C> | null>;
-  versions(opts?: { follow?: boolean }): Promise<RowOf<C>[]>;
+  versions(): Promise<RowOf<C>[]>;
+  /** Сумма числового поля `'data.<путь>'` класса; нет ни одного значения — `null`. */
+  sum(field: NumberField<C>): Promise<number | null>;
+  /** Среднее числового поля `'data.<путь>'` класса; нет ни одного значения — `null`. */
+  avg(field: NumberField<C>): Promise<number | null>;
+  /** Наименьшее значение поля `'data.<путь>'` класса. */
+  min(field: DataField<C>): Promise<unknown>;
+  /** Наибольшее значение поля `'data.<путь>'` класса. */
+  max(field: DataField<C>): Promise<unknown>;
+  /** Сколько объектов с каждым значением поля `'data.<путь>'` класса. */
+  countBy(field: DataField<C>): Promise<Record<string, number>>;
   limit(n: number): TypedChain<C, M>;
   offset(n: number): TypedChain<C, M>;
   sort(field: 'at' | 'rev' | 'id' | `data.${string}`, dir?: 'asc' | 'desc' | boolean): TypedChain<C, M>;
@@ -1808,24 +1331,27 @@ type TypedChain<C, M extends readonly AnyModelLike[]> = Omit<ChainCore, Retyped>
   tags(v: string | string[] | Op): TypedChain<C, M>;
   owner(v: string | { id: string }): TypedChain<C, M>;
   create(data: Partial<DataOf<C>>, opts?: { reason?: string }): TypedChain<C, M>;
-  update(patch?: PatchOf<DataOf<C>>, opts?: { rev?: number; reason?: string }): TypedChain<C, M>;
+  /** Без фильтра, id, `tags()`, `owner()` и `limit()` у шагов — `invalid_query`; правка всех строк — `{ all: true }`. */
+  update(patch?: PatchOf<DataOf<C>>, opts?: { rev?: number; all?: boolean; reason?: string }): TypedChain<C, M>;
   upsert(data: Partial<DataOf<C>>, opts?: { reason?: string }): TypedChain<C, M>;
-  delete(opts?: { confirm?: boolean; reason?: string }): TypedChain<C, M>;
-  anonymize(fields: (keyof DataOf<C> & string)[], opts?: { reason?: string }): TypedChain<C, M>;
-  reclass(cls: string, data?: Record<string, unknown>, opts?: { reason?: string }): TypedChain<unknown, M>;
+  /** С `{ confirm: true }` без фильтра, id, `tags()`, `owner()` и `limit()` у шагов — `invalid_query`; всех — `{ all: true }`. */
+  delete(opts?: { confirm?: boolean; all?: boolean; reason?: string }): TypedChain<C, M>;
   forUpdate(): TypedChain<C, M>;
   restore(opts?: { reason?: string }): TypedChain<C, M>;
-  purge(opts?: { confirm?: boolean; reason?: string }): TypedChain<C, M>;
-  rekey(patch: Partial<DataOf<C>> & Partial<Record<keyof LinksOf<C>, string | { id: string }>>, opts?: { reason?: string }): TypedChain<C, M>;
   cache(opts?: { ttl?: number }): TypedChain<C, M>;
-} & StepsOf<M> & { [step: string]: StepFn };
+} & HopsOf<C, M>;
 ```
 
 ## TypedDb {#type-typeddb}
 
 ```ts
-/** Подключение с типами шагов, строк и фильтров по моделям: `connect({ models })`. */
-type TypedDb<M extends readonly AnyModelLike[]> = DbCore & StepsOf<M> & { [className: string]: StepFn };
+/**
+ * Подключение со строгими типами по моделям: `connect({ models })` или `connect<Models>()` с объявлениями
+ * `letopis types`. Шаг — только известный класс или алиас (модели и системные классы), переходы — по концам, слоты — роли
+ * класса; имена, известные только во время выполнения, — `loose(db)`. Модели без литеральных
+ * имён (`AnyModel[]` вместо списка `as const`) строгим типам не помогут — тогда это `Db`.
+ */
+type TypedDb<M extends readonly AnyModelLike[]> = string extends M[number]['name'] ? Db : DbCore & StepsOf<M>;
 ```
 
 ## UpOptions {#type-upoptions}
@@ -1840,7 +1366,10 @@ interface UpOptions extends Omit<InstallOptions, 'schema' | 'upTo' | 'migrateFro
   schema: string;
   /** Удалить схему и поставить заново. ДАННЫЕ СХЕМЫ ТЕРЯЮТСЯ. */
   fresh?: boolean;
-  /** Обновить схему отставшей ревизии: миграции и повторный накат; данные сохраняются. */
+  /**
+   * Обновить схему отставшей ревизии 2.x: миграции и повторный накат; данные сохраняются. Схему letopis 1.x (ревизия 7
+   * и ниже) не обновляет: 2.0 ставится только заново (`fresh`).
+   */
   upgrade?: boolean;
   /** Без сообщений в консоль. */
   quiet?: boolean;
@@ -1866,11 +1395,6 @@ interface UpOptions extends Omit<InstallOptions, 'schema' | 'upTo' | 'migrateFro
    * одним процессом.
    */
   login?: LoginOptions;
-  /**
-   * Язык сообщений: `'ru'` (по умолчанию) или `'en'`. На этом языке — ошибки и предупреждения
-   * `up()`, в том числе заведения арендатора `tenant`, и ход установки в консоли.
-   */
-  lang?: Lang;
 }
 ```
 
@@ -1898,7 +1422,10 @@ interface UpResult extends InstallResult {
    * (из `dsn` установки или PGlite; при готовом пуле `sql` её нет).
    */
   login?: { user: string; created: boolean; dsn?: string };
-  /** Предупреждения (версия сервера, таблицы без статистики); без quiet каждое уже напечатано через console.warn. */
+  /**
+   * Предупреждения (версия сервера, таблицы без статистики, хабы с зарезервированными именами); без quiet каждое уже
+   * напечатано через console.warn.
+   */
   warnings: string[];
 }
 ```
@@ -1909,33 +1436,6 @@ interface UpResult extends InstallResult {
 interface Validator {
   /** Нарушения ([] — данные приняты). */
   (data: unknown): Issue[];
-}
-```
-
-## VerifyIssue {#type-verifyissue}
-
-```ts
-/**
- * Находка `verify()`: `id` и `rev` — объект и версия, `problem` — текст на языке подключения. Находка об устройстве
- * таблицы (колонку `hash` считает не выражение установки) — с id System и полями `table`, `column`, `expression`.
- */
-interface VerifyIssue {
-  id: string;
-  rev?: number;
-  class?: string;
-  problem: string;
-  [k: string]: unknown;
-}
-```
-
-## VerifyResult {#type-verifyresult}
-
-```ts
-interface VerifyResult {
-  ok: boolean;
-  issues: VerifyIssue[];
-  /** Один хэш текущих версий всех объектов — храните его вне базы: подмену самых свежих версий выдаст его расхождение. */
-  anchor: string;
 }
 ```
 

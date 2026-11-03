@@ -1,5 +1,5 @@
 /**
- * Глава 16 «Ошибки»: все коды letopis из каталога сообщений библиотеки (lib/src/messages/codes.ts — что значит код и
+ * Глава 15 «Ошибки»: все коды letopis из каталога сообщений библиотеки (lib/src/messages/codes.ts — что значит код и
  * что делать, план 2.0, этап 3, п. 3) и для каждого главы, где его вызывает исполняемый пример (covers: error.<код>).
  *   cd guide && npx tsx scripts/gen-errors.ts        (--check — только сверить, код 1 при расхождении)
  */
@@ -10,12 +10,12 @@ import { codes } from '../../lib/src/messages/codes.ts';
 const ROOT = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 const TITLES: Record<string, string> = {
   start: 'Старт', basics: 'Основы', install: 'Установка', models: 'Модели', write: 'Запись', read: 'Чтение', delete: 'Удаление',
-  money: 'Деньги', access: 'Права', auth: 'Вход', history: 'История', watch: 'Подписка', derived: 'Агрегаты', load: 'Загрузка',
+  money: 'Деньги', access: 'Права', auth: 'Вход', history: 'История', watch: 'Подписка', load: 'Загрузка',
   ops: 'Эксплуатация', mcp: 'MCP', errors: 'Ошибки',
 };
 // коды без примера — с объяснением, почему его нет
 const NOTE: Record<string, string> = {
-  removed: 'примера нет: так отвечают методы и опции, снятые после версии 0.21, а переход с 0.21 сайт не описывает',
+  internal: 'примера нет: внутренняя ошибка letopis (строка-замок семейства классов не создана или не найдена) — сообщите о ней',
 };
 // что значит код и что делать — заголовок и подсказка кода в каталоге сообщений (их же отдаёт LetopisError.hint)
 const SIGN = new Map(Object.values(codes).map((m) => [m.code as string, { meaning: m.ru, todo: m.hint }]));
@@ -45,9 +45,9 @@ const page = `# Ошибки
 
 <Example id="errors/02-engine-errors" />
 
-## Производные данные, проекторы, MCP, смена класса
+## Строгий режим, MCP, чужой арендатор
 
-<Example id="errors/03-derived-mcp-errors" />
+<Example id="errors/03-strict-mcp-errors" />
 
 ## Все коды
 

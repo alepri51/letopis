@@ -5,12 +5,12 @@
  *
  * Инвентарь собирается из кода, а не руками:
  * - экспорты точек входа, методы цепочки, `db` и батча — `docs/api-contract.json`;
- * - опции `connect`, `up`, проектора, `watch`, `load`, кэша, `maintain`, `reset`, MCP, методы `db.auth`,
- *   свойства описания класса — члены интерфейсов в `lib/src`;
- * - коды ошибок — каталог базы (`LT_NAMES`) и коды, которые бросает библиотека (`new LetopisError('…')`);
+ * - опции `connect`, `up`, `watch`, `load`, кэша, MCP, методы `db.auth`, свойства описания класса — члены интерфейсов
+ *   в `lib/src`;
+ * - коды ошибок — каталог базы (`LT_NAMES`), коды, которые бросает библиотека (`new LetopisError('…')`, `fail('…')`,
+ *   `code: '…'`), и таблица раздела «Ошибки» README;
  * - режимы сигналов, команды CLI, инструменты MCP;
  * - нюансы — ручной список `coverage/nuances.ts`.
- * Переход с 0.21 сайт не описывает (решение владельца): снятого API и команды `letopis import` в инвентаре нет.
  *
  * Пример объявляет, что покрывает, в `covers`. Неизвестный пункт в `covers` (опечатка) — всегда ошибка.
  * С `--strict` ошибка и непокрытый пункт (так будет к концу работы, этап 5).
@@ -26,15 +26,8 @@ const LIB = join(ROOT, '..', 'lib');
 const strict = process.argv.includes('--strict');
 const list = process.argv.includes('--list');
 
-// Не входят в инвентарь: охранники API, снятого после 0.21 (бросают `removed`, перечень — поле `removed` контракта;
-// фасад `db.<…>` — это accounts, credentials, resources, rules), и команда `letopis import` — перенос данных из 0.21.
-// Переход с 0.21 сайт не описывает (решение владельца).
-const OUT_OF_SCOPE = new Set([
-  'export.LETOPIS_NS', 'export.uuidv7',
-  'chain.account', 'chain.execute', 'chain.run',
-  'db.accounts', 'db.compact', 'db.credentials', 'db.reloadSchema', 'db.resources', 'db.rules',
-  'cli.import',
-]);
+// Не входят в инвентарь: пока таких пунктов нет (снятое API 0.21, импорт из 0.21 и охранники `removed` сняты в 2.0.0).
+const OUT_OF_SCOPE = new Set<string>([]);
 const inventory = new Map<string, string>(); // пункт → группа
 const add = (group: string, prefix: string, names: Iterable<string>) => {
   for (const n of names) if (!OUT_OF_SCOPE.has(`${prefix}.${n}`)) inventory.set(`${prefix}.${n}`, group);
@@ -66,12 +59,9 @@ function members(file: string, name: string): string[] {
 }
 add('опции connect()', 'connect', members('index.ts', 'ConnectOptions'));
 add('опции up()', 'up', new Set([...members('up.ts', 'UpOptions'), ...members('up.ts', 'InstallOptions')].filter((n) => !['upTo', 'migrateFrom'].includes(n))));
-add('опции проектора', 'projector', members('project.ts', 'ProjectorOptions'));
 add('опции watch()', 'watch', members('watch.ts', 'WatchOptions'));
 add('опции load()', 'load', members('load.ts', 'LoadOptions'));
 add('опции кэша', 'cache', members('cache.ts', 'CacheOptions'));
-add('опции maintain()', 'maintain', members('admin.ts', 'MaintainOptions'));
-add('опции reset()', 'reset', members('admin.ts', 'ResetOptions'));
 add('опции MCP', 'mcpopt', members('mcp.ts', 'McpOptions'));
 add('методы db.auth', 'auth', members('auth.ts', 'AuthApi').filter((n) => n !== 'sessions'));
 add('свойства описания класса', 'class', members('model.ts', 'ClassDef'));
@@ -79,7 +69,8 @@ add('свойства описания класса', 'class', members('model.ts
 // ---------- коды ошибок ----------
 const errorsTs = readFileSync(join(LIB, 'src', 'errors.ts'), 'utf8');
 const dbCodes = [...errorsTs.matchAll(/LT\d{3}: '([a-z_]+)'/g)].map((m) => m[1]);
-// коды библиотеки: конструктор и помощник fail(…), коды строк загрузчика (code: '…') и таблица README §16
+// коды библиотеки: конструктор и помощник fail(…), коды записей каталога и строк загрузчика (code: '…') и таблица
+// раздела «Ошибки» README (раздел ищется по заголовку, номер главы не важен)
 const libCodes = new Set<string>();
 for (const f of readdirSync(join(LIB, 'src')).filter((n) => n.endsWith('.ts'))) {
   const src = readFileSync(join(LIB, 'src', f), 'utf8');
@@ -87,8 +78,12 @@ for (const f of readdirSync(join(LIB, 'src')).filter((n) => n.endsWith('.ts'))) 
   for (const m of src.matchAll(/\bcode: '([a-z_]+)'/g)) libCodes.add(m[1]);
 }
 const readme = readFileSync(join(LIB, 'README.md'), 'utf8');
-const errorsSection = readme.slice(readme.indexOf('\n## 16.'), readme.indexOf('\n## 17.'));
-for (const m of errorsSection.matchAll(/^\| `([a-z_]+)`/gm)) libCodes.add(m[1]);
+const errorsAt = readme.search(/\n## \d+\. Ошибки\r?\n/);
+if (errorsAt < 0) throw new Error('coverage: в lib/README.md нет раздела «## N. Ошибки»');
+const errorsEnd = readme.indexOf('\n## ', errorsAt + 1);
+const errorsSection = readme.slice(errorsAt, errorsEnd < 0 ? undefined : errorsEnd);
+// первая ячейка строки таблицы — один код или несколько через запятую (`duplicate`, `deleted`)
+for (const m of errorsSection.matchAll(/^\| ([^|]*)\|/gm)) for (const c of m[1].matchAll(/`([a-z_]+)`/g)) libCodes.add(c[1]);
 add('коды ошибок базы', 'error', dbCodes);
 add('коды ошибок библиотеки', 'error', [...libCodes].filter((c) => !dbCodes.includes(c)).sort());
 
@@ -130,9 +125,8 @@ for (const file of walk(join(ROOT, 'examples'))) {
   visit(sf);
 }
 // коды без примера — исключения с объяснением: примером не вызвать или сайт их не показывает
-// (их же примечания — на странице главы 16)
+// (их же примечания — на странице главы 15 «Ошибки»)
 const EXEMPT: Record<string, string> = {
-  'error.removed': 'охранники API, снятого после 0.21: переход с 0.21 сайт не описывает (решение владельца)',
   'error.internal': 'внутренняя ошибка letopis (строка-замок семейства не создана или не найдена): примером не вызвать — её воспроизводит тест messages библиотеки',
 };
 for (const [item, why] of Object.entries(EXEMPT)) if (!covered.has(item)) covered.set(item, [`исключение: ${why}`]);

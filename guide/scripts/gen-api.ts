@@ -1,16 +1,16 @@
 /**
- * Справочник API — страницы guide/pages/api/*.md.
+ * Справочник API — страницы guide/pages/reference/*.md.
  *
  *   cd guide && npx tsx scripts/gen-api.ts                 записать страницы
  *   cd guide && npx tsx scripts/gen-api.ts --check         только сверить: код 1, если страница устарела, у пункта нет
  *                                                          описания или в coverage/api-docs.ts ключ, которого нет в API
  *
  * Инвентарь — из кода, как у scripts/coverage.ts: методы цепочки, корня и батча (CHAIN_METHODS, DB_METHODS,
- * BATCH_METHODS; объявления — ChainCore, StepFn, DbCore, Batch), члены AuthApi, AclApi, Subscription, Projector,
- * ProjectorOut, Registry, End, опции (ConnectOptions, UpOptions, …), экспорты точек входа (docs/api-contract.json),
- * команды CLI (USAGE в lib/src/cli.ts), инструменты MCP (lib/src/mcp.ts). Сигнатуры и типы — TypeScript Compiler
- * API, описания — JSDoc; чего в JSDoc нет — coverage/api-docs.ts (ключ — id пункта, как в covers примеров).
- * Ссылки на примеры — по covers примеров guide/examples/**. Снятое API 0.21 и импорт из 0.21 сюда не входят.
+ * BATCH_METHODS; объявления — ChainCore, StepFn, DbCore, Batch), члены AuthApi, AclApi, Subscription, Registry, End,
+ * опции (ConnectOptions, UpOptions, …), экспорты точек входа (docs/api-contract.json), команды CLI (USAGE в
+ * lib/src/cli.ts), инструменты MCP (lib/src/mcp.ts). Сигнатуры и типы — TypeScript Compiler API, описания — JSDoc; чего
+ * в JSDoc нет — coverage/api-docs.ts (ключ — id пункта, как в covers примеров). Ссылки на примеры — по covers примеров
+ * guide/examples/**.
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
@@ -28,13 +28,8 @@ const OUT = join(ROOT, 'pages', API_DIR);
 const argv = process.argv.slice(2);
 const check = argv.includes('--check');
 
-/** Не входит в справочник: охранники снятого API 0.21 (бросают removed), `then` — не метод (цепочка не thenable) и
- * `letopis import` — переход с 0.21 сайт не описывает (решение владельца; команда — в README и MIGRATION.md). */
-const EXCLUDED = new Set([
-  'chain.then', 'chain.run', 'chain.execute', 'chain.account',
-  'db.reloadSchema', 'db.accounts', 'db.credentials', 'db.resources', 'db.rules', 'db.compact',
-  'export.LETOPIS_NS', 'export.uuidv7', 'auth.sessions', 'cli.import',
-]);
+/** Не входит в справочник: `then` — не метод (цепочка не thenable); о нём — заметка на странице цепочки. */
+const EXCLUDED = new Set(['chain.then']);
 
 // ---------- программа TypeScript ----------
 const cfg = ts.getParsedCommandLineOfConfigFile(join(LIB, 'tsconfig.build.json'), {}, {
@@ -163,20 +158,30 @@ function sigText(name: string, node: ts.SignatureDeclaration): string {
   const one = `${name}${tp}(${ps.join(', ')}): ${ret}`;
   return one.length > 100 && ps.length > 1 ? `${name}${tp}(\n${ps.map((p) => `  ${p},`).join('\n')}\n): ${ret}` : one;
 }
+/**
+ * Тип параметра для показа: параметр-тип сигнатуры с ограничением (`opts: O`, где `O extends { min?: number }`) —
+ * его ограничение: так читателю видно, что передавать (строгие типы `letopis/model` держат литералы в параметрах-типах).
+ */
+function shownType(node: ts.SignatureDeclaration, t: ts.TypeNode): ts.TypeNode {
+  if (!ts.isTypeReferenceNode(t) || t.typeArguments?.length) return t;
+  const tp = node.typeParameters?.find((x) => x.name.text === t.typeName.getText());
+  return tp?.constraint ?? t;
+}
 function paramsOf(node: ts.SignatureDeclaration): Param[] {
   const out: Param[] = [];
   for (const p of node.parameters) {
     const name = `${p.dotDotDotToken ? '...' : ''}${p.name.getText()}`;
     const jd = jsdocOf(node).params[p.name.getText()];
+    const type = p.type ? shownType(node, p.type) : undefined;
     out.push({
       name,
-      type: p.type ? flat(p.type.getText()) : checker.typeToString(checker.getTypeAtLocation(p)),
+      type: type ? flat(type.getText()) : checker.typeToString(checker.getTypeAtLocation(p)),
       optional: !!p.questionToken || !!p.initializer,
       doc: jd || undefined,
       def: p.initializer ? `\`${flat(p.initializer.getText())}\`` : undefined,
     });
-    if (p.type && ts.isTypeLiteralNode(p.type)) {
-      for (const m of p.type.members) {
+    if (type && ts.isTypeLiteralNode(type)) {
+      for (const m of type.members) {
         if (!m.name) continue;
         const md = jsdocOf(m);
         out.push({
@@ -260,7 +265,7 @@ for (const name of constArray('types.ts', 'BATCH_METHODS')) {
   if (!items.has(`batch.${name}`)) throw new Error(`gen-api: batch.${name} нет в типе Batch`);
 }
 
-// db.auth, db.acl, подписка, проектор, реестр, конец связи
+// db.auth, db.acl, подписка, реестр, конец связи
 for (const m of find('auth.ts', ts.isInterfaceDeclaration, 'AuthApi').members) add(memberItem(`auth.${m.name!.getText()}`, `db.auth.${m.name!.getText()}()`, m));
 for (const m of find('acl.ts', ts.isInterfaceDeclaration, 'AclApi').members) add(memberItem(`acl.${m.name!.getText()}`, `db.acl.${m.name!.getText()}()`, m));
 for (const m of classMembers('watch.ts', 'Subscription')) {
@@ -268,8 +273,6 @@ for (const m of classMembers('watch.ts', 'Subscription')) {
   const key = n === '[Symbol.asyncIterator]' ? 'asyncIterator' : n;
   add(memberItem(`subscription.${key}`, n === '[Symbol.asyncIterator]' ? 'for await (const ev of sub)' : `sub.${n}${ts.isMethodDeclaration(m) ? '()' : ''}`, m));
 }
-for (const m of classMembers('project.ts', 'Projector')) add(memberItem(`projector.${m.name!.getText()}`, `projector.${m.name!.getText()}${ts.isMethodDeclaration(m) ? '()' : ''}`, m));
-for (const m of find('project.ts', ts.isInterfaceDeclaration, 'ProjectorOut').members) add(memberItem(`out.${m.name!.getText()}`, `out.${m.name!.getText()}()`, m));
 for (const m of classMembers('registry.ts', 'Registry')) add(memberItem(`registry.${m.name!.getText()}`, `db.registry.${m.name!.getText()}${ts.isMethodDeclaration(m) ? '()' : ''}`, m));
 for (const m of classMembers('model.ts', 'End')) add(memberItem(`end.${m.name!.getText()}`, `конец.${m.name!.getText()}${ts.isMethodDeclaration(m) ? '()' : ''}`, m));
 
@@ -297,10 +300,16 @@ for (const [entry, prefix, file] of ENTRIES) {
     if (fns.length) {
       const shown = fns.length > 1 ? fns.filter((f) => !f.body) : fns;
       const last = shown[shown.length - 1];
-      const withDoc = shown.find((f) => jsdocOf(f).text) ?? fns.find((f) => jsdocOf(f).text) ?? last;
+      // описание функции — JSDoc первой перегрузки или реализации; JSDoc другой перегрузки говорит только о ней
+      // (у connect — о connect<Models>()) и идёт комментарием над её сигнатурой
+      const withDoc = [shown[0], fns.find((f) => f.body)].find((f) => f && jsdocOf(f).text);
+      const sigOf = (f: ts.FunctionDeclaration) => {
+        const own = f !== withDoc ? jsdocOf(f).text : '';
+        return `${own ? `${own.split('\n').map((l) => `// ${l}`).join('\n')}\n` : ''}${sigText(name, f)}`;
+      };
       add({
-        id, kind: 'function', title: `${name}()`, jsdoc: jsdocOf(withDoc), ...where(last),
-        signature: shown.map((f) => sigText(name, f)).join('\n'), params: paramsOf(last), returnType: returnTypeOf(last),
+        id, kind: 'function', title: `${name}()`, jsdoc: withDoc ? jsdocOf(withDoc) : { text: '', params: {} }, ...where(last),
+        signature: shown.map(sigOf).join('\n'), params: paramsOf(last), returnType: returnTypeOf(last),
       });
       continue;
     }
@@ -320,7 +329,12 @@ for (const [entry, prefix, file] of ENTRIES) {
     }
     const v = decls.find(ts.isVariableDeclaration);
     if (!v) throw new Error(`gen-api: ${entry} ${name} — неизвестный вид объявления`);
-    const init = v.initializer && (ts.isArrowFunction(v.initializer) || ts.isFunctionExpression(v.initializer)) ? v.initializer : null;
+    // `const f = impl as unknown as <F>(…) => R` — функция со своим типом (так строгие типы задают фабрику `or`)
+    let cast: ts.FunctionTypeNode | null = null;
+    for (let e = v.initializer; e && (ts.isAsExpression(e) || ts.isParenthesizedExpression(e)); e = e.expression) {
+      if (ts.isAsExpression(e) && ts.isFunctionTypeNode(e.type)) { cast = e.type; break; }
+    }
+    const init = v.initializer && (ts.isArrowFunction(v.initializer) || ts.isFunctionExpression(v.initializer)) ? v.initializer : cast;
     if (init) {
       add({ id, kind: 'function', title: `${name}()`, jsdoc: jsdocOf(v), ...where(v), signature: sigText(name, init), params: paramsOf(init), returnType: returnTypeOf(init) });
     } else {
@@ -340,12 +354,7 @@ const GROUPS: Group[] = [
   { prefix: 'tenant', iface: 'TenantOptions', file: 'up.ts', owner: 'export.createTenant' },
   { prefix: 'watch', iface: 'WatchOptions', file: 'watch.ts', owner: 'db.watch' },
   { prefix: 'cache', iface: 'CacheOptions', file: 'cache.ts', owner: 'db.cache' },
-  { prefix: 'projector', iface: 'ProjectorOptions', file: 'project.ts', owner: 'db.projector' },
   { prefix: 'load', iface: 'LoadOptions', file: 'load.ts', owner: 'db.load' },
-  { prefix: 'maintain', iface: 'MaintainOptions', file: 'admin.ts', owner: 'db.maintain' },
-  { prefix: 'reset', iface: 'ResetOptions', file: 'admin.ts', owner: 'db.reset' },
-  { prefix: 'diff', iface: 'DiffOptions', file: 'types.ts', owner: 'chain.diff' },
-  { prefix: 'blame', iface: 'BlameOptions', file: 'types.ts', owner: 'chain.blame' },
   { prefix: 'mcpopt', iface: 'McpOptions', file: 'mcp.ts', owner: 'mcp.createMcpServer' },
   { prefix: 'class', iface: 'ClassDef', file: 'model.ts', owner: 'model.hub' },
 ];
@@ -484,8 +493,8 @@ const PAGES: Page[] = [
     sections: [
       { title: 'Шаг', ids: ['chain.step'] },
       { title: 'Модификаторы', intro: 'Модификатор уточняет цепочку и возвращает её продолжение: сколько строк, в каком порядке, на какой момент.', ids: ['chain.limit', 'chain.offset', 'chain.sort', 'chain.after', 'chain.asOf', 'chain.withDeleted', 'chain.deep', 'chain.exact', 'chain.alias', 'chain.tags', 'chain.owner', 'chain.entity', 'chain.forUpdate', 'chain.cache'] },
-      { title: 'Терминалы', intro: 'Терминал исполняет цепочку и возвращает результат. После глагола записи терминал исполняет план записи и возвращает записанные строки.', ids: ['chain.rows', 'chain.first', 'chain.ids', 'chain.count', 'chain.paths', 'chain.versions', 'chain.diff', 'chain.blame', 'chain.sum', 'chain.avg', 'chain.min', 'chain.max', 'chain.countBy'] },
-      { title: 'Глаголы записи', intro: 'Глагол ставит запись в план. Исполняет план терминал (`rows()`, `first()`, `ids()`, `count()`).', ids: ['chain.create', 'chain.update', 'chain.upsert', 'chain.delete', 'chain.anonymize', 'chain.reclass', 'chain.rekey', 'chain.restore', 'chain.purge'] },
+      { title: 'Терминалы', intro: 'Терминал исполняет цепочку и возвращает результат. После глагола записи терминал исполняет план записи и возвращает записанные строки.', ids: ['chain.rows', 'chain.first', 'chain.ids', 'chain.count', 'chain.paths', 'chain.versions', 'chain.sum', 'chain.avg', 'chain.min', 'chain.max', 'chain.countBy'] },
+      { title: 'Глаголы записи', intro: 'Глагол ставит запись в план. Исполняет план терминал (`rows()`, `first()`, `ids()`, `count()`). `update()` и `delete({ confirm: true })` правят только цели, которые сузили фильтр, id, `tags()`, `owner()` или `limit()` хотя бы одного шага; все строки шага — явно, опцией `{ all: true }`, иначе `invalid_query` до записи.', ids: ['chain.create', 'chain.update', 'chain.upsert', 'chain.delete', 'chain.restore'] },
       { title: 'Шаги ролей', intro: 'После глагола записи шаг роли без вызова задаёт конец: `.Роль.set(…)`, `.Роль.unset()`, у множественного конца ещё `.add(…)` и `.remove(…)`.', ids: ['chain.set', 'chain.unset', 'chain.add', 'chain.remove'] },
     ],
   },
@@ -497,9 +506,8 @@ const PAGES: Page[] = [
       { title: 'От имени другого аккаунта', ids: ['db.as'] },
       { title: 'Транзакции и сырой SQL', ids: ['db.begin', 'db.commit', 'db.rollback', 'db.lock', 'db.transaction', 'db.sql'] },
       { title: 'Батч', ids: ['db.batch', 'batch.run', 'batch.discard', 'batch.size'] },
-      { title: 'Модель и id', ids: ['db.entity', 'db.idOf', 'db.describe', 'db.refresh', 'db.rekeyClass'] },
-      { title: 'История и целостность', ids: ['db.trimHistory', 'db.verify'] },
-      { title: 'Обслуживание', ids: ['db.maintain', 'db.reset', 'db.flushSignals', 'db.close'] },
+      { title: 'Модель и id', ids: ['db.entity', 'db.idOf', 'db.refresh'] },
+      { title: 'Обслуживание', ids: ['db.maintain', 'db.flushSignals', 'db.close'] },
     ],
   },
   {
@@ -532,23 +540,17 @@ const PAGES: Page[] = [
     ],
   },
   {
-    file: 'derived', title: 'Проекторы и агрегаты',
-    intro: 'Производные данные: проектор строит строки производных классов из журнала изменений, агрегаты считает сама база. Проектор и ремонт агрегатов работают только на администраторском подключении.',
-    sections: [
-      { title: 'Проектор', ids: ['db.projector', 'projector.*'] },
-      { title: 'Запись из проектора', intro: 'Объект `out` получает функция `handle(changes, out)` проектора.', ids: ['out.*'] },
-      { title: 'Агрегаты', ids: ['db.rebuildAggregates'] },
-    ],
-  },
-  {
     file: 'load', title: 'Загрузка',
     intro: 'Загрузчик пишет много строк любых классов быстрее цепочек: проверки — в коде, строки — через COPY. Работает только на администраторском подключении.',
     sections: [{ title: 'Загрузчик', ids: ['db.load'] }],
   },
   {
     file: 'setup', title: 'Установка и подключение',
-    intro: '`up()` ставит или обновляет схему, `connect()` открывает подключение, `createTenant()` заводит арендатора с первым пользователем.',
-    sections: [{ title: 'Функции', ids: ['export.up', 'export.connect', 'export.createTenant'] }],
+    intro: '`up()` ставит или обновляет схему, `connect()` открывает подключение, `createTenant()` заводит арендатора с первым пользователем. Неизвестную опцию `up()` и `connect()` отклоняют с `invalid_data` и похожими именами до подключения.',
+    sections: [
+      { title: 'Функции', ids: ['export.up', 'export.connect', 'export.createTenant'] },
+      { title: 'Строгие типы', intro: '`connect({ models })` с моделями `letopis/model` или `connect<Models>()` с объявлениями `letopis types` дают подключение со строгими типами: шаг — только известный класс, переход — по концам, шаг роли — роль записываемого класса. Имя, известное только во время выполнения, — через `loose(db)`.', ids: ['export.loose'] },
+    ],
   },
   {
     file: 'model', title: 'Модели: letopis/model',
@@ -570,7 +572,6 @@ const PAGES: Page[] = [
       { title: 'Проверка данных', ids: ['export.compileValidator', 'export.applyDefaults'] },
       { title: 'Реестр классов', ids: ['export.Registry', 'registry.*'] },
       { title: 'Пароли и коды', ids: ['export.hashPassword', 'export.verifyHash', 'export.totpCode'] },
-      { title: 'Описание модели', ids: ['export.describeText'] },
       { title: 'Константы', ids: ['export.DDL_REVISION', 'export.RESERVED_CLASS_NAMES', 'export.CHAIN_METHODS', 'export.DB_METHODS'] },
     ],
   },

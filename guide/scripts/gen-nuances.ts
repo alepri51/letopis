@@ -1,5 +1,5 @@
 /**
- * Глава 17 «Все нюансы»: страница собирается из guide/coverage/nuances.ts по темам (поле topic, порядок — TOPICS) — у
+ * Глава 16 «Все нюансы»: страница собирается из guide/coverage/nuances.ts по темам (поле topic, порядок — TOPICS) — у
  * каждого нюанса ссылки прямо на исполняемые примеры, которые его показывают (поле covers примера: nuance.<id>):
  * страница главы и якорь плеера `#ex-<id примера>` (его ставит theme/Example.vue). Десять главных (поле top) — ещё и
  * на странице «Первые 15 минут»: список между метками `<!-- nuances:top -->` и `<!-- /nuances:top -->`. Нюанс, который
@@ -14,8 +14,8 @@ const ROOT = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '
 const TITLES: Record<string, string> = {
   start: 'Старт с нуля', basics: '1. Что такое letopis', install: '2. Установка', models: '3. Модели', write: '4. Запись',
   read: '5. Чтение', delete: '6. Удаление', money: '7. Транзакции и деньги', access: '8. Права', auth: '9. Вход',
-  history: '10. История и время', watch: '11. Подписка, кэш, сигналы', derived: '12. Агрегаты и проекторы',
-  load: '13. Массовая загрузка', ops: '14. Эксплуатация', mcp: '15. MCP', errors: '16. Ошибки',
+  history: '10. История и время', watch: '11. Подписка, кэш, сигналы', load: '12. Массовая загрузка',
+  ops: '13. Эксплуатация', mcp: '14. MCP', errors: '15. Ошибки',
 };
 const chapterUrl = (dir: string) => (dir === 'basics' ? 'basics/what-is' : `${dir}/`);
 

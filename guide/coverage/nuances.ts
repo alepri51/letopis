@@ -17,7 +17,6 @@ export const TOPICS = {
   auth: 'Вход и сессии',
   history: 'История и время',
   watch: 'Подписка, кэш, сигналы',
-  derived: 'Агрегаты и проекторы',
   load: 'Массовая загрузка',
   ops: 'Эксплуатация',
   mcp: 'ИИ-агенты: MCP',
@@ -102,7 +101,7 @@ const nuances: Nuance[] = [
   {
     id: 'engine-stamp',
     topic: 'install',
-    text: 'up() пишет штамп движка (ревизию схемы и версию пакета) в комментарий схемы; connect() предупреждает, если штамп не совпал с пакетом: схему не обновили после обновления пакета или её поставила более новая версия.',
+    text: 'up() пишет штамп движка (ревизию схемы и версию пакета) в комментарий схемы; connect() предупреждает, если штамп не совпал с пакетом: схему не обновили после обновления пакета или её поставила более новая версия. Схему letopis 1.x (ревизия 7 и ниже) up() и connect() отклоняют — 2.0 ставится только заново (up({ fresh: true })).',
     source: 'lib/README.md, раздел 3; lib/src/up.ts:stampDrift',
   },
   {
@@ -206,18 +205,6 @@ const nuances: Nuance[] = [
     source: 'lib/README.md, раздел 5',
   },
   {
-    id: 'rekey-new-id',
-    topic: 'write',
-    text: 'rekey — новый id; концы других строк переводятся на него, а строки с этим концом в ключе тоже получают новый id.',
-    source: 'lib/README.md, раздел 5',
-  },
-  {
-    id: 'anonymize-history',
-    topic: 'write',
-    text: 'anonymize пишет новую версию с [erased] и тегом anonymized; прежние версии остаются в журнале.',
-    source: 'lib/README.md, раздел 5',
-  },
-  {
     id: 'reason-in-log',
     topic: 'history',
     text: 'Причина изменения (reason) записывается в версию журнала рядом с автором и временем.',
@@ -302,12 +289,6 @@ const nuances: Nuance[] = [
     source: 'lib/README.md, раздел 7',
   },
   {
-    id: 'purge-record',
-    topic: 'delete',
-    text: 'purge стирает версии удалённого объекта, на месте версии 1 остаётся запись purge с числом стёртых версий.',
-    source: 'lib/README.md, раздел 7',
-  },
-  {
     id: 'tx-all-or-nothing',
     topic: 'money',
     text: 'db.begin(): записи фиксируются вместе commit(); ошибка — rollback(), не записано ничего.',
@@ -332,27 +313,9 @@ const nuances: Nuance[] = [
     source: 'guide/start/start.mjs',
   },
   {
-    id: 'aggregate-by-db',
-    topic: 'derived',
-    text: 'Агрегатное поле пересчитывает триггер базы после каждого оператора; писать в него нельзя (aggregate_field); min проверяется для посчитанного значения.',
-    source: 'lib/README.md, раздел 4 «Агрегаты в базе»',
-  },
-  {
-    id: 'projector-lag',
-    topic: 'derived',
-    text: 'Проектор пишет итоги из журнала с отставанием: результат — после прохода run(); одновременные записи не ждут друг друга.',
-    source: 'lib/README.md, раздел 12 «Проекторы»',
-  },
-  {
-    id: 'projector-out-by-key',
-    topic: 'derived',
-    text: 'out.delete и out.get находят строку класса с ключом по полям ключа, а по id — только строку класса без ключа. Начиная с 1.4.1 один id у класса с ключом — сразу invalid_data, и пачка откатывается.',
-    source: 'пример derived/03-projector-options; lib/src/project.ts:Out',
-  },
-  {
     id: 'mass-write-log-order',
     topic: 'write',
-    text: 'Правка многих строк одним оператором пишет их версии в журнал в порядке id, а не в порядке обхода таблицы: журнал одинаков от прогона к прогону. Так же упорядочены пакетная вставка (по порядку входа), перестройка проектора, загрузчик с existing: update и надгробия каскада.',
+    text: 'Правка многих строк одним оператором пишет их версии в журнал в порядке id, а не в порядке обхода таблицы: журнал одинаков от прогона к прогону. Так же упорядочены пакетная вставка (по порядку входа), загрузчик с existing: update и надгробия каскада.',
     source: 'lib/sql/60-write.sql:trg_entity_au (коммит 2f977c0); пример write/07-mass-journal-order',
   },
   {
@@ -362,16 +325,10 @@ const nuances: Nuance[] = [
     source: 'lib/test/balance.test.ts №17; пример money/04-race',
   },
   {
-    id: 'projector-run-stop',
-    topic: 'derived',
-    text: 'run() без once не завершается сам: догоняет журнал и ждёт новых изменений. Остановить — stop() (промис run() выполнится с отчётом); процесс, который больше не запускает run(), вызывает close() — проектор отключается от сигналов базы.',
-    source: 'lib/src/project.ts:Projector.stop, close; пример derived/04-projector-process',
-  },
-  {
     id: 'registry-refresh',
     topic: 'watch',
     text: 'Другое подключение узнаёт о новом классе по сигналу, с задержкой: описания классов оно держит в памяти (реестр классов); сразу — db.refresh().',
-    source: 'lib/src/index.ts:refresh; пример derived/02-projector',
+    source: 'lib/src/index.ts:refresh; пример watch/02-quiet-cursor',
   },
   {
     id: 'login-case-insensitive',
@@ -414,8 +371,8 @@ const nuances: Nuance[] = [
   {
     id: 'watch-subscription-cursor',
     topic: 'watch',
-    text: 'Начиная с 1.4.1 подписка, догнавшая журнал, обновляет время своего курсора sub.cursor и на пустых опросах: без событий она не устаревает. Курсор события ev.cursor хранит время события, и после суток затишья продолжение с него — cursor_expired; сохраняйте sub.cursor.',
-    source: 'пример watch/02-quiet-cursor; lib/src/watch.ts:Subscription.fetch',
+    text: 'Курсор подписки не устаревает: журнал хранит каждую версию, поэтому продолжить можно с любого сохранённого курсора — хоть через год. sub.cursor — позиция после последнего события, которое отдала подписка (события, прочитанные в запас, он не обгоняет), ev.cursor — после этого события.',
+    source: 'пример watch/02-quiet-cursor; lib/src/watch.ts:Subscription',
   },
   {
     id: 'mcp-user-rights',
@@ -455,24 +412,6 @@ const nuances: Nuance[] = [
     source: 'lib/sql/20-context.sql:ctx; сервис helpdesk',
   },
   {
-    id: 'versions-follow',
-    topic: 'history',
-    text: 'versions() отдаёт версии одного id; versions({ follow: true }) идёт по moved через rekey и reclass — вся жизнь объекта одной лентой, с надгробиями прежних id.',
-    source: 'lib/src/sql.ts (versions, follow); пример history/02',
-  },
-  {
-    id: 'reclass-keyed-new-id',
-    topic: 'history',
-    text: 'Класс входит в v5-id: reclass строки класса с ключом даёт новый id (старый — надгробие с moved), у класса без ключа id прежний.',
-    source: 'lib/sql/60-write.sql:move_row; пример history/02',
-  },
-  {
-    id: 'thinning-not-gap',
-    topic: 'history',
-    text: 'Прореживание по политике — не разрыв журнала: verify() считает законными пропуски номеров версий старше яруса all.',
-    source: 'lib/sql/90-time.sql:verify; пример history/03',
-  },
-  {
     id: 'load-admin-only',
     topic: 'load',
     text: 'db.load — только администраторское подключение (обход RLS и право стать владельцем схемы): иначе admin_required. От имени пользователя — опция as.',
@@ -483,18 +422,6 @@ const nuances: Nuance[] = [
     topic: 'load',
     text: 'Первая заливка (load({ initial: true })) — только в пустую схему: допустимы классы, аккаунты, членства и права; иначе not_empty.',
     source: 'lib/src/load.ts:initial; пример load/02',
-  },
-  {
-    id: 'reset-tenant-memberships',
-    topic: 'ops',
-    text: 'reset({ level: "tenant" }) стирает и членства, и правила арендатора: сессии его пользователей в нём получают tenant_denied, а createTenant правила «можно всё» заново не выдаёт.',
-    source: 'lib/sql/90-time.sql:reset; пример ops/02',
-  },
-  {
-    id: 'verify-hash-chain',
-    topic: 'ops',
-    text: 'Хэш версии включает хэш предыдущей: правка журнала в обход библиотеки ломает цепочку, и verify() называет id и номер версии.',
-    source: 'lib/sql/10-core.sql (hash); пример ops/01',
   },
   {
     id: 'engine-checks-raw-sql',
@@ -520,6 +447,40 @@ const nuances: Nuance[] = [
     topic: 'auth',
     text: 'letopis не навязывает второй фактор: verifyPassword без totp даёт сессию и при включённом TOTP — требовать код должен сервис (totpEnabled).',
     source: 'lib/src/auth.ts:verifyPassword; сервис helpdesk',
+  },
+  {
+    id: 'update-needs-filter',
+    topic: 'write',
+    caught: 'invalid_query',
+    text: 'update() и delete({ confirm: true }), у которых ни у одного шага нет фильтра, id, tags(), owner() или limit(), отклоняются до записи: правка прошла бы по всем строкам шага. Все строки — только явно: update(патч, { all: true }), delete({ confirm: true, all: true }); предпросмотр delete() — без условий.',
+    source: 'lib/README.md, раздел 4 «Строгий режим», раздел 5 «Изменить: update»; пример errors/03-strict-mcp-errors',
+  },
+  {
+    id: 'key-class-immutable',
+    topic: 'write',
+    caught: 'immutable_key',
+    text: 'Ключевые поля, класс, id, арендатор и владелец строки правкой не меняются — и сырым UPDATE тоже. Объект с другим ключом или классом — новый объект: создать его, перевести на него концы других строк и удалить прежний, одной транзакцией; у нового своя история, у прежнего она остаётся.',
+    source: 'lib/README.md, раздел 5 «Ключ и класс неизменны»; пример write/04-key-class-immutable',
+  },
+  {
+    id: 'unknown-option',
+    topic: 'install',
+    caught: 'invalid_data',
+    text: 'Неизвестная опция connect(), up(), db.load(), db.watch() и createMcpServer() — отказ до подключения, с похожими именами в тексте и в err.params.similar: опечатка в опции не проходит молча.',
+    source: 'lib/README.md, раздел 4 «Строгий режим»; пример errors/03-strict-mcp-errors',
+  },
+  {
+    id: 'after-before-count',
+    topic: 'read',
+    caught: 'invalid_query',
+    text: 'after() листает rows(), ids(), versions() и paths(); перед count() и итогами sum, avg, min, max, countBy — отказ: они считают по всем объектам шага, и курсор там молча не учитывался бы.',
+    source: 'lib/README.md, раздел 4 «Строгий режим»; пример errors/03-strict-mcp-errors',
+  },
+  {
+    id: 'strict-types-loose',
+    topic: 'models',
+    text: 'Подключение с моделями (connect({ models })) или с объявлениями letopis types даёт строгие типы: шаг — только класс моделей или системный, переход — только по концам, поля фильтра — поля класса. Имя класса, известное только во время выполнения, — через loose(db): то же подключение без строгих типов.',
+    source: 'lib/README.md, раздел 4 «Строгий режим»; пример models/06-exports',
   },
 ];
 
