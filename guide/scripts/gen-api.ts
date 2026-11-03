@@ -342,9 +342,14 @@ for (const [entry, prefix, file] of ENTRIES) {
         const own = f !== withDoc ? jsdocOf(f).text : '';
         return `${own ? `${own.split('\n').map((l) => `// ${l}`).join('\n')}\n` : ''}${sigText(name, f)}`;
       };
+      // параметры — перегрузки, которую описывает api-docs.ts (больше всего описанных имён), иначе последней:
+      // у hub()/link() короткая форма (name, shape) стоит после полной (name, def) ради выбора перегрузки TypeScript
+      const want = Object.keys((docs as Record<string, ApiDoc>)[id]?.params ?? {});
+      const score = (f: ts.FunctionDeclaration) => paramsOf(f).filter((p) => want.includes(p.name)).length;
+      const paramSrc = want.length ? shown.reduce((a, f) => (score(f) > score(a) ? f : a), last) : last;
       add({
         id, kind: 'function', title: `${name}()`, jsdoc: withDoc ? jsdocOf(withDoc) : { text: '', params: {} }, ...where(last),
-        signature: shown.map(sigOf).join('\n'), params: paramsOf(last), returnType: returnTypeOf(last),
+        signature: shown.map(sigOf).join('\n'), params: paramsOf(paramSrc), returnType: returnTypeOf(paramSrc),
       });
       continue;
     }
