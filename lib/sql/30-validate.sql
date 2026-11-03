@@ -382,10 +382,18 @@ begin
     if e ? 'extra' then
       for x in select * from jsonb_path_query(p_data, ('strict ' || (e->>'path_expr'))::jsonpath, '{}'::jsonb, true) loop
         if (e->'extra'->>'kind') = 'length' and jsonb_typeof(x) = 'string' then
-          if char_length(x #>> '{}') < coalesce((e->'extra'->>'min')::int, 0)
-             or char_length(x #>> '{}') > coalesce((e->'extra'->>'max')::int, 2147483647) then
-            bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', @SCHEMA@.lt_text('sql-core.issue_string_length'),
-              'key', 'sql-core.issue_string_length', 'params', '{}'::jsonb);
+          -- текст называет границу (letopis 2.1, второй раунд, A6) — как у валидатора на TypeScript (validate.ts)
+          t := null;
+          if char_length(x #>> '{}') < coalesce((e->'extra'->>'min')::int, 0) then
+            t := 'sql-core.issue_string_too_short';
+            p := jsonb_build_object('limit', (e->'extra'->>'min')::int);
+          elsif char_length(x #>> '{}') > coalesce((e->'extra'->>'max')::int, 2147483647) then
+            t := 'sql-core.issue_string_too_long';
+            p := jsonb_build_object('limit', (e->'extra'->>'max')::int);
+          end if;
+          if t is not null then
+            bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', @SCHEMA@.lt_text(t, p),
+              'key', t, 'params', p);
           end if;
         elsif (e->'extra'->>'kind') = 'unique' and jsonb_typeof(x) = 'array' then
           if (select count(*) from jsonb_array_elements(x)) <> (select count(distinct y) from jsonb_array_elements(x) y) then

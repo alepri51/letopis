@@ -27,18 +27,28 @@ export const sqlTime = {
     code: 'not_deleted',
     ru: 'объект не удалён: restore — только для удалённых',
   },
-  // 90-time.sql, restore(): живой объект с этим id уже удаляли — id занял новый объект с тем же ключом
+  // 90-time.sql, restore(): живой объект, за последним надгробием которого — create: id занял новый объект с тем же
+  // ключом; detail — { id, rev }
   'sql-time.restore_id_taken': {
     code: 'not_deleted',
     ru: 'id {id} занят новым объектом с тем же ключом — create по ключу удалённого берёт его id, восстанавливать нечего',
     hint: 'объект с этим ключом уже живёт: прочитайте его; перед create() по ключу удалённого проверьте db.Класс({ ключ }).withDeleted()',
   },
-  // 90-time.sql, restore(p_id, p_rev): последняя версия id не p_rev (пересоздан, удалён снова) — restore({ expect }).
-  // Код базы — not_deleted (conflict в каталоге базы нет); библиотека отдаёт его как write.restore_stale (conflict)
+  // 90-time.sql, restore(): живой объект, за последним надгробием которого — restore: уже восстановлен (другой запрос
+  // успел первым); detail — { id, rev }; библиотека отдаёт его как write.restore_already
+  'sql-time.restore_already': {
+    code: 'not_deleted',
+    ru: 'restore: {id} уже восстановлен — объект живой, восстанавливать нечего',
+    hint: 'его вернул другой запрос: прочитайте объект; восстанавливать снова не нужно',
+  },
+  // 90-time.sql, restore(p_id, p_rev): последняя версия id не p_rev, и это не «уже восстановлен» и не «id занят» (удалён
+  // снова, не удалялся, гонка). detail — { id, rev, expected, after, deleted, live }: after — вид записи журнала сразу
+  // за p_rev (в тексте «—», если её нет). Код базы — not_deleted (conflict в каталоге базы нет); библиотека отдаёт его
+  // как write.restore_stale (conflict)
   'sql-time.restore_stale': {
     code: 'not_deleted',
-    ru: 'restore: {id} уже не тот, что удаляли — последняя версия {rev}, ожидалась {expected}',
-    hint: 'объект пересоздан или удалён снова: вещь уже у другого — сообщить пользователю, а не восстанавливать',
+    ru: 'restore: {id} уже не тот, что удаляли — последняя версия {rev}, ожидалась {expected}; после того удаления — {after}',
+    hint: 'объект менялся после показанного удаления (detail.after, detail.deleted, detail.live): вещь уже у другого — сообщить пользователю, а не восстанавливать',
   },
   // 90-time.sql, restore()
   'sql-time.restore_class_row': {

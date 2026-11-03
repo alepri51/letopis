@@ -33,6 +33,8 @@ export interface ChainCtx {
   readonly exec: Executor;
   /** Арендатор сессии. */
   readonly tenant: () => string | null;
+  /** Фасад входит по токену сессии (connect({ token }), ключ API): без арендатора сессии шаг — sessionless(). */
+  readonly hasToken?: () => boolean;
   /** Владелец новых строк по умолчанию (db.as(…, { owner })). */
   readonly owner?: string;
   readonly onQuery?: (e: QueryEvent) => void;
@@ -188,9 +190,12 @@ export interface ChainCore {
   /**
    * Восстановить удалённые объекты шага: последний снимок новой версией (id прежний). `{ expect }` — надгробия `{ id, rev }`
    * из ответа `delete()` или `withDeleted()`: восстанавливаются только цели из `expect`, и только если последняя версия
-   * каждой — та же; иначе (id пересоздан, удалён снова) — `conflict`, ничего не восстановлено.
+   * каждой — та же; иначе ничего не восстановлено: уже восстановлена — `not_deleted` (`write.restore_already`), id занял
+   * новый объект — `not_deleted` (`write.restore_id_taken`), прочее (удалена снова, менялась) — `conflict`
+   * (`write.restore_stale`); причины по целям — `err.detail.stale`. `{ expect, partial: true }` — восстановить то, что
+   * можно: остальные цели приходят строками `{ …строка, $action: 'skip', $why }`.
    */
-  restore(opts?: { reason?: string; expect?: readonly Expected[] }): Chain;
+  restore(opts?: { reason?: string; expect?: readonly Expected[]; partial?: boolean }): Chain;
   /** Кэш результатов (§2.12): ответ хранится в памяти процесса ttl секунд (по умолчанию 60). */
   cache(opts?: { ttl?: number }): Chain;
 }
@@ -263,6 +268,33 @@ const unknownName = (reg: Registry, name: string): never => {
   const key = reg.all().every((c) => c.tenant === SYSTEM_ID) ? 'api.unknown_step_no_classes' : 'api.unknown_step';
   throw lerr(key, { name, similar: similar(name, stepNames(reg)) });
 };
+
+/** Терминалы и агрегаты цепочки: у цепочки без сессии они отдают отказ промисом (sessionless). */
+const TERMINALS = new Set(['rows', 'first', 'ids', 'count', 'paths', 'versions', 'sum', 'avg', 'min', 'max', 'countBy']);
+
+/**
+ * Неизвестный шаг у фасада без сессии (токен погашен или истёк после connect(), второй раунд 2.1, A5): не синхронный
+ * выброс про «личный арендатор», а цепочка, чьи терминалы отдают api.token_not_active (no_session) отклонённым
+ * промисом — как у любой другой ошибки запроса. Шаги, модификаторы и глаголы такой цепочки ничего не проверяют.
+ */
+function sessionless(): StepFn {
+  const fail = () => Promise.reject(lerr('api.token_not_active'));
+  const dead: StepFn = new Proxy(function () {} as unknown as StepFn, {
+    get(_t, p) {
+      if (typeof p === 'symbol' || p === 'then') return undefined;
+      return TERMINALS.has(p) ? fail : dead;
+    },
+    apply: () => dead,
+  });
+  return dead;
+}
+
+/**
+ * Фасад с токеном без сессии: шага нет среди классов, а арендатора у сессии нет — шаг из sessionless(); батч и
+ * подключение без токена (администраторское) — как прежде.
+ */
+const noSession = (ctx: ChainCtx, name: string): boolean =>
+  !ctx.batch && !ARRAY_PROPS.has(name) && ctx.hasToken?.() === true && ctx.tenant() === null;
 
 /** Перебор цепочки (for…of, spread, Array.from) — понятный отказ вместо «is not iterable». */
 const notIterable = (): never => {
@@ -359,7 +391,7 @@ async function read<T>(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: Read
   const hasOps = steps.some((s) => s.op);
   if (ctx.batch && hasOps) throw lerr('api.batch_queued');
   if (!hasOps) warnWithDeleted(steps);
-  if (mods.forUpdate) return lockedRead(ctx, steps, mods, mode) as Promise<{ q: BuiltQuery | null; res: T[] }>;
+  if (mods.forUpdate) return lockedRead(ctx, steps, mods, mode, agg) as Promise<{ q: BuiltQuery | null; res: T[] }>;
   if (hasOps) return plan(ctx, steps, mods, mode, agg) as Promise<{ q: BuiltQuery | null; res: T[] }>;
   const { cache: _c, ...plain } = mods;
   const q = buildRead(ctx.reg, ctx.schema, steps, plain, mode, agg);
@@ -433,11 +465,16 @@ async function plan(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMod
  * которая перестала подходить под условия шага, в ответ не попадает; подходящая, но не
  * заблокированная — acl_denied.
  */
-async function lockedRead(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMode): Promise<{ q: BuiltQuery | null; res: unknown[] }> {
+async function lockedRead(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMode, agg?: AggSpec): Promise<{ q: BuiltQuery | null; res: unknown[] }> {
   if (!ctx.exec.explicit) throw lerr('api.for_update_outside_tx');
-  if ((mode !== 'rows' && mode !== 'ids') || mods.asOf !== undefined || steps.some((s) => s.withDeleted || s.deepMax !== undefined || s.op)) {
-    throw lerr('api.for_update_unsupported');
-  }
+  // что именно мешает блокировке — в тексте, что допустимо — в подсказке (второй раунд 2.1, A7)
+  const op = steps.find((s) => s.op)?.op;
+  const what = op ? `${op.kind}()`
+    : mode !== 'rows' && mode !== 'ids' ? `${mode === 'agg' ? agg?.fn ?? 'agg' : mode === 'countPaths' ? 'count' : mode}()`
+      : mods.asOf !== undefined ? 'asOf()'
+        : steps.some((s) => s.withDeleted) ? 'withDeleted()'
+          : steps.some((s) => s.deepMax !== undefined) ? 'deep()' : undefined;
+  if (what) throw lerr('api.for_update_unsupported', { what });
   const S = `"${ctx.schema.replace(/"/g, '""')}"`;
   const { forUpdate: _f, ...plain } = mods;
   const idsQ = buildRead(ctx.reg, ctx.schema, steps, plain, 'ids');
@@ -455,7 +492,7 @@ async function lockedRead(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: R
     if (denied.length) throw lerr('api.lock_denied', { ids: denied.join(', ') }, { detail: { ids: denied } });
     return fresh;
   });
-  report(ctx, mode, steps, t0, res.length);
+  report(ctx, mode === 'ids' ? 'ids' : 'rows', steps, t0, res.length);
   return { q: rowsQ, res: mode === 'ids' ? res.map((r) => ({ id: r.row.id })) : res };
 }
 
@@ -703,15 +740,17 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
       case 'forUpdate':
         return () => withMods({ forUpdate: true });
       case 'restore':
-        return (opts?: { reason?: string; expect?: readonly Expected[] }) => withOp({ kind: 'restore', ...reasonOf(opts), ...expectOf(opts) });
+        return (opts?: { reason?: string; expect?: readonly Expected[]; partial?: boolean }) =>
+          withOp({ kind: 'restore', ...reasonOf(opts), ...expectOf(opts), ...(opts?.partial === true ? { partial: true as const } : {}) });
       case 'cache':
         return (opts?: { ttl?: number }) => {
           if (opts?.ttl !== undefined && !(opts.ttl > 0)) throw lerr('api.cache_ttl');
           return withMods({ cache: opts ?? {} });
         };
     }
-    const found = lookupStep(ctx.reg, prop) ?? unknownName(ctx.reg, prop);
-    return classProp(ctx, prop, found, steps, mods, nodes);
+    const found = lookupStep(ctx.reg, prop);
+    if (!found && noSession(ctx, prop)) return sessionless();
+    return classProp(ctx, prop, found ?? unknownName(ctx.reg, prop), steps, mods, nodes);
   };
 
   const handler: ProxyHandler<object> = {
@@ -764,8 +803,9 @@ export function makeBatch(ctx: ChainCtx, queue: BatchEntry[]): Batch {
 
 /** Старт пути от корня db: класс, алиас или роль. */
 export function startStep(ctx: ChainCtx, name: string): StepFn {
-  const found = lookupStep(ctx.reg, name) ?? unknownName(ctx.reg, name);
-  return classProp(ctx, name, found, undefined, {}, NO_NODES);
+  const found = lookupStep(ctx.reg, name);
+  if (!found && noSession(ctx, name)) return sessionless();
+  return classProp(ctx, name, found ?? unknownName(ctx.reg, name), undefined, {}, NO_NODES);
 }
 
 /** Старт пути с готового узла: db.entity(row | цепочка). */

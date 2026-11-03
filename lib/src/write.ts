@@ -71,7 +71,7 @@ export type PlanOp = (
   | { kind: 'update'; data: Record<string, unknown>; rev?: number; all?: true }
   | { kind: 'upsert'; data: Record<string, unknown> }
   | { kind: 'delete'; confirm: boolean; all?: true; expect?: readonly Expected[] }
-  | { kind: 'restore'; expect?: readonly Expected[] }
+  | { kind: 'restore'; expect?: readonly Expected[]; partial?: true }
 ) & { reason?: string };
 
 /**
@@ -253,9 +253,12 @@ export async function completeIssues(ctx: { schema: string; exec: Executor }, e:
   return Object.assign(new ValidationError(p.cls, issuesFromDb(raw), v.key ? { key: v.key, params: v.params } : undefined), { cause: e });
 }
 
-/** Блокировка строк for no key update в порядке id (lockedRead, updateOp): id, которые удалось заблокировать. */
-export async function lockIds(q: Tx, S: string, ids: string[]): Promise<Set<string>> {
-  const rows = (await q.unsafe(`select id from ${S}.entity where id = any ($1::uuid[]) order by id for no key update`, [ids] as never[], { prepare: true })) as unknown as { id: string }[];
+/**
+ * Блокировка строк в порядке id (lockedRead, updateOp — for no key update; deleteOp с expect — for update): id, которые
+ * удалось заблокировать.
+ */
+export async function lockIds(q: Tx, S: string, ids: string[], mode: 'no key update' | 'update' = 'no key update'): Promise<Set<string>> {
+  const rows = (await q.unsafe(`select id from ${S}.entity where id = any ($1::uuid[]) order by id for ${mode}`, [ids] as never[], { prepare: true })) as unknown as { id: string }[];
   return new Set(rows.map((r) => r.id));
 }
 
@@ -342,6 +345,8 @@ export function precheckPlan(reg: Registry, steps: Step[], order?: string, agg?:
         }
         break;
       case 'restore':
+        // partial (второй раунд 2.1, A3) — только с expect: пропуск считается по показанным надгробиям
+        if (op.partial && op.expect === undefined) throw lerr('write.partial_without_expect');
         if (op.expect !== undefined) checkExpect(op.expect, verb);
         // A13: без сужения и expect restore() восстанавливает всё удалённое шага — предупреждение, не отказ
         else if (!narrowed(steps, i)) lwarn('write.restore_no_filter', { cls: s.cls.name }, { once: `restore-no-filter|${s.cls.name}` });
@@ -710,9 +715,19 @@ async function deleteOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<Write
   const S = quoteId(w.schema);
   const ids = await targetIds(w, steps, opStep);
   if (!op.confirm) return ids.length ? previewOf(w, ids) : [];
-  // delete({ confirm: true, expect }): удалить ровно показанное (план 2.1, A2) — превью заново в той же транзакции
+  // delete({ confirm: true, expect }): удалить ровно показанное (план 2.1, A2) — превью заново в той же транзакции.
+  // Атомарно (второй раунд 2.1, A1): всё замыкание каскада (строки превью с $action 'delete') блокируется for update в
+  // порядке id, и превью строится ещё раз уже под блокировкой. Вставка связи берёт на своих концах for key share
+  // (60-write.sql, targets_bad): с for update она конфликтует, с for no key update — нет. Вставщик успел первым —
+  // пересчёт видит его строку (preview_changed); мы первые — он получает end_target_missing. Взаимоблокировку при росте
+  // замыкания повторяет runTx (40P01)
   if (op.expect !== undefined) {
-    const now = ids.length ? await previewOf(w, ids) : [];
+    let now = ids.length ? await previewOf(w, ids) : [];
+    const closure = now.filter((r) => r.$action === 'delete').map((r) => r.id);
+    if (closure.length) {
+      await lockIds(w.q, S, closure, 'update');
+      now = await previewOf(w, ids);
+    }
     if (!samePreview(now, op.expect)) throw lerr('write.preview_changed', undefined, { detail: { preview: now } });
   }
   if (!ids.length) return [];
@@ -741,65 +756,176 @@ async function deleteOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<Write
 }
 
 /**
- * Удалённые объекты шага (restore): живые цели без удалённых — not_deleted; живые, которые уже удаляли (id занял новый
- * объект с тем же ключом), — свой ключ (план 2.1, A1). Шаг цели читается с надгробиями; у шагов до него withDeleted() —
- * свой (план 2.1, A9). С expect — только цели из expect, и последняя версия каждой — та же, иначе restore_stale.
+ * Почему цель restore не восстановить (второй раунд 2.1, A2, A3) — по записи журнала, которая идёт за последним
+ * надгробием: `restored` — за ним restore (объект уже восстановлен), `reissued` — create (id занял новый объект с тем же
+ * ключом), `changed` — прочее: удалён снова с другим номером версии, не удалялся вовсе, гонка.
  */
-async function deletedTargets(w: WriteCtx, steps: Step[], opStep: Step, verb: string, expect?: readonly Expected[]): Promise<Row[]> {
+export type RestoreWhy = 'restored' | 'reissued' | 'changed';
+
+/**
+ * Цель restore, которую не восстановить: rev — номер последней версии сейчас, expected — из expect (без expect — null),
+ * after — вид записи журнала сразу за expected (что было после того удаления; null — ничего), deleted — последняя версия
+ * надгробие, live — объект с этим id живёт.
+ */
+interface Refused {
+  id: string;
+  rev: number;
+  expected: number | null;
+  after: string | null;
+  deleted: boolean;
+  live: boolean;
+  why: RestoreWhy;
+}
+
+/** Причины отказа для строк шага restore (живых или надгробий не той версии): одним запросом к журналу. */
+async function refusals(w: WriteCtx, rows: Row[], want: Map<string, number> | null): Promise<Refused[]> {
+  if (!rows.length) return [];
+  const S = quoteId(w.schema);
+  const exp = rows.map((r) => want?.get(r.id.toLowerCase()) ?? null);
+  const log = await query<{ id: string; after: string | null; after_last: string | null }>(w,
+    `select x.id::text as id, `
+    + `(select l.op from ${S}.log l where l.id = x.id and l.rev > x.exp order by l.rev limit 1) as after, `
+    + `(select l.op from ${S}.log l where l.id = x.id and l.rev > (select max(t.rev) from ${S}.log t where t.id = x.id and t.op = 'delete') `
+    + `order by l.rev limit 1) as after_last from unnest($1::uuid[], $2::int[]) as x(id, exp)`, [rows.map((r) => r.id), exp]);
+  const by = new Map(log.map((r) => [r.id.toLowerCase(), r]));
+  return rows.map((r, i) => {
+    const l = by.get(r.id.toLowerCase());
+    const live = r.$deleted !== true;
+    const last = l?.after_last ?? null;
+    const why: RestoreWhy = live && last === 'restore' ? 'restored' : live && last === 'create' ? 'reissued' : 'changed';
+    return { id: r.id, rev: r.rev, expected: exp[i], after: l?.after ?? null, deleted: !live, live, why };
+  });
+}
+
+/**
+ * Отказ restore по смыслу (второй раунд 2.1, A2): есть `changed` — restore_stale (conflict), иначе есть `reissued` —
+ * restore_id_taken, иначе restore_already (оба — not_deleted). detail.ids — цели этого ключа; с expect (и всегда у
+ * restore_stale) detail.stale — все цели, которые не восстановить, с причиной.
+ */
+function restoreRefusal(verb: string, list: Refused[], withExpect: boolean, cause?: unknown): LetopisError {
+  const of = (why: RestoreWhy) => list.filter((x) => x.why === why).map((x) => x.id);
+  const extra = (detail: unknown) => ({ detail, ...(cause !== undefined ? { cause } : {}) });
+  const stale = withExpect ? { stale: list } : {};
+  const changed = of('changed');
+  if (changed.length) return lerr('write.restore_stale', { ids: changed.join(', ') }, extra({ ids: changed, stale: list }));
+  const taken = of('reissued');
+  if (taken.length) return lerr('write.restore_id_taken', { verb, ids: taken.join(', ') }, extra({ ids: taken, ...stale }));
+  const done = of('restored');
+  return lerr('write.restore_already', { verb, ids: done.join(', ') }, extra({ ids: done, ...stale }));
+}
+
+/** Строка ответа restore({ expect, partial: true }) для цели, которую не восстановить (второй раунд 2.1, A3). */
+const skipRow = (r: Row, why: RestoreWhy): WriteRow => ({ ...r, $action: 'skip', $why: why });
+
+/** Цели restore: что восстанавливать и (partial) строки-пропуски. */
+interface RestoreTargets {
+  dead: Row[];
+  skip: WriteRow[];
+  /** id целей в порядке ответа: по sort() до глагола, иначе по id. */
+  order: string[];
+}
+
+const byIdOrder = (a: { id: string }, b: { id: string }): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+/**
+ * Удалённые объекты шага (restore). Шаг цели читается с надгробиями; у шагов до него withDeleted() — свой (план 2.1, A9).
+ * Без expect: восстанавливаются удалённые цели; если удалённых нет, а живые есть — отказ по смыслу (restoreRefusal: уже
+ * восстановлен, id занят новым объектом) или not_deleted (не удалялся). С expect — только цели из expect, и последняя
+ * версия каждой — то же надгробие; иначе отказ по смыслу и ничего не восстановлено, а с partial — строка-пропуск.
+ */
+async function deletedTargets(w: WriteCtx, steps: Step[], opStep: Step, verb: string, expect?: readonly Expected[], partial?: boolean): Promise<RestoreTargets> {
   const path = steps.map(bare);
   path[path.length - 1] = { ...path[path.length - 1], withDeleted: true };
   const rows = await readRows(w, path, opStep.opMods ?? {});
-  let dead = rows.filter((r) => r.$deleted);
+  // без явного порядка — по id: restore пишет журнал по очереди целей
+  const ordered = (xs: Row[]): Row[] => (opStep.opMods?.order ? xs : [...xs].sort(byIdOrder));
   if (expect !== undefined) {
     const want = new Map(expect.map((x) => [x.id.toLowerCase(), x.rev]));
     const mine = rows.filter((r) => want.has(r.id.toLowerCase()));
-    const stale = mine.filter((r) => !r.$deleted || r.rev !== want.get(r.id.toLowerCase()));
-    if (stale.length) {
-      const list = stale.map((r) => ({ id: r.id, rev: r.rev, expected: want.get(r.id.toLowerCase())!, deleted: r.$deleted === true }));
-      throw lerr('write.restore_stale', { ids: list.map((x) => x.id).join(', ') }, { detail: { stale: list } });
-    }
-    dead = mine;
-  } else if (!dead.length && rows.length) {
-    const live = rows.map((r) => r.id);
-    // id, которые уже удаляли: create() по ключу удалённого занял его id
-    const S = quoteId(w.schema);
-    const taken = (await query<{ id: string }>(w, `select distinct l.id from ${S}.log l where l.id = any ($1::uuid[]) and l.op = 'delete'`, [live])).map((r) => r.id);
-    if (taken.length) throw lerr('write.restore_id_taken', { verb, ids: taken.join(', ') }, { detail: { ids: taken } });
-    throw lerr('write.not_deleted', { verb }, { detail: { ids: live } });
+    const good = (r: Row): boolean => r.$deleted === true && r.rev === want.get(r.id.toLowerCase());
+    const bad = await refusals(w, mine.filter((r) => !good(r)), want);
+    if (bad.length && !partial) throw restoreRefusal(verb, bad, true);
+    const why = new Map(bad.map((x) => [x.id, x.why]));
+    const all = ordered(mine);
+    return { dead: all.filter(good), skip: all.filter((r) => !good(r)).map((r) => skipRow(r, why.get(r.id) ?? 'changed')), order: all.map((r) => r.id) };
   }
-  // без явного порядка — по id: restore пишет журнал по очереди целей
-  return opStep.opMods?.order ? dead : [...dead].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const dead = rows.filter((r) => r.$deleted);
+  if (!dead.length && rows.length) {
+    const live = await refusals(w, rows, null);
+    if (live.some((x) => x.why !== 'changed')) throw restoreRefusal(verb, live.filter((x) => x.why !== 'changed'), false);
+    throw lerr('write.not_deleted', { verb }, { detail: { ids: rows.map((r) => r.id) } });
+  }
+  const all = ordered(dead);
+  return { dead: all, skip: [], order: all.map((r) => r.id) };
+}
+
+/** Отказ функции базы restore() по смыслу (уже восстановлен, id занят, версия не та) — причина и подробности; иначе null. */
+function dbRefusal(e: unknown): Refused | null {
+  const le = fromDbError(e);
+  if (!(le instanceof LetopisError)) return null;
+  const why: RestoreWhy | undefined = le.key === 'sql-time.restore_already' ? 'restored' : le.key === 'sql-time.restore_id_taken' ? 'reissued'
+    : le.key === 'sql-time.restore_stale' ? 'changed' : undefined;
+  if (!why) return null;
+  const d = (le.detail ?? {}) as Partial<Refused>;
+  const p = le.params ?? {};
+  return {
+    id: String(d.id ?? p.id ?? ''), rev: Number(d.rev ?? p.rev ?? 0), expected: d.expected ?? (typeof p.expected === 'number' ? p.expected : null),
+    after: d.after ?? null, deleted: d.deleted ?? false, live: d.live ?? why !== 'changed', why,
+  };
 }
 
 /**
  * Восстановление (этап 6, п. 2): последний снимок новой версией; база перепроверяет его по текущему описанию. С expect
  * база ещё раз сверяет номер последней версии под блокировкой записи журнала (restore(id, rev), план 2.1, A1): гонку
- * между чтением и восстановлением ловит она.
+ * между чтением и восстановлением ловит она, и её отказ — по смыслу, как у проверки до записи (второй раунд 2.1, A2).
+ * partial (A3): цели, которые не восстановить, — строки-пропуски { …строка, $action: 'skip', $why }, остальные
+ * восстанавливаются; каждая цель — под своей точкой сохранения, проигранная гонка тоже становится пропуском.
  */
 async function restoreOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {
   const S = quoteId(w.schema);
-  const expect = (opStep.op as { expect?: readonly Expected[] }).expect;
-  const dead = await deletedTargets(w, steps, opStep, 'restore', expect);
-  if (!dead.length) return [];
-  const ids = dead.map((r) => r.id);
+  const { expect, partial } = opStep.op as { expect?: readonly Expected[]; partial?: true };
+  const { dead, skip, order } = await deletedTargets(w, steps, opStep, 'restore', expect, partial);
+  if (!dead.length) return inTargetOrder(order, skip);
+  let ids = dead.map((r) => r.id);
   if (expect === undefined) {
     // прежний вызов restore(id): работает и со схемой прежней ревизии
-    await query(w, `select ${S}.restore(x) from unnest($1::uuid[]) with ordinality as u(x, i) order by u.i`, [ids]);
-  } else {
+    try {
+      await query(w, `select ${S}.restore(x) from unnest($1::uuid[]) with ordinality as u(x, i) order by u.i`, [ids]);
+    } catch (e) {
+      const r = dbRefusal(e);
+      if (r && r.why !== 'changed') throw restoreRefusal('restore', [r], false, e);
+      throw e;
+    }
+  } else if (!partial) {
     try {
       await query(w, `select ${S}.restore(u.x, u.r) from unnest($1::uuid[], $2::int[]) with ordinality as u(x, r, i) order by u.i`,
         [ids, dead.map((r) => r.rev)]);
     } catch (e) {
-      const le = fromDbError(e);
-      if (le instanceof LetopisError && le.key === 'sql-time.restore_stale') {
-        const d = (le.detail ?? {}) as { id?: string; rev?: number; expected?: number };
-        throw lerr('write.restore_stale', { ids: String(d.id ?? '') }, { detail: { stale: [{ id: d.id, rev: d.rev, expected: d.expected, deleted: false }] }, cause: e });
-      }
+      const r = dbRefusal(e);
+      if (r) throw restoreRefusal('restore', [r], true, e);
       throw e;
     }
+  } else {
+    const lost = new Set<string>();
+    for (const r of dead) {
+      await w.q.unsafe('savepoint letopis_restore');
+      try {
+        await query(w, `select ${S}.restore($1::uuid, $2::int)`, [r.id, r.rev]);
+        await w.q.unsafe('release savepoint letopis_restore');
+      } catch (e) {
+        await w.q.unsafe('rollback to savepoint letopis_restore');
+        const why = dbRefusal(e)?.why;
+        if (!why) throw e;
+        lost.add(r.id);
+        skip.push(skipRow(r, why));
+      }
+    }
+    ids = ids.filter((id) => !lost.has(id));
   }
-  const res = await query<{ row: Record<string, unknown> }>(w, `select ${rowJson('e')} as row from ${S}.entity e where e.id = any ($1::uuid[])`, [ids]);
-  return inTargetOrder(ids, res.map((r) => toRow(r.row)));
+  const res = ids.length
+    ? await query<{ row: Record<string, unknown> }>(w, `select ${rowJson('e')} as row from ${S}.entity e where e.id = any ($1::uuid[])`, [ids])
+    : [];
+  return inTargetOrder(order, [...res.map((r) => toRow(r.row) as WriteRow), ...skip]);
 }
 
 async function opCall(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {
@@ -875,10 +1001,11 @@ export async function execPlan(w: WriteCtx, steps: Step[], mods: ChainMods, mode
     } else {
       last = await opCall(w, [fromRows(prevOp!, start.map((r) => r.id)), ...seg.steps], opStep);
     }
-    // после удаления продолжение — от удалённых строк класса цели (замыкание каскада шире)
+    // после удаления продолжение — от удалённых строк класса цели (замыкание каскада шире); после restore — от
+    // восстановленных, без строк-пропусков partial
     start = kind === 'delete' && (opStep.op as { confirm: boolean }).confirm
       ? last.filter((r) => stepClasses(w.reg, opStep).includes(r.class))
-      : last;
+      : kind === 'restore' ? last.filter((r) => r.$action !== 'skip') : last;
     prevOp = opStep;
   }
   // причина глагола не переходит на следующие операторы транзакции

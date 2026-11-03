@@ -114,9 +114,14 @@ export const sqlCore = {
     ru: 'minProperties внутри anyOf не поддерживается (узел {node})',
   },
   // 30-validate.sql, validate_data(): сообщения нарушений issues[].message — тексты не для ошибки (lt_text)
-  'sql-core.issue_string_length': {
+  // minLength, maxLength: limit — граница из описания (длина в символах)
+  'sql-core.issue_string_too_short': {
     code: 'invalid_data',
-    ru: 'длина строки вне границ',
+    ru: 'длина строки меньше {limit}',
+  },
+  'sql-core.issue_string_too_long': {
+    code: 'invalid_data',
+    ru: 'длина строки больше {limit}',
   },
   'sql-core.issue_unique_items': {
     code: 'invalid_data',

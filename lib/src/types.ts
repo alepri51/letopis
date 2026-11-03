@@ -80,8 +80,16 @@ export interface Row<D = Record<string, unknown>, L = Record<string, string | st
   $depth?: number;
   /** Что сделал upsert. */
   $upsert?: 'created' | 'updated' | 'unchanged';
-  /** Превью удаления (delete() без confirm): удалится, снимется конец или помешает (restrict). */
-  $action?: 'delete' | 'unset' | 'restrict';
+  /**
+   * Превью удаления (delete() без confirm): удалится, снимется конец или помешает (restrict). В ответе
+   * `restore({ expect, partial: true })` — `skip`: цель не восстановлена, причина — `$why`.
+   */
+  $action?: 'delete' | 'unset' | 'restrict' | 'skip';
+  /**
+   * Почему цель `restore({ expect, partial: true })` не восстановлена: `restored` — её уже восстановили, `reissued` — id
+   * занял новый объект с тем же ключом, `changed` — после показанного удаления её меняли (удалили снова и т. п.).
+   */
+  $why?: 'restored' | 'reissued' | 'changed';
 }
 
 /** Путь paths(): узел на каждый шаг цепочки. */

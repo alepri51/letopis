@@ -17,6 +17,13 @@ export const api = {
   },
   // chain.ts: шаг не найден, а в реестре сессии нет ни одного класса, кроме классов System — сессия, похоже, в
   // личном арендаторе (вход без switch); похожие имена — params.similar
+  // index.ts: connect({ token }) — токен не даёт сессии (погашен, истёк, неверен); chain.ts: шаг корня без сессии
+  // (сессия погасла после connect) — отказ терминала, а не синхронный
+  'api.token_not_active': {
+    code: 'no_session',
+    ru: 'нет действующей сессии: токен погашен, истёк или неверен',
+    hint: 'войти заново и подключиться с новым токеном; веб-сервису — одно подключение сервиса и svc.as(account, { tenant }) на запрос, а не connect({ token }) на каждый вход',
+  },
   'api.unknown_step_no_classes': {
     code: 'invalid_class',
     ru: 'класс или роль {name} не найдены: в реестре сессии нет ни одного класса арендатора — сессия, похоже, в личном арендаторе',
@@ -126,9 +133,11 @@ export const api = {
     ru: 'forUpdate() — только внутри db.begin(): вне явной транзакции блокировка снялась бы сразу',
   },
   // chain.ts, lockedRead: forUpdate() с другим терминалом, агрегатом, срезом, глаголом
+  // chain.ts, lockedRead: what — что мешает блокировке (терминал, asOf(), withDeleted(), deep(), глагол)
   'api.for_update_unsupported': {
     code: 'lock_unsupported',
-    ru: 'forUpdate() — с терминалами rows, first, ids, без агрегатов, asOf, versions, withDeleted, deep и глаголов',
+    ru: 'forUpdate() нельзя с {what}: блокировка — только у чтения rows(), first(), ids()',
+    hint: 'forUpdate() — в db.begin(), перед rows(), first() или ids(); без asOf(), versions(), withDeleted(), deep(), count(), paths(), агрегатов и глаголов. Правка — отдельной цепочкой после чтения: await tr.X(id).forUpdate().first(); await tr.X(id).update(…).rows()',
   },
   // chain.ts, lockedRead: строки видны, но политика правки не даёт их заблокировать; ids — через запятую (detail.ids — списком)
   'api.lock_denied': {
@@ -218,6 +227,13 @@ export const api = {
     hint: 'повторить вызов: между запросами db.as() сессия сменила арендатора или кончилась',
   },
   // index.ts: db.begin() внутри db.begin()
+  // index.ts: db.begin(аргумент) — не объект опций (функция, строка, число); функцию begin() не вызывает; type — typeof
+  // аргумента (array — массив)
+  'api.begin_arg': {
+    code: 'invalid_query',
+    ru: 'db.begin() принимает только опции { reason }, а не {type}: транзакцию открывает begin(), закрывают commit() и rollback()',
+    hint: 'const tr = await db.begin(); try { …; await tr.commit() } catch (e) { await tr.rollback(); throw e }',
+  },
   'api.nested_begin': {
     code: 'invalid_query',
     ru: 'вложенных транзакций нет: db.begin() внутри db.begin()',

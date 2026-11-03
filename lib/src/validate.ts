@@ -188,7 +188,12 @@ function compileNode(s: J, sel: Select, path: Path, inAny: boolean, out: Rule[])
     const min = (sch.minLength as number | undefined) ?? 0;
     const max = (sch.maxLength as number | undefined) ?? Infinity;
     out.push({ path, keyword: sch.minLength !== undefined ? 'minLength' : 'maxLength', select: sel, test: () => true,
-      extra: (v) => { if (typeof v !== 'string') return null; const n = [...v].length; return n < min || n > max ? lmsg('model.issue_string_length') : null; } });
+      // текст называет границу (второй раунд 2.1, A6), как у базы (30-validate.sql, validate_data)
+      extra: (v) => {
+        if (typeof v !== 'string') return null;
+        const n = [...v].length;
+        return n < min ? lmsg('model.issue_string_too_short', { limit: min }) : n > max ? lmsg('model.issue_string_too_long', { limit: max }) : null;
+      } });
   }
   if (sch.minItems !== undefined) out.push({ path, keyword: 'minItems', select: sel, test: (v) => !Array.isArray(v) || v.length >= (sch.minItems as number) });
   if (sch.maxItems !== undefined) out.push({ path, keyword: 'maxItems', select: sel, test: (v) => !Array.isArray(v) || v.length <= (sch.maxItems as number) });

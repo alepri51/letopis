@@ -245,7 +245,11 @@ export type TypedChain<C, M extends readonly AnyModelLike[]> = Omit<ChainCore, R
   /** С `{ confirm: true }` без фильтра, id, `tags()`, `owner()` и `limit()` у шагов — `invalid_query`; всех — `{ all: true }`. */
   delete(opts?: { confirm?: boolean; all?: boolean; reason?: string; expect?: readonly Expected[] }): TypedChain<C, M>;
   forUpdate(): TypedChain<C, M>;
-  /** `{ expect }` — надгробия `{ id, rev }`: восстановить ровно то, что ушло удалением; расхождение — `conflict`. */
-  restore(opts?: { reason?: string; expect?: readonly Expected[] }): TypedChain<C, M>;
+  /**
+   * `{ expect }` — надгробия `{ id, rev }`: восстановить ровно то, что ушло удалением; расхождение — отказ по смыслу
+   * (`write.restore_already`, `write.restore_id_taken`, `write.restore_stale`). `{ expect, partial: true }` — что можно, а
+   * остальное — строки `$action: 'skip'` с причиной `$why`.
+   */
+  restore(opts?: { reason?: string; expect?: readonly Expected[]; partial?: boolean }): TypedChain<C, M>;
   cache(opts?: { ttl?: number }): TypedChain<C, M>;
 } & HopsOf<C, M>;

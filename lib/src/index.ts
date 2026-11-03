@@ -126,6 +126,8 @@ const CONNECT_OPTIONS = {
 } satisfies Record<keyof ConnectOptions, true>;
 /** Опции watch() (WatchOptions). */
 const WATCH_OPTIONS = { from: true, classes: true, batch: true, pollMs: true } satisfies Record<keyof WatchOptions, true>;
+/** Опции db.begin() (второй раунд 2.1, A4). */
+const BEGIN_OPTIONS = { reason: true } satisfies Record<keyof NonNullable<Parameters<DbCore['begin']>[0]>, true>;
 
 export interface DbCore {
   readonly schema: string;
@@ -276,7 +278,7 @@ interface Shared {
 function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: ExplicitTx): Db {
   const txc = scope.txc;
   const chainCtx: ChainCtx = {
-    reg: scope.registry(), schema: sh.schema, exec, tenant: scope.tenant, owner, onQuery: sh.onQuery, slowMs: sh.slowMs,
+    reg: scope.registry(), schema: sh.schema, exec, tenant: scope.tenant, hasToken: () => Boolean(txc.token), owner, onQuery: sh.onQuery, slowMs: sh.slowMs,
     reason: txc.reason ?? '', txReason: txc.reason ?? '',
     ...(sh.cache ? { cache: { store: sh.cache, who: () => ({ token: txc.token, account: txc.account, tenant: scope.tenant() }) } } : {}),
   };
@@ -370,6 +372,11 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
       }
     },
     begin: async (o) => {
+      // аргумент — только опции (второй раунд 2.1, A4): begin(fn) функцию не вызывал, а транзакция оставалась открытой
+      if (o !== undefined && o !== null && (typeof o !== 'object' || Array.isArray(o))) {
+        throw lerr('api.begin_arg', { type: Array.isArray(o) ? 'array' : typeof o });
+      }
+      checkOptions('begin', o, BEGIN_OPTIONS);
       if (tx) throw lerr('api.nested_begin');
       // причина блока ставится в начале транзакции (setupSql) и действует на все её операции
       const btx: TxContext = o?.reason !== undefined ? { ...txc, reason: checkReason(o.reason, 'db.begin()') } : txc;
@@ -659,6 +666,12 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
       // ключ сменился: ответы с токенами старого ключа сигналы больше не узнают
       if (sig.setKey(key)) cache?.clear();
     };
+    // токен, который не даёт сессии (погашен, истёк, неверен), — отказ connect(), а не подключение без сессии, где первый
+    // же шаг дал бы invalid_class про личный арендатор (второй раунд 2.1, A5)
+    if (opts.token) {
+      const [s] = await runTx(ctx, (q) => q.unsafe(`select account from ${S}.ctx()`), { read: true, retries: 0 });
+      if (!s?.account) throw lerr('api.token_not_active');
+    }
     await fetchKey();
     await refresh();
     // ключ, реестр и пропуска прав — заново после переподключения слушателя, по незнакомому токену, нагрузке не по

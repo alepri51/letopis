@@ -112,7 +112,9 @@ end $$;
 -- WRITE — на восстановленные значения. id прежний, в том числе у класса без ключа. p_rev (ревизия 9, план 2.1, A1) —
 -- ожидаемый номер последней записи журнала (надгробия из ответа delete или withDeleted): другой — отказ restore_stale,
 -- проверка под той же блокировкой записи журнала, что у параллельного restore и воскрешения. Прежняя restore(uuid)
--- снимается миграцией 0009: вызов restore(id) попадает сюда с p_rev = null.
+-- снимается миграцией 0009: вызов restore(id) попадает сюда с p_rev = null. Отказ — по записи журнала за последним
+-- надгробием (второй раунд 2.1, A2): restore — restore_already, create — restore_id_taken (объект живой); иначе с p_rev —
+-- restore_stale с after (вид записи сразу за p_rev), deleted и live, без p_rev — restore_not_deleted.
 create or replace function @SCHEMA@.restore(p_id uuid, p_rev int default null) returns uuid
 language plpgsql volatile security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -130,6 +132,9 @@ declare
   own uuid;
   ts timestamptz;
   n @SCHEMA@.entity;
+  v_live boolean;
+  v_tomb int;
+  v_next text;
 begin
   select * into c from @SCHEMA@.ctx();
   if c.account is null then
@@ -137,16 +142,28 @@ begin
   end if;
   rd := @SCHEMA@.acl_actor('READ');
   l := @SCHEMA@.last_version_visible(p_id, c.tenant, rd);
-  if p_rev is not null and l.rev <> p_rev then
-    perform @SCHEMA@.lt_fail('sql-time.restore_stale', jsonb_build_object('id', p_id, 'rev', l.rev, 'expected', p_rev),
-      jsonb_build_object('id', p_id, 'rev', l.rev, 'expected', p_rev));
+  -- проигравший гонку: блокировка дождалась чужой фиксации, а запись l прочитана до неё. Новая версия видна следующему
+  -- оператору (read committed) — тогда последняя запись берётся заново, под той же блокировкой и проверкой видимости
+  if exists (select 1 from @SCHEMA@.log x where x.id = p_id and x.tenant = c.tenant and x.rev > l.rev) then
+    l := @SCHEMA@.last_version_visible(p_id, c.tenant, rd);
   end if;
-  if l.op <> 'delete' or exists (select 1 from @SCHEMA@.entity e where e.id = p_id) then
-    -- живой объект, который уже удаляли: id занял новый объект с тем же ключом (create по ключу удалённого)
-    if exists (select 1 from @SCHEMA@.log x where x.id = p_id and x.tenant = c.tenant and x.op = 'delete') then
-      perform @SCHEMA@.lt_fail('sql-time.restore_id_taken', jsonb_build_object('id', p_id));
+  v_live := exists (select 1 from @SCHEMA@.entity e where e.id = p_id);
+  if l.op <> 'delete' or v_live or (p_rev is not null and l.rev <> p_rev) then
+    -- что за последним надгробием: restore — уже восстановлен, create — id занял новый объект с тем же ключом
+    select max(x.rev) into v_tomb from @SCHEMA@.log x where x.id = p_id and x.tenant = c.tenant and x.op = 'delete';
+    select x.op into v_next from @SCHEMA@.log x where x.id = p_id and x.tenant = c.tenant and x.rev > v_tomb order by x.rev limit 1;
+    if v_live and v_next = 'restore' then
+      perform @SCHEMA@.lt_fail('sql-time.restore_already', jsonb_build_object('id', p_id), jsonb_build_object('id', p_id, 'rev', l.rev));
+    elsif v_live and v_next = 'create' then
+      perform @SCHEMA@.lt_fail('sql-time.restore_id_taken', jsonb_build_object('id', p_id), jsonb_build_object('id', p_id, 'rev', l.rev));
+    elsif p_rev is null then
+      perform @SCHEMA@.lt_fail('sql-time.restore_not_deleted');
     end if;
-    perform @SCHEMA@.lt_fail('sql-time.restore_not_deleted');
+    -- удалён снова, не удалялся, гонка: что было сразу после показанного удаления
+    select x.op into v_next from @SCHEMA@.log x where x.id = p_id and x.tenant = c.tenant and x.rev > p_rev order by x.rev limit 1;
+    perform @SCHEMA@.lt_fail('sql-time.restore_stale',
+      jsonb_build_object('id', p_id, 'rev', l.rev, 'expected', p_rev, 'after', coalesce(v_next, '—')),
+      jsonb_build_object('id', p_id, 'rev', l.rev, 'expected', p_rev, 'after', v_next, 'deleted', l.op = 'delete', 'live', v_live));
   end if;
   if l.class = 'Class' then
     perform @SCHEMA@.lt_fail('sql-time.restore_class_row');
