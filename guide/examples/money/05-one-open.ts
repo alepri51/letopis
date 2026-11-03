@@ -38,10 +38,10 @@ export default example({
     'Две выдачи одной вещи идут одновременно. Фильтр update() по данным перепроверяется под блокировкой — вторая ' +
     'выдача получает пустой ответ. Решение «прочитал — проверил — записал» защищают forUpdate() в транзакции и ' +
     '{ rev }, правило «одна открытая выдача» — ключ. В конце — возврат удалённого участника: его выдачу, которую тем ' +
-    'временем выдали другому и приняли, restore({ expect }) не оживляет.',
+    'временем выдали другому и приняли, restore({ expect, partial: true }) не оживляет, а возвращает пропуском с причиной.',
   tables: ['entity'],
   classes: ['Item', 'OpenLoan'],
-  covers: ['nuance.update-filter-race', 'nuance.one-open-by-key', 'nuance.restore-expect-stale', 'error.conflict'],
+  covers: ['nuance.update-filter-race', 'nuance.one-open-by-key', 'nuance.restore-expect-stale', 'nuance.restore-partial', 'error.conflict'],
   steps: [
     {
       title: 'Мяч и два участника',
@@ -163,33 +163,30 @@ export default example({
       text:
         'Что ушло удалением Петра — его надгробия: ответ `delete` из шага 7 или, если его не сохранили, версии удаления ' +
         'в журнале с той же причиной (`withDeleted().versions()`, отбор `op === \'delete\'` и `reason`). Переход ' +
-        '`db.Member(petr).withDeleted().OpenLoan().withDeleted()` выдачу уже не найдёт: последняя версия выдачи ведёт на ' +
-        'Анну. Петра возвращает `restore()`, выдачу — `restore({ expect: [надгробие] })`: она вернётся, только если её ' +
-        'последняя версия — то самое надгробие. Здесь после него мяч выдавали Анне, поэтому отказ `conflict` ' +
-        '(`write.restore_stale`, в `err.detail.stale` — какую версию ждали и какая последняя), ничего не восстановлено, и ' +
-        'приложение сообщает «не вернулась». Без `expect` `restore()` вернул бы последний снимок — закрытую выдачу Анны, ' +
-        'и мяч числился бы у неё.',
+        '`db.Member(petr).OpenLoan().withDeleted()` выдачу уже не найдёт: последняя версия выдачи ведёт на Анну. Петра ' +
+        'возвращает `restore({ expect: [его надгробие] })`, выдачи — одним вызовом `restore({ expect: надгробия, partial: ' +
+        'true })`: вернутся те, чья последняя версия — то самое надгробие, а остальные придут строками-пропусками ' +
+        '`$action: \'skip\'` с причиной `$why` — `changed` (после удаления строку пересоздавали, правили или удалили снова), ' +
+        '`reissued` (id занял новый живой объект с тем же ключом), `restored` (уже вернули). Здесь после удаления мяч ' +
+        'выдавали Анне: выдача — пропуск `changed`, ничего чужого не ожило, и приложение сообщает «не вернулась». Без ' +
+        '`expect` `restore()` вернул бы последний снимок — закрытую выдачу Анны, и мяч числился бы у неё.',
       run: async ({ db }) => {
         const [tomb] = await db.Member(petr).withDeleted().rows(); // надгробие Петра: причина удаления
         // надгробия его каскада — версии удаления с той же причиной (их же вернул delete в шаге 7)
         const loans = (await db.OpenLoan().withDeleted().versions()).filter((v) => v.op === 'delete' && v.reason === tomb.reason);
-        await db.Member(petr).restore().rows();
+        await db.Member(petr).restore({ expect: [tomb] }).rows();
+        const back = await db.OpenLoan(loans.map((l) => l.id)).restore({ expect: loans, partial: true }).rows();
+        const WHY = { changed: 'после удаления вещь выдавали другому', reissued: 'выдача этой вещи снова открыта', restored: 'её уже вернули' };
         const report: string[] = [];
-        for (const loan of loans) {
-          const item = (await db.Item(loan.links.Item as string).first())!.data.code;
-          report.push(await db.OpenLoan(loan.id).restore({ expect: [loan] }).rows().then(
-            () => `${item}: выдача вернулась`,
-            (e) => {
-              if (e.code !== 'conflict') throw e;
-              const [s] = e.detail.stale;
-              return `${item}: не вернулась — после удаления вещь выдавали другому (ждали v${s.expected}, последняя v${s.rev})`;
-            },
-          ));
+        for (const r of back) {
+          const item = (await db.Item(r.links.Item as string).first())!.data.code;
+          report.push(r.$action === 'skip' ? `${item}: не вернулась — ${WHY[r.$why!]} (${r.$why})` : `${item}: выдача вернулась`);
         }
         const last = (await db.OpenLoan(loans[0].id).withDeleted().first())!;
         return {
           'переход от Петра к его удалённым выдачам': (await db.Member(petr).OpenLoan().withDeleted().rows()).length,
           'выдач в удалении Петра': loans.length,
+          'ответ restore': back.map((r) => ({ $action: r.$action ?? 'restore', $why: r.$why ?? null, rev: r.rev })),
           'ответ пользователю': report,
           'последний снимок выдачи': `${who(last.links.Member)}, ${last.$deleted ? 'закрыта' : 'открыта'}`,
           'у Петра на руках': await db.Member(petr).OpenLoan().count(),

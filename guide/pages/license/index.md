@@ -1,6 +1,6 @@
 # Лицензия
 
-letopis распространяется под лицензией **PolyForm Noncommercial License 1.0.0** (SPDX `PolyForm-Noncommercial-1.0.0`). Исходный код открыт, некоммерческое использование бесплатно и без разрешения; коммерческое — только по отдельной лицензии от владельца. Это не лицензия open source в смысле OSI.
+letopis распространяется под лицензией **PolyForm Noncommercial License 1.0.0** (SPDX `PolyForm-Noncommercial-1.0.0`). Исходный код доступен; некоммерческое использование бесплатно и без разрешения; коммерческое — только по отдельной лицензии от владельца. Это не лицензия open source в смысле OSI.
 
 Юридическую силу имеет английский текст лицензии — файл [LICENSE в репозитории](https://github.com/alepri51/letopis/blob/dev/LICENSE) и [текст на polyformproject.org](https://polyformproject.org/licenses/noncommercial/1.0.0). Эта страница — пояснение к нему, а не его замена.
 

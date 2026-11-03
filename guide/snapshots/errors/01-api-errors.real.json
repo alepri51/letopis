@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_34f28a3eddbab2666bcac7b885d901d6ccd4db7de2d261b963f2f71f0025befc",
+      "serviceKey": "lts_55625d44897374c6e6f07ee4c53f98557b489b4b33ec6129b2b4a9341ebbb650",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "4ea1b7e9ca6ab3ad33c5931105e3eafb4464ee47df6e83cd37cdcbfa27c76378",
+        "token": "0793a56576f5b72ed1d6b46295c94398b178634f8144d4bcced0220c35907c13",
         "created": true
       }
     }
@@ -80,7 +80,7 @@
       "result": null,
       "error": {
         "code": "lock_unsupported",
-        "message": "letopis: lock_unsupported: forUpdate() — с терминалами rows, first, ids, без агрегатов, asOf, versions, withDeleted, deep и глаголов",
+        "message": "letopis: lock_unsupported: forUpdate() нельзя с count(): блокировка — только у чтения rows(), first(), ids()",
         "detail": null
       },
       "entity": [],
@@ -160,6 +160,19 @@
       "error": {
         "code": "invalid_query",
         "message": "letopis: invalid_query: цепочка — не массив: length есть у строк ответа, а не у цепочки",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "invalid_query",
+        "message": "letopis: invalid_query: db.begin() принимает только опции { reason }, а не function: транзакцию открывает begin(), закрывают commit() и rollback()",
         "detail": null
       },
       "entity": [],

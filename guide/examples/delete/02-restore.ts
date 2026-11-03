@@ -94,10 +94,16 @@ export default example({
       run: async ({ db }) => (await db.Order(d.order1).versions()).map((v) => `v${v.rev} ${v.op}`),
     },
     {
-      title: 'Живой объект вернуть нельзя',
-      text: '`restore()` работает только для удалённых: живой объект — `not_deleted`.',
-      run: async ({ db }) => db.Customer(d.olga).restore().rows(),
-      expect: { error: 'not_deleted' },
+      title: 'Живой объект вернуть нельзя — ключ говорит почему',
+      text:
+        '`restore()` работает только для удалённых: живой объект — `not_deleted`. Почему он жив, говорит ключ ' +
+        '`err.key`: `write.not_deleted` — объект не удалялся, `write.restore_already` — его уже вернули (заказ A-1 — в ' +
+        'шаге 3; так же отвечает второй из двух одновременных `restore()`), `write.restore_id_taken` — id занял новый ' +
+        'объект с тем же ключом (шаг 11).',
+      run: async ({ db }) => ({
+        'покупатель Ольга (не удалялась)': await db.Customer(d.olga).restore().rows().then(() => 'восстановлено', (e) => `${e.code} (${e.key})`),
+        'заказ A-1 (уже вернули)': await db.Order(d.order1).restore().rows().then(() => 'восстановлено', (e) => `${e.code} (${e.key})`),
+      }),
     },
     {
       title: 'Чужой или несуществующий id — пустой ответ, а не ошибка',
@@ -138,14 +144,17 @@ export default example({
     {
       title: 'Вернуть прежнюю «Посуду» уже нельзя',
       text:
-        'id удалённой категории занял новый объект с тем же ключом. `restore()` отвечает `not_deleted` с ключом ' +
-        '`write.restore_id_taken` («id занят новым объектом с тем же ключом»), а `restore({ expect: [надгробие] })` — ' +
-        '`conflict` (`write.restore_stale`): последняя версия уже не то надгробие. В обоих случаях ничего не ' +
-        'восстановлено — сообщите пользователю, что объект с этим ключом уже живёт.',
+        'id удалённой категории занял новый объект с тем же ключом. И `restore()`, и `restore({ expect: [надгробие] })` ' +
+        'отвечают `not_deleted` с ключом `write.restore_id_taken` («id занят новым объектом с тем же ключом»); с ' +
+        '`expect` в `err.detail.stale` — каждая цель, которую не вернуть, с причиной `why: \'reissued\'`. Ничего не ' +
+        'восстановлено — сообщите пользователю, что объект с этим ключом уже живёт. С `partial: true` та же цель ' +
+        'пришла бы строкой-пропуском `$action: \'skip\'`, `$why: \'reissued\'`, без ошибки.',
       run: async ({ db }) => ({
         'restore()': await db.Category(dishesTomb.id).restore().rows().then(() => 'восстановлено', (e) => `${e.code} (${e.key})`),
         'restore({ expect })': await db.Category(dishesTomb.id).restore({ expect: [dishesTomb] }).rows()
-          .then(() => 'восстановлено', (e) => `${e.code} (${e.key})`),
+          .then(() => 'восстановлено', (e) => ({ error: `${e.code} (${e.key})`, stale: e.detail?.stale })),
+        'restore({ expect, partial: true })': (await db.Category(dishesTomb.id).restore({ expect: [dishesTomb], partial: true }).rows())
+          .map((r) => ({ $action: r.$action, $why: r.$why })),
       }),
     },
   ],

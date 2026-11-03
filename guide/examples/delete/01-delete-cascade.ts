@@ -3,7 +3,7 @@ import { example } from '../../kit/example.ts';
 import { seedShop, type ShopData } from '../../kit/shop.ts';
 
 let d: ShopData;
-let shown: Row[];
+let shown: Row[], gone: Row[];
 
 export default example({
   title: 'Удаление: предпросмотр, каскад, запрет, очистка конца',
@@ -12,7 +12,7 @@ export default example({
     'делать с концами, ведущими на них, решает действие при удалении у конца: cascade — удалить вместе, ' +
     'restrict — запретить, unset — очистить конец. Модель магазина — помощник kit/shop.ts: его код — в «Весь код примера».',
   tables: ['entity', 'log'],
-  covers: ['chain.delete', 'error.delete_restricted', 'error.conflict', 'nuance.cascade-unset-restrict', 'nuance.preview-depth', 'nuance.delete-as-shown'],
+  covers: ['chain.delete', 'error.delete_restricted', 'error.conflict', 'nuance.cascade-unset-restrict', 'nuance.preview-depth', 'nuance.delete-as-shown', 'nuance.restore-partial'],
   steps: [
     {
       title: 'Данные магазина',
@@ -96,7 +96,34 @@ export default example({
       text:
         'Пользователь посмотрел новый предпросмотр и подтвердил: он совпал с базой — удалены заказ и обе строки, ровно ' +
         'как показано.',
-      run: async ({ db }) => db.Order(d.order2).delete({ confirm: true, expect: shown, reason: 'отмена заказа A-2' }).rows(),
+      run: async ({ db }) => {
+        gone = await db.Order(d.order2).delete({ confirm: true, expect: shown, reason: 'отмена заказа A-2' }).rows();
+        return gone;
+      },
+    },
+    {
+      title: 'Заказ вернули, а чайник в него тем временем добавили заново',
+      text:
+        'Ответ `delete` — надгробия этого удаления (`id` и `rev` каждой строки): сохраните его, по нему удалённое и ' +
+        'возвращают. Заказ возвращает `restore({ expect: ответ })` — id из `expect`, которых нет среди строк шага ' +
+        '(строки заказа), он пропускает. Сразу после этого в заказ снова положили чайник: строка с ключом «заказ + ' +
+        'товар» получила тот же id, что удалённая, и её история продолжилась версией `create`.',
+      run: async ({ db }) => {
+        const [order] = await db.Order(d.order2).restore({ expect: gone }).rows();
+        await db.Order(d.order2).line().create({ qty: 3, price: 2500 }).Product.set(d.kettle).rows();
+        return order;
+      },
+    },
+    {
+      title: 'Вернуть строки удаления — restore({ expect, partial: true })',
+      text:
+        'Строки заказа возвращают тем же ответом `delete`, одним вызовом. Без `partial` строка, которую уже не вернуть, ' +
+        'роняет весь вызов: ничего не восстановлено. С `partial: true` возвращаются строки, чья последняя версия — то ' +
+        'самое надгробие, а остальные приходят в ответе строками-пропусками `$action: \'skip\'` с причиной `$why`: ' +
+        '`reissued` — id занял новый живой объект с тем же ключом (здесь — чайник), `changed` — после удаления строку ' +
+        'пересоздавали, правили или удалили снова, `restored` — её уже вернули. Пропуски покажите пользователю: «не ' +
+        'вернулась — уже есть новая».',
+      run: async ({ db }) => db.Order(d.order2).line().restore({ expect: gone, partial: true }).rows(),
     },
   ],
 });

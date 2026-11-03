@@ -4,7 +4,8 @@
  *   cd guide/start && npm install
  *   ADMIN_DSN=postgres://postgres:ПАРОЛЬ@localhost:5432/letopis node start.mjs
  *
- * Без ADMIN_DSN берётся база стенда документации: docker compose -f services/compose.yaml up -d pg
+ * Без ADMIN_DSN берётся postgres://postgres:guide@127.0.0.1:15440/letopis — например, из
+ *   docker run -d --name pg18 -e POSTGRES_PASSWORD=guide -e POSTGRES_DB=letopis -p 127.0.0.1:15440:5432 postgres:18
  * Повторный запуск безопасен: up() и createTenant ничего не дублируют, существующие объекты пропускаются.
  */
 import postgres from 'postgres';

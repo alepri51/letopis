@@ -12,7 +12,7 @@ export default example({
     'транзакций и подключения.',
   tables: [],
   covers: ['error.target_not_found', 'error.id_mismatch', 'error.no_path', 'error.lock_unsupported', 'error.no_session',
-    'error.user_session_required', 'error.tx_rolled_back', 'error.invalid_query', 'nuance.bad-uuid-letopis-error'],
+    'error.user_session_required', 'error.tx_rolled_back', 'error.invalid_query', 'nuance.bad-uuid-letopis-error', 'nuance.begin-options-only'],
   steps: [
     {
       title: 'target_not_found — правка того, чего нет',
@@ -37,7 +37,9 @@ export default example({
     },
     {
       title: 'lock_unsupported — forUpdate с count()',
-      text: '`forUpdate()` блокирует строки, а `count()` строк не отдаёт. Что делать: заблокировать `rows()`, потом считать.',
+      text:
+        '`forUpdate()` блокирует строки, а `count()` строк не отдаёт. Текст называет, что именно нельзя: терминал, `asOf()`, ' +
+        '`withDeleted()`, `deep()` или глагол. Что делать: заблокировать `rows()`, `first()` или `ids()`, потом считать.',
       run: async ({ db }) => {
         const tr = await db.begin();
         try { return await tr.Product().forUpdate().count(); } finally { await tr.rollback(); }
@@ -89,6 +91,15 @@ export default example({
         'Цепочка — не массив: `length`, `map`, `filter`, `forEach` и другие свойства массива у неё — отказ `invalid_query` ' +
         '(ключ `api.chain_not_rows`), а не поиск класса с таким именем. Что делать: `await ….rows()` или `await ….first()`.',
       run: async ({ db }) => (db.Product() as unknown as unknown[]).length,
+      expect: { error: 'invalid_query' },
+    },
+    {
+      title: 'invalid_query — db.begin(функция)',
+      text:
+        '`db.begin()` принимает только опции `{ reason }`: функцию он не вызывает. Отказ `invalid_query` (ключ ' +
+        '`api.begin_arg`), транзакция не открыта. Что делать: `const tr = await db.begin(); try { …; await tr.commit() } ' +
+        'catch (e) { await tr.rollback(); throw e }`.',
+      run: async ({ db }) => (db as unknown as { begin(f: unknown): Promise<unknown> }).begin(async () => 'тело транзакции'),
       expect: { error: 'invalid_query' },
     },
   ],

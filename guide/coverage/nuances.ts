@@ -303,7 +303,7 @@ const nuances: Nuance[] = [
   {
     id: 'delete-as-shown',
     topic: 'delete',
-    text: 'Предпросмотр — снимок на момент вызова, а delete({ confirm: true }) удаляет то, что есть при подтверждении. Удалить ровно показанное — delete({ confirm: true, expect: предпросмотр }): в транзакции удаления предпросмотр строится заново и сравнивается по id, rev и $action; не совпал — conflict (write.preview_changed), ничего не удалено, новый предпросмотр — в err.detail.preview.',
+    text: 'Предпросмотр — снимок на момент вызова, а delete({ confirm: true }) удаляет то, что есть при подтверждении. Удалить ровно показанное — delete({ confirm: true, expect: предпросмотр }): в транзакции удаления строки каскада блокируются, предпросмотр строится заново под блокировкой и сравнивается по id, rev и $action; не совпал — conflict (write.preview_changed), ничего не удалено, новый предпросмотр — в err.detail.preview.',
     source: 'lib/src/write.ts:deleteOp; пример delete/01-delete-cascade',
   },
   {
@@ -316,8 +316,14 @@ const nuances: Nuance[] = [
     id: 'restore-expect-stale',
     topic: 'delete',
     caught: 'conflict',
-    text: 'restore() без expect возвращает последний снимок строки, а не версию, ушедшую конкретным удалением: если выдачу с ключом по вещи после удаления участника пересоздали (вещь выдали другому) и закрыли, restore() оживит чужую закрытую выдачу. restore({ expect: [надгробие] }) вернёт строку, только если её последняя версия — то самое надгробие; иначе conflict (write.restore_stale, err.detail.stale) и ничего не восстановлено — приложение сообщает «не вернулась».',
+    text: 'restore() без expect возвращает последний снимок строки, а не версию, ушедшую конкретным удалением: если выдачу с ключом по вещи после удаления участника пересоздали (вещь выдали другому) и закрыли, restore() оживит чужую закрытую выдачу. restore({ expect: [надгробие] }) вернёт строку, только если её последняя версия — то самое надгробие; иначе отказ и ничего не восстановлено (conflict write.restore_stale; если id занял новый живой объект — not_deleted write.restore_id_taken; err.detail.stale — причина каждой цели), а с partial: true — строка-пропуск. Приложение сообщает «не вернулась».',
     source: 'lib/src/write.ts:deletedTargets, restoreOp; lib/sql/90-time.sql:restore; примеры money/05-one-open, delete/02-restore',
+  },
+  {
+    id: 'restore-partial',
+    topic: 'delete',
+    text: 'restore({ expect, partial: true }) возвращает удаление целиком одним вызовом: восстанавливает цели, чья последняя версия — то самое надгробие, а остальные отдаёт в ответе строками-пропусками $action: \'skip\' с причиной $why — changed (после удаления строку пересоздавали, правили или удалили снова), reissued (id занял новый живой объект), restored (уже вернули). Без partial одна такая цель роняет весь вызов; partial без expect — invalid_query.',
+    source: 'lib/src/write.ts:deletedTargets, restoreOp, skipRow; примеры delete/01-delete-cascade, money/05-one-open',
   },
   {
     id: 'with-deleted-per-step',
@@ -386,6 +392,13 @@ const nuances: Nuance[] = [
     topic: 'money',
     text: 'Фильтр update() по данным (не только id) при параллельной записи перепроверяется: найденные строки блокируются и читаются заново тем же запросом, правятся только всё ещё подходящие — из двух одновременных db.Item({ id, status: "free" }).update(…) пройдёт один, второй получит пустой ответ. Это защищает одну строку; решение «прочитал — проверил — записал» — forUpdate() в db.begin() или { rev } (conflict), правило «одна открытая … на …» — ключ.',
     source: 'lib/src/write.ts:updateOp, lib/src/chain.ts:lockedRead; пример money/05-one-open',
+  },
+  {
+    id: 'begin-options-only',
+    topic: 'money',
+    caught: 'invalid_query',
+    text: 'db.begin() принимает только опции { reason } и не вызывает функцию: begin(async (tr) => …) — invalid_query (api.begin_arg). Транзакцию открывает begin(), закрывают tr.commit() или tr.rollback(): try { …; await tr.commit() } catch (e) { await tr.rollback(); throw e }.',
+    source: 'lib/src/index.ts:makeDb.begin; пример errors/01-api-errors',
   },
   {
     id: 'one-open-by-key',
@@ -462,6 +475,12 @@ const nuances: Nuance[] = [
     source: 'lib/src/auth.ts:revoke, lib/sql/80-auth.sql:auth_logout_token; пример auth/02-sessions-tenants',
   },
   {
+    id: 'web-login-one-pool',
+    topic: 'auth',
+    text: 'Веб-сервис подключается к базе один раз — по ключу сервиса — и на каждый запрос работает через svc.as(аккаунт, { tenant }) на том же пуле. connect({ token }) на каждый вход создаёт пул на пользователя (до max соединений, по умолчанию 10) и исчерпывает соединения PostgreSQL. Арендатора берите из серверной сессии, а не из параметра запроса.',
+    source: 'lib/src/index.ts:connect, makeDb.as; пример auth/04-web-login',
+  },
+  {
     id: 'purge-current-tenant',
     topic: 'auth',
     text: 'Владелец может стереть арендатора, в котором работает (purgeAccount): сессия возвращается в его личный арендатор.',
@@ -483,7 +502,7 @@ const nuances: Nuance[] = [
     id: 'revoked-session-empty',
     topic: 'auth',
     top: 10,
-    text: 'Отозванная или истёкшая сессия при чтении не даёт ошибки: запросы просто возвращают пустой результат. no_session бросают функции входа (auth.*) и connect() с неверным ключом — сервис проверяет сессию в начале каждого запроса.',
+    text: 'Отозванная или истёкшая сессия при чтении не даёт ошибки: запросы просто возвращают пустой результат. no_session бросают функции входа (auth.*) и connect() с неверным ключом или погашенным токеном — сервис проверяет сессию в начале каждого запроса.',
     source: 'lib/sql/20-context.sql:ctx; сервис helpdesk',
   },
   {

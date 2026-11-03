@@ -94,13 +94,16 @@ const fits = (s: Snapshot, r: Real | null | undefined): Real | null =>
 
 // Снимок грузится лениво: когда плеер подходит к экрану (или на него ведёт якорь адреса), а не все плееры страницы
 // сразу — на медленной сети первый пример на экране не ждёт остальные. Настоящие значения (*.real.json) — только
-// когда читатель открыл вкладку «Реальная таблица».
+// когда читатель открыл вкладку «Реальная таблица». На узком экране (телефон) снимок не грузится сам: превью с
+// раскрытым самостоятельным скриптом уже в HTML страницы, а пошаговый плеер — по кнопке (byButton).
 const root = ref<HTMLElement | null>(null);
 const anchorId = `ex-${props.id.replace(/[^a-z0-9]+/gi, '-')}`;
 const realKey = `../../snapshots/${props.id}.real.json`;
 const hasReal = !!realFiles[realKey];
 let watcher: IntersectionObserver | null = null;
 let started = false;
+// телефон: плеер ждёт кнопку «Показать пошагово»
+const byButton = ref(false);
 
 async function loadSnap() {
   if (started) return;
@@ -112,7 +115,8 @@ async function loadSnap() {
   const pre = root.value?.querySelector('.lt-ex-pre-source');
   const text = pre?.querySelector('.lt-ex-pre-plain')?.textContent;
   if (text && standaloneText.value === null) standaloneText.value = text;
-  if (pre?.hasAttribute('open')) {
+  // на телефоне скрипт в превью раскрыт по умолчанию: плеер открывают ради шагов — его «Весь код» остаётся свёрнутым
+  if (pre?.hasAttribute('open') && !narrow.value) {
     codeView.value = 'standalone';
     showSource.value = true;
   }
@@ -138,6 +142,13 @@ onMounted(() => {
     return;
   }
   const targeted = decodeURIComponent(location.hash.slice(1)) === anchorId;
+  if (narrow.value && !props.sandbox && !targeted) {
+    // самостоятельный скрипт превью — раскрыт; его же раскрывает стиль ещё до загрузки скриптов страницы (style.css)
+    root.value?.querySelector('.lt-ex-pre-source')?.setAttribute('open', '');
+    root.value?.querySelector('.lt-ex-pre')?.classList.add('lt-js');
+    byButton.value = true;
+    return;
+  }
   if (props.sandbox || targeted || typeof IntersectionObserver === 'undefined' || !root.value) {
     void loadSnap();
     return;
@@ -755,7 +766,10 @@ function onKey(e: KeyboardEvent) {
     </template>
     <div v-else class="lt-ex-loading">
       <slot />
-      <div class="lt-ex-loading-note">Загружаю пошаговый пример: результаты, таблицы и остальные шаги…</div>
+      <div v-if="byButton" class="lt-ex-loading-bar">
+        <button class="lt-btn primary" @click="byButton = false; loadSnap()">Показать пошагово: результаты и таблицы базы</button>
+      </div>
+      <div v-else class="lt-ex-loading-note">Загружаю пошаговый пример: результаты, таблицы и остальные шаги…</div>
     </div>
   </div>
 </template>
@@ -922,6 +936,7 @@ function onKey(e: KeyboardEvent) {
 .sw.del { background: var(--vp-c-danger-soft); border: 1px solid var(--vp-c-danger-2); }
 .lt-ex-missing, .lt-ex-loading { color: var(--vp-c-text-2); }
 .lt-ex-loading-note { font-size: 13px; margin-top: 8px; }
+.lt-ex-loading-bar { margin-top: 12px; }
 .lt-ex-source-note { margin: 10px 0 8px; font-size: 13px; line-height: 1.55; color: var(--vp-c-text-2); }
 .lt-ex-source-bar { margin: 0 0 8px; }
 .lt-ex-tables-toggle { margin-top: 14px; }

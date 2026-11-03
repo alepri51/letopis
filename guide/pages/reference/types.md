@@ -436,9 +436,12 @@ interface ChainCore {
   /**
    * Восстановить удалённые объекты шага: последний снимок новой версией (id прежний). `{ expect }` — надгробия `{ id, rev }`
    * из ответа `delete()` или `withDeleted()`: восстанавливаются только цели из `expect`, и только если последняя версия
-   * каждой — та же; иначе (id пересоздан, удалён снова) — `conflict`, ничего не восстановлено.
+   * каждой — та же; иначе ничего не восстановлено: уже восстановлена — `not_deleted` (`write.restore_already`), id занял
+   * новый объект — `not_deleted` (`write.restore_id_taken`), прочее (удалена снова, менялась) — `conflict`
+   * (`write.restore_stale`); причины по целям — `err.detail.stale`. `{ expect, partial: true }` — восстановить то, что
+   * можно: остальные цели приходят строками `{ …строка, $action: 'skip', $why }`.
    */
-  restore(opts?: { reason?: string; expect?: readonly Expected[] }): Chain;
+  restore(opts?: { reason?: string; expect?: readonly Expected[]; partial?: boolean }): Chain;
   /** Кэш результатов: ответ хранится в памяти процесса ttl секунд (по умолчанию 60). */
   cache(opts?: { ttl?: number }): Chain;
 }
@@ -1150,8 +1153,16 @@ interface Row<D = Record<string, unknown>, L = Record<string, string | string[]>
   $depth?: number;
   /** Что сделал upsert. */
   $upsert?: 'created' | 'updated' | 'unchanged';
-  /** Превью удаления (delete() без confirm): удалится, снимется конец или помешает (restrict). */
-  $action?: 'delete' | 'unset' | 'restrict';
+  /**
+   * Превью удаления (delete() без confirm): удалится, снимется конец или помешает (restrict). В ответе
+   * `restore({ expect, partial: true })` — `skip`: цель не восстановлена, причина — `$why`.
+   */
+  $action?: 'delete' | 'unset' | 'restrict' | 'skip';
+  /**
+   * Почему цель `restore({ expect, partial: true })` не восстановлена: `restored` — её уже восстановили, `reissued` — id
+   * занял новый объект с тем же ключом, `changed` — после показанного удаления её меняли (удалили снова и т. п.).
+   */
+  $why?: 'restored' | 'reissued' | 'changed';
 }
 ```
 
@@ -1377,8 +1388,12 @@ type TypedChain<C, M extends readonly AnyModelLike[]> = Omit<ChainCore, Retyped>
   /** С `{ confirm: true }` без фильтра, id, `tags()`, `owner()` и `limit()` у шагов — `invalid_query`; всех — `{ all: true }`. */
   delete(opts?: { confirm?: boolean; all?: boolean; reason?: string; expect?: readonly Expected[] }): TypedChain<C, M>;
   forUpdate(): TypedChain<C, M>;
-  /** `{ expect }` — надгробия `{ id, rev }`: восстановить ровно то, что ушло удалением; расхождение — `conflict`. */
-  restore(opts?: { reason?: string; expect?: readonly Expected[] }): TypedChain<C, M>;
+  /**
+   * `{ expect }` — надгробия `{ id, rev }`: восстановить ровно то, что ушло удалением; расхождение — отказ по смыслу
+   * (`write.restore_already`, `write.restore_id_taken`, `write.restore_stale`). `{ expect, partial: true }` — что можно, а
+   * остальное — строки `$action: 'skip'` с причиной `$why`.
+   */
+  restore(opts?: { reason?: string; expect?: readonly Expected[]; partial?: boolean }): TypedChain<C, M>;
   cache(opts?: { ttl?: number }): TypedChain<C, M>;
 } & HopsOf<C, M>;
 ```

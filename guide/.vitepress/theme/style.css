@@ -111,6 +111,11 @@ html.dark .lt-ex-code pre {
   }
   .vp-doc div[class*='language-'] code { width: auto; min-width: 0; }
   .lt-ex-pre .lt-ex-code pre { font-size: 12.5px; }
+  /* самостоятельный скрипт превью на телефоне раскрыт по умолчанию и читается целиком, без окна прокрутки: до загрузки
+     скриптов страницы — стилем (браузеры с ::details-content), после — атрибутом open (theme/Example.vue), тогда его
+     можно и свернуть */
+  .lt-ex-pre:not(.lt-js) .lt-ex-pre-source::details-content { content-visibility: visible; }
+  .lt-ex-pre-plain { max-height: none; }
 }
 
 /* Подвал с лицензией (themeConfig.footer) — на всех страницах: тема прячет его на страницах с боковой панелью,
