@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_7193391c393d6d8a98a6cb92101973ded4922a611f5849d47bb699f26dbd1586",
+      "serviceKey": "lts_01adc134823b56360b4c2317ecea1dc3fc6c424ada4c824e67803af7370a86b5",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "fede06f41417bd0543dd573aca3b95e41ffc5bfadaa37854b235dfdc8a805085",
+        "token": "229bbac48e771bbedbe46ea3b6950f1a0fe704549f2686581f367f07cb9cc0c2",
         "created": true
       }
     }
@@ -33,7 +33,7 @@
       "error": null,
       "entity": [
         {
-          "id": "b2b2e477-ea6a-5d1e-a054-7d0dd3d7f943",
+          "id": "a70b29e4-bc26-5b9e-9a2f-43fe810327e8",
           "class": "Note",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -47,14 +47,14 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:19:09.501652+00"
+          "at": "2026-11-03 19:20:58.696512+00"
         }
       ],
       "removed": [],
       "log": [
         {
           "seq": "35",
-          "id": "b2b2e477-ea6a-5d1e-a054-7d0dd3d7f943",
+          "id": "a70b29e4-bc26-5b9e-9a2f-43fe810327e8",
           "rev": 1,
           "class": "Note",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -67,8 +67,8 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:19:09.501652+00",
-          "tx": "3882296"
+          "at": "2026-11-03 19:20:58.696512+00",
+          "tx": "3882328"
         }
       ],
       "secret": [],
@@ -123,7 +123,7 @@
       "error": null,
       "entity": [
         {
-          "id": "b2b2e477-ea6a-5d1e-a054-7d0dd3d7f943",
+          "id": "a70b29e4-bc26-5b9e-9a2f-43fe810327e8",
           "class": "Note",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -137,10 +137,10 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:19:09.501652+00"
+          "at": "2026-11-03 19:20:58.696512+00"
         },
         {
-          "id": "6cb150fd-5725-59b9-a1f7-b16f68a68ec6",
+          "id": "e2198200-33c1-5172-b3f8-a1837f6e940c",
           "class": "Note",
           "rev": 3,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -154,14 +154,14 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:19:09.654929+00"
+          "at": "2026-11-03 19:20:58.848692+00"
         }
       ],
       "removed": [],
       "log": [
         {
           "seq": "35",
-          "id": "b2b2e477-ea6a-5d1e-a054-7d0dd3d7f943",
+          "id": "a70b29e4-bc26-5b9e-9a2f-43fe810327e8",
           "rev": 1,
           "class": "Note",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -174,12 +174,12 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:19:09.501652+00",
-          "tx": "3882296"
+          "at": "2026-11-03 19:20:58.696512+00",
+          "tx": "3882328"
         },
         {
           "seq": "36",
-          "id": "6cb150fd-5725-59b9-a1f7-b16f68a68ec6",
+          "id": "e2198200-33c1-5172-b3f8-a1837f6e940c",
           "rev": 1,
           "class": "Note",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -192,12 +192,12 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:19:09.599409+00",
-          "tx": "3882300"
+          "at": "2026-11-03 19:20:58.794351+00",
+          "tx": "3882333"
         },
         {
           "seq": "37",
-          "id": "6cb150fd-5725-59b9-a1f7-b16f68a68ec6",
+          "id": "e2198200-33c1-5172-b3f8-a1837f6e940c",
           "rev": 2,
           "class": "Note",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -210,12 +210,12 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:19:09.636419+00",
-          "tx": "3882302"
+          "at": "2026-11-03 19:20:58.83171+00",
+          "tx": "3882335"
         },
         {
           "seq": "38",
-          "id": "6cb150fd-5725-59b9-a1f7-b16f68a68ec6",
+          "id": "e2198200-33c1-5172-b3f8-a1837f6e940c",
           "rev": 3,
           "class": "Note",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -228,8 +228,8 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:19:09.654929+00",
-          "tx": "3882303"
+          "at": "2026-11-03 19:20:58.848692+00",
+          "tx": "3882336"
         }
       ],
       "secret": [],
@@ -238,27 +238,51 @@
       ]
     },
     {
-      "result": [
-        {
-          "level": "info",
-          "event": "up",
-          "op": "up"
-        },
-        {
-          "level": "info",
-          "event": "connect",
-          "op": "connect"
-        },
-        {
-          "level": "info",
-          "event": "write",
-          "op": "create"
-        }
-      ],
+      "result": {
+        "events": [
+          {
+            "level": "info",
+            "event": "up",
+            "op": "up"
+          },
+          {
+            "level": "info",
+            "event": "connect",
+            "op": "connect"
+          },
+          {
+            "level": "info",
+            "event": "write",
+            "op": "create"
+          }
+        ],
+        "catalog": [
+          {
+            "name": "connect",
+            "level": "info",
+            "ru": "connect() готов: схема, режим сигналов, кэш, способ входа"
+          },
+          {
+            "name": "close",
+            "level": "info",
+            "ru": "db.close(): пул, подписки и таймеры закрыты"
+          },
+          {
+            "name": "registry.refresh",
+            "level": "debug",
+            "ru": "реестр классов перечитан"
+          },
+          {
+            "name": "session.renew",
+            "level": "info",
+            "ru": "сессия по ключу сервиса истекла — ключ обменян на новую"
+          }
+        ]
+      },
       "error": null,
       "entity": [
         {
-          "id": "b2b2e477-ea6a-5d1e-a054-7d0dd3d7f943",
+          "id": "a70b29e4-bc26-5b9e-9a2f-43fe810327e8",
           "class": "Note",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -272,10 +296,10 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:19:09.501652+00"
+          "at": "2026-11-03 19:20:58.696512+00"
         },
         {
-          "id": "6cb150fd-5725-59b9-a1f7-b16f68a68ec6",
+          "id": "e2198200-33c1-5172-b3f8-a1837f6e940c",
           "class": "Note",
           "rev": 3,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -289,10 +313,10 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:19:09.654929+00"
+          "at": "2026-11-03 19:20:58.848692+00"
         },
         {
-          "id": "3e55d2ab-5604-5f42-99d0-d2d0b53b5840",
+          "id": "36a71017-40db-5adc-bd60-eb06d08625ee",
           "class": "Note",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -306,14 +330,14 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:19:10.568286+00"
+          "at": "2026-11-03 19:20:59.768353+00"
         }
       ],
       "removed": [],
       "log": [
         {
           "seq": "35",
-          "id": "b2b2e477-ea6a-5d1e-a054-7d0dd3d7f943",
+          "id": "a70b29e4-bc26-5b9e-9a2f-43fe810327e8",
           "rev": 1,
           "class": "Note",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -326,12 +350,12 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:19:09.501652+00",
-          "tx": "3882296"
+          "at": "2026-11-03 19:20:58.696512+00",
+          "tx": "3882328"
         },
         {
           "seq": "36",
-          "id": "6cb150fd-5725-59b9-a1f7-b16f68a68ec6",
+          "id": "e2198200-33c1-5172-b3f8-a1837f6e940c",
           "rev": 1,
           "class": "Note",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -344,12 +368,12 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:19:09.599409+00",
-          "tx": "3882300"
+          "at": "2026-11-03 19:20:58.794351+00",
+          "tx": "3882333"
         },
         {
           "seq": "37",
-          "id": "6cb150fd-5725-59b9-a1f7-b16f68a68ec6",
+          "id": "e2198200-33c1-5172-b3f8-a1837f6e940c",
           "rev": 2,
           "class": "Note",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -362,12 +386,12 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:19:09.636419+00",
-          "tx": "3882302"
+          "at": "2026-11-03 19:20:58.83171+00",
+          "tx": "3882335"
         },
         {
           "seq": "38",
-          "id": "6cb150fd-5725-59b9-a1f7-b16f68a68ec6",
+          "id": "e2198200-33c1-5172-b3f8-a1837f6e940c",
           "rev": 3,
           "class": "Note",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -380,12 +404,12 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:19:09.654929+00",
-          "tx": "3882303"
+          "at": "2026-11-03 19:20:58.848692+00",
+          "tx": "3882336"
         },
         {
           "seq": "39",
-          "id": "3e55d2ab-5604-5f42-99d0-d2d0b53b5840",
+          "id": "36a71017-40db-5adc-bd60-eb06d08625ee",
           "rev": 1,
           "class": "Note",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -398,8 +422,8 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:19:10.568286+00",
-          "tx": "3882310"
+          "at": "2026-11-03 19:20:59.768353+00",
+          "tx": "3882343"
         }
       ],
       "secret": [],
