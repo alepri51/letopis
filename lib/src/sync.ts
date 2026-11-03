@@ -9,6 +9,7 @@
 import type { DbCore } from './index.js';
 import { lerr, lmsg } from './errors.js';
 import { internalsOf } from './internal.js';
+import { NOLOG, traced } from './log.js';
 import type { Tx } from './tx.js';
 import type { AnyModel, LostRule } from './model.js';
 import type { JsonSchema } from './jsonschema.js';
@@ -36,6 +37,15 @@ function canon(v: unknown): string {
 }
 
 export async function syncModels(db: DbCore, models: readonly AnyModel[], opts: { apply?: boolean } = {}): Promise<SyncResult> {
+  // событие sync (логирование 3.0): логгер — фасада, которым пишут классы
+  return traced(internalsOf(db)?.log ?? NOLOG, 'sync', { op: 'syncModels' }, () => syncCore(db, models, opts), (r) => ({
+    rows: r.created.length + r.updated.length,
+    detail: { applied: r.applied, models: models.length, created: r.created, updated: r.updated, unchanged: r.unchanged.length,
+      skipped: r.skipped, lost: r.lost.length },
+  }));
+}
+
+async function syncCore(db: DbCore, models: readonly AnyModel[], opts: { apply?: boolean }): Promise<SyncResult> {
   // хаб с именем метода цепочки или корня db (модель собрана мимо hub()) — отказ до записи (план 2.0, этап 4, п. 2;
   // 7.10 №3); связь с таким именем отклоняет база
   for (const m of models) {

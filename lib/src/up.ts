@@ -16,7 +16,8 @@ import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
 import postgres from 'postgres';
-import { DDL_REVISION, RESERVED_CLASS_NAMES, SCHEMA_VERSION } from './types.js';
+import { DDL_REVISION, RESERVED_CLASS_NAMES, SCHEMA_VERSION, type LogOptions } from './types.js';
+import { makeLog, maskDsn, traceSql, traced, type Log } from './log.js';
 import { startPglite, type PgliteOptions, type PgliteServer } from './pglite.js';
 import { hashPassword } from './auth.js';
 import { checkOptions, lerr, lmsg, type MsgKey, type Params } from './errors.js';
@@ -363,7 +364,7 @@ export async function migrationFiles(dir: string, from: number): Promise<string[
 // up(): оркестратор (этап 6, п. 9)
 // ---------------------------------------------------------------------------
 
-export interface UpOptions extends Omit<InstallOptions, 'schema' | 'upTo' | 'migrateFrom'> {
+export interface UpOptions extends Omit<InstallOptions, 'schema' | 'upTo' | 'migrateFrom'>, LogOptions {
   /** Администраторская строка подключения (роль-установщик). */
   dsn?: string;
   /** Готовый пул postgres.js вместо dsn (база уже существует). */
@@ -410,7 +411,7 @@ export interface LoginOptions {
 const UP_OPTIONS = {
   dsn: true, sql: true, schema: true, fresh: true, upgrade: true, quiet: true, waitTimeoutMs: true, pglite: true, tenant: true,
   login: true, owner: true, app: true, seeds: true, migrationsDir: true, serviceKey: true,
-  signals: true,
+  signals: true, log: true, logLevel: true, redact: true,
 } satisfies Record<keyof UpOptions, true>;
 
 export interface UpResult extends InstallResult {
@@ -509,7 +510,27 @@ export async function schemaRevision(sql: Pick<postgres.Sql, 'unsafe'>, schema: 
  */
 export async function up(opts: UpOptions): Promise<UpResult> {
   checkOptions('up', opts, UP_OPTIONS);
-  const log = opts.quiet ? () => {} : (m: string) => console.log(`letopis.up: ${m}`);
+  // логирование 3.0: события up, migrate, up.step, tenant.create, warning, error, sql — в логгер opts.log (или LETOPIS_LOG)
+  const lg = makeLog({ log: opts.log, logLevel: opts.logLevel, redact: opts.redact });
+  return traced(lg, 'up', { op: 'up' }, () => upCore(opts, lg), (r) => ({
+    detail: {
+      schema: r.schema, created: r.created, upgraded: r.upgraded, revision: r.revision, signals: r.signals,
+      ...(opts.dsn ? { dsn: maskDsn(opts.dsn) } : {}), ...(r.pglite ? { pglite: true } : {}), ...(opts.fresh ? { fresh: true } : {}),
+      analyzed: r.analyzed.length, warnings: r.warnings.length, ...(r.serviceKey ? { issuedKey: true } : {}),
+      ...(r.tenant ? { tenant: r.tenant.tenant } : {}), ...(r.login ? { login: r.login.user } : {}),
+    },
+  }));
+}
+
+/** up() после проверки опций; lg — логгер. */
+async function upCore(opts: UpOptions, lg: Log): Promise<UpResult> {
+  // сообщения шагов: при заданном логгере — событие up.step вместо console.log
+  const log = opts.quiet ? () => {} : lg.active ? (m: string) => lg.emit('up.step', { op: 'up', msg: m }) : (m: string) => console.log(`letopis.up: ${m}`);
+  /** Предупреждение: в логгер (warning), иначе console.warn без quiet. */
+  const warn = (w: string) => {
+    if (lg.active) lg.warning(undefined, w);
+    else if (!opts.quiet) console.warn(`letopis.up: ${w}`);
+  };
   const schema = opts.schema.includes('.') ? opts.schema : `${SCHEMA_VERSION}.${opts.schema}`;
   if (!SCHEMA_NAME.test(schema)) throw lerr('boot.up_schema_name', { schema: opts.schema });
   // опции арендатора и роли приложения — до подключения и наката: с неверными up() ничего не начинает
@@ -537,11 +558,13 @@ export async function up(opts: UpOptions): Promise<UpResult> {
     }
     sql = postgres(opts.dsn, { max: 1, onnotice: () => {} });
   }
+  // порог debug — событие sql на каждый запрос установки (тексты create/alter role — без пароля)
+  sql = traceSql(sql, lg);
   try {
     const [srv] = await sql`select current_setting('server_version_num')::int as v, pg_encoding_to_char(encoding) as enc
       from pg_database where datname = current_database()`;
     const warnings = checkServer(srv.v as number, srv.enc as string);
-    if (!opts.quiet) for (const w of warnings) console.warn(`letopis.up: ${w}`);
+    for (const w of warnings) warn(w);
     // ревизия до блокировки схемы — для ранних отказов; что накатывать, install() решает по ревизии под блокировкой
     const before = opts.fresh ? null : await schemaRevision(sql, schema);
     if (before !== null && before > DDL_REVISION) {
@@ -553,10 +576,15 @@ export async function up(opts: UpOptions): Promise<UpResult> {
     if (before !== null && before < DDL_REVISION && !opts.upgrade) {
       throw new Error(`letopis.up: ${lmsg('boot.schema_older', { schema, rev: before, want: DDL_REVISION })}`);
     }
-    const { dsn: _d, sql: _s, schema: _sc, fresh: _f, upgrade: _u, quiet: _q, waitTimeoutMs: _w, pglite: _p, login: _l, ...rest } = opts;
+    const { dsn: _d, sql: _s, schema: _sc, fresh: _f, upgrade: _u, quiet: _q, waitTimeoutMs: _w, pglite: _p, login: _l,
+      log: _lg, logLevel: _ll, redact: _rd, ...rest } = opts;
+    const t0 = performance.now();
     const { found, ...res } = await install(sql, {
       ...rest, schema, ...(opts.fresh ? { fresh: true } : {}), ...(before !== null && before < DDL_REVISION ? { migrateFrom: before } : {}),
     });
+    if (found !== null && found < DDL_REVISION && lg.wants('migrate')) {
+      lg.emit('migrate', { op: 'up', ms: performance.now() - t0, rows: res.migrations.length, detail: { schema, from: found, to: DDL_REVISION, files: res.migrations } });
+    }
     if (opts.fresh) log(lmsg('boot.log_fresh', { schema }));
     // ANALYZE — только там, где статистики ещё нет: на повторном накате это самая дорогая часть. От роли владельца, как у
     // загрузчика: таблицы принадлежат ей, а установщик без суперпользователя наследования её прав не имеет — его ANALYZE
@@ -576,7 +604,7 @@ export async function up(opts: UpOptions): Promise<UpResult> {
     if (left.length) {
       const w = lmsg('boot.analyze_skipped', { owner: res.owner, tables: left.map((t) => `${schema}.${t}`).join(', ') });
       warnings.push(w);
-      if (!opts.quiet) console.warn(`letopis.up: ${w}`);
+      warn(w);
     }
     // хабы с зарезервированными именами, заведённые мимо проверки базы (план 2.0, этап 4, п. 2; 7.10 №3): накат их
     // оставляет и называет, новых таких база не пишет. Строки Class — от роли владельца, как ANALYZE: у установщика без
@@ -590,11 +618,14 @@ export async function up(opts: UpOptions): Promise<UpResult> {
     if (reserved.length) {
       const w = lmsg('boot.reserved_hubs', { hubs: reserved.map((h) => `${h.name as string} (${h.tenant as string})`).join(', ') });
       warnings.push(w);
-      if (!opts.quiet) console.warn(`letopis.up: ${w}`);
+      warn(w);
     }
     const revision = (await schemaRevision(sql, schema)) ?? 0;
     log(lmsg(found === null ? 'boot.log_installed' : found < DDL_REVISION ? 'boot.log_upgraded' : 'boot.log_reapplied', { schema, revision, from: found }));
-    const tenant = opts.tenant ? await createTenant(sql, schema, opts.tenant, opts.owner) : undefined;
+    const tenant = opts.tenant
+      ? await traced(lg, 'tenant.create', { op: 'createTenant' }, () => createTenant(sql!, schema, opts.tenant!, opts.owner),
+        (t) => ({ tenant: t.tenant, ...(t.user ? { account: t.user } : {}), detail: { name: opts.tenant!.name, created: t.created, user: Boolean(t.user) } }))
+      : undefined;
     const login = opts.login ? await ensureLogin(sql, opts.login, res.owner, res.app, opts.dsn ?? lite?.dsn) : undefined;
     if (login) log(lmsg(login.created ? 'boot.log_login_created' : 'boot.log_login_updated', { user: login.user }));
     return { ...res, created: found === null, upgraded: found !== null && found < DDL_REVISION, revision, analyzed, warnings,

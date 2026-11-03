@@ -17,6 +17,7 @@ import { toRow } from './sql.js';
 import type { Executor } from './tx.js';
 import type { Row } from './types.js';
 import type { Signal } from './signals.js';
+import type { Log } from './log.js';
 
 export interface WatchOptions {
   /** Откуда: курсор (sub.cursor или курсор события), 'now' (по умолчанию — изменения после подписки) или 'start' (весь журнал). */
@@ -82,6 +83,8 @@ export interface WatchCtx {
   tenant?: () => string | null;
   /** Подписка закрылась: подключение перестаёт её учитывать (план 2.0, 7.4 №8). */
   onClose?: (s: Subscription) => void;
+  /** Логгер фасада (lib/src/log.ts): watch.start, watch.fetch, watch.stop, error. */
+  log?: Log;
 }
 
 /**
@@ -124,6 +127,8 @@ export class Subscription implements AsyncIterable<WatchEvent> {
   private start: Promise<Pos> | null = null;
   /** Вызовы next() — по очереди: параллельные получают разные события (доработки после точки Б). */
   private queue: Promise<unknown> = Promise.resolve();
+  /** Выдано событий — для watch.stop. */
+  private delivered = 0;
 
   constructor(private ctx: WatchCtx, private opts: WatchOptions) {
     this.batch = opts.batch ?? 500;
@@ -149,6 +154,10 @@ export class Subscription implements AsyncIterable<WatchEvent> {
       this.wake?.();
     }, this.pollMs);
     this.timer.unref?.();
+    if (ctx.log?.wants('watch.start')) {
+      ctx.log.emit('watch.start', { op: 'watch', detail: { from: opts.from ?? 'now', classes: ctx.classes, batch: this.batch,
+        pollMs: this.pollMs, signals: Boolean(ctx.onSignal) } });
+    }
   }
 
   /** Курсор подписки: позиция после последнего выданного события (или начальная точка) — с неё продолжают после перезапуска. */
@@ -185,6 +194,7 @@ export class Subscription implements AsyncIterable<WatchEvent> {
       [p.tx, p.seq, this.ctx.classesOf?.() ?? this.ctx.classes, this.batch, p.snap ?? null] as never[]) as unknown as Promise<R[]>, { read: true });
     // пока события пачки не выданы, курсор подписки — позиция до пачки
     if (rows.length) this.given = encode(p);
+    if (rows.length && this.ctx.log?.wants('watch.fetch')) this.ctx.log.emit('watch.fetch', { op: 'watch', rows: rows.length });
     for (const r of rows) {
       const row = toRow(r.row);
       const snap = keepSnap(p.snap, r.tx);
@@ -211,6 +221,7 @@ export class Subscription implements AsyncIterable<WatchEvent> {
       if (this.buf.length) {
         const ev = this.buf.shift()!;
         this.given = ev.cursor;
+        this.delivered++;
         return { value: ev, done: false };
       }
       if (this.closed) return { value: undefined, done: true };
@@ -223,6 +234,7 @@ export class Subscription implements AsyncIterable<WatchEvent> {
           }
         } catch (e) {
           this.failure = e;
+          this.ctx.log?.error(e, { op: 'watch' });
           this.close();
           throw e;
         }
@@ -267,6 +279,9 @@ export class Subscription implements AsyncIterable<WatchEvent> {
   close(): void {
     if (this.closed) return;
     this.closed = true;
+    if (this.ctx.log?.wants('watch.stop')) {
+      this.ctx.log.emit('watch.stop', { op: 'watch', rows: this.delivered, detail: { cursor: this.cursor, ...(this.failure ? { failed: true } : {}) } });
+    }
     this.off?.();
     this.ctx.onClose?.(this);
     if (this.timer) clearInterval(this.timer);

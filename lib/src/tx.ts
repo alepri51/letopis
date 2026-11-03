@@ -24,6 +24,7 @@
  */
 import type postgres from 'postgres';
 import { LetopisError, fromDbError, lerr, lmsg } from './errors.js';
+import { NOLOG, type Log } from './log.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 export type Tx = postgres.TransactionSql<Record<string, unknown>>;
@@ -93,7 +94,8 @@ export class Notifier {
   private stopped = false;
   private flushing: Promise<void> = Promise.resolve();
 
-  constructor(private sql: Sql, private channel: string, private intervalMs: number, private onError: (e: unknown) => void = () => {}) {}
+  constructor(private sql: Sql, private channel: string, private intervalMs: number, private onError: (e: unknown) => void = () => {},
+    private log: Log = NOLOG) {}
 
   /** Добавить нагрузки из letopis.changed (строка через запятую). */
   add(changed: string | null | undefined): void {
@@ -116,7 +118,9 @@ export class Notifier {
     const payloads = [...this.queue];
     this.queue.clear();
     this.flushing = this.flushing.then(() =>
-      this.sql`select pg_notify(${this.channel}, c) from unnest(${payloads}::text[]) as c`.then(() => undefined, (e: unknown) => {
+      this.sql`select pg_notify(${this.channel}, c) from unnest(${payloads}::text[]) as c`.then(() => {
+        if (this.log.wants('signal.send')) this.log.emit('signal.send', { rows: payloads.length });
+      }, (e: unknown) => {
         // не отправлено (обрыв связи, отказ базы) — обратно в очередь: уйдёт следующим интервалом
         // (в 1.0.1 такие сигналы терялись, и кэш других процессов устаревал до срока)
         for (const c of payloads) this.queue.add(c);
@@ -193,6 +197,8 @@ export interface TxContext {
    * результатов сбрасывает свои ответы сразу (§2.12); raw — запись через db.sql.
    */
   onChanged?: (names: string[], raw: boolean) => void;
+  /** Логгер (lib/src/log.ts): повторы (tx.retry), транзакции db.begin() (tx.begin, tx.commit, tx.rollback). */
+  log?: Log;
 }
 
 const changedList = (changed: string | null): string[] => (changed ? changed.split(',').filter(Boolean) : []);
@@ -257,6 +263,11 @@ export async function runTx<T>(ctx: TxContext, fn: (tx: Tx) => Promise<T>,
       // обрыв во время COMMIT: транзакция могла зафиксироваться — не повторяем (§2.5)
       if (bodyDone && !opts.read && dead) throw commitUnknown(e);
       if (attempt <= retries && (isTransient(e) || isLogConflict(e))) {
+        const log = ctx.log ?? NOLOG;
+        if (log.wants('tx.retry')) {
+          log.emit('tx.retry', { detail: { attempt, of: retries, sqlstate: (e as { code?: string }).code,
+            ...(isLogConflict(e) ? { conflict: 'log_id_rev' } : {}) } });
+        }
         await retryDelay(attempt);
         continue;
       }
@@ -305,7 +316,14 @@ export class ExplicitTx implements Executor {
   /** В транзакции был сырой SQL (db.sql): после фиксации — весь кэш. */
   private raw = false;
 
+  /** Время открытия — для ms у tx.commit и tx.rollback. */
+  private readonly t0 = performance.now();
+
   private constructor(private ctx: TxContext, private conn: postgres.ReservedSql<Record<string, unknown>>) {}
+
+  private get log(): Log {
+    return this.ctx.log ?? NOLOG;
+  }
 
   static async open(ctx: TxContext, renewed = false): Promise<ExplicitTx> {
     if (!renewed && ctx.before) await ctx.before(ctx);
@@ -323,6 +341,8 @@ export class ExplicitTx implements Executor {
       if (!renewed && ctx.renew && isNoSession(le) && (await ctx.renew(ctx))) return ExplicitTx.open(ctx, true);
       throw le;
     }
+    const log = ctx.log ?? NOLOG;
+    if (log.wants('tx.begin')) log.emit('tx.begin', { op: 'begin', detail: { isolation: 'read committed', ...(ctx.reason ? { reason: ctx.reason } : {}) } });
     return new ExplicitTx(ctx, conn);
   }
 
@@ -360,6 +380,7 @@ export class ExplicitTx implements Executor {
       if (!isConnectionError(this.broken)) await this.conn.unsafe('rollback').catch(() => {});
       release(this.conn, this.broken);
       this.failure = this.broken;
+      this.rolledBack('error', this.broken);
       throw this.broken;
     }
     let changed: string | null = null;
@@ -382,17 +403,31 @@ export class ExplicitTx implements Executor {
     } catch (e) {
       this.failure ??= isConnectionError(e) ? commitUnknown(e) : fromDbError(e);
       release(this.conn, e);
+      this.rolledBack('error', this.failure);
       throw this.failure;
     }
     this.conn.release();
+    if (this.log.wants('tx.commit')) this.log.emit('tx.commit', { op: 'commit', ms: performance.now() - this.t0, ...(changed ? { detail: { signals: changed.split(',').filter(Boolean).length } } : {}) });
     this.ctx.notifier?.add(changed);
     if (changed) this.ctx.onChanged?.(changedList(changed), this.raw);
     this.ctx.after?.();
   }
 
+  /** Событие отката (tx.rollback) и ошибка, которой он вызван. */
+  private rolledBack(reason: 'explicit' | 'error', err?: unknown): void {
+    const log = this.log;
+    if (!log.enabled) return;
+    if (err !== undefined) log.error(err, { op: 'commit', ms: performance.now() - this.t0 });
+    if (log.wants('tx.rollback')) {
+      log.emit('tx.rollback', { op: reason === 'error' ? 'commit' : 'rollback', ms: performance.now() - this.t0,
+        detail: { reason, ...(this.broken ? { broken: true } : {}) } });
+    }
+  }
+
   async rollback(): Promise<void> {
     if (this.done) return;
     this.done = true;
+    this.rolledBack('explicit');
     try {
       // соединение, оборванное ошибкой, не трогаем: postgres.js уронил бы процесс записью в закрытый сокет
       if (!isConnectionError(this.broken)) await this.conn.unsafe('rollback');

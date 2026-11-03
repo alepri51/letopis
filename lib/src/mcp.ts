@@ -29,6 +29,7 @@ import { lookupStep, type Chain, type StepFn } from './chain.js';
 import { describeModel } from './describe.js';
 import { LetopisError, checkOptions, lerr, lmsg, similar } from './errors.js';
 import { internalsOf } from './internal.js';
+import { NOLOG } from './log.js';
 import { OPERATORS, opHint, or, type OpArg } from './ops.js';
 import type { Registry } from './registry.js';
 import { cursorOf } from './sql.js';
@@ -770,22 +771,31 @@ async function serve(db: Db, opts: McpOptions): Promise<McpServer> {
   const who = await checkCredentials(db, o);
   const sdk = await loadSdk();
   const server = new sdk.McpServer({ name: 'letopis', version: VERSION }, { instructions: instructions(o), capabilities: { tools: {} } });
-  const guard = (fn: (a: Args, ctx: ServerContext) => ToolResult | Promise<ToolResult>) => async (args: unknown, ctx: ServerContext): Promise<ToolResult> => {
+  // логирование 3.0: вызов инструмента — mcp.call (имя, время, исход), отказ — ещё error; логгер — фасада db
+  const log = internalsOf(db)?.log ?? NOLOG;
+  const guard = (tool: string, fn: (a: Args, ctx: ServerContext) => ToolResult | Promise<ToolResult>) => async (args: unknown, ctx: ServerContext): Promise<ToolResult> => {
+    const t0 = performance.now();
     try {
-      return await fn(isObj(args) ? args : {}, ctx);
+      const r = await fn(isObj(args) ? args : {}, ctx);
+      if (log.wants('mcp.call')) {
+        log.emit('mcp.call', { op: tool, ms: performance.now() - t0, detail: { ok: !(r as unknown as { isError?: boolean }).isError } });
+      }
+      return r;
     } catch (e) {
+      log.error(e, { op: tool, ms: performance.now() - t0 });
+      if (log.wants('mcp.call')) log.emit('mcp.call', { op: tool, ms: performance.now() - t0, detail: { ok: false } });
       return failure(e);
     }
   };
   server.registerTool('letopis_model', { title: 'Модель letopis', description: DESCRIBE_MODEL, inputSchema: sdk.fromJsonSchema(MODEL_SCHEMA), annotations: READ_ONLY },
-    guard((a) => model(db, a, o)));
+    guard('letopis_model', (a) => model(db, a, o)));
   server.registerTool('letopis_query', { title: 'Чтение letopis', description: describeQuery(o), inputSchema: sdk.fromJsonSchema(QUERY_SCHEMA), annotations: READ_ONLY },
-    guard((a) => query(db, a, o)));
+    guard('letopis_query', (a) => query(db, a, o)));
   server.registerTool('letopis_history', { title: 'История letopis', description: describeHistory(o), inputSchema: sdk.fromJsonSchema(HISTORY_SCHEMA), annotations: READ_ONLY },
-    guard((a) => history(db, a, o)));
+    guard('letopis_history', (a) => history(db, a, o)));
   if (o.write) {
     server.registerTool('letopis_write', { title: 'Запись letopis', description: describeWrite(o), inputSchema: sdk.fromJsonSchema(WRITE_SCHEMA), annotations: DESTRUCTIVE },
-      guard((a, ctx) => write(db, a, ctx, sdk, server, o, who)));
+      guard('letopis_write', (a, ctx) => write(db, a, ctx, sdk, server, o, who)));
   }
   return server;
 }

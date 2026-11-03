@@ -20,6 +20,7 @@
 import { lerr } from './errors.js';
 import { internalsOf } from './internal.js';
 import type { Executor } from './tx.js';
+import type { CallSpec } from './log.js';
 import { v5Id } from './uuid.js';
 
 const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
@@ -383,3 +384,21 @@ export function makeAcl(S: string, exec: Executor, db?: () => unknown): AclApi {
   };
   return api;
 }
+
+// ---------------------------------------------------------------------------
+// Логирование (3.0): события db.acl — обёртка instrument (log.ts)
+// ---------------------------------------------------------------------------
+
+const accountOf = (a: unknown): unknown => (a !== null && typeof a === 'object' ? (a as { id?: unknown }).id : a);
+
+/** Что пишет в лог каждый метод db.acl: правка прав — acl.change, проверки и список — acl.check. */
+export const ACL_LOG: Readonly<Record<string, CallSpec>> = {
+  check: (args, r) => ({ event: 'acl.check', detail: { endpoint: args[0], decision: r } }),
+  checkData: (args, r) => ({ event: 'acl.check', detail: { class: args[0], access: args[1], decision: r } }),
+  grant: (args, r) => ({ event: 'acl.change', rows: Array.isArray(r) ? r.length : undefined, detail: { action: 'grant', spec: args[0] } }),
+  deny: (args, r) => ({ event: 'acl.change', rows: Array.isArray(r) ? r.length : undefined, detail: { action: 'deny', spec: args[0] } }),
+  revoke: (args, n) => ({ event: 'acl.change', rows: typeof n === 'number' ? n : undefined, detail: { action: 'revoke', spec: args[0] } }),
+  roles: (args, r) => ({ event: args.length > 1 && args[1] !== undefined ? 'acl.change' : 'acl.check',
+    detail: { action: 'roles', account: accountOf(args[0]), roles: r } }),
+  list: (_args, r) => ({ event: 'acl.check', rows: Array.isArray(r) ? r.length : undefined, detail: { action: 'list' } }),
+};

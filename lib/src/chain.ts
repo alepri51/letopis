@@ -20,7 +20,8 @@ import {
   type AggSpec, type BuiltQuery, type ReadMode, type Step,
 } from './sql.js';
 import type { Executor } from './tx.js';
-import { CHAIN_METHODS, type ChainMods, type Cursor, type Filter, type Path, type QueryEvent, type Row } from './types.js';
+import { CHAIN_METHODS, OP, type ChainMods, type Cursor, type Filter, type Path, type QueryEvent, type Row } from './types.js';
+import { NOLOG, guarded, traced, type Log, type LogEventName } from './log.js';
 import {
   completeIssues, dropUndefined, execBatch, execPlan, lockIds, precheckPlan, slotRole, type DeleteOptions, type Expected, type PlanOp,
   type PlanResult, type RestoreOptions, type Slot, type SlotValue, type WriteRow,
@@ -46,6 +47,8 @@ export interface ChainCtx {
   readonly txReason?: string;
   /** Кэш результатов подключения и тот, кто спрашивает (ключ ответа, §2.12). */
   readonly cache?: { store: ResultCache; who(): { token: string | null; account?: string; tenant?: string | null } };
+  /** Логгер фасада (lib/src/log.ts): события read, write, delete, restore, кэша и error. */
+  readonly log?: Log;
 }
 
 /** План в очереди батча; steps обновляется по мере роста цепочки. */
@@ -308,11 +311,11 @@ const notIterable = (): never => {
  * withDeleted() — модификатор своего шага (план 2.1, A9): у шага не последнего, когда у последнего его нет, — один раз
  * предупреждение (до 2.1 флаг относился к последнему шагу).
  */
-function warnWithDeleted(steps: Step[]): void {
+function warnWithDeleted(steps: Step[], log?: Log): void {
   const last = steps[steps.length - 1];
   if (!last || last.withDeleted) return;
   const at = steps.slice(0, -1).find((s) => s.withDeleted && s.pivotKey === undefined);
-  if (at) lwarn('api.with_deleted_step', { step: at.name, last: last.name }, { once: `with-deleted|${at.name}|${last.name}` });
+  if (at) lwarn('api.with_deleted_step', { step: at.name, last: last.name }, { once: `with-deleted|${at.name}|${last.name}`, log });
 }
 
 const nodeOf = (steps: Step[], s: Step): Step =>
@@ -329,13 +332,13 @@ function pivotNodeOf(steps: Step[], cls: string): Step | undefined {
 }
 
 const noHistoryWarned = new Set<string>();
-function warnNoHistory(steps: Step[], method: 'versions' | 'asOf'): void {
+function warnNoHistory(steps: Step[], method: 'versions' | 'asOf', log?: Log): void {
   const cls = steps[steps.length - 1]?.cls;
   if (!cls || cls.history !== false) return;
   const key = `${cls.name}|${method}`;
   if (noHistoryWarned.has(key)) return;
   noHistoryWarned.add(key);
-  lwarn('api.no_history', { method, cls: cls.name });
+  lwarn('api.no_history', { method, cls: cls.name }, { log });
 }
 
 function report(ctx: ChainCtx, mode: QueryEvent['mode'], steps: Step[], t0: number, rows: number): void {
@@ -344,7 +347,204 @@ function report(ctx: ChainCtx, mode: QueryEvent['mode'], steps: Step[], t0: numb
   const slow = ctx.slowMs !== undefined && ms > ctx.slowMs;
   const classes = steps.map((s) => s.cls.name);
   if (ctx.onQuery) ctx.onQuery({ mode, classes, ms, rows, slow });
-  else if (slow) lwarn('api.slow_query', { ms: ms.toFixed(0), mode, classes: classes.join('→') });
+  else if (slow) lwarn('api.slow_query', { ms: ms.toFixed(0), mode, classes: classes.join('→') }, { log: ctx.log });
+}
+
+// ---------------------------------------------------------------------------
+// Логирование (3.0): события терминалов и цепочка в читаемом виде
+// ---------------------------------------------------------------------------
+
+/** Что узнал терминал по пути: строки глагола (план), число строк ответа, кэш. */
+interface Stat {
+  rows?: WriteRow[];
+  n?: number;
+  cache?: 'hit' | 'miss';
+}
+
+/**
+ * Свойства цепочки, вызов которых может отказать синхронно (модификаторы и глаголы): ошибка — событие error. Не
+ * case-метки: check-docs принимает их за зарезервированные имена.
+ */
+const GUARDED = new Set(['entity', 'limit', 'offset', 'sort', 'asOf', 'after', 'withDeleted', 'deep', 'exact', 'alias', 'tags',
+  'owner', 'create', 'update', 'upsert', 'delete', 'forUpdate', 'restore', 'cache']);
+
+const LIST_MAX = 50;
+/** Сколько строк каждого класса. */
+function byClass(rows: readonly Row[]): Record<string, number> {
+  const m: Record<string, number> = {};
+  for (const r of rows) m[r.class] = (m[r.class] ?? 0) + 1;
+  return m;
+}
+/** id строк — не больше LIST_MAX. */
+const idsOf = (rows: readonly Row[]): string[] => rows.slice(0, LIST_MAX).map((r) => r.id);
+
+/** Значение фильтра или аргумента для текста цепочки: поля-секреты — '***', длинное — обрезано. */
+function fmtVal(log: Log, x: unknown, depth = 0): string {
+  if (x === undefined) return 'undefined';
+  if (x === null || typeof x === 'number' || typeof x === 'boolean') return String(x);
+  if (typeof x === 'string') return JSON.stringify(x.length > 80 ? `${x.slice(0, 80)}…` : x);
+  if (typeof x === 'bigint') return `${x}n`;
+  if (typeof x !== 'object') return typeof x;
+  if (depth > 3) return '…';
+  if (x instanceof Date) return JSON.stringify(x.toISOString());
+  const op = (x as { [OP]?: unknown })[OP];
+  if (typeof op === 'string') {
+    const args = (x as { args?: unknown[] }).args ?? [];
+    return `${op}(${args.map((a) => fmtVal(log, a, depth + 1)).join(', ')})`;
+  }
+  const peek = peekPlan(x);
+  if (peek) return `(${chainText(log, peek.steps, peek.mods)})`;
+  if (Array.isArray(x)) {
+    const head = x.slice(0, 10).map((a) => fmtVal(log, a, depth + 1)).join(',');
+    return `[${head}${x.length > 10 ? `,…+${x.length - 10}` : ''}]`;
+  }
+  const entries = Object.entries(x);
+  const shown = entries.slice(0, 20).map(([k, v]) => `${JSON.stringify(k)}:${log.secret(k) ? '"***"' : fmtVal(log, v, depth + 1)}`);
+  return `{${shown.join(',')}${entries.length > 20 ? `,…+${entries.length - 20}` : ''}}`;
+}
+
+/** Данные записи — только имена полей (значения в лог не идут). */
+const keysOf = (data: Record<string, unknown> | undefined): string => `{${Object.keys(data ?? {}).join(',')}}`;
+
+/** Модификаторы выборки текстом: .sort(…).limit(…)… */
+function modsText(m: ChainMods | undefined): string {
+  if (!m) return '';
+  let t = '';
+  if (m.order !== undefined) t += `.sort(${JSON.stringify(m.order)}${m.desc ? ", 'desc'" : ''})`;
+  if (m.limit !== undefined) t += `.limit(${m.limit})`;
+  if (m.offset !== undefined) t += `.offset(${m.offset})`;
+  if (m.asOf !== undefined) t += `.asOf(${JSON.stringify(m.asOf)})`;
+  if (m.after !== undefined) t += '.after(…)';
+  if (m.forUpdate) t += '.forUpdate()';
+  if (m.cache) t += `.cache(${m.cache.ttl !== undefined ? `{ttl:${m.cache.ttl}}` : ''})`;
+  return t;
+}
+
+/** Глагол текстом: данные — именами полей, expect — числом строк. */
+function opText(op: PlanOp): string {
+  const o: string[] = [];
+  if (op.kind === 'create' || op.kind === 'upsert') return `${op.kind}(${keysOf(op.data)})`;
+  if (op.kind === 'update') {
+    if (op.rev !== undefined) o.push(`rev:${op.rev}`);
+    if (op.all) o.push('all:true');
+    return `update(${keysOf(op.data)}${o.length ? `, {${o.join(',')}}` : ''})`;
+  }
+  if (op.kind === 'delete') {
+    if (op.confirm) o.push('confirm:true');
+    if (op.all) o.push('all:true');
+  }
+  if (op.kind === 'restore' && op.partial) o.push('partial:true');
+  if (op.expect !== undefined) o.push(`expect:[${op.expect.length}]`);
+  return `${op.kind}(${o.length ? `{${o.join(',')}}` : ''})`;
+}
+
+/** Значение слота текстом. */
+function slotText(v: SlotValue): string {
+  if (v === null) return 'null';
+  if (typeof v === 'string') return JSON.stringify(v);
+  if (Array.isArray(v)) return `[${v.length}]`;
+  return 'plan' in v ? '(цепочка)' : JSON.stringify(v.id);
+}
+
+/**
+ * Цепочка в читаемом виде: `Shop({"name":"A"}).Product.limit(10).rows()`. Фильтры — значениями (поля-секреты — '***'),
+ * данные записи — только именами полей.
+ */
+export function chainText(log: Log, steps: readonly Step[], mods?: ChainMods, term?: string, args: readonly unknown[] = []): string {
+  let out = '';
+  steps.forEach((s, i) => {
+    if (!s.self) {
+      out += `${i ? '.' : ''}${s.name}(${s.filter !== undefined ? fmtVal(log, s.filter) : ''})`;
+      if (s.exact) out += '.exact()';
+      if (s.withDeleted) out += '.withDeleted()';
+      if (s.deepMax !== undefined) out += `.deep(${s.deepMax})`;
+      if (s.aliasKey !== undefined) out += `.alias(${JSON.stringify(s.aliasKey)})`;
+      if (s.tagsFilter !== undefined) out += `.tags(${fmtVal(log, s.tagsFilter)})`;
+      if (s.ownerFilter !== undefined) out += `.owner(${JSON.stringify(s.ownerFilter)})`;
+    }
+    if (s.op) {
+      out += `${modsText(s.opMods)}.${opText(s.op)}`;
+      for (const sl of s.slots ?? []) out += `.${sl.role}.${sl.op}(${sl.op === 'unset' ? '' : slotText(sl.value)})`;
+    }
+    if (out.length > 4000) return;
+  });
+  out += modsText(mods);
+  if (term) out += `.${term}(${args.filter((a) => a !== undefined).map((a) => fmtVal(log, a)).join(', ')})`;
+  return out;
+}
+
+/** Подробности события записи: состав по классам и id; у удаления — сверка с expect, у restore — пропуски. */
+function writeDetail(op: PlanOp, rows: readonly Row[] | undefined): Record<string, unknown> {
+  const d: Record<string, unknown> = {};
+  if (op.kind === 'delete') {
+    d.confirm = op.confirm;
+    d.expect = op.expect !== undefined ? op.expect.length : false;
+    if (op.all) d.all = true;
+    // с expect замыкание каскада блокируется for update и превью сверяется заново (write.ts, deleteOp)
+    if (op.confirm && op.expect !== undefined) d.locked = true;
+    if (rows && !op.confirm) {
+      const actions: Record<string, number> = {};
+      for (const r of rows) if (r.$action) actions[r.$action] = (actions[r.$action] ?? 0) + 1;
+      d.actions = actions;
+    }
+  } else if (op.kind === 'restore') {
+    d.expect = op.expect !== undefined ? op.expect.length : false;
+    if (op.partial) d.partial = true;
+    if (rows) {
+      const skipped = rows.filter((r) => r.$action === 'skip');
+      d.restored = rows.length - skipped.length;
+      d.skipped = skipped.slice(0, LIST_MAX).map((r) => ({ id: r.id, why: r.$why }));
+      rows = rows.filter((r) => r.$action !== 'skip');
+    }
+  } else if (rows && op.kind === 'upsert') {
+    const how: Record<string, number> = {};
+    for (const r of rows) if (r.$upsert) how[r.$upsert] = (how[r.$upsert] ?? 0) + 1;
+    d.upsert = how;
+  }
+  if (rows) {
+    d.classes = byClass(rows);
+    d.ids = idsOf(rows);
+  }
+  return d;
+}
+
+/** Событие терминала: read — без глаголов, иначе по последнему глаголу write, delete.preview, delete, restore. */
+function termEvent(log: Log, steps: readonly Step[], mods: ChainMods, name: string, args: readonly unknown[], st: Stat, r: unknown, ms: number): void {
+  const ops = steps.flatMap((s) => (s.op ? [s.op] : []));
+  const rows = name === 'count' && typeof r === 'number' ? r : st.n;
+  if (!ops.length) {
+    if (!log.wants('read')) return;
+    log.emit('read', { op: name, ms, ...(rows !== undefined ? { rows } : {}), chain: chainText(log, steps, mods, name, args),
+      ...(st.cache ? { detail: { cache: st.cache } } : {}) });
+    return;
+  }
+  const last = ops[ops.length - 1];
+  const event: LogEventName = last.kind === 'delete' ? (last.confirm ? 'delete' : 'delete.preview') : last.kind === 'restore' ? 'restore' : 'write';
+  if (!log.wants(event)) return;
+  log.emit(event, { op: [...new Set(ops.map((o) => o.kind))].join(','), ms, rows: st.rows ? st.rows.length : rows,
+    chain: chainText(log, steps, mods, name, args), detail: writeDetail(last, st.rows) });
+}
+
+/** Терминал под логгером: время, событие успеха и error с цепочкой; выключенный логгер — сам вызов. */
+async function traceTerm<R>(ctx: ChainCtx, steps: Step[], mods: ChainMods, name: string, args: readonly unknown[],
+  fn: (st: Stat) => Promise<R>): Promise<R> {
+  const log = ctx.log;
+  if (!log?.enabled) return fn({});
+  const st: Stat = {};
+  const t0 = performance.now();
+  let r: R;
+  try {
+    r = await fn(st);
+  } catch (e) {
+    log.error(e, { op: name, ms: performance.now() - t0, chain: chainText(log, steps, mods, name, args) });
+    throw e;
+  }
+  try {
+    termEvent(log, steps, mods, name, args, st, r, performance.now() - t0);
+  } catch {
+    // событие не собралось — терминал всё равно отработал
+  }
+  return r;
 }
 
 /** Классы, которые читает цепочка (семейства шагов): по ним сбрасывается её ответ в кэше. */
@@ -362,7 +562,7 @@ function cacheTtl(ctx: ChainCtx, steps: Step[], mods: ChainMods, classes: string
   return Math.min(...marks.map((m) => (m!.ttl !== undefined ? m!.ttl * 1000 : c.store.ttlMs)));
 }
 
-async function exec<T>(ctx: ChainCtx, q: BuiltQuery, mode: QueryEvent['mode'], steps: Step[], mods: ChainMods = {}): Promise<T[]> {
+async function exec<T>(ctx: ChainCtx, q: BuiltQuery, mode: QueryEvent['mode'], steps: Step[], mods: ChainMods = {}, st: Stat = {}): Promise<T[]> {
   const classes = ctx.cache ? readClasses(ctx.reg, steps) : [];
   const ttl = ctx.cache ? cacheTtl(ctx, steps, mods, classes) : null;
   if (ttl !== null) {
@@ -370,7 +570,14 @@ async function exec<T>(ctx: ChainCtx, q: BuiltQuery, mode: QueryEvent['mode'], s
     const who = ctx.cache!.who();
     const key = store.key(q.text, q.params, who);
     const hit = store.get(key);
-    if (hit) return hit as T[];
+    const log = ctx.log;
+    if (hit) {
+      st.cache = 'hit';
+      if (log?.wants('cache.hit')) log.emit('cache.hit', { op: mode, rows: hit.length, chain: chainText(log, steps, mods, mode) });
+      return hit as T[];
+    }
+    st.cache = 'miss';
+    if (log?.wants('cache.miss')) log.emit('cache.miss', { op: mode, chain: chainText(log, steps, mods, mode), detail: { ttl: ttl / 1000 } });
     const tag = sessionTag(who.token);
     const tok = store.token(classes, tag, who.tenant);
     const t0 = performance.now();
@@ -390,16 +597,20 @@ async function exec<T>(ctx: ChainCtx, q: BuiltQuery, mode: QueryEvent['mode'], s
   return res;
 }
 
-async function read<T>(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMode, agg?: AggSpec): Promise<{ q: BuiltQuery | null; res: T[] }> {
+async function read<T>(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMode, agg?: AggSpec, st: Stat = {}): Promise<{ q: BuiltQuery | null; res: T[] }> {
   const hasOps = steps.some((s) => s.op);
   if (ctx.batch && hasOps) throw lerr('api.batch_queued');
-  if (!hasOps) warnWithDeleted(steps);
-  if (mods.forUpdate) return lockedRead(ctx, steps, mods, mode, agg) as Promise<{ q: BuiltQuery | null; res: T[] }>;
-  if (hasOps) return plan(ctx, steps, mods, mode, agg) as Promise<{ q: BuiltQuery | null; res: T[] }>;
+  if (!hasOps) warnWithDeleted(steps, ctx.log);
+  const counted = (r: { q: BuiltQuery | null; res: unknown[] }) => {
+    st.n = r.res.length;
+    return r as { q: BuiltQuery | null; res: T[] };
+  };
+  if (mods.forUpdate) return lockedRead(ctx, steps, mods, mode, agg).then(counted);
+  if (hasOps) return plan(ctx, steps, mods, mode, agg, st).then(counted);
   const { cache: _c, ...plain } = mods;
   const q = buildRead(ctx.reg, ctx.schema, steps, plain, mode, agg);
   const ev: QueryEvent['mode'] = mode === 'countPaths' ? 'count' : mode;
-  return exec<T>(ctx, q, ev, steps, mods).then((res) => ({ q, res }));
+  return exec<T>(ctx, q, ev, steps, mods, st).then((res) => counted({ q, res }));
 }
 
 /** Модификатор выборки, заданный в mods, — именем метода цепочки; forUpdate() отказывает сам (lock_unsupported). */
@@ -436,7 +647,7 @@ function checkAfterVerb(steps: Step[], mods: ChainMods): void {
  * Цепочка с глаголами: весь план одной транзакцией (§2.5). Результат приводится к виду ответа
  * чтения (строки rows/paths, id, n, агрегаты), чтобы терминалы разбирали его одинаково.
  */
-async function plan(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMode, agg?: AggSpec): Promise<{ q: BuiltQuery | null; res: unknown[] }> {
+async function plan(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMode, agg?: AggSpec, st: Stat = {}): Promise<{ q: BuiltQuery | null; res: unknown[] }> {
   try {
     precheckPlan(ctx.reg, steps, mods.order, agg);
   } catch (e) {
@@ -453,6 +664,7 @@ async function plan(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMod
     return r;
   }
   const rows = r.rows;
+  st.rows = rows;
   report(ctx, mode === 'countPaths' ? 'count' : mode === 'paths' ? 'paths' : mode === 'ids' ? 'ids' : 'rows', steps, t0, rows.length);
   // не switch: check-docs принимает case-метки этого файла за имена, которые Proxy разбирает раньше классов
   if (mode === 'paths') return { q: null, res: rows.map((row) => ({ path: { [r.key]: row } })) };
@@ -552,10 +764,10 @@ function classProp(ctx: ChainCtx, name: string, found: { cls: ClassInfo; role?: 
   const step = (...args: [filter?: Filter]): Chain => {
     const filter = args[0];
     // A13: X(undefined) — фильтра нет, шаг найдёт все строки (как X()); чаще всего это пустая переменная с id
-    if (args.length && filter === undefined) lwarn('api.step_undefined_filter', { name }, { once: `undefined-filter|${name}` });
+    if (args.length && filter === undefined) lwarn('api.step_undefined_filter', { name }, { once: `undefined-filter|${name}`, log: ctx.log });
     // A13: sort() относится к последнему шагу цепочки — шаг после него забирает сортировку себе
     if (ownerSteps && mods.order !== undefined) {
-      lwarn('api.sort_not_last', { field: mods.order, step: name }, { once: `sort-not-last|${mods.order}|${name}` });
+      lwarn('api.sort_not_last', { field: mods.order, step: name }, { once: `sort-not-last|${mods.order}|${name}`, log: ctx.log });
     }
     const prev = ownerSteps?.[ownerSteps.length - 1];
     // повтор связи в пути — возврат к её узлу
@@ -587,12 +799,18 @@ function classProp(ctx: ChainCtx, name: string, found: { cls: ClassInfo; role?: 
     if (ctx.batch?.entry) ctx.batch.entry.steps = next;
     return makeChain(ctx, next, mods, nodes);
   };
-  return new Proxy(step, {
+  // ошибка шага или слота (переход, слот без глагола, …) — событие error с цепочкой до него
+  const log = ctx.log;
+  const g = <A extends unknown[], R>(op: string, fn: (...a: A) => R): ((...a: A) => R) => (log?.enabled
+    ? (...a: A) => guarded(log, () => ({ op, chain: chainText(log, ownerSteps ?? [], mods) }), () => fn(...a))
+    : fn);
+  const stepFn = g(name, step);
+  return new Proxy(stepFn, {
     get(t, p, r) {
-      if (p === 'set' || p === 'unset' || p === 'add' || p === 'remove') return slot(p);
+      if (p === 'set' || p === 'unset' || p === 'add' || p === 'remove') return g(`${name}.${p}`, slot(p));
       return Reflect.get(t, p, r);
     },
-  }) as StepFn;
+  }) as unknown as StepFn;
 }
 
 export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: NodeMap = NO_NODES): Chain {
@@ -661,16 +879,20 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
     throw lerr('api.entity_arg');
   };
 
-  const agg = (fn: AggSpec['fn']) => async (field: string) => {
+  /** Терминал: время, событие (read, write, delete, restore) и error — traceTerm. */
+  const term = <A extends unknown[], R>(name: string, fn: (st: Stat, ...a: A) => Promise<R>) =>
+    (...a: A): Promise<R> => traceTerm(ctx, steps, mods, name, a, (st) => fn(st, ...a));
+
+  const agg = (fn: AggSpec['fn']) => term(fn, async (st, field: string) => {
     afterNotPaged(mods, fn);
-    const { q, res } = await read<{ v?: unknown; k?: string; n?: number }>(ctx, steps, mods, 'agg', { fn, field });
+    const { q, res } = await read<{ v?: unknown; k?: string; n?: number }>(ctx, steps, mods, 'agg', { fn, field }, st);
     if (fn === 'countBy') return Object.fromEntries(res.map((r) => [r.k ?? 'null', r.n]));
     const v = res[0]?.v;
     if (v === null || v === undefined) return null;
     if (typeof v !== 'string') return v;
     if (fn === 'sum' || fn === 'avg' || q?.aggLeaf === 'numeric') return Number(v);
     return v;
-  };
+  });
 
   /** Свойство цепочки: метод или модификатор — функция, иначе шаг класса, алиаса или роли. */
   const member = (prop: string): unknown => {
@@ -680,41 +902,41 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
       case 'entity':
         return entityStep;
       case 'paths':
-        return async () => {
+        return term('paths', async (st) => {
           checkAfterVerb(steps, mods);
           // q === null — пути из результата глагола: строки уже готовы. Ключи — в порядке шагов (jsonb хранит их
           // по длине), узел последнего шага — последним: по нему cursorOf(путь, поле) берёт курсор (план 2.0, 7.1 №3)
-          const { q, res } = await read<{ path: Record<string, Record<string, unknown>> }>(ctx, steps, mods, 'paths');
+          const { q, res } = await read<{ path: Record<string, Record<string, unknown>> }>(ctx, steps, mods, 'paths', undefined, st);
           if (q === null) return res.map((r) => r.path as unknown as Path);
           return res.map((r) => Object.fromEntries(q.keys.map((k) => [k, toRow(r.path[k])])) as Path);
-        };
+        });
       case 'rows':
-        return async () => {
+        return term('rows', async (st) => {
           checkAfterVerb(steps, mods);
-          return (await read<{ row: Record<string, unknown>; done?: true }>(ctx, steps, mods, 'rows')).res.map(rowOf);
-        };
+          return (await read<{ row: Record<string, unknown>; done?: true }>(ctx, steps, mods, 'rows', undefined, st)).res.map(rowOf);
+        });
       case 'first':
-        return async () => {
+        return term('first', async (st) => {
           checkAfterVerb(steps, mods);
-          const { res } = await read<{ row: Record<string, unknown>; done?: true }>(ctx, steps, { ...mods, limit: 1 }, 'rows');
+          const { res } = await read<{ row: Record<string, unknown>; done?: true }>(ctx, steps, { ...mods, limit: 1 }, 'rows', undefined, st);
           return res[0] ? rowOf(res[0]) : null;
-        };
+        });
       case 'ids':
-        return async () => {
+        return term('ids', async (st) => {
           checkAfterVerb(steps, mods);
-          return (await read<{ id: string }>(ctx, steps, mods, 'ids')).res.map((r) => r.id);
-        };
+          return (await read<{ id: string }>(ctx, steps, mods, 'ids', undefined, st)).res.map((r) => r.id);
+        });
       case 'count':
-        return async (opts?: { paths?: boolean }) => {
+        return term('count', async (st, opts?: { paths?: boolean }) => {
           checkAfterVerb(steps, mods);
           afterNotPaged(mods, 'count');
-          return (await read<{ n: number }>(ctx, steps, mods, opts?.paths ? 'countPaths' : 'count')).res[0].n;
-        };
+          return (await read<{ n: number }>(ctx, steps, mods, opts?.paths ? 'countPaths' : 'count', undefined, st)).res[0].n;
+        });
       case 'versions':
-        return () => versionsPromise((async () => {
-          warnNoHistory(steps, 'versions');
-          return (await read<{ row: Record<string, unknown> }>(ctx, steps, mods, 'versions')).res.map((r) => toRow(r.row));
-        })());
+        return (...a: []) => versionsPromise(term('versions', async (st) => {
+          warnNoHistory(steps, 'versions', ctx.log);
+          return (await read<{ row: Record<string, unknown> }>(ctx, steps, mods, 'versions', undefined, st)).res.map((r) => toRow(r.row));
+        })(...a));
       case 'sum':
       case 'avg':
       case 'min':
@@ -729,7 +951,7 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
         return (field: string, dir?: 'asc' | 'desc' | boolean) => withMods({ order: field, desc: dir === true || dir === 'desc' });
       case 'asOf':
         return (t: string | Date) => {
-          warnNoHistory(steps, 'asOf');
+          warnNoHistory(steps, 'asOf', ctx.log);
           return withMods({ asOf: t instanceof Date ? t.toISOString() : t });
         };
       case 'after':
@@ -776,12 +998,20 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
     return classProp(ctx, prop, found ?? unknownName(ctx.reg, prop), steps, mods, nodes);
   };
 
+  const log = ctx.log;
   const handler: ProxyHandler<object> = {
     get(_t, prop) {
       if (prop === PLAN) return { steps, mods } satisfies PlanPeek;
       if (prop === Symbol.iterator) return notIterable;
       if (typeof prop === 'symbol') return undefined;
-      return member(prop);
+      if (!log?.enabled) return member(prop);
+      // ошибка имени (неизвестный шаг, слот как метод) и модификатора или глагола (после глагола, неверный аргумент) —
+      // событие error с цепочкой до него; терминалы пишут свои события сами (traceTerm)
+      const where = () => ({ op: prop, chain: chainText(log, steps, mods) });
+      const got = guarded(log, where, () => member(prop));
+      return typeof got === 'function' && GUARDED.has(prop)
+        ? (...a: unknown[]) => guarded(log, where, () => (got as (...x: unknown[]) => unknown)(...a))
+        : got;
     },
   };
   return new Proxy({}, handler) as Chain;
@@ -796,7 +1026,7 @@ export function makeBatch(ctx: ChainCtx, queue: BatchEntry[]): Batch {
   const member = (prop: string): unknown => {
     switch (prop) {
       case 'run':
-        return async () => {
+        return () => traced<Row[][]>(ctx.log ?? NOLOG, 'write', { op: 'batch' }, async () => {
           const entries = queue.splice(0, queue.length);
           const loose = entries.find((x) => x.loose)?.loose;
           if (loose) throw afterVerbError(loose.name, loose.verb);
@@ -808,7 +1038,10 @@ export function makeBatch(ctx: ChainCtx, queue: BatchEntry[]): Batch {
           }
           if (!plans.length) return [];
           return ctx.exec.run((q) => execBatch({ reg: ctx.reg, schema: ctx.schema, q, tenant: ctx.tenant(), owner: ctx.owner, ...reasons(ctx) }, plans));
-        };
+        }, (out) => {
+          const rows = out.flat();
+          return { rows: rows.length, detail: { plans: out.length, classes: byClass(rows), ids: idsOf(rows) } };
+        });
       case 'discard':
         return () => void queue.splice(0, queue.length);
       case 'size':

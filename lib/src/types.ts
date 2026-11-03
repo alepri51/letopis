@@ -158,3 +158,69 @@ export interface QueryEvent {
   /** ms > slowMs. */
   slow: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Логирование (3.0): опции connect({ log, logLevel, redact }) и up({ log, logLevel, redact }); слой — log.ts
+// ---------------------------------------------------------------------------
+
+/** Порог логирования: события этого уровня и выше; `'off'` — ничего. */
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'off';
+
+/** Событие логирования (каталог событий — lib/src/messages/log.ts). Поля без значения в событии отсутствуют. */
+export interface LogEvent {
+  /** Время события, ISO 8601 (UTC). */
+  ts: string;
+  level: Exclude<LogLevel, 'off'>;
+  /** Имя события: connect, read, write, delete, error, sql и др. */
+  event: string;
+  /** Операция: терминал или глагол цепочки, метод db, auth, acl, инструмент MCP. */
+  op?: string;
+  /** Длительность операции, мс (с точностью до 0,1). */
+  ms?: number;
+  /** Арендатор сессии фасада. */
+  tenant?: string;
+  /** Аккаунт фасада: аккаунт сессии или тот, от чьего имени действует db.as(). */
+  account?: string;
+  /** Метка транзакции db.begin() или db.transaction(). */
+  tx?: string;
+  /** Цепочка в читаемом виде: `Shop({"name":"A"}).Product.limit(10).rows()`; данные записи — только именами полей. */
+  chain?: string;
+  /** Строк в ответе или затронуто. */
+  rows?: number;
+  /** Код ошибки letopis (или SQLSTATE ошибки базы) — у error. */
+  code?: string;
+  /** Ключ каталога сообщений — у error и warning. */
+  key?: string;
+  /** Текст ошибки или предупреждения. */
+  msg?: string;
+  /** Подробности события; секреты замаскированы. */
+  detail?: Record<string, unknown>;
+  /** Причина ошибки (исходная ошибка базы и т. п.) — у error. */
+  cause?: { name?: string; message: string; code?: string };
+}
+
+/** Логгер-функция. */
+export type LogFn = (event: LogEvent) => unknown;
+/** Логгер-объект: pino, console и подобные — вызов `logger[уровень](событие, событие.event)`. */
+export interface LogObject {
+  debug?(event: LogEvent, msg: string): unknown;
+  info?(event: LogEvent, msg: string): unknown;
+  warn?(event: LogEvent, msg: string): unknown;
+  error?(event: LogEvent, msg: string): unknown;
+  log?(event: LogEvent, msg: string): unknown;
+}
+/** Логгер: функция или объект с методами уровней. */
+export type Logger = LogFn | LogObject;
+
+/** Опции логирования connect() и up(). */
+export interface LogOptions {
+  /**
+   * Логгер: функция `(событие) => void` или объект с методами `debug`, `info`, `warn`, `error` (pino, console). Без него
+   * и с переменной окружения `LETOPIS_LOG=<уровень>` события идут JSON-строками в stderr.
+   */
+  log?: Logger;
+  /** Порог: `'debug' | 'info' | 'warn' | 'error' | 'off'`, по умолчанию `'info'` (или уровень из `LETOPIS_LOG`). */
+  logLevel?: LogLevel;
+  /** Ещё имена полей, значения которых маскируются в событиях (пароли, токены и ключи маскируются всегда). */
+  redact?: readonly string[];
+}

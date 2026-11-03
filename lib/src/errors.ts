@@ -43,17 +43,45 @@ export function lmsg(key: MsgKey, params?: Params): string {
 }
 
 const warned = new Set<string>();
+/** Логгер, в который уходит предупреждение (lib/src/log.ts, Log): только то, что нужно lwarn. */
+interface WarnSink {
+  readonly active: boolean;
+  warning(key: string | undefined, msg: string, detail?: Record<string, unknown>): void;
+}
+/** Логгер по LETOPIS_LOG для предупреждений без подключения — ставит log.ts (без цикла импорта значений). */
+let envSink: (() => WarnSink) | null = null;
+export function setEnvWarnSink(fn: () => WarnSink): void {
+  envSink = fn;
+}
 /**
  * Предупреждение по записи каталога — «letopis: <текст>» в console.warn; once — ключ «один раз на процесс». Неизвестное
  * поле фильтра, sort() и агрегата с 2.0 — уже не предупреждение, а отказ query.unknown_field (sql.ts, checkField).
+ * Логирование 3.0: задан логгер (opts.log подключения или LETOPIS_LOG) — событие warning в него вместо console.warn.
  */
-export function lwarn(key: MsgKey, params?: Params, opts: { once?: string } = {}): void {
+export function lwarn(key: MsgKey, params?: Params, opts: { once?: string; log?: WarnSink } = {}): void {
   if (opts.once !== undefined) {
     if (warned.has(opts.once)) return;
     if (warned.size >= 1000) warned.clear();
     warned.add(opts.once);
   }
-  console.warn(`letopis: ${textOf(key, params)}`);
+  warnText(`letopis: ${textOf(key, params)}`, key, opts.log, params);
+}
+
+/**
+ * Готовый текст предупреждения: в логгер (событие warning с ключом и параметрами), если он задан, иначе console.warn.
+ * Ошибка логгера предупреждение не теряет и операцию не прерывает.
+ */
+export function warnText(text: string, key?: string, log?: WarnSink, params?: Params): void {
+  const sink = log?.active ? log : envSink?.();
+  if (sink?.active) {
+    try {
+      sink.warning(key, text, params && Object.keys(params).length ? { ...params } : undefined);
+      return;
+    } catch {
+      // логгер не принял — как без него
+    }
+  }
+  console.warn(text);
 }
 
 export class LetopisError extends Error {
