@@ -5,8 +5,7 @@ export default example({
   title: 'Штамп движка: connect() замечает, что схему не обновили',
   summary:
     'up() пишет в комментарий схемы ревизию, версию пакета и хэш его SQL-файлов. Если после обновления пакета ' +
-    'забыть вызвать up(), функции в базе останутся старыми — connect() это заметит и предупредит. Схему letopis 1.x ' +
-    '2.0 не обновляет: она ставится только заново.',
+    'забыть вызвать up(), функции в базе останутся старыми — connect() это заметит и предупредит.',
   tables: [],
   covers: ['nuance.engine-stamp'],
   steps: [
@@ -57,11 +56,11 @@ export default example({
       },
     },
     {
-      title: 'Схема letopis 1.x — только заново',
+      title: 'Схема ревизии 7 — только заново',
       text:
-        'Изображаем схему letopis 1.x: ревизия 7. Совместимости с 1.x у 2.0 нет: `connect()` и `up()` отказывают с ' +
-        '`invalid_data` ещё до любых изменений и подсказывают `up({ schema, fresh: true })` — схема пересоздаётся, ' +
-        'данные 1.x не переносятся.',
+        'Изображаем схему ревизии 7 — младше первой ревизии, которую знает пакет (8). Такую схему пакет не обновляет: ' +
+        '`connect()` и `up()` отказывают с `invalid_data` ещё до любых изменений и подсказывают ' +
+        '`up({ schema, fresh: true })` — схема пересоздаётся, данные не переносятся.',
       run: async ({ admin, connect, dsn, schema, up: installed }) => {
         const [row] = await admin`select obj_description(oid, 'pg_namespace') as comment from pg_namespace where nspname = ${schema}`;
         const comment = String(row.comment);
