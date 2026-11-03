@@ -1,15 +1,20 @@
 {
   "id": "delete/02-restore",
   "title": "Вернуть удалённое",
-  "summary": "restore() возвращает удалённый объект с его последними данными — новой версией, с тем же id. Возвращаются только цели шага, а не весь каскад; строки именно этого каскада находят по причине удаления. Пустой ответ — цели не нашлось. История удалённого объекта остаётся в журнале: стереть версии одного объекта нельзя.",
+  "summary": "restore() возвращает удалённый объект с его последними данными — новой версией, с тем же id. Возвращаются только цели шага, а не весь каскад; строки именно этого каскада находят по причине удаления и возвращают с restore({ expect }) — только если они всё ещё те, что ушли. Пустой ответ — цели не нашлось. История удалённого объекта остаётся в журнале: стереть версии одного объекта нельзя.",
   "covers": [
     "chain.restore",
     "chain.withDeleted",
+    "chain.versions",
     "error.not_deleted",
+    "error.conflict",
     "nuance.restore-only-targets",
     "nuance.restore-cascade-by-reason",
     "nuance.empty-target-delete-restore",
-    "nuance.create-revives-deleted"
+    "nuance.create-revives-deleted",
+    "nuance.with-deleted-per-step",
+    "nuance.restore-no-filter",
+    "nuance.restore-expect-stale"
   ],
   "tables": [
     "entity",
@@ -35,8 +40,8 @@
       }
     }
   },
-  "source": "import { example } from '../../kit/example.ts';\nimport { seedShop, type ShopData } from '../../kit/shop.ts';\n\nlet d: ShopData;\n// причина удаления заказа: её получают надгробия цели и всего каскада этого удаления\nconst CANCEL = 'отмена заказа A-1 (op-7)';\n\nexport default example({\n  title: 'Вернуть удалённое',\n  summary:\n    'restore() возвращает удалённый объект с его последними данными — новой версией, с тем же id. Возвращаются только ' +\n    'цели шага, а не весь каскад; строки именно этого каскада находят по причине удаления. Пустой ответ — цели не ' +\n    'нашлось. История удалённого объекта остаётся в журнале: стереть версии одного объекта нельзя.',\n  tables: ['entity', 'log'],\n  covers: [\n    'chain.restore', 'chain.withDeleted', 'error.not_deleted', 'nuance.restore-only-targets', 'nuance.restore-cascade-by-reason',\n    'nuance.empty-target-delete-restore', 'nuance.create-revives-deleted',\n  ],\n  steps: [\n    {\n      title: 'Строку «Сенча» убрали из заказа, потом заказ отменили',\n      text:\n        'Сначала покупатель убрал из заказа A-1 строку с Сенчей — отдельным удалением. Потом заказ отменили: заказ и ' +\n        'оставшаяся строка ушли каскадом. Удаление заказа идёт с причиной `reason` — её получают надгробия и цели, и ' +\n        'всего каскада.',\n      run: async ({ db }) => {\n        d = await seedShop(db);\n        await db.Order(d.order1).line({ qty: 2 }).delete({ confirm: true, reason: 'покупатель убрал Сенчу' }).rows();\n        return db.Order(d.order1).delete({ confirm: true, reason: CANCEL }).rows();\n      },\n    },\n    {\n      title: 'Удалённое видно через withDeleted',\n      text:\n        'Обычное чтение удалённого не находит. `withDeleted()` показывает и надгробия — с `$deleted: true` и причиной ' +\n        'удаления `reason`. У заказа удалены обе строки, но по разным причинам.',\n      run: async ({ db }) => ({\n        'обычно': await db.Order(d.order1).count(),\n        'с удалёнными': (await db.Order(d.order1).withDeleted().rows()).map((r) => ({ number: r.data.number, deleted: r.$deleted })),\n        'строки заказа': (await db.Order(d.order1).line().withDeleted().rows()).map((r) => ({ qty: r.data.qty, deleted: r.$deleted, reason: r.reason })),\n      }),\n    },\n    {\n      title: 'Вернуть заказ',\n      text: '`restore()` возвращает только цель шага — сам заказ, с тем же id и новой версией. Строки заказа пока удалены.',\n      run: async ({ db }) => db.Order(d.order1).restore().rows(),\n    },\n    {\n      title: 'Вернуть строки только этого каскада',\n      text:\n        '`db.Order(order).line().withDeleted().restore()` вернул бы обе строки — и Сенчу, которую убрали раньше и ' +\n        'отдельно. Строки именно этого удаления отличает причина: отберите надгробия с причиной отмены заказа и ' +\n        'верните их по списку id. Причина — свободный текст, поэтому делайте её своей для каждого удаления (здесь — ' +\n        'с номером операции).',\n      run: async ({ db }) => {\n        const dead = await db.Order(d.order1).line().withDeleted().rows();\n        const ours = dead.filter((r) => r.$deleted && r.reason === CANCEL).map((r) => r.id);\n        return db.line(ours).withDeleted().restore().rows();\n      },\n    },\n    {\n      title: 'История заказа: создание, удаление, возврат',\n      text:\n        'Журнал хранит все версии, и удаление их не стирает: у заказа — создание, надгробие и возврат. Стереть версии ' +\n        'одного объекта нельзя; данные и журнал арендатора целиком стирает только удаление аккаунта (`db.auth.purgeAccount`).',\n      run: async ({ db }) => (await db.Order(d.order1).versions()).map((v) => `v${v.rev} ${v.op}`),\n    },\n    {\n      title: 'Живой объект вернуть нельзя',\n      text: '`restore()` работает только для удалённых: живой объект — `not_deleted`.',\n      run: async ({ db }) => db.Customer(d.olga).restore().rows(),\n      expect: { error: 'not_deleted' },\n    },\n    {\n      title: 'Чужой или несуществующий id — пустой ответ, а не ошибка',\n      text:\n        '`restore()` и `delete({ confirm: true })` по id, которого нет или который не виден (чужой арендатор, нет права ' +\n        'на чтение), возвращают пустой список без ошибки — как и `update`. Проверяйте длину ответа и говорите ' +\n        'пользователю «не найдено», а не «готово».',\n      run: async ({ db }) => {\n        const ghost = '00000000-0000-4000-8000-000000000000';\n        const restored = await db.Order(ghost).restore().rows();\n        const deleted = await db.Order(ghost).delete({ confirm: true }).rows();\n        return { 'restore()': restored, 'delete({ confirm: true })': deleted, 'ответ пользователю': restored.length ? 'возвращено' : 'не найдено' };\n      },\n    },\n    {\n      title: 'Удалённую категорию нашли по ключу',\n      text:\n        'Удалим категорию «Посуда» и попробуем завести её снова. Перед `create` проверьте ключ среди удалённых: ' +\n        '`withDeleted().first()` найдёт надгробие с `$deleted: true` — значит, объект с этим ключом уже жил.',\n      run: async ({ db }) => {\n        await db.Category(d.dishes).delete({ confirm: true }).rows();\n        const was = await db.Category({ name: 'Посуда' }).withDeleted().first();\n        return { 'найдено среди удалённых': was?.$deleted === true, 'id': was?.id };\n      },\n    },\n    {\n      title: 'create тем же ключом продолжает историю удалённого',\n      text:\n        '`create` с ключом удалённого объекта не даёт ошибки: id вычисляется из ключа, поэтому это тот же объект — его ' +\n        'история продолжается новой версией `create`, а надгробие уходит из корзины. Концы, очищенные при удалении ' +\n        '(у товаров), не возвращаются. Если пользователь заводит «нового» с занятым ключом, спросите его: вернуть ' +\n        'удалённого (`restore()`) или выбрать другой ключ.',\n      run: async ({ db }) => {\n        const [again] = await db.Category().create({ name: 'Посуда' }).rows();\n        return { 'тот же id': again.id === d.dishes, 'версии': (await db.Category(again).versions()).map((v) => `v${v.rev} ${v.op}`) };\n      },\n    },\n  ],\n});\n",
-  "sourceHtml": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { example } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> '../../kit/example.ts'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { seedShop, </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">type</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ShopData } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> '../../kit/shop.ts'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">let</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> d</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> ShopData</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#6A737D;--shiki-dark:#6A737D\">// причина удаления заказа: её получают надгробия цели и всего каскада этого удаления</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> CANCEL</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'отмена заказа A-1 (op-7)'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">export</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> default</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> example</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Вернуть удалённое'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  summary:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'restore() возвращает удалённый объект с его последними данными — новой версией, с тем же id. Возвращаются только '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'цели шага, а не весь каскад; строки именно этого каскада находят по причине удаления. Пустой ответ — цели не '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'нашлось. История удалённого объекта остаётся в журнале: стереть версии одного объекта нельзя.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  tables: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'entity'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'log'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  covers: [</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'chain.restore'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'chain.withDeleted'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'error.not_deleted'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.restore-only-targets'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.restore-cascade-by-reason'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'nuance.empty-target-delete-restore'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.create-revives-deleted'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  ],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  steps: [</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Строку «Сенча» убрали из заказа, потом заказ отменили'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Сначала покупатель убрал из заказа A-1 строку с Сенчей — отдельным удалением. Потом заказ отменили: заказ и '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'оставшаяся строка ушли каскадом. Удаление заказа идёт с причиной `reason` — её получают надгробия и цели, и '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'всего каскада.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        d </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> seedShop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ qty: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'покупатель убрал Сенчу'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, reason: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">CANCEL</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Удалённое видно через withDeleted'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Обычное чтение удалённого не находит. `withDeleted()` показывает и надгробия — с `$deleted: true` и причиной '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'удаления `reason`. У заказа удалены обе строки, но по разным причинам.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'обычно'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'с удалёнными'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">withDeleted</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ number: r.data.number, deleted: r.$deleted })),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'строки заказа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">withDeleted</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ qty: r.data.qty, deleted: r.$deleted, reason: r.reason })),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      }),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Вернуть заказ'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'`restore()` возвращает только цель шага — сам заказ, с тем же id и новой версией. Строки заказа пока удалены.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Вернуть строки только этого каскада'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '`db.Order(order).line().withDeleted().restore()` вернул бы обе строки — и Сенчу, которую убрали раньше и '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'отдельно. Строки именно этого удаления отличает причина: отберите надгробия с причиной отмены заказа и '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'верните их по списку id. Причина — свободный текст, поэтому делайте её своей для каждого удаления (здесь — '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'с номером операции).'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> dead</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">withDeleted</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> ours</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> dead.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">filter</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.$deleted </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">&#x26;&#x26;</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.reason </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> CANCEL</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.id);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(ours).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">withDeleted</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'История заказа: создание, удаление, возврат'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Журнал хранит все версии, и удаление их не стирает: у заказа — создание, надгробие и возврат. Стереть версии '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'одного объекта нельзя; данные и журнал арендатора целиком стирает только удаление аккаунта (`db.auth.purgeAccount`).'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">versions</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">v</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> `v${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">v</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">rev</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} ${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">v</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">op</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Живой объект вернуть нельзя'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'`restore()` работает только для удалённых: живой объект — `not_deleted`.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.olga).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      expect: { error: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'not_deleted'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чужой или несуществующий id — пустой ответ, а не ошибка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '`restore()` и `delete({ confirm: true })` по id, которого нет или который не виден (чужой арендатор, нет права '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'на чтение), возвращают пустой список без ошибки — как и `update`. Проверяйте длину ответа и говорите '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'пользователю «не найдено», а не «готово».'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> ghost</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> '00000000-0000-4000-8000-000000000000'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> restored</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(ghost).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> deleted</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(ghost).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'restore()'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: restored, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'delete({ confirm: true })'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: deleted, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'ответ пользователю'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: restored.</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> ?</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'возвращено'</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> :</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'не найдено'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> };</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Удалённую категорию нашли по ключу'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Удалим категорию «Посуда» и попробуем завести её снова. Перед `create` проверьте ключ среди удалённых: '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '`withDeleted().first()` найдёт надгробие с `$deleted: true` — значит, объект с этим ключом уже жил.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.dishes).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> was</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Посуда'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">withDeleted</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'найдено среди удалённых'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: was?.$deleted </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'id'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: was?.id };</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'create тем же ключом продолжает историю удалённого'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '`create` с ключом удалённого объекта не даёт ошибки: id вычисляется из ключа, поэтому это тот же объект — его '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'история продолжается новой версией `create`, а надгробие уходит из корзины. Концы, очищенные при удалении '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '(у товаров), не возвращаются. Если пользователь заводит «нового» с занятым ключом, спросите его: вернуть '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'удалённого (`restore()`) или выбрать другой ключ.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">again</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Посуда'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'тот же id'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: again.id </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> d.dishes, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'версии'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(again).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">versions</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">v</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> `v${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">v</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">rev</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} ${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">v</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">op</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) };</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  ],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">});</span></span>\n<span class=\"line\"></span></code></pre>",
+  "source": "import type { Row } from 'letopis';\nimport { example } from '../../kit/example.ts';\nimport { seedShop, type ShopData } from '../../kit/shop.ts';\n\nlet d: ShopData;\nlet dishesTomb: Row;\n// причина удаления заказа: её получают надгробия цели и всего каскада этого удаления\nconst CANCEL = 'отмена заказа A-1 (op-7)';\n\nexport default example({\n  title: 'Вернуть удалённое',\n  summary:\n    'restore() возвращает удалённый объект с его последними данными — новой версией, с тем же id. Возвращаются только ' +\n    'цели шага, а не весь каскад; строки именно этого каскада находят по причине удаления и возвращают с ' +\n    'restore({ expect }) — только если они всё ещё те, что ушли. Пустой ответ — цели не нашлось. История удалённого ' +\n    'объекта остаётся в журнале: стереть версии одного объекта нельзя.',\n  tables: ['entity', 'log'],\n  covers: [\n    'chain.restore', 'chain.withDeleted', 'chain.versions', 'error.not_deleted', 'error.conflict', 'nuance.restore-only-targets',\n    'nuance.restore-cascade-by-reason', 'nuance.empty-target-delete-restore', 'nuance.create-revives-deleted',\n    'nuance.with-deleted-per-step', 'nuance.restore-no-filter', 'nuance.restore-expect-stale',\n  ],\n  steps: [\n    {\n      title: 'Строку «Сенча» убрали из заказа, потом заказ отменили',\n      text:\n        'Сначала покупатель убрал из заказа A-1 строку с Сенчей — отдельным удалением. Потом заказ отменили: заказ и ' +\n        'оставшаяся строка ушли каскадом. Удаление заказа идёт с причиной `reason` — её получают надгробия и цели, и ' +\n        'всего каскада.',\n      run: async ({ db }) => {\n        d = await seedShop(db);\n        await db.Order(d.order1).line({ qty: 2 }).delete({ confirm: true, reason: 'покупатель убрал Сенчу' }).rows();\n        return db.Order(d.order1).delete({ confirm: true, reason: CANCEL }).rows();\n      },\n    },\n    {\n      title: 'Удалённое видно через withDeleted — у каждого шага свой',\n      text:\n        'Обычное чтение удалённого не находит. `withDeleted()` — модификатор своего шага: `db.Order(id).withDeleted()` — ' +\n        'удалённый заказ, а `db.Order(id).withDeleted().line().withDeleted()` — удалённые строки удалённого заказа ' +\n        '(надгробия с `$deleted: true` и причиной `reason`). У заказа удалены обе строки, но по разным причинам. ' +\n        '`withDeleted()` только у первого шага относится к нему: строки там — живые (их нет), и letopis один раз ' +\n        'предупреждает. История удалённого — `versions()` по его id: шаг с явным id берёт и удалённые.',\n      run: async ({ db, warnings }) => {\n        const lost = await warnings(() => db.Order(d.order1).withDeleted().line().rows());\n        return {\n          'обычно': await db.Order(d.order1).count(),\n          'с удалёнными': (await db.Order(d.order1).withDeleted().rows()).map((r) => ({ number: r.data.number, deleted: r.$deleted })),\n          'строки удалённого заказа': (await db.Order(d.order1).withDeleted().line().withDeleted().rows())\n            .map((r) => ({ qty: r.data.qty, deleted: r.$deleted, reason: r.reason })),\n          'withDeleted() только у заказа': { 'строк': lost.result.length, 'предупреждение': lost.warnings },\n          'версии заказа': (await db.Order(d.order1).versions()).map((v) => `v${v.rev} ${v.op}`),\n        };\n      },\n    },\n    {\n      title: 'Вернуть заказ',\n      text: '`restore()` возвращает только цель шага — сам заказ, с тем же id и новой версией. Строки заказа пока удалены.',\n      run: async ({ db }) => db.Order(d.order1).restore().rows(),\n    },\n    {\n      title: 'restore() без сужения вернул бы всё удалённое шага',\n      text:\n        '`db.line().restore()` без фильтра, id и `expect` восстанавливает **все** удалённые строки класса любых заказов — ' +\n        'здесь обе строки A-1, и Сенчу тоже. Это не отказ, а предупреждение: letopis печатает его один раз. Здесь вызов — в ' +\n        'транзакции, которую пример откатывает: ничего не восстановлено.',\n      run: async ({ db, warnings }) => {\n        const tr = await db.begin();\n        const all = await warnings(() => tr.line().restore().rows());\n        await tr.rollback();\n        return { 'вернул бы строк': all.result.length, 'предупреждение': all.warnings };\n      },\n    },\n    {\n      title: 'Вернуть строки только этого каскада — restore({ expect })',\n      text:\n        '`db.Order(order).line().withDeleted().restore()` вернул бы обе строки — и Сенчу, которую убрали раньше и ' +\n        'отдельно. Строки именно этого удаления отличает причина: отберите надгробия с причиной отмены заказа и верните ' +\n        'их `restore({ expect: надгробия })` — по `{ id, rev }` каждой. Строка вернётся, только если её последняя версия — ' +\n        'то самое надгробие; иначе отказ `conflict` и ничего не восстановлено (так ловится случай «вещь тем временем ' +\n        'выдали другому» — [глава 7](../money/#одна-открытая-запись-на-объект-выдача-бронь-смена)). Причина — свободный ' +\n        'текст, поэтому делайте её своей для каждого удаления (здесь — с номером операции).',\n      run: async ({ db }) => {\n        const dead = await db.Order(d.order1).line().withDeleted().rows();\n        const ours = dead.filter((r) => r.$deleted && r.reason === CANCEL);\n        return db.line(ours.map((r) => r.id)).restore({ expect: ours }).rows();\n      },\n    },\n    {\n      title: 'История заказа: создание, удаление, возврат',\n      text:\n        'Журнал хранит все версии, и удаление их не стирает: у заказа — создание, надгробие и возврат. Стереть версии ' +\n        'одного объекта нельзя; данные и журнал арендатора целиком стирает только удаление аккаунта (`db.auth.purgeAccount`).',\n      run: async ({ db }) => (await db.Order(d.order1).versions()).map((v) => `v${v.rev} ${v.op}`),\n    },\n    {\n      title: 'Живой объект вернуть нельзя',\n      text: '`restore()` работает только для удалённых: живой объект — `not_deleted`.',\n      run: async ({ db }) => db.Customer(d.olga).restore().rows(),\n      expect: { error: 'not_deleted' },\n    },\n    {\n      title: 'Чужой или несуществующий id — пустой ответ, а не ошибка',\n      text:\n        '`restore()` и `delete({ confirm: true })` по id, которого нет или который не виден (чужой арендатор, нет права ' +\n        'на чтение), возвращают пустой список без ошибки — как и `update`. Проверяйте длину ответа и говорите ' +\n        'пользователю «не найдено», а не «готово».',\n      run: async ({ db }) => {\n        const ghost = '00000000-0000-4000-8000-000000000000';\n        const restored = await db.Order(ghost).restore().rows();\n        const deleted = await db.Order(ghost).delete({ confirm: true }).rows();\n        return { 'restore()': restored, 'delete({ confirm: true })': deleted, 'ответ пользователю': restored.length ? 'возвращено' : 'не найдено' };\n      },\n    },\n    {\n      title: 'Удалённую категорию нашли по ключу',\n      text:\n        'Удалим категорию «Посуда» и попробуем завести её снова. Перед `create` проверьте ключ среди удалённых: ' +\n        '`withDeleted().first()` найдёт надгробие с `$deleted: true` — значит, объект с этим ключом уже жил.',\n      run: async ({ db }) => {\n        await db.Category(d.dishes).delete({ confirm: true }).rows();\n        dishesTomb = (await db.Category({ name: 'Посуда' }).withDeleted().first())!;\n        return { 'найдено среди удалённых': dishesTomb.$deleted === true, 'id': dishesTomb.id, 'rev надгробия': dishesTomb.rev };\n      },\n    },\n    {\n      title: 'create тем же ключом продолжает историю удалённого',\n      text:\n        '`create` с ключом удалённого объекта не даёт ошибки: id вычисляется из ключа, поэтому это тот же объект — его ' +\n        'история продолжается новой версией `create`, а надгробие уходит из корзины. Концы, очищенные при удалении ' +\n        '(у товаров), не возвращаются. Если пользователь заводит «нового» с занятым ключом, спросите его: вернуть ' +\n        'удалённого (`restore()`) или выбрать другой ключ.',\n      run: async ({ db }) => {\n        const [again] = await db.Category().create({ name: 'Посуда' }).rows();\n        return { 'тот же id': again.id === d.dishes, 'версии': (await db.Category(again).versions()).map((v) => `v${v.rev} ${v.op}`) };\n      },\n    },\n    {\n      title: 'Вернуть прежнюю «Посуду» уже нельзя',\n      text:\n        'id удалённой категории занял новый объект с тем же ключом. `restore()` отвечает `not_deleted` с ключом ' +\n        '`write.restore_id_taken` («id занят новым объектом с тем же ключом»), а `restore({ expect: [надгробие] })` — ' +\n        '`conflict` (`write.restore_stale`): последняя версия уже не то надгробие. В обоих случаях ничего не ' +\n        'восстановлено — сообщите пользователю, что объект с этим ключом уже живёт.',\n      run: async ({ db }) => ({\n        'restore()': await db.Category(dishesTomb.id).restore().rows().then(() => 'восстановлено', (e) => `${e.code} (${e.key})`),\n        'restore({ expect })': await db.Category(dishesTomb.id).restore({ expect: [dishesTomb] }).rows()\n          .then(() => 'восстановлено', (e) => `${e.code} (${e.key})`),\n      }),\n    },\n  ],\n});\n",
+  "sourceHtml": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> type</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { Row } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'letopis'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { example } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> '../../kit/example.ts'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { seedShop, </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">type</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ShopData } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> '../../kit/shop.ts'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">let</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> d</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> ShopData</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">let</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> dishesTomb</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> Row</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#6A737D;--shiki-dark:#6A737D\">// причина удаления заказа: её получают надгробия цели и всего каскада этого удаления</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> CANCEL</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'отмена заказа A-1 (op-7)'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">export</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> default</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> example</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Вернуть удалённое'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  summary:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'restore() возвращает удалённый объект с его последними данными — новой версией, с тем же id. Возвращаются только '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'цели шага, а не весь каскад; строки именно этого каскада находят по причине удаления и возвращают с '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'restore({ expect }) — только если они всё ещё те, что ушли. Пустой ответ — цели не нашлось. История удалённого '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'объекта остаётся в журнале: стереть версии одного объекта нельзя.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  tables: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'entity'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'log'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  covers: [</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'chain.restore'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'chain.withDeleted'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'chain.versions'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'error.not_deleted'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'error.conflict'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.restore-only-targets'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'nuance.restore-cascade-by-reason'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.empty-target-delete-restore'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.create-revives-deleted'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'nuance.with-deleted-per-step'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.restore-no-filter'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.restore-expect-stale'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  ],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  steps: [</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Строку «Сенча» убрали из заказа, потом заказ отменили'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Сначала покупатель убрал из заказа A-1 строку с Сенчей — отдельным удалением. Потом заказ отменили: заказ и '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'оставшаяся строка ушли каскадом. Удаление заказа идёт с причиной `reason` — её получают надгробия и цели, и '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'всего каскада.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        d </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> seedShop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ qty: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'покупатель убрал Сенчу'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, reason: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">CANCEL</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Удалённое видно через withDeleted — у каждого шага свой'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Обычное чтение удалённого не находит. `withDeleted()` — модификатор своего шага: `db.Order(id).withDeleted()` — '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'удалённый заказ, а `db.Order(id).withDeleted().line().withDeleted()` — удалённые строки удалённого заказа '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '(надгробия с `$deleted: true` и причиной `reason`). У заказа удалены обе строки, но по разным причинам. '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '`withDeleted()` только у первого шага относится к нему: строки там — живые (их нет), и letopis один раз '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'предупреждает. История удалённого — `versions()` по его id: шаг с явным id берёт и удалённые.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">warnings</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> lost</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> warnings</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">withDeleted</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">());</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">          'обычно'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">          'с удалёнными'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">withDeleted</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ number: r.data.number, deleted: r.$deleted })),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">          'строки удалённого заказа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">withDeleted</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">withDeleted</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">            .</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ qty: r.data.qty, deleted: r.$deleted, reason: r.reason })),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">          'withDeleted() только у заказа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'строк'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: lost.result.</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'предупреждение'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: lost.warnings },</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">          'версии заказа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">versions</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">v</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> `v${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">v</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">rev</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} ${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">v</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">op</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        };</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Вернуть заказ'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'`restore()` возвращает только цель шага — сам заказ, с тем же id и новой версией. Строки заказа пока удалены.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'restore() без сужения вернул бы всё удалённое шага'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '`db.line().restore()` без фильтра, id и `expect` восстанавливает **все** удалённые строки класса любых заказов — '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'здесь обе строки A-1, и Сенчу тоже. Это не отказ, а предупреждение: letopis печатает его один раз. Здесь вызов — в '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'транзакции, которую пример откатывает: ничего не восстановлено.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">warnings</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> tr</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">begin</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> all</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> warnings</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">());</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rollback</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'вернул бы строк'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: all.result.</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'предупреждение'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: all.warnings };</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Вернуть строки только этого каскада — restore({ expect })'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '`db.Order(order).line().withDeleted().restore()` вернул бы обе строки — и Сенчу, которую убрали раньше и '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'отдельно. Строки именно этого удаления отличает причина: отберите надгробия с причиной отмены заказа и верните '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'их `restore({ expect: надгробия })` — по `{ id, rev }` каждой. Строка вернётся, только если её последняя версия — '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'то самое надгробие; иначе отказ `conflict` и ничего не восстановлено (так ловится случай «вещь тем временем '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'выдали другому» — [глава 7](../money/#одна-открытая-запись-на-объект-выдача-бронь-смена)). Причина — свободный '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'текст, поэтому делайте её своей для каждого удаления (здесь — с номером операции).'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> dead</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">withDeleted</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> ours</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> dead.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">filter</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.$deleted </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">&#x26;&#x26;</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.reason </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> CANCEL</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(ours.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.id)).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ expect: ours }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'История заказа: создание, удаление, возврат'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Журнал хранит все версии, и удаление их не стирает: у заказа — создание, надгробие и возврат. Стереть версии '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'одного объекта нельзя; данные и журнал арендатора целиком стирает только удаление аккаунта (`db.auth.purgeAccount`).'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">versions</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">v</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> `v${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">v</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">rev</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} ${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">v</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">op</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Живой объект вернуть нельзя'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'`restore()` работает только для удалённых: живой объект — `not_deleted`.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.olga).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      expect: { error: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'not_deleted'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чужой или несуществующий id — пустой ответ, а не ошибка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '`restore()` и `delete({ confirm: true })` по id, которого нет или который не виден (чужой арендатор, нет права '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'на чтение), возвращают пустой список без ошибки — как и `update`. Проверяйте длину ответа и говорите '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'пользователю «не найдено», а не «готово».'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> ghost</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> '00000000-0000-4000-8000-000000000000'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> restored</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(ghost).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> deleted</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(ghost).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'restore()'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: restored, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'delete({ confirm: true })'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: deleted, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'ответ пользователю'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: restored.</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> ?</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'возвращено'</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> :</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'не найдено'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> };</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Удалённую категорию нашли по ключу'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Удалим категорию «Посуда» и попробуем завести её снова. Перед `create` проверьте ключ среди удалённых: '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '`withDeleted().first()` найдёт надгробие с `$deleted: true` — значит, объект с этим ключом уже жил.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.dishes).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        dishesTomb </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Посуда'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">withDeleted</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'найдено среди удалённых'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: dishesTomb.$deleted </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'id'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: dishesTomb.id, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'rev надгробия'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: dishesTomb.rev };</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'create тем же ключом продолжает историю удалённого'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '`create` с ключом удалённого объекта не даёт ошибки: id вычисляется из ключа, поэтому это тот же объект — его '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'история продолжается новой версией `create`, а надгробие уходит из корзины. Концы, очищенные при удалении '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '(у товаров), не возвращаются. Если пользователь заводит «нового» с занятым ключом, спросите его: вернуть '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'удалённого (`restore()`) или выбрать другой ключ.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">again</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Посуда'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'тот же id'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: again.id </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> d.dishes, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'версии'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(again).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">versions</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">v</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> `v${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">v</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">rev</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} ${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">v</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">op</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) };</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Вернуть прежнюю «Посуду» уже нельзя'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'id удалённой категории занял новый объект с тем же ключом. `restore()` отвечает `not_deleted` с ключом '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '`write.restore_id_taken` («id занят новым объектом с тем же ключом»), а `restore({ expect: [надгробие] })` — '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '`conflict` (`write.restore_stale`): последняя версия уже не то надгробие. В обоих случаях ничего не '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'восстановлено — сообщите пользователю, что объект с этим ключом уже живёт.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'restore()'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(dishesTomb.id).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'восстановлено'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> `${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">e</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">code</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} (${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">e</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">key</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">})`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'restore({ expect })'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(dishesTomb.id).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ expect: [dishesTomb] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">          .</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'восстановлено'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> `${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">e</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">code</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} (${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">e</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">key</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">})`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      }),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  ],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">});</span></span>\n<span class=\"line\"></span></code></pre>",
   "initial": {
     "entity": [],
     "log": [],
@@ -858,13 +863,14 @@
       ]
     },
     {
-      "title": "Удалённое видно через withDeleted",
-      "text": "Обычное чтение удалённого не находит. `withDeleted()` показывает и надгробия — с `$deleted: true` и причиной удаления `reason`. У заказа удалены обе строки, но по разным причинам.",
-      "code": "({\n        'обычно': await db.Order(d.order1).count(),\n        'с удалёнными': (await db.Order(d.order1).withDeleted().rows()).map((r) => ({ number: r.data.number, deleted: r.$deleted })),\n        'строки заказа': (await db.Order(d.order1).line().withDeleted().rows()).map((r) => ({ qty: r.data.qty, deleted: r.$deleted, reason: r.reason })),\n      })",
+      "title": "Удалённое видно через withDeleted — у каждого шага свой",
+      "text": "Обычное чтение удалённого не находит. `withDeleted()` — модификатор своего шага: `db.Order(id).withDeleted()` — удалённый заказ, а `db.Order(id).withDeleted().line().withDeleted()` — удалённые строки удалённого заказа (надгробия с `$deleted: true` и причиной `reason`). У заказа удалены обе строки, но по разным причинам. `withDeleted()` только у первого шага относится к нему: строки там — живые (их нет), и letopis один раз предупреждает. История удалённого — `versions()` по его id: шаг с явным id берёт и удалённые.",
+      "code": "const lost = await warnings(() => db.Order(d.order1).withDeleted().line().rows());\nreturn {\n  'обычно': await db.Order(d.order1).count(),\n  'с удалёнными': (await db.Order(d.order1).withDeleted().rows()).map((r) => ({ number: r.data.number, deleted: r.$deleted })),\n  'строки удалённого заказа': (await db.Order(d.order1).withDeleted().line().withDeleted().rows())\n    .map((r) => ({ qty: r.data.qty, deleted: r.$deleted, reason: r.reason })),\n  'withDeleted() только у заказа': { 'строк': lost.result.length, 'предупреждение': lost.warnings },\n  'версии заказа': (await db.Order(d.order1).versions()).map((v) => `v${v.rev} ${v.op}`),\n};",
       "params": [
-        "db"
+        "db",
+        "warnings"
       ],
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'обычно'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'с удалёнными'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">withDeleted</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ number: r.data.number, deleted: r.$deleted })),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'строки заказа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">withDeleted</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ qty: r.data.qty, deleted: r.$deleted, reason: r.reason })),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      })</span></span></code></pre>",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> lost</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> warnings</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">withDeleted</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">());</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'обычно'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'с удалёнными'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">withDeleted</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ number: r.data.number, deleted: r.$deleted })),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'строки удалённого заказа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">withDeleted</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">withDeleted</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    .</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ qty: r.data.qty, deleted: r.$deleted, reason: r.reason })),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'withDeleted() только у заказа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'строк'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: lost.result.</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'предупреждение'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: lost.warnings },</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'версии заказа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">versions</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">v</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> `v${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">v</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">rev</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} ${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">v</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">op</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
       "result": {
         "обычно": 0,
         "с удалёнными": [
@@ -873,7 +879,28 @@
             "deleted": true
           }
         ],
-        "строки заказа": []
+        "строки удалённого заказа": [
+          {
+            "qty": 1,
+            "deleted": true,
+            "reason": "отмена заказа A-1 (op-7)"
+          },
+          {
+            "qty": 2,
+            "deleted": true,
+            "reason": "покупатель убрал Сенчу"
+          }
+        ],
+        "withDeleted() только у заказа": {
+          "строк": 0,
+          "предупреждение": [
+            "letopis: withDeleted() у шага Order относится к нему, а не к последнему шагу line: удалённые line — .line().withDeleted()"
+          ]
+        },
+        "версии заказа": [
+          "v1 create",
+          "v2 delete"
+        ]
       },
       "error": null,
       "entity": [
@@ -2402,13 +2429,796 @@
       ]
     },
     {
-      "title": "Вернуть строки только этого каскада",
-      "text": "`db.Order(order).line().withDeleted().restore()` вернул бы обе строки — и Сенчу, которую убрали раньше и отдельно. Строки именно этого удаления отличает причина: отберите надгробия с причиной отмены заказа и верните их по списку id. Причина — свободный текст, поэтому делайте её своей для каждого удаления (здесь — с номером операции).",
-      "code": "const dead = await db.Order(d.order1).line().withDeleted().rows();\nconst ours = dead.filter((r) => r.$deleted && r.reason === CANCEL).map((r) => r.id);\nreturn db.line(ours).withDeleted().restore().rows();",
+      "title": "restore() без сужения вернул бы всё удалённое шага",
+      "text": "`db.line().restore()` без фильтра, id и `expect` восстанавливает **все** удалённые строки класса любых заказов — здесь обе строки A-1, и Сенчу тоже. Это не отказ, а предупреждение: letopis печатает его один раз. Здесь вызов — в транзакции, которую пример откатывает: ничего не восстановлено.",
+      "code": "const tr = await db.begin();\nconst all = await warnings(() => tr.line().restore().rows());\nawait tr.rollback();\nreturn { 'вернул бы строк': all.result.length, 'предупреждение': all.warnings };",
+      "params": [
+        "db",
+        "warnings"
+      ],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> tr</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">begin</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> all</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> warnings</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">());</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rollback</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'вернул бы строк'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: all.result.</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'предупреждение'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: all.warnings };</span></span></code></pre>",
+      "result": {
+        "вернул бы строк": 2,
+        "предупреждение": [
+          "letopis: restore() у line без фильтра, id и { expect } восстанавливает всё удалённое шага"
+        ]
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Shop «Лютик»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Category «Чай»",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$changed": []
+        },
+        {
+          "id": "Category «Зелёный чай»",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Parent": "Category «Чай»"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$changed": []
+        },
+        {
+          "id": "Category «Посуда»",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$changed": []
+        },
+        {
+          "id": "Product «Чайник»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t6",
+          "$changed": []
+        },
+        {
+          "id": "Product «Сенча»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Зелёный чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t7",
+          "$changed": []
+        },
+        {
+          "id": "Product «Пуэр»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-9",
+            "price": 1500,
+            "title": "Пуэр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t8",
+          "$changed": []
+        },
+        {
+          "id": "Product «Кружка»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Лютик»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t9",
+          "$changed": []
+        },
+        {
+          "id": "Customer «Ольга»",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t10",
+          "$changed": []
+        },
+        {
+          "id": "Vip «Иван»",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t11",
+          "$changed": []
+        },
+        {
+          "id": "Order «A-1»",
+          "class": "Order",
+          "rev": 3,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Customer «Ольга»"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "restore",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t17",
+          "$changed": []
+        },
+        {
+          "id": "Order «A-2»",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Vip «Иван»"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t14",
+          "$changed": []
+        },
+        {
+          "id": "line·3",
+          "class": "line",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Order": "Order «A-2»",
+            "Product": "Product «Пуэр»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t14",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "42",
+          "id": "Shop «Лютик»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "43",
+          "id": "Category «Чай»",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "44",
+          "id": "Category «Зелёный чай»",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "Ромашка",
+          "links": {
+            "Parent": "Category «Чай»"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$new": false
+        },
+        {
+          "seq": "45",
+          "id": "Category «Посуда»",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$new": false
+        },
+        {
+          "seq": "46",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t6",
+          "$new": false
+        },
+        {
+          "seq": "47",
+          "id": "Product «Сенча»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Зелёный чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t7",
+          "$new": false
+        },
+        {
+          "seq": "48",
+          "id": "Product «Пуэр»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-9",
+            "price": 1500,
+            "title": "Пуэр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t8",
+          "$new": false
+        },
+        {
+          "seq": "49",
+          "id": "Product «Кружка»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Лютик»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t9",
+          "$new": false
+        },
+        {
+          "seq": "50",
+          "id": "Customer «Ольга»",
+          "rev": 1,
+          "class": "Customer",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t10",
+          "$new": false
+        },
+        {
+          "seq": "51",
+          "id": "Vip «Иван»",
+          "rev": 1,
+          "class": "Vip",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t11",
+          "$new": false
+        },
+        {
+          "seq": "52",
+          "id": "Order «A-1»",
+          "rev": 1,
+          "class": "Order",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Customer «Ольга»"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t12",
+          "$new": false
+        },
+        {
+          "seq": "53",
+          "id": "line·1",
+          "rev": 1,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Чайник»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t12",
+          "$new": false
+        },
+        {
+          "seq": "54",
+          "id": "line·2",
+          "rev": 1,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Сенча»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t13",
+          "$new": false
+        },
+        {
+          "seq": "55",
+          "id": "Order «A-2»",
+          "rev": 1,
+          "class": "Order",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Vip «Иван»"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t14",
+          "$new": false
+        },
+        {
+          "seq": "56",
+          "id": "line·3",
+          "rev": 1,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-2»",
+            "Product": "Product «Пуэр»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t14",
+          "$new": false
+        },
+        {
+          "seq": "57",
+          "id": "line·2",
+          "rev": 2,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Сенча»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "покупатель убрал Сенчу",
+          "at": "t15",
+          "$new": false
+        },
+        {
+          "seq": "58",
+          "id": "Order «A-1»",
+          "rev": 2,
+          "class": "Order",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Customer «Ольга»"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "отмена заказа A-1 (op-7)",
+          "at": "t16",
+          "$new": false
+        },
+        {
+          "seq": "59",
+          "id": "line·1",
+          "rev": 2,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Чайник»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "отмена заказа A-1 (op-7)",
+          "at": "t16",
+          "$new": false
+        },
+        {
+          "seq": "60",
+          "id": "Order «A-1»",
+          "rev": 3,
+          "class": "Order",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Customer «Ольга»"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "restore",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t17",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null,
+      "signals": []
+    },
+    {
+      "title": "Вернуть строки только этого каскада — restore({ expect })",
+      "text": "`db.Order(order).line().withDeleted().restore()` вернул бы обе строки — и Сенчу, которую убрали раньше и отдельно. Строки именно этого удаления отличает причина: отберите надгробия с причиной отмены заказа и верните их `restore({ expect: надгробия })` — по `{ id, rev }` каждой. Строка вернётся, только если её последняя версия — то самое надгробие; иначе отказ `conflict` и ничего не восстановлено (так ловится случай «вещь тем временем выдали другому» — [глава 7](../money/#одна-открытая-запись-на-объект-выдача-бронь-смена)). Причина — свободный текст, поэтому делайте её своей для каждого удаления (здесь — с номером операции).",
+      "code": "const dead = await db.Order(d.order1).line().withDeleted().rows();\nconst ours = dead.filter((r) => r.$deleted && r.reason === CANCEL);\nreturn db.line(ours.map((r) => r.id)).restore({ expect: ours }).rows();",
       "params": [
         "db"
       ],
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> dead</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">withDeleted</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> ours</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> dead.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">filter</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.$deleted </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">&#x26;&#x26;</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.reason </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> CANCEL</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.id);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(ours).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">withDeleted</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span></code></pre>",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> dead</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">withDeleted</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> ours</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> dead.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">filter</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.$deleted </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">&#x26;&#x26;</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.reason </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> CANCEL</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(ours.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.id)).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ expect: ours }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span></code></pre>",
       "result": [
         {
           "at": "t18",
@@ -3219,7 +4029,7 @@
           "$new": false
         },
         {
-          "seq": "61",
+          "seq": "63",
           "id": "line·1",
           "rev": 3,
           "class": "line",
@@ -4046,7 +4856,7 @@
           "$new": false
         },
         {
-          "seq": "61",
+          "seq": "63",
           "id": "line·1",
           "rev": 3,
           "class": "line",
@@ -4876,7 +5686,7 @@
           "$new": false
         },
         {
-          "seq": "61",
+          "seq": "63",
           "id": "line·1",
           "rev": 3,
           "class": "line",
@@ -5701,7 +6511,7 @@
           "$new": false
         },
         {
-          "seq": "61",
+          "seq": "63",
           "id": "line·1",
           "rev": 3,
           "class": "line",
@@ -5730,14 +6540,15 @@
     {
       "title": "Удалённую категорию нашли по ключу",
       "text": "Удалим категорию «Посуда» и попробуем завести её снова. Перед `create` проверьте ключ среди удалённых: `withDeleted().first()` найдёт надгробие с `$deleted: true` — значит, объект с этим ключом уже жил.",
-      "code": "await db.Category(d.dishes).delete({ confirm: true }).rows();\nconst was = await db.Category({ name: 'Посуда' }).withDeleted().first();\nreturn { 'найдено среди удалённых': was?.$deleted === true, 'id': was?.id };",
+      "code": "await db.Category(d.dishes).delete({ confirm: true }).rows();\ndishesTomb = (await db.Category({ name: 'Посуда' }).withDeleted().first())!;\nreturn { 'найдено среди удалённых': dishesTomb.$deleted === true, 'id': dishesTomb.id, 'rev надгробия': dishesTomb.rev };",
       "params": [
         "db"
       ],
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.dishes).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> was</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Посуда'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">withDeleted</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'найдено среди удалённых'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: was?.$deleted </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'id'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: was?.id };</span></span></code></pre>",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.dishes).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">dishesTomb </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Посуда'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">withDeleted</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'найдено среди удалённых'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: dishesTomb.$deleted </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'id'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: dishesTomb.id, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'rev надгробия'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: dishesTomb.rev };</span></span></code></pre>",
       "result": {
         "найдено среди удалённых": true,
-        "id": "Category «Посуда»"
+        "id": "Category «Посуда»",
+        "rev надгробия": 2
       },
       "error": null,
       "entity": [
@@ -6531,7 +7342,7 @@
           "$new": false
         },
         {
-          "seq": "61",
+          "seq": "63",
           "id": "line·1",
           "rev": 3,
           "class": "line",
@@ -6553,7 +7364,7 @@
           "$new": false
         },
         {
-          "seq": "62",
+          "seq": "64",
           "id": "Category «Посуда»",
           "rev": 2,
           "class": "Category",
@@ -6571,7 +7382,7 @@
           "$new": true
         },
         {
-          "seq": "63",
+          "seq": "65",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -6602,7 +7413,7 @@
           "$new": true
         },
         {
-          "seq": "64",
+          "seq": "66",
           "id": "Product «Кружка»",
           "rev": 2,
           "class": "Product",
@@ -7435,7 +8246,7 @@
           "$new": false
         },
         {
-          "seq": "61",
+          "seq": "63",
           "id": "line·1",
           "rev": 3,
           "class": "line",
@@ -7457,7 +8268,7 @@
           "$new": false
         },
         {
-          "seq": "62",
+          "seq": "64",
           "id": "Category «Посуда»",
           "rev": 2,
           "class": "Category",
@@ -7475,7 +8286,7 @@
           "$new": false
         },
         {
-          "seq": "63",
+          "seq": "65",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -7506,7 +8317,7 @@
           "$new": false
         },
         {
-          "seq": "64",
+          "seq": "66",
           "id": "Product «Кружка»",
           "rev": 2,
           "class": "Product",
@@ -7532,7 +8343,7 @@
           "$new": false
         },
         {
-          "seq": "65",
+          "seq": "67",
           "id": "Category «Посуда»",
           "rev": 3,
           "class": "Category",
@@ -7555,6 +8366,919 @@
       "signals": [
         "Category"
       ]
+    },
+    {
+      "title": "Вернуть прежнюю «Посуду» уже нельзя",
+      "text": "id удалённой категории занял новый объект с тем же ключом. `restore()` отвечает `not_deleted` с ключом `write.restore_id_taken` («id занят новым объектом с тем же ключом»), а `restore({ expect: [надгробие] })` — `conflict` (`write.restore_stale`): последняя версия уже не то надгробие. В обоих случаях ничего не восстановлено — сообщите пользователю, что объект с этим ключом уже живёт.",
+      "code": "({\n        'restore()': await db.Category(dishesTomb.id).restore().rows().then(() => 'восстановлено', (e) => `${e.code} (${e.key})`),\n        'restore({ expect })': await db.Category(dishesTomb.id).restore({ expect: [dishesTomb] }).rows()\n          .then(() => 'восстановлено', (e) => `${e.code} (${e.key})`),\n      })",
+      "params": [
+        "db"
+      ],
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'restore()'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(dishesTomb.id).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'восстановлено'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> `${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">e</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">code</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} (${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">e</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">key</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">})`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'restore({ expect })'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(dishesTomb.id).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ expect: [dishesTomb] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">          .</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'восстановлено'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> `${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">e</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">code</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} (${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">e</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">key</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">})`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      })</span></span></code></pre>",
+      "result": {
+        "restore()": "not_deleted (write.restore_id_taken)",
+        "restore({ expect })": "conflict (write.restore_stale)"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Shop «Лютик»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Category «Чай»",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$changed": []
+        },
+        {
+          "id": "Category «Зелёный чай»",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Parent": "Category «Чай»"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$changed": []
+        },
+        {
+          "id": "Category «Посуда»",
+          "class": "Category",
+          "rev": 3,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t20",
+          "$changed": []
+        },
+        {
+          "id": "Product «Чайник»",
+          "class": "Product",
+          "rev": 2,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": []
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t19",
+          "$changed": []
+        },
+        {
+          "id": "Product «Сенча»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Зелёный чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t7",
+          "$changed": []
+        },
+        {
+          "id": "Product «Пуэр»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-9",
+            "price": 1500,
+            "title": "Пуэр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t8",
+          "$changed": []
+        },
+        {
+          "id": "Product «Кружка»",
+          "class": "Product",
+          "rev": 2,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Лютик»",
+            "Category": []
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t19",
+          "$changed": []
+        },
+        {
+          "id": "Customer «Ольга»",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t10",
+          "$changed": []
+        },
+        {
+          "id": "Vip «Иван»",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t11",
+          "$changed": []
+        },
+        {
+          "id": "Order «A-1»",
+          "class": "Order",
+          "rev": 3,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Customer «Ольга»"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "restore",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t17",
+          "$changed": []
+        },
+        {
+          "id": "line·1",
+          "class": "line",
+          "rev": 3,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Чайник»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "restore",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t18",
+          "$changed": []
+        },
+        {
+          "id": "Order «A-2»",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Vip «Иван»"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t14",
+          "$changed": []
+        },
+        {
+          "id": "line·3",
+          "class": "line",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Order": "Order «A-2»",
+            "Product": "Product «Пуэр»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t14",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "41",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "42",
+          "id": "Shop «Лютик»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "43",
+          "id": "Category «Чай»",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "44",
+          "id": "Category «Зелёный чай»",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "Ромашка",
+          "links": {
+            "Parent": "Category «Чай»"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t4",
+          "$new": false
+        },
+        {
+          "seq": "45",
+          "id": "Category «Посуда»",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t5",
+          "$new": false
+        },
+        {
+          "seq": "46",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t6",
+          "$new": false
+        },
+        {
+          "seq": "47",
+          "id": "Product «Сенча»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Зелёный чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t7",
+          "$new": false
+        },
+        {
+          "seq": "48",
+          "id": "Product «Пуэр»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-9",
+            "price": 1500,
+            "title": "Пуэр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t8",
+          "$new": false
+        },
+        {
+          "seq": "49",
+          "id": "Product «Кружка»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Лютик»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t9",
+          "$new": false
+        },
+        {
+          "seq": "50",
+          "id": "Customer «Ольга»",
+          "rev": 1,
+          "class": "Customer",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t10",
+          "$new": false
+        },
+        {
+          "seq": "51",
+          "id": "Vip «Иван»",
+          "rev": 1,
+          "class": "Vip",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t11",
+          "$new": false
+        },
+        {
+          "seq": "52",
+          "id": "Order «A-1»",
+          "rev": 1,
+          "class": "Order",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Customer «Ольга»"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t12",
+          "$new": false
+        },
+        {
+          "seq": "53",
+          "id": "line·1",
+          "rev": 1,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Чайник»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t12",
+          "$new": false
+        },
+        {
+          "seq": "54",
+          "id": "line·2",
+          "rev": 1,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Сенча»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t13",
+          "$new": false
+        },
+        {
+          "seq": "55",
+          "id": "Order «A-2»",
+          "rev": 1,
+          "class": "Order",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Vip «Иван»"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t14",
+          "$new": false
+        },
+        {
+          "seq": "56",
+          "id": "line·3",
+          "rev": 1,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-2»",
+            "Product": "Product «Пуэр»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t14",
+          "$new": false
+        },
+        {
+          "seq": "57",
+          "id": "line·2",
+          "rev": 2,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Сенча»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "покупатель убрал Сенчу",
+          "at": "t15",
+          "$new": false
+        },
+        {
+          "seq": "58",
+          "id": "Order «A-1»",
+          "rev": 2,
+          "class": "Order",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Customer «Ольга»"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "отмена заказа A-1 (op-7)",
+          "at": "t16",
+          "$new": false
+        },
+        {
+          "seq": "59",
+          "id": "line·1",
+          "rev": 2,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Чайник»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "Анна",
+          "agent": "service",
+          "reason": "отмена заказа A-1 (op-7)",
+          "at": "t16",
+          "$new": false
+        },
+        {
+          "seq": "60",
+          "id": "Order «A-1»",
+          "rev": 3,
+          "class": "Order",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Customer «Ольга»"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "restore",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t17",
+          "$new": false
+        },
+        {
+          "seq": "63",
+          "id": "line·1",
+          "rev": 3,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Чайник»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "restore",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t18",
+          "$new": false
+        },
+        {
+          "seq": "64",
+          "id": "Category «Посуда»",
+          "rev": 2,
+          "class": "Category",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t19",
+          "$new": false
+        },
+        {
+          "seq": "65",
+          "id": "Product «Чайник»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": []
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t19",
+          "$new": false
+        },
+        {
+          "seq": "66",
+          "id": "Product «Кружка»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Лютик»",
+            "Category": []
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t19",
+          "$new": false
+        },
+        {
+          "seq": "67",
+          "id": "Category «Посуда»",
+          "rev": 3,
+          "class": "Category",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": "service",
+          "reason": null,
+          "at": "t20",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null,
+      "signals": []
     }
   ]
 }

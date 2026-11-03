@@ -636,7 +636,7 @@
       "result": null,
       "error": {
         "code": "invalid_data",
-        "message": "letopis: invalid_data: данные не проходят описание класса Product",
+        "message": "letopis: invalid_data: данные не проходят описание класса Product: price — нарушено правило minimum",
         "detail": [
           {
             "path": [

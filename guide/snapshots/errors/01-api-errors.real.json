@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_bd9a9542578b1c21c607c909e63cece901abb44be4a73f39e93330ac117d06ad",
+      "serviceKey": "lts_34f28a3eddbab2666bcac7b885d901d6ccd4db7de2d261b963f2f71f0025befc",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "70c1d2ab94f82598ae9bcfb2d0f45742d8d3a9d4b44177c17c4385af686995a5",
+        "token": "4ea1b7e9ca6ab3ad33c5931105e3eafb4464ee47df6e83cd37cdcbfa27c76378",
         "created": true
       }
     }
@@ -120,6 +120,46 @@
       "error": {
         "code": "tx_rolled_back",
         "message": "letopis: tx_rolled_back: commit: PostgreSQL откатил транзакцию (в ней была ошибка)",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "invalid_query",
+        "message": "letopis: invalid_query: Product(…): \"42\" — не uuid",
+        "detail": null
+      },
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "code": "invalid_query",
+        "key": "api.db_bad_value",
+        "message": "letopis: invalid_query: значение не того типа: invalid input syntax for type uuid: \"42\"",
+        "cause.code": "22P02"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "invalid_query",
+        "message": "letopis: invalid_query: цепочка — не массив: length есть у строк ответа, а не у цепочки",
         "detail": null
       },
       "entity": [],

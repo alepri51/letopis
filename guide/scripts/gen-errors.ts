@@ -6,6 +6,7 @@
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { codes } from '../../lib/src/messages/codes.ts';
+import { MESSAGES, type MsgKey } from '../../lib/src/messages/index.ts';
 
 const ROOT = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 const TITLES: Record<string, string> = {
@@ -32,6 +33,20 @@ for (const dir of await readdir(join(ROOT, 'examples'))) {
 const unknown = [...where.keys(), ...Object.keys(NOTE)].filter((c) => !SIGN.has(c));
 if (unknown.length) { console.error(`кодов нет в каталоге lib/src/messages/codes.ts: ${unknown.join(', ')}`); process.exit(1); }
 const link = (d: string) => `[${TITLES[d] ?? d}](../${d === 'basics' ? 'basics/what-is' : `${d}/`})`;
+// отказы, которые приложение различает по ключу err.key внутри одного кода: ключ → глава с живым примером
+const KEYS: [MsgKey, string][] = [
+  ['write.restore_stale', 'delete'], ['write.restore_id_taken', 'delete'], ['write.preview_changed', 'delete'],
+  ['write.expect_without_confirm', 'delete'], ['write.bad_expect', 'delete'],
+  ['api.unknown_step', 'auth'], ['api.unknown_step_no_classes', 'auth'], ['api.chain_not_rows', 'errors'],
+  ['query.bad_uuid', 'errors'], ['api.db_bad_value', 'errors'], ['api.validation_failed_end', 'write'],
+  ['model.transform_unsupported', 'models'],
+];
+const cell = (t: string) => t.replace(/\|/g, '\\|');
+const keyRows = KEYS.map(([k, d]) => {
+  const m = MESSAGES[k];
+  if (!m) { console.error(`ключа ${k} нет в каталоге lib/src/messages`); process.exit(1); }
+  return `| \`${k}\` | \`${m.code}\` | ${cell(m.ru)} | ${cell(m.hint ?? SIGN.get(m.code)!.todo)} | ${link(d)} |`;
+});
 const rows = [...SIGN.keys()].sort().map((c) => `| \`${c}\` | ${SIGN.get(c)!.meaning} | ${SIGN.get(c)!.todo} | ${[...(where.get(c) ?? [])].sort().map(link).join(', ') || NOTE[c] || '—'} |`);
 const page = `# Ошибки
 
@@ -51,8 +66,18 @@ const page = `# Ошибки
 
 ## Частые причины \`invalid_data\`
 
-- **Конец связи передан полем данных.** \`db.Item(item).Loan().create({ issuedAt, Member: id })\` — для базы \`Member\` лишнее поле: в \`issues\` правило \`additionalProperties\` с пустым путём. Конец задают вызовом роли после глагола: \`create({ issuedAt }).Member.set(id)\` — [пример](../write/#ex-write-02-ends-and-slots).
-- **Значение не подходит под правило поля** (\`enum\`, \`minLength\`, \`pattern\` и другие) — путь к полю в \`issues[].path\`, правило в \`issues[].keyword\`.
+Текст \`invalid_data\` называет первое нарушение — «…класса Product: price — нарушено правило minimum (всего нарушений: N, все — err.issues)»; полный список — в \`err.issues\` (путь \`path\`, правило \`keyword\`, сообщение \`message\`).
+
+- **Конец связи передан полем данных.** \`db.Item(item).Loan().create({ issuedAt, Member: id })\` — для базы \`Member\` лишний ключ: текст «данные — лишний ключ Member», в \`issues\` правило \`additionalProperties\` с пустым путём, подсказка \`err.hint\` — «конец — из пути или .Роль.set()». Конец задают вызовом роли после глагола: \`create({ issuedAt }).Member.set(id)\` — [пример](../write/#ex-write-02-ends-and-slots).
+- **Значение не подходит под правило поля** (\`enum\`, \`minLength\`, \`pattern\` и другие) — путь к полю в \`issues[].path\`, правило в \`issues[].keyword\`; у \`enum\` сообщение перечисляет допустимые значения.
+
+## Отказы по ключу: \`err.key\`
+
+Один код объединяет похожие отказы, а различает их ключ каталога сообщений — поле \`err.key\`; подсказка «что делать» — \`err.hint\`, подробности — \`err.detail\`. Значение не того типа, которое не поймала проверка до запроса (SQLSTATE \`22P02\`, например неверный uuid в сыром SQL), тоже приходит \`LetopisError\` с кодом \`invalid_query\` (ключ \`api.db_bad_value\`), исходная ошибка драйвера — в \`err.cause\`. В таблице — отказы, которые приложению стоит различать; параметры текста — в фигурных скобках.
+
+| Ключ | Код | Текст | Что делать | Где показан |
+|---|---|---|---|---|
+${keyRows.join('\n')}
 
 ## Все коды
 

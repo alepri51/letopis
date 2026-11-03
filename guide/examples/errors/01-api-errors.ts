@@ -12,7 +12,7 @@ export default example({
     'транзакций и подключения.',
   tables: [],
   covers: ['error.target_not_found', 'error.id_mismatch', 'error.no_path', 'error.lock_unsupported', 'error.no_session',
-    'error.user_session_required', 'error.tx_rolled_back'],
+    'error.user_session_required', 'error.tx_rolled_back', 'error.invalid_query', 'nuance.bad-uuid-letopis-error'],
   steps: [
     {
       title: 'target_not_found — правка того, чего нет',
@@ -66,5 +66,31 @@ export default example({
       },
       expect: { error: 'tx_rolled_back' },
     },
+    {
+      title: 'invalid_query — id шага не uuid',
+      text:
+        'id шага, список id и `{ id }` в фильтре проверяются до запроса: не uuid (и `null`) — отказ `invalid_query` с ' +
+        'ключом `query.bad_uuid` и подсказкой. Что делать: брать id из ответа (`row.id`) или `db.idOf(…)`, проверить ' +
+        'переменную — `undefined` и `null` не id.',
+      run: async ({ db }) => db.Product('42').rows(),
+      expect: { error: 'invalid_query' },
+    },
+    {
+      title: 'invalid_query — значение не того типа в сыром SQL',
+      text:
+        'Значение не того типа, которое не поймала проверка до запроса (SQLSTATE `22P02`), тоже приходит как ' +
+        '`LetopisError`: код `invalid_query`, ключ `api.db_bad_value`, исходная ошибка драйвера — в `err.cause`.',
+      run: async ({ db }) =>
+        db.sql`select ${'42'}::uuid as id`.then(() => 'прошло', (e) => ({ code: e.code, key: e.key, message: e.message, 'cause.code': e.cause?.code })),
+    },
+    {
+      title: 'invalid_query — забыли .rows()',
+      text:
+        'Цепочка — не массив: `length`, `map`, `filter`, `forEach` и другие свойства массива у неё — отказ `invalid_query` ' +
+        '(ключ `api.chain_not_rows`), а не поиск класса с таким именем. Что делать: `await ….rows()` или `await ….first()`.',
+      run: async ({ db }) => (db.Product() as unknown as unknown[]).length,
+      expect: { error: 'invalid_query' },
+    },
   ],
 });
+

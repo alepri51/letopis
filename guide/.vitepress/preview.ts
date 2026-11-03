@@ -2,10 +2,12 @@
  * Превью исполняемого примера в разметке страницы: заголовок, суть и код первого шага из снимка
  * (`snapshots/<id>.json`). Плеер (`theme/Example.vue`) показывает его, пока грузит снимок целиком, — на медленной
  * сети читатель сразу видит код, а не одну надпись «Загружаю пример…». Превью попадает в HTML страницы при сборке,
- * поэтому видно ещё до загрузки скриптов.
+ * поэтому видно ещё до загрузки скриптов. Там же, свёрнутым блоком, — «Весь код примера»: самостоятельный скрипт
+ * (`standalone.ts`), его можно прочитать и скопировать, пока снимок ещё грузится.
  */
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { standalone } from './standalone';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 // пояснение шага: `код` → <code>, **жирный** → <strong> (как в плеере)
@@ -19,6 +21,8 @@ export function examplePreview(root: string, id: string): string {
   const s = JSON.parse(readFileSync(file, 'utf8')) as Snap;
   const first = s.steps?.[0];
   const total = s.steps?.length ?? 0;
+  const src = join(root, 'examples', `${id}.ts`);
+  const script = existsSync(src) ? standalone(src, root) : '';
   return [
     '<div class="lt-ex-pre" v-pre>',
     '<div class="lt-ex-pre-badge">Пример на настоящей базе</div>',
@@ -27,6 +31,13 @@ export function examplePreview(root: string, id: string): string {
     first ? `<div class="lt-ex-pre-step">Шаг 1 из ${total}. ${esc(first.title)}</div>` : '',
     first?.text ? `<p class="lt-ex-pre-text">${md(first.text)}</p>` : '',
     first?.html ? `<div class="lt-ex-code">${first.html}</div>` : '',
+    script
+      ? '<details class="lt-ex-pre-source"><summary>Весь код примера — скрипт для своего проекта</summary>' +
+        '<p class="lt-ex-pre-note">Тот же пример без каркаса сайта: обычные <code>up()</code>, <code>connect()</code> и <code>svc.as()</code>, ' +
+        'помощники <code>kit/…</code> вставлены целиком, шаги идут подряд. Скопируйте в файл, задайте <code>ADMIN_DSN</code> и ' +
+        'запустите <code>npx tsx example.ts</code>. Пошаговый показ с результатами появится, когда загрузится снимок.</p>' +
+        `<pre class="lt-ex-pre-plain">${esc(script)}</pre></details>`
+      : '',
     '</div>',
   ].join('');
 }

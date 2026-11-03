@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_acc801005e18c531f2b5598836fd9457ea542edb19b07d17b710ad414130e8e9",
+      "serviceKey": "lts_4febad06b7ef29c8c6e47fd50d35c553a36b6312af3bc6d966a23aadb59f886f",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "ab00e36bbdd76d2ae2af007f0271686657a1028c2aa1c393740bada424e15d3a",
+        "token": "6b74834ead446b020e4a9b9cf78b41638cf4d273d9e1da02ae99edfd7bb678dd",
         "created": true
       }
     }
@@ -34,16 +34,25 @@
             "tenant": "3defbabb-a94d-5359-8463-dc947de193e1",
             "roles": [
               "owner"
-            ]
+            ],
+            "name": "Анна",
+            "personal": true
           },
           {
             "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
             "roles": [
               "owner"
-            ]
+            ],
+            "name": "Ромашка",
+            "personal": false
           }
         ],
-        "компания": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a"
+        "компания": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "anna.Item().count()": {
+          "code": "invalid_class",
+          "message": "letopis: invalid_class: класс или роль Item не найдены: в реестре сессии нет ни одного класса арендатора — сессия, похоже, в личном арендаторе",
+          "hint": "после входа сессия работает в личном арендаторе пользователя: найти нужного — db.auth.tenants(), перейти — db.auth.switch(tenant) или db.as(аккаунт, { tenant }); классы в арендатор записывает syncModels"
+        }
       },
       "error": null,
       "entity": [],
@@ -59,20 +68,23 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "1bac2450-6675-5228-90ca-604dbc0f91cd",
-            "login_at": "2026-11-03T03:53:44.516018+00:00"
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:19.838619+00:00"
           },
-          "material": "100ae03b15f8898906d9d4ef223b1a38e729ef11a0a2e63b2cdf918fc4ab6743",
-          "expires_at": "2026-11-10 03:53:44.516024+00",
-          "created_at": "2026-11-03 03:53:44.516026+00",
+          "material": "ade4938a7afbd371fa9f1c152004f8e346caba82df366ffb58204020e74f259e",
+          "expires_at": "2026-11-10 15:06:19.838632+00",
+          "created_at": "2026-11-03 15:06:19.838634+00",
           "deleted_at": null
         }
       ],
-      "signals": []
+      "signals": [
+        "Class"
+      ]
     },
     {
       "result": {
-        "сейчас": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a"
+        "сейчас": "Ромашка",
+        "anna.Item().count()": 0
       },
       "error": null,
       "entity": [],
@@ -89,12 +101,12 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "1bac2450-6675-5228-90ca-604dbc0f91cd",
-            "login_at": "2026-11-03T03:53:44.516018+00:00"
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:19.838619+00:00"
           },
-          "material": "100ae03b15f8898906d9d4ef223b1a38e729ef11a0a2e63b2cdf918fc4ab6743",
-          "expires_at": "2026-11-10 03:53:44.516024+00",
-          "created_at": "2026-11-03 03:53:44.516026+00",
+          "material": "ade4938a7afbd371fa9f1c152004f8e346caba82df366ffb58204020e74f259e",
+          "expires_at": "2026-11-10 15:06:19.838632+00",
+          "created_at": "2026-11-03 15:06:19.838634+00",
           "deleted_at": null
         }
       ],
@@ -124,12 +136,12 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "1bac2450-6675-5228-90ca-604dbc0f91cd",
-            "login_at": "2026-11-03T03:53:44.516018+00:00"
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:19.838619+00:00"
           },
-          "material": "100ae03b15f8898906d9d4ef223b1a38e729ef11a0a2e63b2cdf918fc4ab6743",
-          "expires_at": "2026-11-10 03:53:44.516024+00",
-          "created_at": "2026-11-03 03:53:44.516026+00",
+          "material": "ade4938a7afbd371fa9f1c152004f8e346caba82df366ffb58204020e74f259e",
+          "expires_at": "2026-11-10 15:06:19.838632+00",
+          "created_at": "2026-11-03 15:06:19.838634+00",
           "deleted_at": null
         }
       ],
@@ -156,26 +168,26 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "1bac2450-6675-5228-90ca-604dbc0f91cd",
-            "login_at": "2026-11-03T03:53:44.516018+00:00"
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:19.838619+00:00"
           },
-          "material": "100ae03b15f8898906d9d4ef223b1a38e729ef11a0a2e63b2cdf918fc4ab6743",
-          "expires_at": "2026-11-10 03:53:44.516024+00",
-          "created_at": "2026-11-03 03:53:44.516026+00",
+          "material": "ade4938a7afbd371fa9f1c152004f8e346caba82df366ffb58204020e74f259e",
+          "expires_at": "2026-11-10 15:06:19.838632+00",
+          "created_at": "2026-11-03 15:06:19.838634+00",
           "deleted_at": null
         },
         {
           "account": "3defbabb-a94d-5359-8463-dc947de193e1",
           "kind": "KEYSECRET",
-          "ident": "9bdef874954f2af6",
+          "ident": "731f39c5470291e3",
           "meta": {
             "name": "склад",
             "enabled": false,
             "confirmed": true
           },
-          "material": "b253a93804a792a1fcf605a2599548a6f00387bd6c01b34f209e3a28af63bcbc",
+          "material": "f35f2977d8e09e65d84f13bf9bff1df8d93beff57e159346b110de1ef56dfc96",
           "expires_at": null,
-          "created_at": "2026-11-03 03:53:44.606612+00",
+          "created_at": "2026-11-03 15:06:19.967284+00",
           "deleted_at": null
         },
         {
@@ -184,15 +196,15 @@
           "ident": null,
           "meta": {
             "ttl": "7 days",
-            "cred": "60ff2658-d67f-4669-a235-28986d027ec1",
+            "cred": "f6590253-e91b-4162-a8e2-036f180152d0",
             "methods": [
               "KEYSECRET"
             ],
-            "login_at": "2026-11-03T03:53:44.611862+00:00"
+            "login_at": "2026-11-03T15:06:19.972668+00:00"
           },
-          "material": "f46f5ae2b37e22087cd5b33f89ff09cc325af2d5b86df0e102613be429150374",
-          "expires_at": "2026-11-10 03:53:44.61187+00",
-          "created_at": "2026-11-03 03:53:44.611872+00",
+          "material": "cf00cf2fbba58f398c6c8fbcf6f299581d9ae4f5984a279f693bfaba2fd5456d",
+          "expires_at": "2026-11-10 15:06:19.972675+00",
+          "created_at": "2026-11-03 15:06:19.972676+00",
           "deleted_at": null
         }
       ],
@@ -218,26 +230,26 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "1bac2450-6675-5228-90ca-604dbc0f91cd",
-            "login_at": "2026-11-03T03:53:44.516018+00:00"
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:19.838619+00:00"
           },
-          "material": "100ae03b15f8898906d9d4ef223b1a38e729ef11a0a2e63b2cdf918fc4ab6743",
-          "expires_at": "2026-11-10 03:53:44.516024+00",
-          "created_at": "2026-11-03 03:53:44.516026+00",
+          "material": "ade4938a7afbd371fa9f1c152004f8e346caba82df366ffb58204020e74f259e",
+          "expires_at": "2026-11-10 15:06:19.838632+00",
+          "created_at": "2026-11-03 15:06:19.838634+00",
           "deleted_at": null
         },
         {
           "account": "3defbabb-a94d-5359-8463-dc947de193e1",
           "kind": "KEYSECRET",
-          "ident": "9bdef874954f2af6",
+          "ident": "731f39c5470291e3",
           "meta": {
             "name": "склад",
             "enabled": false,
             "confirmed": true
           },
-          "material": "b253a93804a792a1fcf605a2599548a6f00387bd6c01b34f209e3a28af63bcbc",
+          "material": "f35f2977d8e09e65d84f13bf9bff1df8d93beff57e159346b110de1ef56dfc96",
           "expires_at": null,
-          "created_at": "2026-11-03 03:53:44.606612+00",
+          "created_at": "2026-11-03 15:06:19.967284+00",
           "deleted_at": null
         },
         {
@@ -246,15 +258,15 @@
           "ident": null,
           "meta": {
             "ttl": "7 days",
-            "cred": "60ff2658-d67f-4669-a235-28986d027ec1",
+            "cred": "f6590253-e91b-4162-a8e2-036f180152d0",
             "methods": [
               "KEYSECRET"
             ],
-            "login_at": "2026-11-03T03:53:44.611862+00:00"
+            "login_at": "2026-11-03T15:06:19.972668+00:00"
           },
-          "material": "f46f5ae2b37e22087cd5b33f89ff09cc325af2d5b86df0e102613be429150374",
-          "expires_at": "2026-11-10 03:53:44.61187+00",
-          "created_at": "2026-11-03 03:53:44.611872+00",
+          "material": "cf00cf2fbba58f398c6c8fbcf6f299581d9ae4f5984a279f693bfaba2fd5456d",
+          "expires_at": "2026-11-10 15:06:19.972675+00",
+          "created_at": "2026-11-03 15:06:19.972676+00",
           "deleted_at": null
         },
         {
@@ -263,11 +275,11 @@
           "ident": "3defbabb-a94d-5359-8463-dc947de193e1",
           "meta": {
             "confirmed": true,
-            "last_step": 59789267
+            "last_step": 59790612
           },
-          "material": "0bb8db77b5b47092d7a0997ded41b7d135623b21",
+          "material": "212b08d246ed4bd0c1aea7c8bb96562741136d7e",
           "expires_at": null,
-          "created_at": "2026-11-03 03:53:44.634592+00",
+          "created_at": "2026-11-03 15:06:19.991735+00",
           "deleted_at": null
         },
         {
@@ -279,12 +291,12 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "1bac2450-6675-5228-90ca-604dbc0f91cd",
-            "login_at": "2026-11-03T03:53:44.716682+00:00"
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:20.071143+00:00"
           },
-          "material": "71b741369cf929c3d8b1b7b2f548ed201d3fa0d87046ffb4b1f2cdcfbc477f9f",
-          "expires_at": "2026-11-10 03:53:44.71669+00",
-          "created_at": "2026-11-03 03:53:44.716692+00",
+          "material": "1a000286ac7adbe047bd51b01dacab20bcd3e9d897d5e2560f53867c1d207cef",
+          "expires_at": "2026-11-10 15:06:20.071155+00",
+          "created_at": "2026-11-03 15:06:20.071156+00",
           "deleted_at": null
         }
       ],
@@ -292,8 +304,8 @@
     },
     {
       "result": {
-        "сессия на 7 дн после refresh({ ttl: 3600 })": "2026-11-10 03:53:44.516024+00",
-        "сессия на 10 мин после refresh({ ttl: 3600 })": "2026-11-03 04:03:44.838239+00",
+        "сессия на 7 дн после refresh({ ttl: 3600 })": "2026-11-10 15:06:19.838632+00",
+        "сессия на 10 мин после refresh({ ttl: 3600 })": "2026-11-03 15:16:20.176376+00",
         "после revoke()": "no_session"
       },
       "error": null,
@@ -311,26 +323,26 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "1bac2450-6675-5228-90ca-604dbc0f91cd",
-            "login_at": "2026-11-03T03:53:44.516018+00:00"
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:19.838619+00:00"
           },
-          "material": "100ae03b15f8898906d9d4ef223b1a38e729ef11a0a2e63b2cdf918fc4ab6743",
-          "expires_at": "2026-11-10 03:53:44.516024+00",
-          "created_at": "2026-11-03 03:53:44.516026+00",
+          "material": "ade4938a7afbd371fa9f1c152004f8e346caba82df366ffb58204020e74f259e",
+          "expires_at": "2026-11-10 15:06:19.838632+00",
+          "created_at": "2026-11-03 15:06:19.838634+00",
           "deleted_at": null
         },
         {
           "account": "3defbabb-a94d-5359-8463-dc947de193e1",
           "kind": "KEYSECRET",
-          "ident": "9bdef874954f2af6",
+          "ident": "731f39c5470291e3",
           "meta": {
             "name": "склад",
             "enabled": false,
             "confirmed": true
           },
-          "material": "b253a93804a792a1fcf605a2599548a6f00387bd6c01b34f209e3a28af63bcbc",
+          "material": "f35f2977d8e09e65d84f13bf9bff1df8d93beff57e159346b110de1ef56dfc96",
           "expires_at": null,
-          "created_at": "2026-11-03 03:53:44.606612+00",
+          "created_at": "2026-11-03 15:06:19.967284+00",
           "deleted_at": null
         },
         {
@@ -339,15 +351,15 @@
           "ident": null,
           "meta": {
             "ttl": "7 days",
-            "cred": "60ff2658-d67f-4669-a235-28986d027ec1",
+            "cred": "f6590253-e91b-4162-a8e2-036f180152d0",
             "methods": [
               "KEYSECRET"
             ],
-            "login_at": "2026-11-03T03:53:44.611862+00:00"
+            "login_at": "2026-11-03T15:06:19.972668+00:00"
           },
-          "material": "f46f5ae2b37e22087cd5b33f89ff09cc325af2d5b86df0e102613be429150374",
-          "expires_at": "2026-11-10 03:53:44.61187+00",
-          "created_at": "2026-11-03 03:53:44.611872+00",
+          "material": "cf00cf2fbba58f398c6c8fbcf6f299581d9ae4f5984a279f693bfaba2fd5456d",
+          "expires_at": "2026-11-10 15:06:19.972675+00",
+          "created_at": "2026-11-03 15:06:19.972676+00",
           "deleted_at": null
         },
         {
@@ -356,11 +368,11 @@
           "ident": "3defbabb-a94d-5359-8463-dc947de193e1",
           "meta": {
             "confirmed": true,
-            "last_step": 59789267
+            "last_step": 59790612
           },
-          "material": "0bb8db77b5b47092d7a0997ded41b7d135623b21",
+          "material": "212b08d246ed4bd0c1aea7c8bb96562741136d7e",
           "expires_at": null,
-          "created_at": "2026-11-03 03:53:44.634592+00",
+          "created_at": "2026-11-03 15:06:19.991735+00",
           "deleted_at": null
         },
         {
@@ -372,12 +384,12 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "1bac2450-6675-5228-90ca-604dbc0f91cd",
-            "login_at": "2026-11-03T03:53:44.716682+00:00"
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:20.071143+00:00"
           },
-          "material": "71b741369cf929c3d8b1b7b2f548ed201d3fa0d87046ffb4b1f2cdcfbc477f9f",
-          "expires_at": "2026-11-10 03:53:44.71669+00",
-          "created_at": "2026-11-03 03:53:44.716692+00",
+          "material": "1a000286ac7adbe047bd51b01dacab20bcd3e9d897d5e2560f53867c1d207cef",
+          "expires_at": "2026-11-10 15:06:20.071155+00",
+          "created_at": "2026-11-03 15:06:20.071156+00",
           "deleted_at": null
         },
         {
@@ -389,17 +401,147 @@
             "methods": [
               "SERVICE"
             ],
-            "service": "1bac2450-6675-5228-90ca-604dbc0f91cd",
-            "login_at": "2026-11-03T03:53:44.740771+00:00"
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:20.098906+00:00"
           },
-          "material": "ece77f61ff9f16a393f6125d98a2d97231d2b8f630d61933f384102dfd6d2be0",
-          "expires_at": "2026-11-03 04:03:44.838239+00",
-          "created_at": "2026-11-03 03:53:44.740781+00",
-          "deleted_at": "2026-11-03 03:53:44.844194+00"
+          "material": "a775e15f70613d4d74604f69d1973895eb44776f0e506edd0405796d0675580e",
+          "expires_at": "2026-11-03 15:16:20.176376+00",
+          "created_at": "2026-11-03 15:06:20.098915+00",
+          "deleted_at": "2026-11-03 15:06:20.180688+00"
         }
       ],
       "signals": [
-        "session:ece77f61ff9f16a3"
+        "session:a775e15f70613d4d"
+      ]
+    },
+    {
+      "result": {
+        "до выхода": "сессия жива",
+        "revoke(token)": true,
+        "ещё раз": false,
+        "session(token) после выхода": null
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:19.838619+00:00"
+          },
+          "material": "ade4938a7afbd371fa9f1c152004f8e346caba82df366ffb58204020e74f259e",
+          "expires_at": "2026-11-10 15:06:19.838632+00",
+          "created_at": "2026-11-03 15:06:19.838634+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "KEYSECRET",
+          "ident": "731f39c5470291e3",
+          "meta": {
+            "name": "склад",
+            "enabled": false,
+            "confirmed": true
+          },
+          "material": "f35f2977d8e09e65d84f13bf9bff1df8d93beff57e159346b110de1ef56dfc96",
+          "expires_at": null,
+          "created_at": "2026-11-03 15:06:19.967284+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "f6590253-e91b-4162-a8e2-036f180152d0",
+            "methods": [
+              "KEYSECRET"
+            ],
+            "login_at": "2026-11-03T15:06:19.972668+00:00"
+          },
+          "material": "cf00cf2fbba58f398c6c8fbcf6f299581d9ae4f5984a279f693bfaba2fd5456d",
+          "expires_at": "2026-11-10 15:06:19.972675+00",
+          "created_at": "2026-11-03 15:06:19.972676+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "TOTP",
+          "ident": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "meta": {
+            "confirmed": true,
+            "last_step": 59790612
+          },
+          "material": "212b08d246ed4bd0c1aea7c8bb96562741136d7e",
+          "expires_at": null,
+          "created_at": "2026-11-03 15:06:19.991735+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "PASSWORD"
+            ],
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:20.071143+00:00"
+          },
+          "material": "1a000286ac7adbe047bd51b01dacab20bcd3e9d897d5e2560f53867c1d207cef",
+          "expires_at": "2026-11-10 15:06:20.071155+00",
+          "created_at": "2026-11-03 15:06:20.071156+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "00:10:00",
+            "methods": [
+              "SERVICE"
+            ],
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:20.098906+00:00"
+          },
+          "material": "a775e15f70613d4d74604f69d1973895eb44776f0e506edd0405796d0675580e",
+          "expires_at": "2026-11-03 15:16:20.176376+00",
+          "created_at": "2026-11-03 15:06:20.098915+00",
+          "deleted_at": "2026-11-03 15:06:20.180688+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "01:00:00",
+            "methods": [
+              "SERVICE"
+            ],
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:20.214441+00:00"
+          },
+          "material": "e563ae900224fac2b3525ecee067f815acf3de23391f414274b57da61bb1028c",
+          "expires_at": "2026-11-03 16:06:20.214453+00",
+          "created_at": "2026-11-03 15:06:20.214453+00",
+          "deleted_at": "2026-11-03 15:06:20.224207+00"
+        }
+      ],
+      "signals": [
+        "session:e563ae900224fac2"
       ]
     },
     {
@@ -420,12 +562,12 @@
           "meta": {
             "ttl": "7 days",
             "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-            "login_at": "2026-11-03T03:53:44.214786+00:00"
+            "login_at": "2026-11-03T15:06:19.539447+00:00"
           },
-          "material": "8d8bf1e4be81781ff2adbe624df30aba3f17bf382446684fdf2eb383daea289b",
-          "expires_at": "2026-11-10 03:53:44.214797+00",
-          "created_at": "2026-11-03 03:53:44.214798+00",
-          "deleted_at": "2026-11-03 03:53:44.868919+00"
+          "material": "d385089a1a053be01f4185c5a41ce2f8baa33862796213109d52aba739630d79",
+          "expires_at": "2026-11-10 15:06:19.539456+00",
+          "created_at": "2026-11-03 15:06:19.539458+00",
+          "deleted_at": "2026-11-03 15:06:20.247702+00"
         },
         {
           "account": "3defbabb-a94d-5359-8463-dc947de193e1",
@@ -436,13 +578,13 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "1bac2450-6675-5228-90ca-604dbc0f91cd",
-            "login_at": "2026-11-03T03:53:44.412013+00:00"
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:19.694745+00:00"
           },
-          "material": "13754ad6647158bbe172912086d7aa9cb8114dbdf0fe66c088f9d70dec1df227",
-          "expires_at": "2026-11-10 03:53:44.412027+00",
-          "created_at": "2026-11-03 03:53:44.412028+00",
-          "deleted_at": "2026-11-03 03:53:44.868822+00"
+          "material": "b35055374340b263ff54a165a70b3bd8255fe6bc42057bdc42c92c0fccaddd58",
+          "expires_at": "2026-11-10 15:06:19.694754+00",
+          "created_at": "2026-11-03 15:06:19.694755+00",
+          "deleted_at": "2026-11-03 15:06:20.247639+00"
         },
         {
           "account": "3defbabb-a94d-5359-8463-dc947de193e1",
@@ -454,26 +596,26 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "1bac2450-6675-5228-90ca-604dbc0f91cd",
-            "login_at": "2026-11-03T03:53:44.516018+00:00"
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:19.838619+00:00"
           },
-          "material": "100ae03b15f8898906d9d4ef223b1a38e729ef11a0a2e63b2cdf918fc4ab6743",
-          "expires_at": "2026-11-10 03:53:44.516024+00",
-          "created_at": "2026-11-03 03:53:44.516026+00",
-          "deleted_at": "2026-11-03 03:53:44.86891+00"
+          "material": "ade4938a7afbd371fa9f1c152004f8e346caba82df366ffb58204020e74f259e",
+          "expires_at": "2026-11-10 15:06:19.838632+00",
+          "created_at": "2026-11-03 15:06:19.838634+00",
+          "deleted_at": "2026-11-03 15:06:20.247698+00"
         },
         {
           "account": "3defbabb-a94d-5359-8463-dc947de193e1",
           "kind": "KEYSECRET",
-          "ident": "9bdef874954f2af6",
+          "ident": "731f39c5470291e3",
           "meta": {
             "name": "склад",
             "enabled": false,
             "confirmed": true
           },
-          "material": "b253a93804a792a1fcf605a2599548a6f00387bd6c01b34f209e3a28af63bcbc",
+          "material": "f35f2977d8e09e65d84f13bf9bff1df8d93beff57e159346b110de1ef56dfc96",
           "expires_at": null,
-          "created_at": "2026-11-03 03:53:44.606612+00",
+          "created_at": "2026-11-03 15:06:19.967284+00",
           "deleted_at": null
         },
         {
@@ -482,16 +624,16 @@
           "ident": null,
           "meta": {
             "ttl": "7 days",
-            "cred": "60ff2658-d67f-4669-a235-28986d027ec1",
+            "cred": "f6590253-e91b-4162-a8e2-036f180152d0",
             "methods": [
               "KEYSECRET"
             ],
-            "login_at": "2026-11-03T03:53:44.611862+00:00"
+            "login_at": "2026-11-03T15:06:19.972668+00:00"
           },
-          "material": "f46f5ae2b37e22087cd5b33f89ff09cc325af2d5b86df0e102613be429150374",
-          "expires_at": "2026-11-10 03:53:44.61187+00",
-          "created_at": "2026-11-03 03:53:44.611872+00",
-          "deleted_at": "2026-11-03 03:53:44.868893+00"
+          "material": "cf00cf2fbba58f398c6c8fbcf6f299581d9ae4f5984a279f693bfaba2fd5456d",
+          "expires_at": "2026-11-10 15:06:19.972675+00",
+          "created_at": "2026-11-03 15:06:19.972676+00",
+          "deleted_at": "2026-11-03 15:06:20.24769+00"
         },
         {
           "account": "3defbabb-a94d-5359-8463-dc947de193e1",
@@ -499,11 +641,11 @@
           "ident": "3defbabb-a94d-5359-8463-dc947de193e1",
           "meta": {
             "confirmed": true,
-            "last_step": 59789267
+            "last_step": 59790612
           },
-          "material": "0bb8db77b5b47092d7a0997ded41b7d135623b21",
+          "material": "212b08d246ed4bd0c1aea7c8bb96562741136d7e",
           "expires_at": null,
-          "created_at": "2026-11-03 03:53:44.634592+00",
+          "created_at": "2026-11-03 15:06:19.991735+00",
           "deleted_at": null
         },
         {
@@ -515,13 +657,13 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "1bac2450-6675-5228-90ca-604dbc0f91cd",
-            "login_at": "2026-11-03T03:53:44.716682+00:00"
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:20.071143+00:00"
           },
-          "material": "71b741369cf929c3d8b1b7b2f548ed201d3fa0d87046ffb4b1f2cdcfbc477f9f",
-          "expires_at": "2026-11-10 03:53:44.71669+00",
-          "created_at": "2026-11-03 03:53:44.716692+00",
-          "deleted_at": "2026-11-03 03:53:44.868903+00"
+          "material": "1a000286ac7adbe047bd51b01dacab20bcd3e9d897d5e2560f53867c1d207cef",
+          "expires_at": "2026-11-10 15:06:20.071155+00",
+          "created_at": "2026-11-03 15:06:20.071156+00",
+          "deleted_at": "2026-11-03 15:06:20.247695+00"
         },
         {
           "account": "3defbabb-a94d-5359-8463-dc947de193e1",
@@ -532,21 +674,38 @@
             "methods": [
               "SERVICE"
             ],
-            "service": "1bac2450-6675-5228-90ca-604dbc0f91cd",
-            "login_at": "2026-11-03T03:53:44.740771+00:00"
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:20.098906+00:00"
           },
-          "material": "ece77f61ff9f16a393f6125d98a2d97231d2b8f630d61933f384102dfd6d2be0",
-          "expires_at": "2026-11-03 04:03:44.838239+00",
-          "created_at": "2026-11-03 03:53:44.740781+00",
-          "deleted_at": "2026-11-03 03:53:44.844194+00"
+          "material": "a775e15f70613d4d74604f69d1973895eb44776f0e506edd0405796d0675580e",
+          "expires_at": "2026-11-03 15:16:20.176376+00",
+          "created_at": "2026-11-03 15:06:20.098915+00",
+          "deleted_at": "2026-11-03 15:06:20.180688+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "01:00:00",
+            "methods": [
+              "SERVICE"
+            ],
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:20.214441+00:00"
+          },
+          "material": "e563ae900224fac2b3525ecee067f815acf3de23391f414274b57da61bb1028c",
+          "expires_at": "2026-11-03 16:06:20.214453+00",
+          "created_at": "2026-11-03 15:06:20.214453+00",
+          "deleted_at": "2026-11-03 15:06:20.224207+00"
         }
       ],
       "signals": [
-        "session:100ae03b15f88989",
-        "session:13754ad6647158bb",
-        "session:71b741369cf929c3",
-        "session:8d8bf1e4be81781f",
-        "session:f46f5ae2b37e2208"
+        "session:1a000286ac7adbe0",
+        "session:ade4938a7afbd371",
+        "session:b35055374340b263",
+        "session:cf00cf2fbba58f39",
+        "session:d385089a1a053be0"
       ]
     },
     {
@@ -570,12 +729,12 @@
           "meta": {
             "ttl": "7 days",
             "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-            "login_at": "2026-11-03T03:53:44.214786+00:00"
+            "login_at": "2026-11-03T15:06:19.539447+00:00"
           },
-          "material": "8d8bf1e4be81781ff2adbe624df30aba3f17bf382446684fdf2eb383daea289b",
-          "expires_at": "2026-11-10 03:53:44.214797+00",
-          "created_at": "2026-11-03 03:53:44.214798+00",
-          "deleted_at": "2026-11-03 03:53:44.868919+00"
+          "material": "d385089a1a053be01f4185c5a41ce2f8baa33862796213109d52aba739630d79",
+          "expires_at": "2026-11-10 15:06:19.539456+00",
+          "created_at": "2026-11-03 15:06:19.539458+00",
+          "deleted_at": "2026-11-03 15:06:20.247702+00"
         },
         {
           "account": "3defbabb-a94d-5359-8463-dc947de193e1",
@@ -586,13 +745,13 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "1bac2450-6675-5228-90ca-604dbc0f91cd",
-            "login_at": "2026-11-03T03:53:44.412013+00:00"
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:19.694745+00:00"
           },
-          "material": "13754ad6647158bbe172912086d7aa9cb8114dbdf0fe66c088f9d70dec1df227",
-          "expires_at": "2026-11-10 03:53:44.412027+00",
-          "created_at": "2026-11-03 03:53:44.412028+00",
-          "deleted_at": "2026-11-03 03:53:44.868822+00"
+          "material": "b35055374340b263ff54a165a70b3bd8255fe6bc42057bdc42c92c0fccaddd58",
+          "expires_at": "2026-11-10 15:06:19.694754+00",
+          "created_at": "2026-11-03 15:06:19.694755+00",
+          "deleted_at": "2026-11-03 15:06:20.247639+00"
         },
         {
           "account": "3defbabb-a94d-5359-8463-dc947de193e1",
@@ -604,26 +763,26 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "1bac2450-6675-5228-90ca-604dbc0f91cd",
-            "login_at": "2026-11-03T03:53:44.516018+00:00"
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:19.838619+00:00"
           },
-          "material": "100ae03b15f8898906d9d4ef223b1a38e729ef11a0a2e63b2cdf918fc4ab6743",
-          "expires_at": "2026-11-10 03:53:44.516024+00",
-          "created_at": "2026-11-03 03:53:44.516026+00",
-          "deleted_at": "2026-11-03 03:53:44.86891+00"
+          "material": "ade4938a7afbd371fa9f1c152004f8e346caba82df366ffb58204020e74f259e",
+          "expires_at": "2026-11-10 15:06:19.838632+00",
+          "created_at": "2026-11-03 15:06:19.838634+00",
+          "deleted_at": "2026-11-03 15:06:20.247698+00"
         },
         {
           "account": "3defbabb-a94d-5359-8463-dc947de193e1",
           "kind": "KEYSECRET",
-          "ident": "9bdef874954f2af6",
+          "ident": "731f39c5470291e3",
           "meta": {
             "name": "склад",
             "enabled": false,
             "confirmed": true
           },
-          "material": "b253a93804a792a1fcf605a2599548a6f00387bd6c01b34f209e3a28af63bcbc",
+          "material": "f35f2977d8e09e65d84f13bf9bff1df8d93beff57e159346b110de1ef56dfc96",
           "expires_at": null,
-          "created_at": "2026-11-03 03:53:44.606612+00",
+          "created_at": "2026-11-03 15:06:19.967284+00",
           "deleted_at": null
         },
         {
@@ -632,16 +791,16 @@
           "ident": null,
           "meta": {
             "ttl": "7 days",
-            "cred": "60ff2658-d67f-4669-a235-28986d027ec1",
+            "cred": "f6590253-e91b-4162-a8e2-036f180152d0",
             "methods": [
               "KEYSECRET"
             ],
-            "login_at": "2026-11-03T03:53:44.611862+00:00"
+            "login_at": "2026-11-03T15:06:19.972668+00:00"
           },
-          "material": "f46f5ae2b37e22087cd5b33f89ff09cc325af2d5b86df0e102613be429150374",
-          "expires_at": "2026-11-10 03:53:44.61187+00",
-          "created_at": "2026-11-03 03:53:44.611872+00",
-          "deleted_at": "2026-11-03 03:53:44.868893+00"
+          "material": "cf00cf2fbba58f398c6c8fbcf6f299581d9ae4f5984a279f693bfaba2fd5456d",
+          "expires_at": "2026-11-10 15:06:19.972675+00",
+          "created_at": "2026-11-03 15:06:19.972676+00",
+          "deleted_at": "2026-11-03 15:06:20.24769+00"
         },
         {
           "account": "3defbabb-a94d-5359-8463-dc947de193e1",
@@ -649,11 +808,11 @@
           "ident": "3defbabb-a94d-5359-8463-dc947de193e1",
           "meta": {
             "confirmed": true,
-            "last_step": 59789267
+            "last_step": 59790612
           },
-          "material": "0bb8db77b5b47092d7a0997ded41b7d135623b21",
+          "material": "212b08d246ed4bd0c1aea7c8bb96562741136d7e",
           "expires_at": null,
-          "created_at": "2026-11-03 03:53:44.634592+00",
+          "created_at": "2026-11-03 15:06:19.991735+00",
           "deleted_at": null
         },
         {
@@ -665,13 +824,13 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "1bac2450-6675-5228-90ca-604dbc0f91cd",
-            "login_at": "2026-11-03T03:53:44.716682+00:00"
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:20.071143+00:00"
           },
-          "material": "71b741369cf929c3d8b1b7b2f548ed201d3fa0d87046ffb4b1f2cdcfbc477f9f",
-          "expires_at": "2026-11-10 03:53:44.71669+00",
-          "created_at": "2026-11-03 03:53:44.716692+00",
-          "deleted_at": "2026-11-03 03:53:44.868903+00"
+          "material": "1a000286ac7adbe047bd51b01dacab20bcd3e9d897d5e2560f53867c1d207cef",
+          "expires_at": "2026-11-10 15:06:20.071155+00",
+          "created_at": "2026-11-03 15:06:20.071156+00",
+          "deleted_at": "2026-11-03 15:06:20.247695+00"
         },
         {
           "account": "3defbabb-a94d-5359-8463-dc947de193e1",
@@ -682,13 +841,30 @@
             "methods": [
               "SERVICE"
             ],
-            "service": "1bac2450-6675-5228-90ca-604dbc0f91cd",
-            "login_at": "2026-11-03T03:53:44.740771+00:00"
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:20.098906+00:00"
           },
-          "material": "ece77f61ff9f16a393f6125d98a2d97231d2b8f630d61933f384102dfd6d2be0",
-          "expires_at": "2026-11-03 04:03:44.838239+00",
-          "created_at": "2026-11-03 03:53:44.740781+00",
-          "deleted_at": "2026-11-03 03:53:44.844194+00"
+          "material": "a775e15f70613d4d74604f69d1973895eb44776f0e506edd0405796d0675580e",
+          "expires_at": "2026-11-03 15:16:20.176376+00",
+          "created_at": "2026-11-03 15:06:20.098915+00",
+          "deleted_at": "2026-11-03 15:06:20.180688+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "01:00:00",
+            "methods": [
+              "SERVICE"
+            ],
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:20.214441+00:00"
+          },
+          "material": "e563ae900224fac2b3525ecee067f815acf3de23391f414274b57da61bb1028c",
+          "expires_at": "2026-11-03 16:06:20.214453+00",
+          "created_at": "2026-11-03 15:06:20.214453+00",
+          "deleted_at": "2026-11-03 15:06:20.224207+00"
         },
         {
           "account": "3defbabb-a94d-5359-8463-dc947de193e1",
@@ -696,11 +872,11 @@
           "ident": null,
           "meta": {
             "ttl": "7 days",
-            "login_at": "2026-11-03T03:53:44.986125+00:00"
+            "login_at": "2026-11-03T15:06:20.345522+00:00"
           },
-          "material": "fcc27f0cf28d515cdc21a40fb25665cc41e913a04f71486e604e086c84364a38",
-          "expires_at": "2026-11-10 03:53:44.986136+00",
-          "created_at": "2026-11-03 03:53:44.986138+00",
+          "material": "3bce13e99a87a3741c7b483e12c0d81f54a03311f2a5d3084f0ad3ce652fd3c5",
+          "expires_at": "2026-11-10 15:06:20.345529+00",
+          "created_at": "2026-11-03 15:06:20.345531+00",
           "deleted_at": null
         }
       ],
@@ -716,8 +892,8 @@
           "account": "3defbabb-a94d-5359-8463-dc947de193e1",
           "tenant": "3defbabb-a94d-5359-8463-dc947de193e1",
           "member": true,
-          "expiresAt": "2026-11-10T03:53:44.986136+00:00",
-          "loginAt": "2026-11-03T03:53:44.986125+00:00",
+          "expiresAt": "2026-11-10T15:06:20.345529+00:00",
+          "loginAt": "2026-11-03T15:06:20.345522+00:00",
           "methods": []
         },
         "после «выйти везде»": null
@@ -734,12 +910,12 @@
           "meta": {
             "ttl": "7 days",
             "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-            "login_at": "2026-11-03T03:53:44.214786+00:00"
+            "login_at": "2026-11-03T15:06:19.539447+00:00"
           },
-          "material": "8d8bf1e4be81781ff2adbe624df30aba3f17bf382446684fdf2eb383daea289b",
-          "expires_at": "2026-11-10 03:53:44.214797+00",
-          "created_at": "2026-11-03 03:53:44.214798+00",
-          "deleted_at": "2026-11-03 03:53:44.868919+00"
+          "material": "d385089a1a053be01f4185c5a41ce2f8baa33862796213109d52aba739630d79",
+          "expires_at": "2026-11-10 15:06:19.539456+00",
+          "created_at": "2026-11-03 15:06:19.539458+00",
+          "deleted_at": "2026-11-03 15:06:20.247702+00"
         },
         {
           "account": "3defbabb-a94d-5359-8463-dc947de193e1",
@@ -750,13 +926,13 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "1bac2450-6675-5228-90ca-604dbc0f91cd",
-            "login_at": "2026-11-03T03:53:44.412013+00:00"
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:19.694745+00:00"
           },
-          "material": "13754ad6647158bbe172912086d7aa9cb8114dbdf0fe66c088f9d70dec1df227",
-          "expires_at": "2026-11-10 03:53:44.412027+00",
-          "created_at": "2026-11-03 03:53:44.412028+00",
-          "deleted_at": "2026-11-03 03:53:44.868822+00"
+          "material": "b35055374340b263ff54a165a70b3bd8255fe6bc42057bdc42c92c0fccaddd58",
+          "expires_at": "2026-11-10 15:06:19.694754+00",
+          "created_at": "2026-11-03 15:06:19.694755+00",
+          "deleted_at": "2026-11-03 15:06:20.247639+00"
         },
         {
           "account": "3defbabb-a94d-5359-8463-dc947de193e1",
@@ -768,26 +944,26 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "1bac2450-6675-5228-90ca-604dbc0f91cd",
-            "login_at": "2026-11-03T03:53:44.516018+00:00"
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:19.838619+00:00"
           },
-          "material": "100ae03b15f8898906d9d4ef223b1a38e729ef11a0a2e63b2cdf918fc4ab6743",
-          "expires_at": "2026-11-10 03:53:44.516024+00",
-          "created_at": "2026-11-03 03:53:44.516026+00",
-          "deleted_at": "2026-11-03 03:53:44.86891+00"
+          "material": "ade4938a7afbd371fa9f1c152004f8e346caba82df366ffb58204020e74f259e",
+          "expires_at": "2026-11-10 15:06:19.838632+00",
+          "created_at": "2026-11-03 15:06:19.838634+00",
+          "deleted_at": "2026-11-03 15:06:20.247698+00"
         },
         {
           "account": "3defbabb-a94d-5359-8463-dc947de193e1",
           "kind": "KEYSECRET",
-          "ident": "9bdef874954f2af6",
+          "ident": "731f39c5470291e3",
           "meta": {
             "name": "склад",
             "enabled": false,
             "confirmed": true
           },
-          "material": "b253a93804a792a1fcf605a2599548a6f00387bd6c01b34f209e3a28af63bcbc",
+          "material": "f35f2977d8e09e65d84f13bf9bff1df8d93beff57e159346b110de1ef56dfc96",
           "expires_at": null,
-          "created_at": "2026-11-03 03:53:44.606612+00",
+          "created_at": "2026-11-03 15:06:19.967284+00",
           "deleted_at": null
         },
         {
@@ -796,16 +972,16 @@
           "ident": null,
           "meta": {
             "ttl": "7 days",
-            "cred": "60ff2658-d67f-4669-a235-28986d027ec1",
+            "cred": "f6590253-e91b-4162-a8e2-036f180152d0",
             "methods": [
               "KEYSECRET"
             ],
-            "login_at": "2026-11-03T03:53:44.611862+00:00"
+            "login_at": "2026-11-03T15:06:19.972668+00:00"
           },
-          "material": "f46f5ae2b37e22087cd5b33f89ff09cc325af2d5b86df0e102613be429150374",
-          "expires_at": "2026-11-10 03:53:44.61187+00",
-          "created_at": "2026-11-03 03:53:44.611872+00",
-          "deleted_at": "2026-11-03 03:53:44.868893+00"
+          "material": "cf00cf2fbba58f398c6c8fbcf6f299581d9ae4f5984a279f693bfaba2fd5456d",
+          "expires_at": "2026-11-10 15:06:19.972675+00",
+          "created_at": "2026-11-03 15:06:19.972676+00",
+          "deleted_at": "2026-11-03 15:06:20.24769+00"
         },
         {
           "account": "3defbabb-a94d-5359-8463-dc947de193e1",
@@ -813,11 +989,11 @@
           "ident": "3defbabb-a94d-5359-8463-dc947de193e1",
           "meta": {
             "confirmed": true,
-            "last_step": 59789267
+            "last_step": 59790612
           },
-          "material": "0bb8db77b5b47092d7a0997ded41b7d135623b21",
+          "material": "212b08d246ed4bd0c1aea7c8bb96562741136d7e",
           "expires_at": null,
-          "created_at": "2026-11-03 03:53:44.634592+00",
+          "created_at": "2026-11-03 15:06:19.991735+00",
           "deleted_at": null
         },
         {
@@ -829,13 +1005,13 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "1bac2450-6675-5228-90ca-604dbc0f91cd",
-            "login_at": "2026-11-03T03:53:44.716682+00:00"
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:20.071143+00:00"
           },
-          "material": "71b741369cf929c3d8b1b7b2f548ed201d3fa0d87046ffb4b1f2cdcfbc477f9f",
-          "expires_at": "2026-11-10 03:53:44.71669+00",
-          "created_at": "2026-11-03 03:53:44.716692+00",
-          "deleted_at": "2026-11-03 03:53:44.868903+00"
+          "material": "1a000286ac7adbe047bd51b01dacab20bcd3e9d897d5e2560f53867c1d207cef",
+          "expires_at": "2026-11-10 15:06:20.071155+00",
+          "created_at": "2026-11-03 15:06:20.071156+00",
+          "deleted_at": "2026-11-03 15:06:20.247695+00"
         },
         {
           "account": "3defbabb-a94d-5359-8463-dc947de193e1",
@@ -846,13 +1022,30 @@
             "methods": [
               "SERVICE"
             ],
-            "service": "1bac2450-6675-5228-90ca-604dbc0f91cd",
-            "login_at": "2026-11-03T03:53:44.740771+00:00"
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:20.098906+00:00"
           },
-          "material": "ece77f61ff9f16a393f6125d98a2d97231d2b8f630d61933f384102dfd6d2be0",
-          "expires_at": "2026-11-03 04:03:44.838239+00",
-          "created_at": "2026-11-03 03:53:44.740781+00",
-          "deleted_at": "2026-11-03 03:53:44.844194+00"
+          "material": "a775e15f70613d4d74604f69d1973895eb44776f0e506edd0405796d0675580e",
+          "expires_at": "2026-11-03 15:16:20.176376+00",
+          "created_at": "2026-11-03 15:06:20.098915+00",
+          "deleted_at": "2026-11-03 15:06:20.180688+00"
+        },
+        {
+          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "01:00:00",
+            "methods": [
+              "SERVICE"
+            ],
+            "service": "761734fc-8558-5718-8ed1-c1eb7a0323d7",
+            "login_at": "2026-11-03T15:06:20.214441+00:00"
+          },
+          "material": "e563ae900224fac2b3525ecee067f815acf3de23391f414274b57da61bb1028c",
+          "expires_at": "2026-11-03 16:06:20.214453+00",
+          "created_at": "2026-11-03 15:06:20.214453+00",
+          "deleted_at": "2026-11-03 15:06:20.224207+00"
         },
         {
           "account": "3defbabb-a94d-5359-8463-dc947de193e1",
@@ -860,11 +1053,11 @@
           "ident": null,
           "meta": {
             "ttl": "7 days",
-            "login_at": "2026-11-03T03:53:44.986125+00:00"
+            "login_at": "2026-11-03T15:06:20.345522+00:00"
           },
-          "material": "fcc27f0cf28d515cdc21a40fb25665cc41e913a04f71486e604e086c84364a38",
-          "expires_at": "2026-11-10 03:53:44.986136+00",
-          "created_at": "2026-11-03 03:53:44.986138+00",
+          "material": "3bce13e99a87a3741c7b483e12c0d81f54a03311f2a5d3084f0ad3ce652fd3c5",
+          "expires_at": "2026-11-10 15:06:20.345529+00",
+          "created_at": "2026-11-03 15:06:20.345531+00",
           "deleted_at": null
         }
       ],

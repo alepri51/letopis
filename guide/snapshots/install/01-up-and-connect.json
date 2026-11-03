@@ -62,7 +62,7 @@
       "result": {
         "schema": "v2.g_install_01_up_and_connect",
         "created": true,
-        "revision": 8,
+        "revision": 9,
         "signals": "class",
         "serviceKey": "‹токен 1›"
       },

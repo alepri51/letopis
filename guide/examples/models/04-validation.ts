@@ -24,6 +24,8 @@ const ProductV3 = hub('Product', {
 }, {});
 // правило refine база выразить не может
 const Coupon = hub('Coupon', { code: z.string().refine((s) => s.startsWith('C-'), 'код начинается с C-') }, {});
+// преобразование .trim() при записи никто не исполнит
+const Guest = hub('Guest', { name: z.string().trim().min(1) }, {});
 
 export default example({
   title: 'Проверка данных: база не примет неправильное',
@@ -31,7 +33,7 @@ export default example({
     'Модель превращается в JSON Schema, и каждую запись проверяет сама база — даже запись прямым SQL-запросом. ' +
     'Значения по умолчанию подставляет база. Новое обязательное поле ужесточает модель: база проверит, подходят ли ' +
     'под неё старые строки.',
-  covers: ['error.invalid_data', 'error.tightening_conflict', 'nuance.refine-lost', 'nuance.defaults-by-db', 'nuance.safe-change'],
+  covers: ['error.invalid_data', 'error.tightening_conflict', 'error.invalid_class', 'nuance.refine-lost', 'nuance.defaults-by-db', 'nuance.safe-change'],
   steps: [
     {
       title: 'Класс «Товар»',
@@ -68,12 +70,22 @@ export default example({
     {
       title: 'Проверки refine база не выполняет',
       text:
-        '`refine`, `superRefine` и `transform` в JSON Schema не выражаются. `syncModels` не теряет их молча: ' +
+        '`refine` и `superRefine` в JSON Schema не выражаются. `syncModels` не теряет их молча: ' +
         'возвращает в `lost`. Такие проверки выполняйте в приложении.',
       run: async ({ db }) => {
         const r = await syncModels(db, [Coupon], { apply: true });
         return { created: r.created, lost: r.lost };
       },
+    },
+    {
+      title: 'Преобразования Zod — отказ при syncModels',
+      text:
+        '`.trim()`, `.toLowerCase()`, `.transform()`, `z.preprocess()`, `.pipe()` меняют значение, а при записи их не ' +
+        'исполняет ни база, ни валидатор letopis: имя из пробелов записалось бы как есть. Поэтому `syncModels` отклоняет ' +
+        'такую модель до записи — `invalid_class` (ключ `model.transform_unsupported`, в `err.detail.rules` — путь и вид). ' +
+        'Приводите значение в коде сервиса (`name.trim()`), а в модели оставьте проверку.',
+      run: async ({ db }) => syncModels(db, [Guest], { apply: true }),
+      expect: { error: 'invalid_class' },
     },
   ],
 });

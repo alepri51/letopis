@@ -717,9 +717,15 @@ function renderItem(it: Item, page: string): string[] {
   return out;
 }
 const HEADER = '<!-- Страница собрана scripts/gen-api.ts из lib/src и coverage/api-docs.ts — не править руками. -->';
+/** Якорь заголовка, как его ставит VitePress (slugify из @mdit-vue/shared): по нему — оглавление «Что здесь». */
+const slug = (t: string) => slugify(plain(t));
+/** «Что здесь» в начале страницы справочника: разделы и как устроен пункт. */
+const whatsHere = (p: Page) =>
+  `**Что здесь:** ${p.sections.map((s) => `[${md(s.title)}](#${slug(s.title)})`).join(' · ')}. У каждого пункта — сигнатура с типами, что делает, ` +
+  'параметры и опции (тип, значение по умолчанию), что возвращает, коды ошибок и ссылки на живые примеры сайта.';
 const pages = new Map<string, string>();
 for (const p of PAGES) {
-  const out = ['---', 'outline: [2, 3]', '---', '', HEADER, '', `# ${p.title}`, '', md(p.intro), ''];
+  const out = ['---', 'outline: [2, 3]', '---', '', HEADER, '', `# ${p.title}`, '', md(p.intro), '', whatsHere(p), ''];
   for (const n of p.notes ?? []) {
     const ex = (examples.get(n.id) ?? []).map((e) => `[${md(e.title)}](${e.link})`).join(' · ');
     out.push(`::: info ${md(n.title)}`, `<span id="${anchorOf(n.id)}"></span>${md(n.text)}${ex ? ` Пример: ${ex}.` : ''}`, ':::', '');

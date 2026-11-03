@@ -573,7 +573,7 @@
       "result": null,
       "error": {
         "code": "invalid_data",
-        "message": "letopis: invalid_data: данные не проходят описание класса Wallet",
+        "message": "letopis: invalid_data: данные не проходят описание класса Wallet: balance — нарушено правило minimum",
         "detail": [
           {
             "path": [

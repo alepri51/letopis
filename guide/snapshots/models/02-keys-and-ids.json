@@ -183,12 +183,12 @@
       "result": null,
       "error": {
         "code": "invalid_data",
-        "message": "letopis: invalid_data: данные не проходят описание класса Shop",
+        "message": "letopis: invalid_data: данные не проходят описание класса Shop: данные — лишний ключ id",
         "detail": [
           {
             "path": [],
             "keyword": "additionalProperties",
-            "message": "нарушено правило additionalProperties"
+            "message": "лишний ключ id"
           }
         ],
         "expected": true

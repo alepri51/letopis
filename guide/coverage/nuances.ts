@@ -139,7 +139,7 @@ const nuances: Nuance[] = [
   {
     id: 'refine-lost',
     topic: 'models',
-    text: 'refine, superRefine и transform база не исполняет: syncModels возвращает их в lost.',
+    text: 'refine и superRefine база не исполняет: syncModels возвращает их в lost — проверяйте в приложении. Преобразования Zod (.trim(), .toLowerCase(), .transform(), z.preprocess(), .pipe()) не исполняет никто — syncModels их отклоняет: invalid_class (model.transform_unsupported); приводите значение в коде до записи.',
     source: 'lib/README.md, раздел 4',
   },
   {
@@ -170,8 +170,8 @@ const nuances: Nuance[] = [
     id: 'update-empty-target',
     topic: 'write',
     top: 7,
-    text: 'update без найденных строк возвращает пустой список без ошибки — проверяйте длину ответа. От гонки это не защищает: условие фильтра при параллельной записи не перепроверяется — берите forUpdate(), { rev } или ключ.',
-    source: 'lib/README.md, раздел 5; lib/src/write.ts:updateOp',
+    text: 'update без найденных строк возвращает пустой список без ошибки — проверяйте длину ответа. Фильтр по данным при гонке перепроверяется под блокировкой: из двух одновременных правок одной строки пройдёт одна, вторая получит пустой ответ. Правило «одна открытая запись на объект» так не удержать — его держит ключ; «прочитал — посчитал — записал» — forUpdate() в db.begin() или { rev }.',
+    source: 'lib/README.md, раздел 5; lib/src/write.ts:updateOp; пример money/05-one-open',
   },
   {
     id: 'upsert-replaces',
@@ -291,7 +291,7 @@ const nuances: Nuance[] = [
   {
     id: 'restore-only-targets',
     topic: 'delete',
-    text: 'restore() возвращает только цели шага; строки, удалённые каскадом, возвращают отдельно через withDeleted().',
+    text: 'restore() возвращает только цели шага; строки, удалённые каскадом, возвращают отдельно — по надгробиям этого удаления, с restore({ expect }).',
     source: 'lib/README.md, раздел 7',
   },
   {
@@ -303,14 +303,35 @@ const nuances: Nuance[] = [
   {
     id: 'delete-as-shown',
     topic: 'delete',
-    text: 'Предпросмотр — снимок на момент вызова, а delete({ confirm: true }) удаляет то, что есть при подтверждении. Удалить ровно показанное: в db.begin() взять цель forUpdate(), пересчитать предпросмотр, сверить отпечаток (id, rev, $action) и только тогда удалять; кто добавляет строки в этот каскад, берёт тот же замок.',
+    text: 'Предпросмотр — снимок на момент вызова, а delete({ confirm: true }) удаляет то, что есть при подтверждении. Удалить ровно показанное — delete({ confirm: true, expect: предпросмотр }): в транзакции удаления предпросмотр строится заново и сравнивается по id, rev и $action; не совпал — conflict (write.preview_changed), ничего не удалено, новый предпросмотр — в err.detail.preview.',
     source: 'lib/src/write.ts:deleteOp; пример delete/01-delete-cascade',
   },
   {
     id: 'restore-cascade-by-reason',
     topic: 'delete',
-    text: 'withDeleted().restore() возвращает все удалённые строки шага — и те, что удалили раньше и отдельно. Строки одного удаления отличает причина: надгробия цели и её каскада получают reason этого удаления — отберите их по ней.',
+    text: 'withDeleted().restore() возвращает все удалённые строки шага — и те, что удалили раньше и отдельно. Строки одного удаления отличает причина: надгробия цели и её каскада получают reason этого удаления — отберите их по ней и верните restore({ expect: надгробия }). Причину делайте своей для каждого удаления.',
     source: 'lib/sql/60-write.sql (надгробия каскада с letopis.reason); пример delete/02-restore',
+  },
+  {
+    id: 'restore-expect-stale',
+    topic: 'delete',
+    caught: 'conflict',
+    text: 'restore() без expect возвращает последний снимок строки, а не версию, ушедшую конкретным удалением: если выдачу с ключом по вещи после удаления участника пересоздали (вещь выдали другому) и закрыли, restore() оживит чужую закрытую выдачу. restore({ expect: [надгробие] }) вернёт строку, только если её последняя версия — то самое надгробие; иначе conflict (write.restore_stale, err.detail.stale) и ничего не восстановлено — приложение сообщает «не вернулась».',
+    source: 'lib/src/write.ts:deletedTargets, restoreOp; lib/sql/90-time.sql:restore; примеры money/05-one-open, delete/02-restore',
+  },
+  {
+    id: 'with-deleted-per-step',
+    topic: 'delete',
+    caught: 'предупреждение api.with_deleted_step',
+    text: 'withDeleted() — модификатор своего шага: X(id).withDeleted() — удалённый X, X(id).withDeleted().Y().withDeleted() — удалённые Y удалённого X. withDeleted() только у первого шага (X().withDeleted().Y()) даёт живых Y — letopis один раз предупреждает. Переход идёт по последней версии строки: пересозданную и снова удалённую строку от прежнего родителя не найти — её находят надгробия удаления.',
+    source: 'lib/src/sql.ts:buildRead, lib/src/chain.ts:warnWithDeleted; пример delete/02-restore',
+  },
+  {
+    id: 'restore-no-filter',
+    topic: 'delete',
+    caught: 'предупреждение write.restore_no_filter',
+    text: 'restore() без фильтра, id и expect (db.line().restore()) восстанавливает всё удалённое шага — это не отказ, letopis один раз предупреждает. Сужайте шаг или передавайте expect.',
+    source: 'lib/src/write.ts:precheckPlan; пример delete/02-restore',
   },
   {
     id: 'empty-target-delete-restore',
@@ -321,7 +342,7 @@ const nuances: Nuance[] = [
   {
     id: 'create-revives-deleted',
     topic: 'delete',
-    text: 'create с ключом удалённого объекта не ошибка: id тот же, история продолжается версией create, надгробие уходит из корзины. Нужен «новый» объект — проверьте ключ через withDeleted().first() до create.',
+    text: 'create с ключом удалённого объекта не ошибка: id тот же, история продолжается версией create, надгробие уходит из корзины, а прежний снимок вернуть уже нельзя — restore() даёт not_deleted (write.restore_id_taken). Нужен «новый» объект — проверьте ключ через withDeleted().first() до create.',
     source: 'lib/sql/60-write.sql:trg_entity_bi; пример delete/02-restore',
   },
   {
@@ -363,7 +384,7 @@ const nuances: Nuance[] = [
   {
     id: 'update-filter-race',
     topic: 'money',
-    text: 'Условие фильтра update() проверяется до записи и при параллельной записи не перепроверяется: два одновременных db.Item({ id, status: "free" }).update(…) пройдут оба. Защищают forUpdate() в db.begin() (строку, переставшую подходить, ответ не включает), { rev } (conflict) или ключ.',
+    text: 'Фильтр update() по данным (не только id) при параллельной записи перепроверяется: найденные строки блокируются и читаются заново тем же запросом, правятся только всё ещё подходящие — из двух одновременных db.Item({ id, status: "free" }).update(…) пройдёт один, второй получит пустой ответ. Это защищает одну строку; решение «прочитал — проверил — записал» — forUpdate() в db.begin() или { rev } (conflict), правило «одна открытая … на …» — ключ.',
     source: 'lib/src/write.ts:updateOp, lib/src/chain.ts:lockedRead; пример money/05-one-open',
   },
   {
@@ -431,8 +452,14 @@ const nuances: Nuance[] = [
   {
     id: 'session-starts-personal',
     topic: 'auth',
-    text: 'Свежая сессия входа работает в личном арендаторе аккаунта; в компанию её переводит auth.switch() — смена видна всем подключениям с этим токеном.',
+    text: 'Свежая сессия входа работает в личном арендаторе аккаунта: классов компании там нет, шаг db.Item() — invalid_class «…сессия, похоже, в личном арендаторе». Арендаторов пользователя отдаёт auth.tenants() — с name и personal; в компанию сессию переводит auth.switch() — смена видна всем подключениям с этим токеном.',
     source: 'lib/sql/20-context.sql:ctx, lib/sql/80-auth.sql:auth_switch',
+  },
+  {
+    id: 'revoke-by-token',
+    topic: 'auth',
+    text: 'Выход пользователя в веб-сервисе — svc.auth.revoke(token): сервис гасит сессию по токену из cookie (право auth.session), не подключаясь по нему; true — погашена, false — токен неверный, сессия погашена или истекла. revoke() без аргумента гасит сессию самого подключения — у сервиса это его собственный вход.',
+    source: 'lib/src/auth.ts:revoke, lib/sql/80-auth.sql:auth_logout_token; пример auth/02-sessions-tenants',
   },
   {
     id: 'purge-current-tenant',
@@ -476,6 +503,13 @@ const nuances: Nuance[] = [
     topic: 'errors',
     text: 'Правила целостности проверяют триггеры базы: сырой SQL под сессией получает те же коды, что цепочки; ошибку драйвера в LetopisError переводит fromDbError.',
     source: 'lib/sql/60-write.sql; пример errors/02',
+  },
+  {
+    id: 'bad-uuid-letopis-error',
+    topic: 'errors',
+    caught: 'invalid_query',
+    text: 'id шага, список id и { id } в фильтре, которые не uuid (и null), — отказ invalid_query до запроса (query.bad_uuid). Значение не того типа, которое дошло до базы (SQLSTATE 22P02, например в db.sql), — тоже LetopisError с кодом invalid_query (api.db_bad_value), исходная ошибка драйвера — в err.cause. Свойство массива у цепочки (length, map…) — invalid_query «цепочка — не массив».',
+    source: 'lib/src/sql.ts:compileFilter, lib/src/errors.ts:fromDbError, lib/src/chain.ts; пример errors/01-api-errors',
   },
   {
     id: 'chain-not-thenable',

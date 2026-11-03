@@ -6,7 +6,7 @@
  * В снимке вместо uuid, времени и токенов — метки; настоящие значения того же прогона лежат рядом
  * (`snapshots/<id>.real.json`) и показываются на вкладке «Реальная таблица». Файла может не быть — тогда вкладки нет.
  */
-import { computed, nextTick, onMounted, ref, shallowRef, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import Sandbox from './Sandbox.vue';
 import { players, report } from './sync';
 import { keepHash } from './anchor';
@@ -92,25 +92,60 @@ const tablesShown = computed(() => tablesOpen.value ?? !narrow.value);
 const fits = (s: Snapshot, r: Real | null | undefined): Real | null =>
   r && r.id === s.id && Array.isArray(r.steps) && r.steps.length === s.steps.length ? r : null;
 
-onMounted(async () => {
+// Снимок грузится лениво: когда плеер подходит к экрану (или на него ведёт якорь адреса), а не все плееры страницы
+// сразу — на медленной сети первый пример на экране не ждёт остальные. Настоящие значения (*.real.json) — только
+// когда читатель открыл вкладку «Реальная таблица».
+const root = ref<HTMLElement | null>(null);
+const anchorId = `ex-${props.id.replace(/[^a-z0-9]+/gi, '-')}`;
+const realKey = `../../snapshots/${props.id}.real.json`;
+const hasReal = !!realFiles[realKey];
+let watcher: IntersectionObserver | null = null;
+let started = false;
+
+async function loadSnap() {
+  if (started) return;
+  started = true;
+  watcher?.disconnect();
+  const s = await files[`../../snapshots/${props.id}.json`]().then((m) => m.default);
+  // «Весь код примера» из превью (его вставляет preview.ts при сборке): текст уже на странице, а если читатель открыл
+  // блок, пока грузился снимок, — он остаётся открытым и в плеере
+  const pre = root.value?.querySelector('.lt-ex-pre-source');
+  const text = pre?.querySelector('.lt-ex-pre-plain')?.textContent;
+  if (text && standaloneText.value === null) standaloneText.value = text;
+  if (pre?.hasAttribute('open')) {
+    codeView.value = 'standalone';
+    showSource.value = true;
+  }
+  recorded.value = s;
+  snap.value = s;
+  if (tab.value === 'real') void loadRecordedReal();
+  if (props.sandbox) opened.value = editing.value = true;
+  void nextTick(keepHash); // плеер вырос — якорь адреса мог уехать вниз
+}
+async function loadRecordedReal() {
+  const load = realFiles[realKey];
+  if (!load || recordedReal.value || !recorded.value) return;
+  const r = await load().then((m) => m.default, () => null);
+  recordedReal.value = r;
+  if (!mine.value && snap.value === recorded.value) real.value = fits(recorded.value, r);
+}
+watch(tab, (t) => { if (t === 'real') void loadRecordedReal(); });
+
+onMounted(() => {
   narrow.value = window.matchMedia('(max-width: 640px)').matches;
-  const load = files[`../../snapshots/${props.id}.json`];
-  if (!load) {
+  if (!files[`../../snapshots/${props.id}.json`]) {
     missing.value = true;
     return;
   }
-  const loadReal = realFiles[`../../snapshots/${props.id}.real.json`];
-  const [s, r] = await Promise.all([
-    load().then((m) => m.default),
-    loadReal ? loadReal().then((m) => m.default, () => null) : Promise.resolve(null),
-  ]);
-  recorded.value = s;
-  recordedReal.value = r;
-  real.value = fits(s, r);
-  snap.value = s;
-  if (props.sandbox) opened.value = editing.value = true;
-  void nextTick(keepHash); // плеер вырос — якорь адреса мог уехать вниз
+  const targeted = decodeURIComponent(location.hash.slice(1)) === anchorId;
+  if (props.sandbox || targeted || typeof IntersectionObserver === 'undefined' || !root.value) {
+    void loadSnap();
+    return;
+  }
+  watcher = new IntersectionObserver((seen) => { if (seen.some((e) => e.isIntersecting)) void loadSnap(); }, { rootMargin: '600px 0px' });
+  watcher.observe(root.value);
 });
+onBeforeUnmount(() => watcher?.disconnect());
 
 watch(showSource, async (v) => {
   if (!v || standaloneText.value !== null) return;
@@ -134,6 +169,7 @@ function display(s: Snapshot, own: boolean, r: Real | null) {
   mine.value = own;
   open.value = new Set();
   go(0);
+  if (!own && tab.value === 'real') void loadRecordedReal();
 }
 const onResult = (s: unknown, r?: unknown) => display(s as Snapshot, true, (r as Real | null | undefined) ?? null);
 const onReset = () => recorded.value && display(recorded.value, false, recordedReal.value);
@@ -348,7 +384,7 @@ function onKey(e: KeyboardEvent) {
 </script>
 
 <template>
-  <div :id="`ex-${id.replace(/[^a-z0-9]+/gi, '-')}`" class="lt-ex" tabindex="0" @keydown="onKey">
+  <div :id="anchorId" ref="root" class="lt-ex" tabindex="0" @keydown="onKey">
     <div v-if="missing" class="lt-ex-missing">Снимка примера «{{ id }}» нет: запустите <code>npm run examples</code>.</div>
     <template v-else-if="snap && step">
       <div class="lt-ex-head">
@@ -436,10 +472,10 @@ function onKey(e: KeyboardEvent) {
         </div>
         <div class="lt-ex-code" v-html="step.html" />
 
-        <div v-if="real" class="lt-ex-tabs" role="tablist" aria-label="Как показать данные шага">
+        <div v-if="real || (hasReal && !mine)" class="lt-ex-tabs" role="tablist" aria-label="Как показать данные шага">
           <button role="tab" class="lt-tab" :class="{ active: !realTab }" :aria-selected="!realTab" @click="tab = 'labels'">Метки</button>
           <button role="tab" class="lt-tab" :class="{ active: realTab }" :aria-selected="realTab" @click="tab = 'real'">Реальная таблица</button>
-          <span class="lt-ex-tabs-hint">{{ realTab ? 'uuid, время, токены и хэши — как в базе в этом прогоне' : 'вместо uuid, времени и токенов — метки, чтобы снимок читался' }}</span>
+          <span class="lt-ex-tabs-hint">{{ realTab ? 'uuid, время, токены и хэши — как в базе в этом прогоне' : tab === 'real' ? 'загружаю значения как в базе…' : 'вместо uuid, времени и токенов — метки, чтобы снимок читался' }}</span>
         </div>
 
         <template v-if="!realTab">
@@ -904,5 +940,8 @@ function onKey(e: KeyboardEvent) {
   .lt-ex-real td { white-space: normal; }
   .lt-wrap { min-width: 0; }
   .lt-ex-tabs-hint { display: block; margin: 4px 0 5px; }
+  /* код шага, весь код примера и результат — с переносом по ширине экрана, без прокрутки вбок */
+  .lt-ex-code :deep(pre), .lt-ex-plain, .lt-ex-result pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .lt-ex-code :deep(pre) { font-size: 12.5px; }
 }
 </style>

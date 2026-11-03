@@ -83,3 +83,45 @@ html.dark .lt-ex-code pre {
   line-height: 1.6;
 }
 .lt-ex-pre .lt-ex-code code { background: transparent; padding: 0; }
+
+/* «Весь код примера» в превью: свёрнутый самостоятельный скрипт — его можно прочитать и скопировать до загрузки снимка */
+.lt-ex-pre-source { margin-top: 12px; }
+.lt-ex-pre-source > summary { cursor: pointer; color: var(--vp-c-brand-1); font-size: 14px; font-weight: 600; }
+.vp-doc .lt-ex-pre-note { margin: 8px 0; font-size: 13px; line-height: 1.55; color: var(--vp-c-text-2); }
+.lt-ex-pre-plain {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--vp-code-block-bg);
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre;
+  max-height: 560px;
+  overflow: auto;
+}
+
+/* Телефон: код переносится по ширине экрана — без прокрутки вбок (блоки кода страниц, превью примеров) */
+@media (max-width: 640px) {
+  .vp-doc div[class*='language-'] pre,
+  .vp-doc div[class*='language-'] code,
+  .lt-ex-pre .lt-ex-code pre,
+  .lt-ex-pre-plain {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .vp-doc div[class*='language-'] code { width: auto; min-width: 0; }
+  .lt-ex-pre .lt-ex-code pre { font-size: 12.5px; }
+}
+
+/* Подвал с лицензией (themeConfig.footer) — на всех страницах: тема прячет его на страницах с боковой панелью,
+   здесь он остаётся и сдвинут вправо от неё, как текст страницы. */
+html .VPFooter.has-sidebar { display: block !important; }
+@media (min-width: 960px) {
+  html .VPFooter.has-sidebar { padding-left: calc(var(--vp-sidebar-width) + 32px); }
+}
+@media (min-width: 1440px) {
+  html .VPFooter.has-sidebar {
+    padding-right: calc((100vw - var(--vp-layout-max-width)) / 2 + 32px);
+    padding-left: calc((100vw - var(--vp-layout-max-width)) / 2 + var(--vp-sidebar-width) + 32px);
+  }
+}

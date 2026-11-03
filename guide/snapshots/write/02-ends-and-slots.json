@@ -1485,12 +1485,12 @@
       "result": null,
       "error": {
         "code": "invalid_data",
-        "message": "letopis: invalid_data: данные не проходят описание класса Category",
+        "message": "letopis: invalid_data: данные не проходят описание класса Category: данные — лишний ключ Parent",
         "detail": [
           {
             "path": [],
             "keyword": "additionalProperties",
-            "message": "нарушено правило additionalProperties"
+            "message": "лишний ключ Parent"
           }
         ],
         "expected": true

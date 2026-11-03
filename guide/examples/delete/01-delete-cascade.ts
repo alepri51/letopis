@@ -1,36 +1,9 @@
-import type { Db, Row } from 'letopis';
+import type { Row } from 'letopis';
 import { example } from '../../kit/example.ts';
 import { seedShop, type ShopData } from '../../kit/shop.ts';
 
 let d: ShopData;
-let shown: string;
-
-/** Отпечаток предпросмотра: какие строки, в какой версии и что с ними будет. */
-const mark = (preview: Row[]) => preview.map((r) => `${r.id}:${r.rev}:${r.$action}`).join('|');
-
-/**
- * Удалить ровно то, что видел пользователь: одна транзакция — заказ под блокировкой forUpdate(), предпросмотр
- * пересчитан и сверен с показанным; не совпал — откат, ничего не удалено.
- */
-async function deleteAsShown(db: Db, order: string, expected: string, reason: string) {
-  const tr = await db.begin({ reason });
-  try {
-    if (!(await tr.Order(order).forUpdate().first())) {
-      await tr.rollback();
-      return 'заказа уже нет — ничего не удалено';
-    }
-    if (mark(await tr.Order(order).delete().rows()) !== expected) {
-      await tr.rollback();
-      return 'предпросмотр устарел — ничего не удалено, покажите новый';
-    }
-    const gone = await tr.Order(order).delete({ confirm: true }).rows();
-    await tr.commit();
-    return gone;
-  } catch (e) {
-    await tr.rollback();
-    throw e;
-  }
-}
+let shown: Row[];
 
 export default example({
   title: 'Удаление: предпросмотр, каскад, запрет, очистка конца',
@@ -39,7 +12,7 @@ export default example({
     'делать с концами, ведущими на них, решает действие при удалении у конца: cascade — удалить вместе, ' +
     'restrict — запретить, unset — очистить конец. Модель магазина — помощник kit/shop.ts: его код — в «Весь код примера».',
   tables: ['entity', 'log'],
-  covers: ['chain.delete', 'error.delete_restricted', 'nuance.cascade-unset-restrict', 'nuance.preview-depth', 'nuance.delete-as-shown'],
+  covers: ['chain.delete', 'error.delete_restricted', 'error.conflict', 'nuance.cascade-unset-restrict', 'nuance.preview-depth', 'nuance.delete-as-shown'],
   steps: [
     {
       title: 'Данные магазина',
@@ -90,12 +63,11 @@ export default example({
       title: 'Пользователю показали предпросмотр заказа A-2',
       text:
         'Предпросмотр — снимок на момент вызова, а `delete({ confirm: true })` удаляет то, что есть в момент ' +
-        'подтверждения. Чтобы удалить ровно показанное, запомните отпечаток предпросмотра — id, `rev` и `$action` ' +
-        'каждой строки (функция `mark` в коде примера).',
+        'подтверждения. Чтобы удалить ровно показанное, сохраните сам предпросмотр: при подтверждении его передают ' +
+        'в `expect`.',
       run: async ({ db }) => {
-        const preview = await db.Order(d.order2).delete().rows();
-        shown = mark(preview);
-        return preview;
+        shown = await db.Order(d.order2).delete().rows();
+        return shown;
       },
     },
     {
@@ -105,22 +77,26 @@ export default example({
     {
       title: 'Подтверждение по старому предпросмотру — отказ',
       text:
-        '`deleteAsShown` (в коде примера) в одной транзакции `db.begin()` блокирует заказ `forUpdate()`, пересчитывает ' +
-        'предпросмотр и сверяет отпечаток. Не совпал — откат: ничего не удалено, пользователю показывают новый ' +
-        'предпросмотр. Блокировка защищает, только если её берут все, кто добавляет строки в этот каскад: добавляя ' +
-        'строку заказа, тоже возьмите `tr.Order(order).forUpdate()` в своей транзакции (или общий `tr.lock(…)`).',
-      run: async ({ db }) => ({
-        'ответ': await deleteAsShown(db, d.order2, shown, 'отмена заказа A-2'),
-        'строк в заказе': await db.Order(d.order2).line().count(),
-      }),
+        '`delete({ confirm: true, expect: показанное })` в той же транзакции, что и удаление, строит предпросмотр заново ' +
+        'и сравнивает его с `expect` — строки по `id`, их `rev` и `$action`. Не совпало — отказ `conflict` ' +
+        '(`write.preview_changed`): ничего не удалено, а новый предпросмотр — в `err.detail.preview`, его и показывают ' +
+        'пользователю.',
+      run: async ({ db }) => {
+        const answer = await db.Order(d.order2).delete({ confirm: true, expect: shown, reason: 'отмена заказа A-2' }).rows()
+          .then(() => 'удалено', (e) => {
+            if (e.code !== 'conflict') throw e;
+            shown = e.detail.preview; // новый предпросмотр — показать пользователю
+            return `${e.key}: ничего не удалено, покажите новый предпросмотр (${shown.length} строки)`;
+          });
+        return { 'ответ': answer, 'строк в заказе': await db.Order(d.order2).line().count() };
+      },
     },
     {
-      title: 'Новый предпросмотр и подтверждение',
-      text: 'Отпечаток нового предпросмотра совпал — удалены заказ и обе строки, ровно как показано.',
-      run: async ({ db }) => {
-        shown = mark(await db.Order(d.order2).delete().rows());
-        return deleteAsShown(db, d.order2, shown, 'отмена заказа A-2');
-      },
+      title: 'Подтверждение нового предпросмотра',
+      text:
+        'Пользователь посмотрел новый предпросмотр и подтвердил: он совпал с базой — удалены заказ и обе строки, ровно ' +
+        'как показано.',
+      run: async ({ db }) => db.Order(d.order2).delete({ confirm: true, expect: shown, reason: 'отмена заказа A-2' }).rows(),
     },
   ],
 });

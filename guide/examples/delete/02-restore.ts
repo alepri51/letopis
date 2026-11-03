@@ -1,7 +1,9 @@
+import type { Row } from 'letopis';
 import { example } from '../../kit/example.ts';
 import { seedShop, type ShopData } from '../../kit/shop.ts';
 
 let d: ShopData;
+let dishesTomb: Row;
 // причина удаления заказа: её получают надгробия цели и всего каскада этого удаления
 const CANCEL = 'отмена заказа A-1 (op-7)';
 
@@ -9,12 +11,14 @@ export default example({
   title: 'Вернуть удалённое',
   summary:
     'restore() возвращает удалённый объект с его последними данными — новой версией, с тем же id. Возвращаются только ' +
-    'цели шага, а не весь каскад; строки именно этого каскада находят по причине удаления. Пустой ответ — цели не ' +
-    'нашлось. История удалённого объекта остаётся в журнале: стереть версии одного объекта нельзя.',
+    'цели шага, а не весь каскад; строки именно этого каскада находят по причине удаления и возвращают с ' +
+    'restore({ expect }) — только если они всё ещё те, что ушли. Пустой ответ — цели не нашлось. История удалённого ' +
+    'объекта остаётся в журнале: стереть версии одного объекта нельзя.',
   tables: ['entity', 'log'],
   covers: [
-    'chain.restore', 'chain.withDeleted', 'error.not_deleted', 'nuance.restore-only-targets', 'nuance.restore-cascade-by-reason',
-    'nuance.empty-target-delete-restore', 'nuance.create-revives-deleted',
+    'chain.restore', 'chain.withDeleted', 'chain.versions', 'error.not_deleted', 'error.conflict', 'nuance.restore-only-targets',
+    'nuance.restore-cascade-by-reason', 'nuance.empty-target-delete-restore', 'nuance.create-revives-deleted',
+    'nuance.with-deleted-per-step', 'nuance.restore-no-filter', 'nuance.restore-expect-stale',
   ],
   steps: [
     {
@@ -30,15 +34,24 @@ export default example({
       },
     },
     {
-      title: 'Удалённое видно через withDeleted',
+      title: 'Удалённое видно через withDeleted — у каждого шага свой',
       text:
-        'Обычное чтение удалённого не находит. `withDeleted()` показывает и надгробия — с `$deleted: true` и причиной ' +
-        'удаления `reason`. У заказа удалены обе строки, но по разным причинам.',
-      run: async ({ db }) => ({
-        'обычно': await db.Order(d.order1).count(),
-        'с удалёнными': (await db.Order(d.order1).withDeleted().rows()).map((r) => ({ number: r.data.number, deleted: r.$deleted })),
-        'строки заказа': (await db.Order(d.order1).line().withDeleted().rows()).map((r) => ({ qty: r.data.qty, deleted: r.$deleted, reason: r.reason })),
-      }),
+        'Обычное чтение удалённого не находит. `withDeleted()` — модификатор своего шага: `db.Order(id).withDeleted()` — ' +
+        'удалённый заказ, а `db.Order(id).withDeleted().line().withDeleted()` — удалённые строки удалённого заказа ' +
+        '(надгробия с `$deleted: true` и причиной `reason`). У заказа удалены обе строки, но по разным причинам. ' +
+        '`withDeleted()` только у первого шага относится к нему: строки там — живые (их нет), и letopis один раз ' +
+        'предупреждает. История удалённого — `versions()` по его id: шаг с явным id берёт и удалённые.',
+      run: async ({ db, warnings }) => {
+        const lost = await warnings(() => db.Order(d.order1).withDeleted().line().rows());
+        return {
+          'обычно': await db.Order(d.order1).count(),
+          'с удалёнными': (await db.Order(d.order1).withDeleted().rows()).map((r) => ({ number: r.data.number, deleted: r.$deleted })),
+          'строки удалённого заказа': (await db.Order(d.order1).withDeleted().line().withDeleted().rows())
+            .map((r) => ({ qty: r.data.qty, deleted: r.$deleted, reason: r.reason })),
+          'withDeleted() только у заказа': { 'строк': lost.result.length, 'предупреждение': lost.warnings },
+          'версии заказа': (await db.Order(d.order1).versions()).map((v) => `v${v.rev} ${v.op}`),
+        };
+      },
     },
     {
       title: 'Вернуть заказ',
@@ -46,16 +59,31 @@ export default example({
       run: async ({ db }) => db.Order(d.order1).restore().rows(),
     },
     {
-      title: 'Вернуть строки только этого каскада',
+      title: 'restore() без сужения вернул бы всё удалённое шага',
+      text:
+        '`db.line().restore()` без фильтра, id и `expect` восстанавливает **все** удалённые строки класса любых заказов — ' +
+        'здесь обе строки A-1, и Сенчу тоже. Это не отказ, а предупреждение: letopis печатает его один раз. Здесь вызов — в ' +
+        'транзакции, которую пример откатывает: ничего не восстановлено.',
+      run: async ({ db, warnings }) => {
+        const tr = await db.begin();
+        const all = await warnings(() => tr.line().restore().rows());
+        await tr.rollback();
+        return { 'вернул бы строк': all.result.length, 'предупреждение': all.warnings };
+      },
+    },
+    {
+      title: 'Вернуть строки только этого каскада — restore({ expect })',
       text:
         '`db.Order(order).line().withDeleted().restore()` вернул бы обе строки — и Сенчу, которую убрали раньше и ' +
-        'отдельно. Строки именно этого удаления отличает причина: отберите надгробия с причиной отмены заказа и ' +
-        'верните их по списку id. Причина — свободный текст, поэтому делайте её своей для каждого удаления (здесь — ' +
-        'с номером операции).',
+        'отдельно. Строки именно этого удаления отличает причина: отберите надгробия с причиной отмены заказа и верните ' +
+        'их `restore({ expect: надгробия })` — по `{ id, rev }` каждой. Строка вернётся, только если её последняя версия — ' +
+        'то самое надгробие; иначе отказ `conflict` и ничего не восстановлено (так ловится случай «вещь тем временем ' +
+        'выдали другому» — [глава 7](../money/#одна-открытая-запись-на-объект-выдача-бронь-смена)). Причина — свободный ' +
+        'текст, поэтому делайте её своей для каждого удаления (здесь — с номером операции).',
       run: async ({ db }) => {
         const dead = await db.Order(d.order1).line().withDeleted().rows();
-        const ours = dead.filter((r) => r.$deleted && r.reason === CANCEL).map((r) => r.id);
-        return db.line(ours).withDeleted().restore().rows();
+        const ours = dead.filter((r) => r.$deleted && r.reason === CANCEL);
+        return db.line(ours.map((r) => r.id)).restore({ expect: ours }).rows();
       },
     },
     {
@@ -91,8 +119,8 @@ export default example({
         '`withDeleted().first()` найдёт надгробие с `$deleted: true` — значит, объект с этим ключом уже жил.',
       run: async ({ db }) => {
         await db.Category(d.dishes).delete({ confirm: true }).rows();
-        const was = await db.Category({ name: 'Посуда' }).withDeleted().first();
-        return { 'найдено среди удалённых': was?.$deleted === true, 'id': was?.id };
+        dishesTomb = (await db.Category({ name: 'Посуда' }).withDeleted().first())!;
+        return { 'найдено среди удалённых': dishesTomb.$deleted === true, 'id': dishesTomb.id, 'rev надгробия': dishesTomb.rev };
       },
     },
     {
@@ -106,6 +134,19 @@ export default example({
         const [again] = await db.Category().create({ name: 'Посуда' }).rows();
         return { 'тот же id': again.id === d.dishes, 'версии': (await db.Category(again).versions()).map((v) => `v${v.rev} ${v.op}`) };
       },
+    },
+    {
+      title: 'Вернуть прежнюю «Посуду» уже нельзя',
+      text:
+        'id удалённой категории занял новый объект с тем же ключом. `restore()` отвечает `not_deleted` с ключом ' +
+        '`write.restore_id_taken` («id занят новым объектом с тем же ключом»), а `restore({ expect: [надгробие] })` — ' +
+        '`conflict` (`write.restore_stale`): последняя версия уже не то надгробие. В обоих случаях ничего не ' +
+        'восстановлено — сообщите пользователю, что объект с этим ключом уже живёт.',
+      run: async ({ db }) => ({
+        'restore()': await db.Category(dishesTomb.id).restore().rows().then(() => 'восстановлено', (e) => `${e.code} (${e.key})`),
+        'restore({ expect })': await db.Category(dishesTomb.id).restore({ expect: [dishesTomb] }).rows()
+          .then(() => 'восстановлено', (e) => `${e.code} (${e.key})`),
+      }),
     },
   ],
 });

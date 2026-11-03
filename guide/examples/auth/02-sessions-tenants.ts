@@ -1,39 +1,57 @@
-import { createTenant, totpCode } from 'letopis';
+import { createTenant, syncModels, totpCode } from 'letopis';
 import type { Db } from 'letopis';
+import { hub } from 'letopis/model';
+import { z } from 'zod';
 import { example } from '../../kit/example.ts';
+
+// класс компании: его описание есть только в арендаторе «Ромашка»
+const Item = hub('Item', { code: z.string() }, { key: ['code'] });
 
 let anna: Db, pairId: string, pair: { key: string; secret: string }, temp: { tenant: string; token: string | null };
 
 export default example({
   title: 'Сессии и арендаторы: переключение, способы входа, выход, закрытие арендатора',
   summary:
-    'Сессия входа сначала работает в личном арендаторе аккаунта, в компанию её переводит auth.switch(). ' +
-    'Способы входа видны без секретов, сессию можно продлить и завершить — одну или все. Владелец может стереть ' +
-    'арендатора целиком, даже тот, в котором сейчас работает.',
+    'Сессия входа сначала работает в личном арендаторе аккаунта: классов компании там нет. В компанию её переводит ' +
+    'auth.switch(), список — auth.tenants() с именами. Способы входа видны без секретов, сессию можно продлить и ' +
+    'завершить — свою, по токену или все. Владелец может стереть арендатора целиком, даже тот, в котором сейчас работает.',
   tables: ['secret'],
   covers: [
     'auth.tenants', 'auth.switch', 'auth.credentials', 'auth.issueKeySecret', 'auth.verifyKeySecret', 'auth.setFlags',
     'auth.refresh', 'auth.revoke', 'auth.revokeAll', 'auth.purgeAccount', 'auth.session',
-    'nuance.session-starts-personal', 'nuance.purge-current-tenant', 'nuance.service-enforces-2fa', 'nuance.refresh-never-shortens', 'nuance.revoked-session-empty',
+    'error.invalid_class', 'nuance.session-starts-personal', 'nuance.revoke-by-token', 'nuance.purge-current-tenant', 'nuance.service-enforces-2fa', 'nuance.refresh-never-shortens', 'nuance.revoked-session-empty',
   ],
   steps: [
     {
       title: 'Вход паролем: сессия в личном арендаторе',
       text:
         'У каждого аккаунта есть свой, личный арендатор; свежая сессия работает в нём. `auth.tenants()` — куда ' +
-        'можно перейти: личный (роль `owner`) и компании по членству.',
-      run: async ({ svc, user, connect, dsn, schema, up }) => {
+        'можно перейти: `tenant`, роли, имя арендатора `name` и `personal` — личный ли (он первым, с ролью `owner`), ' +
+        'затем компании по членству. Классы компании (здесь `Item`) в личном арендаторе не видны: шаг `anna.Item()` — ' +
+        '`invalid_class` с подсказкой (`err.hint`) про `auth.tenants()` и `auth.switch()`.',
+      run: async ({ db, svc, user, connect, dsn, schema, up }) => {
+        await syncModels(db, [Item], { apply: true }); // скрыть
         const ok = (await svc.auth.verifyPassword({ identifier: user.login, password: user.password }))!;
         anna = await connect({ dsn: dsn.app, schema, token: ok.token });
-        return { 'сейчас': anna.tenant === ok.account ? 'личный арендатор' : anna.tenant, 'можно': await anna.auth.tenants(), 'компания': up.tenant!.tenant };
+        const item = await (async () => anna.Item().count())().then(String, (e) => ({ code: e.code, message: e.message, hint: e.hint }));
+        return {
+          'сейчас': anna.tenant === ok.account ? 'личный арендатор' : anna.tenant,
+          'можно': await anna.auth.tenants(),
+          'компания': up.tenant!.tenant,
+          'anna.Item().count()': item,
+        };
       },
     },
     {
       title: 'Перейти в компанию',
-      text: '`auth.switch()` пишет арендатора в строку сессии: смена видна всем подключениям с этим токеном, реестр классов перечитан.',
-      run: async ({ up }) => {
-        await anna.auth.switch(up.tenant!.tenant);
-        return { 'сейчас': anna.tenant };
+      text:
+        '`auth.switch()` пишет арендатора в строку сессии: смена видна всем подключениям с этим токеном, реестр классов ' +
+        'перечитан — классы компании теперь видны. Компанию берут из `auth.tenants()`: первая не личная — ' +
+        '`.find((t) => !t.personal)`; если их несколько, пусть выберет пользователь (по `name`).',
+      run: async () => {
+        const club = (await anna.auth.tenants()).find((t) => !t.personal)!;
+        await anna.auth.switch(club.tenant);
+        return { 'сейчас': club.name, 'anna.Item().count()': await anna.Item().count() };
       },
     },
     {
@@ -80,6 +98,24 @@ export default example({
           'сессия на 7 дн после refresh({ ttl: 3600 })': week,
           'сессия на 10 мин после refresh({ ttl: 3600 })': short,
           'после revoke()': await other.auth.tenants().then(() => 'работает', (e) => e.code),
+        };
+      },
+    },
+    {
+      title: 'Выход в веб-сервисе: сервис гасит сессию по токену',
+      text:
+        'Веб-сервис держит токен пользователя в cookie и сам к базе по нему не подключается. Кнопка «Выйти» — ' +
+        '`svc.auth.revoke(token)`: сервис гасит сессию по токену (нужно право `auth.session`, оно у сервиса есть). ' +
+        'Ответ `true` — погашена; повторный вызов — `false` (токен неверный, сессия погашена или истекла). После ' +
+        'этого `svc.auth.session(token)` — `null`. `revoke()` без аргумента гасит сессию самого подключения — у ' +
+        'сервиса это был бы его собственный вход.',
+      run: async ({ svc, up }) => {
+        const token = await svc.auth.sessionFor(up.tenant!.user!, { ttl: 3600 }); // вход пользователя: токен — в cookie
+        return {
+          'до выхода': (await svc.auth.session(token)) ? 'сессия жива' : null,
+          'revoke(token)': await svc.auth.revoke(token),
+          'ещё раз': await svc.auth.revoke(token),
+          'session(token) после выхода': await svc.auth.session(token),
         };
       },
     },

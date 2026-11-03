@@ -4675,7 +4675,7 @@
       "result": null,
       "error": {
         "code": "invalid_class",
-        "message": "letopis: invalid_class: класс или роль Product не найдены",
+        "message": "letopis: invalid_class: класс или роль Product не найдены: в реестре сессии нет ни одного класса арендатора — сессия, похоже, в личном арендаторе",
         "detail": null,
         "expected": true
       },

@@ -218,14 +218,24 @@ interface AuthApi {
   session(token: string): Promise<SessionInfo | null>;
   /** Продлить текущую сессию; новый срок — от сейчас. */
   refresh(opts?: { ttl?: number }): Promise<string>;
-  /** Выход: погасить текущую сессию. */
-  revoke(): Promise<boolean>;
+  /**
+   * Выход. Без аргумента — погасить сессию этого подключения. С токеном — погасить сессию пользователя по её токену
+   * (например, из cookie веб-сервиса): так сервис выводит пользователя, не подключаясь по его токену; нужно право
+   * `auth.session`, как у `session(token)`.
+   * @returns true — сессия погашена; false — токен неверный, сессия уже погашена или истекла (причина не различается).
+   * @throws LetopisError `acl_denied` — с токеном, а у вызывающего нет права `auth.session`; `no_session` — у подключения
+   * нет действующей сессии.
+   */
+  revoke(token?: string): Promise<boolean>;
   /** Выход везде: все сессии аккаунта (чужого — с правом `auth.session`). */
   revokeAll(account?: AccountRef): Promise<number>;
   /** Переключить арендатора сессии: собственный или по членству. */
   switch(tenant: string): Promise<void>;
-  /** Арендаторы, доступные аккаунту сессии: собственный (`owner`) и по членству. */
-  tenants(): Promise<{ tenant: string; roles: string[] }[]>;
+  /**
+   * Арендаторы, доступные аккаунту сессии: собственный (`roles: ['owner']`, `personal: true`) и по членству. `name` — имя
+   * аккаунта арендатора (`createTenant({ name })`, у личного — имя пользователя).
+   */
+  tenants(): Promise<{ tenant: string; roles: string[]; name: string | null; personal: boolean }[]>;
   /**
    * Удалить аккаунт: системный администратор или владелец его
    * арендатора; себя и последнего владельца арендатора — нельзя. Данные арендатора стираются,
@@ -315,7 +325,10 @@ interface ChainCore {
   ids(): Promise<string[]>;
   /** Число сущностей последнего шага; { paths: true } — число путей. */
   count(opts?: { paths?: boolean }): Promise<number>;
-  /** Все версии сущностей последнего шага (надгробия — $deleted), по id и номеру версии. */
+  /**
+   * Все версии сущностей последнего шага (надгробия — $deleted), по id и номеру версии. Шаг с явными id находит и
+   * удалённые объекты: `db.Класс(id).versions()` отдаёт историю удалённого.
+   */
   versions(): Promise<Row[]>;
   /**
    * Сумма поля `'data.<путь>'` по объектам последнего шага: значения приводятся к числу, складывает база. `limit()` и
@@ -364,8 +377,9 @@ interface ChainCore {
    */
   after(cursor: Cursor): Chain;
   /**
-   * Последний шаг находит и удалённые объекты. Удалённый объект приходит надгробием — своей последней версией, версией
-   * удаления, — с `$deleted: true`.
+   * Шаг, после которого стоит, находит и удалённые объекты — модификатор своего шага, как `exact()`:
+   * `db.Member(id).withDeleted().Loan().withDeleted()` — удалённые выдачи удалённого участника. Удалённый объект приходит
+   * надгробием — своей последней версией, версией удаления, — с `$deleted: true`.
    */
   withDeleted(): Chain;
   /** Дети любой глубины на переходе к тому же классу; $depth в строке. */
@@ -412,13 +426,19 @@ interface ChainCore {
    * как задано в `onDelete` их ссылок. Без `{ confirm: true }` — предпросмотр удаления: ничего не удаляется, терминал
    * вернёт все строки, которых оно коснулось бы, у каждой `$action` — что с ней будет. С `{ confirm: true }` цели сужают
    * фильтр, id, `tags()`, `owner()` или `limit()` хотя бы у одного шага, иначе `invalid_query`; удаление всех строк —
-   * `{ confirm: true, all: true }`.
+   * `{ confirm: true, all: true }`. С `{ confirm: true, expect: превью }` удаляется ровно показанное: в транзакции удаления
+   * превью строится заново и сравнивается с `expect` по `id`, `rev` и `$action`; расхождение — `conflict` (ничего не
+   * удалено, новое превью — `err.detail.preview`).
    */
-  delete(opts?: { confirm?: boolean; all?: boolean; reason?: string }): Chain;
+  delete(opts?: { confirm?: boolean; all?: boolean; reason?: string; expect?: readonly Expected[] }): Chain;
   /** Чтение с блокировкой строк последнего шага до конца db.begin() (rows, first, ids). */
   forUpdate(): Chain;
-  /** Восстановить удалённые объекты шага: последний снимок новой версией (id прежний). */
-  restore(opts?: { reason?: string }): Chain;
+  /**
+   * Восстановить удалённые объекты шага: последний снимок новой версией (id прежний). `{ expect }` — надгробия `{ id, rev }`
+   * из ответа `delete()` или `withDeleted()`: восстанавливаются только цели из `expect`, и только если последняя версия
+   * каждой — та же; иначе (id пересоздан, удалён снова) — `conflict`, ничего не восстановлено.
+   */
+  restore(opts?: { reason?: string; expect?: readonly Expected[] }): Chain;
   /** Кэш результатов: ответ хранится в памяти процесса ttl секунд (по умолчанию 60). */
   cache(opts?: { ttl?: number }): Chain;
 }
@@ -437,7 +457,10 @@ interface ChainMods {
   /** Срез «как было на момент T» (ISO). */
   asOf?: string;
   after?: Cursor;
-  /** Последний шаг включает удалённые. */
+  /**
+   * Не действует: с 2.1 `withDeleted()` — модификатор своего шага (флаг шага цепочки), а не всей выборки. Поле оставлено,
+   * чтобы тип не менялся.
+   */
   withDeleted?: boolean;
   /** Чтение с блокировкой строк последнего шага (только в db.begin()). */
   forUpdate?: boolean;
@@ -533,7 +556,7 @@ interface ConnectOptions {
   /** Строка подключения; либо готовый пул postgres.js в `sql`. */
   dsn?: string;
   sql?: postgres.Sql;
-  /** Схема установки, например `v2.salon`. */
+  /** Схема установки, например `v2.salon`; имя без точки (`salon`) — как у `up()`: `v2.salon`. */
   schema: string;
   /** Токен сессии; либо ключ `APIKEY` в `apiKey` (он же `service` — ключ сервиса) — его обменяют на сессию. */
   token?: string;
@@ -694,6 +717,10 @@ interface DbCore {
   commit(tr?: DbTx): Promise<void>;
   /** Откатить транзакцию `tr` (то же, что `tr.rollback()`). */
   rollback(tr?: DbTx): Promise<void>;
+  /**
+   * Закрыть подключение: у корня — пул и подписки, в `db.begin()` — откат транзакции; у фасада `db.as()` ничего не делает
+   * (пул общий с корнем).
+   */
   close(): Promise<void>;
 }
 ```
@@ -716,6 +743,20 @@ interface EndInfo {
   max?: number;
   onDelete?: 'restrict' | 'cascade' | 'unset';
   meta?: Record<string, unknown>;
+}
+```
+
+## Expected {#type-expected}
+
+```ts
+/**
+ * Ожидаемая строка `expect` у `restore()` и `delete({ confirm: true })` (A1, A2): строка ответа или её `id`,
+ * `rev` (и `$action` превью удаления). Лишние поля строки не мешают.
+ */
+interface Expected {
+  id: string;
+  rev: number;
+  $action?: 'delete' | 'unset' | 'restrict';
 }
 ```
 
@@ -1220,7 +1261,7 @@ interface SyncResult {
   unchanged: string[];
   /** Классы системного арендатора: их меняет только установка. */
   skipped: string[];
-  /** Правила refine, которых нет в базе. */
+  /** Правила refine, которых нет в базе (преобразования Zod syncModels отклоняет — model.transform_unsupported). */
   lost: LostRule[];
 }
 ```
@@ -1334,9 +1375,10 @@ type TypedChain<C, M extends readonly AnyModelLike[]> = Omit<ChainCore, Retyped>
   update(patch?: PatchOf<DataOf<C>>, opts?: { rev?: number; all?: boolean; reason?: string }): TypedChain<C, M>;
   upsert(data: Partial<DataOf<C>>, opts?: { reason?: string }): TypedChain<C, M>;
   /** С `{ confirm: true }` без фильтра, id, `tags()`, `owner()` и `limit()` у шагов — `invalid_query`; всех — `{ all: true }`. */
-  delete(opts?: { confirm?: boolean; all?: boolean; reason?: string }): TypedChain<C, M>;
+  delete(opts?: { confirm?: boolean; all?: boolean; reason?: string; expect?: readonly Expected[] }): TypedChain<C, M>;
   forUpdate(): TypedChain<C, M>;
-  restore(opts?: { reason?: string }): TypedChain<C, M>;
+  /** `{ expect }` — надгробия `{ id, rev }`: восстановить ровно то, что ушло удалением; расхождение — `conflict`. */
+  restore(opts?: { reason?: string; expect?: readonly Expected[] }): TypedChain<C, M>;
   cache(opts?: { ttl?: number }): TypedChain<C, M>;
 } & HopsOf<C, M>;
 ```

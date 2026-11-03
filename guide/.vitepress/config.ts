@@ -71,6 +71,7 @@ export default defineConfig({
           { text: 'Карта понятий', link: '/concepts/' },
           { text: 'Глоссарий', link: '/glossary/' },
           { text: 'Песочница', link: '/sandbox' },
+          { text: 'Лицензия', link: '/license/' },
         ],
       },
       {
@@ -102,6 +103,11 @@ export default defineConfig({
         ],
       },
     ],
+    // подвал на всех страницах (на страницах с боковой панелью его показывает theme/style.css)
+    footer: {
+      message: 'Исходный код открыт: <a href="/license/">PolyForm Noncommercial 1.0.0</a> — некоммерческое использование бесплатно, коммерческое — по разрешению владельца. Версии до 2.0.0 включительно — MIT.',
+      copyright: 'Copyright 2026 <a href="https://github.com/alepri51">alepri51</a> · <a href="https://github.com/alepri51/letopis">исходники на GitHub</a>',
+    },
     outline: { level: [2, 3], label: 'На странице' },
     docFooter: { prev: 'Назад', next: 'Дальше' },
     darkModeSwitchLabel: 'Тема',

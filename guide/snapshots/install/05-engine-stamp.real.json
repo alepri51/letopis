@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_fc8e2a6a8e5f0d39ce8d0bcacf0f38e2e9aaeb5a9bf3617a0150b76b61a51c53",
+      "serviceKey": "lts_f9ce69b7292ffab5b0778779355c6b17c9a913b77c79cc528e53c84ea4eaf7c7",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "ff8ef8fc295b34a9eb617516881f187473b93963ad201f5cc89ac461c8162221",
+        "token": "c5cea684447473edfed8b07f162e0901ba0e5648aaba13b1f9b99ad02d4eba5c",
         "created": true
       }
     }
@@ -27,7 +27,7 @@
   },
   "steps": [
     {
-      "result": "letopis ddl_revision=8 engine=2.0.0 sql=bca368a9f518ce96",
+      "result": "letopis ddl_revision=9 engine=2.1.0 sql=a68e50f14b4aa56b",
       "error": null,
       "entity": [],
       "removed": [],
@@ -37,7 +37,7 @@
     },
     {
       "result": [
-        "letopis: функции схемы v2.g_install_05_engine_stamp поставила неизвестная версия letopis (в штампе нет версии движка), библиотека — 2.0.0: обновите схему — вызовите up({ schema: 'v2.g_install_05_engine_stamp' })"
+        "letopis: функции схемы v2.g_install_05_engine_stamp поставила неизвестная версия letopis (в штампе нет версии движка), библиотека — 2.1.0: обновите схему — вызовите up({ schema: 'v2.g_install_05_engine_stamp' })"
       ],
       "error": null,
       "entity": [],
@@ -58,9 +58,9 @@
     {
       "result": {
         "connect() предупредил": [
-          "letopis: движок схемы v2.g_install_05_engine_stamp ревизии 9 новее библиотеки (она знает 8) — обновите пакет letopis"
+          "letopis: движок схемы v2.g_install_05_engine_stamp ревизии 10 новее библиотеки (она знает 9) — обновите пакет letopis"
         ],
-        "up() отказал": "letopis.up: схема v2.g_install_05_engine_stamp ревизии 9, а библиотека знает только 8 — обновите пакет"
+        "up() отказал": "letopis.up: схема v2.g_install_05_engine_stamp ревизии 10, а библиотека знает только 9 — обновите пакет"
       },
       "error": null,
       "entity": [],
