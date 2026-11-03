@@ -20,7 +20,7 @@ import { load, LOAD_OPTIONS, type LoadInput, type LoadOptions, type LoadReport }
 import { makeBatch, startEntity, startStep, type Batch, type BatchEntry, type Chain, type ChainCtx, type ChainRef, type StepFn } from './chain.js';
 import { or as orFilters } from './ops.js';
 import type { QueryEvent, Row } from './types.js';
-import { DDL_REVISION } from './types.js';
+import { DDL_REVISION, SCHEMA_VERSION } from './types.js';
 import { ACL_CLASSES, ResultCache, type CacheOptions, type CacheStats } from './cache.js';
 import { Subscription, type WatchOptions } from './watch.js';
 import { SIGNAL_MODES, Signals, bucket, throttle, type Signal, type SignalMode } from './signals.js';
@@ -45,7 +45,7 @@ export { ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends, has, 
  */
 export const or = orFilters as unknown as <F extends object>(...filters: NoInfer<F>[]) => OrOp<F>;
 export { cursorOf } from './sql.js';
-export { inc, isInc, type IncMarker, type WriteRow } from './write.js';
+export { inc, isInc, type Expected, type IncMarker, type WriteRow } from './write.js';
 export { totpCode, hashPassword, verifyHash, type AuthApi, type LoginResult, type Credential, type SessionInfo } from './auth.js';
 export type { AclApi, AclDecision, AclDataDecision, AclOp, AclRule, AclRuleSpec, AclTarget } from './acl.js';
 export type { LoadOptions, LoadReport, LoadIssue, LoadInput } from './load.js';
@@ -66,7 +66,7 @@ export interface ConnectOptions {
   /** Строка подключения; либо готовый пул postgres.js в `sql`. */
   dsn?: string;
   sql?: postgres.Sql;
-  /** Схема установки, например `v2.salon`. */
+  /** Схема установки, например `v2.salon`; имя без точки (`salon`) — как у `up()`: `v2.salon`. */
   schema: string;
   /** Токен сессии; либо ключ `APIKEY` в `apiKey` (он же `service` — ключ сервиса) — его обменяют на сессию. */
   token?: string;
@@ -191,6 +191,10 @@ export interface DbCore {
   commit(tr?: DbTx): Promise<void>;
   /** Откатить транзакцию `tr` (то же, что `tr.rollback()`). */
   rollback(tr?: DbTx): Promise<void>;
+  /**
+   * Закрыть подключение: у корня — пул и подписки, в `db.begin()` — откат транзакции; у фасада `db.as()` ничего не делает
+   * (пул общий с корнем).
+   */
   close(): Promise<void>;
 }
 
@@ -390,7 +394,8 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
     lock: async (...keys) => (tx ? tx.lock(...keys) : noTx('lock()')),
     commit: async (tr) => (tr ? tr.commit() : tx ? tx.commit() : noTx('commit()')),
     rollback: async (tr) => (tr ? tr.rollback() : tx ? tx.rollback() : noTx('rollback()')),
-    close: () => (tx ? tx.rollback() : sh.close()),
+    // подключение из as() пул не закрывает: пул общий с корнем (план 2.1, A12) — закрывает его close() корня
+    close: () => (tx ? tx.rollback() : scope.root ? sh.close() : Promise.resolve()),
   };
   /** Свойство фасада: служебное — из core, иначе шаг класса, алиаса или роли. */
   const member = (t: DbCore, prop: string | symbol, r: unknown): unknown => {
@@ -418,6 +423,8 @@ export function connect<M extends readonly AnyModelLike[]>(opts: ConnectOptions)
 export async function connect(opts: ConnectOptions): Promise<Db> {
   // опции — первыми: неизвестная — invalid_data с похожими именами до прочих проверок (план 2.0, 7.10 №4)
   checkOptions('connect', opts, CONNECT_OPTIONS);
+  // имя без точки — как у up(): v2.<имя> (план 2.1, A12); дальше всё, и канал LISTEN, — по полному имени
+  if (typeof opts.schema === 'string' && !opts.schema.includes('.')) opts = { ...opts, schema: `${SCHEMA_VERSION}.${opts.schema}` };
   if (!SCHEMA_NAME.test(opts.schema)) throw lerr('api.connect_schema', { schema: opts.schema });
   if (!opts.sql && !opts.dsn) throw lerr('api.connect_no_dsn');
   // интервал обслуживания — до пула и таймеров: неверный не оставляет за собой открытых соединений

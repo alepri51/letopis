@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
 import postgres from 'postgres';
-import { DDL_REVISION, RESERVED_CLASS_NAMES } from './types.js';
+import { DDL_REVISION, RESERVED_CLASS_NAMES, SCHEMA_VERSION } from './types.js';
 import { startPglite, type PgliteOptions, type PgliteServer } from './pglite.js';
 import { hashPassword } from './auth.js';
 import { checkOptions, lerr, lmsg, type MsgKey, type Params } from './errors.js';
@@ -25,7 +25,7 @@ import { v5Id } from './uuid.js';
 import { SIGNAL_MODES, type SignalMode } from './signals.js';
 
 export const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
-export const SCHEMA_VERSION = 'v2';
+export { SCHEMA_VERSION };
 
 /**
  * Первая ревизия движка 2.0 (план 2.0, редакция 2): схема ниже неё — letopis 1.x или схема без штампа ревизии. Её
@@ -729,7 +729,9 @@ export async function createTenant(sql: postgres.Sql, schema: string, opts: Tena
   const S = quoteIdent(schema);
   const tenant = v5Id(SYSTEM_ID, 'Account', [`tenant:${opts.name}`]);
   const u = opts.user;
-  const user = u ? v5Id(SYSTEM_ID, 'Account', [`user:${u.login}`]) : null;
+  // логин без крайних пробелов, как у auth.setPassword() и verifyPassword() (план 2.1, A12)
+  const login = u ? (typeof u.login === 'string' ? u.login.trim() : u.login) : '';
+  const user = u ? v5Id(SYSTEM_ID, 'Account', [`user:${login}`]) : null;
   const hash = u ? await hashPassword(u.password) : null;
   return sql.begin(async (tx) => {
     // под блокировкой схемы, как накат: up({ tenant }) нескольких экземпляров сервиса разом заводит арендатора один
@@ -751,13 +753,13 @@ export async function createTenant(sql: postgres.Sql, schema: string, opts: Tena
     }
     let token: string | null = null;
     if (u && user) {
-      if (!(await exists(user, 'Account', 'boot.tenant_user_deleted', { login: u.login }))) {
+      if (!(await exists(user, 'Account', 'boot.tenant_user_deleted', { login }))) {
         await tx.unsafe(`select ${S}.sys_create($1::uuid, 'Account', $2::uuid, '{}', $3::jsonb)`,
           [user, SYSTEM_ID, { name: u.name, categories: ['User'], enabled: true } as never]);
       }
       const member = (await tx.unsafe(`select ${S}.v5_id($1::uuid, 'member', array[$2::text, $1::text]) as id`, [tenant, user]))[0].id as string;
       // существующее членство не трогаем: повтор с другими ролями их не меняет (их правят правкой member)
-      if (!(await exists(member, 'member', 'boot.tenant_member_deleted', { login: u.login, name: opts.name }))) {
+      if (!(await exists(member, 'member', 'boot.tenant_member_deleted', { login, name: opts.name }))) {
         await tx.unsafe(`select ${S}.sys_create($1::uuid, 'member', $2::uuid, $3::jsonb, $4::jsonb)`,
           [member, tenant, { User: user, Tenant: tenant } as never, { roles } as never]);
       }
@@ -765,7 +767,7 @@ export async function createTenant(sql: postgres.Sql, schema: string, opts: Tena
       await tx.unsafe(`insert into ${S}.secret (account, kind, ident, material, meta)
         select $1::uuid, $2, $3, convert_to($4, 'UTF8'), '{"confirmed": true}'::jsonb
         where not exists (select 1 from ${S}.secret where kind = $2 and casefold(ident) collate pg_unicode_fast = casefold($3) collate pg_unicode_fast and deleted_at is null)`,
-      [user, kind, u.login, hash]);
+      [user, kind, login, hash]);
       token = (await tx.unsafe(`select ${S}.new_session($1::uuid, $2::interval, $3::jsonb) as t`,
         [user, u.ttl ?? '7 days', { tenant } as never]))[0].t as string;
     }

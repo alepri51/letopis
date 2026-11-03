@@ -725,6 +725,31 @@ begin
   return m is not null;
 end $$;
 
+-- Выход пользователя по токену его сессии (db.auth.revoke(token), план 2.1, A3): сервис, у которого есть токен
+-- пользователя (например, из cookie), гасит эту сессию, не подключаясь по ней. Право auth.session, как у
+-- auth_session_info. Сессия ищется только среди SESSION по sha256 токена; погашенная — сигнал session:… кэшу, как у
+-- auth_logout. Неверный, погашенный или истёкший токен — false: причина не различается.
+create or replace function @SCHEMA@.auth_logout_token(p_token text) returns boolean
+language plpgsql volatile security definer
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+declare
+  c record;
+  m bytea;
+begin
+  select * into c from @SCHEMA@.ctx();
+  perform @SCHEMA@.auth_session_required(c.account);
+  perform @SCHEMA@.acl_require('auth.session');
+  update @SCHEMA@.secret s set deleted_at = clock_timestamp()
+  where s.kind = 'SESSION' and s.deleted_at is null and s.material = sha256(convert_to(coalesce(p_token, ''), 'UTF8'))
+    and (s.expires_at is null or s.expires_at > clock_timestamp())
+  returning s.material into m;
+  if m is not null then
+    perform @SCHEMA@.signal_raw(array['session:' || left(encode(m, 'hex'), 16)]);
+  end if;
+  return m is not null;
+end $$;
+
 -- Выход везде: все сессии аккаунта (своего — сам; чужого — с правом auth.session).
 create or replace function @SCHEMA@.auth_logout_all(p_account uuid default null) returns int
 language plpgsql volatile security definer
@@ -777,8 +802,10 @@ begin
   return p_tenant;
 end $$;
 
--- Арендаторы, доступные аккаунту сессии: собственный и по членству (с ролями).
-create or replace function @SCHEMA@.auth_tenants() returns table (tenant uuid, roles jsonb)
+-- Арендаторы, доступные аккаунту сессии: собственный и по членству (с ролями). С ревизии 9 (план 2.1, A5) — ещё имя
+-- аккаунта арендатора (строка Account в System: createTenant({ name }), у личного — имя пользователя) и признак
+-- собственного арендатора personal; прежняя форма (tenant, roles) снимается миграцией 0009.
+create or replace function @SCHEMA@.auth_tenants() returns table (tenant uuid, roles jsonb, name text, personal boolean)
 language plpgsql stable security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
@@ -789,11 +816,14 @@ begin
   select * into c from @SCHEMA@.ctx();
   perform @SCHEMA@.auth_session_required(c.account);
   return query
-    select c.account, '["owner"]'::jsonb
-    union all
-    select m.tenant, coalesce(m.data->'roles', '[]'::jsonb)
-    from @SCHEMA@.entity m
-    where m.class = 'member' and m.links->>'User' = c.account::text and @SCHEMA@.auth_enabled(m.tenant);
+    select t.tenant, t.roles, a.data->>'name', t.personal
+    from (select c.account as tenant, '["owner"]'::jsonb as roles, true as personal, 0 as ord
+          union all
+          select m.tenant, coalesce(m.data->'roles', '[]'::jsonb), false, 1
+          from @SCHEMA@.entity m
+          where m.class = 'member' and m.links->>'User' = c.account::text and @SCHEMA@.auth_enabled(m.tenant)) t
+    left join @SCHEMA@.entity a on a.id = t.tenant and a.class = 'Account' and a.tenant = '@SYSTEM@'::uuid
+    order by t.ord, t.tenant;
 end $$;
 
 -- Сведения о сессии по токену (db.auth.session): сервис, у которого есть токен пользователя (например, из
@@ -845,7 +875,8 @@ begin
     'login_otp(text, text, text)', 'totp_code(bytea, bigint)', 'auth_enroll_totp(uuid)', 'auth_verify_totp(uuid, text, int)',
     'auth_totp_enabled(uuid)', 'auth_link(uuid, text, text, jsonb, boolean)', 'auth_lookup(text, text, boolean)',
     'auth_credentials(uuid)', 'auth_revoke_credential(uuid, boolean)', 'auth_set_flags(uuid, boolean, boolean)',
-    'auth_refresh(interval)', 'auth_logout()', 'auth_logout_all(uuid)', 'auth_switch(uuid)', 'auth_tenants()', 'auth_session_info(text)'] loop
+    'auth_refresh(interval)', 'auth_logout()', 'auth_logout_token(text)', 'auth_logout_all(uuid)', 'auth_switch(uuid)', 'auth_tenants()',
+    'auth_session_info(text)'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);
     execute format('revoke all on function @SCHEMA@.%s from public', f);
   end loop;
@@ -857,5 +888,5 @@ grant execute on function
   @SCHEMA@.login_otp(text, text, text), @SCHEMA@.auth_enroll_totp(uuid), @SCHEMA@.auth_verify_totp(uuid, text, int),
   @SCHEMA@.auth_totp_enabled(uuid), @SCHEMA@.auth_link(uuid, text, text, jsonb, boolean), @SCHEMA@.auth_lookup(text, text, boolean),
   @SCHEMA@.auth_credentials(uuid), @SCHEMA@.auth_revoke_credential(uuid, boolean), @SCHEMA@.auth_set_flags(uuid, boolean, boolean),
-  @SCHEMA@.auth_refresh(interval), @SCHEMA@.auth_logout(), @SCHEMA@.auth_logout_all(uuid), @SCHEMA@.auth_switch(uuid),
-  @SCHEMA@.auth_tenants(), @SCHEMA@.auth_session_info(text) to @APP@;
+  @SCHEMA@.auth_refresh(interval), @SCHEMA@.auth_logout(), @SCHEMA@.auth_logout_token(text), @SCHEMA@.auth_logout_all(uuid),
+  @SCHEMA@.auth_switch(uuid), @SCHEMA@.auth_tenants(), @SCHEMA@.auth_session_info(text) to @APP@;

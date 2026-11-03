@@ -182,6 +182,41 @@ export const write = {
     code: 'not_deleted',
     ru: 'объект не удалён: {verb}() — только для удалённых',
   },
+  // restore() живого объекта, который уже удаляли: id занял новый объект с тем же ключом (create по ключу удалённого
+  // берёт его id); ids — такие id
+  'write.restore_id_taken': {
+    code: 'not_deleted',
+    ru: '{verb}(): id {ids} занят новым объектом с тем же ключом — create() по ключу удалённого берёт его id, восстанавливать нечего',
+    hint: 'объект с этим ключом уже живёт: прочитайте его (db.Класс(id).first()); перед create() по ключу удалённого проверьте db.Класс({ ключ }).withDeleted()',
+  },
+  // restore({ expect }): последняя версия id не та, что в expect (id пересоздан, удалён снова, правлен); ничего не
+  // восстановлено; detail.stale — { id, rev, expected }
+  'write.restore_stale': {
+    code: 'conflict',
+    ru: 'restore({ expect }): {ids} уже не те, что удаляли — последняя версия другая (объект пересоздан или удалён снова); ничего не восстановлено',
+    hint: 'восстановить то, что ушло: надгробия — из ответа delete() или withDeleted(), их { id, rev } — в expect; расхождение значит, что вещь уже у другого — сообщить пользователю, а не восстанавливать',
+  },
+  // restore({ expect }), delete({ expect }): expect — не список строк { id, rev }; verb — глагол
+  'write.bad_expect': {
+    code: 'invalid_query',
+    ru: '{verb}({ expect }): expect — список строк { id, rev } (строки ответа)',
+  },
+  // delete({ expect }) без confirm: превью сравнивать не с чем
+  'write.expect_without_confirm': {
+    code: 'invalid_query',
+    ru: 'delete({ expect }) — только с { confirm: true }: без него delete() и есть превью',
+  },
+  // delete({ confirm: true, expect }): превью в транзакции удаления не совпало с показанным; detail.preview — новое превью
+  'write.preview_changed': {
+    code: 'conflict',
+    ru: 'delete({ confirm: true, expect }): превью изменилось с тех пор, как его показали — ничего не удалено',
+    hint: 'показать пользователю новое превью (err.detail.preview) и удалить с ним: delete({ confirm: true, expect: err.detail.preview })',
+  },
+  // A13: restore() без сужения целей — восстанавливает всё удалённое шага; предупреждение (lwarn), один раз на класс
+  'write.restore_no_filter': {
+    code: 'invalid_query',
+    ru: 'restore() у {cls} без фильтра, id и { expect } восстанавливает всё удалённое шага',
+  },
   // tx.ts — tx.ts:commitUnknown: связь оборвалась во время commit
   'write.commit_unknown': {
     code: 'commit_unknown',

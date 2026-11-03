@@ -21,7 +21,10 @@ import {
 } from './sql.js';
 import type { Executor } from './tx.js';
 import type { ChainMods, Cursor, Filter, Path, QueryEvent, Row } from './types.js';
-import { execBatch, execPlan, precheckPlan, slotRole, type PlanOp, type PlanResult, type Slot, type SlotValue, type WriteRow } from './write.js';
+import {
+  completeIssues, dropUndefined, execBatch, execPlan, lockIds, precheckPlan, slotRole, type Expected, type PlanOp, type PlanResult, type Slot,
+  type SlotValue, type WriteRow,
+} from './write.js';
 
 export interface ChainCtx {
   readonly reg: Registry;
@@ -74,7 +77,10 @@ export interface ChainCore {
   ids(): Promise<string[]>;
   /** Число сущностей последнего шага; { paths: true } — число путей. */
   count(opts?: { paths?: boolean }): Promise<number>;
-  /** Все версии сущностей последнего шага (надгробия — $deleted), по id и номеру версии. */
+  /**
+   * Все версии сущностей последнего шага (надгробия — $deleted), по id и номеру версии. Шаг с явными id находит и
+   * удалённые объекты: `db.Класс(id).versions()` отдаёт историю удалённого.
+   */
   versions(): Promise<Row[]>;
   /**
    * Сумма поля `'data.<путь>'` по объектам последнего шага: значения приводятся к числу, складывает база. `limit()` и
@@ -123,8 +129,9 @@ export interface ChainCore {
    */
   after(cursor: Cursor): Chain;
   /**
-   * Последний шаг находит и удалённые объекты. Удалённый объект приходит надгробием — своей последней версией, версией
-   * удаления, — с `$deleted: true`.
+   * Шаг, после которого стоит, находит и удалённые объекты — модификатор своего шага, как `exact()`:
+   * `db.Member(id).withDeleted().Loan().withDeleted()` — удалённые выдачи удалённого участника. Удалённый объект приходит
+   * надгробием — своей последней версией, версией удаления, — с `$deleted: true`.
    */
   withDeleted(): Chain;
   /** Дети любой глубины на переходе к тому же классу; $depth в строке. */
@@ -171,13 +178,19 @@ export interface ChainCore {
    * как задано в `onDelete` их ссылок. Без `{ confirm: true }` — предпросмотр удаления: ничего не удаляется, терминал
    * вернёт все строки, которых оно коснулось бы, у каждой `$action` — что с ней будет. С `{ confirm: true }` цели сужают
    * фильтр, id, `tags()`, `owner()` или `limit()` хотя бы у одного шага, иначе `invalid_query`; удаление всех строк —
-   * `{ confirm: true, all: true }`.
+   * `{ confirm: true, all: true }`. С `{ confirm: true, expect: превью }` удаляется ровно показанное: в транзакции удаления
+   * превью строится заново и сравнивается с `expect` по `id`, `rev` и `$action`; расхождение — `conflict` (ничего не
+   * удалено, новое превью — `err.detail.preview`).
    */
-  delete(opts?: { confirm?: boolean; all?: boolean; reason?: string }): Chain;
+  delete(opts?: { confirm?: boolean; all?: boolean; reason?: string; expect?: readonly Expected[] }): Chain;
   /** Чтение с блокировкой строк последнего шага до конца db.begin() (rows, first, ids). */
   forUpdate(): Chain;
-  /** Восстановить удалённые объекты шага: последний снимок новой версией (id прежний). */
-  restore(opts?: { reason?: string }): Chain;
+  /**
+   * Восстановить удалённые объекты шага: последний снимок новой версией (id прежний). `{ expect }` — надгробия `{ id, rev }`
+   * из ответа `delete()` или `withDeleted()`: восстанавливаются только цели из `expect`, и только если последняя версия
+   * каждой — та же; иначе (id пересоздан, удалён снова) — `conflict`, ничего не восстановлено.
+   */
+  restore(opts?: { reason?: string; expect?: readonly Expected[] }): Chain;
   /** Кэш результатов (§2.12): ответ хранится в памяти процесса ttl секунд (по умолчанию 60). */
   cache(opts?: { ttl?: number }): Chain;
 }
@@ -226,13 +239,46 @@ export function lookupStep(reg: Registry, name: string): { cls: ClassInfo; role?
   return t ? { cls: t, role: name } : undefined;
 }
 
-/** Имена, которыми начинается шаг: классы, их алиасы и роли концов реестра. */
-const stepNames = (reg: Registry): string[] => reg.all().flatMap((c) => [c.name, ...(c.alias ? [c.alias] : []), ...Object.keys(c.ends)]);
+/** Системные классы (прав, членств, аккаунтов, описаний): в «похожие» неизвестного шага не идут (план 2.1, A6). */
+const SYSTEM_CLASSES = new Set(['Class', 'Account', 'member', 'Resource', 'rule']);
+const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
+const isSystem = (c: ClassInfo): boolean => c.ancestors.some((n) => SYSTEM_CLASSES.has(n));
 
-/** Неизвестный класс или роль — с похожими именами реестра (план 2.0, 7.9 №6). */
+/** Имена, которыми начинается шаг: классы, их алиасы и роли концов реестра, кроме системных классов. */
+const stepNames = (reg: Registry): string[] =>
+  reg.all().filter((c) => !isSystem(c)).flatMap((c) => [c.name, ...(c.alias ? [c.alias] : []), ...Object.keys(c.ends)]);
+
+/**
+ * Свойства массива, которые спрашивают у цепочки, забыв терминал: `.length`, `.map(…)`, `[0]` — не шаги (план 2.1, A6).
+ * Не case-метки member: имена попали бы в зарезервированные (check:docs, reserved) — проверяются после неудачного поиска.
+ */
+const ARRAY_PROPS = new Set(['length', 'map', 'filter', 'forEach', 'reduce', 'find', 'some', 'every', 'slice', 'at', 'toJSON', '0']);
+
+/**
+ * Неизвестный класс или роль — с похожими именами реестра (план 2.0, 7.9 №6). Свойство массива — api.chain_not_rows;
+ * в реестре только классы System — сессия, похоже, в личном арендаторе (api.unknown_step_no_classes).
+ */
 const unknownName = (reg: Registry, name: string): never => {
-  throw lerr('api.unknown_step', { name, similar: similar(name, stepNames(reg)) });
+  if (ARRAY_PROPS.has(name)) throw lerr('api.chain_not_rows', { name });
+  const key = reg.all().every((c) => c.tenant === SYSTEM_ID) ? 'api.unknown_step_no_classes' : 'api.unknown_step';
+  throw lerr(key, { name, similar: similar(name, stepNames(reg)) });
 };
+
+/** Перебор цепочки (for…of, spread, Array.from) — понятный отказ вместо «is not iterable». */
+const notIterable = (): never => {
+  throw lerr('api.chain_not_rows', { name: '[Symbol.iterator]' });
+};
+
+/**
+ * withDeleted() — модификатор своего шага (план 2.1, A9): у шага не последнего, когда у последнего его нет, — один раз
+ * предупреждение (до 2.1 флаг относился к последнему шагу).
+ */
+function warnWithDeleted(steps: Step[]): void {
+  const last = steps[steps.length - 1];
+  if (!last || last.withDeleted) return;
+  const at = steps.slice(0, -1).find((s) => s.withDeleted && s.pivotKey === undefined);
+  if (at) lwarn('api.with_deleted_step', { step: at.name, last: last.name }, { once: `with-deleted|${at.name}|${last.name}` });
+}
 
 const nodeOf = (steps: Step[], s: Step): Step =>
   s.pivotKey === undefined ? s : steps.find((x) => x.nodeKey === s.pivotKey) ?? s;
@@ -312,6 +358,7 @@ async function exec<T>(ctx: ChainCtx, q: BuiltQuery, mode: QueryEvent['mode'], s
 async function read<T>(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMode, agg?: AggSpec): Promise<{ q: BuiltQuery | null; res: T[] }> {
   const hasOps = steps.some((s) => s.op);
   if (ctx.batch && hasOps) throw lerr('api.batch_queued');
+  if (!hasOps) warnWithDeleted(steps);
   if (mods.forUpdate) return lockedRead(ctx, steps, mods, mode) as Promise<{ q: BuiltQuery | null; res: T[] }>;
   if (hasOps) return plan(ctx, steps, mods, mode, agg) as Promise<{ q: BuiltQuery | null; res: T[] }>;
   const { cache: _c, ...plain } = mods;
@@ -355,7 +402,11 @@ function checkAfterVerb(steps: Step[], mods: ChainMods): void {
  * чтения (строки rows/paths, id, n, агрегаты), чтобы терминалы разбирали его одинаково.
  */
 async function plan(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMode, agg?: AggSpec): Promise<{ q: BuiltQuery | null; res: unknown[] }> {
-  precheckPlan(ctx.reg, steps, mods.order, agg);
+  try {
+    precheckPlan(ctx.reg, steps, mods.order, agg);
+  } catch (e) {
+    throw await completeIssues(ctx, e);
+  }
   const t0 = performance.now();
   const r: PlanResult = await ctx.exec.run((q) => execPlan({ reg: ctx.reg, schema: ctx.schema, q, tenant: ctx.tenant(), owner: ctx.owner, ...reasons(ctx) }, steps, mods, mode, agg));
   if (r.kind === 'read') {
@@ -384,7 +435,7 @@ async function plan(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMod
  */
 async function lockedRead(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMode): Promise<{ q: BuiltQuery | null; res: unknown[] }> {
   if (!ctx.exec.explicit) throw lerr('api.for_update_outside_tx');
-  if ((mode !== 'rows' && mode !== 'ids') || mods.asOf !== undefined || mods.withDeleted || steps.some((s) => s.deepMax !== undefined || s.op)) {
+  if ((mode !== 'rows' && mode !== 'ids') || mods.asOf !== undefined || steps.some((s) => s.withDeleted || s.deepMax !== undefined || s.op)) {
     throw lerr('api.for_update_unsupported');
   }
   const S = `"${ctx.schema.replace(/"/g, '""')}"`;
@@ -396,7 +447,7 @@ async function lockedRead(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: R
   const res = await ctx.exec.run(async (q) => {
     const ids = ((await q.unsafe(idsQ.text, idsQ.params as never[], { prepare: true })) as unknown as { id: string }[]).map((r) => r.id);
     if (!ids.length) return [];
-    const locked = new Set(((await q.unsafe(`select id from ${S}.entity where id = any ($1::uuid[]) order by id for no key update`, [ids] as never[], { prepare: true })) as unknown as { id: string }[]).map((r) => r.id));
+    const locked = await lockIds(q, S, ids);
     const want = new Set(ids);
     const fresh = ((await q.unsafe(rowsQ.text, rowsQ.params as never[], { prepare: true })) as unknown as { row: Record<string, unknown> }[])
       .filter((r) => want.has(r.row.id as string));
@@ -414,6 +465,9 @@ const reasons = (ctx: ChainCtx) => ({ reason: ctx.reason ?? ctx.txReason ?? '', 
 const reasonOf = (o?: { reason?: unknown }): { reason?: string } => (o?.reason !== undefined ? { reason: o.reason as string } : {});
 /** Опция all у update() и delete({ confirm: true }): правка всех целей без фильтра (план 2.0, этап 4, п. 2). */
 const allOf = (o?: { all?: unknown }): { all?: true } => (o?.all === true ? { all: true } : {});
+/** Опция expect у restore() и delete({ confirm: true }) (план 2.1, A1, A2): форму проверяет precheckPlan. */
+const expectOf = (o?: { expect?: unknown }): { expect?: readonly Expected[] } =>
+  (o?.expect !== undefined ? { expect: o.expect as readonly Expected[] } : {});
 
 /** Строка ответа: из чтения — to_jsonb узла, из плана — готовая строка записи. */
 const rowOf = (r: { row: Record<string, unknown>; done?: true }): Row => (r.done ? (r.row as unknown as WriteRow) : toRow(r.row));
@@ -435,7 +489,14 @@ function slotValue(v: unknown): SlotValue {
 function classProp(ctx: ChainCtx, name: string, found: { cls: ClassInfo; role?: string }, ownerSteps: Step[] | undefined,
   mods: ChainMods, nodes: NodeMap): StepFn {
   const { cls, role } = found;
-  const step = (filter?: Filter): Chain => {
+  const step = (...args: [filter?: Filter]): Chain => {
+    const filter = args[0];
+    // A13: X(undefined) — фильтра нет, шаг найдёт все строки (как X()); чаще всего это пустая переменная с id
+    if (args.length && filter === undefined) lwarn('api.step_undefined_filter', { name }, { once: `undefined-filter|${name}` });
+    // A13: sort() относится к последнему шагу цепочки — шаг после него забирает сортировку себе
+    if (ownerSteps && mods.order !== undefined) {
+      lwarn('api.sort_not_last', { field: mods.order, step: name }, { once: `sort-not-last|${mods.order}|${name}` });
+    }
     const prev = ownerSteps?.[ownerSteps.length - 1];
     // повтор связи в пути — возврат к её узлу
     const node = prev && cls.kind === 'link' && !role ? pivotNodeOf(ownerSteps!, cls.name) : undefined;
@@ -614,7 +675,8 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
       case 'after':
         return (cursor: Cursor) => withMods({ after: cursor });
       case 'withDeleted':
-        return () => withMods({ withDeleted: true });
+        // модификатор своего шага (план 2.1, A9): X(id).withDeleted().Y().withDeleted() — удалённые Y удалённого X
+        return () => withLast({ withDeleted: true });
       case 'deep':
         return (max = 32) => withLast({ deepMax: max });
       case 'exact':
@@ -627,20 +689,21 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
         return (v: string | { id: string }) => withLast({ ownerFilter: typeof v === 'object' ? v.id : v });
       // глаголы записи — звенья плана (этап 4)
       case 'create':
-        return (data: Record<string, unknown> = {}, opts?: { reason?: string }) => withOp({ kind: 'create', data, ...reasonOf(opts) });
+        return (data: Record<string, unknown> = {}, opts?: { reason?: string }) => withOp({ kind: 'create', data: dropUndefined(data), ...reasonOf(opts) });
       case 'update':
         return (data: Record<string, unknown> = {}, opts?: { rev?: number; all?: boolean; reason?: string }) =>
           withOp({ kind: 'update', data, ...(opts?.rev !== undefined ? { rev: opts.rev } : {}), ...allOf(opts), ...reasonOf(opts) });
       case 'upsert':
-        return (data: Record<string, unknown> = {}, opts?: { reason?: string }) => withOp({ kind: 'upsert', data, ...reasonOf(opts) });
+        return (data: Record<string, unknown> = {}, opts?: { reason?: string }) => withOp({ kind: 'upsert', data: dropUndefined(data), ...reasonOf(opts) });
       case 'delete':
-        return (opts?: { confirm?: boolean; all?: boolean; reason?: string }) => withOp({ kind: 'delete', confirm: opts?.confirm === true, ...allOf(opts), ...reasonOf(opts) });
+        return (opts?: { confirm?: boolean; all?: boolean; reason?: string; expect?: readonly Expected[] }) =>
+          withOp({ kind: 'delete', confirm: opts?.confirm === true, ...allOf(opts), ...reasonOf(opts), ...expectOf(opts) });
       case 'set': case 'unset': case 'add': case 'remove':
         throw lerr('api.slot_method', { method: prop });
       case 'forUpdate':
         return () => withMods({ forUpdate: true });
       case 'restore':
-        return (opts?: { reason?: string }) => withOp({ kind: 'restore', ...reasonOf(opts) });
+        return (opts?: { reason?: string; expect?: readonly Expected[] }) => withOp({ kind: 'restore', ...reasonOf(opts), ...expectOf(opts) });
       case 'cache':
         return (opts?: { ttl?: number }) => {
           if (opts?.ttl !== undefined && !(opts.ttl > 0)) throw lerr('api.cache_ttl');
@@ -654,6 +717,7 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
   const handler: ProxyHandler<object> = {
     get(_t, prop) {
       if (prop === PLAN) return { steps, mods } satisfies PlanPeek;
+      if (prop === Symbol.iterator) return notIterable;
       if (typeof prop === 'symbol') return undefined;
       return member(prop);
     },
@@ -675,7 +739,11 @@ export function makeBatch(ctx: ChainCtx, queue: BatchEntry[]): Batch {
           const loose = entries.find((x) => x.loose)?.loose;
           if (loose) throw afterVerbError(loose.name, loose.verb);
           const plans = entries.map((x) => x.steps);
-          for (const p of plans) precheckPlan(ctx.reg, p);
+          try {
+            for (const p of plans) precheckPlan(ctx.reg, p);
+          } catch (e) {
+            throw await completeIssues(ctx, e);
+          }
           if (!plans.length) return [];
           return ctx.exec.run((q) => execBatch({ reg: ctx.reg, schema: ctx.schema, q, tenant: ctx.tenant(), owner: ctx.owner, ...reasons(ctx) }, plans));
         };

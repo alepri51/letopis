@@ -16,7 +16,7 @@
  */
 import type { ChainCore, ChainRef } from './chain.js';
 import type { Cursor, Op, OP, Path, Row, Scalar } from './types.js';
-import type { IncMarker } from './write.js';
+import type { Expected, IncMarker } from './write.js';
 
 /**
  * То, что цепочкам нужно от модели: имя, алиас и типы для вывода — данные строки, концы строки, концы класса (роль →
@@ -243,8 +243,9 @@ export type TypedChain<C, M extends readonly AnyModelLike[]> = Omit<ChainCore, R
   update(patch?: PatchOf<DataOf<C>>, opts?: { rev?: number; all?: boolean; reason?: string }): TypedChain<C, M>;
   upsert(data: Partial<DataOf<C>>, opts?: { reason?: string }): TypedChain<C, M>;
   /** С `{ confirm: true }` без фильтра, id, `tags()`, `owner()` и `limit()` у шагов — `invalid_query`; всех — `{ all: true }`. */
-  delete(opts?: { confirm?: boolean; all?: boolean; reason?: string }): TypedChain<C, M>;
+  delete(opts?: { confirm?: boolean; all?: boolean; reason?: string; expect?: readonly Expected[] }): TypedChain<C, M>;
   forUpdate(): TypedChain<C, M>;
-  restore(opts?: { reason?: string }): TypedChain<C, M>;
+  /** `{ expect }` — надгробия `{ id, rev }`: восстановить ровно то, что ушло удалением; расхождение — `conflict`. */
+  restore(opts?: { reason?: string; expect?: readonly Expected[] }): TypedChain<C, M>;
   cache(opts?: { ttl?: number }): TypedChain<C, M>;
 } & HopsOf<C, M>;

@@ -27,6 +27,19 @@ export const sqlTime = {
     code: 'not_deleted',
     ru: 'объект не удалён: restore — только для удалённых',
   },
+  // 90-time.sql, restore(): живой объект с этим id уже удаляли — id занял новый объект с тем же ключом
+  'sql-time.restore_id_taken': {
+    code: 'not_deleted',
+    ru: 'id {id} занят новым объектом с тем же ключом — create по ключу удалённого берёт его id, восстанавливать нечего',
+    hint: 'объект с этим ключом уже живёт: прочитайте его; перед create() по ключу удалённого проверьте db.Класс({ ключ }).withDeleted()',
+  },
+  // 90-time.sql, restore(p_id, p_rev): последняя версия id не p_rev (пересоздан, удалён снова) — restore({ expect }).
+  // Код базы — not_deleted (conflict в каталоге базы нет); библиотека отдаёт его как write.restore_stale (conflict)
+  'sql-time.restore_stale': {
+    code: 'not_deleted',
+    ru: 'restore: {id} уже не тот, что удаляли — последняя версия {rev}, ожидалась {expected}',
+    hint: 'объект пересоздан или удалён снова: вещь уже у другого — сообщить пользователю, а не восстанавливать',
+  },
   // 90-time.sql, restore()
   'sql-time.restore_class_row': {
     code: 'invalid_class',

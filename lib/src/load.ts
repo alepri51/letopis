@@ -23,14 +23,14 @@ import { LetopisError, checkOptions, fromDbError, issuesFromDb, lerr, lmsg, type
 import { isOp } from './ops.js';
 import { Registry, type ClassInfo, type EndInfo } from './registry.js';
 import { accepts } from './sql.js';
-import { v5Id } from './uuid.js';
+import { UUID_RE, v5Id } from './uuid.js';
 import { applyDefaults, leavesToDb } from './validate.js';
 import { isInc } from './write.js';
 import { ACL_CLASS_NAMES } from './types.js';
 import { isConnectionError, release, rollbackAfter } from './tx.js';
 
 const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID = UUID_RE;
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 type Raw = Record<string, unknown>;

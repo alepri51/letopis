@@ -109,8 +109,11 @@ end $$;
 
 -- Восстановление удалённого объекта (этап 6, п. 2): последний снимок новой версией с видом restore.
 -- Снимок перепроверяется по текущему описанию класса (данные, концы с видимостью целей, ключ), право
--- WRITE — на восстановленные значения. id прежний, в том числе у класса без ключа.
-create or replace function @SCHEMA@.restore(p_id uuid) returns uuid
+-- WRITE — на восстановленные значения. id прежний, в том числе у класса без ключа. p_rev (ревизия 9, план 2.1, A1) —
+-- ожидаемый номер последней записи журнала (надгробия из ответа delete или withDeleted): другой — отказ restore_stale,
+-- проверка под той же блокировкой записи журнала, что у параллельного restore и воскрешения. Прежняя restore(uuid)
+-- снимается миграцией 0009: вызов restore(id) попадает сюда с p_rev = null.
+create or replace function @SCHEMA@.restore(p_id uuid, p_rev int default null) returns uuid
 language plpgsql volatile security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
@@ -134,7 +137,15 @@ begin
   end if;
   rd := @SCHEMA@.acl_actor('READ');
   l := @SCHEMA@.last_version_visible(p_id, c.tenant, rd);
+  if p_rev is not null and l.rev <> p_rev then
+    perform @SCHEMA@.lt_fail('sql-time.restore_stale', jsonb_build_object('id', p_id, 'rev', l.rev, 'expected', p_rev),
+      jsonb_build_object('id', p_id, 'rev', l.rev, 'expected', p_rev));
+  end if;
   if l.op <> 'delete' or exists (select 1 from @SCHEMA@.entity e where e.id = p_id) then
+    -- живой объект, который уже удаляли: id занял новый объект с тем же ключом (create по ключу удалённого)
+    if exists (select 1 from @SCHEMA@.log x where x.id = p_id and x.tenant = c.tenant and x.op = 'delete') then
+      perform @SCHEMA@.lt_fail('sql-time.restore_id_taken', jsonb_build_object('id', p_id));
+    end if;
     perform @SCHEMA@.lt_fail('sql-time.restore_not_deleted');
   end if;
   if l.class = 'Class' then
@@ -370,13 +381,13 @@ declare f text;
 begin
   foreach f in array array[
     'session_role()', 'admin_role()', 'letopis_allowed(text)', 'session_expires()', 'signal_mode()', 'signal_key()', 'class_stamp()',
-    'last_version_visible(uuid, uuid, jsonb)', 'restore(uuid)', 'account_purge(uuid)', 'maintain()',
+    'last_version_visible(uuid, uuid, jsonb)', 'restore(uuid, int)', 'account_purge(uuid)', 'maintain()',
     'watch_read(xid8, bigint, text[], int, pg_snapshot)', 'watch_head()'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);
     execute format('revoke all on function @SCHEMA@.%s from public', f);
   end loop;
 end $$;
 -- приложению: функции владельца этапа 6 (проверяют права сами) и подписка (под RLS)
-grant execute on function @SCHEMA@.restore(uuid), @SCHEMA@.account_purge(uuid), @SCHEMA@.maintain(),
+grant execute on function @SCHEMA@.restore(uuid, int), @SCHEMA@.account_purge(uuid), @SCHEMA@.maintain(),
   @SCHEMA@.session_expires(), @SCHEMA@.watch_read(xid8, bigint, text[], int, pg_snapshot), @SCHEMA@.watch_head(),
   @SCHEMA@.signal_mode(), @SCHEMA@.signal_key(), @SCHEMA@.class_stamp() to @APP@;

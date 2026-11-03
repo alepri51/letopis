@@ -22,7 +22,7 @@ export interface SyncResult {
   unchanged: string[];
   /** Классы системного арендатора: их меняет только установка. */
   skipped: string[];
-  /** Правила refine, которых нет в базе. */
+  /** Правила refine, которых нет в базе (преобразования Zod syncModels отклоняет — model.transform_unsupported). */
   lost: LostRule[];
 }
 
@@ -42,6 +42,12 @@ export async function syncModels(db: DbCore, models: readonly AnyModel[], opts: 
     if (m.kind === 'hub' && RESERVED_CLASS_NAMES.includes(m.name)) throw lerr('model.sync_hub_name_reserved', { name: m.name });
   }
   const res: SyncResult = { applied: Boolean(opts.apply), created: [], updated: [], unchanged: [], skipped: [], lost: models.flatMap((m) => m.lostRules()) };
+  // преобразования Zod (.trim(), .toLowerCase(), .transform(), z.preprocess …) база и валидатор letopis не исполняют —
+  // данные записались бы как есть: отказ до записи (план 2.1, A11); refine остаётся в отчёте lost
+  const transforms = res.lost.filter((l) => l.kind !== 'refine');
+  if (transforms.length) {
+    throw lerr('model.transform_unsupported', { rules: transforms.map((l) => `${l.path} (${l.kind})`).join(', ') }, { detail: { rules: transforms } });
+  }
   const S = `"${db.schema.replace(/"/g, '""')}"`;
   // предок раньше потомка: потомка класса, которого ещё нет, база отклоняет. Круг родителей (модель, собранная мимо
   // hub()) так не упорядочить — отказ до записи с самим кругом (хвост ревью доработок после 1.2.0: раньше обход молча

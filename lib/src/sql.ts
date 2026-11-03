@@ -22,6 +22,7 @@ import type { ClassDescription } from './model.js';
 import { isOp } from './ops.js';
 import type { ClassInfo, LeafType, Registry } from './registry.js';
 import { OP, type ChainMods, type Cursor, type Filter, type Op, type Path, type Row } from './types.js';
+import { PG_UUID_RE, UUID_RE } from './uuid.js';
 
 export interface Step {
   /** Имя, как вызвано в цепочке (класс, алиас или роль). */
@@ -41,6 +42,8 @@ export interface Step {
   tagsFilter?: unknown;
   ownerFilter?: string;
   deepMax?: number;
+  /** withDeleted(): узел шага — живые и надгробия удалённых (модификатор шага, план 2.1, A9). */
+  withDeleted?: true;
   /** Звено плана записи (этап 4): глагол на этом шаге; построитель чтения его не видит. */
   op?: import('./write.js').PlanOp;
   /** Модификаторы цепочки на момент глагола: limit и sort сужают цели записи. */
@@ -345,9 +348,20 @@ const isPlain = (v: unknown): v is Record<string, unknown> =>
 const idOfValue = (v: unknown): string | undefined =>
   typeof v === 'string' ? v : isPlain(v) && typeof v.id === 'string' ? v.id : undefined;
 
+/**
+ * id фильтра шага, `{ id }` или конца — uuid, который примет приведение базы (PG_UUID_RE): иначе invalid_query до запроса,
+ * а не сырая ошибка PostgreSQL 22P02 (у null — TypeError; план 2.1, A7).
+ */
+function idCheck(v: unknown, where: string): string {
+  if (typeof v === 'string' && PG_UUID_RE.test(v)) return v;
+  throw lerr('query.bad_uuid', { where, value: shown(v) });
+}
+
 function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | undefined, p: Params): CompiledFilter {
   const out: CompiledFilter = { ends: [], frags: [] };
   if (filter === undefined) return out;
+  const at = `${classes[0]?.name ?? ''}(…)`;
+  if (filter === null) idCheck(filter, at);
 
   // or(…): дизъюнкция под-фильтров — только перепроверка
   if (isOp(filter)) {
@@ -361,11 +375,11 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
     return out;
   }
   if (typeof filter === 'string') {
-    out.ids = [filter];
+    out.ids = [idCheck(filter, at)];
     return out;
   }
   if (Array.isArray(filter)) {
-    out.ids = filter.map((x) => idOfValue(x) ?? refuse('query.id_list'));
+    out.ids = filter.map((x) => idCheck(idOfValue(x) ?? refuse('query.id_list'), at));
     return out;
   }
 
@@ -397,8 +411,9 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
   for (const [key, value] of Object.entries(filter)) {
     if (value === undefined) continue;
     if (key === 'id') {
-      if (typeof value === 'string') out.ids = [value];
-      else if (Array.isArray(value)) out.ids = value.map((x) => idOfValue(x) ?? refuse('query.filter_id_list'));
+      const w = `${classes[0]?.name ?? ''}({ id })`;
+      if (typeof value === 'string') out.ids = [idCheck(value, w)];
+      else if (Array.isArray(value)) out.ids = value.map((x) => idCheck(idOfValue(x) ?? refuse('query.filter_id_list'), w));
       else throw lerr('query.filter_id');
       continue;
     }
@@ -408,7 +423,7 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
         out.frags.push((a) => `coalesce(${a}.links->${role}, 'null'::jsonb) in ('null'::jsonb, '[]'::jsonb)`);
         continue;
       }
-      const id = idOfValue(value) ?? refuse('query.end_value', { role: key });
+      const id = idCheck(idOfValue(value) ?? refuse('query.end_value', { role: key }), `${classes[0]?.name ?? ''}({ ${key} })`);
       out.ends.push(id);
       const ph = p.push(id);
       out.frags.push((a) => `${SCHEMA_MARK}.role_has(${a}.links, array[${role}], ${ph}::uuid)`);
@@ -479,8 +494,7 @@ function sortSpec(order: string, leaf: (path: string[]) => LeafType): SortSpec {
   throw lerr('query.sort_field', { field: order });
 }
 
-/** Формы значений курсора — как у форматов uuid, date и date-time валидатора (validate.ts). */
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Формы значений курсора — как у форматов uuid (UUID_RE, uuid.ts), date и date-time валидатора (validate.ts). */
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIME_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d{1,6})?(?:Z|[+-](\d{2}):(\d{2}))$/;
 
@@ -689,7 +703,9 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
     const dataP = lazy(() => (cf.eq ? `${p.push(cf.eq)}::jsonb` : 'null'));
     const endsP = lazy(() => (cf.ends.length ? `${p.push(cf.ends)}::uuid[]` : 'null'));
     const idsP = lazy(() => (cf.ids ? `${p.push(cf.ids)}::uuid[]` : 'null'));
-    const dead = mods.withDeleted === true && i === lastNode;
+    // надгробия узла: withDeleted() этого шага (план 2.1, A9) или versions() по явным id последнего шага — история
+    // удалённого объекта (план 2.1, A10)
+    const dead = step.withDeleted === true || (mode === 'versions' && i === lastNode && cf.ids !== undefined && step.deepMax === undefined);
     const dataCond = (v: string) => (cf.eq ? ` and ${v}.data @> ${dataP()}` : '');
     const endsCond = (col: string) => (cf.ends.length ? ` and ${col} @> ${endsP()}` : '');
     /** Версии журнала: последняя версия каждого id не позже момента. */

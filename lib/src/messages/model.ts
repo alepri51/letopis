@@ -176,7 +176,12 @@ export const model = {
   // validate.ts, compileValidator: сообщения нарушений issues[].message — тексты не для ошибки (lmsg), те же, что у базы
   'model.issue_enum': {
     code: 'invalid_data',
-    ru: 'значение не из перечисления',
+    ru: 'значение не из перечисления: допустимо {values}',
+  },
+  // лишний ключ объекта (additionalProperties: false); keys — имена лишних ключей через запятую
+  'model.issue_additional': {
+    code: 'invalid_data',
+    ru: 'лишний ключ {keys}',
   },
   'model.issue_date': {
     code: 'invalid_data',
@@ -291,5 +296,12 @@ export const model = {
   'model.types_header': {
     code: 'invalid_query',
     ru: 'Сгенерировано letopis types — не править руками.',
+  },
+  // sync.ts, syncModels: в модели есть преобразование Zod (.trim(), .toLowerCase(), .transform(), z.preprocess …) — база
+  // и валидатор letopis его не исполняют, данные записались бы как есть; rules — пути и виды через запятую
+  'model.transform_unsupported': {
+    code: 'invalid_class',
+    ru: 'преобразования Zod не исполняются при записи: {rules}',
+    hint: 'привести значение до записи в коде сервиса (например, value.trim()) и убрать преобразование из модели; проверку без изменения значения дают .regex(), .min(), .refine()',
   },
 } satisfies Section<'model'>;

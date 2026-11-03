@@ -136,12 +136,24 @@ export function checkOptions(where: string, opts: unknown, known: Readonly<Recor
   }
 }
 
-/** Данные не проходят описание класса (`invalid_data`); текст — по ключу (по умолчанию api.validation_failed). */
+/**
+ * Первое нарушение для текста ошибки (план 2.1, A8): «: <путь> — <сообщение>», при нескольких — ещё их число. Полный
+ * список — err.issues.
+ */
+export function issuesSuffix(issues: readonly Issue[]): string {
+  const first = issues[0];
+  if (!first) return '';
+  const path = Array.isArray(first.path) && first.path.length ? first.path.join('.') : textOf('api.validation_root', undefined);
+  const more = issues.length > 1 ? textOf('api.validation_more', { n: issues.length }) : '';
+  return `: ${textOf('api.validation_issue', { path, issue: first.message })}${more}`;
+}
+
+/** Данные не проходят описание класса (`invalid_data`); текст — по ключу (по умолчанию api.validation_failed) и первое нарушение. */
 export class ValidationError extends LetopisError {
   readonly issues: Issue[];
   constructor(cls: string, issues: Issue[], msg?: { key: string; params?: Params }) {
     const m = msg ?? { key: 'api.validation_failed', params: { cls } };
-    super('invalid_data', textOf(m.key, m.params), { issues }, m);
+    super('invalid_data', textOf(m.key, m.params) + issuesSuffix(issues), { issues }, m);
     this.name = 'ValidationError';
     this.issues = issues;
   }
@@ -209,6 +221,9 @@ export function fromDbError(e: unknown): unknown {
   if (err.code === '42501' && err.routine === 'ExecWithCheckOptions' && !/USING/.test(err.message ?? '')) {
     return lerr('api.row_check_denied', undefined, { cause: e });
   }
+  // значение не того типа (22P02: «invalid input syntax for type uuid» и т. п.), которое не поймала проверка до запроса,
+  // — ошибка letopis, а не сырая ошибка PostgreSQL (план 2.1, A7); 40001 и 40P01 остаются как есть — на них держатся повторы
+  if (err.code === '22P02') return lerr('api.db_bad_value', { text: err.message ?? '' }, { cause: e });
   let name: string | undefined;
   let detail: unknown;
   if (err.code === 'XX000') {
@@ -237,9 +252,10 @@ export function fromDbError(e: unknown): unknown {
   const issues = (detail as { issues?: Issue[] } | undefined)?.issues;
   if (name === 'invalid_data' && Array.isArray(issues)) {
     const cls = msg ? String(msg.params.cls ?? '?') : /класса (\S+)/.exec(text)?.[1] ?? '?';
-    const v = new ValidationError(cls, issuesFromDb(issues), msg);
-    // текст целиком — тот, что собрала база по шаблону записи
-    return Object.assign(v, { cause: e, ...(text ? { message: `letopis: invalid_data: ${text}` } : {}) });
+    const list = issuesFromDb(issues);
+    const v = new ValidationError(cls, list, msg);
+    // текст — тот, что собрала база по шаблону записи, и первое нарушение (план 2.1, A8)
+    return Object.assign(v, { cause: e, ...(text ? { message: `letopis: invalid_data: ${text}${issuesSuffix(list)}` } : {}) });
   }
   return Object.assign(new LetopisError(name, text, detail, msg), { cause: e });
 }

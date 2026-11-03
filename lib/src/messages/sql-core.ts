@@ -35,6 +35,7 @@ export const sqlCore = {
   'sql-core.bad_api_key': {
     code: 'no_session',
     ru: 'неверный ключ',
+    hint: 'ключ сервиса перевыпускает up({ fresh: true }): возьмите новый serviceKey из ответа up() или задайте свой — up({ serviceKey })',
   },
 
   // 30-validate.sql, jp_pattern(): pattern JSON Schema не переводится в регулярное выражение PostgreSQL
@@ -131,7 +132,12 @@ export const sqlCore = {
   },
   'sql-core.issue_enum': {
     code: 'invalid_data',
-    ru: 'значение не из перечисления',
+    ru: 'значение не из перечисления: допустимо {values}',
+  },
+  // лишний ключ объекта (additionalProperties: false); keys — имена лишних ключей через запятую
+  'sql-core.issue_additional': {
+    code: 'invalid_data',
+    ru: 'лишний ключ {keys}',
   },
   'sql-core.issue_rule': {
     code: 'invalid_data',

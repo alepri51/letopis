@@ -201,13 +201,20 @@ function isZod(v: unknown): v is z.ZodType {
   return typeof v === 'object' && v !== null && '_zod' in v;
 }
 
-/** Пути правил refine/superRefine в схеме Zod — их нет в JSON Schema. */
+/**
+ * Пути правил Zod, которых нет в JSON Schema: refine/superRefine (`refine`) и преобразования — `overwrite` (`.trim()`,
+ * `.toLowerCase()`, `.toUpperCase()`, `.normalize()` …) и `transform` (`.transform()`, `z.preprocess()`, `.pipe()`).
+ * Преобразования база и валидатор letopis не исполняют: их syncModels отклоняет (план 2.1, A11).
+ */
 function collectLost(schema: z.ZodType, path: string, out: LostRule[]): void {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const def = (schema as any)._zod.def;
   for (const c of def.checks ?? []) {
-    if (c?._zod?.def?.check === 'custom') out.push({ path, kind: 'refine' });
+    const check = c?._zod?.def?.check;
+    if (check === 'custom') out.push({ path, kind: 'refine' });
+    else if (check === 'overwrite') out.push({ path, kind: 'overwrite' });
   }
+  if (def.type === 'transform') out.push({ path, kind: 'transform' });
   if (def.type === 'object') for (const [k, v] of Object.entries(def.shape as Record<string, z.ZodType>)) collectLost(v, `${path}.${k}`, out);
   else if (def.type === 'array') collectLost(def.element, `${path}[]`, out);
   else if (def.type === 'record') collectLost(def.valueType, `${path}.*`, out);

@@ -96,6 +96,8 @@ export function totpCode(secretBase32: string, atMs = Date.now()): string {
 
 type AccountRef = string | { id: string };
 const accId = (a: AccountRef): string => (typeof a === 'object' ? a.id : a);
+/** Логин без крайних пробелов (план 2.1, A12): « anna » и «anna» — один логин; не строка — как есть (отказ даст база). */
+const trimLogin = (v: unknown): string => (typeof v === 'string' ? v.trim() : (v as string));
 const ttlOf = (sec: number | undefined): string | null => (sec === undefined ? null : `${Math.round(sec)} seconds`);
 
 /** Успешный вход: аккаунт и токен новой сессии. */
@@ -202,14 +204,24 @@ export interface AuthApi {
   session(token: string): Promise<SessionInfo | null>;
   /** Продлить текущую сессию; новый срок — от сейчас. */
   refresh(opts?: { ttl?: number }): Promise<string>;
-  /** Выход: погасить текущую сессию. */
-  revoke(): Promise<boolean>;
+  /**
+   * Выход. Без аргумента — погасить сессию этого подключения. С токеном — погасить сессию пользователя по её токену
+   * (например, из cookie веб-сервиса): так сервис выводит пользователя, не подключаясь по его токену; нужно право
+   * `auth.session`, как у `session(token)`.
+   * @returns true — сессия погашена; false — токен неверный, сессия уже погашена или истекла (причина не различается).
+   * @throws LetopisError `acl_denied` — с токеном, а у вызывающего нет права `auth.session`; `no_session` — у подключения
+   * нет действующей сессии.
+   */
+  revoke(token?: string): Promise<boolean>;
   /** Выход везде: все сессии аккаунта (чужого — с правом `auth.session`). */
   revokeAll(account?: AccountRef): Promise<number>;
   /** Переключить арендатора сессии: собственный или по членству. */
   switch(tenant: string): Promise<void>;
-  /** Арендаторы, доступные аккаунту сессии: собственный (`owner`) и по членству. */
-  tenants(): Promise<{ tenant: string; roles: string[] }[]>;
+  /**
+   * Арендаторы, доступные аккаунту сессии: собственный (`roles: ['owner']`, `personal: true`) и по членству. `name` — имя
+   * аккаунта арендатора (`createTenant({ name })`, у личного — имя пользователя).
+   */
+  tenants(): Promise<{ tenant: string; roles: string[]; name: string | null; personal: boolean }[]>;
   /**
    * Удалить аккаунт: системный администратор или владелец его
    * арендатора; себя и последнего владельца арендатора — нельзя. Данные арендатора стираются,
@@ -244,12 +256,15 @@ export function makeAuth(S: string, exec: Executor, onSwitch: () => Promise<void
     async setPassword(a) {
       const hash = await hashPassword(a.password);
       const r = await one<{ id: string }>(`select ${S}.auth_set_password($1::uuid, $2, $3, $4, $5, $6) as id`,
-        [accId(a.account), a.identifier, hash, a.kind ?? 'PASSWORD', a.confirmed ?? null, a.keepCurrent ?? true]);
+        [accId(a.account), trimLogin(a.identifier), hash, a.kind ?? 'PASSWORD', a.confirmed ?? null, a.keepCurrent ?? true]);
       return r.id;
     },
     async verifyPassword(a) {
-      const rows = await exec.run((q) => q.unsafe(`select account, hash, confirmed from ${S}.auth_password_get($1, $2)`, [a.identifier, a.kind ?? 'PASSWORD']));
-      const cred = rows[0] as unknown as { account: string; hash: string; confirmed: boolean } | undefined;
+      const get = async (ident: unknown) => (await exec.run((q) => q.unsafe(`select account, hash, confirmed from ${S}.auth_password_get($1, $2)`,
+        [ident as string, a.kind ?? 'PASSWORD'])))[0] as unknown as { account: string; hash: string; confirmed: boolean } | undefined;
+      // логин без крайних пробелов (план 2.1, A12); кред, записанный до 2.1 с пробелами, находится по логину как есть
+      const ident = trimLogin(a.identifier);
+      const cred = (await get(ident)) ?? (ident !== a.identifier ? await get(a.identifier) : undefined);
       if (!cred) return dummyVerify(a.password).then(() => null);
       if (!(await verifyHash(a.password, cred.hash))) return null;
       if (!cred.confirmed && a.requireConfirmed !== false) return null;
@@ -316,7 +331,9 @@ export function makeAuth(S: string, exec: Executor, onSwitch: () => Promise<void
     async refresh(opts) {
       return (await one<{ e: string }>(`select ${S}.auth_refresh(coalesce($1::interval, interval '7 days')) as e`, [ttlOf(opts?.ttl)])).e;
     },
-    async revoke() {
+    async revoke(token) {
+      // с токеном — выход пользователя по токену (план 2.1, A3): право auth.session, как у session(token)
+      if (token !== undefined) return (await one<{ ok: boolean }>(`select ${S}.auth_logout_token($1) as ok`, [token])).ok;
       return (await one<{ ok: boolean }>(`select ${S}.auth_logout() as ok`)).ok;
     },
     async revokeAll(account) {
@@ -328,8 +345,9 @@ export function makeAuth(S: string, exec: Executor, onSwitch: () => Promise<void
       await onSwitch();
     },
     async tenants() {
-      const rows = await exec.run((q) => q.unsafe(`select tenant, roles from ${S}.auth_tenants()`));
-      return rows.map((r) => ({ tenant: r.tenant as string, roles: r.roles as string[] }));
+      // name и personal — с ревизии 9 (план 2.1, A5): personal — собственный арендатор аккаунта сессии (tenant = account)
+      const rows = await exec.run((q) => q.unsafe(`select tenant, roles, name, personal from ${S}.auth_tenants()`));
+      return rows.map((r) => ({ tenant: r.tenant as string, roles: r.roles as string[], name: (r.name as string | null) ?? null, personal: r.personal === true }));
     },
     async purgeAccount(account) {
       const r = (await one<{ r: { account: string; rows: number; versions: number; memberships: number; owned: number } }>(

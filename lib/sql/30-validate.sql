@@ -351,6 +351,14 @@ begin
   validator := ('strict ' || expr)::jsonpath;
 end $$;
 
+-- Допустимые значения перечисления для сообщения нарушения (план 2.1, A8): JSON через запятую, первые 20 — как у
+-- валидатора на TypeScript (validate.ts, enumValues).
+create or replace function @SCHEMA@.issue_values(p_values jsonb) returns text
+language sql immutable
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+return (select string_agg(t.y::text, ', ' order by t.o) || case when jsonb_array_length(p_values) > 20 then ', …' else '' end
+        from jsonb_array_elements(p_values) with ordinality t(y, o) where t.o <= 20);
+
 -- Проверка данных: общий вызов jsonb_path_match; при отказе — список нарушений по правилам.
 -- Результат сравнивается через is true: ошибка внутри выражения даёт NULL, а не «да» (этап 1, п. 5).
 -- Нарушение — { path, keyword, message, key, params }: message — русский текст по ключу каталога, рядом его key и
@@ -364,6 +372,7 @@ declare
   ok boolean;
   x jsonb;
   p jsonb;
+  t text;
 begin
   ok := jsonb_path_match(p_data, p_validator, p_vars, true) is true;
   if ok and not exists (select 1 from jsonb_array_elements(p_rules) r where r ? 'extra') then
@@ -397,16 +406,40 @@ begin
           end if;
         elsif (e->'extra'->>'kind') = 'enum' then
           if not exists (select 1 from jsonb_array_elements(e->'extra'->'values') y where y = x) then
-            bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', @SCHEMA@.lt_text('sql-core.issue_enum'),
-              'key', 'sql-core.issue_enum', 'params', '{}'::jsonb);
+            p := jsonb_build_object('values', @SCHEMA@.issue_values(e->'extra'->'values'));
+            bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', @SCHEMA@.lt_text('sql-core.issue_enum', p),
+              'key', 'sql-core.issue_enum', 'params', p);
           end if;
         end if;
       end loop;
     elsif not ok then
       if jsonb_path_match(p_data, ('strict !exists(' || (e->>'path_expr') || ' ? (!(' || (e->>'cond') || ')))')::jsonpath, e->'vars', true) is not true then
-        p := jsonb_build_object('keyword', e->>'keyword');
-        bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', @SCHEMA@.lt_text('sql-core.issue_rule', p),
-          'key', 'sql-core.issue_rule', 'params', p);
+        t := null;
+        if e->>'keyword' in ('enum', 'const') then
+          -- перечисление скаляров: значения — переменные правила v<N> (план 2.1, A8)
+          p := jsonb_build_object('values', @SCHEMA@.issue_values(
+            coalesce((select jsonb_agg(v.value order by (substr(v.key, 2))::int) from jsonb_each(e->'vars') v), '[]'::jsonb)));
+          bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', @SCHEMA@.lt_text('sql-core.issue_enum', p),
+            'key', 'sql-core.issue_enum', 'params', p);
+          continue;
+        elsif e->>'keyword' = 'additionalProperties' then
+          -- лишние ключи: ключ, которого условие правила не принимает и в одиночку (план 2.1, A8)
+          select string_agg(z.k, ', ' order by z.k) into t from (
+            select distinct kv.key as k
+            from jsonb_path_query(p_data, ('strict ' || (e->>'path_expr'))::jsonpath, '{}'::jsonb, true) n(v)
+            cross join lateral jsonb_each(case when jsonb_typeof(n.v) = 'object' then n.v else '{}'::jsonb end) kv
+            where jsonb_path_exists(jsonb_build_object(kv.key, null), ('strict $ ? (' || (e->>'cond') || ')')::jsonpath, e->'vars', true) is not true
+            order by 1 limit 20) z;
+        end if;
+        if t is not null then
+          p := jsonb_build_object('keys', t);
+          bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', @SCHEMA@.lt_text('sql-core.issue_additional', p),
+            'key', 'sql-core.issue_additional', 'params', p);
+        else
+          p := jsonb_build_object('keyword', e->>'keyword');
+          bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', @SCHEMA@.lt_text('sql-core.issue_rule', p),
+            'key', 'sql-core.issue_rule', 'params', p);
+        end if;
       end if;
     end if;
   end loop;
@@ -423,7 +456,7 @@ begin
   foreach f in array array[
     'uuid_v5(uuid, text)', 'v5_name(text, text[])', 'v5_id(uuid, text, text[])', 'jp_str(text)', 'jp_pattern(text)',
     'jp_type_cond(text)', 'jp_prop(text, text)', 'jp_items(text)', 'jp_compile(jsonb, text, jsonb, boolean, int)', 'compile_validator(jsonb)',
-    'validate_data(jsonb, jsonpath, jsonb, jsonb)'] loop
+    'issue_values(jsonb)', 'validate_data(jsonb, jsonpath, jsonb, jsonb)'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);
     execute format('revoke all on function @SCHEMA@.%s from public', f);
   end loop;

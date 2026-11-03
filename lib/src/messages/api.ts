@@ -13,6 +13,66 @@ export const api = {
   'api.unknown_step': {
     code: 'invalid_class',
     ru: 'класс или роль {name} не найдены',
+    hint: 'классы арендатора видны только в его сессии: арендаторы пользователя — db.auth.tenants(), переход — db.auth.switch(tenant) или db.as(аккаунт, { tenant }); имя — как в модели (классы записывает syncModels)',
+  },
+  // chain.ts: шаг не найден, а в реестре сессии нет ни одного класса, кроме классов System — сессия, похоже, в
+  // личном арендаторе (вход без switch); похожие имена — params.similar
+  'api.unknown_step_no_classes': {
+    code: 'invalid_class',
+    ru: 'класс или роль {name} не найдены: в реестре сессии нет ни одного класса арендатора — сессия, похоже, в личном арендаторе',
+    hint: 'после входа сессия работает в личном арендаторе пользователя: найти нужного — db.auth.tenants(), перейти — db.auth.switch(tenant) или db.as(аккаунт, { tenant }); классы в арендатор записывает syncModels',
+  },
+  // chain.ts: у цепочки спросили свойство массива (length, map, filter, 0 …) или перебрали её — она не массив строк
+  'api.chain_not_rows': {
+    code: 'invalid_query',
+    ru: 'цепочка — не массив: {name} есть у строк ответа, а не у цепочки',
+    hint: 'получить строки терминалом с await: const rows = await db.Класс(…).rows(), одну строку — await ….first()',
+  },
+  // chain.ts, A13: шаг вызван с аргументом undefined — фильтра нет, шаг находит все строки класса (как без аргумента);
+  // предупреждение (lwarn), один раз на имя шага
+  'api.step_undefined_filter': {
+    code: 'invalid_query',
+    ru: '{name}(undefined) — фильтра нет: шаг находит все строки, как {name}(). Проверьте переменную с id',
+  },
+  // chain.ts, A13: шаг после sort() — сортировка относится к последнему шагу цепочки, а не к тому, после которого
+  // стоит; предупреждение (lwarn), один раз на пару
+  'api.sort_not_last': {
+    code: 'invalid_query',
+    ru: "sort('{field}') перед шагом {step} сортирует строки последнего шага ({step}), а не прежнего: ставьте sort() в конец цепочки",
+  },
+  // chain.ts, A9: withDeleted() не у последнего шага, а у последнего — нет; предупреждение (lwarn), один раз на пару:
+  // с 2.1 withDeleted() — модификатор своего шага
+  'api.with_deleted_step': {
+    code: 'invalid_query',
+    ru: 'withDeleted() у шага {step} относится к нему, а не к последнему шагу {last}: удалённые {last} — .{last}().withDeleted()',
+  },
+  // errors.ts, fromDbError: подстраховка — значение не того типа (SQLSTATE 22P02), которое не поймала проверка до
+  // запроса; text — текст сервера
+  'api.db_bad_value': {
+    code: 'invalid_query',
+    ru: 'значение не того типа: {text}',
+    hint: 'id — строка uuid, числа — числа, даты — строки ISO; проверьте значения фильтра, курсора и опций',
+  },
+  // errors.ts, ValidationError: первое нарушение в тексте ошибки — путь и сообщение; текст не для ошибки (lmsg)
+  'api.validation_issue': {
+    code: 'invalid_data',
+    ru: '{path} — {issue}',
+  },
+  // errors.ts, ValidationError: путь нарушения на верхнем уровне данных (пустой путь); текст не для ошибки (lmsg)
+  'api.validation_root': {
+    code: 'invalid_data',
+    ru: 'данные',
+  },
+  // errors.ts, ValidationError: число нарушений, если их больше одного; текст не для ошибки (lmsg)
+  'api.validation_more': {
+    code: 'invalid_data',
+    ru: ' (всего нарушений: {n}, все — err.issues)',
+  },
+  // write.ts, checkFullData: данные не проходят описание класса, а лишний ключ — имя конца класса
+  'api.validation_failed_end': {
+    code: 'invalid_data',
+    ru: 'данные не проходят описание класса {cls}',
+    hint: 'конец (ссылка) — не поле данных: его задают путь цепочки (db.Владелец(id).Класс().create(…)) или слот .Роль.set(id) после глагола',
   },
   // index.ts: connect({ schema })
   'api.connect_schema': {

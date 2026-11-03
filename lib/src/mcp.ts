@@ -34,6 +34,7 @@ import type { Registry } from './registry.js';
 import { cursorOf } from './sql.js';
 import { ACL_CLASS_NAMES, RESERVED_CLASS_NAMES, type Cursor, type FieldFilter, type Filter, type Op, type Row, type Scalar } from './types.js';
 import type { Db, DbCore } from './index.js';
+import { UUID_RE } from './uuid.js';
 
 export interface McpOptions {
   /** Инструмент letopis_write (create, update, upsert, delete); по умолчанию сервер только читает. */
@@ -81,7 +82,7 @@ const STATE_KEY = randomBytes(32);
 const CONFIRM_TTL_MS = 10 * 60_000;
 const RESERVED = new Set(RESERVED_CLASS_NAMES);
 const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID = UUID_RE;
 const TERMINALS = ['rows', 'first', 'ids', 'count', 'sum', 'avg', 'min', 'max', 'countBy'] as const;
 const PAGED = new Set(['rows', 'first', 'ids']);
 /** Шагов цепочки и условий $or в одном фильтре не больше (ревью безопасности №2): запрос растёт с каждым. */
@@ -412,6 +413,8 @@ function stepFilter(a: Args, where: string): Filter | undefined {
 }
 
 const step = (x: Db | Chain, name: string): StepFn => (x as unknown as Record<string, StepFn>)[name];
+/** Шаг с фильтром или без: без фильтра — вызов без аргумента (X(undefined) цепочка отмечает предупреждением, A13). */
+const stepWith = (fn: StepFn, f: Filter | undefined): Chain => (f === undefined ? fn() : fn(f));
 
 // ---------------------------------------------------------------------------
 // Курсор letopis_query: сортировка, значение поля и id последней строки
@@ -469,7 +472,7 @@ async function query(db: Db, a: Args, o: Limits): Promise<CallToolResult> {
   if (typeof terminal !== 'string' || !(TERMINALS as readonly string[]).includes(terminal)) {
     throw lerr('mcp.unknown_terminal', { terminal: String(terminal), similar: similar(String(terminal), TERMINALS) });
   }
-  let chain: Chain = step(db, stepName(reg, a.class, 'letopis_query.class'))(stepFilter(a, 'letopis_query'));
+  let chain: Chain = stepWith(step(db, stepName(reg, a.class, 'letopis_query.class')), stepFilter(a, 'letopis_query'));
   if (a.steps !== undefined) {
     if (!Array.isArray(a.steps)) throw lerr('mcp.steps_not_list');
     if (a.steps.length > MAX_STEPS) throw lerr('mcp.steps_too_many', { max: MAX_STEPS, count: a.steps.length });
@@ -477,7 +480,7 @@ async function query(db: Db, a: Args, o: Limits): Promise<CallToolResult> {
       const where = `letopis_query.steps[${i}]`;
       if (!isObj(s)) throw lerr('mcp.step_not_object', { where });
       checkKeys(s, ['step', 'id', 'ids', 'filter'], where);
-      chain = step(chain, stepName(reg, s.step, `${where}.step`))(stepFilter(s, where));
+      chain = stepWith(step(chain, stepName(reg, s.step, `${where}.step`)), stepFilter(s, where));
     });
   }
   if (a.asOf !== undefined) {
