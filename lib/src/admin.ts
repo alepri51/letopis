@@ -4,9 +4,9 @@
  * или администраторское подключение).
  */
 import type postgres from 'postgres';
-import { findingsFromDb, fromDbError, lerr, lmsg, lwarn } from './errors.js';
+import { findingsFromDb, lerr, lmsg, lwarn } from './errors.js';
 import type { Registry } from './registry.js';
-import { release, rollbackAfter, runTx, type Executor, type TxContext } from './tx.js';
+import { runTx, type Executor, type TxContext } from './tx.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 
@@ -194,33 +194,4 @@ export async function rekeyClass(a: AdminCtx, cls: string, key: string[]): Promi
   const name = a.registry().resolve(cls).name;
   const r = await one<{ n: number }>(a, `select ${a.S}.rekey_class($1, $2::jsonb) as n`, [name, key]);
   return r.n;
-}
-
-/**
- * Ремонт агрегатов (план 1.1, §2.4): поля класса и его потомков во всех арендаторах — заново из живых источников,
- * под исключительными блокировками семейств целей и источников (запись в них ждёт). Версия пишется только там, где
- * значение изменилось; возвращает число исправленных строк. Функция владельца — от его роли (set local role), как
- * загрузчик; подключение проверил вызывающий (admin_required).
- */
-export async function rebuildAggregates(env: { sql: Sql; S: string; ownerRole: string }, cls: string): Promise<number> {
-  if (typeof cls !== 'string' || !cls) throw lerr('time.rebuild_class');
-  const role = `"${env.ownerRole.replace(/"/g, '""')}"`;
-  // своё зарезервированное соединение, а не sql.begin: после гибели серверного процесса postgres.js 3.4 шлёт rollback
-  // в закрытый сокет и роняет процесс необработанным TypeError (план 2.0, 7.4 №7; общие rollbackAfter и release)
-  const q = await env.sql.reserve();
-  let failure: unknown = null;
-  try {
-    await q.unsafe('begin');
-    await q.unsafe(`set local role ${role}`);
-    await q.unsafe(`select set_config('letopis.reason', 'rebuildAggregates', true)`);
-    const [{ n }] = await q.unsafe(`select ${env.S}.rebuild_aggregates($1) as n`, [cls]);
-    await q.unsafe('commit');
-    return n as number;
-  } catch (e) {
-    failure = e;
-    await rollbackAfter(q, e);
-    throw fromDbError(e);
-  } finally {
-    release(q, failure);
-  }
 }

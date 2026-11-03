@@ -1,6 +1,6 @@
 /**
- * disconnect — обрыв соединения в транзакциях библиотеки (план 2.0, 7.4 №7): транзакция проектора, загрузчик (db.load и
- * первая заливка), открытие db.begin() и rebuildAggregates. Обрыв — TCP-прокси (commitProxy из _proxy.ts рвёт связь на
+ * disconnect — обрыв соединения в транзакциях библиотеки (план 2.0, 7.4 №7): загрузчик (db.load и первая заливка) и
+ * открытие db.begin(). Обрыв — TCP-прокси (commitProxy из _proxy.ts рвёт связь на
  * COMMIT, до него и после; stmtProxy ниже — на операторе открытия транзакции, где COMMIT нет) и pg_terminate_backend
  * серверного процесса, который ждёт блокировку. Исход: промис отклонён ошибкой связи, а не повис; в процессе нет
  * необработанных исключений и отказов — postgres.js 3.4 бросал TypeError из setImmediate (запись в закрытый сокет), когда
@@ -25,7 +25,7 @@ let proxy: CommitProxy;
 let cut: StmtProxy;
 let adminPool: postgres.Sql;
 let appPool: postgres.Sql;
-let adm: Db; // администраторское подключение через commitProxy: проектор, загрузчик, rebuildAggregates
+let adm: Db; // администраторское подключение через commitProxy: загрузчик
 let app: Db; // приложение арендатора через stmtProxy: db.begin()
 const crashes: string[] = [];
 const onCrash = (err: unknown): void => void crashes.push(String((err as Error)?.stack ?? err));
@@ -88,14 +88,6 @@ before(async () => {
   e = await engine(import.meta.filename);
   t = await e.tenant('disconnect');
   await e.defineClass(t, { name: 'Note', kind: 'hub', fields: { properties: { text: { type: 'string' } }, required: ['text'] } });
-  await e.defineDerived(t, { name: 'NoteTotal', kind: 'hub', key: ['k'], derivedBy: 'notes', history: false,
-    fields: { properties: { k: { type: 'string' }, n: { type: 'integer' } }, required: ['k'] } });
-  // источник агрегата описывают раньше цели
-  await e.defineClass(t, { name: 'Item', kind: 'link', fields: { properties: { qty: { type: 'integer' } }, required: ['qty'] },
-    ends: { Box: { class: 'Box', required: true, onDelete: 'cascade' } } });
-  await e.defineClass(t, { name: 'Box', kind: 'hub',
-    fields: { properties: { name: { type: 'string' }, items: { type: 'integer' } }, required: ['name'] },
-    aggregate: { items: { count: true, of: 'Item', via: 'Box' } } });
   const port = Number(new URL(ADMIN_DSN).port || 5432);
   proxy = await commitProxy(port);
   cut = await stmtProxy(port);
@@ -206,41 +198,6 @@ async function terminateWaiting(): Promise<void> {
   throw new Error('серверный процесс подключения под обрывом не встал на блокировку');
 }
 
-const NOTES = { from: ['Note'], into: ['NoteTotal'], version: 1, lockTimeout: 0, handle: () => {} };
-
-test('план 2.0, 7.4 №7: обрыв в транзакции проектора — промис отклонён, процесс жив, следующий проход идёт', async () => {
-  const p = adm.projector('notes', NOTES);
-  try {
-    await settle(p.run({ once: true, wait: 0 }), 'первый проход');
-    for (const point of ['before', 'after'] as const) {
-      const label = `status(), обрыв ${point === 'before' ? 'до' : 'после'} COMMIT`;
-      proxy.arm(point);
-      await rejectsLost(p.status(), label);
-      await alive(label);
-      assert.equal((await settle(p.status(), `${label}: следующий вызов`)).name, 'notes', `${label}: мёртвое соединение не вернулось в пул`);
-      await alive(`${label}: следующий вызов`);
-    }
-  } finally {
-    p.close();
-  }
-  // проход ждёт строку чекпоинта, которую держит чужая транзакция, — его серверный процесс завершают
-  await victim(async (db) => {
-    const v = db.projector('notes', NOTES);
-    try {
-      await holding((q) => q.unsafe(`select 1 from ${e.S}.secret where kind = 'PROJECTOR' and ident = 'notes' for update`), async () => {
-        const run = v.run({ once: true, wait: 0 });
-        await terminateWaiting();
-        await rejectsLost(run, 'run(), серверный процесс завершён');
-      });
-      await alive('run(), серверный процесс завершён');
-      await next(() => v.run({ once: true, wait: 0 }), 'run() после обрыва');
-      await alive('run() после обрыва');
-    } finally {
-      v.close();
-    }
-  });
-});
-
 test('план 2.0, 7.4 №7: обрыв в транзакции загрузчика (db.load) — промис отклонён, процесс жив, повтор проходит', async () => {
   const notes = (tag: string) => [1, 2, 3].map((i) => ({ text: `${tag}-${i}` }));
   const count = async (tag: string): Promise<number> => (await e.sql.unsafe(
@@ -312,35 +269,4 @@ test('план 2.0, 7.4 №7: обрыв при открытии db.begin() — 
   await tx.commit();
   assert.ok(await app.Note(n.id).first(), 'транзакция после обрыва зафиксирована');
   await alive('db.begin() после обрыва');
-});
-
-// rebuildAggregates был на sql.begin postgres.js: при завершении серверного процесса посреди транзакции postgres.js сам
-// слал rollback в закрытый сокет — TypeError из setImmediate, а пул подключения после него отвечал CONNECTION_ENDED
-// (находка этого теста). Теперь — своё соединение reserve() с rollbackAfter и release, как у runTx.
-test('план 2.0, 7.4 №7: обрыв в транзакции rebuildAggregates — промис отклонён, процесс жив, повтор исправляет', async () => {
-  const [box] = await app.Box().create({ name: 'обрыв' }).rows();
-  for (const point of ['before', 'after'] as const) {
-    const label = `rebuildAggregates, обрыв ${point === 'before' ? 'до' : 'после'} COMMIT`;
-    proxy.arm(point);
-    await rejectsLost(adm.rebuildAggregates('Box'), label);
-    await alive(label);
-  }
-  // ремонт ждёт исключительную блокировку семейства источника, пока транзакция-писатель держит разделяемую
-  await victim(async (db) => {
-    const w = await e.hold(t.token, (q) => q.unsafe(`insert into ${e.S}.entity (class, data, links) values ('Item', $1::jsonb, $2::jsonb)`,
-      [{ qty: 1 } as never, { Box: box.id } as never]));
-    try {
-      const r = db.rebuildAggregates('Box');
-      await terminateWaiting();
-      await rejectsLost(r, 'rebuildAggregates, серверный процесс завершён');
-    } finally {
-      await w.finish(false);
-    }
-    await alive('rebuildAggregates, серверный процесс завершён');
-    // владелец портит итог мимо триггеров — ремонт после обрыва его исправляет
-    await e.asOwner((q) => q.unsafe(`update ${e.S}.entity set data = data || '{"items": 7}'::jsonb where id = $1`, [box.id]));
-    assert.equal(await next(() => db.rebuildAggregates('Box'), 'rebuildAggregates после обрыва'), 1, 'исправлен один ящик');
-    assert.equal((await app.Box(box.id).first())!.data.items, 0);
-    await alive('rebuildAggregates после обрыва');
-  });
 });

@@ -49,16 +49,6 @@ export const write = {
     code: 'invalid_data',
     ru: 'оператор фильтра в данных {verb}() ({path}) — данные записываются значениями',
   },
-  // агрегатные поля в данных create() и upsert(); fields — список через запятую
-  'write.aggregate_given': {
-    code: 'aggregate_field',
-    ru: 'поля {fields} класса {cls} считает база (aggregate) — их не передают',
-  },
-  // агрегатные поля в патче update()
-  'write.aggregate_patched': {
-    code: 'aggregate_field',
-    ru: 'поля {fields} класса {cls} считает база (aggregate) — update их не меняет',
-  },
   // глагол после asOf()
   'write.as_of_write': {
     code: 'invalid_query',
@@ -387,11 +377,6 @@ export const write = {
     code: 'invalid_data',
     ru: 'проверка базы: строка {id} не проходит описание класса {cls}',
   },
-  // verifyIds: конец ведёт на строку производного класса
-  'write.load_db_derived': {
-    code: 'derived_class',
-    ru: 'проверка базы: конец {role} ведёт на строку производного класса',
-  },
   // verifyIds: цели конца нет
   'write.load_db_target': {
     code: 'target_not_found',
@@ -464,11 +449,6 @@ export const write = {
     code: 'invalid_class',
     ru: 'класс {cls} абстрактный',
   },
-  // проход 1: класс производный — его строки пишет только проектор
-  'write.load_class_derived': {
-    code: 'derived_class',
-    ru: 'класс {cls} производный: его строки пишет проектор {projector}',
-  },
   // проход 1, первая заливка: id занят строкой системного класса или прошлой загрузкой сессии
   'write.load_taken': {
     code: 'exists',
@@ -488,11 +468,6 @@ export const write = {
   'write.load_target_not_found': {
     code: 'target_not_found',
     ru: 'цель конца {role} не найдена',
-  },
-  // loadPortion, initialSession: цель вне загрузки — строка производного класса
-  'write.load_target_derived': {
-    code: 'derived_class',
-    ru: 'цель конца {role} — строка производного класса {cls}',
   },
   // loadPortion, initialSession: владелец ($owner) — не аккаунт
   'write.load_owner_not_found': {

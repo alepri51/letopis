@@ -20,7 +20,7 @@ export const api = {
     ru: 'connect: схема {schema} — нужно v<N>.<имя>',
     hint: 'имя схемы — v<N>.<имя>, как у up({ schema }): например, v2.salon',
   },
-  // errors.ts, checkOptions: неизвестная опция connect(), up(), load(), проектора, watch(), createMcpServer() — в 1.5
+  // errors.ts, checkOptions: неизвестная опция connect(), up(), load(), watch(), createMcpServer() — в 1.5
   // было предупреждение, с 2.0 — ошибка (план 2.0, этап 4, п. 2; 7.10 №4)
   'api.unknown_option': {
     code: 'invalid_data',
@@ -174,26 +174,6 @@ export const api = {
   'api.load_in_tx': {
     code: 'invalid_query',
     ru: 'load() — своей транзакцией, не внутри db.begin()',
-  },
-  // index.ts: db.projector() внутри db.begin()
-  'api.projector_in_tx': {
-    code: 'invalid_query',
-    ru: 'projector() — от корня подключения, а не внутри db.begin()',
-  },
-  // index.ts: db.projector() без администраторского подключения
-  'api.projector_admin': {
-    code: 'admin_required',
-    ru: 'проектору нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы, или connect({ admin }))',
-  },
-  // index.ts: db.rebuildAggregates() внутри db.begin()
-  'api.rebuild_in_tx': {
-    code: 'invalid_query',
-    ru: 'rebuildAggregates() — своей транзакцией, не внутри db.begin()',
-  },
-  // index.ts: db.rebuildAggregates() без администраторского подключения
-  'api.rebuild_admin': {
-    code: 'admin_required',
-    ru: 'ремонту агрегатов нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы, или connect({ admin }))',
   },
   // index.ts: connect() без dsn и sql
   'api.connect_no_dsn': {

@@ -9,9 +9,9 @@
  * 1. Раздел — по файлу, где брошена ошибка:
  *      api — index, chain, typed, errors, internal;  write — write, tx, load;  query — sql, ops;
  *      time — watch, admin, cache, signals;  access — auth, acl;  model — model, registry, sync, cli, validate,
- *      jsonschema, uuid;  boot — up, pglite;  mcp — mcp, describe;  derived — project;
+ *      jsonschema, uuid;  boot — up, pglite;  mcp — mcp, describe;
  *      sql-core — sql/10, 15, 20, 30, 40;  sql-write — sql/60;  sql-access — sql/50, 80;
- *      sql-time — sql/70, 75, 88, 90, 95, 99 и sql/migrate.
+ *      sql-time — sql/70, 75, 90, 95, 99 и sql/migrate.
  *    codes.ts — запись на каждый код: заголовок и подсказка. Новый код — ещё ErrorCode (types.ts), для кода базы —
  *    LT_NAMES (errors.ts) и error_catalog(), и строка таблицы «Ошибки» README с якорем `<a id="код"></a>`.
  * 2. Ключ — `<раздел>.<snake_case>`: что случилось, а не где (api.unknown_step, query.sort_field). Одно место — один
@@ -56,7 +56,6 @@ import { access } from './access.js';
 import { api } from './api.js';
 import { boot } from './boot.js';
 import { codes } from './codes.js';
-import { derived } from './derived.js';
 import { mcp } from './mcp.js';
 import { model } from './model.js';
 import { query } from './query.js';
@@ -72,7 +71,7 @@ export type { ErrorCode, Msg, Params, Section } from './types.js';
 
 /** Разделы каталога: имя — префикс ключа и имя файла. */
 const SECTIONS = {
-  codes, api, write, query, time, access, model, boot, mcp, derived,
+  codes, api, write, query, time, access, model, boot, mcp,
   'sql-core': sqlCore, 'sql-write': sqlWrite, 'sql-access': sqlAccess, 'sql-time': sqlTime,
 } as const;
 
@@ -80,7 +79,7 @@ const SECTIONS = {
 export const SQL_SECTIONS = ['sql-core', 'sql-write', 'sql-access', 'sql-time'] as const;
 
 type All = typeof codes & typeof api & typeof write & typeof query & typeof time & typeof access & typeof model
-  & typeof boot & typeof mcp & typeof derived & typeof sqlCore & typeof sqlWrite & typeof sqlAccess & typeof sqlTime;
+  & typeof boot & typeof mcp & typeof sqlCore & typeof sqlWrite & typeof sqlAccess & typeof sqlTime;
 /** Ключ каталога: опечатку в lerr('…') ловит проверка типов. */
 export type MsgKey = keyof All;
 

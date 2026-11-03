@@ -21,7 +21,7 @@ import { randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
 import { LetopisError, checkOptions, fromDbError, issuesFromDb, lerr, lmsg, type Issue } from './errors.js';
 import { isOp } from './ops.js';
-import { Registry, aggregateFields, type ClassInfo, type EndInfo } from './registry.js';
+import { Registry, type ClassInfo, type EndInfo } from './registry.js';
 import { accepts } from './sql.js';
 import { v5Id } from './uuid.js';
 import { applyDefaults, leavesToDb } from './validate.js';
@@ -295,9 +295,6 @@ function shape(reg: Registry, tenant: string, cls: ClassInfo, raw: Raw, check: b
       data[k] = v;
     }
   }
-  // агрегатные поля считает база (план 1.1, §2.4): переданное значение не пишется — 0, итог посчитает триггер
-  // после оператора, а первая заливка — agg_fill
-  for (const f of aggregateFields(cls)) data[f] = 0;
   if (!check) return { data, links };
   const scan = (v: unknown, path: string): string | null => {
     if (isInc(v)) return lmsg('write.load_inc', { path });
@@ -454,8 +451,7 @@ async function verifyIds(conn: Sql, S: string, ids: string[], to: Issues): Promi
   const [t] = await conn.unsafe(`select ${S}.targets_bad((select jsonb_agg(jsonb_build_object('class', e.class, 'tenant', e.tenant, 'links', e.links))
     from ${S}.entity e where e.id = any ($1::uuid[]) and e.links <> '{}'::jsonb), false) as role`, [ids]);
   const role = t?.role as string | null | undefined;
-  if (role?.startsWith('!')) to.add({ line: 0, code: 'derived_class', message: lmsg('write.load_db_derived', { role: role.slice(1) }) });
-  else if (role) to.add({ line: 0, code: 'target_not_found', message: lmsg('write.load_db_target', { role }) });
+  if (role) to.add({ line: 0, code: 'target_not_found', message: lmsg('write.load_db_target', { role }) });
 }
 
 /**
@@ -537,12 +533,6 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     }
     if (cls.abstract) {
       issues.add({ line, code: 'invalid_class', message: lmsg('write.load_class_abstract', { cls: cls.name }), class: cls.name });
-      p1[i] = null;
-      continue;
-    }
-    // строки производного класса пишет только его проектор (план 1.1, §2.4)
-    if (cls.derivedBy) {
-      issues.add({ line, code: 'derived_class', message: lmsg('write.load_class_derived', { cls: cls.name, projector: cls.derivedBy }), class: cls.name });
       p1[i] = null;
       continue;
     }
@@ -736,8 +726,6 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
           const f = found.get(id);
           if (!f || (f.tenant !== tenant && f.tenant !== SYSTEM_ID) || !accepts(reg, ref.allowed, f.class)) {
             issues.add({ line: ref.line, code: 'target_not_found', message: lmsg('write.load_target_not_found', { role: ref.role }), id });
-          } else if (reg.find(f.class)?.derivedBy) {
-            issues.add({ line: ref.line, code: 'derived_class', message: lmsg('write.load_target_derived', { role: ref.role, cls: f.class }), id });
           }
         }
       }
@@ -1066,15 +1054,12 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       if (issues.any) return;
     }
     if (issues.any) return;
-    // первая заливка: FREEZE — таблицы опустошены этой же транзакцией. Журнал — раньше строк: агрегатные поля новой
-    // цели триггер после COPY досчитывает в ту же версию — и в entity, и в уже записанную версию журнала (план 1.1, §2.4)
+    // первая заливка: FREEZE — таблицы опустошены этой же транзакцией
     await copyLines(conn, `copy ${S}.log (${LOG_COLS}) from stdin${ini?.freeze ? ' with (freeze)' : ''}`, log);
     await copyLines(conn, `copy ${S}.entity (${ENTITY_COLS}) from stdin${ini?.freeze ? ' with (freeze)' : ''}`, ent);
     if (updates.length) {
-      // новая версия из заблокированных значений — одним оператором; без изменений — без версии; агрегатные поля —
-      // прежние (agg_keep): их считает база
-      const res = await conn.unsafe(`with u as (select x.id, ${S}.agg_keep(e.class, e.tenant, e.data, x.data) as data, x.links, x.tags
-            from jsonb_to_recordset($1::jsonb) as x(id uuid, data jsonb, links jsonb, tags text[]) join ${S}.entity e on e.id = x.id),
+      // новая версия из заблокированных значений — одним оператором; без изменений — без версии
+      const res = await conn.unsafe(`with u as (select * from jsonb_to_recordset($1::jsonb) as x(id uuid, data jsonb, links jsonb, tags text[])),
           up as (
             update ${S}.entity e set data = u.data, links = u.links, tags = coalesce(u.tags, e.tags), rev = e.rev + 1, prev_hash = e.hash,
               at = greatest($2::timestamptz, e.at + interval '1 microsecond'), author = $3::uuid, agent = $4::text, op = 'update',
@@ -1264,10 +1249,7 @@ export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) =>
     await q(`insert into ${S}.log (${cat.logCols}) overriding system value select ${cat.logCols} from jsonb_populate_recordset(null::${S}.log, $1::jsonb)`, [sys.log]);
     const state: InitialState = { conn: conn as unknown as Sql, ids, pending: [], touched: new Map(), freeze: tune.freeze !== false };
     const out = await fn({ load: (input, opts = {}) => load({ ...env, session: state }, input, opts) });
-    // 6. агрегаты в базе (план 1.1, §2.4): триггеров нет — поле целей считает agg_fill, одним оператором на агрегат, и
-    // пишет его в ту же (последнюю) версию в entity и log: строки ещё никто не видел, хэши — генерируемые колонки
-    await q(`select ${S}.agg_fill()`);
-    // 7. ограничения, затем индексы; память и параллельные исполнители сборки — не меньше серверных
+    // 6. ограничения, затем индексы; память и параллельные исполнители сборки — не меньше серверных
     await q(`select set_config('maintenance_work_mem', (greatest(pg_size_bytes(current_setting('maintenance_work_mem')), 268435456) / 1024)::bigint || 'kB', true),
       set_config('max_parallel_maintenance_workers', greatest(current_setting('max_parallel_maintenance_workers')::int,
         least(current_setting('max_parallel_workers')::int, 4))::text, true)`);
@@ -1276,13 +1258,13 @@ export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) =>
     // ссылаются на них
     for (const f of cat.foreign) await q(`alter table ${f.tbl} add constraint ${ident(f.name)} ${f.def}`);
     for (const i of indexes) await q(i.def);
-    // 8. триггеры — с прежним режимом включения (ENABLE ALWAYS работает и при session_replication_role = replica)
+    // 7. триггеры — с прежним режимом включения (ENABLE ALWAYS работает и при session_replication_role = replica)
     for (const t of triggers) {
       await q(t.def);
       const mode = t.enabled === 'A' ? 'enable always' : t.enabled === 'R' ? 'enable replica' : t.enabled === 'D' ? 'disable' : null;
       if (mode) await q(`alter table ${t.tbl} ${mode} trigger ${ident(t.name)}`);
     }
-    // 10. отложенные проверки загрузок, сигнал, счётчик прав
+    // 8. отложенные проверки загрузок, сигнал, счётчик прав
     const issues = new Issues();
     for (const p of state.pending) {
       const ext = [...p.external.keys()].sort();
@@ -1294,8 +1276,6 @@ export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) =>
           const f = found.get(id);
           if (!f || (f.tenant !== p.tenant && f.tenant !== SYSTEM_ID) || !accepts(p.reg, ref.allowed, f.class)) {
             issues.add({ line: ref.line, code: 'target_not_found', message: lmsg('write.load_target_not_found', { role: ref.role }), id });
-          } else if (p.reg.find(f.class)?.derivedBy) {
-            issues.add({ line: ref.line, code: 'derived_class', message: lmsg('write.load_target_derived', { role: ref.role, cls: f.class }), id });
           }
         }
       }

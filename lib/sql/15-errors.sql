@@ -23,10 +23,7 @@ as $$
     ('LT015', 'recreated_in_statement', 'letopis: recreated_in_statement: id удалён и создан заново одним оператором'),
     ('LT016', 'cursor_expired',         'letopis: cursor_expired: курсор подписки старше яруса all'),
     ('LT017', 'delete_restricted',      'letopis: delete_restricted: удалению мешают ссылающиеся строки'),
-    ('LT018', 'not_deleted',            'letopis: not_deleted: объект не удалён — restore и purge только для удалённых'),
-    ('LT021', 'derived_class',          'letopis: derived_class: строки производного класса пишет только его проектор'),
-    ('LT022', 'aggregate_field',        'letopis: aggregate_field: агрегатное поле считает база'),
-    ('LT023', 'projector_pending',      'letopis: projector_pending: проектор источника ещё не прочёл удаление')
+    ('LT018', 'not_deleted',            'letopis: not_deleted: объект не удалён — restore и purge только для удалённых')
 $$;
 
 create or replace function @SCHEMA@.lt_raise(p_code text, p_name text, p_msg text, p_detail jsonb default null)

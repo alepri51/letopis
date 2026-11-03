@@ -26,12 +26,6 @@ export const time = {
     code: 'invalid_query',
     ru: 'maintain по расписанию: {message}',
   },
-  // admin.ts, rebuildAggregates(): имя класса — не строка или пустое
-  'time.rebuild_class': {
-    code: 'invalid_data',
-    ru: 'rebuildAggregates(класс): имя класса',
-    hint: 'передать имя класса строкой: db.rebuildAggregates(класс)',
-  },
   // watch.ts, decode: курсор watch({ from }) не разбирается; cursor — как передан
   'time.watch_cursor': {
     code: 'invalid_query',

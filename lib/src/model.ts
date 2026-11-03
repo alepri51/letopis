@@ -125,20 +125,7 @@ export interface ClassDef<S extends z.ZodRawShape = z.ZodRawShape, E extends End
   ownerDefault?: 'tenant' | 'actor';
   cache?: { ttl?: number };
   meta?: ClassMeta;
-  /** Производный класс (план 1.1, §2.4): строки пишет только проектор с этим именем; наследуется. */
-  derivedBy?: string;
-  /**
-   * Агрегаты в базе (план 1.1, §2.4): поле — сумма поля (`sum`) или число (`count: true`) живых строк класса `of` того
-   * же арендатора, чей одиночный конец `via` ведёт на строку; `where` — JSON Schema над данными строки-источника.
-   * Поле считает база, приложение его не пишет. Наследуется, потомок заменяет целиком.
-   */
-  aggregate?: Record<string, AggregateDef>;
 }
-
-/** Описание одного агрегатного поля: `sum` или `count: true`; `of` — класс-источник (имя или модель). */
-export type AggregateDef =
-  | { sum: string; count?: never; of: string | { readonly name: string }; via: string; where?: JsonSchema }
-  | { count: true; sum?: never; of: string | { readonly name: string }; via: string; where?: JsonSchema };
 
 /** Описание класса в строке `Class` (метасхема `class_metaschema()` в lib/sql/40-class.sql). */
 export interface ClassDescription {
@@ -154,8 +141,6 @@ export interface ClassDescription {
   ownerDefault?: 'tenant' | 'actor';
   cache?: { ttl?: number };
   meta?: ClassMeta;
-  derivedBy?: string;
-  aggregate?: Record<string, { sum?: string; count?: true; of: string; via: string; where?: JsonSchema }>;
 }
 
 /** Правило refine, которое не попадёт в базу: проверяется только в библиотеке. */
@@ -219,7 +204,7 @@ export type InferLinks<M> = M extends Model<string, unknown, infer L> ? L : neve
 const NAME = /^[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё0-9_]{0,62}$/;
 
 /** Ключи полной формы описания класса (ClassDef). */
-const DEF_KEYS = new Set(['alias', 'extends', 'abstract', 'ends', 'fields', 'key', 'onDelete', 'history', 'ownerDefault', 'cache', 'meta', 'derivedBy', 'aggregate']);
+const DEF_KEYS = new Set(['alias', 'extends', 'abstract', 'ends', 'fields', 'key', 'onDelete', 'history', 'ownerDefault', 'cache', 'meta']);
 
 function isZod(v: unknown): v is z.ZodType {
   return typeof v === 'object' && v !== null && '_zod' in v;
@@ -293,11 +278,6 @@ function makeModel<N extends string>(kind: 'hub' | 'link', name: N, defArg: unkn
       throw lerr('model.unset_required_end', { cls: name, end: role });
     }
   }
-  // агрегаты (план 1.1, §2.4): остальное — роль, поле суммы, цикл — сверяет база по описаниям источников
-  for (const [field, a] of Object.entries(def.aggregate ?? {})) {
-    if (!(field in shape)) throw lerr('model.aggregate_field_missing', { cls: name, field });
-    if ((a.sum === undefined) === (a.count === undefined)) throw lerr('model.aggregate_kind', { cls: name, field });
-  }
   // строгий верхний уровень — как в базе (resolved.schema: additionalProperties false)
   const schema = z.strictObject(shape);
 
@@ -348,15 +328,6 @@ function makeModel<N extends string>(kind: 'hub' | 'link', name: N, defArg: unkn
       if (def.ownerDefault) desc.ownerDefault = def.ownerDefault;
       if (def.cache) desc.cache = def.cache;
       if (def.meta) desc.meta = def.meta;
-      if (def.derivedBy) desc.derivedBy = def.derivedBy;
-      if (def.aggregate) {
-        desc.aggregate = Object.fromEntries(Object.entries(def.aggregate).map(([field, a]) => [field, {
-          ...(a.sum !== undefined ? { sum: a.sum } : { count: true as const }),
-          of: typeof a.of === 'string' ? a.of : a.of.name,
-          via: a.via,
-          ...(a.where ? { where: a.where } : {}),
-        }]));
-      }
       return desc;
     },
     lostRules(): LostRule[] {

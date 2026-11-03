@@ -5,7 +5,7 @@
  * п. 7).
  */
 import type { JsonSchema } from './jsonschema.js';
-import type { AggregateInfo, ClassInfo, Registry } from './registry.js';
+import type { ClassInfo, Registry } from './registry.js';
 import { accepts } from './sql.js';
 
 /** Описание модели: ответ `letopis_model`. */
@@ -32,14 +32,10 @@ export interface ModelDescription {
     ownerDefault: string;
     cache?: { ttl?: number };
     meta: Record<string, unknown>;
-    /** Производный класс: строки пишет только проектор с этим именем (план 1.1, §2.4). */
-    derivedBy?: string;
-    /** Агрегатные поля: сумма или число живых строк класса-источника, их считает база (план 1.1, §2.4). */
-    aggregate?: Record<string, AggregateInfo>;
     /**
      * Рабочие цепочки из реестра (план 2.0, этап 3, п. 7), текст TypeScript. `create` — создать: поля ключа и
      * обязательные поля без умолчания с образцами значений (`examples` из JSON Schema поля, `const`, `default`, первое
-     * из `enum`, иначе по типу), обязательные концы и концы ключа — слотами; у абстрактного, производного и
+     * из `enum`, иначе по типу), обязательные концы и концы ключа — слотами; у абстрактного и
      * системного класса его нет. `find` — найти: по ключу — `first()`, иначе по обязательному полю — `rows()`.
      * `neighbors` — перейти к соседям: по каждому концу класса и к классам, чьи концы ведут на него. `'<id Класс>'` —
      * место для id объекта этого класса или его потомка (`'<id A|B>'` — любого из них, `'<id Класс #2>'` — второго).
@@ -151,17 +147,17 @@ function sample(s: unknown, name: string, depth = 0): unknown {
   }
 }
 
-/** Класс, строки которого цепочкой не создают: абстрактный, производный (пишет проектор), системный или его потомок. */
-const notCreatable = (c: ClassInfo): boolean => c.abstract || c.derivedBy !== undefined || c.ancestors.some((n) => SYSTEM_CLASSES.has(n));
+/** Класс, строки которого цепочкой не создают: абстрактный, системный или его потомок. */
+const notCreatable = (c: ClassInfo): boolean => c.abstract || c.ancestors.some((n) => SYSTEM_CLASSES.has(n));
 
-/** Данные create: поля ключа, обязательные поля без умолчания и поля первой ветки условий anyOf и oneOf; агрегатные — нет. */
+/** Данные create: поля ключа, обязательные поля без умолчания и поля первой ветки условий anyOf и oneOf. */
 function createData(c: ClassInfo): Record<string, unknown> {
   const s = c.schema;
   const props = isSchema(s.properties) ? s.properties : {};
   const conds = [s.anyOf, s.oneOf].map((x) => (Array.isArray(x) ? x[0] : undefined));
   const extra = conds.flatMap((x) => (isSchema(x) && Array.isArray(x.required) ? (x.required as string[]) : []));
   const keyFields = c.key.filter((k) => !c.ends[k]);
-  const fields = [...new Set([...neededFields(s, extra), ...keyFields])].filter((k) => !(k in (c.aggregate ?? {})));
+  const fields = [...new Set([...neededFields(s, extra), ...keyFields])];
   return Object.fromEntries(fields.map((k) => [k, sample(props[k], k)]));
 }
 
@@ -188,7 +184,7 @@ function findExample(c: ClassInfo): string {
   }
   const required = Array.isArray(c.schema.required) ? (c.schema.required as string[]) : [];
   const simple = (v: unknown): boolean => ['string', 'number', 'boolean'].includes(typeof v);
-  const field = Object.keys(props).find((k) => required.includes(k) && !(k in (c.aggregate ?? {})) && simple(sample(props[k], k)));
+  const field = Object.keys(props).find((k) => required.includes(k) && simple(sample(props[k], k)));
   if (field) return `db.${c.name}(${lit({ [field]: sample(props[field], field) })}).rows()`;
   const end = Object.entries(c.ends).find(([, e]) => e.required && !e.many);
   return end ? `db.${c.name}(${lit({ [end[0]]: idPlace(end[1].class) })}).rows()` : `db.${c.name}().rows()`;
@@ -240,8 +236,6 @@ export function describeModel(reg: Registry, schema: string, tenant: string | nu
     ownerDefault: c.ownerDefault,
     ...(c.cache ? { cache: c.cache } : {}),
     meta: c.meta,
-    ...(c.derivedBy ? { derivedBy: c.derivedBy } : {}),
-    ...(c.aggregate ? { aggregate: c.aggregate } : {}),
     examples: examplesOf(reg, c, all),
   })).sort((x, y) => Number(x.system) - Number(y.system) || x.name.localeCompare(y.name));
   return { schema, tenant, classes };

@@ -698,7 +698,7 @@ export interface TenantOptions {
     password: string;
     /**
      * Вид пароля (по умолчанию PASSWORD) — как у auth.setPassword: `^[A-Z][A-Z0-9_]{1,31}$`, не служебный вид (SESSION,
-     * APIKEY, KEYSECRET, OTP, TOTP, KEY, PROJECTOR, LOCK); иначе invalid_data.
+     * APIKEY, KEYSECRET, OTP, TOTP, KEY, LOCK); иначе invalid_data.
      */
     kind?: string;
     ttl?: string;
@@ -719,7 +719,7 @@ export interface TenantResult {
 }
 
 /** Служебные виды строк secret: их не принимают функции кредов (auth_kind_ok в 80-auth.sql) и createTenant. */
-const SERVICE_KINDS = ['SESSION', 'APIKEY', 'KEYSECRET', 'OTP', 'TOTP', 'KEY', 'PROJECTOR', 'LOCK'];
+const SERVICE_KINDS = ['SESSION', 'APIKEY', 'KEYSECRET', 'OTP', 'TOTP', 'KEY', 'LOCK'];
 
 /**
  * Опции арендатора до записи; возвращает роли членства пользователя (по умолчанию owner). Вид пароля user.kind — как у

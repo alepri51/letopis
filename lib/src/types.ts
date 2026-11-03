@@ -35,7 +35,7 @@ export const CHAIN_METHODS = [
 export const DB_METHODS = [
   'as', 'begin', 'commit', 'rollback', 'lock', 'batch', 'watch', 'close', 'registry', 'sql', 'load', 'verify',
   'maintain', 'auth', 'acl', 'idOf', 'refresh', 'transaction', 'flushSignals', 'schema', 'token', 'tenant',
-  'trimHistory', 'rekeyClass', 'cache', 'projector', 'rebuildAggregates',
+  'trimHistory', 'rekeyClass', 'cache',
 ] as const;
 
 /** Свойства батча db.batch(name). */

@@ -23,10 +23,9 @@ import type { QueryEvent, Row } from './types.js';
 import { DDL_REVISION } from './types.js';
 import { ACL_CLASSES, ResultCache, type CacheOptions, type CacheStats } from './cache.js';
 import { Subscription, type WatchOptions } from './watch.js';
-import { Projector, type ProjectorOptions } from './project.js';
 import { SIGNAL_MODES, Signals, bucket, throttle, type Signal, type SignalMode } from './signals.js';
 import {
-  maintain as runMaintain, rebuildAggregates as runRebuildAggregates, rekeyClass as runRekeyClass, MAINTAIN_STOP, parseInterval,
+  maintain as runMaintain, rekeyClass as runRekeyClass, MAINTAIN_STOP, parseInterval,
   scheduleMaintain, trimHistory as runTrim, verify as runVerify, type AdminCtx, type MaintainOptions, type MaintainReport, type VerifyResult,
 } from './admin.js';
 import type { AnyModelLike, OrOp, StepsOf } from './typed.js';
@@ -35,7 +34,7 @@ import { refuse1x, stampDrift } from './up.js';
 export { DDL_REVISION } from './types.js';
 export { uuidv5, v5Name, v5Id, idOf, type KeyedClass } from './uuid.js';
 export { LetopisError, ValidationError, fromDbError, type Issue } from './errors.js';
-export { Registry, type AggregateInfo, type ClassInfo, type EndInfo, type LeafType } from './registry.js';
+export { Registry, type ClassInfo, type EndInfo, type LeafType } from './registry.js';
 export { compileValidator, applyDefaults, type Validator } from './validate.js';
 export { syncModels, generateTypes, schemaToTs, type SyncResult } from './sync.js';
 export { ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends, has, hasAny, hasAll, exists, isNull, not, isOp } from './ops.js';
@@ -58,7 +57,6 @@ export type { DiffChange, DiffResult, DiffOptions, BlameField, BlameResult, Blam
 export type { CacheOptions, CacheStats } from './cache.js';
 export type { SignalMode } from './signals.js';
 export type { WatchOptions, WatchEvent, Subscription } from './watch.js';
-export type { Projector, ProjectorOptions, ProjectorChange, ProjectorOut, ProjectorRow, ProjectorReport, ProjectorStatus, ProjectorFailure } from './project.js';
 export type { VerifyResult, VerifyIssue, MaintainOptions, MaintainReport } from './admin.js';
 export { up, createTenant, type UpOptions, type UpResult, type HistoryPolicy, type TenantOptions, type TenantResult, type LoginOptions } from './up.js';
 export { RESERVED_CLASS_NAMES, CHAIN_METHODS, DB_METHODS } from './types.js';
@@ -87,7 +85,7 @@ export interface ConnectOptions {
   /**
    * Один процесс малого приложения (план 2.0, этап 3): строка подключения администратора (или пул postgres.js). Второй
    * пул — не больше двух соединений — открывается при первой надобности и служит только администраторским вызовам корня
-   * подключения: `load`, `projector`, `rebuildAggregates`, `verify`, `maintain` и `syncModels`, с той же сессией.
+   * подключения: `load`, `verify`, `maintain` и `syncModels`, с той же сессией.
    * Цепочки и `db.sql` идут через пул приложения (`dsn`) под RLS. Роль строки — суперпользователь или роль с `SET` на
    * роль-владельца, иначе `admin_required`. Пароль администратора в процессе приложения — только для малых приложений.
    */
@@ -198,18 +196,6 @@ export interface DbCore {
    * от имени пользователя (опция `as`). Работает только на администраторском подключении, иначе `admin_required`.
    */
   load(input: LoadInput, opts?: LoadOptions): Promise<LoadReport>;
-  /**
-   * Проектор из журнала (план 1.1, §2.4): строит строки производных классов (`derivedBy: имя`) из изменений
-   * классов `from`; `run()` — догнать журнал и следовать за ним, `rebuild()` — перестроить с текущего состояния.
-   * Только на администраторском подключении (иначе `admin_required`).
-   */
-  projector(name: string, opts: ProjectorOptions): Projector;
-  /**
-   * Ремонт агрегатов в базе (план 1.1, §2.4): поля класса (с потомками) во всех арендаторах — заново из живых строк
-   * источников, под исключительными блокировками; версия — только у исправленных. Возвращает их число. Только на
-   * администраторском подключении (иначе `admin_required`).
-   */
-  rebuildAggregates(cls: string): Promise<number>;
   /**
    * Именованная очередь планов фасада: `batch.Класс(…).create(…)`; `batch.run()` — одной транзакцией. У корня,
    * у каждого `db.as()` и у каждой `db.begin()` очереди свои: план исполняется от имени фасада, который его поставил.
@@ -412,24 +398,6 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
         return load({ sql: viaAdmin, schema: sh.schema, tenant: scope.tenant(), admin: true, ownerRole: sh.ownerRole }, input, o);
       }
       return load({ sql: sh.sql, schema: sh.schema, tenant: scope.tenant(), admin: sh.admin, ownerRole: sh.ownerRole }, input, o);
-    },
-    projector: (name, o) => {
-      if (tx) throw lerr('api.projector_in_tx');
-      if (!sh.admin && !viaAdmin) throw lerr('api.projector_admin');
-      return new Projector({
-        sql: viaAdmin ?? sh.sql, schema: sh.schema, S: sh.S, ownerRole: sh.ownerRole,
-        ...(sh.listen ? { onSignal: (fn: (s: Signal) => void) => { sh.signals.add(fn); return () => void sh.signals.delete(fn); } } : {}),
-        ...(viaAdmin ? { ready: adminReady } : {}),
-      }, name, o);
-    },
-    rebuildAggregates: async (cls) => {
-      if (tx) throw lerr('api.rebuild_in_tx');
-      if (viaAdmin) {
-        await adminReady();
-        return runRebuildAggregates({ sql: viaAdmin, S: sh.S, ownerRole: sh.ownerRole }, cls);
-      }
-      if (!sh.admin) throw lerr('api.rebuild_admin');
-      return runRebuildAggregates({ sql: sh.sql, S: sh.S, ownerRole: sh.ownerRole }, cls);
     },
     batch: (name, o) => {
       let q = batches.get(name);

@@ -21,7 +21,7 @@ export const sqlWrite = {
     code: 'invalid_data',
     ru: 'данные не проходят описание класса {cls}',
   },
-  // links_shape(): разбор концов строки (триггеры вставки и правки; check_links — reclass, restore, rekey, проектор)
+  // links_shape(): разбор концов строки (триггеры вставки и правки; check_links — reclass, restore, rekey)
   'sql-write.links_not_object': {
     code: 'invalid_data',
     ru: 'links — не объект',
@@ -54,11 +54,7 @@ export const sqlWrite = {
     code: 'invalid_data',
     ru: 'обязательный конец {end} не задан',
   },
-  // check_links(), триггеры после вставки и правки (targets_bad): цель конца — строка производного класса или не найдена
-  'sql-write.end_target_derived': {
-    code: 'derived_class',
-    ru: 'конец {end} ведёт на строку производного класса',
-  },
+  // check_links(), триггеры после вставки и правки (targets_bad): цель конца не найдена
   'sql-write.end_target_missing': {
     code: 'target_not_found',
     ru: 'цель конца {end} не найдена',
@@ -91,7 +87,7 @@ export const sqlWrite = {
   // меняется — p_what: reparent, history, tighten, rekey; иной p_what — прежний готовый текст {what}
   'sql-write.reparent_needs_all': {
     code: 'acl_denied',
-    ru: 'класс {cls} меняет предков, алиас или derivedBy: нужно право {op} на все строки класса {target}',
+    ru: 'класс {cls} меняет предков или алиас: нужно право {op} на все строки класса {target}',
   },
   'sql-write.history_needs_all': {
     code: 'acl_denied',
@@ -140,28 +136,6 @@ export const sqlWrite = {
     code: 'invalid_class',
     ru: 'имя класса {cls} совпадает с алиасом другого класса',
   },
-  // class_admit(), trg_entity_ad(): производный класс заводит, меняет и удаляет только администратор
-  'sql-write.derived_admin': {
-    code: 'acl_denied',
-    ru: 'класс {cls} производный: его описание задаёт только администратор (право letopis.projector)',
-  },
-  'sql-write.derived_ancestor_admin': {
-    code: 'acl_denied',
-    ru: 'класс {cls} — предок производного класса {derived}: его описание задаёт только администратор (право letopis.projector)',
-  },
-  // агрегат {cls}.{field} класса-источника {of}: источника нет — в System (класс System) или у арендатора
-  'sql-write.aggregate_source_missing_system': {
-    code: 'invalid_class',
-    ru: 'агрегат {cls}.{field}: класса-источника {of} и его потомков в System нет — источник описывают раньше агрегата',
-  },
-  'sql-write.aggregate_source_missing': {
-    code: 'invalid_class',
-    ru: 'агрегат {cls}.{field}: класса-источника {of} и его потомков у арендатора нет — источник описывают раньше агрегата',
-  },
-  'sql-write.aggregate_source_read': {
-    code: 'acl_denied',
-    ru: 'агрегат {cls}.{field}: нужно право READ на все строки класса {source}',
-  },
   'sql-write.alias_orphan_history': {
     code: 'invalid_class',
     ru: 'удалённые потомки класса {cls} хранят историю строк: алиас меняется после purge() их строк',
@@ -169,14 +143,6 @@ export const sqlWrite = {
   'sql-write.end_other_class': {
     code: 'invalid_class',
     ru: 'конец {end} в классе {cls} ведёт на другой класс',
-  },
-  'sql-write.end_to_derived': {
-    code: 'derived_class',
-    ru: 'конец {end} ведёт на производный класс {cls}',
-  },
-  'sql-write.derived_referenced': {
-    code: 'derived_class',
-    ru: 'класс {cls} не может стать производным: на него ссылается конец {end} класса {ref}',
   },
   // триггеры вставки и правки, reclass()
   'sql-write.no_session': {
@@ -204,26 +170,6 @@ export const sqlWrite = {
     code: 'invalid_class',
     ru: 'класс {cls} абстрактный',
   },
-  'sql-write.derived_write_projector': {
-    code: 'derived_class',
-    ru: 'класс {cls} производный: его строки пишет проектор {projector}',
-  },
-  'sql-write.derived_write': {
-    code: 'derived_class',
-    ru: 'класс {cls} производный: его строки пишет проектор',
-  },
-  'sql-write.derived_reclass': {
-    code: 'derived_class',
-    ru: 'строки производного класса пишет только его проектор',
-  },
-  'sql-write.aggregate_given': {
-    code: 'aggregate_field',
-    ru: 'поля {fields} класса {cls} считает база (aggregate) — их не передают',
-  },
-  'sql-write.aggregate_given_reclass': {
-    code: 'aggregate_field',
-    ru: 'агрегатные поля класса {cls} считает база — в данных reclass их не передают',
-  },
   'sql-write.member_tenant': {
     code: 'invalid_data',
     ru: 'конец Tenant членства — арендатор строки',
@@ -239,7 +185,7 @@ export const sqlWrite = {
   },
   'sql-write.history_recreate': {
     code: 'invalid_class',
-    ru: 'журнал хранит историю строк класса {cls} или его удалённых потомков: создать его можно только заново и с прежними parent, alias, derivedBy и history (или сначала стереть её purge())',
+    ru: 'журнал хранит историю строк класса {cls} или его удалённых потомков: создать его можно только заново и с прежними parent, alias и history (или сначала стереть её purge())',
   },
   'sql-write.owner_not_found': {
     code: 'target_not_found',
@@ -296,14 +242,6 @@ export const sqlWrite = {
     code: 'recreated_in_statement',
     ru: 'id удалён и создан заново одним оператором',
   },
-  'sql-write.derived_delete': {
-    code: 'derived_class',
-    ru: 'класс {cls} производный: его строки удаляет проектор',
-  },
-  'sql-write.aggregate_source_delete': {
-    code: 'invalid_class',
-    ru: 'класс {cls} — источник агрегата {aggregate}: сначала уберите агрегат из описания цели',
-  },
   'sql-write.class_not_empty': {
     code: 'invalid_class',
     ru: 'у класса {cls} есть строки или потомки',
@@ -335,14 +273,6 @@ export const sqlWrite = {
     ru: 'на удаляемые строки ссылаются другие строки (onDelete: restrict)',
   },
   // move_row(), reclass(): перевод ссылок; класс ссылающейся строки — только если актор её видит
-  'sql-write.derived_ref': {
-    code: 'derived_class',
-    ru: 'на строку ссылается строка производного класса {cls}: её пишет проектор',
-  },
-  'sql-write.derived_ref_hidden': {
-    code: 'derived_class',
-    ru: 'на строку ссылается строка производного класса: её пишет проектор',
-  },
   'sql-write.refs_write_denied': {
     code: 'acl_denied',
     ru: 'нет права WRITE на ссылающиеся строки',

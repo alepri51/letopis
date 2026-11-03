@@ -2,7 +2,7 @@
  * Коды ошибок: заголовок (что значит код) и подсказка «что делать» — по одной записи на каждый код
  * (полноту и совпадение кода с ключом проверяет тип). Подсказку кода получает каждая ошибка с этим кодом
  * (`LetopisError.hint`), если у её записи каталога нет своей. Из этих записей собрана таблица «Все коды» на странице
- * ошибок сайта (guide/scripts/gen-errors.ts). Порядок — как в разделе «Ошибки» README: коды базы (LT001–LT023), затем
+ * ошибок сайта (guide/scripts/gen-errors.ts). Порядок — как в разделе «Ошибки» README: коды базы (LT001–LT018), затем
  * коды библиотеки.
  */
 import type { ErrorCode, Msg } from './types.js';
@@ -85,8 +85,8 @@ export const codes = {
   },
   'codes.cursor_expired': {
     code: 'cursor_expired',
-    ru: 'курсор подписки или проектора старше прореженной части журнала (яруса `all`)',
-    hint: "подписку начать заново (`from: 'now'` или `'start'`) и перечитать нужное состояние, проектору — `rebuild()` или `onExpired: 'rebuild'`; сохранять `sub.cursor`, а не курсор события",
+    ru: 'курсор подписки старше прореженной части журнала (яруса `all`)',
+    hint: "подписку начать заново (`from: 'now'` или `'start'`) и перечитать нужное состояние; сохранять `sub.cursor`, а не курсор события",
   },
   'codes.delete_restricted': {
     code: 'delete_restricted',
@@ -97,21 +97,6 @@ export const codes = {
     code: 'not_deleted',
     ru: '`restore` и `purge` работают только для удалённых объектов',
     hint: 'сначала `delete()`, потом `restore()` или `purge()`',
-  },
-  'codes.derived_class': {
-    code: 'derived_class',
-    ru: 'в производный класс (`derivedBy`) пишет не его проектор',
-    hint: 'писать в производный класс только его проектором (`db.projector`); приложение такие строки только читает',
-  },
-  'codes.aggregate_field': {
-    code: 'aggregate_field',
-    ru: 'агрегатное поле считает база — передавать или менять его нельзя',
-    hint: 'не передавать агрегатное поле в `create`, `update` и `upsert` — его посчитает база; починить расхождение — `rebuildAggregates(класс)`',
-  },
-  'codes.projector_pending': {
-    code: 'projector_pending',
-    ru: 'проектор ещё не прочёл удаление или обрезаемые версии: сначала `run()` проектора',
-    hint: 'запустить `run()` проектора и повторить',
   },
   'codes.exists': {
     code: 'exists',
@@ -175,18 +160,8 @@ export const codes = {
   },
   'codes.admin_required': {
     code: 'admin_required',
-    ru: 'нужно подключение администратора: его требуют загрузчик, проектор и `rebuildAggregates`',
-    hint: 'запускать загрузчик, проектор и `rebuildAggregates` на администраторском подключении (`allowBypassRls: true`) в отдельном процессе',
-  },
-  'codes.rebuild_required': {
-    code: 'rebuild_required',
-    ru: 'данные проектора построены другой его версией — нужна перестройка `rebuild()`',
-    hint: 'выполнить `rebuild()` проектора: логика `handle` сменилась вместе с `version`',
-  },
-  'codes.projector_busy': {
-    code: 'projector_busy',
-    ru: 'перестройку не начать: проектор сейчас работает в другом процессе',
-    hint: 'дождаться конца прохода другого процесса и повторить',
+    ru: 'нужно подключение администратора: его требует загрузчик',
+    hint: 'запускать загрузчик на администраторском подключении (`allowBypassRls: true`) в отдельном процессе',
   },
   'codes.not_empty': {
     code: 'not_empty',

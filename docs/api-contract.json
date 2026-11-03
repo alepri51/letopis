@@ -70,7 +70,6 @@
         "AclRule",
         "AclRuleSpec",
         "AclTarget",
-        "AggregateInfo",
         "AnyModelLike",
         "AuthApi",
         "Batch",
@@ -117,14 +116,6 @@
         "OrOp",
         "PatchOf",
         "Path",
-        "Projector",
-        "ProjectorChange",
-        "ProjectorFailure",
-        "ProjectorOptions",
-        "ProjectorOut",
-        "ProjectorReport",
-        "ProjectorRow",
-        "ProjectorStatus",
         "QueryEvent",
         "Row",
         "RowOf",
@@ -161,7 +152,6 @@
         "translatePattern"
       ],
       "types": [
-        "AggregateDef",
         "AnyModel",
         "ClassDef",
         "ClassDescription",
@@ -241,8 +231,6 @@
     "load",
     "lock",
     "maintain",
-    "projector",
-    "rebuildAggregates",
     "refresh",
     "registry",
     "rekeyClass",
@@ -264,7 +252,6 @@
   "codes": [
     "acl_denied",
     "admin_required",
-    "aggregate_field",
     "bypass_rls",
     "class_not_loadable",
     "commit_unknown",
@@ -273,7 +260,6 @@
     "cursor_expired",
     "delete_restricted",
     "deleted",
-    "derived_class",
     "duplicate",
     "exists",
     "id_from_db",
@@ -290,9 +276,6 @@
     "no_session",
     "not_deleted",
     "not_empty",
-    "projector_busy",
-    "projector_pending",
-    "rebuild_required",
     "reclass_denied",
     "recreated_in_statement",
     "rev_ambiguous",
@@ -312,19 +295,11 @@
     },
     {
       "module": "15-errors",
-      "message": "letopis: aggregate_field: агрегатное поле считает база"
-    },
-    {
-      "module": "15-errors",
       "message": "letopis: cursor_expired: курсор подписки старше яруса all"
     },
     {
       "module": "15-errors",
       "message": "letopis: delete_restricted: удалению мешают ссылающиеся строки"
-    },
-    {
-      "module": "15-errors",
-      "message": "letopis: derived_class: строки производного класса пишет только его проектор"
     },
     {
       "module": "15-errors",
@@ -357,10 +332,6 @@
     {
       "module": "15-errors",
       "message": "letopis: not_deleted: объект не удалён — restore и purge только для удалённых"
-    },
-    {
-      "module": "15-errors",
-      "message": "letopis: projector_pending: проектор источника ещё не прочёл удаление"
     },
     {
       "module": "15-errors",

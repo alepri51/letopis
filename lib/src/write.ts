@@ -19,7 +19,7 @@
  */
 import { lerr, ValidationError, type LetopisError } from './errors.js';
 import { isOp } from './ops.js';
-import { aggregateFields, type ClassInfo, type Registry } from './registry.js';
+import type { ClassInfo, Registry } from './registry.js';
 import { accepts, buildRead, nextNodeKey, resolveHop, stepClasses, toRow, type AggSpec, type BuiltQuery, type ReadMode, type Step } from './sql.js';
 import type { Tx } from './tx.js';
 import type { ChainMods, Row } from './types.js';
@@ -155,22 +155,10 @@ function checkFullData(cls: ClassInfo, data: unknown, verb: string, full = true)
     else if (isPlain(v)) for (const [k, x] of Object.entries(v)) scan(x, [...path, k]);
   };
   scan(data, []);
-  // агрегатные поля считает база (план 1.1, §2.4): переданное значение — aggregate_field до отправки, а для ранней
-  // проверки поле — 0, как его поставит база
-  const obj = data as Record<string, unknown>;
-  const agg = aggregateFields(cls);
-  const given = agg.filter((f) => f in obj);
-  if (given.length) throw lerr('write.aggregate_given', { fields: given.join(', '), cls: cls.name });
   // описания системных классов проверяет только база (метасхема Class, class_admit)
   if (!full || cls.name === 'Class' || cls.abstract) return;
-  const issues = cls.validator()(applyDefaults(cls.schema, agg.length ? { ...obj, ...Object.fromEntries(agg.map((f) => [f, 0])) } : obj));
+  const issues = cls.validator()(applyDefaults(cls.schema, data as Record<string, unknown>));
   if (issues.length) throw new ValidationError(cls.name, issues);
-}
-
-/** Патч update не трогает агрегатные поля класса шага (план 1.1, §2.4): их считает база. */
-function checkAggregatePatch(cls: ClassInfo, patch: Record<string, unknown>): void {
-  const given = aggregateFields(cls).filter((f) => f in patch);
-  if (given.length) throw lerr('write.aggregate_patched', { fields: given.join(', '), cls: cls.name });
 }
 
 /** Фильтр шага сужает цели: id, список id, оператор, строка ответа, объект хотя бы с одним заданным полем. */
@@ -225,7 +213,6 @@ export function precheckPlan(reg: Registry, steps: Step[]): void {
       case 'update':
         if (!isPlain(op.data)) throw lerr('write.patch_not_object');
         splitPatch(op.data);
-        checkAggregatePatch(s.cls, op.data);
         if (op.rev !== undefined && (!Number.isInteger(op.rev) || op.rev < 1)) throw lerr('write.bad_rev');
         // data.id у шага без фильтра — тоже цель (updateOp)
         // TODO(2.0, строгий режим): включить после вырезки — update() без фильтра, id или limit → invalid_query, кроме { all: true }
@@ -490,17 +477,12 @@ async function createOp(w: WriteCtx, steps: Step[], opStep: Step, upsert: boolea
   const links = applySlotsLocal(await pathEnds(w, steps, new Set(slots.map((x) => x.role))), slots);
   const given = typeof opStep.filter === 'string' ? opStep.filter : undefined;
   const owner = opStep.ownerFilter ?? w.owner ?? null;
-  // агрегатные поля (план 1.1, §2.4): в excluded их поставил триггер вставки (0) — замена данных идёт без них, и
-  // триггер правки возвращает прежние значения
-  const agg = aggregateFields(cls);
-  const conflict = upsert
-    ? ` on conflict (id) do update set data = excluded.data${agg.length ? ' - $7::text[]' : ''}, links = excluded.links, tags = excluded.tags`
-    : '';
+  const conflict = upsert ? ' on conflict (id) do update set data = excluded.data, links = excluded.links, tags = excluded.tags' : '';
   const text = `insert into ${S}.entity (id, class, links, data, tags, owner) values ($1::uuid, $2::text, $3::jsonb, $4::jsonb, $5::text[], $6::uuid)`
     + `${conflict} returning old.rev as old_rev, ${rowJson('new')} as row`;
   try {
     const res = await query<{ old_rev: number | null; row: Record<string, unknown> }>(w, text,
-      [given ?? null, cls.name, links, op.data, tagsValue(opStep), owner, ...(upsert && agg.length ? [agg] : [])]);
+      [given ?? null, cls.name, links, op.data, tagsValue(opStep), owner]);
     return res.map((r) => {
       const row = toRow(r.row) as WriteRow;
       if (upsert) row.$upsert = r.old_rev === null ? 'created' : r.old_rev === row.rev ? 'unchanged' : 'updated';
@@ -871,15 +853,13 @@ export async function execBatch(w: WriteCtx, plans: Step[][]): Promise<WriteRow[
       }
       await useReason(w, why);
       const input = group.map((g) => ({ d: (g.s.op as { data: unknown }).data, t: tagsValue(g.s), o: g.s.ownerFilter ?? w.owner ?? null }));
-      // агрегатные поля — без них, как у одиночного upsert (план 1.1, §2.4)
-      const agg = aggregateFields(head.cls);
       const conflict = verb === 'upsert'
-        ? `on conflict (id) do update set data = excluded.data${agg.length ? ' - $3::text[]' : ''}, links = excluded.links, tags = excluded.tags`
+        ? 'on conflict (id) do update set data = excluded.data, links = excluded.links, tags = excluded.tags'
         : 'on conflict (id) do nothing';
       const res = await query<{ old_rev: number | null; row: Record<string, unknown> }>(w,
         `insert into ${S}.entity (class, data, tags, owner) select $1::text, x.d, x.t, x.o `
         + `from jsonb_to_recordset($2::jsonb) as x(d jsonb, t text[], o uuid) ${conflict} returning old.rev as old_rev, ${rowJson('new')} as row`,
-        [head.cls.name, input, ...(verb === 'upsert' && agg.length ? [agg] : [])]);
+        [head.cls.name, input]);
       const byId = new Map(res.map((r) => [r.row.id as string, r]));
       for (const g of group) {
         const r = byId.get(g.id);

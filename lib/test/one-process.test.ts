@@ -85,7 +85,7 @@ test('план 2.0, 7.9 №3: connect({ admin }) — администратор�
   assert.ok(appDsn, 'строка роли приложения — из №4');
   await createTenant(sql, SCHEMA, { name: 'Другой', user: { name: 'Боря', login: `borya-${tag}@one.local`, password: 'Two-2026!pass' } });
   const token = r.tenant!.token!;
-  const Totals = hub('Totals', { k: z.string(), n: z.number().int() }, { key: ['k'], derivedBy: 'rollup', history: false });
+  const Totals = hub('Totals', { k: z.string(), n: z.number().int() }, { key: ['k'], history: false });
   const plain = await connect({ dsn: appDsn, schema: SCHEMA, token, max: 2 });
   const db = await connect({ dsn: appDsn, admin: ADMIN_DSN, schema: SCHEMA, token, max: 2 });
   const wrong = await connect({ dsn: appDsn, admin: appDsn, schema: SCHEMA, token, max: 1 });
@@ -95,8 +95,6 @@ test('план 2.0, 7.9 №3: connect({ admin }) — администратор�
     for (const d of [plain, db, wrong]) await d.refresh();
     // без admin — как раньше
     await assert.rejects(plain.load({ Note: [{ text: 'без admin' }] }), code('admin_required'));
-    assert.throws(() => plain.projector('p', { from: ['Note'], into: ['Totals'], version: 1, handle: async () => {} }), code('admin_required'));
-    await assert.rejects(syncModels(plain, [Totals], { apply: true }), code('acl_denied'));
     await assert.rejects(plain.verify(), code('acl_denied'));
     // с admin — вторым пулом
     await db.load({ Note: [{ text: 'первая' }, { text: 'вторая' }] });

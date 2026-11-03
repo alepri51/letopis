@@ -152,11 +152,6 @@ export const sqlCore = {
     code: 'invalid_class',
     ru: 'цикл в наследовании через {cls}',
   },
-  // 40-class.sql, class_resolve(): inherited — derivedBy предка
-  'sql-core.derived_by_mismatch': {
-    code: 'invalid_class',
-    ru: 'derivedBy класса {cls} ({derivedBy}) не совпадает с предком ({inherited})',
-  },
   // 40-class.sql, class_prepare(): detail.issues — нарушения метасхемы
   'sql-core.class_metaschema': {
     code: 'invalid_data',
@@ -221,15 +216,5 @@ export const sqlCore = {
   'sql-core.history_unknown_tz': {
     code: 'invalid_class',
     ru: 'history: неизвестный часовой пояс {tz}',
-  },
-  // 40-class.sql, class_prepare(): derivedBy у класса System
-  'sql-core.system_derived': {
-    code: 'invalid_class',
-    ru: 'системный класс не бывает производным',
-  },
-  // 40-class.sql, class_prepare()
-  'sql-core.derived_end_on_delete': {
-    code: 'invalid_class',
-    ru: 'конец {end} производного класса — onDelete cascade или unset: производная строка не мешает удалять цель',
   },
 } satisfies Section<'sql-core'>;

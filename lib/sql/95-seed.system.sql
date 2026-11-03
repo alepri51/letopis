@@ -21,18 +21,12 @@ begin
   if p_class = 'Class' then
     select c.data, c.validator into d, vld from @SCHEMA@.class_prepare(d, p_tenant) c;
   end if;
-  -- журнал раньше строки: агрегатные поля новой цели триггер после вставки досчитывает в ту же версию — и в entity,
-  -- и в уже записанную версию журнала (план 1.1, §2.4)
   insert into @SCHEMA@.log (id, rev, class, tenant, owner, links, data, tags, at, author, op)
   values (p_id, 1, p_class, p_tenant, p_tenant, coalesce(p_links, '{}'), d, '{}', now_ts, '@SYSTEM@', 'create');
   insert into @SCHEMA@.entity (id, rev, class, tenant, owner, links, data, at, created_at, author, op, validator)
   values (p_id, 1, p_class, p_tenant, p_tenant, coalesce(p_links, '{}'), d, now_ts, now_ts, '@SYSTEM@', 'create', vld);
   if p_class in ('rule', 'Resource', 'member', 'Account', 'Class') then
     perform @SCHEMA@.acl_bump();
-  end if;
-  -- новая цель агрегатов: метки её источников — заново
-  if p_class = 'Class' and d->'resolved' ? 'aggregate' then
-    perform @SCHEMA@.agg_mark(p_tenant, @SCHEMA@.agg_of(d->'resolved'));
   end if;
   return p_id;
 end $$;
@@ -78,7 +72,7 @@ declare
   o_signals uuid;
   op text;
 begin
-  -- аккаунт System — раньше строки ключа: служебные строки secret (KEY, LOCK, PROJECTOR) принадлежат ему, а внешний
+  -- аккаунт System — раньше строки ключа: служебные строки secret (KEY, LOCK) принадлежат ему, а внешний
   -- ключ secret.account (ревизия 7) требует строку аккаунта в entity. Счётчик прав sys_create повышает, только когда
   -- строка ключа уже есть, — на свежей установке ей неоткуда взяться, и начальный v — 0
   perform @SCHEMA@.sys_create('@SYSTEM@'::uuid, 'Account', '@SYSTEM@'::uuid, '{}',

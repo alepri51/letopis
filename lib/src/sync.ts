@@ -43,9 +43,9 @@ export async function syncModels(db: DbCore, models: readonly AnyModel[], opts: 
   }
   const res: SyncResult = { applied: Boolean(opts.apply), created: [], updated: [], unchanged: [], skipped: [], lost: models.flatMap((m) => m.lostRules()) };
   const S = `"${db.schema.replace(/"/g, '""')}"`;
-  // предок раньше потомка; класс-источник агрегата раньше цели: агрегат над классом, которого ещё нет, база отклоняет.
-  // Круг (агрегат над собственным потомком, цикл агрегатов) так не упорядочить — отказ до записи с самим кругом (хвост
-  // ревью доработок после 1.2.0: раньше обход молча ставил потомка раньше предка)
+  // предок раньше потомка: потомка класса, которого ещё нет, база отклоняет. Круг родителей (модель, собранная мимо
+  // hub()) так не упорядочить — отказ до записи с самим кругом (хвост ревью доработок после 1.2.0: раньше обход молча
+  // ставил потомка раньше предка)
   const ordered: AnyModel[] = [];
   const path: AnyModel[] = [];
   const visit = (m: AnyModel) => {
@@ -56,16 +56,12 @@ export async function syncModels(db: DbCore, models: readonly AnyModel[], opts: 
     }
     path.push(m);
     if (m.parent && models.includes(m.parent)) visit(m.parent);
-    for (const a of Object.values(m.describe().aggregate ?? {})) {
-      const src = models.find((x) => x.name === a.of);
-      if (src) visit(src);
-    }
     path.pop();
     ordered.push(m);
   };
   models.forEach(visit);
-  // у корня connect({ admin }) классы пишет администраторский пул с той же сессией (план 2.0, 7.9 №3): описание
-  // производного класса и правка класса со строками требуют прав, которых у роли приложения может не быть
+  // у корня connect({ admin }) классы пишет администраторский пул с той же сессией (план 2.0, 7.9 №3): правка класса
+  // со строками требует прав, которых у роли приложения может не быть
   const adminTx = internalsOf(db)?.adminTx;
   const run = <T>(fn: (tx: Tx) => Promise<T>): Promise<T> => (adminTx ? adminTx(fn) : db.transaction(fn));
   try {

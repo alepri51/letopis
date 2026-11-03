@@ -51,16 +51,6 @@ export const model = {
     code: 'invalid_class',
     ru: '{cls}: onDelete unset недопустим для обязательного конца {end}',
   },
-  // model.ts, makeModel: aggregate называет поле, которого нет среди полей модели
-  'model.aggregate_field_missing': {
-    code: 'invalid_class',
-    ru: '{cls}: агрегатного поля {field} нет среди полей класса',
-  },
-  // model.ts, makeModel: у агрегата и sum, и count — или ни того ни другого
-  'model.aggregate_kind': {
-    code: 'invalid_class',
-    ru: '{cls}: агрегат {field} — ровно одно из sum и count: true',
-  },
 
   // jsonschema.ts, normalizeSchema: имя в начале текста ошибок, когда where не задан (часть текста, не ошибка)
   'model.schema_default_where': {
@@ -222,10 +212,10 @@ export const model = {
     ru: 'syncModels: имя хаба {name} занято методом цепочки или корня db — шаг с таким именем до класса не дойдёт',
     hint: 'дать классу другое имя: зарезервированные имена — в README, «Справочник API → Зарезервированные имена»',
   },
-  // sync.ts, syncModels: родители и источники агрегатов замыкают круг; cycle — имена моделей через стрелку
+  // sync.ts, syncModels: родители замыкают круг; cycle — имена моделей через стрелку
   'model.models_cycle': {
     code: 'invalid_class',
-    ru: 'syncModels: модели зависят друг от друга по кругу: {cycle} — родителя и источник агрегата база ждёт раньше класса',
+    ru: 'syncModels: модели зависят друг от друга по кругу: {cycle} — родителя база ждёт раньше класса',
   },
   // sync.ts, generateTypes: имя класса (например, созданного данными) — не идентификатор TypeScript
   'model.types_class_name': {

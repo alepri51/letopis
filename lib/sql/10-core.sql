@@ -105,7 +105,7 @@ create index if not exists log_ends on @SCHEMA@.log using gin (@SCHEMA@.link_ids
 -- журнал часто прореживается (§2.11): чаще чистим
 alter table @SCHEMA@.log set (autovacuum_vacuum_scale_factor = 0.02, autovacuum_analyze_scale_factor = 0.02);
 
--- account — строка entity (аккаунт; у служебных строк KEY, LOCK, PROJECTOR — System): удалённый аккаунт уносит свои строки
+-- account — строка entity (аккаунт; у служебных строк KEY и LOCK — System): удалённый аккаунт уносит свои строки
 -- каскадом внешнего ключа — сессии, хэши паролей и ключей, секреты TOTP, внешние учётные записи (ревизия 7). Строка
 -- Account у System не удаляется (trg_entity_bd_account, 60-write.sql)
 create table if not exists @SCHEMA@.secret (

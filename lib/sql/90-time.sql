@@ -223,9 +223,6 @@ begin
   if coalesce((res->>'abstract')::boolean, false) then
     perform @SCHEMA@.lt_fail('sql-time.class_abstract', jsonb_build_object('cls', l.class));
   end if;
-  if res ? 'derivedBy' then
-    perform @SCHEMA@.lt_fail('sql-time.class_derived', jsonb_build_object('cls', l.class, 'projector', res->>'derivedBy'));
-  end if;
   d := @SCHEMA@.apply_defaults(res->'schema', l.data);
   bad := @SCHEMA@.validate_data(res->'rules', cls.validator, res->'vars', d);
   if bad <> '[]'::jsonb then
@@ -252,45 +249,12 @@ begin
   values (p_id, l.rev + 1, l.class, cls.rev, l.tenant, own, lk.links, d, l.tags, ts, ts, c.author, c.agent, 'restore',
           nullif(current_setting('letopis.reason', true), ''), null, l.hash, null)
   returning * into n;
-  -- агрегатные поля восстановленной цели триггер после вставки посчитал из живых источников в эту же версию, а не
-  -- взял из надгробия (план 1.1, §2.4): в журнал идёт строка таблицы
-  select x.* into n from @SCHEMA@.entity x where x.id = p_id;
   perform @SCHEMA@.log_version(n);
   if l.class in ('rule', 'Resource', 'member', 'Account') then
     perform @SCHEMA@.acl_bump();
   end if;
   return p_id;
 end $$;
-
--- Проектор источника ещё не прочёл одну из версий p_id арендатора p_tenant с номером до p_rev включительно (null — все
--- версии): курсор не прошёл её позицию (tx, seq), и снимок перестройки её не учёл (ревью безопасности №3, №5 — purge;
--- хвост ревью №3 — обрезка истории). Проверяется каждая версия (хвост ревью доработок после 1.2.0): у более поздней
--- версии бывает меньший xid, а снимок перестройки учитывает транзакции, зафиксированные до него, — непрочитанной может
--- оказаться и версия между самой поздней по (tx, seq) и последней. Проектор касается арендатора, у которого есть его
--- производный класс (derivedBy — имя проектора): брошенный проектор с удалёнными производными классами не держит, — и
--- строки, у которой хоть одна из этих версий — в классах его источника: уход из семейства источников сменой класса он
--- тоже читает. Курсор «tx:seq~снимок»; чекпоинт без from (до 1.2.0) касается всех классов. Записи purge и trim — не
--- версии.
-create or replace function @SCHEMA@.projector_unread(p_tenant uuid, p_id uuid, p_rev int) returns boolean
-language sql stable
-set search_path = pg_catalog, @SCHEMA@, pg_temp
-return exists (select 1 from @SCHEMA@.secret s
-               cross join lateral (select split_part(s.meta->>'cursor', '~', 1) as head,
-                                          nullif(split_part(s.meta->>'cursor', '~', 2), '') as snap) k
-               where s.kind = 'PROJECTOR' and s.account = '@SYSTEM@'::uuid and s.deleted_at is null
-                 and coalesce(s.meta->>'cursor', '') <> ''
-                 and exists (select 1 from @SCHEMA@.entity x where x.class = 'Class' and x.tenant = p_tenant
-                             and x.data->'resolved'->>'derivedBy' = s.ident)
-                 and (not s.meta ? 'from'
-                      or exists (select 1 from (select distinct v.class from @SCHEMA@.log v
-                                                where v.id = p_id and (p_rev is null or v.rev <= p_rev)
-                                                  and v.op not in ('purge', 'trim')) c
-                                 where coalesce((@SCHEMA@.class_row(c.class, p_tenant)).data->'resolved'->'ancestors', jsonb_build_array(c.class))
-                                       ?| array(select jsonb_array_elements_text(s.meta->'from'))))
-                 and exists (select 1 from @SCHEMA@.log v
-                             where v.id = p_id and (p_rev is null or v.rev <= p_rev) and v.op not in ('purge', 'trim')
-                               and (v.tx, v.seq) > (split_part(k.head, ':', 1)::xid8, split_part(k.head, ':', 2)::bigint)
-                               and not coalesce(pg_visible_in_snapshot(v.tx, k.snap::pg_snapshot), false)));
 
 -- Стирание истории удалённого объекта (этап 6, п. 3): без p_confirm — превью (число версий), с ним —
 -- все версии удаляются, а на место версии 1 встаёт запись purge с числом стёртых версий и хэшем
@@ -318,11 +282,6 @@ begin
   end if;
   if not @SCHEMA@.acl_row_ok(@SCHEMA@.acl_plan('DELETE'), l.class, l.id, l.owner, l.tenant, l.tags, l.data, l.links) then
     perform @SCHEMA@.lt_fail('sql-time.no_delete_class', jsonb_build_object('cls', l.class));
-  end if;
-  -- проектор источника, который ещё не прочёл какую-то версию строки (в том числе надгробие этой транзакции), об
-  -- удалении не узнал бы — вклад строки остался бы в итогах навсегда (ревью безопасности №3, №5)
-  if @SCHEMA@.projector_unread(l.tenant, p_id, null) then
-    perform @SCHEMA@.lt_fail('sql-time.purge_projector_pending');
   end if;
   select count(*)::int into n from @SCHEMA@.log x where x.id = p_id;
   if not coalesce(p_confirm, false) then
@@ -357,7 +316,6 @@ declare
   dplan jsonb;
   r @SCHEMA@.log;
   first @SCHEMA@.log;
-  nxt record;
   j int;
   h bytea;
   k int;
@@ -405,13 +363,6 @@ begin
     select x.* into first from @SCHEMA@.log x where x.id = r.id order by x.rev limit 1;
     -- до момента — только сама запись trim: стирать нечего
     continue when j = 1 and first.op = 'trim';
-    -- проектор источника, который ещё не прочёл стираемые версии или первую оставшуюся: читая её, он возьмёт прошлую
-    -- версию для before, а её уже не будет — свёртка прибавила бы новую, не вычитая прежнюю (хвост ревью безопасности
-    -- №3); каждая версия до первой оставшейся — у более поздней версии бывает меньший xid
-    select x.rev into nxt from @SCHEMA@.log x where x.id = r.id and x.rev > j order by x.rev limit 1;
-    if @SCHEMA@.projector_unread(r.tenant, r.id, nxt.rev) then
-      perform @SCHEMA@.lt_fail('sql-time.trim_projector_pending');
-    end if;
     select x.hash into h from @SCHEMA@.log x where x.id = r.id and x.rev = j;
     with d as (delete from @SCHEMA@.log x where x.id = r.id and x.rev <= j returning 1)
     select count(*)::int into k from d;
@@ -476,14 +427,8 @@ begin
     perform @SCHEMA@.lt_fail('sql-time.class_deleted', jsonb_build_object('cls', o.class));
   end if;
   res := cls.data->'resolved';
-  if res ? 'derivedBy' then
-    perform @SCHEMA@.lt_fail('sql-time.class_derived', jsonb_build_object('cls', o.class, 'projector', res->>'derivedBy'));
-  end if;
   if jsonb_array_length(coalesce(res->'key', '[]'::jsonb)) = 0 then
     perform @SCHEMA@.lt_fail('sql-time.rekey_no_key', jsonb_build_object('cls', o.class));
-  end if;
-  if res ? 'aggregate' and coalesce(p_data, '{}'::jsonb) ?| @SCHEMA@.agg_fields(res) then
-    perform @SCHEMA@.lt_fail('sql-time.rekey_aggregate', jsonb_build_object('cls', o.class));
   end if;
   d := @SCHEMA@.apply_defaults(res->'schema', @SCHEMA@.merge(o.data, coalesce(p_data, '{}'::jsonb)));
   bad := @SCHEMA@.validate_data(res->'rules', cls.validator, res->'vars', d);
@@ -539,7 +484,6 @@ declare
   nid uuid;
   n int := 0;
   conflicts jsonb;
-  dname text;
 begin
   select * into c from @SCHEMA@.ctx();
   if c.account is null then
@@ -555,20 +499,6 @@ begin
   end if;
   if coalesce((cr.data->>'system')::boolean, false) then
     perform @SCHEMA@.lt_fail('sql-time.rekey_system_class');
-  end if;
-  -- строки производного класса (и его потомков) переносит только владелец: ключ меняют в описании, а строки
-  -- строит заново проектор (rebuild)
-  if cr.data->'resolved' ? 'derivedBy' then
-    perform @SCHEMA@.lt_fail('sql-time.class_derived', jsonb_build_object('cls', p_class, 'projector', cr.data->'resolved'->>'derivedBy'));
-  end if;
-  -- и потомки: производный потомок непроизводного предка наследует его ключ, а его строки переносит только проектор
-  -- (доработки после точки Б)
-  select x.data->>'name' into dname from @SCHEMA@.entity x
-  where x.class = 'Class' and x.tenant = cr.tenant and x.id <> cr.id
-    and x.data->'resolved'->'ancestors' ? p_class and x.data->'resolved' ? 'derivedBy'
-  order by x.data->>'name' limit 1;
-  if dname is not null then
-    perform @SCHEMA@.lt_fail('sql-time.rekey_derived_child', jsonb_build_object('cls', p_class, 'child', dname));
   end if;
   if not @SCHEMA@.acl_row_ok(wplan, 'Class', cr.id, cr.owner, cr.tenant, cr.tags, cr.data, cr.links) then
     perform @SCHEMA@.lt_fail('sql-time.rekey_class_denied');
@@ -912,8 +842,7 @@ end $$;
 -- прореживание — пропуск после версии старше яруса all класса, у которого есть (или была) политика
 -- хранения — своя или умолчание установки (метка default_policy в строке ключа). p_data — ещё и все строки: данные по проверке класса, концы (цель существует, её
 -- арендатор — тот же или System, класс принимается концом), арендатор и владелец существуют, id
--- класса с ключом — v5 от ключа, агрегатные поля равны итогу живых источников (план 1.1, §2.4; ремонт —
--- rebuild_aggregates), хэш каждой версии журнала равен пересчитанному из её содержимого (ревью). Возвращает находки и
+-- класса с ключом — v5 от ключа, хэш каждой версии журнала равен пересчитанному из её содержимого (ревью). Возвращает находки и
 -- якорь — хэш всех голов цепочек: строк entity и последних версий удалённых
 -- объектов. Находка — id (и rev или class), problem — русский текст по ключу каталога, key и params (план 2.0, этап 3,
 -- п. 3). Только системный администратор (право letopis.verify) или администраторское подключение.
@@ -1071,18 +1000,6 @@ begin
                        where k2.class = 'Class' and k2.data->>'name' = t.class and k2.tenant in (t.tenant, '@SYSTEM@'::uuid)
                        order by k2.tenant = '@SYSTEM@'::uuid limit 1), '{}')))
       union all
-      -- значения в параметрах — JSON текстом, как их печатал прежний текст; в строке значения нет — своя запись каталога
-      select jsonb_build_object('id', a.id, 'class', a.class, 'field', a.field, 'stored', a.stored, 'expected', a.expected) || m.m
-        from @SCHEMA@.agg_issues() a
-        cross join lateral (
-          select jsonb_build_object('key', 'sql-time.verify_aggregate',
-                   'params', jsonb_build_object('field', a.field, 'stored', a.stored::text, 'expected', a.expected::text)) as m
-            where a.stored is not null
-          union all
-          select jsonb_build_object('key', 'sql-time.verify_aggregate_unset',
-                   'params', jsonb_build_object('field', a.field, 'expected', a.expected::text))
-            where a.stored is null) m
-      union all
       -- хэш каждой версии журнала — заново из её содержимого той же функцией, что у колонки hash (ревью): владелец,
       -- подменивший тело version_hash или snapshot, переписавший строки и вернувший тело, оставляет хэши, которых нынешняя
       -- функция не даёт, а стыки и головы цепочек прежние — ни цепочки, ни якорь подмену не видят. Формула (10-core.sql) с
@@ -1119,11 +1036,10 @@ end $$;
 -- Выполняется с правами вызывающего: RLS журнала показывает только своё. p_at — время последнего
 -- события курсора: старше яруса all какого-либо класса подписки — cursor_expired (события могли
 -- проредиться). p_classes null — все классы. p_snap — снимок момента подписки «now»: транзакции,
--- видимые в нём (зафиксированные до подписки), не отдаются.
--- p_leaving (проектор, ревью безопасности №3, №4): ещё смены класса без смены id (reclass без moved), уводящие строку из
--- p_classes, — версия уже другого класса, а прошлая была в p_classes; иначе уход строки из семейства не виден.
+-- видимые в нём (зафиксированные до подписки), не отдаются. Уход строки из классов подписки сменой класса без смены id
+-- отдаёт watch_leaving.
 create or replace function @SCHEMA@.watch_read(p_tx xid8, p_seq bigint, p_at timestamptz, p_classes text[], p_limit int,
-  p_snap pg_snapshot default null, p_leaving boolean default false)
+  p_snap pg_snapshot default null)
 returns setof @SCHEMA@.log
 language plpgsql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -1156,10 +1072,7 @@ begin
       l.agent, l.op, l.reason, l.moved, l.prev_hash, l.hash, null::jsonb
     from @SCHEMA@.log l
     where (l.tx, l.seq) > (p_tx, p_seq) and l.tx < horizon
-      and (p_classes is null or l.class = any (p_classes)
-           or (p_leaving and l.op = 'reclass' and l.moved is null
-               and (select p.class from @SCHEMA@.log p where p.id = l.id and p.rev < l.rev and p.op not in ('purge', 'trim')
-                    order by p.rev desc limit 1) = any (p_classes)))
+      and (p_classes is null or l.class = any (p_classes))
       and (p_snap is null or not pg_visible_in_snapshot(l.tx, p_snap))
     order by l.tx, l.seq limit p_limit;
 end $$;
@@ -1227,10 +1140,10 @@ begin
   foreach f in array array[
     'history_default()', 'history_policy(jsonb)', 'history_iv(text)', 'history_horizon(jsonb)',
     'history_keep(jsonb, timestamp, timestamp, timestamp)', 'session_role()', 'admin_role()', 'letopis_allowed(text)', 'session_expires()', 'signal_mode()', 'signal_key()', 'class_stamp()',
-    'last_version_visible(uuid, uuid, jsonb)', 'restore(uuid)', 'projector_unread(uuid, uuid, int)', 'purge(uuid, boolean)', 'trim_history(uuid[], text[], timestamptz)',
+    'last_version_visible(uuid, uuid, jsonb)', 'restore(uuid)', 'purge(uuid, boolean)', 'trim_history(uuid[], text[], timestamptz)',
     'rekey(uuid, jsonb, jsonb)', 'rekey_class(text, jsonb)', 'account_purge(uuid)',
     'thin_batch(timestamptz, int)', 'maintain(timestamptz, int, boolean)', 'verify(boolean)',
-    'watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot, boolean)', 'watch_leaving(xid8, bigint, text[], int, pg_snapshot, xid8, bigint)', 'watch_head()'] loop
+    'watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot)', 'watch_leaving(xid8, bigint, text[], int, pg_snapshot, xid8, bigint)', 'watch_head()'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);
     execute format('revoke all on function @SCHEMA@.%s from public', f);
   end loop;
@@ -1239,6 +1152,6 @@ end $$;
 grant execute on function @SCHEMA@.restore(uuid), @SCHEMA@.purge(uuid, boolean), @SCHEMA@.trim_history(uuid[], text[], timestamptz),
   @SCHEMA@.rekey(uuid, jsonb, jsonb), @SCHEMA@.rekey_class(text, jsonb), @SCHEMA@.account_purge(uuid),
   @SCHEMA@.maintain(timestamptz, int, boolean), @SCHEMA@.verify(boolean),
-  @SCHEMA@.session_expires(), @SCHEMA@.watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot, boolean), @SCHEMA@.watch_leaving(xid8, bigint, text[], int, pg_snapshot, xid8, bigint), @SCHEMA@.watch_head(),
+  @SCHEMA@.session_expires(), @SCHEMA@.watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot), @SCHEMA@.watch_leaving(xid8, bigint, text[], int, pg_snapshot, xid8, bigint), @SCHEMA@.watch_head(),
   @SCHEMA@.history_default(), @SCHEMA@.history_policy(jsonb), @SCHEMA@.history_iv(text),
   @SCHEMA@.signal_mode(), @SCHEMA@.signal_key(), @SCHEMA@.class_stamp() to @APP@;

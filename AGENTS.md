@@ -9,7 +9,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 
 ## Протокол
 1. Модуль — по таблице «Модули»; входные файлы — сразу в Read, без обхода каталогов.
-2. «Как работает X» — сначала трасса `docs/atlas/F-*.md` (якоря сверены на `f20b1cf`; агрегаты, проекторы и MCP — только в карточках), затем код; решения и их причины — план (§2 решения, этап в §5).
+2. «Как работает X» — сначала трасса `docs/atlas/F-*.md` (якоря сверены на `f20b1cf`; MCP — только в карточке), затем код; решения и их причины — план (§2 решения, этап в §5).
 3. Карточка модуля подмешивается сама при Read его файла: инварианты, «что ещё менять», побочки, проверка.
 4. Поиск — субагентом `atlas-scout`. Если всё же Explore/Plan — вставь в промпт нужные строки «Модули» и «Омонимы»: встроенные агенты не видят CLAUDE.md.
 5. Ответ — со ссылками `путь:символ`, проверенными в этой сессии; поведение кода отделяй от планов в документах.
@@ -23,7 +23,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 | Сверка документов | `cd lib && npm run check:docs` | без БД: версия, ссылки и якоря, управляющие символы, раздел «Тесты» README, ревизия, бенч, контракт API, зарезервированные имена, структура README, пути в чекпоинтах, `ops` (таблицы операторов в README, шпаргалке и главе «Чтение» сайта == реестр `lib/src/ops.ts`; обновить — `npm run ops:tables`), `literals` (нет литеральных текстов ошибок — тексты только ключи каталога `lib/src/messages`), `messages` (у записей каталога есть текст, у кодов — подпись и якорь в README) | `lib/scripts/check-docs.mjs` |
 | Шаг версии | `cd lib && npm run check:semver` (`-- --release` — в release.yml) | без БД, нужна полная история git с тегами: контракт API и ревизия движка против тега прошлого выпуска; шаг версии не меньше нужного (README, «Версии и совместимость»); входит в `check:docs` | `lib/scripts/check-semver.mjs` |
 | Проверка перед выпуском | `cd lib && npm run prerelease` (`-- --skip=шаг`, `-- --only=шаг`) | всё, что проверяет поведение, — по очереди: typecheck, check:docs, весь `npm test`, примеры сайта со снимками, ER, покрытие, сборка сайта, песочница, сценарии четырёх сервисов, быстрый долгий прогон (`soak`, 15 минут), `check:package` с живым прогоном; прогресс раз в минуту; итог — `docs/checkpoint-<x.y.z>.md` (таблица копится: при `--only`/`--skip` строки прочих шагов остаются из прежних прогонов с датой и коммитом); первый красный шаг останавливает прогон; в `npm test` файл, процесс которого упал до первого теста (отказ уровня файла, ни одного теста), перезапускается один раз — в итоге «перезапущен: <файл>», красный тест не перезапускается | `lib/scripts/prerelease.mjs` |
-| Долгий прогон | `cd lib && npm run soak` (`SOAK_HOURS=24` по умолчанию; `SOAK_HOURS=0.25` — быстрый, он же шаг `soak` в prerelease) | смешанная нагрузка одного процесса (план 2.0, этап 2): писатели с агрегатом и `inc`, читатели, подписки, проектор, `maintain` и `trimHistory`, вход и выход, `db.as()`, заведение и удаление классов; база — `ENTITY_DSN`, схема `v2.b_soak` (остаётся для разбора); замер раз в `SOAK_SAMPLE_MIN` минут → `results/soak.csv`, в конце критерии §7.7 и `verify` → `results/soak.md` (`SOAK_OUT` — другой каталог); код 1 — критерий нарушен | `lib/bench/soak.mjs` |
+| Долгий прогон | `cd lib && npm run soak` (`SOAK_HOURS=24` по умолчанию; `SOAK_HOURS=0.25` — быстрый, он же шаг `soak` в prerelease) | смешанная нагрузка одного процесса (план 2.0, этап 2): писатели с агрегатом и `inc`, читатели, подписки, проектор, `maintain` и `trimHistory`, вход и выход, `db.as()`, заведение и удаление классов (агрегаты в базе и проектор сняты в 2.0.0 — сценарий перепишет срез S9 плана 2.0, до того он не проходит); база — `ENTITY_DSN`, схема `v2.b_soak` (остаётся для разбора); замер раз в `SOAK_SAMPLE_MIN` минут → `results/soak.csv`, в конце критерии §7.7 и `verify` → `results/soak.md` (`SOAK_OUT` — другой каталог); код 1 — критерий нарушен | `lib/bench/soak.mjs` |
 | Проверка пакета | `cd lib && npm run check:package` | собирает тарбол, ставит в чистую папку, импортирует экспорты из контракта, живой прогон на `ENTITY_DSN` (`LETOPIS_PKG_LIVE=1` — обязателен) | `lib/scripts/check-package.mjs` |
 | GitHub Actions | `.github/workflows/` | ci — push в dev (typecheck, check:docs с check:semver, check:package без живого прогона; сайт — typecheck, ER, покрытие, нюансы; сборку сайта CI не делает — он не разворачивается). Тестов в CI нет (решение владельца 01.11.2026): тесты библиотеки, примеры со снимками, песочница и сценарии сервисов — локально до выкатки (`npm run prerelease`); tag — push в main; release — published (check:semver, npm, dist-tag `next` для версий с дефисом, проверка пакета из реестра) | `docs/atlas/F-RELEASE.md` |
 
@@ -43,8 +43,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 | M-SEEDS | системный сид, демо-домен | `lib/sql/95-seed.system.sql`, `lib/src/demo/booking.ts`, `lib/sql/seed.booking.sql`, `lib/scripts/gen-seed-booking.mjs` | 1, 2, 5 |
 | M-RELEASE | CI, тег, релиз, check-docs, check-package, контракт API | `lib/scripts/check-docs.mjs`, `lib/scripts/check-package.mjs`, `lib/scripts/gen-api-contract.mjs`, `.github/workflows/` | 0, 8 |
 | M-TESTS | обвязка и наборы | `lib/test/_harness.ts`, `lib/test/_engine.ts` | все |
-| M-BENCH | замеры: точка А, первая заливка, производные, сигналы | `lib/bench/` | 1, 7; план 1.1: 0–4 |
-| M-DERIVED | агрегаты в базе и проекторы из журнала (план 1.1, §2.4) | `lib/sql/88-derived.sql`, `lib/src/project.ts` | план 1.1: 4 |
+| M-BENCH | замеры: точка А, первая заливка, сигналы | `lib/bench/` | 1, 7; план 1.1: 0–4 |
 | M-MCP | инструменты MCP: `letopis/mcp`, `letopis mcp` (план 1.1, §2.5), описание модели `letopis_model` | `lib/src/mcp.ts`, `lib/src/describe.ts` | план 1.1: 5 |
 
 ## Омонимы
@@ -53,7 +52,7 @@ npm-пакет `letopis` (каталог `lib/`, ESM, Node ≥ 22, TypeScript) �
 - `history` — свойство класса: `true`/`false` (вести ли журнал) или политика хранения по уровням (`lib/sql/40-class.sql`); обрезка вручную — `db.trimHistory`.
 - `purge()` — глагол цепочки: стирание истории уже удалённой сущности (сначала `delete()`, иначе `not_deleted`; удалённые цепочка находит сама — `lib/src/write.ts:deletedTargets`, `:purgeOp`); удаление аккаунта — `db.auth.purgeAccount`.
 - `account` — арендатор сессии (вход и `auth.switch()`); шага цепочки `.account()` нет — это имя ищется среди классов и ролей.
-- `LOCK`, замок — строки-замки `secret` вида `LOCK` (семейство класса, проектор, `maintain`: `lib/sql/60-write.sql:lock_row`, `:lock_try`); `lock()` цепочки — пользовательская advisory-блокировка; `lockTimeout`, `lockRetries` — опции проектора (`lib/src/project.ts`).
+- `LOCK`, замок — строки-замки `secret` вида `LOCK` (семейство класса, `maintain`: `lib/sql/60-write.sql:lock_row`, `:lock_try`); `lock()` цепочки — пользовательская advisory-блокировка.
 - Новое: `db.load()` — массовая загрузка (`lib/src/load.ts`); `upsert()` — создать или заменить целиком по ключу; `cache` — кэш результатов (`.cache()` в цепочке, `connect({ cache })`, `db.cache`, свойство класса `cache { ttl }`); `meta` — свободные метаданные класса и связи в реестре, база их не толкует.
 
 ## Общие файлы

@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { engine, type Engine, type Tenant } from './_engine.js';
 import { appDsn } from './_harness.js';
 import { connect, syncModels, generateTypes, type Db, type LetopisError } from '../src/index.js';
-import { hub, link } from '../src/model.js';
+import { hub } from '../src/model.js';
 
 let e: Engine;
 let t: Tenant;
@@ -81,29 +81,6 @@ export const l: TicketLinks = { Tags: [] };\n`);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
-});
-
-test('доработки после 1.2.0: sync описывает класс-источник агрегата раньше цели, в каком бы порядке ни пришли модели', async () => {
-  // агрегат над классом, которого ещё нет, база отклоняет (ревью безопасности №3)
-  const Purse = hub('SPurse', { code: z.string(), total: z.number().int() }, { key: ['code'], aggregate: { total: { sum: 'v', of: 'SCoin', via: 'SPurse' } } });
-  const Coin = link('SCoin', { v: z.number().int() }, { ends: { SPurse: Purse } });
-  const r = await syncModels(db, [Purse, Coin], { apply: true });
-  assert.deepEqual(r.created, ['SCoin', 'SPurse']);
-  assert.deepEqual(db.registry.find('SPurse')?.aggregate?.total, { sum: 'v', of: 'SCoin', via: 'SPurse' });
-});
-
-test('хвост ревью доработок после 1.2.0: модели по кругу (агрегат над собственным потомком) — понятный отказ sync до записи; база такой агрегат отклоняет как цикл', async () => {
-  const total = { sum: 'v', of: 'SLoopKid', via: 'SLoop' } as const;
-  const Base = hub('SLoop', { code: z.string(), total: z.number().int() }, { key: ['code'], aggregate: { total } });
-  const Kid = hub('SLoopKid', { fields: { v: z.number().int() }, extends: Base, ends: { SLoop: Base } });
-  // потомок ждёт родителя, а цель — источник агрегата: порядка нет ни в одну сторону
-  await assert.rejects(syncModels(db, [Base, Kid], { apply: true }), /по кругу: SLoop → SLoopKid → SLoop/);
-  await assert.rejects(syncModels(db, [Kid, Base], { apply: true }), /по кругу: SLoopKid → SLoop → SLoopKid/);
-  assert.equal(db.registry.has('SLoop'), false, 'ничего не записано');
-  // в два шага круга у sync нет — его отклоняет база: потомок наследует агрегат над самим собой
-  const Plain = hub('SLoop', { code: z.string(), total: z.number().int() }, { key: ['code'] });
-  await syncModels(db, [Plain, hub('SLoopKid', { fields: { v: z.number().int() }, extends: Plain, ends: { SLoop: Plain } })], { apply: true });
-  await assert.rejects(syncModels(db, [Base], { apply: true }), /цикл агрегатов: SLoopKid → SLoopKid/);
 });
 
 test('план 2.0, 7.10 №3: зарезервированное имя хаба — отказ hub(), syncModels (модель мимо hub()) и базы (сырая запись строки Class)', async () => {
